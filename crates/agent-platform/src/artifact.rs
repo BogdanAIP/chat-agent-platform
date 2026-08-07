@@ -45,6 +45,7 @@ pub struct ExternalPolicy {
 pub struct RecoveryReport {
     pub removed_pending: usize,
     pub removed_unregistered: usize,
+    pub unresolved_unregistered: usize,
     pub skipped_active_pending: usize,
 }
 
@@ -406,43 +407,96 @@ impl ArtifactStore {
         let mut report = RecoveryReport {
             removed_pending: 0,
             removed_unregistered: 0,
+            unresolved_unregistered: 0,
             skipped_active_pending: 0,
         };
-        let entries = fs::read_dir(&self.root)
-            .map_err(|error| io_error("cannot scan artifact store for recovery", error))?;
-        for entry in entries {
+
+        for entry in fs::read_dir(&self.root)
+            .map_err(|error| io_error("cannot scan artifact store for recovery", error))?
+        {
             let entry = entry.map_err(|error| io_error("cannot read artifact entry", error))?;
-            let path = entry.path();
-            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-                continue;
-            };
-            if entry
+            if !entry
                 .file_type()
                 .map_err(|error| io_error("cannot inspect artifact entry", error))?
                 .is_dir()
             {
-                if let Some(artifact_id) = name.strip_prefix(PENDING_PREFIX) {
-                    let lock_path = self
-                        .root
-                        .join(format!("{PENDING_PREFIX}{artifact_id}.lock"));
-                    match try_cleanup_pending(&path, &lock_path)? {
-                        PendingCleanup::Removed => report.removed_pending += 1,
-                        PendingCleanup::Active => report.skipped_active_pending += 1,
-                    }
-                } else if name.starts_with("art_")
-                    && validate_artifact_id(&name).is_ok()
-                    && !manifest.contains_key(&name)
-                {
-                    fs::remove_dir_all(&path).map_err(|error| {
-                        io_error("cannot remove unregistered artifact directory", error)
-                    })?;
+                continue;
+            }
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            if let Some(artifact_id) = name.strip_prefix(PENDING_PREFIX) {
+                let lock_path = self
+                    .root
+                    .join(format!("{PENDING_PREFIX}{artifact_id}.lock"));
+                match try_cleanup_pending(&entry.path(), &lock_path)? {
+                    PendingCleanup::Removed => report.removed_pending += 1,
+                    PendingCleanup::Active => report.skipped_active_pending += 1,
+                }
+            }
+        }
+
+        for entry in fs::read_dir(&self.root)
+            .map_err(|error| io_error("cannot scan pending locks for recovery", error))?
+        {
+            let entry = entry.map_err(|error| io_error("cannot read pending lock entry", error))?;
+            if !entry
+                .file_type()
+                .map_err(|error| io_error("cannot inspect pending lock entry", error))?
+                .is_file()
+            {
+                continue;
+            }
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            let Some(pending_name) = name
+                .strip_suffix(".lock")
+                .filter(|value| value.starts_with(PENDING_PREFIX))
+            else {
+                continue;
+            };
+            let Some(artifact_id) = pending_name.strip_prefix(PENDING_PREFIX) else {
+                continue;
+            };
+            if self.root.join(pending_name).exists() {
+                continue;
+            }
+            let final_directory = self.root.join(artifact_id);
+            if final_directory.is_dir() && !manifest.contains_key(artifact_id) {
+                if cleanup_published_orphan(&final_directory, &entry.path())? {
                     report.removed_unregistered += 1;
+                } else {
+                    report.skipped_active_pending += 1;
                 }
-            } else if name.starts_with(PENDING_PREFIX) && name.ends_with(".lock") {
-                let pending_name = name.trim_end_matches(".lock");
-                if !self.root.join(pending_name).exists() {
-                    cleanup_orphan_pending_lock(&path)?;
-                }
+            } else {
+                cleanup_orphan_pending_lock(&entry.path())?;
+            }
+        }
+
+        for entry in fs::read_dir(&self.root)
+            .map_err(|error| io_error("cannot scan published artifacts for recovery", error))?
+        {
+            let entry = entry.map_err(|error| io_error("cannot read published artifact", error))?;
+            if !entry
+                .file_type()
+                .map_err(|error| io_error("cannot inspect published artifact", error))?
+                .is_dir()
+            {
+                continue;
+            }
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            if name.starts_with("art_")
+                && validate_artifact_id(&name).is_ok()
+                && !manifest.contains_key(&name)
+                && !self
+                    .root
+                    .join(format!("{PENDING_PREFIX}{name}.lock"))
+                    .exists()
+            {
+                report.unresolved_unregistered += 1;
             }
         }
         Ok(report)
@@ -544,6 +598,30 @@ fn try_cleanup_pending(
         }
         Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(PendingCleanup::Active),
         Err(error) => Err(io_error("cannot probe pending artifact lock", error)),
+    }
+}
+
+fn cleanup_published_orphan(directory: &Path, lock_path: &Path) -> Result<bool, PlatformError> {
+    let lock = OpenOptions::new()
+        .create(false)
+        .read(true)
+        .write(true)
+        .open(lock_path)
+        .map_err(|error| io_error("cannot open published artifact recovery lock", error))?;
+    match lock.try_lock() {
+        Ok(()) => {
+            fs::remove_dir_all(directory)
+                .map_err(|error| io_error("cannot remove incomplete published artifact", error))?;
+            lock.unlock().map_err(|error| {
+                io_error("cannot unlock incomplete published artifact recovery", error)
+            })?;
+            drop(lock);
+            fs::remove_file(lock_path)
+                .map_err(|error| io_error("cannot remove published artifact recovery lock", error))?;
+            Ok(true)
+        }
+        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(false),
+        Err(error) => Err(io_error("cannot probe published artifact lock", error)),
     }
 }
 
