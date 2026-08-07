@@ -87,9 +87,7 @@ fn staging_requires_allowlisted_selection_and_always_cleans_copy() {
         })
         .expect("allowlisted consumer must stage artifact");
     assert_eq!(
-        fs::read_dir(&staging_root)
-            .expect("staging root")
-            .count(),
+        fs::read_dir(&staging_root).expect("staging root").count(),
         0,
         "temporary staging directory must be removed after success"
     );
@@ -101,9 +99,7 @@ fn staging_requires_allowlisted_selection_and_always_cleans_copy() {
         .expect_err("consumer error must be returned");
     assert!(matches!(callback_error, PlatformError::Validation(_)));
     assert_eq!(
-        fs::read_dir(&staging_root)
-            .expect("staging root")
-            .count(),
+        fs::read_dir(&staging_root).expect("staging root").count(),
         0,
         "temporary staging directory must be removed after consumer failure"
     );
@@ -113,9 +109,7 @@ fn staging_requires_allowlisted_selection_and_always_cleans_copy() {
         .expect_err("unlisted executor must not stage artifact");
     assert!(matches!(denied, PlatformError::PolicyDenied(_)));
     assert_eq!(
-        fs::read_dir(&staging_root)
-            .expect("staging root")
-            .count(),
+        fs::read_dir(&staging_root).expect("staging root").count(),
         0,
         "denied staging must not leave temporary files"
     );
