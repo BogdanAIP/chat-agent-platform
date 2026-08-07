@@ -31,6 +31,7 @@ struct CapabilitySpec {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
 pub struct CapabilitySelection {
     pub capability: String,
     pub executor: String,

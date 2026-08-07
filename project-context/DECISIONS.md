@@ -47,3 +47,22 @@ Python выполняется отдельным change set после стаб�
 причины и оставаться заменяемым. Отдельная пользовательская authority всё ещё
 нужна для необратимых/внешних действий, новых расходов, раскрытия секретов или
 изменения продуктовой цели.
+
+## ADR-008 — safe native Windows credential backend for Stage 7
+
+Stage 7 использует `windows-native-keyring-store` + `keyring-core` как тонкий
+safe Rust adapter к Windows Credential Manager. Это сохраняет native Windows
+secret storage и правило workspace `unsafe_code = "forbid"`, не добавляя daemon,
+внешний vault, собственную криптографию или отдельный процесс. Default `search`
+feature отключён, потому что платформе не нужен поиск по системному хранилищу.
+`zeroize` используется для гарантированного стирания краткоживущего буфера после
+consumer callback.
+
+Замена backend не должна менять публичную модель `SecretStore`: если появится
+поддерживаемый safe Windows credential API с меньшим dependency footprint,
+`windows-native-keyring-store` и `keyring-core` удаляются вместе и заменяется
+только platform-specific backend. `zeroize` удаляется только при наличии
+эквивалентной гарантии, что очистка secret bytes не будет оптимизирована
+компилятором. До замены зависимости фиксируются `Cargo.lock` и проверяются Windows
+CI; новый service/process для Secret Store не допускается без отдельной lifecycle
+потребности.

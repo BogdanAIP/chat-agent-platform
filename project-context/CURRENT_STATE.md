@@ -43,6 +43,15 @@ gates; PEP хранит `decision` отдельно от `effective_risk`; model
 доказывают rejection basic executor для professional requirement, cost gate и
 инвалидацию binding при изменении artifact hash/parameters.
 
+Stage 7 завершён на Windows-hosted runner. `SecretStore` хранит raw values в
+Windows Credential Manager через safe Rust backend, а versioned metadata содержит
+только secret ref, ACL и credential target. Consumer identity берётся из
+`CapabilitySelection`, выданного Stage 6 registry; секрет доступен только внутри
+короткого callback и затем стирается из локального буфера. Интеграционный test
+доказывает разрешённый доступ, отказ `rust.local.ffmpeg` и отсутствие raw value в
+metadata/errors. Зависимости зафиксированы в `Cargo.lock`; ADR-008 описывает их
+назначение и замену без добавления отдельного vault/service.
+
 Приватный remote `BogdanAIP/chat-agent-platform` работает через GitHub plugin и
 авторизованный GitHub CLI. Проверены branch → draft PR → CI → ready → squash merge
 для предыдущих PR; PR #3 дополнительно доказал прямой Chat → GitHub write path.

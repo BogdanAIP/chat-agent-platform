@@ -139,13 +139,23 @@ data class и effective risk, поэтому изменение параметр
 professional requirement, mandatory cost gate, deny bypass resistance и
 confirmation binding semantics; полный verify/release/artifact run прошёл успешно.
 
-### Stage 7. Secret Store + consumer ACL — planned
+### Stage 7. Secret Store + consumer ACL — done
 
 Использовать Windows Credential Manager/DPAPI через системные bindings, без
 собственной криптографии. Secret refs не раскрывают значения.
 
 Exit gate: разрешённый consumer получает секрет на минимальное время; FFmpeg,
 логи, artifacts и Project Memory не получают raw value.
+
+Реализован native Windows Credential Manager backend через safe Rust adapter без
+`unsafe` в platform crate, отдельного vault/daemon и собственной криптографии.
+Metadata содержит только `secret://` ref, consumer ACL и детерминированный
+credential target. Доступ принимается только по `CapabilitySelection`, выданному
+Stage 6 registry; raw bytes существуют внутри короткого callback и затем
+стираются через `zeroize`. Интеграционный Windows test доказывает доступ
+разрешённого executor, отказ `rust.local.ffmpeg` и отсутствие raw value в metadata
+и access errors. Новые зависимости зафиксированы в `Cargo.lock`, а ADR-008
+содержит причину выбора и план замены; полный Windows verify/release прошёл.
 
 ### Stage 8. Artifact hardening + staging — partial
 
