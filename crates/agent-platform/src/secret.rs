@@ -181,7 +181,7 @@ fn credential_entry(target: &str) -> Result<keyring_core::Entry, PlatformError> 
     })?;
     let mut modifiers = HashMap::new();
     modifiers.insert("target", target);
-    modifiers.insert("persistence", "LocalMachine");
+    modifiers.insert("persistence", "Local");
     store
         .build("chat-agent-platform", "secret", Some(&modifiers))
         .map_err(|error| {
