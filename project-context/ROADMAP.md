@@ -157,7 +157,7 @@ Lookup по `artifact_id` проверяет schema, path containment и SHA-256
 Exit gate: один exe управляет только реально выбранными компонентами и не
 превращается в постоянно работающий зоопарк.
 
-### Stage 10. GitHub Actions — partial
+### Stage 10. GitHub Actions — complete baseline
 
 Добавить Windows CI: fmt, clippy с warnings-as-errors, tests, contract fixtures,
 dependency/security audit и release build.
@@ -165,9 +165,10 @@ dependency/security audit и release build.
 Exit gate: PR получает воспроизводимый результат; секреты только в GitHub Secrets;
 release artifact проверен на чистой машине.
 
-Windows workflow и единый `scripts/verify.ps1` подготовлены локально. Hosted run
-будет считаться доказанным только после успешного первого push; приватный remote
-`BogdanAIP/chat-agent-platform` уже создан.
+Windows workflow и единый `scripts/verify.ps1` доказаны локально и двумя зелёными
+запусками PR #1 на чистых GitHub-hosted runner'ах. Проверены branch, draft PR,
+CI, upload release artifact и squash merge в `main`. Dependency/security audit и
+подписанный versioned release остаются отдельным усилением supply chain.
 
 ## Horizon C — профессиональные media capabilities
 

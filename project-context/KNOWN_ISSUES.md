@@ -1,8 +1,8 @@
 # Known Issues
 
 1. Hosted Chat/MCP read/write/modify availability не проверена.
-2. Приватный GitHub remote создан, но hosted CI ещё не завершался успешно;
-   PR workflow будет проверен на следующем изменении после baseline.
+2. Branch/PR/Actions/merge path проверен; release пока не подписывается и не
+   публикуется как versioned GitHub Release.
 3. Python slice всё ещё присутствует как временный oracle; removal gate не пройден.
 4. Artifact manifest защищён от concurrent writers и публикуется атомарно, но
    авария во время копирования может оставить незарегистрированный каталог;
