@@ -1,75 +1,66 @@
 # Current State
 
-Локальная часть Stage 0–1 реализована как исполняемый vertical slice. Поддерживается
-одна capability: `media.inspect` через FFmpeg/ffprobe. Сквозной тест создаёт
-настоящий WAV, применяет policy до импорта, регистрирует artifact, измеряет
-metadata/LUFS и валидирует ответ.
+Архитектура v1.4 — Rust-first/native-edge. Chat остаётся primary intelligence;
+локальный `agent-platform.exe` применяет Project Binding, capability requirements,
+locked tool selection, policy, Artifact Store и Secret Store, а зрелые программы
+вызываются через ограниченные typed adapters. Python v0.1 сохранён только как
+behavioral oracle для parity-проверок.
 
-Hosted Chat → GitHub write surface подтверждён реальным branch/edit/PR циклом в
-PR #3. Hosted Chat → local execution transport и account-level MCP write/modify
-ещё не проверены и не считаются доступными. Подтверждённый локальный execution
-path сейчас — local/Codex CLI.
+Hosted Chat → GitHub read/write подтверждён реальными branch/edit/PR/CI/merge
+циклами через GitHub plugin. Hosted Chat → local execution transport и
+account-level MCP write/modify ещё не проверены и не считаются доступными.
+Подтверждённый локальный execution path — local/Codex CLI; отдельный transport,
+daemon и supervisor не добавлены без доказанной lifecycle-потребности.
 
-Stage 2 contracts формализованы JSON Schema и применяются в исполняемом пути.
-Stage 3 завершён: Bootstrap skill валиден, а команда `bootstrap` возвращает только
-Project Binding, три минимальных context-файла и релевантный capability slice.
-Generated `CHATGPT_CAPABILITIES.md` строится из requirements и runtime profile,
-поэтому человекочитаемый audit не создаёт второй source of truth.
+Stage 1 завершён: Rust vertical slice выполняет
+`binding → policy → artifact → FFprobe/FFmpeg → validation → tool-v1` и совпадает
+с Python oracle на реальном WAV. Stage 2 contracts встроены в binary; общие
+positive/negative fixtures проходят Rust и Python. Stage 3 Project Memory,
+Bootstrap и skills дают новой сессии минимальный связанный контекст вместо полного
+дампа проекта.
 
-Архитектурный план v1.4 принят с Rust-first/native-edge. Python v0.1 заморожен как
-architecture spike и behavioral oracle.
+Stage 6 завершён: `tools.yaml` + `tool-lock.yaml` выбирают executor после mandatory
+quality/cost gates; PEP отделяет `decision` от `effective_risk`, model risk hint не
+понижает enforcement, guarded confirmation привязан к capability/parameters/data
+class/hash. `CapabilitySelection` неизменяем извне после выбора.
 
-Rust Stage 1 завершён локально: один `agent-platform.exe` выполняет
-`diagnose/probe/bootstrap/audit/self-test/inspect/inspect-artifact`, применяет
-binding/policy, импортирует и хеширует artifact, вызывает FFmpeg/ffprobe и
-валидирует contracts. Artifact Store блокирует параллельные записи, атомарно
-публикует manifest, проверяет containment и SHA-256 при чтении по ID. Release
-binary baseline — 5 808 640 bytes.
-Rust/Python parity подтверждён на реальном WAV; typed inspection возвращает
-integrated LUFS, LRA и true peak dBTP.
+Stage 7 завершён: `SecretStore` использует Windows Credential Manager через safe
+Rust backend без собственной криптографии, vault/daemon и `unsafe` в platform
+crate. Metadata содержит только secret ref/ACL/credential target. Consumer identity
+берётся из Stage 6 selection; raw secret существует только внутри короткого
+callback и затем zeroize-ится. Windows integration test доказывает разрешённый
+доступ и отказ `rust.local.ffmpeg` без утечки raw value.
 
-Stage 2 завершён: шесть schemas встроены в binary, общие positive/negative fixtures
-проходят в Rust и Python. Stage 3 завершён: четыре skills валидированы и
-forward-tested. Единый `scripts/verify.ps1` проверяет Rust, contracts, Python
-oracle, parity и release build на Windows CI. Внешние FFmpeg/ffprobe процессы
-ограничены 60 секундами и принудительно завершаются с retryable `TOOL_TIMEOUT`
-при зависании.
+Stage 8 завершён: Artifact Store использует pending lifecycle, per-artifact locks,
+atomic publish/manifest update и recovery records. Manifest-loss recovery допускает
+только contract/identity/path/SHA-256-valid artifact; неизвестные orphan directories
+не удаляются. External staging разрешён только `public`/`project`, только
+allowlisted executor identity, создаёт проверенную временную копию и всегда удаляет
+её после callback. Recovery сбрасывает staging fail-closed.
 
-Stage 6 завершён на Windows-hosted runner: capability-level `tools.yaml` и
-`tool-lock.yaml` выбирают locked executor только после mandatory quality/cost
-gates; PEP хранит `decision` отдельно от `effective_risk`; model risk hint не может
-понизить enforcement. Guarded preview получает SHA-256 confirmation binding,
-зависящий от capability, parameters, data class и effective risk. Негативные тесты
-доказывают rejection basic executor для professional requirement, cost gate и
-инвалидацию binding при изменении artifact hash/parameters. `CapabilitySelection`
-неизменяем извне после выбора, поэтому executor identity нельзя подменить перед
-Secret Store или external staging.
+Stage 11 завершён на Windows-hosted runner. Один FFmpeg adapter теперь имеет typed
+operations `media.inspect`, `media.validate`, `media.convert`,
+`media.extract_audio`, `media.normalize_loudness` и `media.mux`. Convert принимает
+только lossless WAV/FLAC; extract создаёт PCM 24-bit WAV; normalization использует
+двухпроходный EBU R128 `loudnorm` с post-validation LUFS/true peak; mux копирует
+video stream и добавляет FLAC audio в Matroska. Произвольные FFmpeg arguments,
+output paths и shell наружу не выставлены.
 
-Stage 7 завершён на Windows-hosted runner. `SecretStore` хранит raw values в
-Windows Credential Manager через safe Rust backend, а versioned metadata содержит
-только secret ref, ACL и credential target. Consumer identity берётся из
-неизменяемого `CapabilitySelection`, выданного Stage 6 registry; секрет доступен
-только внутри короткого callback и затем стирается из локального буфера.
-Интеграционный test доказывает разрешённый доступ, отказ `rust.local.ffmpeg` и
-отсутствие raw value в metadata/errors. Зависимости зафиксированы в `Cargo.lock`;
-ADR-008 описывает их назначение и замену без добавления отдельного vault/service.
+Все Stage 11 операции проходят существующую цепочку Project Binding → locked
+selection → PEP → Artifact Store → FFmpeg timeout/kill → technical validation →
+`tool-v1`. FFmpeg output сначала создаётся как временный файл, валидируется,
+импортируется в Artifact Store и удаляется RAII cleanup. Capability requirements,
+tool lock и policy rules versioned; runtime profile объявляет весь подтверждённый
+FFmpeg capability set. Реальные Windows integration tests проверяют validate,
+FLAC conversion, PCM extraction, two-pass normalization, mux и rejection
+неразрешённого AAC conversion. Полный `fmt + clippy + Rust tests + Python
+oracle/parity + release build + artifact upload` прошёл.
 
-Stage 8 завершён на Windows-hosted runner. Artifact import использует pending
-lifecycle с per-artifact file lock, recovery record, atomic directory publish и
-atomic manifest update. После потери manifest валидный artifact восстанавливается
-только при совпадении contract, identity, canonical path и SHA-256; неизвестные
-каталоги не удаляются и остаются unresolved. Активные pending imports не
-затрагиваются, брошенные очищаются. Recovery fail-closed: external staging всегда
-сбрасывается в disabled.
+Stage 9 остаётся conditional: отдельный supervisor/service не создаётся без
+независимого lifecycle requirement. Stage 10 имеет рабочий Windows CI baseline.
+Следующий обязательный продуктовый этап — Stage 12 REAPER adapter; его нельзя
+считать завершённым без реального REAPER execution path.
 
-External staging разрешён только для `public`/`project` artifacts и только
-allowlisted executor identity из Stage 6 selection. `private`/`sensitive` не могут
-включить staging. Временная external copy проверяется по SHA-256 и удаляется после
-успеха или ошибки consumer. Metadata update принимает только зарегистрированный
-`artifact_id` и заново проверяет path/hash/data class перед manifest write. Старые
-concurrent-import/tamper tests и новые manifest-loss/staging/lock/cleanup tests
-прошли полный Windows verify/release.
-
-Приватный remote `BogdanAIP/chat-agent-platform` работает через GitHub plugin и
-авторизованный GitHub CLI. Проверены branch → draft PR → CI → ready → squash merge
-для предыдущих PR; PR #3 дополнительно доказал прямой Chat → GitHub write path.
+Приватный remote `BogdanAIP/chat-agent-platform` используется как versioned source
+of truth. Изменения проходят отдельные ветки, draft PR, Windows CI и squash merge в
+`main`.

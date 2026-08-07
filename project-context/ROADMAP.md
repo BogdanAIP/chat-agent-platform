@@ -215,7 +215,7 @@ upload release artifact и squash merge в `main`. Dependency/security audit и
 
 ## Horizon C — профессиональные media capabilities
 
-### Stage 11. FFmpeg professional adapter — partial
+### Stage 11. FFmpeg professional adapter — done
 
 Расширять только typed operations: inspect, loudness, convert, extract, normalize,
 mux/validate. CLI остаётся native edge; FFI требует измеримого выигрыша.
@@ -223,8 +223,24 @@ mux/validate. CLI остаётся native edge; FFI требует измери�
 Exit gate: каждый operation имеет policy class, artifact contract, timeout,
 structured error и technical validation.
 
-Typed `inspect` уже возвращает metadata, EBU R128 integrated loudness, LRA и true
-peak. Convert/extract/normalize/mux operations ещё не реализуются без сценария.
+Реализованы typed capabilities `media.inspect`, `media.validate`, `media.convert`,
+`media.extract_audio`, `media.normalize_loudness` и `media.mux`. Они используют
+один низкоуровневый FFmpeg runner с 60-секундным timeout/kill path и не открывают
+arbitrary shell/FFmpeg arguments или произвольный output path.
+
+`media.convert` разрешает только lossless WAV/FLAC; `media.extract_audio` создаёт
+24-bit PCM WAV; `media.normalize_loudness` использует двухпроходный EBU R128
+`loudnorm` и post-validation по LUFS/true peak; `media.mux` сохраняет video stream
+через stream copy и добавляет FLAC audio в Matroska. Все outputs создаются во
+временном файле, технически валидируются FFprobe/EBU R128, импортируются в
+Artifact Store с SHA-256/metadata и затем очищаются RAII guard.
+
+Каждая capability имеет versioned requirement, locked executor и policy rule;
+runtime profile сообщает тот же подтверждённый capability set. Windows integration
+tests на реальных генерируемых audio/video проверяют validate, FLAC conversion,
+PCM extraction, two-pass normalization, mux и rejection неразрешённого AAC
+conversion. Полный fmt/clippy/Rust tests/Python oracle+parity/release/artifact CI
+прошёл успешно; новых crate dependencies Stage 11 не добавил.
 
 ### Stage 12. REAPER adapter — planned
 
