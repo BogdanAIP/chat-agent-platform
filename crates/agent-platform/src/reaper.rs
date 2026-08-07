@@ -423,19 +423,11 @@ mod tests {
             .args(["-NoProfile", "-Command", &command])
             .spawn()
             .expect("PowerShell must start");
-        wait_for_marker_and_stop(
-            &mut child,
-            &marker,
-            Duration::from_secs(2),
-            "marker test",
-        )
-        .expect("marker should terminate the isolated process");
+        wait_for_marker_and_stop(&mut child, &marker, Duration::from_secs(2), "marker test")
+            .expect("marker should terminate the isolated process");
         assert!(marker.is_file());
         assert!(
-            child
-                .try_wait()
-                .expect("process state")
-                .is_some(),
+            child.try_wait().expect("process state").is_some(),
             "process must be stopped after completion marker"
         );
     }
