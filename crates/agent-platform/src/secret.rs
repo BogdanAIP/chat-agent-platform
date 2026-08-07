@@ -193,9 +193,11 @@ fn credential_entry(target: &str) -> Result<keyring_core::Entry, PlatformError> 
 
 #[cfg(windows)]
 fn write_credential(target: &str, value: &[u8]) -> Result<(), PlatformError> {
-    credential_entry(target)?.set_secret(value).map_err(|error| {
-        PlatformError::SecretStore(format!("Windows Credential Manager write failed: {error}"))
-    })
+    credential_entry(target)?
+        .set_secret(value)
+        .map_err(|error| {
+            PlatformError::SecretStore(format!("Windows Credential Manager write failed: {error}"))
+        })
 }
 
 #[cfg(windows)]
