@@ -142,6 +142,7 @@ end\n",
     })
 }
 
+#[must_use]
 pub fn authoring_command(executable: &Path, script_path: &Path) -> Vec<String> {
     vec![
         executable.to_string_lossy().into_owned(),
@@ -151,6 +152,7 @@ pub fn authoring_command(executable: &Path, script_path: &Path) -> Vec<String> {
     ]
 }
 
+#[must_use]
 pub fn render_command(executable: &Path, project_path: &Path) -> Vec<String> {
     vec![
         executable.to_string_lossy().into_owned(),
