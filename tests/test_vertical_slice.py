@@ -13,7 +13,7 @@ from agent_platform.bootstrap import build_bootstrap_context
 from agent_platform.contracts import load_schema, validate_contract
 from agent_platform.errors import BindingError, PolicyDenied, ValidationError
 from agent_platform.policy import PolicyEnforcementPoint
-from agent_platform.service import inspect_file
+from agent_platform.service import build_runtime_profile, inspect_file
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -158,7 +158,16 @@ class VerticalSliceTests(unittest.TestCase):
                 )
 
     def test_generated_audit_keeps_requirements_and_runtime_distinct(self) -> None:
-        audit = render_capability_audit(REPO_ROOT, project_id="demo")
+        with tempfile.TemporaryDirectory() as temp:
+            isolated_root = Path(temp)
+            shutil.copytree(REPO_ROOT / "config", isolated_root / "config")
+            (isolated_root / "artifacts").mkdir()
+            (isolated_root / "runtime").mkdir()
+            profile = build_runtime_profile(isolated_root, project_id="demo")
+            (isolated_root / "runtime" / "capability-profile.json").write_text(
+                json.dumps(profile), encoding="utf-8"
+            )
+            audit = render_capability_audit(isolated_root, project_id="demo")
         self.assertIn("`media.inspect`", audit)
         self.assertIn("Runtime verified at:", audit)
         self.assertIn("Hosted Chat/MCP status: `unknown`", audit)
