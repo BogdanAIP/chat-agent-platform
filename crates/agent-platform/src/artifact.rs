@@ -617,11 +617,17 @@ fn recover_artifact_record(
     if contracts::validate(&value, "artifact-v1.schema.json").is_err() {
         return Ok(None);
     }
-    let artifact: Artifact = match serde_json::from_value(value) {
+    let mut artifact: Artifact = match serde_json::from_value(value) {
         Ok(artifact) => artifact,
         Err(_) => return Ok(None),
     };
-    if validate_registered_artifact(root, artifact_id, &artifact).is_err() {
+    artifact.external_policy = ExternalPolicy {
+        staging_allowed: false,
+        allowed_executors: Vec::new(),
+    };
+    if validate_artifact_contract(&artifact).is_err()
+        || validate_registered_artifact(root, artifact_id, &artifact).is_err()
+    {
         return Ok(None);
     }
     Ok(Some(artifact))
@@ -666,7 +672,12 @@ fn validate_artifact_contract(artifact: &Artifact) -> Result<(), PlatformError> 
 }
 
 fn write_recovery_record(directory: &Path, artifact: &Artifact) -> Result<(), PlatformError> {
-    let text = serde_json::to_string_pretty(artifact).map_err(serialization_error)?;
+    let mut recovery = artifact.clone();
+    recovery.external_policy = ExternalPolicy {
+        staging_allowed: false,
+        allowed_executors: Vec::new(),
+    };
+    let text = serde_json::to_string_pretty(&recovery).map_err(serialization_error)?;
     let path = directory.join(RECOVERY_RECORD);
     let mut file = AtomicWriteFile::open(&path)
         .map_err(|error| io_error("cannot open atomic artifact recovery record", error))?;
