@@ -40,7 +40,10 @@ pub fn inspect_file(
     let selection = CapabilityRegistry::load(&binding.repo_root)?.select(
         "media.inspect",
         &required,
-        request.get("cost_limit").and_then(Value::as_u64).unwrap_or(0),
+        request
+            .get("cost_limit")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
     )?;
     let parameters = request
         .get("parameters")
@@ -90,7 +93,10 @@ pub fn inspect_artifact(
     let selection = CapabilityRegistry::load(&binding.repo_root)?.select(
         "media.inspect",
         &required,
-        request.get("cost_limit").and_then(Value::as_u64).unwrap_or(0),
+        request
+            .get("cost_limit")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
     )?;
     let policy = PolicyEnforcementPoint::load(&binding.policy_path)?.evaluate(
         "media.inspect",
@@ -237,7 +243,10 @@ pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pl
     let selection = CapabilityRegistry::load(&binding.repo_root)?.select(
         "runtime.self_test",
         "professional",
-        request.get("cost_limit").and_then(Value::as_u64).unwrap_or(0),
+        request
+            .get("cost_limit")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
     )?;
     let policy = PolicyEnforcementPoint::load(&binding.policy_path)?.evaluate(
         "runtime.self_test",
