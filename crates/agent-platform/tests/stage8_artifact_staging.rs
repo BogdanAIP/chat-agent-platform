@@ -79,7 +79,10 @@ fn staging_requires_allowlisted_selection_and_always_cleans_copy() {
     let staging_root = temporary.path().join("external-staging");
     store
         .with_staged_copy(&artifact.artifact_id, &cloud, &staging_root, |path| {
-            assert_eq!(fs::read(path).expect("read staged copy"), b"stage-eight-fixture");
+            assert_eq!(
+                fs::read(path).expect("read staged copy"),
+                b"stage-eight-fixture"
+            );
             Ok(())
         })
         .expect("allowlisted consumer must stage artifact");
@@ -89,6 +92,20 @@ fn staging_requires_allowlisted_selection_and_always_cleans_copy() {
             .count(),
         0,
         "temporary staging directory must be removed after success"
+    );
+
+    let callback_error = store
+        .with_staged_copy(&artifact.artifact_id, &cloud, &staging_root, |_| {
+            Err(PlatformError::Validation("consumer failed".into()))
+        })
+        .expect_err("consumer error must be returned");
+    assert!(matches!(callback_error, PlatformError::Validation(_)));
+    assert_eq!(
+        fs::read_dir(&staging_root)
+            .expect("staging root")
+            .count(),
+        0,
+        "temporary staging directory must be removed after consumer failure"
     );
 
     let denied = store
