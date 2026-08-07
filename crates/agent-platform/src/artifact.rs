@@ -262,7 +262,7 @@ impl ArtifactStore {
             }
             let mut allowed_executors = consumers
                 .iter()
-                .map(|selection| selection.executor.clone())
+                .map(|selection| selection.executor().to_owned())
                 .collect::<Vec<_>>();
             allowed_executors.sort_unstable();
             allowed_executors.dedup();
@@ -335,11 +335,11 @@ impl ArtifactStore {
                 .external_policy
                 .allowed_executors
                 .iter()
-                .any(|executor| executor == &consumer.executor)
+                .any(|executor| executor == consumer.executor())
         {
             return Err(PlatformError::PolicyDenied(format!(
                 "executor {} is not allowed to stage {artifact_id}",
-                consumer.executor
+                consumer.executor()
             )));
         }
 
