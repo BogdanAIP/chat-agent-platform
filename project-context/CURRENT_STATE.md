@@ -53,19 +53,29 @@ Store и удаляется RAII cleanup. Реальные Windows integration t
 validate, FLAC conversion, PCM extraction, two-pass normalization, mux и rejection
 неразрешённого AAC conversion.
 
-Stage 12 — partial. Добавлен Rust-модуль REAPER adapter foundation: typed session,
-track и marker specs принимают только зарегистрированные audio artifacts; generator
-создаёт ограниченный Lua/ReaScript driver для track creation, media import,
+Stage 12 — partial. Rust-модуль REAPER adapter содержит typed session/track/marker
+specs, принимает только зарегистрированные и FFprobe-valid audio artifacts и
+генерирует ограниченный Lua/ReaScript driver для track creation, media import,
 markers, render settings и project save. Driver не содержит `os.execute`,
-`io.popen` или generic `Main_OnCommand`; строки экранируются. Команды REAPER
-ограничены отдельными authoring/render plans, а `reaper-probe` только обнаруживает
-`reaper.exe` через `REAPER_EXE` или стандартные Windows paths и ничего не запускает.
-Новых зависимостей и нового service/process не добавлено.
+`io.popen` или generic `Main_OnCommand`; строки экранируются. `reaper-probe` только
+обнаруживает `reaper.exe` через `REAPER_EXE` или стандартные Windows paths.
+
+Подготовлена policy-gated capability `audio.reaper_render` и CLI `reaper-render`.
+Она проходит Project Binding → locked selection → PEP → Artifact Store, запускает
+только новый изолированный REAPER instance, ждёт completion marker после сохранения
+`.rpp`, ограничивает authoring 45 секундами и render 3 минутами, затем принимает
+render только после стабильного FFprobe-valid WAV и проверки sample rate через
+Stage 11. Сохранённый `.rpp` и WAV импортируются обратно в Artifact Store, а
+request-scoped `runtime/reaper/<request_id>` очищается и при успехе, и при ошибке.
+Windows CI проверяет lifecycle helper на реально запускаемом изолированном child
+process, strict Clippy и полную регрессию; REAPER на CI намеренно не эмулируется.
+Новых зависимостей, daemon или постоянно работающего процесса не добавлено.
 
 Stage 12 не считается завершённым: GitHub-hosted runner не имеет доверенной
 установленной REAPER-среды, а Hosted Chat → local execution ещё не доказан. Exit
-gate требует реального REAPER project/track/import/marker/save/render и проверки
-rendered artifact через Stage 11. До этого Stage 13 не начинается.
+gate теперь сводится к реальному запуску одной подготовленной команды
+`reaper-render` на установленном REAPER и получению валидированных `.rpp` + WAV
+artifacts. До этого Stage 13 не начинается.
 
 Stage 9 остаётся conditional: отдельный supervisor/service не создаётся без
 независимого lifecycle requirement. Stage 10 имеет рабочий Windows CI baseline.

@@ -113,24 +113,34 @@ Requirements/tool lock/policy/runtime profile согласованы. Реаль
 ### Stage 12. REAPER adapter — partial
 
 Выбран путь Rust → ограниченный Lua/ReaScript → штатный REAPER CLI, без UI-click
-automation и без нового daemon. Foundation реализует:
+automation и без нового daemon. Реализовано:
 
 - typed session/track/marker specs;
-- только зарегистрированные audio artifact IDs как inputs;
+- только зарегистрированные и FFprobe-valid audio artifacts как inputs;
 - Lua escaping и pre-execution validation;
 - driver для track creation, media import, markers, render settings и project save;
 - WAV render config через documented `RENDER_FORMAT="evaw"`;
-- fixed authoring/render command plans;
-- `reaper-probe`, который только обнаруживает `reaper.exe` через `REAPER_EXE` или
-  стандартные Windows paths;
-- запрет `os.execute`, `io.popen` и generic `Main_OnCommand` в generated driver.
+- `reaper-probe` для безопасного обнаружения `reaper.exe`;
+- запрет `os.execute`, `io.popen` и generic `Main_OnCommand`;
+- locked capability `audio.reaper_render` через Project Binding → selector → PEP;
+- одна CLI-команда `reaper-render` для полного локального сценария;
+- authoring только в `-newinst`, completion marker после сохранения `.rpp`,
+  authoring timeout 45 сек;
+- `-renderproject` в отдельном instance, render timeout 3 минуты;
+- render считается готовым только после стабилизации файла и FFprobe-valid WAV;
+- sample rate дополнительно проверяется Stage 11 inspection;
+- `.rpp` и WAV импортируются обратно в Artifact Store;
+- request-scoped workspace очищается на success/error/timeout.
 
-Новых dependencies/process/service нет. CI проверяет генератор и negative cases,
-но не эмулирует REAPER.
+Windows CI проверяет generator, corrupt-media rejection, strict Clippy, lifecycle
+helper на реально запускаемом изолированном child process и полную регрессию. REAPER
+на hosted CI намеренно не устанавливается/не эмулируется, поэтому зелёный CI не
+подменяет реальное пользовательское E2E.
 
-Exit gate **ещё не пройден**: на реальной установленной REAPER-среде должны
-выполниться project → track → import → marker → save → render, после чего rendered
-WAV импортируется/валидируется Stage 11. До этого Stage 13 не начинается.
+Exit gate **ещё не пройден**: на машине с установленным REAPER нужно реально
+выполнить `reaper-render` и получить валидированные project + rendered WAV artifacts.
+После успешного результата обновляется runtime evidence, Stage 12 становится `done`
+и только тогда начинается Stage 13.
 
 ### Stage 13. Audio analysis/mastering decision layer — planned
 

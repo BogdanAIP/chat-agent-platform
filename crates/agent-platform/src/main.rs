@@ -8,6 +8,7 @@ use agent_platform::media_ops::{
     validate_media_file,
 };
 use agent_platform::reaper::discover_reaper;
+use agent_platform::reaper_ops::{ReaperRenderOptions, render_reaper_file};
 use agent_platform::service::{
     diagnose, inspect_artifact, inspect_file, self_test, write_runtime_profile,
 };
@@ -38,6 +39,24 @@ enum Command {
         project_id: Option<String>,
     },
     ReaperProbe,
+    ReaperRender {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long, default_value = "Track 1")]
+        track_name: String,
+        #[arg(long, default_value = "Start")]
+        marker_name: String,
+        #[arg(long, default_value_t = 0.0)]
+        marker_seconds: f64,
+        #[arg(long, default_value_t = 48_000)]
+        render_sample_rate_hz: u32,
+        #[arg(long, default_value = "project")]
+        data_class: String,
+        #[arg(long)]
+        requested_risk_hint: Option<String>,
+    },
     Bootstrap {
         #[arg(long)]
         project_id: Option<String>,
@@ -148,6 +167,28 @@ fn main() -> ExitCode {
                 "executable": path
             })
         }),
+        Command::ReaperRender {
+            project_id,
+            file,
+            track_name,
+            marker_name,
+            marker_seconds,
+            render_sample_rate_hz,
+            data_class,
+            requested_risk_hint,
+        } => render_reaper_file(
+            &cli.repo_root,
+            file,
+            project_id.as_deref(),
+            ReaperRenderOptions {
+                data_class,
+                requested_risk_hint: requested_risk_hint.as_deref(),
+                track_name,
+                marker_name,
+                marker_seconds: *marker_seconds,
+                render_sample_rate_hz: *render_sample_rate_hz,
+            },
+        ),
         Command::Bootstrap {
             project_id,
             capability,

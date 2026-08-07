@@ -43,6 +43,13 @@
       "external_side_effect": false,
       "max_cost": 0
     },
+    "audio.reaper_render": {
+      "decision": "allow",
+      "enforced_by": "local_reaper_adapter",
+      "allowed_data_classes": ["public", "project", "private", "sensitive"],
+      "external_side_effect": false,
+      "max_cost": 0
+    },
     "runtime.self_test": {
       "decision": "allow",
       "enforced_by": "rust_local_core",

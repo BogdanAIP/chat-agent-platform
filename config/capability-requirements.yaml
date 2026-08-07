@@ -48,6 +48,14 @@
       "execution_paths": ["local.ffmpeg"],
       "fallbacks": [],
       "acceptance": ["video_stream_present", "audio_stream_present", "output_probe", "artifact_sha256"]
+    },
+    {
+      "capability": "audio.reaper_render",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.reaper"],
+      "fallbacks": [],
+      "acceptance": ["reaper_detected", "source_ffprobe_valid", "track_imported", "marker_created", "project_saved", "wav_rendered", "render_ffprobe_valid", "render_sample_rate_verified", "artifact_sha256"]
     }
   ]
 }
