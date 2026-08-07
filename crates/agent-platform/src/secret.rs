@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 
+use crate::capability::CapabilitySelection;
 use crate::contracts;
 use crate::error::PlatformError;
 
@@ -85,7 +86,7 @@ impl SecretStore {
     pub fn with_secret<F>(
         &self,
         secret_ref: &str,
-        consumer: &str,
+        selection: &CapabilitySelection,
         use_secret: F,
     ) -> Result<(), PlatformError>
     where
@@ -95,10 +96,11 @@ impl SecretStore {
         if !metadata
             .allowed_consumers
             .iter()
-            .any(|allowed| allowed == consumer)
+            .any(|allowed| allowed == &selection.executor)
         {
             return Err(PlatformError::SecretDenied(format!(
-                "consumer {consumer} is not allowed to resolve {secret_ref}"
+                "executor {} is not allowed to resolve {secret_ref}",
+                selection.executor
             )));
         }
 
