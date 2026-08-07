@@ -10,7 +10,7 @@ permissions:
 jobs:
   fix:
     if: github.actor != 'github-actions[bot]'
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -18,28 +18,37 @@ jobs:
           fetch-depth: 0
 
       - name: Patch TryLockError handling
-        shell: pwsh
+        shell: bash
         run: |
-          $path = 'crates/agent-platform/src/artifact.rs'
-          $content = Get-Content $path -Raw
-          $newline = [Environment]::NewLine
+          python3 - <<'PY'
+          from pathlib import Path
 
-          $pendingPattern = '        Err\(error\) if error\.kind\(\) == ErrorKind::WouldBlock => Ok\(PendingCleanup::Active\),\r?\n        Err\(error\) => Err\(io_error\("cannot probe pending artifact lock", error\)\),'
-          $pendingReplacement = '        Err(std::fs::TryLockError::WouldBlock) => Ok(PendingCleanup::Active),' + $newline + '        Err(std::fs::TryLockError::Error(error)) => {' + $newline + '            Err(io_error("cannot probe pending artifact lock", error))' + $newline + '        }'
-          $patched = [regex]::Replace($content, $pendingPattern, $pendingReplacement)
-
-          $orphanPattern = '        Err\(error\) if error\.kind\(\) == ErrorKind::WouldBlock => Ok\(\(\)\),\r?\n        Err\(error\) => Err\(io_error\("cannot probe orphan pending lock", error\)\),'
-          $orphanReplacement = '        Err(std::fs::TryLockError::WouldBlock) => Ok(()),' + $newline + '        Err(std::fs::TryLockError::Error(error)) => {' + $newline + '            Err(io_error("cannot probe orphan pending lock", error))' + $newline + '        }'
-          $patched = [regex]::Replace($patched, $orphanPattern, $orphanReplacement)
-
-          if ($patched -eq $content) {
-            throw 'Expected TryLockError patch did not change artifact.rs'
-          }
-          Set-Content -Path $path -Value $patched -NoNewline
-          cargo fmt --all
+          path = Path("crates/agent-platform/src/artifact.rs")
+          content = path.read_text()
+          old_pending = '''        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(PendingCleanup::Active),
+                  Err(error) => Err(io_error("cannot probe pending artifact lock", error)),
+          '''
+          new_pending = '''        Err(std::fs::TryLockError::WouldBlock) => Ok(PendingCleanup::Active),
+                  Err(std::fs::TryLockError::Error(error)) => {
+                      Err(io_error("cannot probe pending artifact lock", error))
+                  }
+          '''
+          old_orphan = '''        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(()),
+                  Err(error) => Err(io_error("cannot probe orphan pending lock", error)),
+          '''
+          new_orphan = '''        Err(std::fs::TryLockError::WouldBlock) => Ok(()),
+                  Err(std::fs::TryLockError::Error(error)) => {
+                      Err(io_error("cannot probe orphan pending lock", error))
+                  }
+          '''
+          if old_pending not in content or old_orphan not in content:
+              raise SystemExit("Expected TryLockError patterns were not found")
+          content = content.replace(old_pending, new_pending).replace(old_orphan, new_orphan)
+          path.write_text(content)
+          PY
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add $path
+          git add crates/agent-platform/src/artifact.rs
           git commit -m 'Handle typed TryLockError variants'
           git push origin HEAD:chat/stage8-artifact-staging
