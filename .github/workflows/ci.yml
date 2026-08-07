@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify-windows:
@@ -63,26 +63,3 @@ jobs:
           name: agent-platform-windows-x64
           path: target/release/agent-platform.exe
           if-no-files-found: error
-
-      - name: Persist generated Cargo.lock for Stage 7
-        if: github.event_name == 'pull_request' && github.head_ref == 'chat/stage7-secret-store' && github.actor == 'BogdanAIP'
-        shell: pwsh
-        env:
-          HEAD_BRANCH: ${{ github.head_ref }}
-        run: |
-          git diff --quiet -- Cargo.lock
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Cargo.lock is already committed"
-            exit 0
-          }
-          $resolvedLock = Join-Path $env:RUNNER_TEMP "Cargo.lock"
-          Copy-Item Cargo.lock $resolvedLock -Force
-          git fetch origin "+refs/heads/${env:HEAD_BRANCH}:refs/remotes/origin/${env:HEAD_BRANCH}"
-          git reset --hard
-          git checkout -B $env:HEAD_BRANCH "refs/remotes/origin/$env:HEAD_BRANCH"
-          Copy-Item $resolvedLock Cargo.lock -Force
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.lock
-          git commit -m "Update Cargo.lock for Stage 7"
-          git push origin "HEAD:refs/heads/$env:HEAD_BRANCH"
