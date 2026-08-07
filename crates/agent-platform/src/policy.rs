@@ -67,7 +67,8 @@ impl PolicyEnforcementPoint {
                 "data class {data_class:?} is not allowed for {capability}"
             )));
         }
-        if parameters.get("external_destination").is_some()
+        let has_external_destination = parameters.get("external_destination").is_some();
+        if has_external_destination
             && !rule
                 .get("external_side_effect")
                 .and_then(Value::as_bool)
@@ -77,10 +78,12 @@ impl PolicyEnforcementPoint {
                 "{capability} does not permit external destinations"
             )));
         }
-        let mut effective_risk = validate_risk(base_risk)?.to_owned();
-        if parameters.get("external_destination").is_some() {
-            effective_risk = escalate_risk(&effective_risk).to_owned();
-        }
+        let validated_base_risk = validate_risk(base_risk)?;
+        let effective_risk = if has_external_destination {
+            escalate_risk(validated_base_risk)
+        } else {
+            validated_base_risk
+        };
         let mut reasons = vec![
             format!("configured_decision={configured}"),
             format!("base_risk={base_risk}"),
@@ -95,7 +98,7 @@ impl PolicyEnforcementPoint {
                 capability,
                 parameters,
                 data_class,
-                &effective_risk,
+                effective_risk,
             )?)
         } else {
             None
@@ -104,7 +107,7 @@ impl PolicyEnforcementPoint {
             decision_id: format!("pol_{}", Uuid::new_v4().simple()),
             capability: capability.into(),
             decision: configured.into(),
-            effective_risk,
+            effective_risk: effective_risk.into(),
             enforced_by: rule
                 .get("enforced_by")
                 .and_then(Value::as_str)
@@ -129,7 +132,6 @@ fn escalate_risk(value: &str) -> &'static str {
     match value {
         "low" => "medium",
         "medium" => "high",
-        "high" | "critical" => "critical",
         _ => "critical",
     }
 }
