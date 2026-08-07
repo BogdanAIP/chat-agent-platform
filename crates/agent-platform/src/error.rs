@@ -10,6 +10,8 @@ pub enum PlatformError {
     #[error("{0}")]
     SecretDenied(String),
     #[error("{0}")]
+    SecretStore(String),
+    #[error("{0}")]
     ToolUnavailable(String),
     #[error("{0}")]
     ToolTimeout(String),
@@ -38,6 +40,7 @@ impl PlatformError {
             Self::Binding(_) => "PROJECT_BINDING_ERROR",
             Self::PolicyDenied(_) => "POLICY_DENIED",
             Self::SecretDenied(_) => "SECRET_ACCESS_DENIED",
+            Self::SecretStore(_) => "SECRET_STORE_ERROR",
             Self::ToolUnavailable(_) => "TOOL_UNAVAILABLE",
             Self::ToolTimeout(_) => "TOOL_TIMEOUT",
             Self::Validation(_) | Self::Io { .. } => "VALIDATION_FAILED",
