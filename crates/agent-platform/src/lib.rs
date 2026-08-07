@@ -7,6 +7,7 @@ pub mod config;
 pub mod contracts;
 pub mod error;
 pub mod media;
+pub mod media_ops;
 pub mod policy;
 pub mod secret;
 pub mod service;

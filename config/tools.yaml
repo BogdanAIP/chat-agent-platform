@@ -23,6 +23,61 @@
       }
     },
     {
+      "capability": "media.validate",
+      "executor": "rust.local.ffmpeg",
+      "enabled": true,
+      "quality": "professional",
+      "reliability": "high",
+      "determinism": "high",
+      "base_risk": "low",
+      "cost": 0,
+      "fallbacks": []
+    },
+    {
+      "capability": "media.convert",
+      "executor": "rust.local.ffmpeg",
+      "enabled": true,
+      "quality": "professional",
+      "reliability": "high",
+      "determinism": "high",
+      "base_risk": "low",
+      "cost": 0,
+      "fallbacks": []
+    },
+    {
+      "capability": "media.extract_audio",
+      "executor": "rust.local.ffmpeg",
+      "enabled": true,
+      "quality": "professional",
+      "reliability": "high",
+      "determinism": "high",
+      "base_risk": "low",
+      "cost": 0,
+      "fallbacks": []
+    },
+    {
+      "capability": "media.normalize_loudness",
+      "executor": "rust.local.ffmpeg",
+      "enabled": true,
+      "quality": "professional",
+      "reliability": "high",
+      "determinism": "high",
+      "base_risk": "low",
+      "cost": 0,
+      "fallbacks": []
+    },
+    {
+      "capability": "media.mux",
+      "executor": "rust.local.ffmpeg",
+      "enabled": true,
+      "quality": "professional",
+      "reliability": "high",
+      "determinism": "high",
+      "base_risk": "low",
+      "cost": 0,
+      "fallbacks": []
+    },
+    {
       "capability": "runtime.self_test",
       "executor": "rust.local.core",
       "enabled": true,

@@ -8,6 +8,46 @@
       "execution_paths": ["local.ffmpeg"],
       "fallbacks": [],
       "acceptance": ["duration", "sample_rate", "channels", "integrated_lufs", "true_peak_dbtp"]
+    },
+    {
+      "capability": "media.validate",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.ffmpeg"],
+      "fallbacks": [],
+      "acceptance": ["duration", "stream_inventory", "container_probe"]
+    },
+    {
+      "capability": "media.convert",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.ffmpeg"],
+      "fallbacks": [],
+      "acceptance": ["lossless_wav", "lossless_flac", "output_probe", "artifact_sha256"]
+    },
+    {
+      "capability": "media.extract_audio",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.ffmpeg"],
+      "fallbacks": [],
+      "acceptance": ["primary_audio_stream", "pcm_s24le", "output_probe"]
+    },
+    {
+      "capability": "media.normalize_loudness",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.ffmpeg"],
+      "fallbacks": [],
+      "acceptance": ["two_pass_ebu_r128", "target_lufs_tolerance", "true_peak_ceiling", "output_probe"]
+    },
+    {
+      "capability": "media.mux",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.ffmpeg"],
+      "fallbacks": [],
+      "acceptance": ["video_stream_present", "audio_stream_present", "output_probe", "artifact_sha256"]
     }
   ]
 }
