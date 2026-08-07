@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::artifact::{Artifact, ArtifactStore};
 use crate::binding::{ProjectBinding, resolve_project};
+use crate::capability::{CapabilityRegistry, required_quality};
 use crate::contracts;
 use crate::error::PlatformError;
 use crate::media::{inspect_media, tool_version};
@@ -35,6 +36,12 @@ pub fn inspect_file(
     });
     contracts::validate(&request, "tool-request-v1.schema.json")?;
     let binding = resolve_project(repo_root, project_id)?;
+    let required = required_quality(&binding.repo_root, "media.inspect")?;
+    let selection = CapabilityRegistry::load(&binding.repo_root)?.select(
+        "media.inspect",
+        &required,
+        request.get("cost_limit").and_then(Value::as_u64).unwrap_or(0),
+    )?;
     let parameters = request
         .get("parameters")
         .cloned()
@@ -44,10 +51,18 @@ pub fn inspect_file(
         &parameters,
         data_class,
         requested_risk_hint,
+        &selection.base_risk,
     )?;
     let store = ArtifactStore::new(&binding.artifact_root)?;
     let artifact = store.import_file(file_path, "media.inspect", data_class)?;
-    complete_inspection(&binding, &store, artifact, &request_id, policy)
+    complete_inspection(
+        &binding,
+        &store,
+        artifact,
+        &request_id,
+        policy,
+        &selection.executor,
+    )
 }
 
 pub fn inspect_artifact(
@@ -71,6 +86,12 @@ pub fn inspect_artifact(
         "parameters": {"artifact_id": artifact_id, "data_class": artifact.data_class}
     });
     contracts::validate(&request, "tool-request-v1.schema.json")?;
+    let required = required_quality(&binding.repo_root, "media.inspect")?;
+    let selection = CapabilityRegistry::load(&binding.repo_root)?.select(
+        "media.inspect",
+        &required,
+        request.get("cost_limit").and_then(Value::as_u64).unwrap_or(0),
+    )?;
     let policy = PolicyEnforcementPoint::load(&binding.policy_path)?.evaluate(
         "media.inspect",
         request
@@ -78,8 +99,16 @@ pub fn inspect_artifact(
             .ok_or_else(|| PlatformError::Validation("inspection parameters are missing".into()))?,
         &artifact.data_class,
         requested_risk_hint,
+        &selection.base_risk,
     )?;
-    complete_inspection(&binding, &store, artifact, &request_id, policy)
+    complete_inspection(
+        &binding,
+        &store,
+        artifact,
+        &request_id,
+        policy,
+        &selection.executor,
+    )
 }
 
 fn complete_inspection(
@@ -88,6 +117,7 @@ fn complete_inspection(
     mut artifact: Artifact,
     request_id: &str,
     policy: PolicyDecision,
+    executor: &str,
 ) -> Result<Value, PlatformError> {
     contracts::validate(
         &serde_json::to_value(&policy).map_err(|error| {
@@ -117,7 +147,7 @@ fn complete_inspection(
         }],
         "provenance": {
             "capability": "media.inspect",
-            "executor": "rust.local.ffmpeg",
+            "executor": executor,
             "project_id": binding.project_id,
             "validated": true
         },
@@ -164,6 +194,10 @@ pub fn write_runtime_profile(
                     "ffmpeg": {"available": true, "version": ffmpeg},
                     "ffprobe": {"available": true, "version": ffprobe}
                 }
+            },
+            "runtime.self_test": {
+                "status": "available",
+                "execution_path": "rust.local.core"
             }
         },
         "binding": {
@@ -200,6 +234,11 @@ pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pl
     });
     contracts::validate(&request, "tool-request-v1.schema.json")?;
     let binding = resolve_project(repo_root, project_id)?;
+    let selection = CapabilityRegistry::load(&binding.repo_root)?.select(
+        "runtime.self_test",
+        "professional",
+        request.get("cost_limit").and_then(Value::as_u64).unwrap_or(0),
+    )?;
     let policy = PolicyEnforcementPoint::load(&binding.policy_path)?.evaluate(
         "runtime.self_test",
         request
@@ -207,6 +246,7 @@ pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pl
             .ok_or_else(|| PlatformError::Validation("self-test parameters are missing".into()))?,
         "project",
         None,
+        &selection.base_risk,
     )?;
     let health_root = repo_root.join("runtime/health");
     fs::create_dir_all(&health_root)
@@ -239,7 +279,7 @@ pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pl
         "artifact_refs": [],
         "provenance": {
             "capability": "runtime.self_test",
-            "executor": "rust.local.core",
+            "executor": selection.executor,
             "project_id": binding.project_id,
             "validated": true
         },
