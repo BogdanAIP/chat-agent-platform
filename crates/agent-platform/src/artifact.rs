@@ -17,6 +17,7 @@ const DATA_CLASSES: [&str; 4] = ["public", "project", "private", "sensitive"];
 const EXTERNALLY_STAGEABLE_CLASSES: [&str; 2] = ["public", "project"];
 const HEX: &[u8; 16] = b"0123456789abcdef";
 const PENDING_PREFIX: &str = ".pending-";
+const RECOVERY_RECORD: &str = ".artifact-recovery.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Artifact {
@@ -44,7 +45,7 @@ pub struct ExternalPolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct RecoveryReport {
     pub removed_pending: usize,
-    pub removed_unregistered: usize,
+    pub recovered_unregistered: usize,
     pub unresolved_unregistered: usize,
     pub skipped_active_pending: usize,
 }
@@ -178,10 +179,8 @@ impl ArtifactStore {
                 allowed_executors: Vec::new(),
             },
         };
-        contracts::validate(
-            &serde_json::to_value(&artifact).map_err(serialization_error)?,
-            "artifact-v1.schema.json",
-        )?;
+        validate_artifact_contract(&artifact)?;
+        write_recovery_record(&pending.directory, &artifact)?;
 
         let lock = self.open_manifest_lock()?;
         lock.lock()
@@ -217,11 +216,8 @@ impl ArtifactStore {
         let result = (|| {
             let mut artifact = self.get_locked(artifact_id)?;
             artifact.metadata.extend(metadata);
-            contracts::validate(
-                &serde_json::to_value(&artifact).map_err(serialization_error)?,
-                "artifact-v1.schema.json",
-            )?;
-            self.upsert_locked(&artifact)?;
+            validate_artifact_contract(&artifact)?;
+            self.persist_artifact_update_locked(&artifact)?;
             Ok(artifact)
         })();
         let unlock_result = lock
@@ -280,11 +276,8 @@ impl ArtifactStore {
                 staging_allowed: true,
                 allowed_executors,
             };
-            contracts::validate(
-                &serde_json::to_value(&artifact).map_err(serialization_error)?,
-                "artifact-v1.schema.json",
-            )?;
-            self.upsert_locked(&artifact)?;
+            validate_artifact_contract(&artifact)?;
+            self.persist_artifact_update_locked(&artifact)?;
             Ok(artifact)
         })();
         let unlock_result = lock
@@ -307,11 +300,8 @@ impl ArtifactStore {
                 staging_allowed: false,
                 allowed_executors: Vec::new(),
             };
-            contracts::validate(
-                &serde_json::to_value(&artifact).map_err(serialization_error)?,
-                "artifact-v1.schema.json",
-            )?;
-            self.upsert_locked(&artifact)?;
+            validate_artifact_contract(&artifact)?;
+            self.persist_artifact_update_locked(&artifact)?;
             Ok(artifact)
         })();
         let unlock_result = lock
@@ -403,10 +393,10 @@ impl ArtifactStore {
     }
 
     fn recover_orphans_locked(&self) -> Result<RecoveryReport, PlatformError> {
-        let manifest = self.read_manifest_locked()?;
+        let mut manifest = self.read_manifest_locked()?;
         let mut report = RecoveryReport {
             removed_pending: 0,
-            removed_unregistered: 0,
+            recovered_unregistered: 0,
             unresolved_unregistered: 0,
             skipped_active_pending: 0,
         };
@@ -437,6 +427,36 @@ impl ArtifactStore {
         }
 
         for entry in fs::read_dir(&self.root)
+            .map_err(|error| io_error("cannot scan published artifacts for recovery", error))?
+        {
+            let entry = entry.map_err(|error| io_error("cannot read published artifact", error))?;
+            if !entry
+                .file_type()
+                .map_err(|error| io_error("cannot inspect published artifact", error))?
+                .is_dir()
+            {
+                continue;
+            }
+            let Some(artifact_id) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            if validate_artifact_id(&artifact_id).is_err() || manifest.contains_key(&artifact_id) {
+                continue;
+            }
+            match recover_artifact_record(&self.root, &entry.path(), &artifact_id)? {
+                Some(artifact) => {
+                    self.upsert_locked(&artifact)?;
+                    manifest.insert(
+                        artifact.artifact_id.clone(),
+                        serde_json::to_value(&artifact).map_err(serialization_error)?,
+                    );
+                    report.recovered_unregistered += 1;
+                }
+                None => report.unresolved_unregistered += 1,
+            }
+        }
+
+        for entry in fs::read_dir(&self.root)
             .map_err(|error| io_error("cannot scan pending locks for recovery", error))?
         {
             let entry = entry.map_err(|error| io_error("cannot read pending lock entry", error))?;
@@ -462,44 +482,19 @@ impl ArtifactStore {
             if self.root.join(pending_name).exists() {
                 continue;
             }
-            let final_directory = self.root.join(artifact_id);
-            if final_directory.is_dir() && !manifest.contains_key(artifact_id) {
-                if cleanup_published_orphan(&final_directory, &entry.path())? {
-                    report.removed_unregistered += 1;
-                } else {
-                    report.skipped_active_pending += 1;
-                }
-            } else {
+            if manifest.contains_key(artifact_id) || !self.root.join(artifact_id).exists() {
                 cleanup_orphan_pending_lock(&entry.path())?;
             }
         }
-
-        for entry in fs::read_dir(&self.root)
-            .map_err(|error| io_error("cannot scan published artifacts for recovery", error))?
-        {
-            let entry = entry.map_err(|error| io_error("cannot read published artifact", error))?;
-            if !entry
-                .file_type()
-                .map_err(|error| io_error("cannot inspect published artifact", error))?
-                .is_dir()
-            {
-                continue;
-            }
-            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-                continue;
-            };
-            if name.starts_with("art_")
-                && validate_artifact_id(&name).is_ok()
-                && !manifest.contains_key(&name)
-                && !self
-                    .root
-                    .join(format!("{PENDING_PREFIX}{name}.lock"))
-                    .exists()
-            {
-                report.unresolved_unregistered += 1;
-            }
-        }
         Ok(report)
+    }
+
+    fn persist_artifact_update_locked(&self, artifact: &Artifact) -> Result<(), PlatformError> {
+        let directory = Path::new(&artifact.path).parent().ok_or_else(|| {
+            PlatformError::Validation("registered artifact path has no parent directory".into())
+        })?;
+        write_recovery_record(directory, artifact)?;
+        self.upsert_locked(artifact)
     }
 
     fn upsert_locked(&self, artifact: &Artifact) -> Result<(), PlatformError> {
@@ -508,13 +503,7 @@ impl ArtifactStore {
             artifact.artifact_id.clone(),
             serde_json::to_value(artifact).map_err(serialization_error)?,
         );
-        let text = serde_json::to_string_pretty(&manifest).map_err(serialization_error)?;
-        let mut file = AtomicWriteFile::open(&self.manifest_path)
-            .map_err(|error| io_error("cannot open atomic artifact manifest", error))?;
-        file.write_all(text.as_bytes())
-            .map_err(|error| io_error("cannot write atomic artifact manifest", error))?;
-        file.commit()
-            .map_err(|error| io_error("cannot commit atomic artifact manifest", error))
+        write_manifest(&self.manifest_path, &manifest)
     }
 
     fn get_locked(&self, artifact_id: &str) -> Result<Artifact, PlatformError> {
@@ -526,18 +515,7 @@ impl ArtifactStore {
         let artifact: Artifact = serde_json::from_value(value.clone()).map_err(|error| {
             PlatformError::Validation(format!("cannot decode artifact record: {error}"))
         })?;
-        let artifact_path = fs::canonicalize(&artifact.path)
-            .map_err(|error| io_error("cannot resolve registered artifact path", error))?;
-        if !artifact_path.starts_with(&self.root) {
-            return Err(PlatformError::Validation(format!(
-                "registered artifact escapes artifact store: {artifact_id}"
-            )));
-        }
-        if sha256(&artifact_path)? != artifact.sha256 {
-            return Err(PlatformError::Validation(format!(
-                "registered artifact hash mismatch: {artifact_id}"
-            )));
-        }
+        validate_registered_artifact(&self.root, artifact_id, &artifact)?;
         Ok(artifact)
     }
 
@@ -601,34 +579,6 @@ fn try_cleanup_pending(
     }
 }
 
-fn cleanup_published_orphan(directory: &Path, lock_path: &Path) -> Result<bool, PlatformError> {
-    let lock = OpenOptions::new()
-        .create(false)
-        .read(true)
-        .write(true)
-        .open(lock_path)
-        .map_err(|error| io_error("cannot open published artifact recovery lock", error))?;
-    match lock.try_lock() {
-        Ok(()) => {
-            fs::remove_dir_all(directory)
-                .map_err(|error| io_error("cannot remove incomplete published artifact", error))?;
-            lock.unlock().map_err(|error| {
-                io_error(
-                    "cannot unlock incomplete published artifact recovery",
-                    error,
-                )
-            })?;
-            drop(lock);
-            fs::remove_file(lock_path).map_err(|error| {
-                io_error("cannot remove published artifact recovery lock", error)
-            })?;
-            Ok(true)
-        }
-        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(false),
-        Err(error) => Err(io_error("cannot probe published artifact lock", error)),
-    }
-}
-
 fn cleanup_orphan_pending_lock(lock_path: &Path) -> Result<(), PlatformError> {
     let lock = OpenOptions::new()
         .create(false)
@@ -647,6 +597,93 @@ fn cleanup_orphan_pending_lock(lock_path: &Path) -> Result<(), PlatformError> {
         Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(()),
         Err(error) => Err(io_error("cannot probe orphan pending lock", error)),
     }
+}
+
+fn recover_artifact_record(
+    root: &Path,
+    directory: &Path,
+    artifact_id: &str,
+) -> Result<Option<Artifact>, PlatformError> {
+    let record_path = directory.join(RECOVERY_RECORD);
+    if !record_path.is_file() {
+        return Ok(None);
+    }
+    let text = fs::read_to_string(&record_path)
+        .map_err(|error| io_error("cannot read artifact recovery record", error))?;
+    let value: Value = match serde_json::from_str(&text) {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
+    };
+    if contracts::validate(&value, "artifact-v1.schema.json").is_err() {
+        return Ok(None);
+    }
+    let artifact: Artifact = match serde_json::from_value(value) {
+        Ok(artifact) => artifact,
+        Err(_) => return Ok(None),
+    };
+    if validate_registered_artifact(root, artifact_id, &artifact).is_err() {
+        return Ok(None);
+    }
+    Ok(Some(artifact))
+}
+
+fn validate_registered_artifact(
+    root: &Path,
+    artifact_id: &str,
+    artifact: &Artifact,
+) -> Result<(), PlatformError> {
+    if artifact.artifact_id != artifact_id {
+        return Err(PlatformError::Validation(format!(
+            "artifact recovery identity mismatch: expected {artifact_id}, got {}",
+            artifact.artifact_id
+        )));
+    }
+    let artifact_path = fs::canonicalize(&artifact.path)
+        .map_err(|error| io_error("cannot resolve registered artifact path", error))?;
+    let artifact_directory = artifact_path.parent().ok_or_else(|| {
+        PlatformError::Validation("registered artifact path has no parent directory".into())
+    })?;
+    let expected_directory = fs::canonicalize(root.join(artifact_id))
+        .map_err(|error| io_error("cannot resolve artifact directory", error))?;
+    if !artifact_path.starts_with(root) || artifact_directory != expected_directory {
+        return Err(PlatformError::Validation(format!(
+            "registered artifact escapes its artifact directory: {artifact_id}"
+        )));
+    }
+    if sha256(&artifact_path)? != artifact.sha256 {
+        return Err(PlatformError::Validation(format!(
+            "registered artifact hash mismatch: {artifact_id}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_artifact_contract(artifact: &Artifact) -> Result<(), PlatformError> {
+    contracts::validate(
+        &serde_json::to_value(artifact).map_err(serialization_error)?,
+        "artifact-v1.schema.json",
+    )
+}
+
+fn write_recovery_record(directory: &Path, artifact: &Artifact) -> Result<(), PlatformError> {
+    let text = serde_json::to_string_pretty(artifact).map_err(serialization_error)?;
+    let path = directory.join(RECOVERY_RECORD);
+    let mut file = AtomicWriteFile::open(&path)
+        .map_err(|error| io_error("cannot open atomic artifact recovery record", error))?;
+    file.write_all(text.as_bytes())
+        .map_err(|error| io_error("cannot write artifact recovery record", error))?;
+    file.commit()
+        .map_err(|error| io_error("cannot commit artifact recovery record", error))
+}
+
+fn write_manifest(path: &Path, manifest: &Map<String, Value>) -> Result<(), PlatformError> {
+    let text = serde_json::to_string_pretty(manifest).map_err(serialization_error)?;
+    let mut file = AtomicWriteFile::open(path)
+        .map_err(|error| io_error("cannot open atomic artifact manifest", error))?;
+    file.write_all(text.as_bytes())
+        .map_err(|error| io_error("cannot write atomic artifact manifest", error))?;
+    file.commit()
+        .map_err(|error| io_error("cannot commit atomic artifact manifest", error))
 }
 
 fn validate_artifact_id(artifact_id: &str) -> Result<(), PlatformError> {
