@@ -101,11 +101,11 @@ impl SecretStore {
         if !metadata
             .allowed_consumers
             .iter()
-            .any(|allowed| allowed == &selection.executor)
+            .any(|allowed| allowed == selection.executor())
         {
             return Err(PlatformError::SecretDenied(format!(
                 "executor {} is not allowed to resolve {secret_ref}",
-                selection.executor
+                selection.executor()
             )));
         }
 

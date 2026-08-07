@@ -33,14 +33,56 @@ struct CapabilitySpec {
 #[derive(Debug, Clone, Serialize)]
 #[non_exhaustive]
 pub struct CapabilitySelection {
-    pub capability: String,
-    pub executor: String,
-    pub quality: String,
-    pub reliability: String,
-    pub determinism: String,
-    pub base_risk: String,
-    pub cost: u64,
-    pub fallbacks: Vec<String>,
+    capability: String,
+    executor: String,
+    quality: String,
+    reliability: String,
+    determinism: String,
+    base_risk: String,
+    cost: u64,
+    fallbacks: Vec<String>,
+}
+
+impl CapabilitySelection {
+    #[must_use]
+    pub fn capability(&self) -> &str {
+        &self.capability
+    }
+
+    #[must_use]
+    pub fn executor(&self) -> &str {
+        &self.executor
+    }
+
+    #[must_use]
+    pub fn quality(&self) -> &str {
+        &self.quality
+    }
+
+    #[must_use]
+    pub fn reliability(&self) -> &str {
+        &self.reliability
+    }
+
+    #[must_use]
+    pub fn determinism(&self) -> &str {
+        &self.determinism
+    }
+
+    #[must_use]
+    pub fn base_risk(&self) -> &str {
+        &self.base_risk
+    }
+
+    #[must_use]
+    pub const fn cost(&self) -> u64 {
+        self.cost
+    }
+
+    #[must_use]
+    pub fn fallbacks(&self) -> &[String] {
+        &self.fallbacks
+    }
 }
 
 pub struct CapabilityRegistry {
