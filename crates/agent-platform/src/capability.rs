@@ -53,10 +53,11 @@ impl CapabilityRegistry {
             &repo_root.join("config/tools.yaml"),
         )?)
         .map_err(|error| PlatformError::Validation(format!("invalid tool manifest: {error}")))?;
-        let lock: ToolLock = serde_json::from_value(load_json_yaml(
-            &repo_root.join("config/tool-lock.yaml"),
-        )?)
-        .map_err(|error| PlatformError::Validation(format!("invalid tool lock: {error}")))?;
+        let lock: ToolLock =
+            serde_json::from_value(load_json_yaml(&repo_root.join("config/tool-lock.yaml"))?)
+                .map_err(|error| {
+                    PlatformError::Validation(format!("invalid tool lock: {error}"))
+                })?;
         Ok(Self { manifest, lock })
     }
 
@@ -119,7 +120,9 @@ pub fn required_quality(repo_root: &Path, capability: &str) -> Result<String, Pl
         .iter()
         .find(|item| item.get("capability").and_then(|value| value.as_str()) == Some(capability))
         .ok_or_else(|| {
-            PlatformError::Validation(format!("no project requirement for capability {capability}"))
+            PlatformError::Validation(format!(
+                "no project requirement for capability {capability}"
+            ))
         })?;
     requirement
         .get("required_quality")
