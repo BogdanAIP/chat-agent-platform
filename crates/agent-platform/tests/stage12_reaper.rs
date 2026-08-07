@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use agent_platform::artifact::ArtifactStore;
 use agent_platform::error::PlatformError;
@@ -8,18 +9,43 @@ use agent_platform::reaper::{
 };
 use tempfile::tempdir;
 
+fn make_tone(path: &Path) {
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=997:sample_rate=48000:duration=1",
+            "-ac",
+            "2",
+            path.to_str().expect("UTF-8 tone path"),
+        ])
+        .status()
+        .expect("ffmpeg tone generator must start");
+    assert!(status.success());
+}
+
+fn store_audio(source: &Path, artifact_root: PathBuf) -> (ArtifactStore, String) {
+    let store = ArtifactStore::new(&artifact_root).expect("artifact store");
+    let artifact = store
+        .import_file(source, "stage12-test", "project")
+        .expect("artifact import");
+    (store, artifact.artifact_id)
+}
+
 #[test]
 fn stage12_driver_is_typed_and_contains_no_shell_escape_hatch() {
     let temporary = tempdir().expect("temp directory");
     let source = temporary.path().join("lead.wav");
-    std::fs::write(&source, b"fixture audio bytes").expect("fixture write");
-    let store = ArtifactStore::new(&temporary.path().join("artifacts")).expect("artifact store");
-    let artifact = store
-        .import_file(&source, "stage12-test", "project")
-        .expect("artifact import");
+    make_tone(&source);
+    let (store, artifact_id) = store_audio(&source, temporary.path().join("artifacts"));
     let spec = ReaperSessionSpec {
         tracks: vec![ReaperTrackSpec {
-            artifact_id: artifact.artifact_id,
+            artifact_id,
             name: "Lead \"Vocal\"".into(),
         }],
         markers: vec![ReaperMarkerSpec {
@@ -51,6 +77,25 @@ fn stage12_driver_is_typed_and_contains_no_shell_escape_hatch() {
     assert_eq!(rendering[1], "-newinst");
     assert_eq!(rendering[2], "-renderproject");
     assert_eq!(rendering[3], pack.project_path.to_string_lossy());
+}
+
+#[test]
+fn stage12_rejects_corrupt_audio_artifact_before_reaper_execution() {
+    let temporary = tempdir().expect("temp directory");
+    let source = temporary.path().join("corrupt.wav");
+    std::fs::write(&source, b"not a real wav").expect("corrupt fixture write");
+    let (store, artifact_id) = store_audio(&source, temporary.path().join("artifacts"));
+    let spec = ReaperSessionSpec {
+        tracks: vec![ReaperTrackSpec {
+            artifact_id,
+            name: "Corrupt".into(),
+        }],
+        markers: Vec::new(),
+        render_sample_rate_hz: 48_000,
+    };
+    let error = build_driver_pack(&store, &spec, &temporary.path().join("reaper"))
+        .expect_err("corrupt media must fail before REAPER execution");
+    assert!(matches!(error, PlatformError::Validation(_)));
 }
 
 #[test]
