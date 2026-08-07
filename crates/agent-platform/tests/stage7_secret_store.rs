@@ -1,3 +1,4 @@
+#[cfg(windows)]
 use std::fs;
 
 use agent_platform::error::PlatformError;
@@ -5,8 +6,9 @@ use agent_platform::secret::SecretStore;
 use tempfile::tempdir;
 use uuid::Uuid;
 
+#[cfg(windows)]
 #[test]
-fn allowed_consumer_can_resolve_but_ffmpeg_cannot() {
+fn allowed_consumer_can_use_secret_but_ffmpeg_cannot() {
     let root = tempdir().expect("temp root");
     let store = SecretStore::new(root.path()).expect("secret store");
     let secret_ref = format!("secret://tests/{}", Uuid::new_v4().simple());
@@ -29,18 +31,25 @@ fn allowed_consumer_can_resolve_but_ffmpeg_cannot() {
         "raw secret must never be present in metadata"
     );
 
-    let resolved = store
-        .resolve(&secret_ref, "video.api")
-        .expect("allowed consumer must resolve");
-    assert_eq!(resolved.as_bytes(), secret_value.as_bytes());
+    let mut observed = false;
+    store
+        .with_secret(&secret_ref, "video.api", |secret| {
+            observed = secret == secret_value.as_bytes();
+            Ok(())
+        })
+        .expect("allowed consumer must use secret");
+    assert!(observed, "allowed consumer must receive the stored value");
 
     let denied = store
-        .resolve(&secret_ref, "ffmpeg")
+        .with_secret(&secret_ref, "ffmpeg", |_| Ok(()))
         .expect_err("FFmpeg must not resolve unrelated secret");
     assert!(matches!(denied, PlatformError::SecretDenied(_)));
     assert_eq!(denied.code(), "SECRET_ACCESS_DENIED");
+    assert!(
+        !denied.to_string().contains(&secret_value),
+        "access errors must not disclose the raw secret"
+    );
 
-    drop(resolved);
     store.remove(&secret_ref).expect("secret cleanup");
 }
 
