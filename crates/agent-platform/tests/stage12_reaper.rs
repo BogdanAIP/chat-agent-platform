@@ -28,8 +28,8 @@ fn stage12_driver_is_typed_and_contains_no_shell_escape_hatch() {
         }],
         render_sample_rate_hz: 48_000,
     };
-    let pack = build_driver_pack(&store, &spec, &temporary.path().join("reaper"))
-        .expect("driver pack");
+    let pack =
+        build_driver_pack(&store, &spec, &temporary.path().join("reaper")).expect("driver pack");
 
     assert!(pack.script.contains("reaper.InsertTrackInProject"));
     assert!(pack.script.contains("reaper.InsertMedia"));
