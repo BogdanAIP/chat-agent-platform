@@ -9,5 +9,6 @@ pub mod error;
 pub mod media;
 pub mod media_ops;
 pub mod policy;
+pub mod reaper;
 pub mod secret;
 pub mod service;
