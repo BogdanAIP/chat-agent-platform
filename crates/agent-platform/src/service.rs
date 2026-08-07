@@ -120,7 +120,7 @@ pub fn inspect_artifact(
 fn complete_inspection(
     binding: &ProjectBinding,
     store: &ArtifactStore,
-    mut artifact: Artifact,
+    artifact: Artifact,
     request_id: &str,
     policy: PolicyDecision,
     executor: &str,
@@ -141,7 +141,7 @@ fn complete_inspection(
         .ok_or_else(|| {
             PlatformError::Validation("inspection must serialize as an object".into())
         })?;
-    store.update_metadata(&mut artifact, metadata)?;
+    let artifact = store.update_metadata(&artifact.artifact_id, metadata)?;
     let result = json!({
         "request_id": request_id,
         "status": "success",
