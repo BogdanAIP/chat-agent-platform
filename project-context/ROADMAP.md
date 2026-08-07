@@ -135,9 +135,12 @@ executor. `required_quality` берётся из versioned project requirements,
 `effective_risk`; `requested_risk_hint` не влияет на enforcement. Для guarded
 операций создаётся SHA-256 confirmation binding по capability, parameters,
 data class и effective risk, поэтому изменение параметров или artifact hash
-инвалидирует подтверждение. Windows CI проверяет rejection basic executor для
-professional requirement, mandatory cost gate, deny bypass resistance и
-confirmation binding semantics; полный verify/release/artifact run прошёл успешно.
+инвалидирует подтверждение. `CapabilitySelection` после выбора неизменяем извне:
+executor и остальные decision fields доступны только через read-only getters, что
+не позволяет подменить выбранную identity перед ACL/staging. Windows CI проверяет
+rejection basic executor для professional requirement, mandatory cost gate, deny
+bypass resistance и confirmation binding semantics; полный verify/release/artifact
+run прошёл успешно.
 
 ### Stage 7. Secret Store + consumer ACL — done
 
@@ -150,25 +153,44 @@ Exit gate: разрешённый consumer получает секрет на м
 Реализован native Windows Credential Manager backend через safe Rust adapter без
 `unsafe` в platform crate, отдельного vault/daemon и собственной криптографии.
 Metadata содержит только `secret://` ref, consumer ACL и детерминированный
-credential target. Доступ принимается только по `CapabilitySelection`, выданному
-Stage 6 registry; raw bytes существуют внутри короткого callback и затем
-стираются через `zeroize`. Интеграционный Windows test доказывает доступ
-разрешённого executor, отказ `rust.local.ffmpeg` и отсутствие raw value в metadata
-и access errors. Новые зависимости зафиксированы в `Cargo.lock`, а ADR-008
-содержит причину выбора и план замены; полный Windows verify/release прошёл.
+credential target. Доступ принимается только по неизменяемому
+`CapabilitySelection`, выданному Stage 6 registry; raw bytes существуют внутри
+короткого callback и затем стираются через `zeroize`. Интеграционный Windows test
+доказывает доступ разрешённого executor, отказ `rust.local.ffmpeg` и отсутствие
+raw value в metadata и access errors. Новые зависимости зафиксированы в
+`Cargo.lock`, а ADR-008 содержит причину выбора и план замены; полный Windows
+verify/release прошёл.
 
-### Stage 8. Artifact hardening + staging — partial
+### Stage 8. Artifact hardening + staging — done
 
 Добавить lifecycle, concurrency-safe manifest/storage и staging policy.
 
 Exit gate: data classification управляет external staging; checksum проверяется;
 temporary copies очищаются; hash change инвалидирует confirmation.
 
-Manifest updates сериализованы межпроцессной file lock и публикуются атомарной
-заменой; concurrent-import test доказывает отсутствие lost updates. Recovery
-незарегистрированных каталогов и staging ещё не готовы.
-Lookup по `artifact_id` проверяет schema, path containment и SHA-256; повторный
-анализ не требует произвольного пользовательского пути или новой копии.
+Artifact import использует pending directory + per-artifact file lock, валидирует
+contract и SHA-256 до публикации, затем под manifest lock атомарно переименовывает
+pending directory в `art_*` и атомарно обновляет manifest. Existing
+concurrent-import test продолжает доказывать отсутствие lost updates.
+
+Каждый опубликованный artifact содержит внутренний recovery record. Если manifest
+утрачен после публикации, recovery повторно регистрирует только artifact с
+валидным contract, совпадающим `artifact_id`, canonical path внутри собственного
+`art_*` directory и корректным SHA-256. Неизвестные незарегистрированные каталоги
+не удаляются автоматически и отражаются как unresolved. Активный pending import
+не удаляется благодаря `try_lock`; брошенный pending очищается. Recovery всегда
+сбрасывает external staging в disabled, поэтому права после аварии восстанавливаются
+fail-closed.
+
+External staging разрешается только `public`/`project` artifacts и только для
+executor identity из неизменяемого `CapabilitySelection`; `private`/`sensitive`
+отклоняются. Перед callback создаётся отдельная временная копия вне Artifact Store,
+её SHA-256 сверяется с зарегистрированным artifact, а RAII cleanup удаляет staging
+copy и после успеха, и после ошибки consumer. Metadata updates теперь принимают
+только `artifact_id` и заново читают зарегистрированную запись, поэтому caller не
+может подменить path/hash/data class перед manifest update. Windows CI проверяет
+manifest-loss recovery, fail-closed staging, active/abandoned pending locks,
+неизвестные каталоги, tamper rejection, allowlist/FFmpeg denial и cleanup.
 
 ### Stage 9. Single-binary supervisor — conditional
 
