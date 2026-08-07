@@ -7,6 +7,7 @@ use agent_platform::media_ops::{
     convert_audio_file, extract_audio_file, mux_media_files, normalize_audio_file,
     validate_media_file,
 };
+use agent_platform::reaper::discover_reaper;
 use agent_platform::service::{
     diagnose, inspect_artifact, inspect_file, self_test, write_runtime_profile,
 };
@@ -36,6 +37,7 @@ enum Command {
         #[arg(long)]
         project_id: Option<String>,
     },
+    ReaperProbe,
     Bootstrap {
         #[arg(long)]
         project_id: Option<String>,
@@ -139,6 +141,13 @@ fn main() -> ExitCode {
         .map(
             |(output, profile)| json!({"status": "success", "output": output, "profile": profile}),
         ),
+        Command::ReaperProbe => discover_reaper().map(|path| {
+            json!({
+                "status": "available",
+                "execution_path": "reaper.cli.reascript",
+                "executable": path
+            })
+        }),
         Command::Bootstrap {
             project_id,
             capability,

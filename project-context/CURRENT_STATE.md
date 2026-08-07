@@ -38,7 +38,7 @@ atomic publish/manifest update и recovery records. Manifest-loss recovery до�
 allowlisted executor identity, создаёт проверенную временную копию и всегда удаляет
 её после callback. Recovery сбрасывает staging fail-closed.
 
-Stage 11 завершён на Windows-hosted runner. Один FFmpeg adapter теперь имеет typed
+Stage 11 завершён и подтверждён push-CI на `main`. Один FFmpeg adapter имеет typed
 operations `media.inspect`, `media.validate`, `media.convert`,
 `media.extract_audio`, `media.normalize_loudness` и `media.mux`. Convert принимает
 только lossless WAV/FLAC; extract создаёт PCM 24-bit WAV; normalization использует
@@ -46,20 +46,29 @@ operations `media.inspect`, `media.validate`, `media.convert`,
 video stream и добавляет FLAC audio в Matroska. Произвольные FFmpeg arguments,
 output paths и shell наружу не выставлены.
 
-Все Stage 11 операции проходят существующую цепочку Project Binding → locked
-selection → PEP → Artifact Store → FFmpeg timeout/kill → technical validation →
-`tool-v1`. FFmpeg output сначала создаётся как временный файл, валидируется,
-импортируется в Artifact Store и удаляется RAII cleanup. Capability requirements,
-tool lock и policy rules versioned; runtime profile объявляет весь подтверждённый
-FFmpeg capability set. Реальные Windows integration tests проверяют validate,
-FLAC conversion, PCM extraction, two-pass normalization, mux и rejection
-неразрешённого AAC conversion. Полный `fmt + clippy + Rust tests + Python
-oracle/parity + release build + artifact upload` прошёл.
+Все Stage 11 операции проходят цепочку Project Binding → locked selection → PEP →
+Artifact Store → FFmpeg timeout/kill → technical validation → `tool-v1`. FFmpeg
+output сначала создаётся как временный файл, валидируется, импортируется в Artifact
+Store и удаляется RAII cleanup. Реальные Windows integration tests проверяют
+validate, FLAC conversion, PCM extraction, two-pass normalization, mux и rejection
+неразрешённого AAC conversion.
+
+Stage 12 — partial. Добавлен Rust-модуль REAPER adapter foundation: typed session,
+track и marker specs принимают только зарегистрированные audio artifacts; generator
+создаёт ограниченный Lua/ReaScript driver для track creation, media import,
+markers, render settings и project save. Driver не содержит `os.execute`,
+`io.popen` или generic `Main_OnCommand`; строки экранируются. Команды REAPER
+ограничены отдельными authoring/render plans, а `reaper-probe` только обнаруживает
+`reaper.exe` через `REAPER_EXE` или стандартные Windows paths и ничего не запускает.
+Новых зависимостей и нового service/process не добавлено.
+
+Stage 12 не считается завершённым: GitHub-hosted runner не имеет доверенной
+установленной REAPER-среды, а Hosted Chat → local execution ещё не доказан. Exit
+gate требует реального REAPER project/track/import/marker/save/render и проверки
+rendered artifact через Stage 11. До этого Stage 13 не начинается.
 
 Stage 9 остаётся conditional: отдельный supervisor/service не создаётся без
 независимого lifecycle requirement. Stage 10 имеет рабочий Windows CI baseline.
-Следующий обязательный продуктовый этап — Stage 12 REAPER adapter; его нельзя
-считать завершённым без реального REAPER execution path.
 
 Приватный remote `BogdanAIP/chat-agent-platform` используется как versioned source
 of truth. Изменения проходят отдельные ветки, draft PR, Windows CI и squash merge в

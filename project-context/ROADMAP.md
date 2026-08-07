@@ -1,302 +1,185 @@
 # Roadmap v1.4
 
-Эта дорожная карта является исполняемым порядком разработки, а не списком
-обещанных функций. Каждый этап начинается только после прохождения входного gate
-и завершается проверяемым результатом. Source of truth для текущего положения —
-этот файл вместе с `CURRENT_STATE.md`; live runtime остаётся в `runtime/`.
+Это исполняемый порядок разработки, а не список обещаний. Этап начинается только
+после прохождения предыдущего обязательного gate и считается завершённым только по
+проверяемому результату. Source of truth: этот файл + `CURRENT_STATE.md`;
+runtime evidence хранится отдельно в `runtime/`.
 
-## Обозначения
+## Статусы
 
-- **done** — acceptance criteria пройдены реальным сценарием;
-- **in progress** — работа начата, но exit gate ещё не пройден;
-- **partial** — существует полезный результат, не закрывающий весь этап;
-- **planned** — этап не начат;
-- **conditional** — выполняется только после доказанного gap/спроса.
+- **done** — exit gate пройден реальным сценарием;
+- **partial** — полезная часть реализована, exit gate не закрыт;
+- **planned** — обязательный этап ещё не начат;
+- **conditional** — выполняется только при доказанном gap/спросе.
 
-## Текущий маршрут
-
-```text
-v1.3 Python architecture spike
-        ↓ сохранить contracts, fixtures и ожидаемое поведение
-v1.4 Rust Stage 0–1 parity
-        ↓ один agent-platform.exe + FFmpeg CLI
-Stage 2–3 consolidation
-        ↓
-Chat/local execution probe
-        ↓
-следующий capability только по реальному пользовательскому сценарию
-```
-
-## Horizon A — доказать Rust core
+## Horizon A — Rust core
 
 ### Stage 0. Reality baseline + Project Binding — partial
 
-Результат:
+Есть однозначный Project Binding, разделение versioned requirements/runtime profile,
+Rust local path и Chat → GitHub read/write. Hosted Chat → local execution/MCP surface
+ещё не подтверждён; пользовательская локальная среда остаётся отдельным evidence.
 
-- зафиксированы Git, Python, Node, FFmpeg/ffprobe и Rust toolchain;
-- существует однозначный `demo` Project Binding;
-- requirements отделены от runtime profile;
-- локальный `media.inspect` имеет рабочий Rust execution path и Python behavioral oracle;
-- Chat → GitHub read/write подтверждён реальным branch/edit/PR циклом через plugin;
-- hosted Chat → local execution и account-level MCP write/modify не считаются доступными без probe.
-
-Осталось:
-
-- полностью синхронизировать Rust/Cargo/Windows target evidence в runtime profile;
-- проверить реальный пользовательский WAV в пользовательской локальной среде;
-- отдельно проверить Chat → local execution / MCP surface.
-
-Exit gate: каждый обязательный requirement имеет рабочий path или явный gap с
-fallback; соседний проект невозможно выбрать неявно.
+Exit gate: каждый обязательный requirement имеет рабочий path либо явный gap и
+fallback; соседний проект нельзя выбрать неявно.
 
 ### Stage 1. Rust vertical architecture validation — done
 
-Перенести без расширения scope:
-
-```text
-binding → policy → artifact import → FFprobe/FFmpeg → validation → tool-v1
-```
-
-Сохранить Python slice как временный behavioral oracle. Rust и Python получают
-один input WAV и обязаны совпасть по contract shape, duration, sample rate,
-channels, codec и LUFS в установленном tolerance.
-
-Exit gate:
-
-- `agent-platform.exe inspect` проходит реальный WAV;
-- binary payload не попадает в stdout/contract;
-- ложный `requested_risk_hint=low` не обходит policy;
-- artifact hash и metadata валидируются;
-- `cargo fmt`, `clippy`, unit и integration tests проходят;
-- Python не нужен для запуска Rust inspect path.
+`binding → policy → artifact → FFprobe/FFmpeg → validation → tool-v1` реализован в
+Rust. Python сохранён только как behavioral oracle. Реальный WAV, SHA-256, metadata,
+policy-bypass negative test, fmt/clippy/tests и Rust/Python parity проходят.
 
 ### Stage 2. Core Contracts v1 — done
 
-JSON Schema для tool request/result, artifact, policy decision, secret reference и
-job встроены в Rust binary. Общие positive/negative fixtures проходят Rust и
-Python oracle. Transport Contract отсутствует, поскольку transport не участвует.
-
-Exit gate: positive/negative fixtures валидируются одинаково Rust и временным
-Python oracle; Transport Contract не создаётся до появления transport.
+Versioned JSON Schemas для tool request/result, artifact, policy decision, secret
+reference и job встроены в Rust; positive/negative fixtures общие с Python oracle.
+Transport Contract не создаётся до появления transport.
 
 ### Stage 3. Project Memory + Bootstrap + Skills — done
 
-Довести набор:
+Project Memory, generated capability audit, Bootstrap, media-inspection,
+github-development, ограниченный mastering skill и handoff template существуют.
+Новая сессия получает Project Binding, три минимальных context-файла и один
+релевантный capability slice.
 
-- `VISION`, `ARCHITECTURE`, `DECISIONS`, `CONSTRAINTS`;
-- `COST_POLICY`, `SECURITY_POLICY`, `DEVELOPMENT_PRINCIPLES`;
-- `CURRENT_STATE`, `ROADMAP`, `KNOWN_ISSUES`;
-- generated capability audit;
-- `bootstrap`, `media-inspection`, `github-development`, skeleton `mastering`;
-- handoff template.
-
-Exit gate: новая сессия получает project binding, три минимальных context-файла и
-один релевантный capability slice без полного пересказа архитектуры.
-
-Rust `bootstrap`, `probe` и `audit` работают. `bootstrap`, `media-inspection`,
-`github-development` и ограниченный `mastering` skills валидированы и проверены в
-независимых сессиях; handoff template существует.
-
-## Horizon B — дать Chat безопасный execution path
+## Horizon B — безопасное выполнение
 
 ### Stage 4. Local execution + transport capability probe — partial
 
-Сначала проверить native/direct surface. Отдельный transport добавлять только
-если Chat иначе не достигает local execution. Probe: auth, ping, controlled file
-write/read, health, reconnect, timeout, versions и structured errors.
+Локальный Rust `self-test` проверяет policy, ping, controlled write/read/cleanup,
+FFmpeg/ffprobe health и contracts. Hosted Chat → local execution/reconnect ещё не
+доказан.
 
-Exit gate: принято ADR «transport не нужен» либо выбран один тонкий adapter;
-transport не содержит media/business logic.
-
-Локальный Rust path теперь имеет typed `self-test`: policy, ping, controlled
-write/read/cleanup, FFmpeg/ffprobe health и contract validation. Remote transport и
-reconnect probe пока отсутствуют.
+Exit gate: либо принято ADR «transport не нужен», либо выбран один тонкий transport
+adapter без media/business logic.
 
 ### Stage 5. MCP discovery/runtime comparison — conditional
 
-Для Chat: native app/plugin/direct MCP → поддерживаемый local adapter.
-Для Codex/local: direct MCP → 1MCP при доказанном уменьшении контекста → ToolHive
-только при реальной governance/isolation потребности.
-
-Exit gate: выбран один path на поверхность; кандидаты не установлены одновременно
-«на будущее».
+Сначала native/direct MCP surface. 1MCP/ToolHive/другие слои добавляются только при
+измеримом выигрыше по context/governance/isolation; кандидаты не устанавливаются
+одновременно «на будущее».
 
 ### Stage 6. Tool Manifest + selection + hardened PEP — done
 
-Ввести capability-level metadata и mandatory gates до ranking. Технически
-обеспечить allow/deny/guarded; Chat не определяет effective risk.
-
-Exit gate: professional requirement исключает basic executor, deny невозможно
-обойти прямым вызовом, guarded возвращает immutable preview.
-
-`config/tools.yaml` и `config/tool-lock.yaml` теперь задают manifest-backed locked
-executor. `required_quality` берётся из versioned project requirements, а quality
-и cost gates применяются до execution. PEP хранит `decision` отдельно от
-`effective_risk`; `requested_risk_hint` не влияет на enforcement. Для guarded
-операций создаётся SHA-256 confirmation binding по capability, parameters,
-data class и effective risk, поэтому изменение параметров или artifact hash
-инвалидирует подтверждение. `CapabilitySelection` после выбора неизменяем извне:
-executor и остальные decision fields доступны только через read-only getters, что
-не позволяет подменить выбранную identity перед ACL/staging. Windows CI проверяет
-rejection basic executor для professional requirement, mandatory cost gate, deny
-bypass resistance и confirmation binding semantics; полный verify/release/artifact
-run прошёл успешно.
+`tools.yaml` + `tool-lock.yaml`, required-quality/cost gates, immutable
+`CapabilitySelection`, независимые `decision/effective_risk`, guarded confirmation
+binding по capability/parameters/data class/hash. Model hint не снижает enforcement.
+Windows CI покрывает negative gates и bypass resistance.
 
 ### Stage 7. Secret Store + consumer ACL — done
 
-Использовать Windows Credential Manager/DPAPI через системные bindings, без
-собственной криптографии. Secret refs не раскрывают значения.
-
-Exit gate: разрешённый consumer получает секрет на минимальное время; FFmpeg,
-логи, artifacts и Project Memory не получают raw value.
-
-Реализован native Windows Credential Manager backend через safe Rust adapter без
-`unsafe` в platform crate, отдельного vault/daemon и собственной криптографии.
-Metadata содержит только `secret://` ref, consumer ACL и детерминированный
-credential target. Доступ принимается только по неизменяемому
-`CapabilitySelection`, выданному Stage 6 registry; raw bytes существуют внутри
-короткого callback и затем стираются через `zeroize`. Интеграционный Windows test
-доказывает доступ разрешённого executor, отказ `rust.local.ffmpeg` и отсутствие
-raw value в metadata и access errors. Новые зависимости зафиксированы в
-`Cargo.lock`, а ADR-008 содержит причину выбора и план замены; полный Windows
-verify/release прошёл.
+Windows Credential Manager через safe Rust backend, без собственной криптографии,
+`unsafe`, vault или daemon. Metadata не содержит raw value; ACL принимает только
+выбранный Stage 6 executor; краткоживущий secret buffer zeroize-ится. Windows test
+доказывает allowed consumer и denial FFmpeg. Dependencies зафиксированы и имеют ADR
+с планом замены.
 
 ### Stage 8. Artifact hardening + staging — done
 
-Добавить lifecycle, concurrency-safe manifest/storage и staging policy.
-
-Exit gate: data classification управляет external staging; checksum проверяется;
-temporary copies очищаются; hash change инвалидирует confirmation.
-
-Artifact import использует pending directory + per-artifact file lock, валидирует
-contract и SHA-256 до публикации, затем под manifest lock атомарно переименовывает
-pending directory в `art_*` и атомарно обновляет manifest. Existing
-concurrent-import test продолжает доказывать отсутствие lost updates.
-
-Каждый опубликованный artifact содержит внутренний recovery record. Если manifest
-утрачен после публикации, recovery повторно регистрирует только artifact с
-валидным contract, совпадающим `artifact_id`, canonical path внутри собственного
-`art_*` directory и корректным SHA-256. Неизвестные незарегистрированные каталоги
-не удаляются автоматически и отражаются как unresolved. Активный pending import
-не удаляется благодаря `try_lock`; брошенный pending очищается. Recovery всегда
-сбрасывает external staging в disabled, поэтому права после аварии восстанавливаются
-fail-closed.
-
-External staging разрешается только `public`/`project` artifacts и только для
-executor identity из неизменяемого `CapabilitySelection`; `private`/`sensitive`
-отклоняются. Перед callback создаётся отдельная временная копия вне Artifact Store,
-её SHA-256 сверяется с зарегистрированным artifact, а RAII cleanup удаляет staging
-copy и после успеха, и после ошибки consumer. Metadata updates теперь принимают
-только `artifact_id` и заново читают зарегистрированную запись, поэтому caller не
-может подменить path/hash/data class перед manifest update. Windows CI проверяет
-manifest-loss recovery, fail-closed staging, active/abandoned pending locks,
-неизвестные каталоги, tamper rejection, allowlist/FFmpeg denial и cleanup.
+Pending lifecycle, per-artifact locks, atomic publish/manifest, recovery records,
+SHA/path/contract validation, fail-closed recovery. External staging разрешён только
+для `public/project` и allowlisted executor; private/sensitive запрещены; временная
+копия проверяется по SHA и удаляется RAII cleanup. Unknown orphan data сохраняется.
 
 ### Stage 9. Single-binary supervisor — conditional
 
-Один CLI entry point `start/status/diagnose/stop`. Tray/service — только после
-подтверждённой эксплуатационной пользы.
-
-Exit gate: один exe управляет только реально выбранными компонентами и не
-превращается в постоянно работающий зоопарк.
+`start/status/diagnose/stop`, tray/service — только после реальной независимой
+lifecycle-потребности. Нельзя превращать платформу в постоянно работающий зоопарк.
 
 ### Stage 10. GitHub Actions — complete baseline
 
-Добавить Windows CI: fmt, clippy с warnings-as-errors, tests, contract fixtures,
-dependency/security audit и release build.
+Windows CI выполняет fmt, strict clippy, Rust tests, contract fixtures, Python
+oracle/parity, release build и artifact upload. PR → CI → squash merge доказан на
+чистых hosted runners. Supply-chain audit/signing остаются отдельным усилением.
 
-Exit gate: PR получает воспроизводимый результат; секреты только в GitHub Secrets;
-release artifact проверен на чистой машине.
-
-Windows workflow и единый `scripts/verify.ps1` доказаны локально и зелёными
-запусками на чистых GitHub-hosted runner'ах. Проверены branch, draft PR, CI,
-upload release artifact и squash merge в `main`. Dependency/security audit и
-подписанный versioned release остаются отдельным усилением supply chain.
-
-## Horizon C — профессиональные media capabilities
+## Horizon C — профессиональное media/audio
 
 ### Stage 11. FFmpeg professional adapter — done
 
-Расширять только typed operations: inspect, loudness, convert, extract, normalize,
-mux/validate. CLI остаётся native edge; FFI требует измеримого выигрыша.
+Typed capabilities: `media.inspect`, `media.validate`, `media.convert`,
+`media.extract_audio`, `media.normalize_loudness`, `media.mux`. Один low-level
+FFmpeg runner с timeout/kill; произвольные shell/FFmpeg args/output paths наружу не
+выставлены.
 
-Exit gate: каждый operation имеет policy class, artifact contract, timeout,
-structured error и technical validation.
+- convert: lossless WAV/FLAC;
+- extract: PCM 24-bit WAV;
+- normalize: two-pass EBU R128 loudnorm + LUFS/true-peak post-validation;
+- mux: video stream copy + FLAC audio → Matroska;
+- outputs: temp → technical validation → Artifact Store → cleanup.
 
-Реализованы typed capabilities `media.inspect`, `media.validate`, `media.convert`,
-`media.extract_audio`, `media.normalize_loudness` и `media.mux`. Они используют
-один низкоуровневый FFmpeg runner с 60-секундным timeout/kill path и не открывают
-arbitrary shell/FFmpeg arguments или произвольный output path.
+Requirements/tool lock/policy/runtime profile согласованы. Реальные Windows tests
+проверяют все операции и негативный AAC case. PR #6 и push-CI на `main` зелёные.
 
-`media.convert` разрешает только lossless WAV/FLAC; `media.extract_audio` создаёт
-24-bit PCM WAV; `media.normalize_loudness` использует двухпроходный EBU R128
-`loudnorm` и post-validation по LUFS/true peak; `media.mux` сохраняет video stream
-через stream copy и добавляет FLAC audio в Matroska. Все outputs создаются во
-временном файле, технически валидируются FFprobe/EBU R128, импортируются в
-Artifact Store с SHA-256/metadata и затем очищаются RAII guard.
+### Stage 12. REAPER adapter — partial
 
-Каждая capability имеет versioned requirement, locked executor и policy rule;
-runtime profile сообщает тот же подтверждённый capability set. Windows integration
-tests на реальных генерируемых audio/video проверяют validate, FLAC conversion,
-PCM extraction, two-pass normalization, mux и rejection неразрешённого AAC
-conversion. Полный fmt/clippy/Rust tests/Python oracle+parity/release/artifact CI
-прошёл успешно; новых crate dependencies Stage 11 не добавил.
+Выбран путь Rust → ограниченный Lua/ReaScript → штатный REAPER CLI, без UI-click
+automation и без нового daemon. Foundation реализует:
 
-### Stage 12. REAPER adapter — planned
+- typed session/track/marker specs;
+- только зарегистрированные audio artifact IDs как inputs;
+- Lua escaping и pre-execution validation;
+- driver для track creation, media import, markers, render settings и project save;
+- WAV render config через documented `RENDER_FORMAT="evaw"`;
+- fixed authoring/render command plans;
+- `reaper-probe`, который только обнаруживает `reaper.exe` через `REAPER_EXE` или
+  стандартные Windows paths;
+- запрет `os.execute`, `io.popen` и generic `Main_OnCommand` в generated driver.
 
-Rust contracts/policy/jobs → ограниченный Lua/ReaScript driver → REAPER.
+Новых dependencies/process/service нет. CI проверяет генератор и negative cases,
+но не эмулирует REAPER.
 
-Exit gate: проект/track/import/marker/save/render выполняются без произвольного
-shell и возвращают валидированный artifact.
+Exit gate **ещё не пройден**: на реальной установленной REAPER-среде должны
+выполниться project → track → import → marker → save → render, после чего rendered
+WAV импортируется/валидируется Stage 11. До этого Stage 13 не начинается.
 
 ### Stage 13. Audio analysis/mastering decision layer — planned
 
-Создать benchmark corpus и decision logic поверх готовых анализаторов.
+Создать benchmark corpus и decision logic поверх зрелых анализаторов.
 
-Exit gate: технические метрики и профессиональная quality acceptance проходят на
+Exit gate: technical metrics и professional quality acceptance проходят на
 репрезентативном корпусе, а не на одном тестовом тоне.
 
 ### Stage 14. Workflow runtime gate — conditional
 
-Сначала проверить лёгкий Rust job state machine: persistence, cancellation,
-idempotency, retry, checkpoints, resume. Prefect/Node-RED/другой engine сравнивать
-только при незакрытом реальном workflow.
+Сначала лёгкий Rust job state machine: persistence, cancellation, idempotency,
+retry, checkpoints, resume. Prefect/Node-RED/другой runtime сравнивать только если
+реальный workflow остаётся незакрыт.
 
-Exit gate: один выбранный runtime; нет собственной копии Prefect.
+Exit gate: выбран один runtime; нет собственной копии Prefect и лишнего сервиса.
 
 ### Stage 15. Production mastering workflow — planned
 
 Первый длинный workflow с job ID, recovery, artifacts и quality gate.
 
-Exit gate: результат доступен после новой сессии; retry не дублирует опасные
-действия; benchmark quality подтверждён.
+Exit gate: результат переживает новую сессию; retry не дублирует опасные действия;
+benchmark quality подтверждён.
 
-## Horizon D — расширение по спросу
+## Horizon D — расширение только по спросу
 
 ### Stage 16. Browser automation + platform policy — conditional
 
-API/connector → Playwright/Browser MCP → UI automation. Node является edge runtime,
+API/connector → Playwright/Browser MCP → UI automation. Node только edge runtime,
 не core dependency.
 
 ### Stage 17. Video production — conditional
 
-FFmpeg composition, Blender Python/native addons и внешние generators подключаются
-через artifacts/policy/jobs. Ни один provider не становится внутренней архитектурой.
+FFmpeg composition, Blender API/addons и внешние generators подключаются через
+artifacts/policy/jobs; provider не становится внутренней архитектурой.
 
 ### Stage 18. Distribution adapters — conditional
 
-Публикация только через guarded prepare/confirm, platform-policy checks и точную
-привязку к artifact hash/destination/cost.
+Только guarded prepare/confirm, platform-policy checks и точная привязка к artifact
+hash/destination/cost.
 
 ### Stage 19. Additional professional capabilities — conditional
 
-Добавлять capability только при наличии реального сценария, quality benchmark,
-владельца adapter и exit criteria.
+Capability добавляется только при реальном сценарии, quality benchmark,
+определённом adapter owner и собственном exit gate.
 
 ### Stage 20. Operations audit — planned
 
-Проверить recovery, upgrades, retention, logs, secrets, costs, dependency decay,
-single-binary promise и no-zoo ограничения на реальной эксплуатации.
+Recovery, upgrades, retention, logs, secrets, costs, dependency decay,
+single-binary promise и no-zoo ограничения проверяются на реальной эксплуатации.
 
 ## Definition of Done для любого этапа
 
@@ -309,4 +192,4 @@ single-binary promise и no-zoo ограничения на реальной э�
 7. Новая зависимость имеет причину, lockfile и план удаления/замены.
 8. Нет нового process/service без независимого lifecycle requirement.
 9. Editable sources и fixtures сохранены.
-10. Следующий этап не начат до прохождения exit gate текущего.
+10. Следующий обязательный этап не начинается до прохождения exit gate текущего.
