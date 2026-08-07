@@ -79,8 +79,7 @@ fn selected_executor_can_use_secret_but_ffmpeg_cannot() {
 
     let metadata_dump = fs::read_dir(root.path().join("runtime/secrets"))
         .expect("metadata directory")
-        .map(|entry| fs::read(entry.expect("metadata entry").path()).expect("metadata read"))
-        .flatten()
+        .flat_map(|entry| fs::read(entry.expect("metadata entry").path()).expect("metadata read"))
         .collect::<Vec<_>>();
     assert!(
         !metadata_dump
