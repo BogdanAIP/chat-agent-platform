@@ -11,6 +11,9 @@ use crate::capability::CapabilitySelection;
 use crate::contracts;
 use crate::error::PlatformError;
 
+#[cfg(windows)]
+static CREDENTIAL_ACCESS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SecretMetadata {
     contract_version: String,
@@ -174,6 +177,13 @@ fn stable_id(value: &str) -> String {
 }
 
 #[cfg(windows)]
+fn credential_guard() -> Result<std::sync::MutexGuard<'static, ()>, PlatformError> {
+    CREDENTIAL_ACCESS.lock().map_err(|_| {
+        PlatformError::SecretStore("Windows Credential Manager access lock is poisoned".into())
+    })
+}
+
+#[cfg(windows)]
 fn credential_entry(target: &str) -> Result<keyring_core::Entry, PlatformError> {
     use std::collections::HashMap;
 
@@ -198,6 +208,7 @@ fn credential_entry(target: &str) -> Result<keyring_core::Entry, PlatformError> 
 
 #[cfg(windows)]
 fn write_credential(target: &str, value: &[u8]) -> Result<(), PlatformError> {
+    let _guard = credential_guard()?;
     credential_entry(target)?
         .set_secret(value)
         .map_err(|error| {
@@ -207,6 +218,7 @@ fn write_credential(target: &str, value: &[u8]) -> Result<(), PlatformError> {
 
 #[cfg(windows)]
 fn read_credential(target: &str) -> Result<Vec<u8>, PlatformError> {
+    let _guard = credential_guard()?;
     credential_entry(target)?.get_secret().map_err(|error| {
         PlatformError::SecretStore(format!("Windows Credential Manager read failed: {error}"))
     })
@@ -214,6 +226,7 @@ fn read_credential(target: &str) -> Result<Vec<u8>, PlatformError> {
 
 #[cfg(windows)]
 fn delete_credential(target: &str) -> Result<(), PlatformError> {
+    let _guard = credential_guard()?;
     credential_entry(target)?
         .delete_credential()
         .map_err(|error| {
