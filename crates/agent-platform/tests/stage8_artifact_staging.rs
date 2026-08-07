@@ -173,7 +173,7 @@ fn tampered_artifact_is_rejected_before_external_copy() {
 }
 
 #[test]
-fn recovery_removes_only_proven_incomplete_state_and_skips_active_import() {
+fn recovery_restores_valid_artifacts_without_deleting_unknown_data() {
     let temporary = tempdir().expect("temporary root");
     let artifact_root = temporary.path().join("artifacts");
     let source = temporary.path().join("fixture.wav");
@@ -183,11 +183,7 @@ fn recovery_removes_only_proven_incomplete_state_and_skips_active_import() {
         .import_file(&source, "stage8-test", "project")
         .expect("artifact import");
 
-    let published_orphan = artifact_root.join("art_deadbeef");
-    fs::create_dir(&published_orphan).expect("published orphan directory");
-    fs::write(published_orphan.join("orphan.bin"), b"orphan").expect("orphan file");
-    let published_orphan_lock = artifact_root.join(".pending-art_deadbeef.lock");
-    fs::write(&published_orphan_lock, b"").expect("published orphan lock");
+    fs::remove_file(artifact_root.join("manifest.json")).expect("simulate manifest loss");
 
     let unknown_orphan = artifact_root.join("art_decafbad");
     fs::create_dir(&unknown_orphan).expect("unknown orphan directory");
@@ -212,13 +208,17 @@ fn recovery_removes_only_proven_incomplete_state_and_skips_active_import() {
     active_lock.lock().expect("hold active pending lock");
 
     let report = store.recover_orphans().expect("artifact recovery");
-    assert_eq!(report.removed_unregistered, 1);
+    assert_eq!(report.recovered_unregistered, 1);
     assert_eq!(report.unresolved_unregistered, 1);
     assert_eq!(report.removed_pending, 1);
     assert_eq!(report.skipped_active_pending, 1);
-    assert!(Path::new(&registered.path).exists());
-    assert!(!published_orphan.exists());
-    assert!(!published_orphan_lock.exists());
+    assert_eq!(
+        store
+            .get(&registered.artifact_id)
+            .expect("recovered artifact")
+            .sha256,
+        registered.sha256
+    );
     assert!(
         unknown_orphan.exists(),
         "unknown data must not be auto-deleted"
@@ -234,4 +234,5 @@ fn recovery_removes_only_proven_incomplete_state_and_skips_active_import() {
     assert!(!active.exists());
     assert!(!active_lock_path.exists());
     assert!(unknown_orphan.exists());
+    assert!(Path::new(&registered.path).exists());
 }
