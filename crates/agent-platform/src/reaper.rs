@@ -125,7 +125,10 @@ end\n",
     )
     .expect("writing to String cannot fail");
 
-    if script.contains("os.execute") || script.contains("io.popen") || script.contains("Main_OnCommand(") {
+    if script.contains("os.execute")
+        || script.contains("io.popen")
+        || script.contains("Main_OnCommand(")
+    {
         return Err(PlatformError::Validation(
             "generated REAPER driver contains a forbidden execution primitive".into(),
         ));
