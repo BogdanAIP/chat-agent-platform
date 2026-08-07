@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use zeroize::Zeroize;
 
 use crate::capability::CapabilitySelection;
 use crate::contracts;
@@ -33,7 +34,7 @@ impl SecretBuffer {
 
 impl Drop for SecretBuffer {
     fn drop(&mut self) {
-        self.bytes.fill(0);
+        self.bytes.zeroize();
     }
 }
 
@@ -147,10 +148,7 @@ impl SecretStore {
     }
 }
 
-fn validate_reference(
-    secret_ref: &str,
-    allowed_consumers: &[String],
-) -> Result<(), PlatformError> {
+fn validate_reference(secret_ref: &str, allowed_consumers: &[String]) -> Result<(), PlatformError> {
     let contract = json!({
         "contract_version": "secret-ref-v1",
         "secret_ref": secret_ref,
@@ -212,9 +210,7 @@ fn delete_credential(target: &str) -> Result<(), PlatformError> {
     credential_entry(target)?
         .delete_credential()
         .map_err(|error| {
-            PlatformError::SecretStore(format!(
-                "Windows Credential Manager delete failed: {error}"
-            ))
+            PlatformError::SecretStore(format!("Windows Credential Manager delete failed: {error}"))
         })
 }
 
