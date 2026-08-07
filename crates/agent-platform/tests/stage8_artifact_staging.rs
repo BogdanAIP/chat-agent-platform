@@ -182,6 +182,14 @@ fn recovery_restores_valid_artifacts_without_deleting_unknown_data() {
     let registered = store
         .import_file(&source, "stage8-test", "project")
         .expect("artifact import");
+    let registry = registry(temporary.path());
+    let cloud = registry
+        .select("external.stage", "professional", 0)
+        .expect("cloud selection");
+    let staged = store
+        .allow_external_staging(&registered.artifact_id, &[cloud])
+        .expect("enable staging before simulated manifest loss");
+    assert!(staged.external_policy.staging_allowed);
 
     fs::remove_file(artifact_root.join("manifest.json")).expect("simulate manifest loss");
 
@@ -212,13 +220,15 @@ fn recovery_restores_valid_artifacts_without_deleting_unknown_data() {
     assert_eq!(report.unresolved_unregistered, 1);
     assert_eq!(report.removed_pending, 1);
     assert_eq!(report.skipped_active_pending, 1);
-    assert_eq!(
-        store
-            .get(&registered.artifact_id)
-            .expect("recovered artifact")
-            .sha256,
-        registered.sha256
+    let recovered = store
+        .get(&registered.artifact_id)
+        .expect("recovered artifact");
+    assert_eq!(recovered.sha256, registered.sha256);
+    assert!(
+        !recovered.external_policy.staging_allowed,
+        "recovery must fail closed for external staging"
     );
+    assert!(recovered.external_policy.allowed_executors.is_empty());
     assert!(
         unknown_orphan.exists(),
         "unknown data must not be auto-deleted"
