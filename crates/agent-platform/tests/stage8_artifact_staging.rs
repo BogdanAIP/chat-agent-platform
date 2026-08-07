@@ -219,7 +219,10 @@ fn recovery_removes_only_proven_incomplete_state_and_skips_active_import() {
     assert!(Path::new(&registered.path).exists());
     assert!(!published_orphan.exists());
     assert!(!published_orphan_lock.exists());
-    assert!(unknown_orphan.exists(), "unknown data must not be auto-deleted");
+    assert!(
+        unknown_orphan.exists(),
+        "unknown data must not be auto-deleted"
+    );
     assert!(!abandoned.exists());
     assert!(active.exists());
 
