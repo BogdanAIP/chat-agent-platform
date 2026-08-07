@@ -71,7 +71,7 @@ fn selected_executor_can_use_secret_but_ffmpeg_cannot() {
     let store = SecretStore::new(root.path()).expect("secret store");
     let secret_ref = format!("secret://tests/{}", Uuid::new_v4().simple());
     let secret_value = format!("stage7-secret-{}", Uuid::new_v4().simple());
-    let consumers = vec![video.executor.clone()];
+    let consumers = vec![video.executor().to_owned()];
 
     store
         .put(&secret_ref, &consumers, secret_value.as_bytes())
