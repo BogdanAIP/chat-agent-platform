@@ -1,0 +1,7 @@
+{
+  "contract_version": "tool-lock-v1",
+  "selected": {
+    "media.inspect": "rust.local.ffmpeg",
+    "runtime.self_test": "rust.local.core"
+  }
+}

@@ -78,7 +78,13 @@ fn low_risk_hint_cannot_bypass_deny() {
     let binding = resolve_project(&repo_root(), Some("demo")).expect("demo binding");
     let policy = PolicyEnforcementPoint::load(&binding.policy_path).expect("policy config");
     let error = policy
-        .evaluate("shell.run_arbitrary", &json!({}), "project", Some("low"))
+        .evaluate(
+            "shell.run_arbitrary",
+            &json!({}),
+            "project",
+            Some("low"),
+            "critical",
+        )
         .expect_err("denied capability must remain denied");
     assert!(matches!(error, PlatformError::PolicyDenied(_)));
 }

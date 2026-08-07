@@ -3,14 +3,15 @@
   "$id": "policy-decision-v1.schema.json",
   "title": "Policy decision v1",
   "type": "object",
-  "required": ["decision_id", "capability", "effective_risk", "enforced_by", "reasons"],
+  "required": ["decision_id", "capability", "decision", "effective_risk", "enforced_by", "reasons"],
   "properties": {
     "decision_id": {"type": "string", "pattern": "^pol_[a-f0-9]+$"},
     "capability": {"type": "string", "minLength": 1},
-    "effective_risk": {"enum": ["allow", "guarded", "deny"]},
+    "decision": {"enum": ["allow", "guarded"]},
+    "effective_risk": {"enum": ["low", "medium", "high", "critical"]},
     "enforced_by": {"type": "string", "minLength": 1},
-    "reasons": {"type": "array", "items": {"type": "string"}}
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "confirmation_binding": {"type": "string", "pattern": "^confirm_[a-f0-9]{64}$"}
   },
   "additionalProperties": false
 }
-

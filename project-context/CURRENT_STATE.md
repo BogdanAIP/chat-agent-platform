@@ -5,11 +5,13 @@
 настоящий WAV, применяет policy до импорта, регистрирует artifact, измеряет
 metadata/LUFS и валидирует ответ.
 
-Hosted Chat transport и account-level MCP write/modify ещё не проверены и не
-считаются доступными. Подтверждённый execution path сейчас — local/Codex CLI.
+Hosted Chat → GitHub write surface подтверждён реальным branch/edit/PR циклом в
+PR #3. Hosted Chat → local execution transport и account-level MCP write/modify
+ещё не проверены и не считаются доступными. Подтверждённый локальный execution
+path сейчас — local/Codex CLI.
 
 Stage 2 contracts формализованы JSON Schema и применяются в исполняемом пути.
-Stage 3 начат: Bootstrap skill валиден, а команда `bootstrap` возвращает только
+Stage 3 завершён: Bootstrap skill валиден, а команда `bootstrap` возвращает только
 Project Binding, три минимальных context-файла и релевантный capability slice.
 Generated `CHATGPT_CAPABILITIES.md` строится из requirements и runtime profile,
 поэтому человекочитаемый audit не создаёт второй source of truth.
@@ -28,12 +30,19 @@ integrated LUFS, LRA и true peak dBTP.
 
 Stage 2 завершён: шесть schemas встроены в binary, общие positive/negative fixtures
 проходят в Rust и Python. Stage 3 завершён: четыре skills валидированы и
-forward-tested. Единый локальный `scripts/verify.ps1` проходит: 9 Rust-тестов и
-8 Python oracle-тестов. Windows CI дважды прошёл на чистых GitHub-hosted runner'ах
-для PR #1 и опубликовал release artifact. Внешние FFmpeg/ffprobe процессы
-ограничены 60 секундами и принудительно
-завершаются с retryable `TOOL_TIMEOUT` при зависании.
+forward-tested. Единый `scripts/verify.ps1` проверяет Rust, contracts, Python
+oracle, parity и release build на Windows CI. Внешние FFmpeg/ffprobe процессы
+ограничены 60 секундами и принудительно завершаются с retryable `TOOL_TIMEOUT`
+при зависании.
 
-Приватный remote `BogdanAIP/chat-agent-platform` работает через авторизованный
-GitHub CLI. Проверен полный цикл branch → draft PR → CI → ready → squash merge;
-PR #1 слит в `main`.
+Stage 6 завершён на Windows-hosted runner: capability-level `tools.yaml` и
+`tool-lock.yaml` выбирают locked executor только после mandatory quality/cost
+gates; PEP хранит `decision` отдельно от `effective_risk`; model risk hint не может
+понизить enforcement. Guarded preview получает SHA-256 confirmation binding,
+зависящий от capability, parameters, data class и effective risk. Негативные тесты
+доказывают rejection basic executor для professional requirement, cost gate и
+инвалидацию binding при изменении artifact hash/parameters.
+
+Приватный remote `BogdanAIP/chat-agent-platform` работает через GitHub plugin и
+авторизованный GitHub CLI. Проверены branch → draft PR → CI → ready → squash merge
+для предыдущих PR; PR #3 дополнительно доказал прямой Chat → GitHub write path.

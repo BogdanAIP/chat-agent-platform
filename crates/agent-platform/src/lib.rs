@@ -2,6 +2,7 @@ pub mod artifact;
 pub mod audit;
 pub mod binding;
 pub mod bootstrap;
+pub mod capability;
 pub mod config;
 pub mod contracts;
 pub mod error;
