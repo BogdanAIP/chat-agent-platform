@@ -3,6 +3,10 @@ use std::process::ExitCode;
 
 use agent_platform::audit::write_capability_audit;
 use agent_platform::bootstrap::build_context;
+use agent_platform::media_ops::{
+    convert_audio_file, extract_audio_file, mux_media_files, normalize_audio_file,
+    validate_media_file,
+};
 use agent_platform::service::{
     diagnose, inspect_artifact, inspect_file, self_test, write_runtime_profile,
 };
@@ -64,6 +68,64 @@ enum Command {
         #[arg(long)]
         requested_risk_hint: Option<String>,
     },
+    ValidateMedia {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long, default_value = "project")]
+        data_class: String,
+        #[arg(long)]
+        requested_risk_hint: Option<String>,
+    },
+    ConvertAudio {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long, value_parser = ["wav", "flac"], default_value = "wav")]
+        format: String,
+        #[arg(long, default_value = "project")]
+        data_class: String,
+        #[arg(long)]
+        requested_risk_hint: Option<String>,
+    },
+    ExtractAudio {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long, default_value = "project")]
+        data_class: String,
+        #[arg(long)]
+        requested_risk_hint: Option<String>,
+    },
+    NormalizeAudio {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long, default_value_t = -14.0)]
+        target_lufs: f64,
+        #[arg(long, default_value_t = -1.0)]
+        target_true_peak_dbtp: f64,
+        #[arg(long, default_value = "project")]
+        data_class: String,
+        #[arg(long)]
+        requested_risk_hint: Option<String>,
+    },
+    MuxMedia {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        video: PathBuf,
+        #[arg(long)]
+        audio: PathBuf,
+        #[arg(long, default_value = "project")]
+        data_class: String,
+        #[arg(long)]
+        requested_risk_hint: Option<String>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -106,6 +168,74 @@ fn main() -> ExitCode {
             &cli.repo_root,
             artifact_id,
             project_id.as_deref(),
+            requested_risk_hint.as_deref(),
+        ),
+        Command::ValidateMedia {
+            project_id,
+            file,
+            data_class,
+            requested_risk_hint,
+        } => validate_media_file(
+            &cli.repo_root,
+            file,
+            project_id.as_deref(),
+            data_class,
+            requested_risk_hint.as_deref(),
+        ),
+        Command::ConvertAudio {
+            project_id,
+            file,
+            format,
+            data_class,
+            requested_risk_hint,
+        } => convert_audio_file(
+            &cli.repo_root,
+            file,
+            project_id.as_deref(),
+            data_class,
+            requested_risk_hint.as_deref(),
+            format,
+        ),
+        Command::ExtractAudio {
+            project_id,
+            file,
+            data_class,
+            requested_risk_hint,
+        } => extract_audio_file(
+            &cli.repo_root,
+            file,
+            project_id.as_deref(),
+            data_class,
+            requested_risk_hint.as_deref(),
+        ),
+        Command::NormalizeAudio {
+            project_id,
+            file,
+            target_lufs,
+            target_true_peak_dbtp,
+            data_class,
+            requested_risk_hint,
+        } => normalize_audio_file(
+            &cli.repo_root,
+            file,
+            project_id.as_deref(),
+            data_class,
+            requested_risk_hint.as_deref(),
+            *target_lufs,
+            *target_true_peak_dbtp,
+        ),
+        Command::MuxMedia {
+            project_id,
+            video,
+            audio,
+            data_class,
+            requested_risk_hint,
+        } => mux_media_files(
+            &cli.repo_root,
+            video,
+            audio,
+            project_id.as_deref(),
+            data_class,
             requested_risk_hint.as_deref(),
         ),
     };

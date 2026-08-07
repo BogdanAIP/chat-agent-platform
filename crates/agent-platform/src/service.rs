@@ -192,14 +192,34 @@ pub fn write_runtime_profile(
         "project_id": binding.project_id,
         "system": std::env::consts::OS,
         "rust": env!("CARGO_PKG_RUST_VERSION"),
+        "tools": {
+            "ffmpeg": {"available": true, "version": ffmpeg},
+            "ffprobe": {"available": true, "version": ffprobe}
+        },
         "capabilities": {
             "media.inspect": {
                 "status": "available",
-                "execution_path": "rust.local.ffmpeg",
-                "tools": {
-                    "ffmpeg": {"available": true, "version": ffmpeg},
-                    "ffprobe": {"available": true, "version": ffprobe}
-                }
+                "execution_path": "rust.local.ffmpeg"
+            },
+            "media.validate": {
+                "status": "available",
+                "execution_path": "rust.local.ffmpeg"
+            },
+            "media.convert": {
+                "status": "available",
+                "execution_path": "rust.local.ffmpeg"
+            },
+            "media.extract_audio": {
+                "status": "available",
+                "execution_path": "rust.local.ffmpeg"
+            },
+            "media.normalize_loudness": {
+                "status": "available",
+                "execution_path": "rust.local.ffmpeg"
+            },
+            "media.mux": {
+                "status": "available",
+                "execution_path": "rust.local.ffmpeg"
             },
             "runtime.self_test": {
                 "status": "available",

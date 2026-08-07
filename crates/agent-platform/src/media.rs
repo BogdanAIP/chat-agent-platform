@@ -24,7 +24,24 @@ pub struct MediaInspection {
     pub true_peak_status: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MediaValidation {
+    pub duration_seconds: f64,
+    pub format_name: String,
+    pub audio_streams: u32,
+    pub video_streams: u32,
+    pub subtitle_streams: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NormalizationResult {
+    pub target_lufs: f64,
+    pub target_true_peak_dbtp: f64,
+    pub inspection: MediaInspection,
+}
+
 pub fn inspect_media(path: &Path) -> Result<MediaInspection, PlatformError> {
+    let path_text = path.to_string_lossy();
     let probe = run(
         "ffprobe",
         &[
@@ -36,7 +53,7 @@ pub fn inspect_media(path: &Path) -> Result<MediaInspection, PlatformError> {
             "format=duration:stream=codec_name,sample_rate,channels",
             "-of",
             "json",
-            &path.to_string_lossy(),
+            &path_text,
         ],
     )?;
     let raw: Value = serde_json::from_slice(&probe.stdout)
@@ -75,7 +92,7 @@ pub fn inspect_media(path: &Path) -> Result<MediaInspection, PlatformError> {
             "-hide_banner",
             "-nostats",
             "-i",
-            &path.to_string_lossy(),
+            &path_text,
             "-filter_complex",
             "ebur128=peak=true:framelog=verbose",
             "-f",
@@ -149,6 +166,236 @@ pub fn inspect_media(path: &Path) -> Result<MediaInspection, PlatformError> {
     Ok(result)
 }
 
+pub fn validate_media(path: &Path) -> Result<MediaValidation, PlatformError> {
+    let path_text = path.to_string_lossy();
+    let probe = run(
+        "ffprobe",
+        &[
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration,format_name:stream=codec_type",
+            "-of",
+            "json",
+            &path_text,
+        ],
+    )?;
+    let raw: Value = serde_json::from_slice(&probe.stdout)
+        .map_err(|error| PlatformError::Validation(format!("invalid ffprobe JSON: {error}")))?;
+    let format = raw
+        .get("format")
+        .and_then(Value::as_object)
+        .ok_or_else(|| PlatformError::Validation("ffprobe returned no format block".into()))?;
+    let duration_seconds = format
+        .get("duration")
+        .and_then(Value::as_str)
+        .and_then(|value| value.parse::<f64>().ok())
+        .ok_or_else(|| PlatformError::Validation("ffprobe returned invalid duration".into()))?;
+    let format_name = format
+        .get("format_name")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_owned();
+    let streams = raw
+        .get("streams")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PlatformError::Validation("ffprobe returned no stream list".into()))?;
+    let count_stream = |kind: &str| -> Result<u32, PlatformError> {
+        u32::try_from(
+            streams
+                .iter()
+                .filter(|stream| stream.get("codec_type").and_then(Value::as_str) == Some(kind))
+                .count(),
+        )
+        .map_err(|_| PlatformError::Validation("media stream count exceeds u32".into()))
+    };
+    let result = MediaValidation {
+        duration_seconds,
+        format_name,
+        audio_streams: count_stream("audio")?,
+        video_streams: count_stream("video")?,
+        subtitle_streams: count_stream("subtitle")?,
+    };
+    if result.duration_seconds <= 0.0
+        || result.audio_streams + result.video_streams + result.subtitle_streams == 0
+    {
+        return Err(PlatformError::Validation(
+            "media validation found no usable timed streams".into(),
+        ));
+    }
+    Ok(result)
+}
+
+pub fn convert_audio(
+    input: &Path,
+    output: &Path,
+    format: &str,
+) -> Result<MediaInspection, PlatformError> {
+    let codec = match format {
+        "wav" => "pcm_s24le",
+        "flac" => "flac",
+        other => {
+            return Err(PlatformError::Validation(format!(
+                "unsupported professional audio conversion format: {other}"
+            )));
+        }
+    };
+    let arguments = vec![
+        "-y".into(),
+        "-hide_banner".into(),
+        "-nostdin".into(),
+        "-loglevel".into(),
+        "error".into(),
+        "-i".into(),
+        input.to_string_lossy().into_owned(),
+        "-map".into(),
+        "0:a:0".into(),
+        "-vn".into(),
+        "-c:a".into(),
+        codec.into(),
+        output.to_string_lossy().into_owned(),
+    ];
+    run_owned("ffmpeg", &arguments)?;
+    inspect_media(output)
+}
+
+pub fn extract_audio(input: &Path, output: &Path) -> Result<MediaInspection, PlatformError> {
+    let arguments = vec![
+        "-y".into(),
+        "-hide_banner".into(),
+        "-nostdin".into(),
+        "-loglevel".into(),
+        "error".into(),
+        "-i".into(),
+        input.to_string_lossy().into_owned(),
+        "-map".into(),
+        "0:a:0".into(),
+        "-vn".into(),
+        "-c:a".into(),
+        "pcm_s24le".into(),
+        output.to_string_lossy().into_owned(),
+    ];
+    run_owned("ffmpeg", &arguments)?;
+    inspect_media(output)
+}
+
+pub fn normalize_loudness(
+    input: &Path,
+    output: &Path,
+    target_lufs: f64,
+    target_true_peak_dbtp: f64,
+) -> Result<NormalizationResult, PlatformError> {
+    if !(-36.0..=-5.0).contains(&target_lufs) {
+        return Err(PlatformError::Validation(
+            "target LUFS must be between -36 and -5".into(),
+        ));
+    }
+    if !(-9.0..=0.0).contains(&target_true_peak_dbtp) {
+        return Err(PlatformError::Validation(
+            "target true peak must be between -9 and 0 dBTP".into(),
+        ));
+    }
+    let first_filter =
+        format!("loudnorm=I={target_lufs}:TP={target_true_peak_dbtp}:LRA=11:print_format=json");
+    let first_arguments = vec![
+        "-hide_banner".into(),
+        "-nostats".into(),
+        "-i".into(),
+        input.to_string_lossy().into_owned(),
+        "-map".into(),
+        "0:a:0".into(),
+        "-af".into(),
+        first_filter,
+        "-f".into(),
+        "null".into(),
+        "-".into(),
+    ];
+    let first = run_owned("ffmpeg", &first_arguments)?;
+    let measured = loudnorm_measurements(&String::from_utf8_lossy(&first.stderr))?;
+    let second_filter = format!(
+        "loudnorm=I={target_lufs}:TP={target_true_peak_dbtp}:LRA=11:measured_I={}:measured_TP={}:measured_LRA={}:measured_thresh={}:offset={}:linear=true:print_format=summary",
+        measured.input_i,
+        measured.input_tp,
+        measured.input_lra,
+        measured.input_thresh,
+        measured.target_offset
+    );
+    let second_arguments = vec![
+        "-y".into(),
+        "-hide_banner".into(),
+        "-nostdin".into(),
+        "-loglevel".into(),
+        "error".into(),
+        "-i".into(),
+        input.to_string_lossy().into_owned(),
+        "-map".into(),
+        "0:a:0".into(),
+        "-af".into(),
+        second_filter,
+        "-c:a".into(),
+        "pcm_s24le".into(),
+        output.to_string_lossy().into_owned(),
+    ];
+    run_owned("ffmpeg", &second_arguments)?;
+    let inspection = inspect_media(output)?;
+    let measured_lufs = inspection.integrated_lufs.ok_or_else(|| {
+        PlatformError::Validation("normalized output has no measurable integrated LUFS".into())
+    })?;
+    if (measured_lufs - target_lufs).abs() > 0.7 {
+        return Err(PlatformError::Validation(format!(
+            "normalized output missed target LUFS: measured {measured_lufs:.2}, target {target_lufs:.2}"
+        )));
+    }
+    if let Some(peak) = inspection.true_peak_dbtp
+        && peak > target_true_peak_dbtp + 0.2
+    {
+        return Err(PlatformError::Validation(format!(
+            "normalized output exceeded target true peak: measured {peak:.2}, target {target_true_peak_dbtp:.2}"
+        )));
+    }
+    Ok(NormalizationResult {
+        target_lufs,
+        target_true_peak_dbtp,
+        inspection,
+    })
+}
+
+pub fn mux_audio_video(
+    video: &Path,
+    audio: &Path,
+    output: &Path,
+) -> Result<MediaValidation, PlatformError> {
+    let arguments = vec![
+        "-y".into(),
+        "-hide_banner".into(),
+        "-nostdin".into(),
+        "-loglevel".into(),
+        "error".into(),
+        "-i".into(),
+        video.to_string_lossy().into_owned(),
+        "-i".into(),
+        audio.to_string_lossy().into_owned(),
+        "-map".into(),
+        "0:v:0".into(),
+        "-map".into(),
+        "1:a:0".into(),
+        "-c:v".into(),
+        "copy".into(),
+        "-c:a".into(),
+        "flac".into(),
+        "-shortest".into(),
+        output.to_string_lossy().into_owned(),
+    ];
+    run_owned("ffmpeg", &arguments)?;
+    let validation = validate_media(output)?;
+    if validation.video_streams == 0 || validation.audio_streams == 0 {
+        return Err(PlatformError::Validation(
+            "mux output must contain both video and audio streams".into(),
+        ));
+    }
+    Ok(validation)
+}
+
 pub fn tool_version(name: &str) -> Result<String, PlatformError> {
     let output = run(name, &["-version"])?;
     Ok(String::from_utf8_lossy(&output.stdout)
@@ -156,6 +403,51 @@ pub fn tool_version(name: &str) -> Result<String, PlatformError> {
         .next()
         .unwrap_or("unknown")
         .to_owned())
+}
+
+struct LoudnormMeasurements {
+    input_i: String,
+    input_tp: String,
+    input_lra: String,
+    input_thresh: String,
+    target_offset: String,
+}
+
+fn loudnorm_measurements(stderr: &str) -> Result<LoudnormMeasurements, PlatformError> {
+    let start = stderr.rfind('{').ok_or_else(|| {
+        PlatformError::Validation("FFmpeg loudnorm emitted no JSON summary".into())
+    })?;
+    let relative_end = stderr[start..].find('}').ok_or_else(|| {
+        PlatformError::Validation("FFmpeg loudnorm JSON summary is incomplete".into())
+    })?;
+    let raw: Value =
+        serde_json::from_str(&stderr[start..=start + relative_end]).map_err(|error| {
+            PlatformError::Validation(format!("invalid FFmpeg loudnorm JSON summary: {error}"))
+        })?;
+    let field = |name: &str| -> Result<String, PlatformError> {
+        let value = raw
+            .get(name)
+            .and_then(Value::as_str)
+            .ok_or_else(|| PlatformError::Validation(format!("loudnorm omitted {name}")))?;
+        if matches!(value.to_ascii_lowercase().as_str(), "inf" | "-inf" | "nan") {
+            return Err(PlatformError::Validation(format!(
+                "loudnorm returned non-finite {name}: {value}"
+            )));
+        }
+        Ok(value.to_owned())
+    };
+    Ok(LoudnormMeasurements {
+        input_i: field("input_i")?,
+        input_tp: field("input_tp")?,
+        input_lra: field("input_lra")?,
+        input_thresh: field("input_thresh")?,
+        target_offset: field("target_offset")?,
+    })
+}
+
+fn run_owned(program: &str, arguments: &[String]) -> Result<Output, PlatformError> {
+    let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    run(program, &borrowed)
 }
 
 fn run(program: &str, arguments: &[&str]) -> Result<Output, PlatformError> {

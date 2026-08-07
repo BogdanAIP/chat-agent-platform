@@ -2,6 +2,11 @@
   "contract_version": "tool-lock-v1",
   "selected": {
     "media.inspect": "rust.local.ffmpeg",
+    "media.validate": "rust.local.ffmpeg",
+    "media.convert": "rust.local.ffmpeg",
+    "media.extract_audio": "rust.local.ffmpeg",
+    "media.normalize_loudness": "rust.local.ffmpeg",
+    "media.mux": "rust.local.ffmpeg",
     "runtime.self_test": "rust.local.core"
   }
 }
