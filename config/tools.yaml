@@ -78,6 +78,22 @@
       "fallbacks": []
     },
     {
+      "capability": "audio.reaper_render",
+      "executor": "rust.local.reaper",
+      "enabled": true,
+      "quality": "professional",
+      "reliability": "high",
+      "determinism": "high",
+      "base_risk": "medium",
+      "cost": 0,
+      "artifact_constraints": {
+        "allowed_data_classes": ["public", "project", "private", "sensitive"],
+        "requires_registered_artifact_for_reuse": true
+      },
+      "fallbacks": [],
+      "required_qc": ["source_ffprobe_validation", "saved_project", "render_ffprobe_validation", "artifact_sha256"]
+    },
+    {
       "capability": "runtime.self_test",
       "executor": "rust.local.core",
       "enabled": true,
