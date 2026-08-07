@@ -109,6 +109,29 @@ impl CapabilityRegistry {
     }
 }
 
+pub fn required_quality(repo_root: &Path, capability: &str) -> Result<String, PlatformError> {
+    let config = load_json_yaml(&repo_root.join("config/capability-requirements.yaml"))?;
+    let requirements = config
+        .get("requirements")
+        .and_then(|value| value.as_array())
+        .ok_or_else(|| PlatformError::Validation("requirements must be an array".into()))?;
+    let requirement = requirements
+        .iter()
+        .find(|item| item.get("capability").and_then(|value| value.as_str()) == Some(capability))
+        .ok_or_else(|| {
+            PlatformError::Validation(format!("no project requirement for capability {capability}"))
+        })?;
+    requirement
+        .get("required_quality")
+        .and_then(|value| value.as_str())
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| {
+            PlatformError::Validation(format!(
+                "capability requirement {capability} has no required_quality"
+            ))
+        })
+}
+
 fn quality_rank(value: &str) -> Result<u8, PlatformError> {
     match value {
         "basic" => Ok(0),
