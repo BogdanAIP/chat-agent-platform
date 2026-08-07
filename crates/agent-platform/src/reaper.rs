@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::artifact::ArtifactStore;
 use crate::error::PlatformError;
+use crate::media::validate_media;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReaperTrackSpec {
@@ -94,6 +95,13 @@ end\n",
             return Err(PlatformError::Validation(format!(
                 "REAPER track source must be audio: {} is {}",
                 artifact.artifact_id, artifact.mime
+            )));
+        }
+        let validation = validate_media(Path::new(&artifact.path))?;
+        if validation.audio_streams == 0 {
+            return Err(PlatformError::Validation(format!(
+                "REAPER track source has no audio stream: {}",
+                artifact.artifact_id
             )));
         }
         let artifact_path = lua_string(&artifact.path);
