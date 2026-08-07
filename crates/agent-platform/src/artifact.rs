@@ -206,21 +206,30 @@ impl ArtifactStore {
 
     pub fn update_metadata(
         &self,
-        artifact: &mut Artifact,
+        artifact_id: &str,
         metadata: Map<String, Value>,
-    ) -> Result<(), PlatformError> {
-        if sha256(Path::new(&artifact.path))? != artifact.sha256 {
-            return Err(PlatformError::Validation(format!(
-                "artifact hash changed after import: {}",
-                artifact.artifact_id
-            )));
+    ) -> Result<Artifact, PlatformError> {
+        validate_artifact_id(artifact_id)?;
+        let lock = self.open_manifest_lock()?;
+        lock.lock()
+            .map_err(|error| io_error("cannot lock artifact manifest", error))?;
+        let result = (|| {
+            let mut artifact = self.get_locked(artifact_id)?;
+            artifact.metadata.extend(metadata);
+            contracts::validate(
+                &serde_json::to_value(&artifact).map_err(serialization_error)?,
+                "artifact-v1.schema.json",
+            )?;
+            self.upsert_locked(&artifact)?;
+            Ok(artifact)
+        })();
+        let unlock_result = lock
+            .unlock()
+            .map_err(|error| io_error("cannot unlock artifact manifest", error));
+        match (result, unlock_result) {
+            (Err(error), _) | (Ok(_), Err(error)) => Err(error),
+            (Ok(artifact), Ok(())) => Ok(artifact),
         }
-        artifact.metadata.extend(metadata);
-        contracts::validate(
-            &serde_json::to_value(&artifact).map_err(serialization_error)?,
-            "artifact-v1.schema.json",
-        )?;
-        self.upsert(artifact)
     }
 
     pub fn get(&self, artifact_id: &str) -> Result<Artifact, PlatformError> {
@@ -437,17 +446,6 @@ impl ArtifactStore {
             }
         }
         Ok(report)
-    }
-
-    fn upsert(&self, artifact: &Artifact) -> Result<(), PlatformError> {
-        let lock = self.open_manifest_lock()?;
-        lock.lock()
-            .map_err(|error| io_error("cannot lock artifact manifest", error))?;
-        let result = self.upsert_locked(artifact);
-        let unlock_result = lock
-            .unlock()
-            .map_err(|error| io_error("cannot unlock artifact manifest", error));
-        result.and(unlock_result)
     }
 
     fn upsert_locked(&self, artifact: &Artifact) -> Result<(), PlatformError> {
