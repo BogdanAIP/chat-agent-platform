@@ -18,6 +18,9 @@ thiserror = "2.0.19"
 uuid = { version = "1.24.0", features = ["serde", "v4"] }
 wait-timeout = "0.2.1"
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
+
 [dev-dependencies]
 tempfile = "3"
 
