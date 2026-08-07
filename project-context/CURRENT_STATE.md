@@ -29,10 +29,11 @@ integrated LUFS, LRA и true peak dBTP.
 Stage 2 завершён: шесть schemas встроены в binary, общие positive/negative fixtures
 проходят в Rust и Python. Stage 3 завершён: четыре skills валидированы и
 forward-tested. Единый локальный `scripts/verify.ps1` проходит: 9 Rust-тестов и
-8 Python oracle-тестов; Windows CI workflow подготовлен, но ещё не запускался на
-GitHub. Внешние FFmpeg/ffprobe процессы ограничены 60 секундами и принудительно
+8 Python oracle-тестов. Windows CI дважды прошёл на чистых GitHub-hosted runner'ах
+для PR #1 и опубликовал release artifact. Внешние FFmpeg/ffprobe процессы
+ограничены 60 секундами и принудительно
 завершаются с retryable `TOOL_TIMEOUT` при зависании.
 
-Приватный remote `BogdanAIP/chat-agent-platform` создан через авторизованный
-GitHub CLI. Первый push и hosted CI считаются подтверждёнными только после их
-фактического успешного завершения.
+Приватный remote `BogdanAIP/chat-agent-platform` работает через авторизованный
+GitHub CLI. Проверен полный цикл branch → draft PR → CI → ready → squash merge;
+PR #1 слит в `main`.

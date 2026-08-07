@@ -134,6 +134,15 @@ exact execution. Изменение параметров, artifact hash, destina
 
 Минимум: formatting, clippy with denied warnings, tests, schema fixtures, release
 build и smoke test с FFmpeg. Linux-only CI не доказывает Windows-local product.
+Тесты сами создают всё временное runtime-состояние и не зависят от ignored-файлов
+или предварительного ручного запуска: зелёный warmed workspace не является
+доказательством воспроизводимости.
+Feature-ветка проверяется одним PR-run; прямой push-run нужен только для `main`.
+Новый commit отменяет устаревшую проверку той же ветки, чтобы не расходовать
+runner time на заведомо неактуальный результат.
+Cargo registry и build outputs кэшируются по `Cargo.lock`: изменение dependency
+graph создаёт новый точный cache key, а совместимый предыдущий кэш используется
+только как ускоряющая база, не как источник результата проверки.
 
 ## 24. Documentation describes reality
 
@@ -150,4 +159,3 @@ build и smoke test с FFmpeg. Linux-only CI не доказывает Windows-l
 - новая абстракция не уменьшает coupling минимум для двух реальных implementations;
 - quality нельзя проверить;
 - следующая операция требует новой пользовательской authority.
-
