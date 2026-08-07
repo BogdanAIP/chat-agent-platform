@@ -286,10 +286,7 @@ impl ArtifactStore {
         }
     }
 
-    pub fn disable_external_staging(
-        &self,
-        artifact_id: &str,
-    ) -> Result<Artifact, PlatformError> {
+    pub fn disable_external_staging(&self, artifact_id: &str) -> Result<Artifact, PlatformError> {
         validate_artifact_id(artifact_id)?;
         let lock = self.open_manifest_lock()?;
         lock.lock()
@@ -416,7 +413,9 @@ impl ArtifactStore {
                 .is_dir()
             {
                 if let Some(artifact_id) = name.strip_prefix(PENDING_PREFIX) {
-                    let lock_path = self.root.join(format!("{PENDING_PREFIX}{artifact_id}.lock"));
+                    let lock_path = self
+                        .root
+                        .join(format!("{PENDING_PREFIX}{artifact_id}.lock"));
                     match try_cleanup_pending(&path, &lock_path)? {
                         PendingCleanup::Removed => report.removed_pending += 1,
                         PendingCleanup::Active => report.skipped_active_pending += 1,
@@ -518,7 +517,10 @@ enum PendingCleanup {
     Active,
 }
 
-fn try_cleanup_pending(directory: &Path, lock_path: &Path) -> Result<PendingCleanup, PlatformError> {
+fn try_cleanup_pending(
+    directory: &Path,
+    lock_path: &Path,
+) -> Result<PendingCleanup, PlatformError> {
     let lock = OpenOptions::new()
         .create(true)
         .truncate(false)
