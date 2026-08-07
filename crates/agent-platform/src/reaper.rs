@@ -415,7 +415,7 @@ mod tests {
     fn completion_marker_stops_an_isolated_process() {
         let temporary = tempdir().expect("temp directory");
         let marker = temporary.path().join("complete.marker");
-        let escaped = marker.to_string_lossy().replace(''', "''");
+        let escaped = marker.to_string_lossy().replace("'", "''");
         let command = format!(
             "Start-Sleep -Milliseconds 100; Set-Content -LiteralPath '{escaped}' -Value ok; Start-Sleep -Seconds 5"
         );
