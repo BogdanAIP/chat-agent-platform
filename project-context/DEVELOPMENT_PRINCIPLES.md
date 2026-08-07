@@ -140,6 +140,9 @@ build и smoke test с FFmpeg. Linux-only CI не доказывает Windows-l
 Feature-ветка проверяется одним PR-run; прямой push-run нужен только для `main`.
 Новый commit отменяет устаревшую проверку той же ветки, чтобы не расходовать
 runner time на заведомо неактуальный результат.
+Cargo registry и build outputs кэшируются по `Cargo.lock`: изменение dependency
+graph создаёт новый точный cache key, а совместимый предыдущий кэш используется
+только как ускоряющая база, не как источник результата проверки.
 
 ## 24. Documentation describes reality
 
