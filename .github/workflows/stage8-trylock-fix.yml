@@ -1,0 +1,43 @@
+name: stage8-trylock-fix
+
+"on":
+  push:
+    branches: [chat/stage8-artifact-staging]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chat/stage8-artifact-staging
+          fetch-depth: 0
+
+      - name: Patch TryLockError handling
+        shell: pwsh
+        run: |
+          $path = 'crates/agent-platform/src/artifact.rs'
+          $content = Get-Content $path -Raw
+          $content = $content.Replace(
+            '        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(PendingCleanup::Active),' + "`n" + '        Err(error) => Err(io_error("cannot probe pending artifact lock", error)),',
+            '        Err(std::fs::TryLockError::WouldBlock) => Ok(PendingCleanup::Active),' + "`n" + '        Err(std::fs::TryLockError::Error(error)) => {' + "`n" + '            Err(io_error("cannot probe pending artifact lock", error))' + "`n" + '        }'
+          )
+          $content = $content.Replace(
+            '        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(()),' + "`n" + '        Err(error) => Err(io_error("cannot probe orphan pending lock", error)),',
+            '        Err(std::fs::TryLockError::WouldBlock) => Ok(()),' + "`n" + '        Err(std::fs::TryLockError::Error(error)) => {' + "`n" + '            Err(io_error("cannot probe orphan pending lock", error))' + "`n" + '        }'
+          )
+          Set-Content -Path $path -Value $content -NoNewline
+          cargo fmt --all -- --check
+          git diff --exit-code -- $path
+          if ($LASTEXITCODE -eq 0) {
+            throw 'Expected TryLockError patch did not change artifact.rs'
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add $path
+          git commit -m 'Handle typed TryLockError variants'
+          git push origin HEAD:chat/stage8-artifact-staging
