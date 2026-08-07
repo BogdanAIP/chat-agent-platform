@@ -613,11 +613,15 @@ fn cleanup_published_orphan(directory: &Path, lock_path: &Path) -> Result<bool, 
             fs::remove_dir_all(directory)
                 .map_err(|error| io_error("cannot remove incomplete published artifact", error))?;
             lock.unlock().map_err(|error| {
-                io_error("cannot unlock incomplete published artifact recovery", error)
+                io_error(
+                    "cannot unlock incomplete published artifact recovery",
+                    error,
+                )
             })?;
             drop(lock);
-            fs::remove_file(lock_path)
-                .map_err(|error| io_error("cannot remove published artifact recovery lock", error))?;
+            fs::remove_file(lock_path).map_err(|error| {
+                io_error("cannot remove published artifact recovery lock", error)
+            })?;
             Ok(true)
         }
         Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(false),
