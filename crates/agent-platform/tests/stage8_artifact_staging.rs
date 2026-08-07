@@ -173,7 +173,7 @@ fn tampered_artifact_is_rejected_before_external_copy() {
 }
 
 #[test]
-fn recovery_removes_abandoned_state_but_skips_active_pending_import() {
+fn recovery_removes_only_proven_incomplete_state_and_skips_active_import() {
     let temporary = tempdir().expect("temporary root");
     let artifact_root = temporary.path().join("artifacts");
     let source = temporary.path().join("fixture.wav");
@@ -183,9 +183,15 @@ fn recovery_removes_abandoned_state_but_skips_active_pending_import() {
         .import_file(&source, "stage8-test", "project")
         .expect("artifact import");
 
-    let orphan = artifact_root.join("art_deadbeef");
-    fs::create_dir(&orphan).expect("orphan directory");
-    fs::write(orphan.join("orphan.bin"), b"orphan").expect("orphan file");
+    let published_orphan = artifact_root.join("art_deadbeef");
+    fs::create_dir(&published_orphan).expect("published orphan directory");
+    fs::write(published_orphan.join("orphan.bin"), b"orphan").expect("orphan file");
+    let published_orphan_lock = artifact_root.join(".pending-art_deadbeef.lock");
+    fs::write(&published_orphan_lock, b"").expect("published orphan lock");
+
+    let unknown_orphan = artifact_root.join("art_decafbad");
+    fs::create_dir(&unknown_orphan).expect("unknown orphan directory");
+    fs::write(unknown_orphan.join("unknown.bin"), b"unknown").expect("unknown file");
 
     let abandoned = artifact_root.join(".pending-art_cafebabe");
     fs::create_dir(&abandoned).expect("abandoned pending directory");
@@ -207,10 +213,13 @@ fn recovery_removes_abandoned_state_but_skips_active_pending_import() {
 
     let report = store.recover_orphans().expect("artifact recovery");
     assert_eq!(report.removed_unregistered, 1);
+    assert_eq!(report.unresolved_unregistered, 1);
     assert_eq!(report.removed_pending, 1);
     assert_eq!(report.skipped_active_pending, 1);
     assert!(Path::new(&registered.path).exists());
-    assert!(!orphan.exists());
+    assert!(!published_orphan.exists());
+    assert!(!published_orphan_lock.exists());
+    assert!(unknown_orphan.exists(), "unknown data must not be auto-deleted");
     assert!(!abandoned.exists());
     assert!(active.exists());
 
@@ -218,6 +227,8 @@ fn recovery_removes_abandoned_state_but_skips_active_pending_import() {
     drop(active_lock);
     let second = store.recover_orphans().expect("second recovery");
     assert_eq!(second.removed_pending, 1);
+    assert_eq!(second.unresolved_unregistered, 1);
     assert!(!active.exists());
     assert!(!active_lock_path.exists());
+    assert!(unknown_orphan.exists());
 }
