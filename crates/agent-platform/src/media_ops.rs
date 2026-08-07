@@ -73,11 +73,7 @@ pub fn validate_media_file(
         "media.validate",
         &serde_json::to_value(&validation).map_err(serialization_error)?,
     )?;
-    complete_response(
-        &auth,
-        json!({"validation": validation}),
-        &[artifact],
-    )
+    complete_response(&auth, json!({"validation": validation}), &[artifact])
 }
 
 pub fn convert_audio_file(
@@ -276,7 +272,8 @@ fn authorize_file(
     contracts::validate(&request, "tool-request-v1.schema.json")?;
     let binding = resolve_project(repo_root, project_id)?;
     let required = required_quality(&binding.repo_root, capability)?;
-    let selection = CapabilityRegistry::load(&binding.repo_root)?.select(capability, &required, 0)?;
+    let selection =
+        CapabilityRegistry::load(&binding.repo_root)?.select(capability, &required, 0)?;
     let policy = PolicyEnforcementPoint::load(&binding.policy_path)?.evaluate(
         capability,
         request

@@ -72,15 +72,8 @@ fn stage11_audio_operations_are_typed_and_technically_validated() {
     assert_eq!(validation["status"], "success");
     assert_eq!(validation["result"]["validation"]["audio_streams"], 1);
 
-    let converted = convert_audio_file(
-        &root,
-        &tone,
-        Some("demo"),
-        "project",
-        None,
-        "flac",
-    )
-    .expect("lossless conversion must pass");
+    let converted = convert_audio_file(&root, &tone, Some("demo"), "project", None, "flac")
+        .expect("lossless conversion must pass");
     assert_eq!(converted["status"], "success");
     assert_eq!(converted["result"]["format"], "flac");
     assert_eq!(converted["artifact_refs"][0]["mime"], "audio/flac");
@@ -90,16 +83,8 @@ fn stage11_audio_operations_are_typed_and_technically_validated() {
     assert_eq!(extracted["status"], "success");
     assert_eq!(extracted["artifact_refs"][0]["mime"], "audio/wav");
 
-    let normalized = normalize_audio_file(
-        &root,
-        &tone,
-        Some("demo"),
-        "project",
-        None,
-        -18.0,
-        -1.0,
-    )
-    .expect("two-pass loudness normalization must pass");
+    let normalized = normalize_audio_file(&root, &tone, Some("demo"), "project", None, -18.0, -1.0)
+        .expect("two-pass loudness normalization must pass");
     let measured = normalized["result"]["inspection"]["integrated_lufs"]
         .as_f64()
         .expect("normalized LUFS must be measured");
@@ -118,15 +103,8 @@ fn stage11_mux_requires_and_produces_audio_and_video_streams() {
     make_tone(&tone);
     make_video(&video);
 
-    let result = mux_media_files(
-        &repo_root(),
-        &video,
-        &tone,
-        Some("demo"),
-        "project",
-        None,
-    )
-    .expect("typed mux must pass");
+    let result = mux_media_files(&repo_root(), &video, &tone, Some("demo"), "project", None)
+        .expect("typed mux must pass");
     assert_eq!(result["status"], "success");
     assert_eq!(result["result"]["validation"]["audio_streams"], 1);
     assert_eq!(result["result"]["validation"]["video_streams"], 1);
@@ -138,14 +116,7 @@ fn stage11_rejects_unapproved_conversion_format_before_execution() {
     let temporary = tempdir().expect("temp directory");
     let tone = temporary.path().join("tone.wav");
     make_tone(&tone);
-    let error = convert_audio_file(
-        &repo_root(),
-        &tone,
-        Some("demo"),
-        "project",
-        None,
-        "aac",
-    )
-    .expect_err("unapproved format must be rejected");
+    let error = convert_audio_file(&repo_root(), &tone, Some("demo"), "project", None, "aac")
+        .expect_err("unapproved format must be rejected");
     assert!(matches!(error, PlatformError::Validation(_)));
 }

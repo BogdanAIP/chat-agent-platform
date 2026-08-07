@@ -129,13 +129,14 @@ pub fn inspect_media(path: &Path) -> Result<MediaInspection, PlatformError> {
         .name("peak")
         .ok_or_else(|| PlatformError::Validation("FFmpeg omitted true peak".into()))?
         .as_str();
-    let true_peak_dbtp = if raw_peak.eq_ignore_ascii_case("-inf") {
-        None
-    } else {
-        Some(raw_peak.parse().map_err(|error| {
-            PlatformError::Validation(format!("invalid true peak: {error}"))
-        })?)
-    };
+    let true_peak_dbtp =
+        if raw_peak.eq_ignore_ascii_case("-inf") {
+            None
+        } else {
+            Some(raw_peak.parse().map_err(|error| {
+                PlatformError::Validation(format!("invalid true peak: {error}"))
+            })?)
+        };
     let result = MediaInspection {
         duration_seconds,
         sample_rate_hz,
@@ -294,9 +295,8 @@ pub fn normalize_loudness(
             "target true peak must be between -9 and 0 dBTP".into(),
         ));
     }
-    let first_filter = format!(
-        "loudnorm=I={target_lufs}:TP={target_true_peak_dbtp}:LRA=11:print_format=json"
-    );
+    let first_filter =
+        format!("loudnorm=I={target_lufs}:TP={target_true_peak_dbtp}:LRA=11:print_format=json");
     let first_arguments = vec![
         "-hide_banner".into(),
         "-nostats".into(),
@@ -414,15 +414,16 @@ struct LoudnormMeasurements {
 }
 
 fn loudnorm_measurements(stderr: &str) -> Result<LoudnormMeasurements, PlatformError> {
-    let start = stderr
-        .rfind('{')
-        .ok_or_else(|| PlatformError::Validation("FFmpeg loudnorm emitted no JSON summary".into()))?;
-    let relative_end = stderr[start..]
-        .find('}')
-        .ok_or_else(|| PlatformError::Validation("FFmpeg loudnorm JSON summary is incomplete".into()))?;
-    let raw: Value = serde_json::from_str(&stderr[start..=start + relative_end]).map_err(|error| {
-        PlatformError::Validation(format!("invalid FFmpeg loudnorm JSON summary: {error}"))
+    let start = stderr.rfind('{').ok_or_else(|| {
+        PlatformError::Validation("FFmpeg loudnorm emitted no JSON summary".into())
     })?;
+    let relative_end = stderr[start..].find('}').ok_or_else(|| {
+        PlatformError::Validation("FFmpeg loudnorm JSON summary is incomplete".into())
+    })?;
+    let raw: Value =
+        serde_json::from_str(&stderr[start..=start + relative_end]).map_err(|error| {
+            PlatformError::Validation(format!("invalid FFmpeg loudnorm JSON summary: {error}"))
+        })?;
     let field = |name: &str| -> Result<String, PlatformError> {
         let value = raw
             .get(name)

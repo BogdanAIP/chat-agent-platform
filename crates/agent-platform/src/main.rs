@@ -132,10 +132,13 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match &cli.command {
         Command::Diagnose { project_id } => diagnose(&cli.repo_root, project_id.as_deref()),
-        Command::Probe { project_id } => write_runtime_profile(&cli.repo_root, project_id.as_deref())
-            .map(|(output, profile)| {
-                json!({"status": "success", "output": output, "profile": profile})
-            }),
+        Command::Probe { project_id } => write_runtime_profile(
+            &cli.repo_root,
+            project_id.as_deref(),
+        )
+        .map(
+            |(output, profile)| json!({"status": "success", "output": output, "profile": profile}),
+        ),
         Command::Bootstrap {
             project_id,
             capability,
