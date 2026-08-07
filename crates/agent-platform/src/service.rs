@@ -54,7 +54,7 @@ pub fn inspect_file(
         &parameters,
         data_class,
         requested_risk_hint,
-        &selection.base_risk,
+        selection.base_risk(),
     )?;
     let store = ArtifactStore::new(&binding.artifact_root)?;
     let artifact = store.import_file(file_path, "media.inspect", data_class)?;
@@ -64,7 +64,7 @@ pub fn inspect_file(
         artifact,
         &request_id,
         policy,
-        &selection.executor,
+        selection.executor(),
     )
 }
 
@@ -105,7 +105,7 @@ pub fn inspect_artifact(
             .ok_or_else(|| PlatformError::Validation("inspection parameters are missing".into()))?,
         &artifact.data_class,
         requested_risk_hint,
-        &selection.base_risk,
+        selection.base_risk(),
     )?;
     complete_inspection(
         &binding,
@@ -113,7 +113,7 @@ pub fn inspect_artifact(
         artifact,
         &request_id,
         policy,
-        &selection.executor,
+        selection.executor(),
     )
 }
 
@@ -255,7 +255,7 @@ pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pl
             .ok_or_else(|| PlatformError::Validation("self-test parameters are missing".into()))?,
         "project",
         None,
-        &selection.base_risk,
+        selection.base_risk(),
     )?;
     let health_root = repo_root.join("runtime/health");
     fs::create_dir_all(&health_root)
@@ -288,7 +288,7 @@ pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pl
         "artifact_refs": [],
         "provenance": {
             "capability": "runtime.self_test",
-            "executor": selection.executor,
+            "executor": selection.executor(),
             "project_id": binding.project_id,
             "validated": true
         },
