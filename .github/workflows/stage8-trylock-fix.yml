@@ -22,20 +22,22 @@ jobs:
         run: |
           $path = 'crates/agent-platform/src/artifact.rs'
           $content = Get-Content $path -Raw
-          $content = $content.Replace(
-            '        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(PendingCleanup::Active),' + "`n" + '        Err(error) => Err(io_error("cannot probe pending artifact lock", error)),',
-            '        Err(std::fs::TryLockError::WouldBlock) => Ok(PendingCleanup::Active),' + "`n" + '        Err(std::fs::TryLockError::Error(error)) => {' + "`n" + '            Err(io_error("cannot probe pending artifact lock", error))' + "`n" + '        }'
-          )
-          $content = $content.Replace(
-            '        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(()),' + "`n" + '        Err(error) => Err(io_error("cannot probe orphan pending lock", error)),',
-            '        Err(std::fs::TryLockError::WouldBlock) => Ok(()),' + "`n" + '        Err(std::fs::TryLockError::Error(error)) => {' + "`n" + '            Err(io_error("cannot probe orphan pending lock", error))' + "`n" + '        }'
-          )
-          Set-Content -Path $path -Value $content -NoNewline
-          cargo fmt --all -- --check
-          git diff --exit-code -- $path
-          if ($LASTEXITCODE -eq 0) {
+          $newline = [Environment]::NewLine
+
+          $pendingPattern = '        Err\(error\) if error\.kind\(\) == ErrorKind::WouldBlock => Ok\(PendingCleanup::Active\),\r?\n        Err\(error\) => Err\(io_error\("cannot probe pending artifact lock", error\)\),'
+          $pendingReplacement = '        Err(std::fs::TryLockError::WouldBlock) => Ok(PendingCleanup::Active),' + $newline + '        Err(std::fs::TryLockError::Error(error)) => {' + $newline + '            Err(io_error("cannot probe pending artifact lock", error))' + $newline + '        }'
+          $patched = [regex]::Replace($content, $pendingPattern, $pendingReplacement)
+
+          $orphanPattern = '        Err\(error\) if error\.kind\(\) == ErrorKind::WouldBlock => Ok\(\(\)\),\r?\n        Err\(error\) => Err\(io_error\("cannot probe orphan pending lock", error\)\),'
+          $orphanReplacement = '        Err(std::fs::TryLockError::WouldBlock) => Ok(()),' + $newline + '        Err(std::fs::TryLockError::Error(error)) => {' + $newline + '            Err(io_error("cannot probe orphan pending lock", error))' + $newline + '        }'
+          $patched = [regex]::Replace($patched, $orphanPattern, $orphanReplacement)
+
+          if ($patched -eq $content) {
             throw 'Expected TryLockError patch did not change artifact.rs'
           }
+          Set-Content -Path $path -Value $patched -NoNewline
+          cargo fmt --all
+          git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add $path
