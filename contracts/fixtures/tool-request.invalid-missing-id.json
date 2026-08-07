@@ -1,0 +1,10 @@
+{
+  "contract_version": "tool-v1",
+  "capability": "media.inspect",
+  "idempotency_key": null,
+  "requested_risk_hint": null,
+  "cost_limit": 0,
+  "artifact_refs": [],
+  "parameters": {}
+}
+

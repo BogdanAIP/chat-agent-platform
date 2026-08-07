@@ -1,0 +1,50 @@
+name: ci
+
+"on":
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
+          rustup default 1.97.1
+
+      - name: Ensure FFmpeg is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+          }
+          ffmpeg -version
+          ffprobe -version
+
+      - name: Install Python oracle
+        shell: pwsh
+        run: python -m pip install -e . --disable-pip-version-check
+
+      - name: Verify Rust, contracts, Python oracle, parity, and release
+        shell: pwsh
+        run: ./scripts/verify.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-platform-windows-x64
+          path: target/release/agent-platform.exe
+          if-no-files-found: error

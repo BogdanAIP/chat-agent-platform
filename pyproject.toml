@@ -1,0 +1,12 @@
+[project]
+name = "chat-agent-platform"
+version = "0.1.0"
+description = "Stage 0-1 vertical slice for a chat-centric agent platform"
+requires-python = ">=3.11"
+dependencies = ["jsonschema>=4.23,<5"]
+
+[tool.setuptools]
+packages = ["agent_platform"]
+
+[tool.setuptools.data-files]
+contracts = ["contracts/*.schema.json"]

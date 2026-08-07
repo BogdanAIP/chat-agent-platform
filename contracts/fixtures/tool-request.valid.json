@@ -1,0 +1,14 @@
+{
+  "contract_version": "tool-v1",
+  "request_id": "req_0123456789abcdef",
+  "capability": "media.inspect",
+  "idempotency_key": null,
+  "requested_risk_hint": "low",
+  "cost_limit": 0,
+  "artifact_refs": [],
+  "parameters": {
+    "source_name": "fixture.wav",
+    "data_class": "project"
+  }
+}
+

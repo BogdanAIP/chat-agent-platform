@@ -1,0 +1,15 @@
+{
+  "artifact_id": "art_0123456789abcdef",
+  "type": "audio",
+  "path": "C:/project/artifacts/test.wav",
+  "mime": "audio/wav",
+  "size_bytes": 44,
+  "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "created_by": "fixture",
+  "created_at": "2026-08-07T00:00:00Z",
+  "status": "ready",
+  "data_class": "project",
+  "metadata": {},
+  "external_policy": {"staging_allowed": false, "allowed_executors": []}
+}
+

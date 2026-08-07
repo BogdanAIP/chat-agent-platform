@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Development"
+  short_description: "Prepare safe Git and GitHub development handoffs"
+  default_prompt: "Use $github-development to prepare this repository change for GitHub."

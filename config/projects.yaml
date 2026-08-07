@@ -1,0 +1,14 @@
+{
+  "contract_version": "projects-v1",
+  "active_project_id": "demo",
+  "projects": [
+    {
+      "project_id": "demo",
+      "repo_root": "..",
+      "local_root": "..",
+      "artifact_root": "../artifacts",
+      "policy": "policy.yaml"
+    }
+  ]
+}
+

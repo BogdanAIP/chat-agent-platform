@@ -1,0 +1,13 @@
+{
+  "contract_version": "capability-requirements-v1",
+  "requirements": [
+    {
+      "capability": "media.inspect",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.ffmpeg"],
+      "fallbacks": [],
+      "acceptance": ["duration", "sample_rate", "channels", "integrated_lufs", "true_peak_dbtp"]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tool-request-v1.schema.json",
+  "title": "Tool request v1",
+  "type": "object",
+  "required": ["contract_version", "request_id", "capability", "idempotency_key", "requested_risk_hint", "cost_limit", "artifact_refs", "parameters"],
+  "properties": {
+    "contract_version": {"const": "tool-v1"},
+    "request_id": {"type": "string", "pattern": "^req_[a-f0-9]+$"},
+    "capability": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": ["string", "null"]},
+    "requested_risk_hint": {"type": ["string", "null"]},
+    "cost_limit": {"type": "number", "minimum": 0},
+    "artifact_refs": {"type": "array", "items": {"type": "object"}},
+    "parameters": {"type": "object"}
+  },
+  "additionalProperties": false
+}
+
