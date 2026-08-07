@@ -12,7 +12,7 @@ use crate::error::PlatformError;
 use crate::media::{MediaValidation, validate_media};
 
 const AUTHORING_TIMEOUT: Duration = Duration::from_secs(45);
-const RENDER_TIMEOUT: Duration = Duration::from_secs(180);
+const RENDER_TIMEOUT: Duration = Duration::from_mins(3);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -415,7 +415,7 @@ mod tests {
     fn completion_marker_stops_an_isolated_process() {
         let temporary = tempdir().expect("temp directory");
         let marker = temporary.path().join("complete.marker");
-        let escaped = marker.to_string_lossy().replace("'", "''");
+        let escaped = marker.to_string_lossy().replace(char::from(39), "''");
         let command = format!(
             "Start-Sleep -Milliseconds 100; Set-Content -LiteralPath '{escaped}' -Value ok; Start-Sleep -Seconds 5"
         );
