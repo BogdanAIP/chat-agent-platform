@@ -8,4 +8,5 @@ pub mod contracts;
 pub mod error;
 pub mod media;
 pub mod policy;
+pub mod secret;
 pub mod service;
