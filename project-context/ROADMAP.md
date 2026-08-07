@@ -36,14 +36,15 @@ Chat/local execution probe
 - зафиксированы Git, Python, Node, FFmpeg/ffprobe и Rust toolchain;
 - существует однозначный `demo` Project Binding;
 - requirements отделены от runtime profile;
-- локальный `media.inspect` имеет рабочий Python execution path;
-- hosted Chat/MCP и GitHub write не считаются доступными без probe.
+- локальный `media.inspect` имеет рабочий Rust execution path и Python behavioral oracle;
+- Chat → GitHub read/write подтверждён реальным branch/edit/PR циклом через plugin;
+- hosted Chat → local execution и account-level MCP write/modify не считаются доступными без probe.
 
 Осталось:
 
-- добавить Rust, Cargo и Windows target в runtime profile;
-- проверить реальный пользовательский WAV;
-- отдельно проверить Chat/plugin/MCP/GitHub surfaces.
+- полностью синхронизировать Rust/Cargo/Windows target evidence в runtime profile;
+- проверить реальный пользовательский WAV в пользовательской локальной среде;
+- отдельно проверить Chat → local execution / MCP surface.
 
 Exit gate: каждый обязательный requirement имеет рабочий path или явный gap с
 fallback; соседний проект невозможно выбрать неявно.
@@ -120,13 +121,23 @@ reconnect probe пока отсутствуют.
 Exit gate: выбран один path на поверхность; кандидаты не установлены одновременно
 «на будущее».
 
-### Stage 6. Tool Manifest + selection + hardened PEP — planned
+### Stage 6. Tool Manifest + selection + hardened PEP — done
 
 Ввести capability-level metadata и mandatory gates до ranking. Технически
 обеспечить allow/deny/guarded; Chat не определяет effective risk.
 
 Exit gate: professional requirement исключает basic executor, deny невозможно
 обойти прямым вызовом, guarded возвращает immutable preview.
+
+`config/tools.yaml` и `config/tool-lock.yaml` теперь задают manifest-backed locked
+executor. `required_quality` берётся из versioned project requirements, а quality
+и cost gates применяются до execution. PEP хранит `decision` отдельно от
+`effective_risk`; `requested_risk_hint` не влияет на enforcement. Для guarded
+операций создаётся SHA-256 confirmation binding по capability, parameters,
+data class и effective risk, поэтому изменение параметров или artifact hash
+инвалидирует подтверждение. Windows CI проверяет rejection basic executor для
+professional requirement, mandatory cost gate, deny bypass resistance и
+confirmation binding semantics; полный verify/release/artifact run прошёл успешно.
 
 ### Stage 7. Secret Store + consumer ACL — planned
 
@@ -165,9 +176,9 @@ dependency/security audit и release build.
 Exit gate: PR получает воспроизводимый результат; секреты только в GitHub Secrets;
 release artifact проверен на чистой машине.
 
-Windows workflow и единый `scripts/verify.ps1` доказаны локально и двумя зелёными
-запусками PR #1 на чистых GitHub-hosted runner'ах. Проверены branch, draft PR,
-CI, upload release artifact и squash merge в `main`. Dependency/security audit и
+Windows workflow и единый `scripts/verify.ps1` доказаны локально и зелёными
+запусками на чистых GitHub-hosted runner'ах. Проверены branch, draft PR, CI,
+upload release artifact и squash merge в `main`. Dependency/security audit и
 подписанный versioned release остаются отдельным усилением supply chain.
 
 ## Horizon C — профессиональные media capabilities
