@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::path::Path;
 
 use serde::Serialize;
@@ -145,5 +146,12 @@ fn build_confirmation_binding(
         })?;
     let mut hasher = Sha256::new();
     hasher.update(payload);
-    Ok(format!("confirm_{:x}", hasher.finalize()))
+    let digest = hasher.finalize();
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut hex, "{byte:02x}").map_err(|error| {
+            PlatformError::Validation(format!("cannot encode guarded preview hash: {error}"))
+        })?;
+    }
+    Ok(format!("confirm_{hex}"))
 }
