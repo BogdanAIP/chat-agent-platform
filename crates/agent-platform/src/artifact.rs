@@ -574,8 +574,10 @@ fn try_cleanup_pending(
             }
             Ok(PendingCleanup::Removed)
         }
-        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(PendingCleanup::Active),
-        Err(error) => Err(io_error("cannot probe pending artifact lock", error)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(PendingCleanup::Active),
+        Err(std::fs::TryLockError::Error(error)) => {
+            Err(io_error("cannot probe pending artifact lock", error))
+        }
     }
 }
 
@@ -594,8 +596,10 @@ fn cleanup_orphan_pending_lock(lock_path: &Path) -> Result<(), PlatformError> {
             fs::remove_file(lock_path)
                 .map_err(|error| io_error("cannot remove orphan pending lock", error))
         }
-        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(()),
-        Err(error) => Err(io_error("cannot probe orphan pending lock", error)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(()),
+        Err(std::fs::TryLockError::Error(error)) => {
+            Err(io_error("cannot probe orphan pending lock", error))
+        }
     }
 }
 
