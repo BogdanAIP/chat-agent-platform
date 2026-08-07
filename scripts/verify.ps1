@@ -16,6 +16,18 @@ try {
     & cargo test --workspace
     if ($LASTEXITCODE -ne 0) { throw 'cargo test failed' }
 
+    $tokens = $null
+    $parseErrors = $null
+    [System.Management.Automation.Language.Parser]::ParseFile(
+        (Join-Path $PSScriptRoot 'verify-reaper-stage12.ps1'),
+        [ref]$tokens,
+        [ref]$parseErrors
+    ) | Out-Null
+    if ($parseErrors.Count -ne 0) {
+        $details = ($parseErrors | ForEach-Object Message) -join '; '
+        throw "Stage 12 REAPER acceptance script has PowerShell syntax errors: $details"
+    }
+
     if (-not $SkipPythonOracle) {
         & python -m unittest discover -s tests -v
         if ($LASTEXITCODE -ne 0) { throw 'Python oracle tests failed' }
@@ -31,6 +43,7 @@ try {
     [ordered]@{
         status = 'success'
         rust = 'fmt,clippy,tests'
+        powershell = 'stage12-acceptance-syntax'
         python_oracle = if ($SkipPythonOracle) { 'skipped' } else { 'tests,parity' }
         release = if ($SkipRelease) { 'skipped' } else { 'built' }
     } | ConvertTo-Json
@@ -38,4 +51,3 @@ try {
 finally {
     Pop-Location
 }
-
