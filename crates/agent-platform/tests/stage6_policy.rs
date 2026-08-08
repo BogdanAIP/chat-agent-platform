@@ -87,6 +87,103 @@ fn cost_gate_rejects_executor_before_execution() {
 }
 
 #[test]
+fn unknown_manifest_fields_fail_closed() {
+    let root = tempdir().expect("temp root");
+    fs::create_dir_all(root.path().join("config")).expect("config dir");
+    fs::write(
+        root.path().join("config/tools.yaml"),
+        serde_json::to_string_pretty(&json!({
+            "contract_version": "tools-v1",
+            "capabilities": [{
+                "capability": "media.inspect",
+                "executor": "rust.local.ffmpeg",
+                "enabled": true,
+                "quality": "professional",
+                "reliability": "high",
+                "determinism": "high",
+                "base_risk": "low",
+                "cost": 0,
+                "fallbacks": [],
+                "pretend_enforced_gate": true
+            }]
+        }))
+        .expect("manifest JSON"),
+    )
+    .expect("manifest write");
+    fs::write(
+        root.path().join("config/tool-lock.yaml"),
+        serde_json::to_string_pretty(&json!({
+            "contract_version": "tool-lock-v1",
+            "selected": {"media.inspect": "rust.local.ffmpeg"}
+        }))
+        .expect("lock JSON"),
+    )
+    .expect("lock write");
+
+    let error = CapabilityRegistry::load(root.path())
+        .err()
+        .expect("unknown manifest field must fail closed");
+    assert!(error.to_string().contains("unknown field"));
+}
+
+#[test]
+fn selected_execution_path_must_match_project_requirement() {
+    let root = tempdir().expect("temp root");
+    fs::create_dir_all(root.path().join("config")).expect("config dir");
+    fs::write(
+        root.path().join("config/tools.yaml"),
+        serde_json::to_string_pretty(&json!({
+            "contract_version": "tools-v1",
+            "capabilities": [{
+                "capability": "media.inspect",
+                "executor": "rust.local.ffmpeg",
+                "execution_path": "unexpected.remote.path",
+                "enabled": true,
+                "quality": "professional",
+                "reliability": "high",
+                "determinism": "high",
+                "base_risk": "low",
+                "cost": 0,
+                "fallbacks": []
+            }]
+        }))
+        .expect("manifest JSON"),
+    )
+    .expect("manifest write");
+    fs::write(
+        root.path().join("config/tool-lock.yaml"),
+        serde_json::to_string_pretty(&json!({
+            "contract_version": "tool-lock-v1",
+            "selected": {"media.inspect": "rust.local.ffmpeg"}
+        }))
+        .expect("lock JSON"),
+    )
+    .expect("lock write");
+    fs::write(
+        root.path().join("config/capability-requirements.yaml"),
+        serde_json::to_string_pretty(&json!({
+            "contract_version": "capability-requirements-v1",
+            "requirements": [{
+                "capability": "media.inspect",
+                "required": true,
+                "required_quality": "professional",
+                "execution_paths": ["local.ffmpeg"],
+                "fallbacks": [],
+                "acceptance": ["probe"]
+            }]
+        }))
+        .expect("requirements JSON"),
+    )
+    .expect("requirements write");
+
+    let error = CapabilityRegistry::load(root.path())
+        .err()
+        .expect("unapproved execution path must fail closed");
+    assert!(error.to_string().contains("execution path"));
+    assert!(error.to_string().contains("not allowed"));
+}
+
+#[test]
 fn guarded_preview_is_immutable_and_parameter_bound() {
     let root = tempdir().expect("temp root");
     let policy_path = root.path().join("policy.yaml");
