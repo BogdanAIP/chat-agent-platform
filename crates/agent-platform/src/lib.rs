@@ -4,6 +4,7 @@ pub mod audit;
 pub mod binding;
 pub mod bootstrap;
 pub mod capability;
+pub mod confirmation;
 pub mod config;
 pub mod contracts;
 pub mod error;
