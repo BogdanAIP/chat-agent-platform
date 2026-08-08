@@ -78,6 +78,13 @@
       "external_side_effect": false,
       "max_cost": 0
     },
+    "transport.relay_connect": {
+      "decision": "allow",
+      "enforced_by": "rust_local_relay",
+      "allowed_data_classes": ["project", "sensitive"],
+      "external_side_effect": true,
+      "max_cost": 0
+    },
     "shell.run_arbitrary": {
       "decision": "deny",
       "enforced_by": "policy_enforcement_point"
