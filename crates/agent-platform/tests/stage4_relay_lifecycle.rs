@@ -168,7 +168,7 @@ fn spawn_gateway() -> (String, Arc<Mutex<GatewayState>>, thread::JoinHandle<()>)
     let ping_id = format!("rly_{}", Uuid::new_v4().simple());
     let self_test_id = format!("rly_{}", Uuid::new_v4().simple());
     let handle = thread::spawn(move || {
-        for incoming in listener.incoming().take(16) {
+        for incoming in listener.incoming().take(64) {
             let mut stream = incoming.expect("accept fake gateway request");
             let (headers, body) = read_http_request(&mut stream);
             assert!(
@@ -180,14 +180,23 @@ fn spawn_gateway() -> (String, Arc<Mutex<GatewayState>>, thread::JoinHandle<()>)
             match body["agent_action"].as_str() {
                 Some("poll") => {
                     let state = server_state.lock().expect("gateway state");
-                    let response = if !state.ping_accepted {
-                        json!({"ok": true, "task": task(&ping_id, "local_ping", json!({"message": "stage4-e2e"}))})
+                    let (response, idle) = if !state.ping_accepted {
+                        (
+                            json!({"ok": true, "task": task(&ping_id, "local_ping", json!({"message": "stage4-e2e"}))}),
+                            false,
+                        )
                     } else if state.self_test_response.is_none() {
-                        json!({"ok": true, "task": task(&self_test_id, "runtime_self_test", json!({}))})
+                        (
+                            json!({"ok": true, "task": task(&self_test_id, "runtime_self_test", json!({}))}),
+                            false,
+                        )
                     } else {
-                        json!({"ok": true, "task": null})
+                        (json!({"ok": true, "task": null}), true)
                     };
                     drop(state);
+                    if idle {
+                        thread::sleep(Duration::from_millis(500));
+                    }
                     respond(&mut stream, 200, &response);
                 }
                 Some("result") => {
