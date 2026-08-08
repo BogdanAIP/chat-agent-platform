@@ -25,7 +25,8 @@ pub(super) fn post_json(
     let body = serde_json::to_vec(payload)
         .map_err(|error| PlatformError::Validation(format!("cannot encode relay JSON: {error}")))?;
     let body_path = http_root.join(format!("req_{}.json", Uuid::new_v4().simple()));
-    fs::write(&body_path, body).map_err(|error| io_error("cannot write relay request body", error))?;
+    fs::write(&body_path, body)
+        .map_err(|error| io_error("cannot write relay request body", error))?;
     let cleanup = HttpBodyCleanup(body_path.clone());
 
     let curl = if cfg!(windows) { "curl.exe" } else { "curl" };
