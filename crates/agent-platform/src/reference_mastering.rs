@@ -19,7 +19,7 @@ use crate::capability::{CapabilityRegistry, required_quality};
 use crate::contracts;
 use crate::error::{PlatformError, io_error};
 use crate::job::{JobRecord, JobStore};
-use crate::media::{MediaInspection, inspect_media, normalize_loudness};
+use crate::media::{MediaInspection, inspect_media, normalize_loudness_at_sample_rate};
 use crate::policy::{PolicyDecision, PolicyEnforcementPoint};
 
 const CAPABILITY: &str = "audio.reference_master";
@@ -199,11 +199,12 @@ fn execute_workflow(
     validate_matchering_output(&target_inspection, &matched_inspection)?;
 
     let target_profile = mastering_target(profile)?;
-    normalize_loudness(
+    normalize_loudness_at_sample_rate(
         &workspace.matched(),
         &workspace.delivered(),
         target_profile.target_lufs,
         target_profile.target_true_peak_dbtp,
+        target_inspection.sample_rate_hz,
     )?;
     let final_inspection = inspect_media(&workspace.delivered())?;
     validate_final_output(&target_inspection, &final_inspection, profile)?;
@@ -366,9 +367,15 @@ fn validate_final_output(
     output: &MediaInspection,
     profile: &str,
 ) -> Result<(), PlatformError> {
-    if output.sample_rate_hz < 44_100 || output.channels == 0 || output.channels > 2 {
+    if output.sample_rate_hz != target.sample_rate_hz {
+        return Err(PlatformError::Validation(format!(
+            "reference master changed target sample rate: target={} Hz output={} Hz",
+            target.sample_rate_hz, output.sample_rate_hz
+        )));
+    }
+    if output.channels == 0 || output.channels > 2 {
         return Err(PlatformError::Validation(
-            "reference master failed final delivery format validation".into(),
+            "reference master failed final channel validation".into(),
         ));
     }
     if (output.duration_seconds - target.duration_seconds).abs() > 0.25 {
