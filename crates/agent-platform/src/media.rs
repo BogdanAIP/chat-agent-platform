@@ -615,4 +615,14 @@ mod tests {
         assert_eq!(error.code(), "TOOL_TIMEOUT");
         assert!(error.retryable());
     }
+
+    #[test]
+    fn media_timeout_scales_with_duration_and_is_bounded() {
+        assert_eq!(media_timeout(0.0), MEDIA_TIMEOUT_FLOOR);
+        assert_eq!(media_timeout(f64::NAN), MEDIA_TIMEOUT_FLOOR);
+        assert_eq!(media_timeout(1.0), MEDIA_TIMEOUT_FLOOR);
+        assert_eq!(media_timeout(30.0), Duration::from_secs(120));
+        assert_eq!(media_timeout(600.0), Duration::from_secs(1_830));
+        assert_eq!(media_timeout(100_000.0), MEDIA_TIMEOUT_CEILING);
+    }
 }
