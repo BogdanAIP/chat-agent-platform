@@ -80,6 +80,14 @@
       "execution_paths": ["local.reaper"],
       "fallbacks": [],
       "acceptance": ["reaper_detected", "source_ffprobe_valid", "track_imported", "marker_created", "project_saved", "wav_rendered", "render_ffprobe_valid", "render_sample_rate_verified", "artifact_sha256"]
+    },
+    {
+      "capability": "transport.relay_connect",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["yandex.function.long_poll"],
+      "fallbacks": [],
+      "acceptance": ["manual_start_stop", "25_second_long_poll", "heartbeat_offline_detection", "credential_manager_token", "allowlisted_operations", "no_arbitrary_shell", "shared_object_storage_state", "duplicate_request_response_cache"]
     }
   ]
 }
