@@ -45,7 +45,7 @@ fn make_test_repo(root: &Path) {
 }
 
 fn make_dynamic_program(path: &Path, sample_rate: u32, channels: u32) {
-    let rates = sample_rate.to_string();
+    let source = format!("sine=frequency=997:sample_rate={sample_rate}:duration=5");
     let channels_text = channels.to_string();
     let filter = "[0:a]volume=0.25[a0];[1:a]volume=0.55[a1];[2:a]volume=0.35[a2];[3:a]volume=0.50[a3];[a0][a1][a2][a3]concat=n=4:v=0:a=1[out]";
     let status = Command::new("ffmpeg")
@@ -57,19 +57,19 @@ fn make_dynamic_program(path: &Path, sample_rate: u32, channels: u32) {
             "-f",
             "lavfi",
             "-i",
-            &format!("sine=frequency=997:sample_rate={rates}:duration=5"),
+            &source,
             "-f",
             "lavfi",
             "-i",
-            &format!("sine=frequency=997:sample_rate={rates}:duration=5"),
+            &source,
             "-f",
             "lavfi",
             "-i",
-            &format!("sine=frequency=997:sample_rate={rates}:duration=5"),
+            &source,
             "-f",
             "lavfi",
             "-i",
-            &format!("sine=frequency=997:sample_rate={rates}:duration=5"),
+            &source,
             "-filter_complex",
             filter,
             "-map",
@@ -133,8 +133,14 @@ fn quiet_dynamic_program_is_mastered_once_and_reused_idempotently() {
     let peak = first["result"]["final_inspection"]["true_peak_dbtp"]
         .as_f64()
         .expect("final true peak");
-    assert!((lufs + 14.0).abs() <= 0.7, "unexpected final LUFS: {lufs}");
-    assert!(peak <= -0.9, "true peak exceeds target tolerance: {peak}");
+    assert!(
+        (lufs + 14.0).abs() <= 0.7,
+        "unexpected final LUFS: {lufs}"
+    );
+    assert!(
+        peak <= -0.9,
+        "true peak exceeds target tolerance: {peak}"
+    );
 
     let job_id = first["result"]["job_id"]
         .as_str()
@@ -160,7 +166,10 @@ fn quiet_dynamic_program_is_mastered_once_and_reused_idempotently() {
     )
     .expect("idempotent repeat must succeed");
     assert_eq!(second["result"]["job_id"], job_id);
-    assert_eq!(second["result"]["master_artifact"]["artifact_id"], artifact_id);
+    assert_eq!(
+        second["result"]["master_artifact"]["artifact_id"],
+        artifact_id
+    );
     assert_eq!(second["result"]["master_artifact"]["sha256"], sha256);
     assert_eq!(manifest_count(temporary.path()), count_after_first);
 
@@ -218,10 +227,9 @@ fn unsafe_delivery_source_is_failed_for_review_without_master_artifact() {
         .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("json"))
         .collect::<Vec<_>>();
     assert_eq!(jobs.len(), 1);
-    let job: Value = serde_json::from_str(
-        &fs::read_to_string(jobs[0].path()).expect("failed job JSON"),
-    )
-    .expect("failed job contract");
+    let job: Value =
+        serde_json::from_str(&fs::read_to_string(jobs[0].path()).expect("failed job JSON"))
+            .expect("failed job contract");
     assert_eq!(job["status"], "failed");
     assert_eq!(job["error"]["code"], "MASTERING_REVIEW_REQUIRED");
     assert_eq!(job["error"]["retryable"], false);
@@ -232,7 +240,11 @@ fn unsafe_delivery_source_is_failed_for_review_without_master_artifact() {
     )
     .expect("manifest JSON");
     let artifacts = manifest.as_object().expect("artifact manifest object");
-    assert_eq!(artifacts.len(), 1, "review path should register only source");
+    assert_eq!(
+        artifacts.len(),
+        1,
+        "review path should register only source"
+    );
     assert!(artifacts.values().all(|artifact| {
         artifact
             .get("metadata")
