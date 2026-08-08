@@ -34,6 +34,9 @@ fn schema(name: &str) -> Option<&'static str> {
         "policy-decision-v1.schema.json" => Some(include_str!(
             "../../../contracts/policy-decision-v1.schema.json"
         )),
+        "confirmation-v1.schema.json" => Some(include_str!(
+            "../../../contracts/confirmation-v1.schema.json"
+        )),
         "secret-ref-v1.schema.json" => {
             Some(include_str!("../../../contracts/secret-ref-v1.schema.json"))
         }
