@@ -12,8 +12,10 @@
     "created_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"},
     "result": {"type": ["object", "null"]},
-    "error": {"type": ["object", "null"]}
+    "error": {"type": ["object", "null"]},
+    "idempotency_key": {"type": ["string", "null"], "minLength": 1},
+    "attempt": {"type": "integer", "minimum": 1},
+    "checkpoint": {"type": ["object", "null"]}
   },
   "additionalProperties": false
 }
-
