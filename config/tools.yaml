@@ -4,6 +4,7 @@
     {
       "capability": "media.inspect",
       "executor": "rust.local.ffmpeg",
+      "execution_path": "local.ffmpeg",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -25,6 +26,7 @@
     {
       "capability": "media.validate",
       "executor": "rust.local.ffmpeg",
+      "execution_path": "local.ffmpeg",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -36,6 +38,7 @@
     {
       "capability": "media.convert",
       "executor": "rust.local.ffmpeg",
+      "execution_path": "local.ffmpeg",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -47,6 +50,7 @@
     {
       "capability": "media.extract_audio",
       "executor": "rust.local.ffmpeg",
+      "execution_path": "local.ffmpeg",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -58,6 +62,7 @@
     {
       "capability": "media.normalize_loudness",
       "executor": "rust.local.ffmpeg",
+      "execution_path": "local.ffmpeg",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -69,6 +74,7 @@
     {
       "capability": "media.mux",
       "executor": "rust.local.ffmpeg",
+      "execution_path": "local.ffmpeg",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -80,6 +86,7 @@
     {
       "capability": "audio.mastering_analyze",
       "executor": "rust.local.ffmpeg",
+      "execution_path": "local.ffmpeg",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -97,6 +104,7 @@
     {
       "capability": "audio.mastering_produce",
       "executor": "rust.local.mastering",
+      "execution_path": "local.mastering",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -114,6 +122,7 @@
     {
       "capability": "audio.reference_master",
       "executor": "edge.python.matchering",
+      "execution_path": "edge.python.matchering",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -131,6 +140,7 @@
     {
       "capability": "audio.reaper_render",
       "executor": "rust.local.reaper",
+      "execution_path": "local.reaper",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -147,6 +157,7 @@
     {
       "capability": "runtime.self_test",
       "executor": "rust.local.core",
+      "execution_path": "local.core",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
@@ -167,6 +178,7 @@
     {
       "capability": "transport.relay_connect",
       "executor": "rust.local.relay",
+      "execution_path": "yandex.function.long_poll",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
