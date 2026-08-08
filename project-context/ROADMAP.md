@@ -1,250 +1,193 @@
 # Roadmap v1.4
 
-Это исполняемый порядок разработки, а не список обещаний. Этап начинается только
-после прохождения предыдущего обязательного gate и считается завершённым только по
-проверяемому результату. Source of truth: этот файл + `CURRENT_STATE.md`;
-runtime evidence хранится отдельно в `runtime/`.
+Это исполняемый план, а не список обещаний. Source of truth по факту — этот файл + `CURRENT_STATE.md`; operational evidence хранится отдельно.
 
-## Статусы
+## Правила статусов
 
-- **done** — exit gate пройден реальным сценарием;
-- **partial** — полезная часть реализована, exit gate не закрыт;
-- **planned** — обязательный этап ещё не начат;
-- **conditional** — выполняется только при доказанном gap/спросе.
+- **done** — собственный exit gate этапа доказан;
+- **partial** — полезная реализация есть, но один или несколько exit gates не закрыты;
+- **planned** — обязательная работа ещё не начата;
+- **conditional** — выполняется только после конкретного доказанного сценария/пробела.
 
-## Horizon A — Rust core
+Этапы **не являются строго линейной цепочкой**. Независимая локальная capability может быть завершена, пока более ранний внешний/manual gate остаётся partial. Нельзя помечать этап `done` только потому, что разработка ушла дальше.
 
-### Stage 0. Reality baseline + Project Binding — partial
+## Horizon A — Core
 
-Есть однозначный Project Binding, разделение versioned requirements/runtime profile,
-Rust local path и Chat → GitHub read/write. Hosted Chat → local execution/MCP surface
-ещё не подтверждён; пользовательская локальная среда остаётся отдельным evidence.
+### Stage 0 — Reality baseline + Project Binding — partial
 
-Exit gate: каждый обязательный requirement имеет рабочий path либо явный gap и
-fallback; соседний проект нельзя выбрать неявно.
+Done:
+- explicit Project Binding;
+- Chat -> GitHub branch/edit/PR/CI/merge path;
+- versioned requirements отдельно от runtime profile.
 
-### Stage 1. Rust vertical architecture validation — done
+Open exit gate:
+- реальный Hosted Chat -> local Windows execution path через Stage 4.
 
-`binding → policy → artifact → FFprobe/FFmpeg → validation → tool-v1` реализован в
-Rust. Python сохранён только как behavioral oracle. Реальный WAV, SHA-256, metadata,
-policy-bypass negative test, fmt/clippy/tests и Rust/Python parity проходят.
+### Stage 1 — Rust vertical architecture — done
 
-### Stage 2. Core Contracts v1 — done
+Rust выполняет binding -> policy -> artifact -> typed tool -> validation -> contract result. Python остаётся только behavioral oracle.
 
-Versioned JSON Schemas для tool request/result, artifact, policy decision, secret
-reference и job встроены в Rust; positive/negative fixtures общие с Python oracle.
-Transport Contract не создаётся до появления transport.
+### Stage 2 — Contracts — done
 
-### Stage 3. Project Memory + Bootstrap + Skills — done
+Embedded schemas существуют для tool request/result, artifact, policy decision, confirmation, secret reference, jobs и relay request/response.
 
-Project Memory, generated capability audit, Bootstrap, media-inspection,
-github-development, ограниченный mastering skill и handoff template существуют.
-Новая сессия получает Project Binding, три минимальных context-файла и один
-релевантный capability slice.
+### Stage 3 — Project Memory + Bootstrap + Skills — done
 
-## Horizon B — безопасное выполнение
+Новая сессия получает минимальный project context и релевантный capability slice вместо полного дампа истории.
 
-### Stage 4. Local execution + transport capability probe — partial
+## Horizon B — Safe execution
 
-Локальный Rust `self-test` проверяет policy, ping, controlled write/read/cleanup,
-FFmpeg/ffprobe health и contracts. Hosted Chat → local execution/reconnect ещё не
-доказан.
+### Stage 4 — Hosted Chat -> local transport — partial / E2E-ready
 
-Exit gate: либо принято ADR «transport не нужен», либо выбран один тонкий transport
-adapter без media/business logic.
+Implemented and hosted-CI proven:
+- permanent Yandex Function URL;
+- outbound-only Windows long poll;
+- mounted Object Storage rendezvous;
+- independent agent/remote tokens;
+- Credential Manager local secret;
+- minimal public health;
+- immutable task/result semantics;
+- lost-ACK response cache;
+- explicit start/status/stop, no autostart;
+- exact remote allowlist `local_ping`, `runtime_self_test`.
 
-### Stage 5. MCP discovery/runtime comparison — conditional
+Exit gate still manual:
 
-Сначала native/direct MCP surface. 1MCP/ToolHive/другие слои добавляются только при
-измеримом выигрыше по context/governance/isolation; кандидаты не устанавливаются
-одновременно «на будущее».
+```text
+ChatGPT-originated runtime_self_test
+  -> real Yandex Function
+  -> user Windows agent-platform.exe
+  -> local execution
+  -> result back to ChatGPT
+```
 
-### Stage 6. Tool Manifest + selection + hardened PEP — done
+Until this gate passes, do not expose mastering/REAPER/media/distribution capabilities remotely.
 
-`tools.yaml` + `tool-lock.yaml`, required-quality/cost gates, immutable
-`CapabilitySelection`, независимые `decision/effective_risk`, guarded confirmation
-binding по capability/parameters/data class/hash. Model hint не снижает enforcement.
-Windows CI покрывает negative gates и bypass resistance.
+### Stage 5 — MCP aggregation — conditional
 
-### Stage 7. Secret Store + consumer ACL — done
+Do not add ToolHive/1MCP/n8n-style aggregation unless direct/native surface produces a measured governance/context/isolation problem.
 
-Windows Credential Manager через safe Rust backend, без собственной криптографии,
-`unsafe`, vault или daemon. Metadata не содержит raw value; ACL принимает только
-выбранный Stage 6 executor; краткоживущий secret buffer zeroize-ится. Windows test
-доказывает allowed consumer и denial FFmpeg. Dependencies зафиксированы и имеют ADR
-с планом замены.
+### Stage 6 — Tool Manifest + selection + hardened PEP — done
 
-### Stage 8. Artifact hardening + staging — done
+Executable fail-closed contract now enforces locked executor, enabled state, quality, reliability, determinism, execution path, fallback agreement and cost. Unknown fields fail closed. Runtime profile is derived from the same locked selections.
 
-Pending lifecycle, per-artifact locks, atomic publish/manifest, recovery records,
-SHA/path/contract validation, fail-closed recovery. External staging разрешён только
-для `public/project` и allowlisted executor; private/sensitive запрещены; временная
-копия проверяется по SHA и удаляется RAII cleanup. Unknown orphan data сохраняется.
+### Stage 7 — Secret Store — done
 
-### Stage 9. Single-binary supervisor — conditional
+Windows Credential Manager, executor ACL, short-lived zeroized secret buffer; no custom cryptography/vault daemon.
 
-`start/status/diagnose/stop`, tray/service — только после реальной независимой
-lifecycle-потребности. Нельзя превращать платформу в постоянно работающий зоопарк.
+### Stage 8 — Artifact hardening/staging — done
 
-### Stage 10. GitHub Actions — complete baseline
+SHA-256 identity, pending lifecycle, atomic publish, per-artifact locks, conservative recovery and allowlisted temporary external staging. Workflow processing uses immutable captured snapshots.
 
-Windows CI выполняет fmt, strict clippy, Rust tests, contract fixtures, Python
-oracle/parity, release build и artifact upload. PR → CI → squash merge доказан на
-чистых hosted runners. Supply-chain audit/signing остаются отдельным усилением.
+### Stage 9 — Supervisor/service — conditional
 
-## Horizon C — профессиональное media/audio
+Add only if explicit relay lifecycle becomes operationally insufficient. No permanent service just for convenience.
 
-### Stage 11. FFmpeg professional adapter — done
+### Stage 10 — CI + supply chain — done baseline
 
-Typed capabilities: `media.inspect`, `media.validate`, `media.convert`,
-`media.extract_audio`, `media.normalize_loudness`, `media.mux`. Один low-level
-FFmpeg runner с timeout/kill; произвольные shell/FFmpeg args/output paths наружу не
-выставлены.
+Current baseline:
+- Windows fmt/Clippy/tests/contracts/Python parity/release build;
+- pinned Rust 1.97.1;
+- pinned hosted FFmpeg 9.0.0;
+- scoped heavy Stage 4/19 E2E;
+- caches/path filters;
+- cargo-deny bans/sources;
+- blocking RustSec dependency advisories;
+- pinned CycloneDX SBOM;
+- weekly grouped Dependabot.
 
-- convert: lossless WAV/FLAC;
-- extract: PCM 24-bit WAV;
-- normalize: two-pass EBU R128 loudnorm + LUFS/true-peak post-validation;
-- mux: video stream copy + FLAC audio → Matroska;
-- outputs: temp → technical validation → Artifact Store → cleanup.
+Branch protection remains a separate manual repository-setting gap.
 
-Requirements/tool lock/policy/runtime profile согласованы. Реальные Windows tests
-проверяют все операции и негативный AAC case. PR #6 и push-CI на `main` зелёные.
-Stage 19 E2E дополнительно выявил implicit resampling `loudnorm`; общий normalizer
-усилен точной проверкой sample rate: обычный путь сохраняет частоту источника, а
-типизированный delivery-вариант может требовать конкретную частоту и post-validate
-её. Stage 11 regression теперь явно проверяет 48 kHz → 48 kHz.
+## Horizon C — Professional media/audio
 
-### Stage 12. REAPER adapter — done
+### Stage 11 — FFmpeg adapter — done
 
-Выбран путь Rust → ограниченный Lua/ReaScript → штатный REAPER CLI, без UI-click
-automation и без нового daemon. Реализованы typed session/track/marker specs,
-FFprobe-valid Artifact Store inputs, Lua escaping, track/media/marker/render/project
-save driver, locked `audio.reaper_render`, изолированные `-newinst` authoring/render
-процессы, timeout/kill, post-render FFprobe validation и возврат `.rpp` + WAV в
-Artifact Store.
+Typed inspect/validate/convert/extract/normalize/mux. No arbitrary shell/FFmpeg arguments. EBU R128 QC, sample-rate preservation and duration-aware execution timeouts are regression-tested.
 
-Exit gate пройден реальным пользовательским E2E на установленном REAPER
-`2026-08-08T06:47:48Z`: `stage12-acceptance-v1` создал проект и 48 kHz/2 s WAV,
-зарегистрировал оба артефакта и сверил их SHA-256 с manifest. Санитизированная
-версия evidence хранится в `project-context/STAGE12_ACCEPTANCE.md`; machine-local
-path намеренно не версионируется.
+### Stage 12 — REAPER adapter — done
 
-### Stage 13. Audio analysis/mastering decision layer — done
+Typed Rust -> limited Lua/ReaScript path. Real user Windows acceptance passed 2026-08-08.
 
-Добавлен policy-gated `audio.mastering_analyze` поверх существующего FFmpeg/EBU R128
-анализа. Решение содержит исходные метрики, выбранный профиль, target LUFS/true
-peak/LRA envelope, loudness delta, действие, `auto_mastering_allowed`,
-`requires_review`, quality flags и причины. Профили: `music-balanced`, `music-loud`,
-`speech`.
+### Stage 13 — Mastering analysis/decision — done
 
-Safe-auto gate блокирует автоматическую обработку при неполных метриках, sample rate
-ниже 44.1 kHz, multichannel вне валидированного mono/stereo пути, слишком малой/большой
-LRA и вероятном clipping/нулевом headroom. Decision layer не выдаётся за
-субъективный художественный мастеринг.
+Profile-aware technical LUFS/true-peak/LRA decision layer and safe-auto review gate.
 
-Exit gate пройден Windows CI #95: реальные PCM 24-bit WAV генерируются FFmpeg для
-quiet/nominal/hot/32 kHz mono случаев и проходят публичный policy/artifact path;
-дополнительно один источник сравнивается между `music-balanced` и `music-loud`.
-Строгие fmt/Clippy, Rust tests, contracts, Python oracle/parity и release build
-зелёные. Детали: `project-context/STAGE13_BENCHMARK.md`.
+### Stage 14 — Persistent job runtime — done
 
-### Stage 14. Workflow runtime gate — done
+File-backed atomic JobStore with idempotency, checkpoint, retry/cancel and cross-process persistence. Per-job OS execution lock guarantees one physical executor for one job.
 
-Выбран лёгкий Rust job state machine внутри существующего `agent-platform.exe`.
-Persistent `job-v1` хранится в bound `runtime/jobs/<project_id>` с atomic writes и
-межпроцессной блокировкой. Реализованы idempotent begin, queued/running/terminal
-переходы, checkpoint, cancellation, retryable failure, attempt counter и resume с
-сохранением checkpoint. Corrupt/identity-mismatched state валидируется и fail-closed
-без удаления evidence. Внешний workflow engine, daemon, service, database или
-message broker не добавлены.
+### Stage 15 — Technical delivery mastering — done
 
-Exit gate пройден Windows CI #109: восемь конкурентных idempotent begin создают один
-job; collision capability/key запрещён; checkpoint/retry/result переживают новые
-экземпляры store; terminal/non-retryable переходы отклоняются; corrupt state
-сохраняется и блокирует работу. Отдельный integration test запускает собранный
-`agent-platform` в нескольких процессах и доказывает begin → resume → checkpoint →
-get → retryable fail → resume → succeed → get между process/session boundaries.
-Детали: `project-context/STAGE14_RUNTIME.md`.
+Immutable source snapshot -> Stage 13 decision -> typed Stage 11 processing -> final QC -> Artifact Store. Exact repeat returns the same persisted result.
 
-### Stage 15. Production mastering workflow — done
+### Stage 19 — Reference mastering — done
 
-Добавлен policy-gated `audio.mastering_produce` / `produce-master`, который связывает
-Stage 13 decision layer, Stage 11 lossless/two-pass EBU R128 processing, Artifact
-Store и Stage 14 persistent jobs. Idempotency key включает workflow version, точный
-SHA-256 источника, профиль и data class. Успешный повтор возвращает тот же job,
-master artifact ID и SHA-256 без повторной генерации.
+Pinned Matchering 2.0.6 edge process with target/reference SHA identity, PCM24 intermediate checks, Rust final delivery QC, sample-rate integrity and idempotent persisted job.
 
-Stage 13 остаётся authoritative safe-auto gate: review-required источник не может
-стать успешным master. Автоматический путь ограничен `preserve` (lossless WAV) и
-`normalize_loudness`; arbitrary plug-in/FFmpeg/shell chain не открывается. Готовый
-WAV повторно анализируется и принимается только при sample rate ≥44.1 kHz,
-mono/stereo, duration drift ≤100 ms, safe-auto envelope, final action `preserve` и
-true-peak ceiling. Финальный master регистрируется в Artifact Store с provenance.
+Technical synthetic benchmark is green; a real musical listening corpus remains a quality-validation gap, not an integration gap.
 
-Exit gate пройден Windows CI #119 на реальных PCM 24-bit WAV в изолированных Project
-Bindings: quiet dynamic 48 kHz stereo проходит normalize→final preserve; точный
-повтор возвращает тот же job/artifact/SHA без роста manifest; уже compliant 48 kHz
-stereo проходит preserve; 32 kHz mono блокируется как non-retryable
-`MASTERING_REVIEW_REQUIRED` без успешного master artifact. Полная предыдущая
-регрессия и release build зелёные. Детали и честная граница technical-delivery vs
-artistic mastering: `project-context/STAGE15_MASTERING.md`.
+## Horizon D — Expand only from concrete demand
 
-## Horizon D — расширение только по спросу
+### Stage 16 — Browser automation — conditional
 
-### Stage 16. Browser automation + platform policy — conditional
+When a real scenario appears: API/connector first, then Playwright/Browser MCP, UI automation last. Node may be edge runtime, not core dependency.
 
-API/connector → Playwright/Browser MCP → UI automation. Node только edge runtime,
-не core dependency.
+### Stage 17 — Video production — conditional
 
-### Stage 17. Video production — conditional
+Use typed FFmpeg composition, Blender API/addons and external generators through existing artifact/policy/job boundaries. Do not build a second orchestration core.
 
-FFmpeg composition, Blender API/addons и внешние generators подключаются через
-artifacts/policy/jobs; provider не становится внутренней архитектурой.
+### Stage 18 — Distribution — conditional
 
-### Stage 18. Distribution adapters — conditional
+Security prerequisite is now available:
 
-Только guarded prepare/confirm, platform-policy checks и точная привязка к artifact
-hash/destination/cost.
+```text
+fresh policy preview
+  -> idempotent short-lived confirmation prepare
+  -> explicit user confirmation
+  -> fresh policy re-evaluation
+  -> atomic one-shot ConfirmationPermit
+  -> external executor consumes permit by value
+```
 
-### Stage 19. Additional professional capabilities — done
+No distribution executor is implemented yet. Do not expose side effects until one concrete platform scenario and its policy/acceptance tests exist.
 
-Доказанный после Stage 15 gap закрыт отдельной capability `audio.reference_master`,
-а не скрытым расширением technical delivery mastering. Rust сохраняет Project
-Binding, locked selection, policy, persistent jobs, idempotency, Artifact Store и
-финальный QC; replaceable edge executor `edge.python.matchering` запускает только
-фиксированный адаптер Matchering `2.0.6` в отдельном Python 3.10 runtime. Адаптер
-сам технически отклоняет другую версию движка; arbitrary Python/shell/options не
-экспортируются.
+## Horizon E — Operations
 
-TARGET + REFERENCE SHA-256 входят в job identity. Matchering output обязан быть
-non-empty PCM 24-bit WAV и пройти duration/media validation; затем результат идёт
-через Stage 13/15 delivery normalization/QC. Финальная частота дискретизации должна
-точно совпадать с исходным TARGET, а успешный повтор возвращает тот же job/artifact/
-SHA без роста manifest.
+### Stage 20 — Operations audit — partial
 
-Exit gate пройден на clean Windows runner для code head
-`1cb74fe5771bf9e143a9cdecdbc632e4eeb15ec2`: normal CI #159
-(`31262535449`) полностью зелёный; dedicated real Matchering E2E #36
-(`31262535446`) также зелёный. Benchmark использует 24 s PCM24 stereo TARGET/
-REFERENCE с различным 220 Hz/4.2 kHz tonal balance и макродинамикой и требует
-улучшения и LUFS-distance, и measured high/low tonal-distance к reference. Negative
-32 kHz TARGET сохраняется как non-retryable failed job. Подробности:
-`project-context/STAGE19_REFERENCE_MASTERING.md`.
+Already hardened:
+- job execution ownership;
+- immutable workflow inputs;
+- executable capability contracts;
+- runtime-profile drift detection;
+- one-shot guarded confirmations;
+- Stage 4 immutable cloud rendezvous/auth separation;
+- duration-aware FFmpeg execution/logging;
+- Rust dependency/advisory policy;
+- reproducible SBOM;
+- CI cost controls.
 
-### Stage 20. Operations audit — planned
+Current work:
+- immutable tag-gated private GitHub Release packaging with Windows binary + SBOM + SHA256SUMS.
 
-Recovery, upgrades, retention, logs, secrets, costs, dependency decay,
-single-binary promise и no-zoo ограничения проверяются на реальной эксплуатации.
+Manual/decision gates:
+1. Stage 4 real ChatGPT acceptance;
+2. project license/proprietary decision;
+3. main branch protection/ruleset;
+4. first explicit version tag/release;
+5. real music corpus if subjective professional reference-mastering quality is claimed.
 
-## Definition of Done для любого этапа
+Detailed checklist: `project-context/STAGE20_OPERATIONS.md`.
 
-1. Реальный пользовательский сценарий проходит end-to-end.
-2. Policy применяется технически, а не только prompt-инструкцией.
-3. Ошибки структурированы; retry/idempotency определены.
-4. Есть positive, negative и integration tests пропорционально риску.
-5. Документация отражает фактическое состояние, а не намерение.
-6. Runtime snapshot не подменяет versioned requirements.
-7. Новая зависимость имеет причину, lockfile и план удаления/замены.
-8. Нет нового process/service без независимого lifecycle requirement.
-9. Editable sources и fixtures сохранены.
-10. Следующий обязательный этап не начинается до прохождения exit gate текущего.
+## Definition of Done for future capabilities
+
+1. Real scenario and explicit Project Binding.
+2. Typed capability; no arbitrary command surface.
+3. Versioned/fail-closed config and policy enforcement in code.
+4. Artifact identity refers to the exact bytes processed.
+5. Idempotency/retry/execution ownership defined where work is stateful.
+6. External side effect requires a consumed confirmation permit.
+7. Positive, negative and integration tests proportional to risk.
+8. New dependency/process/service has a measured reason and replacement/removal plan.
+9. Runtime profile/evidence does not replace versioned requirements.
+10. Documentation is updated in the same development cycle.
