@@ -72,7 +72,29 @@ instance, ждёт completion marker после сохранения `.rpp`, о�
 `stage12-acceptance-v1` вернул `status=success`, создал и зарегистрировал `.rpp` и
 48 kHz/2 s WAV, а SHA-256 обоих артефактов совпали с Artifact Store manifest.
 Санитизированное evidence хранится в `project-context/STAGE12_ACCEPTANCE.md`.
-Следующий обязательный этап — Stage 13 Audio analysis/mastering decision layer.
+
+Stage 13 завершён. Новый policy-gated `audio.mastering_analyze` использует уже
+доказанный FFmpeg EBU R128 inspection и типизированный decision layer вместо
+безусловного «сделать -14 LUFS». Профили `music-balanced`, `music-loud` и `speech`
+задают target LUFS, true-peak ceiling и допустимый LRA envelope, а ответ сохраняет
+исходные измерения, target, loudness delta, предлагаемое действие, quality flags,
+причины, `auto_mastering_allowed` и `requires_review`.
+
+Safe-auto gate требует review при неполных измерениях, sample rate ниже 44.1 kHz,
+multichannel вне валидированного mono/stereo пути, LRA вне profile envelope и
+вероятном clipping/нулевом true-peak headroom. Windows CI #95 прошёл реальные
+PCM 24-bit WAV cases quiet/nominal/hot/32 kHz mono через полный
+Project Binding → locked selection → PEP → Artifact Store → FFmpeg → decision путь,
+плюс профильное сравнение одного источника, strict Clippy, contracts, Python
+oracle/parity и release build. `project-context/STAGE13_BENCHMARK.md` фиксирует
+границу: это профессиональный технический decision/QC layer, а не заявление, что
+LUFS-анализ сам по себе заменяет художественный мастеринг.
+
+Stage 14 теперь planned, а не абстрактно conditional: Stage 15 прямо требует job ID,
+persistence, recovery, idempotency, retry, checkpoints и resume между сессиями.
+Следующий шаг — лёгкий Rust job state machine внутри существующего binary; внешний
+workflow engine, daemon или service не добавляется, пока этот путь не докажет
+недостаточность.
 
 Stage 9 остаётся conditional: отдельный supervisor/service не создаётся без
 независимого lifecycle requirement. Stage 10 имеет рабочий Windows CI baseline.
