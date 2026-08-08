@@ -174,10 +174,17 @@ def _agent_online(root, project_id):
     return _now_ms() - last_seen <= HEARTBEAT_TTL_SECONDS * 1000
 
 
-def _agent_poll(root, body):
+def _validate_agent_project(body):
     project_id = str(body.get("project_id") or "")
     if project_id != _project_id():
-        return _json_response(403, {"ok": False, "error": "project_id is not allowed"})
+        return None, _json_response(403, {"ok": False, "error": "project_id is not allowed"})
+    return project_id, None
+
+
+def _agent_poll(root, body):
+    project_id, error = _validate_agent_project(body)
+    if error:
+        return error
     operations = [str(item) for item in (body.get("operations") or []) if str(item) in ALLOWED_TOOLS]
     if not operations:
         return _json_response(400, {"ok": False, "error": "no allowed operations advertised"})
@@ -215,6 +222,14 @@ def _agent_poll(root, body):
         if now >= deadline:
             return _json_response(200, {"ok": True, "task": None})
         time.sleep(min(POLL_SLICE_SECONDS, max(0.0, deadline - now)))
+
+
+def _agent_offline(root, body):
+    project_id, error = _validate_agent_project(body)
+    if error:
+        return error
+    _safe_unlink(_heartbeat_path(root, project_id))
+    return _json_response(200, {"ok": True, "agent_online": False})
 
 
 def _agent_result(root, body):
@@ -373,5 +388,7 @@ def handler(event, context):
             return _agent_poll(root, body)
         if action == "result":
             return _agent_result(root, body)
+        if action == "offline":
+            return _agent_offline(root, body)
         return _json_response(400, {"ok": False, "error": "unsupported agent_action"})
     return _handle_mcp(root, event, body)
