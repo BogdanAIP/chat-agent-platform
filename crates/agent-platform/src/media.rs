@@ -295,6 +295,7 @@ pub fn normalize_loudness(
             "target true peak must be between -9 and 0 dBTP".into(),
         ));
     }
+    let input_inspection = inspect_media(input)?;
     let first_filter =
         format!("loudnorm=I={target_lufs}:TP={target_true_peak_dbtp}:LRA=11:print_format=json");
     let first_arguments = vec![
@@ -334,10 +335,18 @@ pub fn normalize_loudness(
         second_filter,
         "-c:a".into(),
         "pcm_s24le".into(),
+        "-ar".into(),
+        input_inspection.sample_rate_hz.to_string(),
         output.to_string_lossy().into_owned(),
     ];
     run_owned("ffmpeg", &second_arguments)?;
     let inspection = inspect_media(output)?;
+    if inspection.sample_rate_hz != input_inspection.sample_rate_hz {
+        return Err(PlatformError::Validation(format!(
+            "normalized output changed sample rate: input={} Hz output={} Hz",
+            input_inspection.sample_rate_hz, inspection.sample_rate_hz
+        )));
+    }
     let measured_lufs = inspection.integrated_lufs.ok_or_else(|| {
         PlatformError::Validation("normalized output has no measurable integrated LUFS".into())
     })?;
