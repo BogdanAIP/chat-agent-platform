@@ -103,10 +103,10 @@ fn make_test_repo(root: &Path) {
 }
 
 fn make_program(path: &Path, low_gain: f64, high_gain: f64, sample_rate: u32) {
-    let low = format!("sine=frequency=220:sample_rate={sample_rate}:duration=18");
-    let high = format!("sine=frequency=4200:sample_rate={sample_rate}:duration=18");
+    let low = format!("sine=frequency=220:sample_rate={sample_rate}:duration=24");
+    let high = format!("sine=frequency=4200:sample_rate={sample_rate}:duration=24");
     let filter = format!(
-        "[0:a]volume={low_gain}[low];[1:a]volume={high_gain}[high];[low][high]amix=inputs=2:normalize=0,tremolo=f=0.27:d=0.75[out]"
+        "[0:a]volume={low_gain}[low];[1:a]volume={high_gain}[high];[low][high]amix=inputs=2:normalize=0,volume='if(lt(mod(t,8),4),1,0.25)':eval=frame[out]"
     );
     let status = Command::new("ffmpeg")
         .args([
