@@ -9,7 +9,7 @@ from pathlib import Path
 from gateway.yandex_function import index
 
 TOKEN = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"
-MCP_TOKEN = "mcp-abcdefghijklmnopqrstuvwxyz0123456789"
+REMOTE_TOKEN = "remote-abcdefghijklmnopqrstuvwxyz0123456789"
 
 
 def event(body, headers=None, method="POST"):
@@ -25,16 +25,24 @@ def parsed(response):
     return json.loads(response["body"]) if response.get("body") else None
 
 
+def remote_headers():
+    return {"Authorization": f"Bearer {REMOTE_TOKEN}"}
+
+
 class GatewayTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["RELAY_STATE_DIR"] = self.tmp.name
         os.environ["AGENT_TOKEN"] = TOKEN
+        os.environ["MCP_TOKEN"] = REMOTE_TOKEN
         os.environ["PROJECT_ID"] = "demo"
-        os.environ.pop("MCP_TOKEN", None)
 
     def tearDown(self):
         self.tmp.cleanup()
+        os.environ.pop("RELAY_STATE_DIR", None)
+        os.environ.pop("AGENT_TOKEN", None)
+        os.environ.pop("MCP_TOKEN", None)
+        os.environ.pop("PROJECT_ID", None)
 
     def test_agent_auth_is_required(self):
         response = index.handler(
@@ -49,8 +57,7 @@ class GatewayTests(unittest.TestCase):
         )
         self.assertEqual(response["statusCode"], 401)
 
-    def test_optional_mcp_bearer_auth_is_enforced_when_configured(self):
-        os.environ["MCP_TOKEN"] = MCP_TOKEN
+    def test_remote_auth_fails_closed_when_missing_or_unconfigured(self):
         request = {
             "jsonrpc": "2.0",
             "id": 2,
@@ -59,14 +66,18 @@ class GatewayTests(unittest.TestCase):
         }
         denied = index.handler(event(request), None)
         self.assertEqual(denied["statusCode"], 401)
-        allowed = index.handler(
-            event(request, {"Authorization": f"Bearer {MCP_TOKEN}"}),
-            None,
-        )
+        allowed = index.handler(event(request, remote_headers()), None)
         self.assertEqual(allowed["statusCode"], 200)
         self.assertIn("result", parsed(allowed))
 
-    def test_offline_tool_fails_without_waiting_for_task_deadline(self):
+        os.environ.pop("MCP_TOKEN")
+        unconfigured = index.handler(
+            event(request, {"Authorization": f"Bearer {REMOTE_TOKEN}"}),
+            None,
+        )
+        self.assertEqual(unconfigured["statusCode"], 401)
+
+    def test_offline_mcp_tool_fails_without_waiting_for_task_deadline(self):
         started = time.monotonic()
         response = index.handler(
             event(
@@ -78,7 +89,8 @@ class GatewayTests(unittest.TestCase):
                         "name": "local_ping",
                         "arguments": {"message": "hello"},
                     },
-                }
+                },
+                remote_headers(),
             ),
             None,
         )
@@ -87,6 +99,28 @@ class GatewayTests(unittest.TestCase):
         self.assertTrue(payload["isError"])
         self.assertEqual(payload["structuredContent"]["code"], "AGENT_OFFLINE")
         self.assertLess(elapsed, 1.0)
+
+    def test_actions_surface_requires_bearer_and_mirrors_argument_allowlist(self):
+        denied = index.handler(event({"action": "local_ping", "message": "hello"}), None)
+        self.assertEqual(denied["statusCode"], 401)
+
+        invalid = index.handler(
+            event(
+                {"action": "runtime_self_test", "message": "not allowed"},
+                remote_headers(),
+            ),
+            None,
+        )
+        self.assertEqual(invalid["statusCode"], 200)
+        payload = parsed(invalid)
+        self.assertEqual(payload["status"], "error")
+        self.assertEqual(payload["error"]["code"], "VALIDATION_FAILED")
+
+        unknown = index.handler(
+            event({"action": "shell.run_arbitrary"}, remote_headers()),
+            None,
+        )
+        self.assertEqual(parsed(unknown)["error"]["code"], "TOOL_NOT_FOUND")
 
     def test_authenticated_offline_overwrites_heartbeat_without_delete_permission(self):
         poll = index.handler(
@@ -119,8 +153,9 @@ class GatewayTests(unittest.TestCase):
         self.assertFalse(parsed(offline)["agent_online"])
         health = parsed(index.handler(event({}, method="GET"), None))
         self.assertFalse(health["agent_online"])
+        self.assertTrue(health["remote_auth_configured"])
 
-    def test_long_poll_rendezvous_result_and_duplicate_are_no_delete(self):
+    def test_actions_long_poll_rendezvous_result_and_duplicate_are_no_delete(self):
         holder = {}
 
         def agent():
@@ -171,24 +206,17 @@ class GatewayTests(unittest.TestCase):
             time.sleep(0.05)
         response = index.handler(
             event(
-                {
-                    "jsonrpc": "2.0",
-                    "id": 7,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "local_ping",
-                        "arguments": {"message": "stage4"},
-                    },
-                }
+                {"action": "local_ping", "message": "stage4"},
+                remote_headers(),
             ),
             None,
         )
         thread.join(timeout=5)
         self.assertFalse(thread.is_alive())
-        payload = parsed(response)["result"]
-        self.assertFalse(payload["isError"])
-        self.assertTrue(payload["structuredContent"]["pong"])
-        self.assertEqual(payload["structuredContent"]["message"], "stage4")
+        payload = parsed(response)
+        self.assertEqual(payload["status"], "success")
+        self.assertTrue(payload["result"]["pong"])
+        self.assertEqual(payload["result"]["message"], "stage4")
         self.assertTrue(holder["ack"]["ok"])
         self.assertFalse(holder["ack"]["duplicate"])
         self.assertEqual(holder["task"]["operation"], "local_ping")
@@ -235,6 +263,16 @@ class GatewayTests(unittest.TestCase):
         self.assertNotIn("os.remove(", source)
         self.assertNotIn("os.unlink(", source)
 
+    def test_actions_openapi_template_exports_only_the_two_stage4_operations(self):
+        template = Path("gateway/actions-openapi.template.json")
+        schema = json.loads(template.read_text(encoding="utf-8"))
+        self.assertEqual(schema["openapi"], "3.1.0")
+        action = schema["paths"]["/"]["post"]
+        self.assertEqual(action["operationId"], "runLocalAgentTool")
+        action_enum = action["requestBody"]["content"]["application/json"]["schema"]["properties"]["action"]["enum"]
+        self.assertEqual(action_enum, ["local_ping", "runtime_self_test"])
+        self.assertEqual(schema["servers"][0]["url"], "__FUNCTION_URL__")
+
     def test_tools_list_exports_only_allowlisted_local_operations(self):
         response = index.handler(
             event(
@@ -243,7 +281,8 @@ class GatewayTests(unittest.TestCase):
                     "id": 2,
                     "method": "tools/list",
                     "params": {},
-                }
+                },
+                remote_headers(),
             ),
             None,
         )
