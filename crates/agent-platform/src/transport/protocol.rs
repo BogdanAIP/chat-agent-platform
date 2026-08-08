@@ -81,7 +81,7 @@ pub(super) fn poll_once(
 
 pub(super) fn cleanup_old_cache(root: &Path) -> Result<(), PlatformError> {
     let cutoff = SystemTime::now()
-        .checked_sub(Duration::from_secs(24 * 60 * 60))
+        .checked_sub(Duration::from_hours(24))
         .unwrap_or(UNIX_EPOCH);
     for entry in
         fs::read_dir(root).map_err(|error| io_error("cannot scan relay response cache", error))?
