@@ -46,7 +46,7 @@ enum RelayCommand {
         endpoint: String,
         #[arg(long, default_value = "AGENT_PLATFORM_RELAY_TOKEN")]
         env_name: String,
-        #[arg(long, default_value = "relay.agent_token")]
+        #[arg(long, default_value = "secret://relay/agent_token")]
         secret_ref: String,
     },
     Start {
@@ -68,7 +68,7 @@ enum RelayCommand {
     RemoveToken {
         #[arg(long)]
         project_id: Option<String>,
-        #[arg(long, default_value = "relay.agent_token")]
+        #[arg(long, default_value = "secret://relay/agent_token")]
         secret_ref: String,
     },
 }
@@ -93,7 +93,7 @@ enum Command {
         project_id: Option<String>,
         #[arg(long)]
         endpoint: String,
-        #[arg(long, default_value = "relay.agent_token")]
+        #[arg(long, default_value = "secret://relay/agent_token")]
         secret_ref: String,
         #[arg(long, default_value_t = false)]
         once: bool,
