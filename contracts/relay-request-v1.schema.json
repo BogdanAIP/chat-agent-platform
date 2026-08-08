@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "relay-request-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "operation", "parameters", "deadline_unix_ms"],
+  "properties": {
+    "contract_version": {"const": "relay-request-v1"},
+    "request_id": {"type": "string", "pattern": "^rly_[a-f0-9]{32}$"},
+    "operation": {"enum": ["local_ping", "runtime_self_test"]},
+    "parameters": {"type": "object"},
+    "deadline_unix_ms": {"type": "integer"}
+  }
+}

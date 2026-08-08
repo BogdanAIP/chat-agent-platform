@@ -163,6 +163,22 @@
         "runtime_capability": "runtime.self_test",
         "required_status": "available"
       }
+    },
+    {
+      "capability": "transport.relay_connect",
+      "executor": "rust.local.relay",
+      "enabled": true,
+      "quality": "professional",
+      "reliability": "high",
+      "determinism": "high",
+      "base_risk": "medium",
+      "cost": 0,
+      "artifact_constraints": {
+        "allowed_data_classes": ["project", "sensitive"]
+      },
+      "fallbacks": [],
+      "required_skill": "bootstrap",
+      "required_qc": ["https_only", "credential_manager_token", "manual_lifecycle", "long_poll", "heartbeat", "operation_allowlist", "duplicate_request_cache"]
     }
   ]
 }

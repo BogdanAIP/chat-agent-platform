@@ -1,0 +1,103 @@
+name: Stage 4 Relay E2E
+
+on:
+  pull_request:
+    paths:
+      - "crates/agent-platform/src/transport/**"
+      - "crates/agent-platform/src/main.rs"
+      - "crates/agent-platform/src/contracts.rs"
+      - "crates/agent-platform/src/secret.rs"
+      - "crates/agent-platform/tests/stage4_relay_*.rs"
+      - "contracts/relay-*.schema.json"
+      - "gateway/**"
+      - "tests/test_stage4_yandex_gateway.py"
+      - "scripts/deploy-stage4-yandex.ps1"
+      - ".github/workflows/stage4-relay.yml"
+      - "config/tools.yaml"
+      - "config/tool-lock.yaml"
+      - "config/capability-requirements.yaml"
+      - "config/policy.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "crates/agent-platform/src/transport/**"
+      - "crates/agent-platform/src/main.rs"
+      - "crates/agent-platform/src/contracts.rs"
+      - "crates/agent-platform/src/secret.rs"
+      - "crates/agent-platform/tests/stage4_relay_*.rs"
+      - "contracts/relay-*.schema.json"
+      - "gateway/**"
+      - "tests/test_stage4_yandex_gateway.py"
+      - "scripts/deploy-stage4-yandex.ps1"
+      - ".github/workflows/stage4-relay.yml"
+      - "config/tools.yaml"
+      - "config/tool-lock.yaml"
+      - "config/capability-requirements.yaml"
+      - "config/policy.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage4-relay-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  relay-e2e:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
+          rustup default 1.97.1
+
+      - name: Ensure FFmpeg is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+          }
+          ffmpeg -version
+          ffprobe -version
+
+      - name: Check Stage 4 formatting and Clippy
+        shell: pwsh
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy -p agent-platform --all-targets -- -D warnings
+
+      - name: Prove relay Credential Manager ACL
+        shell: pwsh
+        run: cargo test -p agent-platform --test stage4_relay_secret -- --nocapture
+
+      - name: Prove configure-start-retry-selftest-stop lifecycle
+        shell: pwsh
+        run: cargo test -p agent-platform --test stage4_relay_lifecycle -- --nocapture
+
+      - name: Prove Yandex gateway MCP and GPT Actions contracts
+        shell: pwsh
+        run: python -m unittest tests.test_stage4_yandex_gateway -v
+
+      - name: Validate Yandex deployment script syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/deploy-stage4-yandex.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }

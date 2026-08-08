@@ -19,3 +19,4 @@ pub mod reaper_ops;
 pub mod reference_mastering;
 pub mod secret;
 pub mod service;
+pub mod transport;
