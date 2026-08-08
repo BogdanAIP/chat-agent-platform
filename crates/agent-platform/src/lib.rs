@@ -15,5 +15,6 @@ pub mod media_ops;
 pub mod policy;
 pub mod reaper;
 pub mod reaper_ops;
+pub mod reference_mastering;
 pub mod secret;
 pub mod service;
