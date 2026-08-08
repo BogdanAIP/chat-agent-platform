@@ -4,7 +4,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -160,16 +160,35 @@ fn respond(stream: &mut TcpStream, status: u16, value: &Value) {
     stream.flush().expect("flush HTTP response");
 }
 
-fn spawn_gateway() -> (String, Arc<Mutex<GatewayState>>, thread::JoinHandle<()>) {
+fn spawn_gateway() -> (
+    String,
+    Arc<Mutex<GatewayState>>,
+    mpsc::Sender<()>,
+    thread::JoinHandle<()>,
+) {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake gateway");
+    listener
+        .set_nonblocking(true)
+        .expect("fake gateway nonblocking mode");
     let address = listener.local_addr().expect("fake gateway address");
     let state = Arc::new(Mutex::new(GatewayState::default()));
     let server_state = Arc::clone(&state);
     let ping_id = format!("rly_{}", Uuid::new_v4().simple());
     let self_test_id = format!("rly_{}", Uuid::new_v4().simple());
+    let (shutdown_tx, shutdown_rx) = mpsc::channel();
     let handle = thread::spawn(move || {
-        for incoming in listener.incoming().take(64) {
-            let mut stream = incoming.expect("accept fake gateway request");
+        loop {
+            if shutdown_rx.try_recv().is_ok() {
+                break;
+            }
+            let mut stream = match listener.accept() {
+                Ok((stream, _)) => stream,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(10));
+                    continue;
+                }
+                Err(error) => panic!("accept fake gateway request: {error}"),
+            };
             let (headers, body) = read_http_request(&mut stream);
             assert!(
                 headers
@@ -246,7 +265,12 @@ fn spawn_gateway() -> (String, Arc<Mutex<GatewayState>>, thread::JoinHandle<()>)
             }
         }
     });
-    (format!("http://{address}"), state, handle)
+    (
+        format!("http://{address}"),
+        state,
+        shutdown_tx,
+        handle,
+    )
 }
 
 #[test]
@@ -258,7 +282,7 @@ fn configure_start_execute_retry_stop_round_trip_uses_one_local_binary() {
         root: temporary.path().to_path_buf(),
         secret_ref: secret_ref.clone(),
     };
-    let (endpoint, gateway_state, gateway) = spawn_gateway();
+    let (endpoint, gateway_state, gateway_shutdown, gateway) = spawn_gateway();
 
     let configured = run(
         temporary.path(),
@@ -332,7 +356,17 @@ fn configure_start_execute_retry_stop_round_trip_uses_one_local_binary() {
     assert_eq!(after["enabled"], false);
     assert_eq!(after["state"], "stopped");
 
+    let mut offline_observed = false;
+    for _ in 0..50 {
+        if gateway_state.lock().expect("gateway state").offline_seen {
+            offline_observed = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    let _ = gateway_shutdown.send(());
     gateway.join().expect("fake gateway thread");
+
     let state = gateway_state.lock().expect("gateway state");
     assert_eq!(state.ping_result_attempts, 2);
     assert!(state.ping_accepted);
@@ -348,7 +382,7 @@ fn configure_start_execute_retry_stop_round_trip_uses_one_local_binary() {
     assert_eq!(self_test["result"]["status"], "success");
     assert_eq!(self_test["result"]["result"]["ping"], "pong");
     assert!(
-        state.offline_seen,
-        "relay stop must notify the gateway immediately"
+        offline_observed && state.offline_seen,
+        "relay stop must notify the gateway within five seconds"
     );
 }
