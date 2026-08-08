@@ -118,10 +118,7 @@ fn checkpoint_retry_and_result_survive_new_store_instances() {
         Some("analysis_complete")
     );
     reopened
-        .succeed(
-            &job_id,
-            object(json!({"render_artifact": "art_cafebabe"})),
-        )
+        .succeed(&job_id, object(json!({"render_artifact": "art_cafebabe"})))
         .expect("success");
 
     let final_store = JobStore::new(temporary.path()).expect("new session store");
@@ -174,8 +171,7 @@ fn terminal_and_non_retryable_transitions_are_denied() {
 fn corrupt_persisted_state_fails_closed_and_is_preserved() {
     let temporary = tempdir().expect("temp directory");
     let corrupt = temporary.path().join("job_deadbeef.json");
-    fs::write(&corrupt, "{ definitely-not-json")
-        .expect("corrupt test state must be written");
+    fs::write(&corrupt, "{ definitely-not-json").expect("corrupt test state must be written");
     let store = JobStore::new(temporary.path()).expect("job store");
 
     let error = store
