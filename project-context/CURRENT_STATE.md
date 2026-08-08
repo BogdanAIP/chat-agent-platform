@@ -1,174 +1,154 @@
 # Current State
 
-Архитектура v1.4 — Rust-first/native-edge. Chat остаётся primary intelligence;
-локальный `agent-platform.exe` применяет Project Binding, capability requirements,
-locked tool selection, policy, Artifact Store и Secret Store, а зрелые программы
-вызываются через ограниченные typed adapters. Python v0.1 сохранён только как
-behavioral oracle для parity-проверок.
+## Snapshot
 
-Hosted Chat → GitHub read/write подтверждён реальными branch/edit/PR/CI/merge
-циклами через GitHub plugin. Hosted Chat → local execution transport и
-account-level MCP write/modify ещё не проверены и не считаются доступными.
-Подтверждённый локальный execution path — local/Codex CLI; отдельный transport,
-daemon и supervisor не добавлены без доказанной lifecycle-потребности.
+Architecture v1.4 is **Rust-first / native-edge**. Chat is primary intelligence; one local `agent-platform.exe` owns contracts, Project Binding, locked capability selection, policy, guarded confirmations, artifacts, persistent jobs and secret ACL. Mature media tools remain typed edge executors.
 
-Stage 1 завершён: Rust vertical slice выполняет
-`binding → policy → artifact → FFprobe/FFmpeg → validation → tool-v1` и совпадает
-с Python oracle на реальном WAV. Stage 2 contracts встроены в binary; общие
-positive/negative fixtures проходят Rust и Python. Stage 3 Project Memory,
-Bootstrap и skills дают новой сессии минимальный связанный контекст вместо полного
-дампа проекта.
+Python v0.1 is retained only as a behavioral oracle for parity. It is not the target runtime.
 
-Stage 6 завершён: `tools.yaml` + `tool-lock.yaml` выбирают executor после mandatory
-quality/cost gates; PEP отделяет `decision` от `effective_risk`, model risk hint не
-понижает enforcement, guarded confirmation привязан к capability/parameters/data
-class/hash. `CapabilitySelection` неизменяем извне после выбора.
+Repository is private. `LicenseRef-UNLICENSED` means no project license has been selected yet.
 
-Stage 7 завершён: `SecretStore` использует Windows Credential Manager через safe
-Rust backend без собственной криптографии, vault/daemon и `unsafe` в platform
-crate. Metadata содержит только secret ref/ACL/credential target. Consumer identity
-берётся из Stage 6 selection; raw secret существует только внутри короткого
-callback и затем zeroize-ится. Windows integration test доказывает разрешённый
-доступ и отказ `rust.local.ffmpeg` без утечки raw value.
+## Stage status
 
-Stage 8 завершён: Artifact Store использует pending lifecycle, per-artifact locks,
-atomic publish/manifest update и recovery records. Manifest-loss recovery допускает
-только contract/identity/path/SHA-256-valid artifact; неизвестные orphan directories
-не удаляются. External staging разрешён только `public`/`project`, только
-allowlisted executor identity, создаёт проверенную временную копию и всегда удаляет
-её после callback. Recovery сбрасывает staging fail-closed.
+| Stage | Status | Current evidence |
+| --- | --- | --- |
+| 0 Reality baseline + Binding | partial | Binding/GitHub proven; real Hosted Chat -> Windows round trip still deferred |
+| 1 Rust vertical core | done | binding -> policy -> artifact -> FFmpeg -> validated tool result |
+| 2 Contracts | done | embedded schemas for tool/artifact/policy/confirmation/secret/job/relay |
+| 3 Memory/bootstrap/skills | done | minimal project context + bootstrap path |
+| 4 Hosted transport | partial / E2E-ready | Yandex relay hosted Windows E2E green; final real ChatGPT call pending |
+| 5 MCP aggregation | conditional | no extra aggregator justified |
+| 6 Capability selection + PEP | done | strict fail-closed quality/reliability/determinism/path/fallback/cost gates |
+| 7 Secret Store | done | Windows Credential Manager + executor ACL |
+| 8 Artifact hardening/staging | done | SHA/recovery/staging controls |
+| 9 Supervisor/service | conditional | not required by current manual lifecycle |
+| 10 CI baseline | done | Windows verify, path filters, caches, pinned Rust/FFmpeg + supply-chain gates |
+| 11 FFmpeg adapter | done | typed media operations, EBU QC, duration-aware timeouts |
+| 12 REAPER adapter | done | real user Windows acceptance passed 2026-08-08 |
+| 13 Mastering analysis | done | profile-aware technical decision/safe-auto gate |
+| 14 Persistent jobs | done | idempotency/checkpoints/retry + exclusive physical execution |
+| 15 Technical mastering | done | immutable input snapshot + final QC + idempotent master |
+| 16 Browser automation | conditional | no concrete scenario selected |
+| 17 Video production | conditional | no concrete scenario selected |
+| 18 Distribution | conditional | confirmation primitive done; external executors intentionally absent |
+| 19 Reference mastering | done | real pinned Matchering engine + technical benchmark |
+| 20 Operations audit | partial | supply-chain/media/confirmation/release packaging hardened; manual gates remain |
 
-Stage 11 завершён и подтверждён push-CI на `main`. Один FFmpeg adapter имеет typed
-operations `media.inspect`, `media.validate`, `media.convert`,
-`media.extract_audio`, `media.normalize_loudness` и `media.mux`. Convert принимает
-только lossless WAV/FLAC; extract создаёт PCM 24-bit WAV; normalization использует
-двухпроходный EBU R128 `loudnorm` с post-validation LUFS/true peak; mux копирует
-video stream и добавляет FLAC audio в Matroska. Произвольные FFmpeg arguments,
-output paths и shell наружу не выставлены.
+Stages are **not a strict linear dependency chain**. A later independent local capability may be completed while an earlier external/manual gate remains partial. A stage is `done` only for its own exit criteria.
 
-Все Stage 11 операции проходят цепочку Project Binding → locked selection → PEP →
-Artifact Store → FFmpeg timeout/kill → technical validation → `tool-v1`. FFmpeg
-output сначала создаётся как временный файл, валидируется, импортируется в Artifact
-Store и удаляется RAII cleanup. Реальные Windows integration tests проверяют
-validate, FLAC conversion, PCM extraction, two-pass normalization, mux и rejection
-неразрешённого AAC conversion. Stage 19 real E2E выявил implicit resampling в
-`loudnorm`; normalizer усилен: обычный путь сохраняет входной sample rate, typed
-delivery-вариант может требовать конкретную частоту и всегда post-validates её.
-Stage 11 regression теперь явно проверяет 48 kHz → 48 kHz.
+## Core integrity guarantees
 
-Stage 12 завершён. Rust-модуль REAPER adapter содержит typed session/track/marker
-specs, принимает только зарегистрированные и FFprobe-valid audio artifacts и
-генерирует ограниченный Lua/ReaScript driver для track creation, media import,
-markers, render settings и project save. Driver не содержит `os.execute`,
-`io.popen` или generic `Main_OnCommand`; строки экранируются. `reaper-probe`
-обнаруживает `reaper.exe` через `REAPER_EXE` или стандартные Windows paths.
+### Capability configuration
 
-Policy-gated capability `audio.reaper_render` проходит Project Binding → locked
-selection → PEP → Artifact Store, запускает только новый изолированный REAPER
-instance, ждёт completion marker после сохранения `.rpp`, ограничивает authoring 45
-секундами и render 3 минутами, принимает render после стабильного FFprobe-valid WAV
-и проверки sample rate через Stage 11. Сохранённый `.rpp` и WAV импортируются
-обратно в Artifact Store, request-scoped workspace очищается при успехе и ошибке.
+`tools.yaml`, `tool-lock.yaml` and `capability-requirements.yaml` form one executable selection contract. Unknown fields fail closed. Selection enforces:
 
-Реальный Stage 12 exit gate пройден 2026-08-08 на пользовательской Windows-машине с
-установленным REAPER через `scripts/verify-reaper-stage12.ps1`: contract
-`stage12-acceptance-v1` вернул `status=success`, создал и зарегистрировал `.rpp` и
-48 kHz/2 s WAV, а SHA-256 обоих артефактов совпали с Artifact Store manifest.
-Санитизированное evidence хранится в `project-context/STAGE12_ACCEPTANCE.md`.
+- locked executor identity and enabled state;
+- required quality;
+- required reliability;
+- required determinism;
+- allowed execution path;
+- exact fallback agreement;
+- request cost limit.
 
-Stage 13 завершён. Новый policy-gated `audio.mastering_analyze` использует уже
-доказанный FFmpeg EBU R128 inspection и типизированный decision layer вместо
-безусловного «сделать -14 LUFS». Профили `music-balanced`, `music-loud` и `speech`
-задают target LUFS, true-peak ceiling и допустимый LRA envelope, а ответ сохраняет
-исходные измерения, target, loudness delta, предлагаемое действие, quality flags,
-причины, `auto_mastering_allowed` и `requires_review`.
+QC/skills/acceptance lists are evidence metadata proved by tests or health. Runtime profile is generated from the locked selection set and regression-tested against `tool-lock.yaml`.
 
-Safe-auto gate требует review при неполных измерениях, sample rate ниже 44.1 kHz,
-multichannel вне валидированного mono/stereo пути, LRA вне profile envelope и
-вероятном clipping/нулевом true-peak headroom. Windows CI #95 прошёл реальные
-PCM 24-bit WAV cases quiet/nominal/hot/32 kHz mono через полный
-Project Binding → locked selection → PEP → Artifact Store → FFmpeg → decision путь,
-плюс профильное сравнение одного источника, strict Clippy, contracts, Python
-oracle/parity и release build. `project-context/STAGE13_BENCHMARK.md` фиксирует
-границу: это профессиональный технический decision/QC layer, а не заявление, что
-LUFS-анализ сам по себе заменяет художественный мастеринг.
+### Artifacts and jobs
 
-Stage 14 завершён. `agent-platform.exe` теперь содержит собственный компактный
-persistent job runtime вместо отдельного workflow-сервиса. `job-v1` хранится внутри
-bound local root в `runtime/jobs/<project_id>`, записывается атомарно и защищён
-межпроцессной блокировкой. Есть idempotent begin, status transitions, checkpoints,
-cancellation, retryable failure, attempt counter и resume; checkpoint сохраняется
-между retry. Persisted state повторно проходит contract/identity validation и
-повреждение обрабатывается fail-closed без удаления evidence.
+Workflow inputs are captured into immutable Artifact Store snapshots before processing. The snapshot SHA-256 must match the policy/idempotency identity. Workflows process the registered snapshot rather than reopening an untrusted original path.
 
-Windows CI #109 доказал конкурентную идемпотентность, запрет capability collision,
-persistence через новые `JobStore`, retry/checkpoint semantics, terminal и
-non-retryable denial и corrupt-state handling. Дополнительный integration test
-запускает собранный `agent-platform` отдельными процессами для всего цикла begin →
-resume → checkpoint → get → retryable fail → resume → succeed → get, поэтому
-persistence подтверждена именно между process/session boundaries. Новый daemon,
-workflow engine, database или runtime dependency не появился. Подробности в
-`project-context/STAGE14_RUNTIME.md`.
+JobStore is file-backed, atomic and process-safe. Idempotent `begin` returns one job; a separate per-job OS lock guarantees one physical executor at a time. Crash/restart releases the OS lock while persisted checkpoint/job state remains resumable.
 
-Stage 15 завершён. Policy-gated `audio.mastering_produce` / `produce-master`
-связывает Stage 13 decision layer, Stage 11 lossless/two-pass EBU R128 processing,
-Artifact Store и Stage 14 persistent jobs. Idempotency key включает workflow
-version, SHA-256 исходного файла, профиль и data class. Успешный повтор того же
-запроса возвращает существующие job/master artifact/SHA-256 и не увеличивает
-Artifact Store manifest.
+### Guarded external authority
 
-Stage 13 остаётся authoritative safe-auto gate: review-required материал не может
-стать успешным автоматическим master. Разрешены только `preserve` через lossless WAV
-и `normalize_loudness`; arbitrary plug-in/FFmpeg/shell chain не выставляется.
-Финальный WAV анализируется заново и должен пройти sample-rate ≥44.1 kHz,
-mono/stereo, duration-drift ≤100 ms, Stage 13 safe-auto envelope, final action
-`preserve` и true-peak ceiling. После этого master регистрируется в Artifact Store с
-workflow/job/profile/QC provenance и persisted result.
+PEP still derives risk independently from model hints. Guarded actions additionally have a stable `confirmation_binding`.
 
-Windows CI #119 прошёл реальные изолированные Project Binding сценарии: quiet
-dynamic 48 kHz stereo → normalize → final preserve; exact repeat → тот же job,
-artifact ID и SHA без нового manifest entry; already-compliant 48 kHz stereo →
-preserve; 32 kHz mono → non-retryable `MASTERING_REVIEW_REQUIRED` и отсутствие
-успешного master artifact. Строгие fmt/Clippy, все Rust tests, contracts, Python
-oracle/parity и release build зелёные. `project-context/STAGE15_MASTERING.md`
-фиксирует границу: это надёжный technical delivery master, а reference/тональный/
-художественный mastering требует отдельной capability и отдельного benchmark.
+ConfirmationStore provides:
 
-Stage 19 завершён. Доказанный reference-based mastering gap закрыт отдельной
-policy-gated capability `audio.reference_master` / `reference-master`. Rust сохраняет
-Project Binding, locked tool selection, policy, Artifact Store, persistent jobs,
-idempotency и final QC. Внешний `edge.python.matchering` — replaceable edge process,
-а не новый core/runtime service. Matchering зафиксирован на версии 2.0.6 и запускается
-в отдельном Python 3.10 environment; адаптер сам отклоняет другую версию. Matchering
-не входит в Cargo graph или core `pyproject.toml`.
+- 30–900 second TTL, default 10 minutes;
+- idempotent prepare for the same active action;
+- retry cannot extend an existing TTL;
+- fresh policy re-evaluation before consume;
+- exact project/capability/risk/binding check;
+- atomic one-shot consume and replay protection;
+- non-clone `ConfirmationPermit` for a future external executor.
 
-TARGET + REFERENCE SHA-256 входят в persistent job identity. Engine получает только
-фиксированные абсолютные input/output paths. Matchering output обязан быть non-empty
-PCM 24-bit WAV и пройти duration/media checks; затем existing Stage 13/15 delivery
-normalization/QC повторно проверяет результат. Финальный sample rate обязан точно
-совпадать с исходным TARGET. Exact repeat возвращает тот же job/master artifact/SHA
-без роста manifest.
+No publishing/distribution executor exists yet, so Stage 18 does not create external side effects.
 
-Реальный benchmark на clean Windows runner использует 24 s PCM24 stereo TARGET и
-REFERENCE с заведомо различным 220 Hz/4.2 kHz tonal balance и программной
-макродинамикой. Он требует уменьшения LUFS-distance и measured high/low tonal-balance
-distance до reference, final `preserve` без review, сохранения 48 kHz, final
-LUFS/true-peak/duration/channel QC и idempotent repeat. Отдельный 32 kHz TARGET
-блокируется как non-retryable failed job. Code head
-`1cb74fe5771bf9e143a9cdecdbc632e4eeb15ec2`: normal Windows CI #159
-(`31262535449`) и real Matchering E2E #36 (`31262535446`) полностью зелёные.
-Подробности: `project-context/STAGE19_REFERENCE_MASTERING.md`.
+## Media/audio
 
-Stage 16–18 остаются conditional и не реализуются без конкретного браузерного,
-видео- или distribution-сценария. Следующий незакрытый системный gap — ранний Stage
-4: Hosted Chat → local execution transport. Наличие удалённого Chat и локального
-Windows binary за NAT уже доказывает необходимость transport; закрывать gap нужно
-одним тонким protocol adapter без переноса media/business logic и без собственного
-VPS/публичного порта.
+### FFmpeg
 
-Stage 9 остаётся conditional: отдельный supervisor/service не создаётся без
-независимого lifecycle requirement. Stage 10 имеет рабочий Windows CI baseline.
+Typed operations: inspect, validate, lossless convert, PCM24 extract, two-pass loudness normalization and mux. Arbitrary shell/FFmpeg args are not exposed.
 
-Приватный remote `BogdanAIP/chat-agent-platform` используется как versioned source
-of truth. Изменения проходят отдельные ветки, draft PR, Windows CI и squash merge в
-`main`.
+Short probes use a separate short timeout. Media processing budget scales with validated input duration with a floor and hard ceiling. EBU inspection suppresses per-frame loudness logs while preserving the final Summary used by the parser, preventing stderr growth proportional to long media duration.
+
+### REAPER
+
+Rust generates a limited Lua/ReaScript driver. Inputs must be registered FFprobe-valid audio artifacts. Forbidden execution primitives are rejected. Real Stage 12 acceptance created and registered `.rpp` + 48 kHz WAV on the user's installed REAPER.
+
+### Mastering
+
+Stage 13 is the authoritative technical safe-auto decision gate. Stage 15 produces idempotent technical delivery masters. Stage 19 adds reference-based mastering through pinned Matchering 2.0.6 as a replaceable Python 3.10 edge runtime and then reuses Rust delivery QC.
+
+Stage 19 proves technical integration on a synthetic PCM24 benchmark, not subjective professional quality on a real musical corpus.
+
+## Stage 4 transport
+
+Implemented shape:
+
+```text
+ChatGPT MCP / private GPT Action
+        |
+        v
+Yandex Cloud Function
+        |
+        v
+Object Storage task/result/heartbeat JSON
+        ^
+        | outbound HTTPS long poll
+        |
+agent-platform.exe on Windows
+```
+
+Properties already proved in hosted CI:
+
+- relay off by default, explicit configure/start/status/stop;
+- independent `AGENT_TOKEN` and remote bearer;
+- local token in Credential Manager;
+- exact two-operation remote allowlist: `local_ping`, `runtime_self_test`;
+- immutable task/result rendezvous;
+- cached response retry after lost acknowledgement without local re-execution;
+- minimal unauthenticated health;
+- stop -> cloud offline lifecycle.
+
+Final real ChatGPT-originated round trip is intentionally deferred. Until it is completed, higher-value local capabilities remain unavailable through the remote surface.
+
+## Supply chain / release operations
+
+Current automated controls:
+
+- Rust 1.97.1 pinned in CI;
+- hosted FFmpeg 9.0.0 pinned;
+- `cargo-deny` bans/sources;
+- blocking RustSec advisories on dependency-changing PR/push;
+- pinned reproducible CycloneDX SBOM generation;
+- grouped weekly Dependabot updates;
+- CI caches and path filters to reduce private-repository Actions consumption;
+- Rust workspace, Python package and Python oracle versions regression-tested for equality;
+- tag-gated release workflow requires an existing exact `vX.Y.Z` reachable from `main`;
+- release build uses locked dependencies and packages Windows binary + SBOM + verified `SHA256SUMS`;
+- existing GitHub Release assets are treated as immutable and never overwritten by the workflow.
+
+The first real tag/release has intentionally not been created. GitHub artifact attestation is not enabled while the private repository lacks the required entitlement.
+
+The user has explicitly authorized converting the repository to public **only if GitHub Actions limits actually block development**. No such block exists now, so the repository remains private.
+
+## Manual/decision gates remaining
+
+1. Run the deferred real Stage 4 ChatGPT -> Yandex -> Windows -> ChatGPT acceptance.
+2. Choose a project license or explicitly decide to keep the project proprietary/private.
+3. Enable GitHub branch protection/ruleset for `main` when available through manual settings/tooling.
+4. Deliberately create the first `v0.2.0` tag and verify the generated private GitHub Release assets/checksums.
+5. Add a real licensed/owned musical corpus before making subjective professional-quality claims for reference mastering.
+
+See `STAGE20_OPERATIONS.md` for the operational checklist and `KNOWN_ISSUES.md` for the remaining gaps.
