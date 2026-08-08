@@ -17,6 +17,7 @@ fn registry(root: &Path) -> CapabilityRegistry {
                 {
                     "capability": "external.stage",
                     "executor": "cloud.api",
+                    "execution_path": "remote.cloud.api",
                     "enabled": true,
                     "quality": "professional",
                     "reliability": "high",
@@ -28,6 +29,7 @@ fn registry(root: &Path) -> CapabilityRegistry {
                 {
                     "capability": "media.inspect",
                     "executor": "rust.local.ffmpeg",
+                    "execution_path": "local.ffmpeg",
                     "enabled": true,
                     "quality": "professional",
                     "reliability": "high",
@@ -53,6 +55,36 @@ fn registry(root: &Path) -> CapabilityRegistry {
         .expect("lock JSON"),
     )
     .expect("lock write");
+    fs::write(
+        root.join("config/capability-requirements.yaml"),
+        serde_json::to_vec_pretty(&json!({
+            "contract_version": "capability-requirements-v1",
+            "requirements": [
+                {
+                    "capability": "external.stage",
+                    "required": true,
+                    "required_quality": "professional",
+                    "required_reliability": "high",
+                    "required_determinism": "high",
+                    "execution_paths": ["remote.cloud.api"],
+                    "fallbacks": [],
+                    "acceptance_evidence": []
+                },
+                {
+                    "capability": "media.inspect",
+                    "required": true,
+                    "required_quality": "professional",
+                    "required_reliability": "high",
+                    "required_determinism": "high",
+                    "execution_paths": ["local.ffmpeg"],
+                    "fallbacks": [],
+                    "acceptance_evidence": []
+                }
+            ]
+        }))
+        .expect("requirements JSON"),
+    )
+    .expect("requirements write");
     CapabilityRegistry::load(root).expect("capability registry")
 }
 
