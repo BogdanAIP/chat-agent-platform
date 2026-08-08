@@ -226,7 +226,11 @@ fn spawn_gateway() -> (String, Arc<Mutex<GatewayState>>, thread::JoinHandle<()>)
                     let mut state = server_state.lock().expect("gateway state");
                     state.offline_seen = true;
                     drop(state);
-                    respond(&mut stream, 200, &json!({"ok": true, "agent_online": false}));
+                    respond(
+                        &mut stream,
+                        200,
+                        &json!({"ok": true, "agent_online": false}),
+                    );
                     break;
                 }
                 other => panic!("unexpected agent action: {other:?}"),
@@ -327,9 +331,15 @@ fn configure_start_execute_retry_stop_round_trip_uses_one_local_binary() {
     assert_eq!(ping["status"], "success");
     assert_eq!(ping["result"]["pong"], true);
     assert_eq!(ping["result"]["executed_locally"], true);
-    let self_test = state.self_test_response.as_ref().expect("self-test response");
+    let self_test = state
+        .self_test_response
+        .as_ref()
+        .expect("self-test response");
     assert_eq!(self_test["status"], "success");
     assert_eq!(self_test["result"]["status"], "success");
     assert_eq!(self_test["result"]["result"]["ping"], "pong");
-    assert!(state.offline_seen, "relay stop must notify the gateway immediately");
+    assert!(
+        state.offline_seen,
+        "relay stop must notify the gateway immediately"
+    );
 }
