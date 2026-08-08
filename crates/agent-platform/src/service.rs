@@ -7,11 +7,14 @@ use uuid::Uuid;
 
 use crate::artifact::{Artifact, ArtifactStore};
 use crate::binding::{ProjectBinding, resolve_project};
-use crate::capability::{CapabilityRegistry, required_quality};
+use crate::capability::{CapabilityRegistry, CapabilitySelection, required_quality};
+use crate::config::load_json_yaml;
 use crate::contracts;
 use crate::error::PlatformError;
 use crate::media::{inspect_media, tool_version};
 use crate::policy::{PolicyDecision, PolicyEnforcementPoint};
+use crate::reaper::discover_reaper;
+use crate::reference_mastering::probe_matchering;
 
 pub fn inspect_file(
     repo_root: &Path,
@@ -172,7 +175,7 @@ pub fn diagnose(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pla
         "repo_root": binding.repo_root,
         "local_root": binding.local_root,
         "artifact_root": binding.artifact_root,
-        "rust": env!("CARGO_PKG_RUST_VERSION"),
+        "rust_minimum": env!("CARGO_PKG_RUST_VERSION"),
         "ffmpeg": tool_version("ffmpeg")?,
         "ffprobe": tool_version("ffprobe")?
     }))
@@ -185,47 +188,55 @@ pub fn write_runtime_profile(
     let binding = resolve_project(repo_root, project_id)?;
     let ffmpeg = tool_version("ffmpeg")?;
     let ffprobe = tool_version("ffprobe")?;
+    let registry = CapabilityRegistry::load(&binding.repo_root)?;
+    let reaper = discover_reaper();
+    let matchering = probe_matchering(&binding.repo_root);
+
+    let mut capabilities = Map::new();
+    for capability in configured_capability_names(&binding.repo_root)? {
+        let required = required_quality(&binding.repo_root, &capability)?;
+        let selection = registry.select(&capability, &required, u64::MAX)?;
+        capabilities.insert(
+            capability,
+            runtime_capability_entry(&selection, reaper.is_ok(), matchering.is_ok()),
+        );
+    }
+
+    let reaper_tool = match &reaper {
+        Ok(path) => json!({
+            "available": true,
+            "executable": path
+        }),
+        Err(error) => json!({
+            "available": false,
+            "error_code": error.code()
+        }),
+    };
+    let matchering_tool = match &matchering {
+        Ok(value) => json!({
+            "available": true,
+            "probe": value
+        }),
+        Err(error) => json!({
+            "available": false,
+            "error_code": error.code()
+        }),
+    };
+
     let profile = json!({
         "contract_version": "runtime-capability-profile-v1",
         "verified_at": Utc::now().to_rfc3339(),
         "surface": "local_windows_rust",
         "project_id": binding.project_id,
         "system": std::env::consts::OS,
-        "rust": env!("CARGO_PKG_RUST_VERSION"),
+        "rust_minimum": env!("CARGO_PKG_RUST_VERSION"),
         "tools": {
             "ffmpeg": {"available": true, "version": ffmpeg},
-            "ffprobe": {"available": true, "version": ffprobe}
+            "ffprobe": {"available": true, "version": ffprobe},
+            "reaper": reaper_tool,
+            "matchering": matchering_tool
         },
-        "capabilities": {
-            "media.inspect": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.validate": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.convert": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.extract_audio": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.normalize_loudness": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.mux": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "runtime.self_test": {
-                "status": "available",
-                "execution_path": "rust.local.core"
-            }
-        },
+        "capabilities": Value::Object(capabilities),
         "binding": {
             "repo_root": binding.repo_root,
             "local_root": binding.local_root,
@@ -246,6 +257,50 @@ pub fn write_runtime_profile(
     Ok((output, profile))
 }
 
+fn configured_capability_names(repo_root: &Path) -> Result<Vec<String>, PlatformError> {
+    let config = load_json_yaml(&repo_root.join("config/tools.yaml"))?;
+    let items = config
+        .get("capabilities")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PlatformError::Validation("tools capabilities must be an array".into()))?;
+    let mut names = items
+        .iter()
+        .map(|item| {
+            item.get("capability")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| {
+                    PlatformError::Validation(
+                        "tool manifest capability entry has no capability name".into(),
+                    )
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    names.sort();
+    names.dedup();
+    Ok(names)
+}
+
+fn runtime_capability_entry(
+    selection: &CapabilitySelection,
+    reaper_available: bool,
+    matchering_available: bool,
+) -> Value {
+    let available = match selection.executor() {
+        "rust.local.reaper" => reaper_available,
+        "edge.python.matchering" => matchering_available,
+        _ => true,
+    };
+    json!({
+        "status": if available { "available" } else { "unavailable" },
+        "executor": selection.executor(),
+        "execution_path": selection.execution_path(),
+        "quality": selection.quality(),
+        "reliability": selection.reliability(),
+        "determinism": selection.determinism()
+    })
+}
+
 pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, PlatformError> {
     let request_id = format!("req_{}", Uuid::new_v4().simple());
     let request = json!({
@@ -260,9 +315,10 @@ pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pl
     });
     contracts::validate(&request, "tool-request-v1.schema.json")?;
     let binding = resolve_project(repo_root, project_id)?;
+    let required = required_quality(&binding.repo_root, "runtime.self_test")?;
     let selection = CapabilityRegistry::load(&binding.repo_root)?.select(
         "runtime.self_test",
-        "professional",
+        &required,
         request
             .get("cost_limit")
             .and_then(Value::as_u64)
