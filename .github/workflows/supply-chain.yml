@@ -44,7 +44,7 @@ jobs:
   advisories:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
+    continue-on-error: ${{ github.event_name == 'schedule' }}
     steps:
       - uses: actions/checkout@v7
       - name: Check RustSec advisories
