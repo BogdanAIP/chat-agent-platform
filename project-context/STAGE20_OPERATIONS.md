@@ -62,11 +62,11 @@
 
 ## Release packaging
 
-Технический target:
+Release workflow уже находится в `main` и реализует:
 
 ```text
 existing vX.Y.Z tag reachable from main
-  -> version consistency gate
+  -> Rust/Python version consistency gate
   -> locked Windows release build
   -> reproducible CycloneDX SBOM
   -> binary + SBOM ZIP
@@ -74,7 +74,7 @@ existing vX.Y.Z tag reachable from main
   -> immutable private GitHub Release assets
 ```
 
-Release workflow не должен создавать tag сам и не должен перезаписывать существующий release. Первый реальный tag/release является отдельной осознанной операцией.
+Workflow не создаёт tag сам и не перезаписывает существующий release. Первый реальный `v0.2.0` tag/release является отдельной осознанной операцией.
 
 GitHub artifact attestation не включается, пока private repository не имеет подходящего entitlement. Если repository когда-либо станет public, provenance attestation следует добавить отдельным PR.
 
@@ -83,7 +83,7 @@ GitHub artifact attestation не включается, пока private reposito
 1. **Stage 4 real ChatGPT acceptance** — один реальный ChatGPT-originated `runtime_self_test` через Yandex и пользовательский Windows agent.
 2. **Project license** — выбрать лицензию или явно решить, что проект остаётся proprietary/private. `LicenseRef-UNLICENSED` не является лицензией.
 3. **GitHub branch protection/ruleset** — включить технический запрет обхода PR/required checks; сейчас discipline process-based.
-4. **First release tag** — после merge release workflow осознанно создать первый `vX.Y.Z` tag и проверить release assets/checksums на GitHub.
+4. **First release tag** — осознанно создать `v0.2.0` и проверить реальные release assets/checksums на GitHub.
 5. **Real music corpus** — если reference mastering будет заявляться как профессиональный музыкальный продукт, добавить набор реальных лицензированных/собственных материалов и human listening acceptance.
 
 ## Conditional follow-up, не блокирующий Stage 20 автоматически
