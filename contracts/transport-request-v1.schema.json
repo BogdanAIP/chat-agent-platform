@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transport-request-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "project_id", "operation", "parameters", "expected_main_sha", "created_at", "expires_at"],
+  "properties": {
+    "contract_version": {"const": "transport-request-v1"},
+    "request_id": {"type": "string", "pattern": "^trq_[a-zA-Z0-9_-]{8,96}$"},
+    "project_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "operation": {
+      "enum": ["runtime.self_test", "runtime.diagnose", "media.inspect_artifact"]
+    },
+    "parameters": {"type": "object"},
+    "expected_main_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"}
+  }
+}
