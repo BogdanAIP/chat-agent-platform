@@ -5,6 +5,25 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+
+function Assert-PowerShellSyntax {
+    param(
+        [Parameter(Mandatory)] [string]$Path,
+        [Parameter(Mandatory)] [string]$Label
+    )
+    $tokens = $null
+    $parseErrors = $null
+    [System.Management.Automation.Language.Parser]::ParseFile(
+        $Path,
+        [ref]$tokens,
+        [ref]$parseErrors
+    ) | Out-Null
+    if ($parseErrors.Count -ne 0) {
+        $details = ($parseErrors | ForEach-Object Message) -join '; '
+        throw "$Label has PowerShell syntax errors: $details"
+    }
+}
+
 Push-Location $repoRoot
 try {
     & cargo fmt --all -- --check
@@ -16,17 +35,12 @@ try {
     & cargo test --workspace
     if ($LASTEXITCODE -ne 0) { throw 'cargo test failed' }
 
-    $tokens = $null
-    $parseErrors = $null
-    [System.Management.Automation.Language.Parser]::ParseFile(
-        (Join-Path $PSScriptRoot 'verify-reaper-stage12.ps1'),
-        [ref]$tokens,
-        [ref]$parseErrors
-    ) | Out-Null
-    if ($parseErrors.Count -ne 0) {
-        $details = ($parseErrors | ForEach-Object Message) -join '; '
-        throw "Stage 12 REAPER acceptance script has PowerShell syntax errors: $details"
-    }
+    Assert-PowerShellSyntax `
+        -Path (Join-Path $PSScriptRoot 'verify-reaper-stage12.ps1') `
+        -Label 'Stage 12 REAPER acceptance script'
+    Assert-PowerShellSyntax `
+        -Path (Join-Path $PSScriptRoot 'deploy-stage4-yandex.ps1') `
+        -Label 'Stage 4 Yandex deployment script'
 
     & python -m py_compile (Join-Path $PSScriptRoot 'matchering_adapter.py')
     if ($LASTEXITCODE -ne 0) { throw 'Stage 19 Matchering adapter syntax check failed' }
@@ -46,7 +60,7 @@ try {
     [ordered]@{
         status = 'success'
         rust = 'fmt,clippy,tests'
-        powershell = 'stage12-acceptance-syntax'
+        powershell = 'stage12-acceptance-syntax,stage4-yandex-deploy-syntax'
         python_edge = 'stage19-matchering-adapter-syntax'
         python_oracle = if ($SkipPythonOracle) { 'skipped' } else { 'tests,parity' }
         release = if ($SkipRelease) { 'skipped' } else { 'built' }
