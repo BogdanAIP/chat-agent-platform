@@ -86,7 +86,9 @@ fn execution_lock_serializes_workers_for_one_job() {
         .recv_timeout(Duration::from_secs(1))
         .expect("second worker must start");
     assert!(
-        acquired_rx.recv_timeout(Duration::from_millis(250)).is_err(),
+        acquired_rx
+            .recv_timeout(Duration::from_millis(250))
+            .is_err(),
         "second worker must not enter while the first execution guard is held"
     );
     drop(first_guard);

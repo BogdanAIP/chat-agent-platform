@@ -208,7 +208,10 @@ fn simultaneous_identical_requests_execute_once_and_return_one_master() {
         .map(|worker| worker.join().expect("mastering worker must finish"))
         .collect::<Vec<_>>();
 
-    assert_eq!(results[0]["result"]["job_id"], results[1]["result"]["job_id"]);
+    assert_eq!(
+        results[0]["result"]["job_id"],
+        results[1]["result"]["job_id"]
+    );
     assert_eq!(
         results[0]["result"]["source_artifact"]["artifact_id"],
         results[1]["result"]["source_artifact"]["artifact_id"]
@@ -227,9 +230,7 @@ fn simultaneous_identical_requests_execute_once_and_return_one_master() {
         "one immutable source snapshot and one master must be published"
     );
 
-    let job_id = results[0]["result"]["job_id"]
-        .as_str()
-        .expect("job id");
+    let job_id = results[0]["result"]["job_id"].as_str().expect("job id");
     let job = persisted_job(temporary.path(), job_id);
     assert_eq!(job["status"], "succeeded");
     assert_eq!(job["attempt"], 1);

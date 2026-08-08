@@ -95,8 +95,8 @@ fn validate_sha256(value: &str) -> Result<(), PlatformError> {
 }
 
 fn sha256_file(path: &Path) -> Result<String, PlatformError> {
-    let mut file = File::open(path)
-        .map_err(|error| io_error("cannot open captured workflow input", error))?;
+    let mut file =
+        File::open(path).map_err(|error| io_error("cannot open captured workflow input", error))?;
     let mut hasher = Sha256::new();
     let mut buffer = vec![0_u8; 64 * 1024];
     loop {
@@ -129,15 +129,14 @@ mod tests {
         let artifact_root = temporary.path().join("artifacts");
         let store = ArtifactStore::new(&artifact_root).expect("artifact store");
 
-        let error = capture_expected_file(
-            &store,
-            &source,
-            &"0".repeat(64),
-            "test.capture",
-            "project",
-        )
-        .expect_err("wrong expected hash must fail closed");
-        assert!(error.to_string().contains("changed while it was being captured"));
+        let error =
+            capture_expected_file(&store, &source, &"0".repeat(64), "test.capture", "project")
+                .expect_err("wrong expected hash must fail closed");
+        assert!(
+            error
+                .to_string()
+                .contains("changed while it was being captured")
+        );
         assert!(
             !artifact_root.join("manifest.json").exists(),
             "mismatched capture must not publish an artifact"

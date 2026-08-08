@@ -123,13 +123,7 @@ fn execute_workflow(
     profile: &str,
     expected_source_sha256: &str,
 ) -> Result<Value, PlatformError> {
-    let source = source_artifact(
-        auth,
-        job,
-        file_path,
-        data_class,
-        expected_source_sha256,
-    )?;
+    let source = source_artifact(auth, job, file_path, data_class, expected_source_sha256)?;
     let input_inspection = inspect_media(Path::new(&source.path))?;
     let decision = decide_mastering(&input_inspection, profile)?;
 
