@@ -4,6 +4,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -12,6 +13,7 @@ use agent_platform::transport::remove_relay_token;
 use serde_json::{Value, json};
 use tempfile::tempdir;
 use uuid::Uuid;
+use wait_timeout::ChildExt;
 
 const PROJECT_ID: &str = "relay-test";
 const TOKEN: &str = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH";
@@ -75,18 +77,47 @@ fn make_test_repo(root: &Path) {
 
 fn run(root: &Path, args: &[&str], token_env: bool) -> Value {
     let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_agent-platform"));
-    command.arg("--repo-root").arg(root).args(args);
+    command
+        .arg("--repo-root")
+        .arg(root)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     if token_env {
         command.env("STAGE4_TEST_RELAY_TOKEN", TOKEN);
     }
-    let output = command.output().expect("agent-platform process must start");
+    let mut child = command.spawn().expect("agent-platform process must start");
+    let timeout = if args.get(1) == Some(&"stop") {
+        Duration::from_secs(45)
+    } else {
+        Duration::from_secs(15)
+    };
+    let status = match child
+        .wait_timeout(timeout)
+        .expect("agent-platform wait must succeed")
+    {
+        Some(status) => status,
+        None => {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("agent-platform command timed out after {timeout:?}: {args:?}");
+        }
+    };
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    if let Some(mut pipe) = child.stdout.take() {
+        pipe.read_to_end(&mut stdout).expect("read command stdout");
+    }
+    if let Some(mut pipe) = child.stderr.take() {
+        pipe.read_to_end(&mut stderr).expect("read command stderr");
+    }
     assert!(
-        output.status.success(),
-        "agent-platform failed: stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
+        status.success(),
+        "agent-platform failed for {args:?}: stdout={} stderr={}",
+        String::from_utf8_lossy(&stdout),
+        String::from_utf8_lossy(&stderr)
     );
-    serde_json::from_slice(&output.stdout).expect("command must return JSON")
+    serde_json::from_slice(&stdout).expect("command must return JSON")
 }
 
 fn deadline_ms() -> u128 {
