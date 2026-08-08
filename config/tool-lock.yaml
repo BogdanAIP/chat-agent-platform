@@ -11,6 +11,7 @@
     "audio.mastering_produce": "rust.local.mastering",
     "audio.reference_master": "edge.python.matchering",
     "audio.reaper_render": "rust.local.reaper",
-    "runtime.self_test": "rust.local.core"
+    "runtime.self_test": "rust.local.core",
+    "transport.relay_connect": "rust.local.relay"
   }
 }
