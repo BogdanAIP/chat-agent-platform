@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use agent_platform::artifact::ArtifactStore;
 use agent_platform::reference_mastering::{probe_matchering, reference_master_files};
 use serde_json::{Value, json};
 use tempfile::tempdir;
@@ -144,6 +145,38 @@ fn manifest_count(root: &Path) -> usize {
     manifest.as_object().expect("manifest object").len()
 }
 
+fn artifact_path(root: &Path, artifact_id: &str) -> PathBuf {
+    let store = ArtifactStore::new(&root.join("artifacts")).expect("artifact store");
+    PathBuf::from(store.get(artifact_id).expect("stored artifact").path)
+}
+
+fn filtered_mean_volume_db(path: &Path, filter: &str) -> f64 {
+    let audio_filter = format!("{filter},volumedetect");
+    let output = Command::new("ffmpeg")
+        .args(["-hide_banner", "-nostats", "-i"])
+        .arg(path)
+        .args(["-af", &audio_filter, "-f", "null", "-"])
+        .output()
+        .expect("ffmpeg spectral benchmark must start");
+    assert!(output.status.success(), "ffmpeg spectral benchmark failed");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    stderr
+        .lines()
+        .find_map(|line| {
+            line.split("mean_volume: ")
+                .nth(1)
+                .and_then(|value| value.strip_suffix(" dB"))
+                .and_then(|value| value.trim().parse::<f64>().ok())
+        })
+        .expect("volumedetect mean_volume")
+}
+
+fn tonal_balance_db(path: &Path) -> f64 {
+    let low = filtered_mean_volume_db(path, "bandpass=f=220:width_type=h:w=80");
+    let high = filtered_mean_volume_db(path, "bandpass=f=4200:width_type=h:w=500");
+    high - low
+}
+
 #[test]
 #[ignore = "requires pinned Matchering edge runtime"]
 fn matchering_reference_master_is_real_qc_valid_and_idempotent() {
@@ -157,6 +190,10 @@ fn matchering_reference_master_is_real_qc_valid_and_idempotent() {
     let probe = probe_matchering(temporary.path()).expect("Matchering probe must pass");
     assert_eq!(probe["status"], "available");
     assert_eq!(probe["engine"], "matchering");
+
+    let target_tonal_balance = tonal_balance_db(&target);
+    let reference_tonal_balance = tonal_balance_db(&reference);
+    let tonal_distance_before = (target_tonal_balance - reference_tonal_balance).abs();
 
     let first = reference_master_files(
         temporary.path(),
@@ -178,7 +215,10 @@ fn matchering_reference_master_is_real_qc_valid_and_idempotent() {
     let final_lufs = first["result"]["final_inspection"]["integrated_lufs"]
         .as_f64()
         .expect("final LUFS");
-    assert!((final_lufs + 14.0).abs() <= 0.7, "unexpected final LUFS: {final_lufs}");
+    assert!(
+        (final_lufs + 14.0).abs() <= 0.7,
+        "unexpected final LUFS: {final_lufs}"
+    );
 
     let before = first["result"]["reference_similarity"]["before_lu"]
         .as_f64()
@@ -186,9 +226,15 @@ fn matchering_reference_master_is_real_qc_valid_and_idempotent() {
     let after = first["result"]["reference_similarity"]["after_lu"]
         .as_f64()
         .expect("after reference distance");
-    assert!(after < before, "Matchering did not improve loudness proximity: before={before}, after={after}");
+    assert!(
+        after < before,
+        "Matchering did not improve loudness proximity: before={before}, after={after}"
+    );
 
-    let job_id = first["result"]["job_id"].as_str().expect("job id").to_owned();
+    let job_id = first["result"]["job_id"]
+        .as_str()
+        .expect("job id")
+        .to_owned();
     let artifact_id = first["result"]["master_artifact"]["artifact_id"]
         .as_str()
         .expect("master artifact id")
@@ -197,8 +243,16 @@ fn matchering_reference_master_is_real_qc_valid_and_idempotent() {
         .as_str()
         .expect("master SHA-256")
         .to_owned();
-    let count = manifest_count(temporary.path());
 
+    let master_path = artifact_path(temporary.path(), &artifact_id);
+    let master_tonal_balance = tonal_balance_db(&master_path);
+    let tonal_distance_after = (master_tonal_balance - reference_tonal_balance).abs();
+    assert!(
+        tonal_distance_after < tonal_distance_before,
+        "Matchering did not improve tonal balance proximity: before={tonal_distance_before:.2} dB, after={tonal_distance_after:.2} dB"
+    );
+
+    let count = manifest_count(temporary.path());
     let second = reference_master_files(
         temporary.path(),
         &target,
