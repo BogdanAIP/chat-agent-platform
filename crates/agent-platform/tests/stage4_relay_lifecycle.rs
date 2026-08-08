@@ -20,6 +20,7 @@ const TOKEN: &str = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH";
 struct GatewayState {
     ping_result_attempts: usize,
     ping_response: Option<Value>,
+    ping_accepted: bool,
     self_test_response: Option<Value>,
     offline_seen: bool,
 }
@@ -179,7 +180,7 @@ fn spawn_gateway() -> (String, Arc<Mutex<GatewayState>>, thread::JoinHandle<()>)
             match body["agent_action"].as_str() {
                 Some("poll") => {
                     let state = server_state.lock().expect("gateway state");
-                    let response = if state.ping_response.is_none() {
+                    let response = if !state.ping_accepted {
                         json!({"ok": true, "task": task(&ping_id, "local_ping", json!({"message": "stage4-e2e"}))})
                     } else if state.self_test_response.is_none() {
                         json!({"ok": true, "task": task(&self_test_id, "runtime_self_test", json!({}))})
@@ -212,6 +213,7 @@ fn spawn_gateway() -> (String, Arc<Mutex<GatewayState>>, thread::JoinHandle<()>)
                             Some(&response),
                             "duplicate task must reuse the cached local response"
                         );
+                        state.ping_accepted = true;
                     } else if request_id == self_test_id {
                         state.self_test_response = Some(response);
                     } else {
@@ -285,7 +287,7 @@ fn configure_start_execute_retry_stop_round_trip_uses_one_local_binary() {
     ));
 
     let mut completed = false;
-    for _ in 0..100 {
+    for _ in 0..150 {
         let status = run(
             temporary.path(),
             &["relay", "status", "--project-id", PROJECT_ID],
@@ -320,6 +322,7 @@ fn configure_start_execute_retry_stop_round_trip_uses_one_local_binary() {
     gateway.join().expect("fake gateway thread");
     let state = gateway_state.lock().expect("gateway state");
     assert_eq!(state.ping_result_attempts, 2);
+    assert!(state.ping_accepted);
     let ping = state.ping_response.as_ref().expect("ping response");
     assert_eq!(ping["status"], "success");
     assert_eq!(ping["result"]["pong"], true);
