@@ -301,22 +301,12 @@ fn main() -> ExitCode {
             project_id,
             job_id,
             result_json,
-        } => succeed_job(
-            &cli.repo_root,
-            project_id.as_deref(),
-            job_id,
-            result_json,
-        ),
+        } => succeed_job(&cli.repo_root, project_id.as_deref(), job_id, result_json),
         Command::JobFail {
             project_id,
             job_id,
             error_json,
-        } => fail_job(
-            &cli.repo_root,
-            project_id.as_deref(),
-            job_id,
-            error_json,
-        ),
+        } => fail_job(&cli.repo_root, project_id.as_deref(), job_id, error_json),
         Command::JobCancel { project_id, job_id } => {
             cancel_job(&cli.repo_root, project_id.as_deref(), job_id)
         }
