@@ -86,7 +86,7 @@ jobs:
             --spec-version 1.5 \
             --target all \
             --all-features \
-            --override-filename agent-platform.cdx.json
+            --override-filename agent-platform.cdx
           mapfile -t generated < <(find "$GITHUB_WORKSPACE" -type f -name 'agent-platform.cdx.json' -print)
           if [ "${#generated[@]}" -ne 1 ]; then
             printf 'Expected exactly one generated SBOM, found %s\n' "${#generated[@]}" >&2
