@@ -216,7 +216,12 @@ fn spawn_gateway() -> (
                 break;
             }
             let mut stream = match listener.accept() {
-                Ok((stream, _)) => stream,
+                Ok((stream, _)) => {
+            stream
+                .set_nonblocking(false)
+                .expect("accepted fake gateway stream blocking mode");
+            stream
+        }
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                     thread::sleep(Duration::from_millis(10));
                     continue;
