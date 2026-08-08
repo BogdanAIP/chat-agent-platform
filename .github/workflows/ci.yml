@@ -3,7 +3,11 @@ name: ci
 "on":
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
   workflow_dispatch:
 
 concurrency:
@@ -58,8 +62,9 @@ jobs:
         shell: pwsh
         run: ./scripts/verify.ps1
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload release binary
+        uses: actions/upload-artifact@v7
         with:
-          name: agent-platform-windows-x64
+          name: agent-platform-windows-release
           path: target/release/agent-platform.exe
           if-no-files-found: error
