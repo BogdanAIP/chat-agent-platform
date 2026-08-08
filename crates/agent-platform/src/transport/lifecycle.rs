@@ -341,14 +341,16 @@ pub fn run_relay_worker(
         if paths.stop.exists() {
             break Ok(());
         }
+        let mut processed = None;
         let polled = store.with_secret(secret_ref, &selection, |secret| {
             let token = std::str::from_utf8(secret)
                 .map_err(|_| PlatformError::SecretStore("relay token is not UTF-8".into()))?;
             validate_token(token)?;
-            poll_once(&binding, &paths.cache, &paths.http, endpoint, token)
+            processed = poll_once(&binding, &paths.cache, &paths.http, endpoint, token)?;
+            Ok(())
         });
         match polled {
-            Ok(processed) => {
+            Ok(()) => {
                 status.last_poll_at = Some(Utc::now().to_rfc3339());
                 status.updated_at = Utc::now().to_rfc3339();
                 status.consecutive_errors = 0;
