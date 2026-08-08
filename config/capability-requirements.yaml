@@ -63,7 +63,7 @@
       "required_quality": "professional",
       "execution_paths": ["local.mastering"],
       "fallbacks": [],
-      "acceptance": ["source_hash_idempotency", "persistent_job", "safe_auto_gate", "lossless_wav_master", "final_loudness_tolerance", "final_true_peak_ceiling", "duration_integrity", "artifact_sha256", "resume_without_duplicate_master"]
+      "acceptance": ["immutable_source_snapshot", "source_hash_idempotency", "exclusive_job_execution", "persistent_job", "safe_auto_gate", "lossless_wav_master", "final_loudness_tolerance", "final_true_peak_ceiling", "duration_integrity", "artifact_sha256", "resume_without_duplicate_master"]
     },
     {
       "capability": "audio.reference_master",
@@ -71,7 +71,7 @@
       "required_quality": "professional",
       "execution_paths": ["edge.python.matchering"],
       "fallbacks": [],
-      "acceptance": ["target_reference_hash_idempotency", "pinned_matchering_e2e", "pcm24_intermediate", "technical_delivery_qc", "duration_integrity", "artifact_sha256", "resume_without_duplicate_master"]
+      "acceptance": ["immutable_target_reference_snapshots", "target_reference_hash_idempotency", "exclusive_job_execution", "pinned_matchering_e2e", "pcm24_intermediate", "technical_delivery_qc", "duration_integrity", "artifact_sha256", "resume_without_duplicate_master"]
     },
     {
       "capability": "audio.reaper_render",
@@ -82,12 +82,20 @@
       "acceptance": ["reaper_detected", "source_ffprobe_valid", "track_imported", "marker_created", "project_saved", "wav_rendered", "render_ffprobe_valid", "render_sample_rate_verified", "artifact_sha256"]
     },
     {
+      "capability": "runtime.self_test",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.core"],
+      "fallbacks": [],
+      "acceptance": ["contract_validation", "controlled_write_read_cleanup", "ffmpeg_health", "ffprobe_health"]
+    },
+    {
       "capability": "transport.relay_connect",
       "required": true,
       "required_quality": "professional",
       "execution_paths": ["yandex.function.long_poll"],
       "fallbacks": [],
-      "acceptance": ["manual_start_stop", "25_second_long_poll", "heartbeat_offline_detection", "credential_manager_token", "allowlisted_operations", "no_arbitrary_shell", "shared_object_storage_state", "duplicate_request_response_cache"]
+      "acceptance": ["manual_start_stop", "25_second_long_poll", "heartbeat_offline_detection", "credential_manager_token", "short_lived_secret_access", "allowlisted_operations", "no_arbitrary_shell", "immutable_object_storage_rendezvous", "duplicate_request_response_cache"]
     }
   ]
 }
