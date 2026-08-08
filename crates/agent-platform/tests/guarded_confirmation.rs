@@ -109,11 +109,21 @@ fn exact_fresh_policy_binding_is_required_and_replay_is_denied() {
         fresh_same_action.confirmation_binding,
         "stable action binding must survive fresh policy evaluation"
     );
-    let consumed = store
+    let permit = store
         .consume_for_decision(&prepared.confirmation_id, &fresh_same_action)
         .expect("exact fresh action may consume confirmation");
-    assert_eq!(consumed.status, "consumed");
-    assert!(consumed.consumed_at.is_some());
+    assert_eq!(permit.record().status, "consumed");
+    assert!(permit.record().consumed_at.is_some());
+    assert_eq!(permit.capability(), "distribution.publish");
+    assert_eq!(permit.project_id(), "demo");
+    assert_eq!(permit.confirmation_id(), prepared.confirmation_id);
+    assert_eq!(
+        permit.confirmation_binding(),
+        fresh_same_action
+            .confirmation_binding
+            .as_deref()
+            .expect("fresh binding")
+    );
 
     let replay = store
         .consume_for_decision(&prepared.confirmation_id, &fresh_same_action)
