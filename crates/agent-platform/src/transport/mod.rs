@@ -44,6 +44,29 @@ pub struct RelayResponse {
     pub error: Value,
 }
 
+pub fn configure_relay(
+    repo_root: &Path,
+    project_id: Option<&str>,
+    endpoint: &str,
+    env_name: &str,
+    secret_ref: &str,
+) -> Result<Value, PlatformError> {
+    validate_endpoint(endpoint)?;
+    let token = store_relay_token_from_env(repo_root, project_id, env_name, secret_ref)?;
+    match lifecycle::write_relay_config(repo_root, project_id, endpoint, secret_ref) {
+        Ok(config) => Ok(json!({
+            "status": "configured",
+            "relay": config,
+            "credential": token,
+            "enabled": false
+        })),
+        Err(error) => {
+            let _ = remove_relay_token(repo_root, project_id, secret_ref);
+            Err(error)
+        }
+    }
+}
+
 pub fn store_relay_token_from_env(
     repo_root: &Path,
     project_id: Option<&str>,
@@ -91,11 +114,13 @@ pub fn remove_relay_token(
         json!({"action": "remove_relay_token", "data_class": "sensitive"}),
     )?;
     SecretStore::new(&binding.repo_root)?.remove(secret_ref)?;
+    lifecycle::remove_relay_config(repo_root, project_id)?;
     Ok(json!({
         "status": "success",
         "secret_ref": secret_ref,
         "consumer": selection.executor(),
-        "policy_decision_id": policy.decision_id
+        "policy_decision_id": policy.decision_id,
+        "configured": false
     }))
 }
 
