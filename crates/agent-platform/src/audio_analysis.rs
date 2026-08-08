@@ -13,7 +13,7 @@ pub struct MasteringTarget {
     pub loudness_tolerance_lu: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MasteringDecision {
     pub source: MediaInspection,
     pub target: MasteringTarget,
@@ -65,7 +65,7 @@ pub fn decide_mastering(
     profile: &str,
 ) -> Result<MasteringDecision, PlatformError> {
     let target = mastering_target(profile)?;
-    let mut flags = Vec::new();
+    let mut flags: Vec<String> = Vec::new();
     let mut reasons = Vec::new();
 
     let loudness_delta_db = inspection
