@@ -69,7 +69,7 @@ Do not add ToolHive/1MCP/n8n-style aggregation unless direct/native surface prod
 
 ### Stage 6 — Tool Manifest + selection + hardened PEP — done
 
-Executable fail-closed contract now enforces locked executor, enabled state, quality, reliability, determinism, execution path, fallback agreement and cost. Unknown fields fail closed. Runtime profile is derived from the same locked selections.
+Executable fail-closed contract enforces locked executor, enabled state, quality, reliability, determinism, execution path, fallback agreement and cost. Unknown fields fail closed. Runtime profile is derived from the same locked selections.
 
 ### Stage 7 — Secret Store — done
 
@@ -93,7 +93,7 @@ Current baseline:
 - caches/path filters;
 - cargo-deny bans/sources;
 - blocking RustSec dependency advisories;
-- pinned CycloneDX SBOM;
+- pinned reproducible CycloneDX SBOM;
 - weekly grouped Dependabot.
 
 Branch protection remains a separate manual repository-setting gap.
@@ -138,7 +138,7 @@ Use typed FFmpeg composition, Blender API/addons and external generators through
 
 ### Stage 18 — Distribution — conditional
 
-Security prerequisite is now available:
+Security prerequisite is available:
 
 ```text
 fresh policy preview
@@ -155,7 +155,7 @@ No distribution executor is implemented yet. Do not expose side effects until on
 
 ### Stage 20 — Operations audit — partial
 
-Already hardened:
+Technical hardening completed:
 - job execution ownership;
 - immutable workflow inputs;
 - executable capability contracts;
@@ -165,16 +165,15 @@ Already hardened:
 - duration-aware FFmpeg execution/logging;
 - Rust dependency/advisory policy;
 - reproducible SBOM;
-- CI cost controls.
-
-Current work:
-- immutable tag-gated private GitHub Release packaging with Windows binary + SBOM + SHA256SUMS.
+- CI cost controls;
+- Rust/Python version-source alignment;
+- immutable tag-gated private GitHub Release packaging with Windows binary + SBOM + verified SHA256SUMS.
 
 Manual/decision gates:
 1. Stage 4 real ChatGPT acceptance;
 2. project license/proprietary decision;
 3. main branch protection/ruleset;
-4. first explicit version tag/release;
+4. first explicit `v0.2.0` tag/release and inspection of generated assets;
 5. real music corpus if subjective professional reference-mastering quality is claimed.
 
 Detailed checklist: `project-context/STAGE20_OPERATIONS.md`.
