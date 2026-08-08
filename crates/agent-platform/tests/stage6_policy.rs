@@ -4,7 +4,7 @@ use std::path::Path;
 use agent_platform::capability::CapabilityRegistry;
 use agent_platform::error::PlatformError;
 use agent_platform::policy::PolicyEnforcementPoint;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use tempfile::tempdir;
 
 fn write_registry(root: &Path, tools: Value, lock: Value, requirements: Value) {
@@ -75,9 +75,11 @@ fn tool(
 }
 
 fn lock(capability: &str, executor: &str) -> Value {
+    let mut selected = Map::new();
+    selected.insert(capability.to_owned(), Value::String(executor.to_owned()));
     json!({
         "contract_version": "tool-lock-v1",
-        "selected": {capability: executor}
+        "selected": Value::Object(selected)
     })
 }
 
