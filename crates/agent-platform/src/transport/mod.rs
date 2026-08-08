@@ -99,6 +99,7 @@ pub fn remove_relay_token(
     }))
 }
 
+#[must_use]
 pub fn dispatch_request(
     repo_root: &Path,
     project_id: &str,
