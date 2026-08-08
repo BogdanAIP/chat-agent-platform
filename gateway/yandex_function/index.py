@@ -14,7 +14,6 @@ DEFAULT_LONG_POLL_SECONDS = 25
 HEARTBEAT_TTL_SECONDS = 40
 HEARTBEAT_WRITE_SECONDS = 10
 TASK_TTL_SECONDS = 60
-RESULT_TTL_SECONDS = 300
 POLL_SLICE_SECONDS = 1.0
 REQUEST_ID = re.compile(r"^rly_[a-f0-9]{32}$")
 ALLOWED_TOOLS = {
@@ -115,13 +114,6 @@ def _authorized_mcp(event):
     return hmac.compare_digest(expected, supplied)
 
 
-def _safe_unlink(path):
-    try:
-        path.unlink()
-    except FileNotFoundError:
-        pass
-
-
 def _read_json(path):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -134,33 +126,18 @@ def _write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
 
-def _cleanup(root):
-    now = _now_ms()
-    for path in (root / "tasks").glob("rly_*.json"):
-        task = _read_json(path)
-        if not task or int(task.get("deadline_unix_ms", 0)) < now:
-            _safe_unlink(path)
-    result_cutoff = time.time() - RESULT_TTL_SECONDS
-    for path in (root / "results").glob("rly_*.json"):
-        try:
-            if path.stat().st_mtime < result_cutoff:
-                _safe_unlink(path)
-        except OSError:
-            pass
-
-
 def _heartbeat_path(root, project_id):
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", project_id)
     return root / "agents" / f"{safe}.json"
 
 
-def _write_heartbeat(root, project_id, operations):
+def _write_heartbeat(root, project_id, operations, last_seen_unix_ms=None):
     _write_json(
         _heartbeat_path(root, project_id),
         {
             "contract_version": CONTRACT,
             "project_id": project_id,
-            "last_seen_unix_ms": _now_ms(),
+            "last_seen_unix_ms": _now_ms() if last_seen_unix_ms is None else int(last_seen_unix_ms),
             "operations": sorted(set(operations)),
         },
     )
@@ -171,7 +148,7 @@ def _agent_online(root, project_id):
     if not heartbeat:
         return False
     last_seen = int(heartbeat.get("last_seen_unix_ms", 0))
-    return _now_ms() - last_seen <= HEARTBEAT_TTL_SECONDS * 1000
+    return last_seen > 0 and _now_ms() - last_seen <= HEARTBEAT_TTL_SECONDS * 1000
 
 
 def _validate_agent_project(body):
@@ -179,6 +156,17 @@ def _validate_agent_project(body):
     if project_id != _project_id():
         return None, _json_response(403, {"ok": False, "error": "project_id is not allowed"})
     return project_id, None
+
+
+def _task_is_pending(root, task):
+    if task.get("status", "pending") != "pending":
+        return False
+    request_id = str(task.get("request_id") or "")
+    if not REQUEST_ID.fullmatch(request_id):
+        return False
+    if int(task.get("deadline_unix_ms", 0)) < _now_ms():
+        return False
+    return not (root / "results" / f"{request_id}.json").exists()
 
 
 def _agent_poll(root, body):
@@ -200,13 +188,12 @@ def _agent_poll(root, body):
         now = time.monotonic()
         if now >= next_heartbeat:
             _write_heartbeat(root, project_id, operations)
-            _cleanup(root)
             next_heartbeat = now + HEARTBEAT_WRITE_SECONDS
         for path in sorted((root / "tasks").glob("rly_*.json"), key=lambda item: item.name):
             task = _read_json(path)
             if not task or task.get("project_id") != project_id:
                 continue
-            if task.get("operation") not in operations:
+            if task.get("operation") not in operations or not _task_is_pending(root, task):
                 continue
             public_task = {
                 key: task[key]
@@ -228,7 +215,7 @@ def _agent_offline(root, body):
     project_id, error = _validate_agent_project(body)
     if error:
         return error
-    _safe_unlink(_heartbeat_path(root, project_id))
+    _write_heartbeat(root, project_id, [], last_seen_unix_ms=0)
     return _json_response(200, {"ok": True, "agent_online": False})
 
 
@@ -243,12 +230,25 @@ def _agent_result(root, body):
         return _json_response(400, {"ok": False, "error": "unsupported response contract"})
     result_path = root / "results" / f"{task_id}.json"
     task_path = root / "tasks" / f"{task_id}.json"
-    if result_path.exists():
+    existing = _read_json(result_path)
+    if existing:
+        if existing != response:
+            return _json_response(409, {"ok": False, "error": "result identity collision"})
+        task = _read_json(task_path)
+        if task and task.get("status", "pending") == "pending":
+            task["status"] = "completed"
+            task["completed_unix_ms"] = _now_ms()
+            _write_json(task_path, task)
         return _json_response(200, {"ok": True, "duplicate": True})
-    if not task_path.exists():
+    task = _read_json(task_path)
+    if not task or task.get("request_id") != task_id:
+        return _json_response(409, {"ok": False, "error": "task is no longer pending"})
+    if task.get("status", "pending") != "pending":
         return _json_response(409, {"ok": False, "error": "task is no longer pending"})
     _write_json(result_path, response)
-    _safe_unlink(task_path)
+    task["status"] = "completed"
+    task["completed_unix_ms"] = _now_ms()
+    _write_json(task_path, task)
     return _json_response(200, {"ok": True, "duplicate": False})
 
 
@@ -270,6 +270,16 @@ def _tool_result(payload, is_error=False):
         "structuredContent": payload,
         "isError": is_error,
     }
+
+
+def _mark_task(root, task_id, status):
+    task_path = root / "tasks" / f"{task_id}.json"
+    task = _read_json(task_path)
+    if not task:
+        return
+    task["status"] = status
+    task[f"{status}_unix_ms"] = _now_ms()
+    _write_json(task_path, task)
 
 
 def _call_local_tool(root, name, arguments):
@@ -299,6 +309,7 @@ def _call_local_tool(root, name, arguments):
         "deadline_unix_ms": deadline_ms,
         "project_id": project_id,
         "created_unix_ms": _now_ms(),
+        "status": "pending",
     }
     task_path = root / "tasks" / f"{task_id}.json"
     result_path = root / "results" / f"{task_id}.json"
@@ -307,7 +318,6 @@ def _call_local_tool(root, name, arguments):
     while time.monotonic() < wait_deadline:
         response = _read_json(result_path)
         if response:
-            _safe_unlink(result_path)
             if response.get("status") == "success":
                 return _tool_result(response.get("result") or {}, False)
             return _tool_result(
@@ -316,7 +326,7 @@ def _call_local_tool(root, name, arguments):
                 True,
             )
         time.sleep(POLL_SLICE_SECONDS)
-    _safe_unlink(task_path)
+    _mark_task(root, task_id, "timed_out")
     return _tool_result(
         {
             "code": "LOCAL_TIMEOUT",
