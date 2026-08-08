@@ -22,7 +22,7 @@ Repository is private. `LicenseRef-UNLICENSED` means no project license has been
 | 7 Secret Store | done | Windows Credential Manager + executor ACL |
 | 8 Artifact hardening/staging | done | SHA/recovery/staging controls |
 | 9 Supervisor/service | conditional | not required by current manual lifecycle |
-| 10 CI baseline | done | Windows verify, path filters, caches, pinned Rust/FFmpeg |
+| 10 CI baseline | done | Windows verify, path filters, caches, pinned Rust/FFmpeg + supply-chain gates |
 | 11 FFmpeg adapter | done | typed media operations, EBU QC, duration-aware timeouts |
 | 12 REAPER adapter | done | real user Windows acceptance passed 2026-08-08 |
 | 13 Mastering analysis | done | profile-aware technical decision/safe-auto gate |
@@ -32,7 +32,7 @@ Repository is private. `LicenseRef-UNLICENSED` means no project license has been
 | 17 Video production | conditional | no concrete scenario selected |
 | 18 Distribution | conditional | confirmation primitive done; external executors intentionally absent |
 | 19 Reference mastering | done | real pinned Matchering engine + technical benchmark |
-| 20 Operations audit | partial | supply-chain/media/confirmation hardened; release packaging/manual gates remain |
+| 20 Operations audit | partial | supply-chain/media/confirmation/release packaging hardened; manual gates remain |
 
 Stages are **not a strict linear dependency chain**. A later independent local capability may be completed while an earlier external/manual gate remains partial. A stage is `done` only for its own exit criteria.
 
@@ -62,7 +62,7 @@ JobStore is file-backed, atomic and process-safe. Idempotent `begin` returns one
 
 PEP still derives risk independently from model hints. Guarded actions additionally have a stable `confirmation_binding`.
 
-ConfirmationStore now provides:
+ConfirmationStore provides:
 
 - 30–900 second TTL, default 10 minutes;
 - idempotent prepare for the same active action;
@@ -123,7 +123,7 @@ Properties already proved in hosted CI:
 
 Final real ChatGPT-originated round trip is intentionally deferred. Until it is completed, higher-value local capabilities remain unavailable through the remote surface.
 
-## Supply chain / operations
+## Supply chain / release operations
 
 Current automated controls:
 
@@ -131,9 +131,15 @@ Current automated controls:
 - hosted FFmpeg 9.0.0 pinned;
 - `cargo-deny` bans/sources;
 - blocking RustSec advisories on dependency-changing PR/push;
-- pinned CycloneDX SBOM generation;
+- pinned reproducible CycloneDX SBOM generation;
 - grouped weekly Dependabot updates;
-- CI caches and path filters to reduce private-repository Actions consumption.
+- CI caches and path filters to reduce private-repository Actions consumption;
+- Rust workspace, Python package and Python oracle versions regression-tested for equality;
+- tag-gated release workflow requires an existing exact `vX.Y.Z` reachable from `main`;
+- release build uses locked dependencies and packages Windows binary + SBOM + verified `SHA256SUMS`;
+- existing GitHub Release assets are treated as immutable and never overwritten by the workflow.
+
+The first real tag/release has intentionally not been created. GitHub artifact attestation is not enabled while the private repository lacks the required entitlement.
 
 The user has explicitly authorized converting the repository to public **only if GitHub Actions limits actually block development**. No such block exists now, so the repository remains private.
 
@@ -142,7 +148,7 @@ The user has explicitly authorized converting the repository to public **only if
 1. Run the deferred real Stage 4 ChatGPT -> Yandex -> Windows -> ChatGPT acceptance.
 2. Choose a project license or explicitly decide to keep the project proprietary/private.
 3. Enable GitHub branch protection/ruleset for `main` when available through manual settings/tooling.
-4. After release workflow is merged, deliberately create the first `vX.Y.Z` tag and verify release assets/checksums.
+4. Deliberately create the first `v0.2.0` tag and verify the generated private GitHub Release assets/checksums.
 5. Add a real licensed/owned musical corpus before making subjective professional-quality claims for reference mastering.
 
 See `STAGE20_OPERATIONS.md` for the operational checklist and `KNOWN_ISSUES.md` for the remaining gaps.
