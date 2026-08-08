@@ -79,6 +79,35 @@ pub(super) fn poll_once(
     Ok(Some(task_id))
 }
 
+pub(super) fn notify_offline(
+    binding: &ProjectBinding,
+    http_root: &Path,
+    endpoint: &str,
+    token: &str,
+) -> Result<(), PlatformError> {
+    let response = post_json(
+        http_root,
+        endpoint,
+        token,
+        &json!({
+            "agent_action": "offline",
+            "project_id": binding.project_id
+        }),
+        10,
+    )?;
+    if response.get("ok").and_then(Value::as_bool) == Some(true) {
+        Ok(())
+    } else {
+        Err(PlatformError::ToolUnavailable(
+            response
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("relay gateway did not accept offline notification")
+                .to_owned(),
+        ))
+    }
+}
+
 pub(super) fn cleanup_old_cache(root: &Path) -> Result<(), PlatformError> {
     let cutoff = SystemTime::now()
         .checked_sub(Duration::from_hours(24))
