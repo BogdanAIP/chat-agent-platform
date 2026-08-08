@@ -296,12 +296,7 @@ fn spawn_gateway() -> (
             }
         }
     });
-    (
-        format!("http://{address}"),
-        state,
-        shutdown_tx,
-        handle,
-    )
+    (format!("http://{address}"), state, shutdown_tx, handle)
 }
 
 #[test]
