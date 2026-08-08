@@ -55,8 +55,8 @@ impl JobStore {
 
     pub fn new(root: &Path) -> Result<Self, PlatformError> {
         fs::create_dir_all(root).map_err(|error| io_error("cannot create job store", error))?;
-        let root = fs::canonicalize(root)
-            .map_err(|error| io_error("cannot resolve job store", error))?;
+        let root =
+            fs::canonicalize(root).map_err(|error| io_error("cannot resolve job store", error))?;
         Ok(Self { root })
     }
 
@@ -214,8 +214,8 @@ impl JobStore {
         &self,
         idempotency_key: &str,
     ) -> Result<Option<JobRecord>, PlatformError> {
-        for entry in fs::read_dir(&self.root)
-            .map_err(|error| io_error("cannot scan job store", error))?
+        for entry in
+            fs::read_dir(&self.root).map_err(|error| io_error("cannot scan job store", error))?
         {
             let entry = entry.map_err(|error| io_error("cannot read job store entry", error))?;
             if !entry
@@ -329,11 +329,7 @@ fn is_retryable(job: &JobRecord) -> bool {
         == Some(true)
 }
 
-fn require_status(
-    job: &JobRecord,
-    allowed: &[&str],
-    operation: &str,
-) -> Result<(), PlatformError> {
+fn require_status(job: &JobRecord, allowed: &[&str], operation: &str) -> Result<(), PlatformError> {
     if allowed.contains(&job.status.as_str()) {
         return Ok(());
     }
