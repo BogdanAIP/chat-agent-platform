@@ -99,7 +99,11 @@ pub fn remove_relay_token(
     }))
 }
 
-pub fn dispatch_request(repo_root: &Path, project_id: &str, request: RelayRequest) -> RelayResponse {
+pub fn dispatch_request(
+    repo_root: &Path,
+    project_id: &str,
+    request: RelayRequest,
+) -> RelayResponse {
     match dispatch_request_inner(repo_root, project_id, &request) {
         Ok(result) => RelayResponse {
             contract_version: "relay-response-v1".into(),
@@ -173,7 +177,8 @@ pub(super) fn authorize_transport(
 ) -> Result<(ProjectBinding, CapabilitySelection, PolicyDecision), PlatformError> {
     let binding = resolve_project(repo_root, project_id)?;
     let quality = required_quality(&binding.repo_root, CAPABILITY)?;
-    let selection = CapabilityRegistry::load(&binding.repo_root)?.select(CAPABILITY, &quality, 0)?;
+    let selection =
+        CapabilityRegistry::load(&binding.repo_root)?.select(CAPABILITY, &quality, 0)?;
     let data_class = parameters
         .get("data_class")
         .and_then(Value::as_str)
@@ -210,9 +215,9 @@ pub(super) fn validate_endpoint(endpoint: &str) -> Result<(), PlatformError> {
 
 pub(super) fn validate_token(token: &str) -> Result<(), PlatformError> {
     if !(24..=256).contains(&token.len())
-        || !token.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~')
-        })
+        || !token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~'))
     {
         return Err(PlatformError::Validation(
             "relay token must be 24-256 URL-safe ASCII characters".into(),
