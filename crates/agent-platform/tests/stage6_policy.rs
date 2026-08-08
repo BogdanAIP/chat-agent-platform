@@ -107,9 +107,8 @@ fn professional_requirement_rejects_basic_executor_before_ranking() {
         ),
     );
 
-    let error = match CapabilityRegistry::load(root.path()) {
-        Ok(_) => panic!("basic executor must be rejected while validating the locked selection"),
-        Err(error) => error,
+    let Err(error) = CapabilityRegistry::load(root.path()) else {
+        panic!("basic executor must be rejected while validating the locked selection");
     };
     assert!(matches!(error, PlatformError::Validation(_)));
     assert!(error.to_string().contains("quality"));
@@ -139,9 +138,8 @@ fn reliability_and_determinism_are_runtime_gates() {
         ),
     );
 
-    let error = match CapabilityRegistry::load(root.path()) {
-        Ok(_) => panic!("weak reliability must fail closed"),
-        Err(error) => error,
+    let Err(error) = CapabilityRegistry::load(root.path()) else {
+        panic!("weak reliability must fail closed");
     };
     assert!(error.to_string().contains("reliability"));
 }
@@ -170,9 +168,8 @@ fn locked_executor_must_use_an_allowed_execution_path() {
         ),
     );
 
-    let error = match CapabilityRegistry::load(root.path()) {
-        Ok(_) => panic!("unapproved execution path must fail closed"),
-        Err(error) => error,
+    let Err(error) = CapabilityRegistry::load(root.path()) else {
+        panic!("unapproved execution path must fail closed");
     };
     assert!(error.to_string().contains("not allowed"));
 }
@@ -203,9 +200,8 @@ fn unknown_manifest_fields_are_rejected_instead_of_ignored() {
         ),
     );
 
-    let error = match CapabilityRegistry::load(root.path()) {
-        Ok(_) => panic!("unknown manifest fields must fail closed"),
-        Err(error) => error,
+    let Err(error) = CapabilityRegistry::load(root.path()) else {
+        panic!("unknown manifest fields must fail closed");
     };
     assert!(error.to_string().contains("imaginary_security_gate"));
 }
