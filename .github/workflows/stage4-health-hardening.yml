@@ -111,16 +111,26 @@ jobs:
           )
           replace_exact(
               "scripts/provision-stage4-yandex.ps1",
-              '''$finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+              '''if (-not $roundTripPassed) { throw 'Stage 4 real Yandex acceptance did not complete.' }
+          
+          $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+          if (-not $LeaveRelayOn -and $finalHealth.agent_online) {
           ''',
-              '''$finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
+              '''if (-not $roundTripPassed) { throw 'Stage 4 real Yandex acceptance did not complete.' }
+          
+          $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
+          if (-not $LeaveRelayOn -and $finalHealth.agent_online) {
           ''',
           )
           replace_exact(
               "scripts/provision-stage4-yandex.ps1",
-              '''        $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+              '''        Start-Sleep -Milliseconds 500
+                  $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+              }
           ''',
-              '''        $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
+              '''        Start-Sleep -Milliseconds 500
+                  $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
+              }
           ''',
           )
 
