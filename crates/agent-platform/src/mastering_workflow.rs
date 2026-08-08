@@ -164,12 +164,20 @@ fn execute_workflow(
     verify_final_quality(&input_inspection, &final_inspection, &decision, profile)?;
     let final_decision = decide_mastering(&final_inspection, profile)?;
 
-    let master = auth.store.import_file(&output.path, CAPABILITY, data_class)?;
+    let master = auth
+        .store
+        .import_file(&output.path, CAPABILITY, data_class)?;
     let mut metadata = Map::new();
-    metadata.insert("workflow".into(), Value::String("technical-master-v1".into()));
+    metadata.insert(
+        "workflow".into(),
+        Value::String("technical-master-v1".into()),
+    );
     metadata.insert("job_id".into(), Value::String(job.job_id.clone()));
     metadata.insert("profile".into(), Value::String(profile.into()));
-    metadata.insert("applied_action".into(), Value::String(applied_action.into()));
+    metadata.insert(
+        "applied_action".into(),
+        Value::String(applied_action.into()),
+    );
     metadata.insert(
         "input_decision".into(),
         serde_json::to_value(&decision).map_err(serialization_error)?,
@@ -310,7 +318,8 @@ fn authorize(
 
     let binding = resolve_project(repo_root, project_id)?;
     let required = required_quality(&binding.repo_root, CAPABILITY)?;
-    let selection = CapabilityRegistry::load(&binding.repo_root)?.select(CAPABILITY, &required, 0)?;
+    let selection =
+        CapabilityRegistry::load(&binding.repo_root)?.select(CAPABILITY, &required, 0)?;
     let policy = PolicyEnforcementPoint::load(&binding.policy_path)?.evaluate(
         CAPABILITY,
         request
