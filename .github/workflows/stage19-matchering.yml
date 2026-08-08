@@ -5,7 +5,6 @@ on:
     paths:
       - "crates/agent-platform/src/reference_mastering.rs"
       - "crates/agent-platform/tests/stage19_reference_mastering.rs"
-      - "crates/agent-platform/src/lib.rs"
       - "crates/agent-platform/src/main.rs"
       - "scripts/matchering_adapter.py"
       - ".github/workflows/stage19-matchering.yml"
@@ -18,7 +17,6 @@ on:
     paths:
       - "crates/agent-platform/src/reference_mastering.rs"
       - "crates/agent-platform/tests/stage19_reference_mastering.rs"
-      - "crates/agent-platform/src/lib.rs"
       - "crates/agent-platform/src/main.rs"
       - "scripts/matchering_adapter.py"
       - ".github/workflows/stage19-matchering.yml"
@@ -49,14 +47,33 @@ jobs:
         run: |
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
           rustup default 1.97.1
-      - name: Ensure FFmpeg is available
+      - name: Cache Rust dependencies and build outputs
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-rust-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-rust-
+      - name: Ensure pinned FFmpeg is available
         shell: pwsh
         run: |
-          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
-            choco install ffmpeg -y --no-progress
+          $required = '9.0'
+          $current = $null
+          if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
+            $current = (& ffmpeg -version | Select-Object -First 1)
+          }
+          if (-not $current -or $current -notmatch 'ffmpeg version 9\.0') {
+            choco install ffmpeg --version=9.0.0 -y --no-progress --allow-downgrade
           }
           ffmpeg -version
           ffprobe -version
+      - name: Cache Matchering Python wheels
+        uses: actions/cache@v6
+        with:
+          path: ~/AppData/Local/pip/Cache
+          key: matchering-2.0.6-py310-${{ runner.os }}-${{ runner.arch }}
       - name: Install pinned Matchering edge runtime
         shell: pwsh
         run: |
