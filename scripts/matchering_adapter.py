@@ -10,26 +10,37 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
+
+MATCHERING_VERSION = "2.0.6"
 
 
 def _matchering():
     try:
+        installed_version = package_version("matchering")
+    except PackageNotFoundError as exc:  # pragma: no cover - external probe
+        raise RuntimeError("Matchering package is not installed") from exc
+    if installed_version != MATCHERING_VERSION:
+        raise RuntimeError(
+            f"unsupported Matchering version {installed_version}; "
+            f"required {MATCHERING_VERSION}"
+        )
+    try:
         import matchering as mg
     except Exception as exc:  # pragma: no cover - exercised by external probe
         raise RuntimeError(f"Matchering import failed: {exc}") from exc
-    return mg
+    return mg, installed_version
 
 
 def _probe() -> int:
-    mg = _matchering()
-    version = getattr(mg, "__version__", None)
+    _, installed_version = _matchering()
     print(
         json.dumps(
             {
                 "status": "available",
                 "engine": "matchering",
-                "version": version or "unknown",
+                "version": installed_version,
             }
         )
     )
@@ -48,7 +59,7 @@ def _process(target: Path, reference: Path, output: Path) -> int:
         raise FileExistsError(f"output already exists: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    mg = _matchering()
+    mg, _ = _matchering()
     mg.process(
         target=str(target),
         reference=str(reference),
