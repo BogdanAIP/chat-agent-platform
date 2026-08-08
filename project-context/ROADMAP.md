@@ -144,24 +144,35 @@ quiet/nominal/hot/32 kHz mono случаев и проходят публичн�
 Строгие fmt/Clippy, Rust tests, contracts, Python oracle/parity и release build
 зелёные. Детали: `project-context/STAGE13_BENCHMARK.md`.
 
-### Stage 14. Workflow runtime gate — planned
+### Stage 14. Workflow runtime gate — done
 
-Потребность доказана Stage 15: production mastering требует job ID, persistence,
-recovery, retry, idempotency, checkpoints и resume между сессиями. Реализовать
-лёгкий Rust job state machine внутри того же binary. Prefect/Node-RED/другой runtime
-сравнивать только если этот путь не закрывает реальный workflow; новый daemon или
-service не добавлять.
+Выбран лёгкий Rust job state machine внутри существующего `agent-platform.exe`.
+Persistent `job-v1` хранится в bound `runtime/jobs/<project_id>` с atomic writes и
+межпроцессной блокировкой. Реализованы idempotent begin, queued/running/terminal
+переходы, checkpoint, cancellation, retryable failure, attempt counter и resume с
+сохранением checkpoint. Corrupt/identity-mismatched state валидируется и fail-closed
+без удаления evidence. Внешний workflow engine, daemon, service, database или
+message broker не добавлены.
 
-Exit gate: состояние переживает новый process/session; idempotency не создаёт
-дубликаты; retry/resume продолжает только разрешённые переходы; corrupt state
-fail-closed; выбран один runtime без лишнего сервиса.
+Exit gate пройден Windows CI #109: восемь конкурентных idempotent begin создают один
+job; collision capability/key запрещён; checkpoint/retry/result переживают новые
+экземпляры store; terminal/non-retryable переходы отклоняются; corrupt state
+сохраняется и блокирует работу. Отдельный integration test запускает собранный
+`agent-platform` в нескольких процессах и доказывает begin → resume → checkpoint →
+get → retryable fail → resume → succeed → get между process/session boundaries.
+Детали: `project-context/STAGE14_RUNTIME.md`.
 
 ### Stage 15. Production mastering workflow — planned
 
-Первый длинный workflow с job ID, recovery, artifacts и quality gate.
+Первый длинный workflow с job ID, recovery, artifacts и quality gate. Технический
+production master должен использовать Stage 13 decision layer, Stage 11 processing
+и Stage 14 persistence; unsafe/review-required материал нельзя обрабатывать как
+успешный автоматический master.
 
-Exit gate: результат переживает новую сессию; retry не дублирует опасные действия;
-benchmark quality подтверждён.
+Exit gate: результат переживает новую сессию; retry не дублирует обработку;
+идемпотентный повтор возвращает существующий результат; финальный WAV повторно
+проходит technical QC и зарегистрирован в Artifact Store; benchmark quality
+подтверждён на нескольких типах входа.
 
 ## Horizon D — расширение только по спросу
 
