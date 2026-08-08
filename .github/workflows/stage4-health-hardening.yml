@@ -1,0 +1,150 @@
+name: Stage 4 Health Hardening Patch
+
+on:
+  push:
+    branches: [chat/stage4-yandex-relay]
+    paths:
+      - ".github/workflows/stage4-health-hardening.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chat/stage4-yandex-relay
+      - name: Apply narrow health-auth patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_exact(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one match, got {count}")
+              p.write_text(text.replace(old, new), encoding="utf-8")
+
+          replace_exact(
+              "gateway/yandex_function/index.py",
+              '''    if method == "GET":
+                  return _json_response(
+                      200,
+                      {
+                          "status": "ok",
+                          "contract_version": CONTRACT,
+                          "agent_online": _agent_online(root, _project_id()),
+                          "project_id": _project_id(),
+                          "remote_auth_configured": bool(_remote_token()),
+                      },
+                  )
+          ''',
+              '''    if method == "GET":
+                  health = {"status": "ok", "contract_version": CONTRACT}
+                  if _authorized_remote(event):
+                      health.update(
+                          {
+                              "agent_online": _agent_online(root, _project_id()),
+                              "project_id": _project_id(),
+                              "remote_auth_configured": bool(_remote_token()),
+                          }
+                      )
+                  return _json_response(200, health)
+          ''',
+          )
+
+          replace_exact(
+              "scripts/deploy-stage4-yandex.ps1",
+              '''$health = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 20
+          if ($health.status -ne 'ok') { throw 'Yandex relay health endpoint did not return status=ok' }
+          if (-not $health.remote_auth_configured) { throw 'Yandex relay did not report configured remote authentication.' }
+          ''',
+              '''$publicHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 20
+          if ($publicHealth.status -ne 'ok') { throw 'Yandex relay public health endpoint did not return status=ok' }
+          foreach ($privateField in @('agent_online','project_id','remote_auth_configured')) {
+              if ($publicHealth.PSObject.Properties.Name -contains $privateField) {
+                  throw "Yandex relay public health leaked private field: $privateField"
+              }
+          }
+          $remoteHeaders = @{ Authorization = "Bearer $remoteToken" }
+          $health = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $remoteHeaders -TimeoutSec 20
+          if ($health.status -ne 'ok') { throw 'Yandex relay authenticated health endpoint did not return status=ok' }
+          if (-not $health.remote_auth_configured) { throw 'Yandex relay did not report configured remote authentication.' }
+          ''',
+          )
+
+          replace_exact(
+              "scripts/provision-stage4-yandex.ps1",
+              '''if ($remoteToken.Length -lt 24) {
+              throw 'GPT Actions bearer token was not found in the clipboard after deployment.'
+          }
+          
+          $relayStarted = $false
+          ''',
+              '''if ($remoteToken.Length -lt 24) {
+              throw 'GPT Actions bearer token was not found in the clipboard after deployment.'
+          }
+          $headers = @{ Authorization = "Bearer $remoteToken" }
+          
+          $relayStarted = $false
+          ''',
+          )
+          replace_exact(
+              "scripts/provision-stage4-yandex.ps1",
+              '''            $health = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+          ''',
+              '''            $health = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
+          ''',
+          )
+          replace_exact(
+              "scripts/provision-stage4-yandex.ps1",
+              '''    $headers = @{ Authorization = "Bearer $remoteToken" }
+              Write-Host '[Stage 4] Calling local_ping through the real public Yandex URL...'
+          ''',
+              '''    Write-Host '[Stage 4] Calling local_ping through the real public Yandex URL...'
+          ''',
+          )
+          replace_exact(
+              "scripts/provision-stage4-yandex.ps1",
+              '''$finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+          ''',
+              '''$finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
+          ''',
+          )
+          replace_exact(
+              "scripts/provision-stage4-yandex.ps1",
+              '''        $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+          ''',
+              '''        $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
+          ''',
+          )
+
+          replace_exact(
+              "tests/test_stage4_yandex_gateway.py",
+              '''        health = parsed(index.handler(event({}, method="GET"), None))
+                  self.assertFalse(health["agent_online"])
+                  self.assertTrue(health["remote_auth_configured"])
+          ''',
+              '''        public_health = parsed(index.handler(event({}, method="GET"), None))
+                  self.assertEqual(set(public_health), {"status", "contract_version"})
+                  health = parsed(index.handler(event({}, remote_headers(), method="GET"), None))
+                  self.assertFalse(health["agent_online"])
+                  self.assertEqual(health["project_id"], "demo")
+                  self.assertTrue(health["remote_auth_configured"])
+          ''',
+          )
+      - name: Commit patch
+        shell: bash
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gateway/yandex_function/index.py scripts/deploy-stage4-yandex.ps1 scripts/provision-stage4-yandex.ps1 tests/test_stage4_yandex_gateway.py
+          git diff --cached --quiet && { echo "No patch produced"; exit 1; }
+          git commit -m "Restrict Stage 4 health details to authenticated callers"
+          git push origin HEAD:chat/stage4-yandex-relay
