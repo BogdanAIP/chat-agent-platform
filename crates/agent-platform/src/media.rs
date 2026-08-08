@@ -285,6 +285,23 @@ pub fn normalize_loudness(
     target_lufs: f64,
     target_true_peak_dbtp: f64,
 ) -> Result<NormalizationResult, PlatformError> {
+    let input_inspection = inspect_media(input)?;
+    normalize_loudness_at_sample_rate(
+        input,
+        output,
+        target_lufs,
+        target_true_peak_dbtp,
+        input_inspection.sample_rate_hz,
+    )
+}
+
+pub fn normalize_loudness_at_sample_rate(
+    input: &Path,
+    output: &Path,
+    target_lufs: f64,
+    target_true_peak_dbtp: f64,
+    output_sample_rate_hz: u32,
+) -> Result<NormalizationResult, PlatformError> {
     if !(-36.0..=-5.0).contains(&target_lufs) {
         return Err(PlatformError::Validation(
             "target LUFS must be between -36 and -5".into(),
@@ -293,6 +310,11 @@ pub fn normalize_loudness(
     if !(-9.0..=0.0).contains(&target_true_peak_dbtp) {
         return Err(PlatformError::Validation(
             "target true peak must be between -9 and 0 dBTP".into(),
+        ));
+    }
+    if !(8_000..=384_000).contains(&output_sample_rate_hz) {
+        return Err(PlatformError::Validation(
+            "output sample rate must be between 8 kHz and 384 kHz".into(),
         ));
     }
     let first_filter =
@@ -334,10 +356,18 @@ pub fn normalize_loudness(
         second_filter,
         "-c:a".into(),
         "pcm_s24le".into(),
+        "-ar".into(),
+        output_sample_rate_hz.to_string(),
         output.to_string_lossy().into_owned(),
     ];
     run_owned("ffmpeg", &second_arguments)?;
     let inspection = inspect_media(output)?;
+    if inspection.sample_rate_hz != output_sample_rate_hz {
+        return Err(PlatformError::Validation(format!(
+            "normalized output sample rate mismatch: requested={output_sample_rate_hz} Hz output={} Hz",
+            inspection.sample_rate_hz
+        )));
+    }
     let measured_lufs = inspection.integrated_lufs.ok_or_else(|| {
         PlatformError::Validation("normalized output has no measurable integrated LUFS".into())
     })?;

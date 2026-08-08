@@ -13,6 +13,7 @@ use agent_platform::media_ops::{
 };
 use agent_platform::reaper::discover_reaper;
 use agent_platform::reaper_ops::{ReaperRenderOptions, render_reaper_file};
+use agent_platform::reference_mastering::{probe_matchering, reference_master_files};
 use agent_platform::service::{
     diagnose, inspect_artifact, inspect_file, self_test, write_runtime_profile,
 };
@@ -43,6 +44,7 @@ enum Command {
         project_id: Option<String>,
     },
     ReaperProbe,
+    MatcheringProbe,
     ReaperRender {
         #[arg(long)]
         project_id: Option<String>,
@@ -56,6 +58,24 @@ enum Command {
         marker_seconds: f64,
         #[arg(long, default_value_t = 48_000)]
         render_sample_rate_hz: u32,
+        #[arg(long, default_value = "project")]
+        data_class: String,
+        #[arg(long)]
+        requested_risk_hint: Option<String>,
+    },
+    ReferenceMaster {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        target: PathBuf,
+        #[arg(long)]
+        reference: PathBuf,
+        #[arg(
+            long,
+            value_parser = ["music-balanced", "music-loud", "speech"],
+            default_value = "music-balanced"
+        )]
+        profile: String,
         #[arg(long, default_value = "project")]
         data_class: String,
         #[arg(long)]
@@ -255,6 +275,7 @@ fn main() -> ExitCode {
                 "executable": path
             })
         }),
+        Command::MatcheringProbe => probe_matchering(&cli.repo_root),
         Command::ReaperRender {
             project_id,
             file,
@@ -276,6 +297,22 @@ fn main() -> ExitCode {
                 marker_seconds: *marker_seconds,
                 render_sample_rate_hz: *render_sample_rate_hz,
             },
+        ),
+        Command::ReferenceMaster {
+            project_id,
+            target,
+            reference,
+            profile,
+            data_class,
+            requested_risk_hint,
+        } => reference_master_files(
+            &cli.repo_root,
+            target,
+            reference,
+            project_id.as_deref(),
+            data_class,
+            requested_risk_hint.as_deref(),
+            profile,
         ),
         Command::Bootstrap {
             project_id,

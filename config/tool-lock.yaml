@@ -9,6 +9,7 @@
     "media.mux": "rust.local.ffmpeg",
     "audio.mastering_analyze": "rust.local.ffmpeg",
     "audio.mastering_produce": "rust.local.mastering",
+    "audio.reference_master": "edge.python.matchering",
     "audio.reaper_render": "rust.local.reaper",
     "runtime.self_test": "rust.local.core"
   }
