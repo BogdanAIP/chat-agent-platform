@@ -3,7 +3,11 @@ name: ci
 "on":
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
   workflow_dispatch:
 
 concurrency:
@@ -41,11 +45,15 @@ jobs:
           key: ${{ runner.os }}-rust-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ runner.os }}-rust-
 
-      - name: Ensure FFmpeg is available
+      - name: Ensure pinned FFmpeg is available
         shell: pwsh
         run: |
-          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
-            choco install ffmpeg -y --no-progress
+          $current = $null
+          if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
+            $current = (& ffmpeg -version | Select-Object -First 1)
+          }
+          if (-not $current -or $current -notmatch 'ffmpeg version 9\.0') {
+            choco install ffmpeg --version=9.0.0 -y --no-progress --allow-downgrade
           }
           ffmpeg -version
           ffprobe -version
@@ -58,8 +66,9 @@ jobs:
         shell: pwsh
         run: ./scripts/verify.ps1
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload release binary
+        uses: actions/upload-artifact@v7
         with:
-          name: agent-platform-windows-x64
+          name: agent-platform-windows-release
           path: target/release/agent-platform.exe
           if-no-files-found: error
