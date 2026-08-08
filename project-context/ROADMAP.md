@@ -162,17 +162,28 @@ job; collision capability/key запрещён; checkpoint/retry/result пере
 get → retryable fail → resume → succeed → get между process/session boundaries.
 Детали: `project-context/STAGE14_RUNTIME.md`.
 
-### Stage 15. Production mastering workflow — planned
+### Stage 15. Production mastering workflow — done
 
-Первый длинный workflow с job ID, recovery, artifacts и quality gate. Технический
-production master должен использовать Stage 13 decision layer, Stage 11 processing
-и Stage 14 persistence; unsafe/review-required материал нельзя обрабатывать как
-успешный автоматический master.
+Добавлен policy-gated `audio.mastering_produce` / `produce-master`, который связывает
+Stage 13 decision layer, Stage 11 lossless/two-pass EBU R128 processing, Artifact
+Store и Stage 14 persistent jobs. Idempotency key включает workflow version, точный
+SHA-256 источника, профиль и data class. Успешный повтор возвращает тот же job,
+master artifact ID и SHA-256 без повторной генерации.
 
-Exit gate: результат переживает новую сессию; retry не дублирует обработку;
-идемпотентный повтор возвращает существующий результат; финальный WAV повторно
-проходит technical QC и зарегистрирован в Artifact Store; benchmark quality
-подтверждён на нескольких типах входа.
+Stage 13 остаётся authoritative safe-auto gate: review-required источник не может
+стать успешным master. Автоматический путь ограничен `preserve` (lossless WAV) и
+`normalize_loudness`; arbitrary plug-in/FFmpeg/shell chain не открывается. Готовый
+WAV повторно анализируется и принимается только при sample rate ≥44.1 kHz,
+mono/stereo, duration drift ≤100 ms, safe-auto envelope, final action `preserve` и
+true-peak ceiling. Финальный master регистрируется в Artifact Store с provenance.
+
+Exit gate пройден Windows CI #119 на реальных PCM 24-bit WAV в изолированных Project
+Bindings: quiet dynamic 48 kHz stereo проходит normalize→final preserve; точный
+повтор возвращает тот же job/artifact/SHA без роста manifest; уже compliant 48 kHz
+stereo проходит preserve; 32 kHz mono блокируется как non-retryable
+`MASTERING_REVIEW_REQUIRED` без успешного master artifact. Полная предыдущая
+регрессия и release build зелёные. Детали и честная граница technical-delivery vs
+artistic mastering: `project-context/STAGE15_MASTERING.md`.
 
 ## Horizon D — расширение только по спросу
 
@@ -194,7 +205,10 @@ hash/destination/cost.
 ### Stage 19. Additional professional capabilities — conditional
 
 Capability добавляется только при реальном сценарии, quality benchmark,
-определённом adapter owner и собственном exit gate.
+определённом adapter owner и собственном exit gate. После Stage 15 доказан следующий
+реальный gap: reference-based mastering/тональное сопоставление не покрывается
+technical delivery mastering и должно быть отдельной capability, а не скрытым
+расширением `audio.mastering_produce`.
 
 ### Stage 20. Operations audit — planned
 
