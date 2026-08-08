@@ -11,7 +11,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::protocol::{cleanup_old_cache, poll_once};
+use super::protocol::{cleanup_old_cache, notify_offline, poll_once};
 use super::{
     DEFAULT_SECRET_REF, MAX_LONG_POLL_SECONDS, authorize_transport, validate_endpoint,
     validate_token,
@@ -374,6 +374,7 @@ pub fn run_relay_worker(
                 Err(error) => return Err(error),
             }
         }
+        let _ = notify_offline(&binding, &paths.http, endpoint, token);
         Ok(())
     });
 
