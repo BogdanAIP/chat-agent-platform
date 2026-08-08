@@ -22,24 +22,23 @@ jobs:
         run: |
           from pathlib import Path
 
-          def replace_exact(path, old, new):
-              p = Path(path)
-              text = p.read_text(encoding="utf-8")
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{path}: expected exactly one match, got {count}")
-              p.write_text(text.replace(old, new), encoding="utf-8")
-
-          replace_exact(
-              "crates/agent-platform/tests/stage19_reference_mastering.rs",
-              '''                "executor": "edge.python.matchering",
-                  "enabled": true,
-          ''',
-              '''                "executor": "edge.python.matchering",
-                  "execution_path": "edge.python.matchering",
-                  "enabled": true,
-          ''',
-          )
+          fixture = Path("crates/agent-platform/tests/stage19_reference_mastering.rs")
+          text = fixture.read_text(encoding="utf-8")
+          needle = '"executor": "edge.python.matchering",'
+          if text.count(needle) != 1:
+              raise SystemExit(f"stage19 fixture: expected one executor line, got {text.count(needle)}")
+          lines = text.splitlines()
+          output = []
+          inserted = False
+          for line in lines:
+              output.append(line)
+              if needle in line:
+                  indent = line[: len(line) - len(line.lstrip())]
+                  output.append(f'{indent}"execution_path": "edge.python.matchering",')
+                  inserted = True
+          if not inserted:
+              raise SystemExit("stage19 fixture execution_path was not inserted")
+          fixture.write_text("\n".join(output) + "\n", encoding="utf-8")
 
           service = Path("crates/agent-platform/src/service.rs")
           text = service.read_text(encoding="utf-8")
