@@ -12,12 +12,23 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::protocol::{cleanup_old_cache, poll_once};
-use super::{MAX_LONG_POLL_SECONDS, authorize_transport, validate_endpoint, validate_token};
+use super::{
+    DEFAULT_SECRET_REF, MAX_LONG_POLL_SECONDS, authorize_transport, validate_endpoint,
+    validate_token,
+};
 use crate::binding::{ProjectBinding, resolve_project};
 use crate::error::{PlatformError, io_error};
 use crate::secret::SecretStore;
 
 const STATUS_STALE_SECONDS: i64 = 90;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RelayConfig {
+    contract_version: String,
+    endpoint: String,
+    secret_ref: String,
+    configured_at: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct WorkerStatus {
@@ -35,6 +46,7 @@ struct WorkerStatus {
 }
 
 struct RelayPaths {
+    config: PathBuf,
     status: PathBuf,
     stop: PathBuf,
     cache: PathBuf,
@@ -60,6 +72,7 @@ impl RelayPaths {
         fs::create_dir_all(&http)
             .map_err(|error| io_error("cannot create relay HTTP workspace", error))?;
         Ok(Self {
+            config: root.join("config.json"),
             status: root.join("status.json"),
             stop: root.join("stop.request"),
             cache,
@@ -68,37 +81,89 @@ impl RelayPaths {
     }
 }
 
-pub fn relay_status(repo_root: &Path, project_id: Option<&str>) -> Result<Value, PlatformError> {
-    let binding = resolve_project(repo_root, project_id)?;
-    let paths = RelayPaths::for_binding(&binding)?;
-    let status = read_status(&paths.status)?;
-    Ok(status_value(status.as_ref()))
-}
-
-pub fn start_relay_worker(
+pub(super) fn write_relay_config(
     repo_root: &Path,
     project_id: Option<&str>,
     endpoint: &str,
     secret_ref: &str,
 ) -> Result<Value, PlatformError> {
     validate_endpoint(endpoint)?;
-    let (binding, selection, policy) = authorize_transport(
+    if secret_ref.trim().is_empty() {
+        return Err(PlatformError::Validation(
+            "relay secret reference must not be empty".into(),
+        ));
+    }
+    let binding = resolve_project(repo_root, project_id)?;
+    let paths = RelayPaths::for_binding(&binding)?;
+    let config = RelayConfig {
+        contract_version: "relay-config-v1".into(),
+        endpoint: endpoint.into(),
+        secret_ref: secret_ref.into(),
+        configured_at: Utc::now().to_rfc3339(),
+    };
+    write_config(&paths.config, &config)?;
+    Ok(json!({
+        "contract_version": config.contract_version,
+        "endpoint": config.endpoint,
+        "secret_ref": config.secret_ref,
+        "configured_at": config.configured_at
+    }))
+}
+
+pub(super) fn remove_relay_config(
+    repo_root: &Path,
+    project_id: Option<&str>,
+) -> Result<(), PlatformError> {
+    let binding = resolve_project(repo_root, project_id)?;
+    let paths = RelayPaths::for_binding(&binding)?;
+    remove_if_exists(&paths.config)
+}
+
+pub fn relay_status(repo_root: &Path, project_id: Option<&str>) -> Result<Value, PlatformError> {
+    let binding = resolve_project(repo_root, project_id)?;
+    let paths = RelayPaths::for_binding(&binding)?;
+    let config = read_config(&paths.config)?;
+    let status = read_status(&paths.status)?;
+    Ok(status_value(status.as_ref(), config.as_ref()))
+}
+
+pub fn start_relay_worker(
+    repo_root: &Path,
+    project_id: Option<&str>,
+    endpoint_override: Option<&str>,
+    secret_ref_override: Option<&str>,
+) -> Result<Value, PlatformError> {
+    let binding = resolve_project(repo_root, project_id)?;
+    let paths = RelayPaths::for_binding(&binding)?;
+    let config = read_config(&paths.config)?;
+    let endpoint = endpoint_override
+        .or_else(|| config.as_ref().map(|item| item.endpoint.as_str()))
+        .ok_or_else(|| {
+            PlatformError::Validation(
+                "relay is not configured; run `relay configure --endpoint <https-url>` first".into(),
+            )
+        })?;
+    let secret_ref = secret_ref_override
+        .or_else(|| config.as_ref().map(|item| item.secret_ref.as_str()))
+        .unwrap_or(DEFAULT_SECRET_REF);
+    validate_endpoint(endpoint)?;
+    let (authorized_binding, selection, policy) = authorize_transport(
         repo_root,
-        project_id,
+        Some(&binding.project_id),
         json!({
             "action": "start",
             "external_destination": endpoint,
             "data_class": "project"
         }),
     )?;
-    SecretStore::new(&binding.repo_root)?.with_secret(secret_ref, &selection, |_| Ok(()))?;
-    let paths = RelayPaths::for_binding(&binding)?;
+    SecretStore::new(&authorized_binding.repo_root)?
+        .with_secret(secret_ref, &selection, |_| Ok(()))?;
     if let Some(existing) = read_status(&paths.status)?
         && status_is_live(&existing)
     {
         return Ok(json!({
             "status": "already_running",
-            "relay": status_value(Some(&existing)),
+            "relay": status_value(Some(&existing), config.as_ref()),
             "policy_decision_id": policy.decision_id
         }));
     }
@@ -160,14 +225,14 @@ pub fn start_relay_worker(
         {
             return Ok(json!({
                 "status": if current.state == "running" { "started" } else { "error" },
-                "relay": status_value(Some(&current)),
+                "relay": status_value(Some(&current), config.as_ref()),
                 "policy_decision_id": policy.decision_id
             }));
         }
     }
     Ok(json!({
         "status": "starting",
-        "relay": status_value(read_status(&paths.status)?.as_ref()),
+        "relay": status_value(read_status(&paths.status)?.as_ref(), config.as_ref()),
         "policy_decision_id": policy.decision_id
     }))
 }
@@ -182,10 +247,12 @@ pub fn stop_relay_worker(
         json!({"action": "stop", "data_class": "project"}),
     )?;
     let paths = RelayPaths::for_binding(&binding)?;
+    let config = read_config(&paths.config)?;
     let Some(mut status) = read_status(&paths.status)? else {
         return Ok(json!({
             "status": "stopped",
             "already_stopped": true,
+            "relay": status_value(None, config.as_ref()),
             "policy_decision_id": policy.decision_id
         }));
     };
@@ -198,7 +265,7 @@ pub fn stop_relay_worker(
         return Ok(json!({
             "status": "stopped",
             "already_stopped": true,
-            "relay": status_value(Some(&status)),
+            "relay": status_value(Some(&status), config.as_ref()),
             "policy_decision_id": policy.decision_id
         }));
     }
@@ -219,14 +286,14 @@ pub fn stop_relay_worker(
             remove_if_exists(&paths.stop)?;
             return Ok(json!({
                 "status": "stopped",
-                "relay": status_value(current.as_ref()),
+                "relay": status_value(current.as_ref(), config.as_ref()),
                 "policy_decision_id": policy.decision_id
             }));
         }
     }
     Ok(json!({
         "status": "stopping",
-        "relay": status_value(read_status(&paths.status)?.as_ref()),
+        "relay": status_value(read_status(&paths.status)?.as_ref(), config.as_ref()),
         "policy_decision_id": policy.decision_id
     }))
 }
@@ -336,6 +403,40 @@ pub fn run_relay_worker(
     }))
 }
 
+fn read_config(path: &Path) -> Result<Option<RelayConfig>, PlatformError> {
+    let text = match fs::read_to_string(path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(io_error("cannot read relay config", error)),
+    };
+    let config: RelayConfig = serde_json::from_str(&text)
+        .map_err(|error| PlatformError::Validation(format!("relay config is corrupt: {error}")))?;
+    if config.contract_version != "relay-config-v1" {
+        return Err(PlatformError::Validation(
+            "unsupported relay config contract".into(),
+        ));
+    }
+    validate_endpoint(&config.endpoint)?;
+    if config.secret_ref.trim().is_empty() {
+        return Err(PlatformError::Validation(
+            "relay config secret reference is empty".into(),
+        ));
+    }
+    Ok(Some(config))
+}
+
+fn write_config(path: &Path, config: &RelayConfig) -> Result<(), PlatformError> {
+    let text = serde_json::to_string_pretty(config).map_err(|error| {
+        PlatformError::Validation(format!("cannot serialize relay config: {error}"))
+    })?;
+    let mut file = AtomicWriteFile::open(path)
+        .map_err(|error| io_error("cannot open atomic relay config", error))?;
+    file.write_all(text.as_bytes())
+        .map_err(|error| io_error("cannot write atomic relay config", error))?;
+    file.commit()
+        .map_err(|error| io_error("cannot commit atomic relay config", error))
+}
+
 fn read_status(path: &Path) -> Result<Option<WorkerStatus>, PlatformError> {
     let text = match fs::read_to_string(path) {
         Ok(value) => value,
@@ -364,13 +465,14 @@ fn write_status(path: &Path, status: &WorkerStatus) -> Result<(), PlatformError>
         .map_err(|error| io_error("cannot commit atomic relay status", error))
 }
 
-fn status_value(status: Option<&WorkerStatus>) -> Value {
+fn status_value(status: Option<&WorkerStatus>, config: Option<&RelayConfig>) -> Value {
     let Some(status) = status else {
         return json!({
             "contract_version": "relay-worker-status-v1",
             "state": "stopped",
             "enabled": false,
-            "configured": false
+            "configured": config.is_some(),
+            "endpoint": config.map(|item| item.endpoint.as_str())
         });
     };
     let live = status_is_live(status);
@@ -378,7 +480,7 @@ fn status_value(status: Option<&WorkerStatus>) -> Value {
         "contract_version": status.contract_version,
         "state": if live { status.state.as_str() } else { "stopped" },
         "enabled": live && matches!(status.state.as_str(), "starting" | "running" | "stopping"),
-        "configured": true,
+        "configured": config.is_some(),
         "pid": status.pid,
         "project_id": status.project_id,
         "endpoint": status.endpoint,
