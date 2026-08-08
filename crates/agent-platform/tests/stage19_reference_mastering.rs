@@ -40,6 +40,7 @@ fn make_test_repo(root: &Path) {
             "capabilities": [{
                 "capability": "audio.reference_master",
                 "executor": "edge.python.matchering",
+                "execution_path": "edge.python.matchering",
                 "enabled": true,
                 "quality": "professional",
                 "reliability": "high",

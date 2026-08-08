@@ -175,6 +175,7 @@ pub fn diagnose(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pla
         "repo_root": binding.repo_root,
         "local_root": binding.local_root,
         "artifact_root": binding.artifact_root,
+        "rust": env!("CARGO_PKG_RUST_VERSION"),
         "rust_minimum": env!("CARGO_PKG_RUST_VERSION"),
         "ffmpeg": tool_version("ffmpeg")?,
         "ffprobe": tool_version("ffprobe")?
@@ -229,6 +230,7 @@ pub fn write_runtime_profile(
         "surface": "local_windows_rust",
         "project_id": binding.project_id,
         "system": std::env::consts::OS,
+        "rust": env!("CARGO_PKG_RUST_VERSION"),
         "rust_minimum": env!("CARGO_PKG_RUST_VERSION"),
         "tools": {
             "ffmpeg": {"available": true, "version": ffmpeg},
