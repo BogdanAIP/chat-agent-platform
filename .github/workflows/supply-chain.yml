@@ -87,12 +87,19 @@ jobs:
             --target all \
             --all-features \
             --override-filename agent-platform.cdx.json
-          test -s crates/agent-platform/agent-platform.cdx.json
-          python -m json.tool crates/agent-platform/agent-platform.cdx.json >/dev/null
+          mapfile -t generated < <(find "$GITHUB_WORKSPACE" -type f -name 'agent-platform.cdx.json' -print)
+          if [ "${#generated[@]}" -ne 1 ]; then
+            printf 'Expected exactly one generated SBOM, found %s\n' "${#generated[@]}" >&2
+            printf '%s\n' "${generated[@]}" >&2
+            exit 1
+          fi
+          mkdir -p runtime/sbom
+          cp "${generated[0]}" runtime/sbom/agent-platform.cdx.json
+          python -m json.tool runtime/sbom/agent-platform.cdx.json >/dev/null
       - name: Upload SBOM
         uses: actions/upload-artifact@v7
         with:
           name: agent-platform-cyclonedx-sbom
-          path: crates/agent-platform/agent-platform.cdx.json
+          path: runtime/sbom/agent-platform.cdx.json
           if-no-files-found: error
           retention-days: 30
