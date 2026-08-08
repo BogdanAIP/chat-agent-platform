@@ -7,6 +7,7 @@ pub mod capability;
 pub mod config;
 pub mod contracts;
 pub mod error;
+mod input_capture;
 pub mod job;
 pub mod job_ops;
 pub mod mastering_workflow;
