@@ -43,8 +43,8 @@ jobs:
           )
 
           text = text.replace('run_owned("ffmpeg", &arguments)?;', 'run_owned_for_media("ffmpeg", &arguments, &[input])?;', 2)
-          if text.count('run_owned("ffmpeg", &arguments)?;') != 3:
-              raise SystemExit('unexpected remaining run_owned call count after convert/extract patch')
+          if text.count('run_owned("ffmpeg", &arguments)?;') != 1:
+              raise SystemExit('unexpected remaining generic arguments call after convert/extract patch')
 
           replace_once(
               '    let first = run_owned("ffmpeg", &first_arguments)?;\n',
