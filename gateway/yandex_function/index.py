@@ -12,9 +12,10 @@ DEFAULT_STATE_DIR = "/function/storage/relay"
 MAX_LONG_POLL_SECONDS = 30
 DEFAULT_LONG_POLL_SECONDS = 25
 HEARTBEAT_TTL_SECONDS = 40
+HEARTBEAT_WRITE_SECONDS = 10
 TASK_TTL_SECONDS = 60
 RESULT_TTL_SECONDS = 300
-POLL_SLICE_SECONDS = 0.25
+POLL_SLICE_SECONDS = 1.0
 REQUEST_ID = re.compile(r"^rly_[a-f0-9]{32}$")
 ALLOWED_TOOLS = {
     "local_ping": {
@@ -105,7 +106,12 @@ def _authorized_mcp(event):
     expected = _mcp_token()
     if not expected:
         return True
-    supplied = _headers(event).get("x-mcp-token", "")
+    headers = _headers(event)
+    supplied = headers.get("x-mcp-token", "")
+    if not supplied:
+        authorization = headers.get("authorization", "")
+        if authorization.lower().startswith("bearer "):
+            supplied = authorization[7:].strip()
     return hmac.compare_digest(expected, supplied)
 
 
@@ -182,9 +188,13 @@ def _agent_poll(root, body):
         wait_seconds = DEFAULT_LONG_POLL_SECONDS
     wait_seconds = max(1, min(wait_seconds, MAX_LONG_POLL_SECONDS))
     deadline = time.monotonic() + wait_seconds
+    next_heartbeat = 0.0
     while True:
-        _write_heartbeat(root, project_id, operations)
-        _cleanup(root)
+        now = time.monotonic()
+        if now >= next_heartbeat:
+            _write_heartbeat(root, project_id, operations)
+            _cleanup(root)
+            next_heartbeat = now + HEARTBEAT_WRITE_SECONDS
         for path in sorted((root / "tasks").glob("rly_*.json"), key=lambda item: item.name):
             task = _read_json(path)
             if not task or task.get("project_id") != project_id:
@@ -202,9 +212,9 @@ def _agent_poll(root, body):
                 )
             }
             return _json_response(200, {"ok": True, "task": public_task})
-        if time.monotonic() >= deadline:
+        if now >= deadline:
             return _json_response(200, {"ok": True, "task": None})
-        time.sleep(POLL_SLICE_SECONDS)
+        time.sleep(min(POLL_SLICE_SECONDS, max(0.0, deadline - now)))
 
 
 def _agent_result(root, body):
