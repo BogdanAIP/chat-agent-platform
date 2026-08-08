@@ -225,8 +225,8 @@ impl ConfirmationStore {
         for entry in fs::read_dir(&self.root)
             .map_err(|error| io_error("cannot scan confirmation store", error))?
         {
-            let entry = entry
-                .map_err(|error| io_error("cannot read confirmation store entry", error))?;
+            let entry =
+                entry.map_err(|error| io_error("cannot read confirmation store entry", error))?;
             if !entry
                 .file_type()
                 .map_err(|error| io_error("cannot inspect confirmation store entry", error))?
@@ -344,10 +344,7 @@ fn validate_policy_decision(decision: &PolicyDecision) -> Result<(), PlatformErr
 fn validate_confirmation_id(value: &str) -> Result<(), PlatformError> {
     if value.len() == 36
         && value.starts_with("cfm_")
-        && value
-            .bytes()
-            .skip(4)
-            .all(|byte| byte.is_ascii_hexdigit())
+        && value.bytes().skip(4).all(|byte| byte.is_ascii_hexdigit())
     {
         Ok(())
     } else {
@@ -360,10 +357,7 @@ fn validate_confirmation_id(value: &str) -> Result<(), PlatformError> {
 fn validate_binding(value: &str) -> Result<(), PlatformError> {
     if value.len() == 72
         && value.starts_with("confirm_")
-        && value
-            .bytes()
-            .skip(8)
-            .all(|byte| byte.is_ascii_hexdigit())
+        && value.bytes().skip(8).all(|byte| byte.is_ascii_hexdigit())
     {
         Ok(())
     } else {

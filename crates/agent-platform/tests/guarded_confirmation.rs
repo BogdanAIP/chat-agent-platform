@@ -105,8 +105,7 @@ fn exact_fresh_policy_binding_is_required_and_replay_is_denied() {
         "policy decisions are fresh audit records"
     );
     assert_eq!(
-        original.confirmation_binding,
-        fresh_same_action.confirmation_binding,
+        original.confirmation_binding, fresh_same_action.confirmation_binding,
         "stable action binding must survive fresh policy evaluation"
     );
     let permit = store
@@ -148,10 +147,9 @@ fn expired_confirmation_fails_closed_without_becoming_consumed() {
         .expect("prepare confirmation");
 
     let path = confirmation_path(&store_root, &prepared.confirmation_id);
-    let mut persisted: Value = serde_json::from_str(
-        &fs::read_to_string(&path).expect("persisted confirmation"),
-    )
-    .expect("confirmation JSON");
+    let mut persisted: Value =
+        serde_json::from_str(&fs::read_to_string(&path).expect("persisted confirmation"))
+            .expect("confirmation JSON");
     persisted["expires_at"] = Value::String((Utc::now() - Duration::seconds(1)).to_rfc3339());
     fs::write(
         &path,
