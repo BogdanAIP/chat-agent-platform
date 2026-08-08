@@ -18,8 +18,8 @@ use agent_platform::service::{
     diagnose, inspect_artifact, inspect_file, self_test, write_runtime_profile,
 };
 use agent_platform::transport::{
-    relay_status, remove_relay_token, run_relay_worker, start_relay_worker, stop_relay_worker,
-    store_relay_token_from_env,
+    configure_relay, relay_status, remove_relay_token, run_relay_worker, start_relay_worker,
+    stop_relay_worker,
 };
 use clap::{Parser, Subcommand};
 use serde_json::json;
@@ -42,6 +42,8 @@ enum RelayCommand {
     Configure {
         #[arg(long)]
         project_id: Option<String>,
+        #[arg(long)]
+        endpoint: String,
         #[arg(long, default_value = "AGENT_PLATFORM_RELAY_TOKEN")]
         env_name: String,
         #[arg(long, default_value = "relay.agent_token")]
@@ -51,9 +53,9 @@ enum RelayCommand {
         #[arg(long)]
         project_id: Option<String>,
         #[arg(long)]
-        endpoint: String,
-        #[arg(long, default_value = "relay.agent_token")]
-        secret_ref: String,
+        endpoint: Option<String>,
+        #[arg(long)]
+        secret_ref: Option<String>,
     },
     Status {
         #[arg(long)]
@@ -317,14 +319,26 @@ fn run_relay_command(
     match command {
         RelayCommand::Configure {
             project_id,
+            endpoint,
             env_name,
             secret_ref,
-        } => store_relay_token_from_env(repo_root, project_id.as_deref(), env_name, secret_ref),
+        } => configure_relay(
+            repo_root,
+            project_id.as_deref(),
+            endpoint,
+            env_name,
+            secret_ref,
+        ),
         RelayCommand::Start {
             project_id,
             endpoint,
             secret_ref,
-        } => start_relay_worker(repo_root, project_id.as_deref(), endpoint, secret_ref),
+        } => start_relay_worker(
+            repo_root,
+            project_id.as_deref(),
+            endpoint.as_deref(),
+            secret_ref.as_deref(),
+        ),
         RelayCommand::Status { project_id } => relay_status(repo_root, project_id.as_deref()),
         RelayCommand::Stop { project_id } => stop_relay_worker(repo_root, project_id.as_deref()),
         RelayCommand::RemoveToken {
