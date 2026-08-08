@@ -151,8 +151,11 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(heartbeat_value["last_seen_unix_ms"], 0)
         self.assertEqual(heartbeat_value["operations"], [])
         self.assertFalse(parsed(offline)["agent_online"])
-        health = parsed(index.handler(event({}, method="GET"), None))
+        public_health = parsed(index.handler(event({}, method="GET"), None))
+        self.assertEqual(set(public_health), {"status", "contract_version"})
+        health = parsed(index.handler(event({}, remote_headers(), method="GET"), None))
         self.assertFalse(health["agent_online"])
+        self.assertEqual(health["project_id"], "demo")
         self.assertTrue(health["remote_auth_configured"])
 
     def test_actions_long_poll_rendezvous_result_and_duplicate_are_no_delete(self):

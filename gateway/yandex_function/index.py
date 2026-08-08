@@ -409,16 +409,16 @@ def handler(event, context):
     root = _ensure_state()
     method = str(event.get("httpMethod") or "POST").upper()
     if method == "GET":
-        return _json_response(
-            200,
-            {
-                "status": "ok",
-                "contract_version": CONTRACT,
-                "agent_online": _agent_online(root, _project_id()),
-                "project_id": _project_id(),
-                "remote_auth_configured": bool(_remote_token()),
-            },
-        )
+        health = {"status": "ok", "contract_version": CONTRACT}
+        if _authorized_remote(event):
+            health.update(
+                {
+                    "agent_online": _agent_online(root, _project_id()),
+                    "project_id": _project_id(),
+                    "remote_auth_configured": bool(_remote_token()),
+                }
+            )
+        return _json_response(200, health)
     if method != "POST":
         return _json_response(405, {"error": "method not allowed"}, {"Allow": "GET, POST"})
     try:

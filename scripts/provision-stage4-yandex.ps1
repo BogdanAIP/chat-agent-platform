@@ -48,6 +48,7 @@ $remoteToken = (Get-Clipboard -Raw).Trim()
 if ($remoteToken.Length -lt 24) {
     throw 'GPT Actions bearer token was not found in the clipboard after deployment.'
 }
+$headers = @{ Authorization = "Bearer $remoteToken" }
 
 $relayStarted = $false
 $roundTripPassed = $false
@@ -67,7 +68,7 @@ try {
     $online = $false
     for ($attempt = 0; $attempt -lt 45; $attempt++) {
         try {
-            $health = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+            $health = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
             if ($health.status -eq 'ok' -and $health.agent_online) {
                 $online = $true
                 break
@@ -80,7 +81,6 @@ try {
     }
     if (-not $online) { throw 'Yandex gateway did not observe the local relay heartbeat.' }
 
-    $headers = @{ Authorization = "Bearer $remoteToken" }
     Write-Host '[Stage 4] Calling local_ping through the real public Yandex URL...'
     $pingBody = @{ action = 'local_ping'; message = 'Stage 4 real Yandex acceptance' } | ConvertTo-Json -Compress
     $localPingResult = Invoke-RestMethod -Method Post -Uri $functionUrl -Headers $headers -ContentType 'application/json' -Body $pingBody -TimeoutSec 45
@@ -115,11 +115,11 @@ finally {
 
 if (-not $roundTripPassed) { throw 'Stage 4 real Yandex acceptance did not complete.' }
 
-$finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+$finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
 if (-not $LeaveRelayOn -and $finalHealth.agent_online) {
     for ($attempt = 0; $attempt -lt 10 -and $finalHealth.agent_online; $attempt++) {
         Start-Sleep -Milliseconds 500
-        $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 10
+        $finalHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $headers -TimeoutSec 10
     }
 }
 if (-not $LeaveRelayOn -and $finalHealth.agent_online) {

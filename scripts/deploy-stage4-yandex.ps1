@@ -249,8 +249,16 @@ finally {
 }
 
 Write-Host '[7/7] Verifying public gateway health...'
-$health = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 20
-if ($health.status -ne 'ok') { throw 'Yandex relay health endpoint did not return status=ok' }
+$publicHealth = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 20
+if ($publicHealth.status -ne 'ok') { throw 'Yandex relay public health endpoint did not return status=ok' }
+foreach ($privateField in @('agent_online','project_id','remote_auth_configured')) {
+    if ($publicHealth.PSObject.Properties.Name -contains $privateField) {
+        throw "Yandex relay public health leaked private field: $privateField"
+    }
+}
+$remoteHeaders = @{ Authorization = "Bearer $remoteToken" }
+$health = Invoke-RestMethod -Method Get -Uri $functionUrl -Headers $remoteHeaders -TimeoutSec 20
+if ($health.status -ne 'ok') { throw 'Yandex relay authenticated health endpoint did not return status=ok' }
 if (-not $health.remote_auth_configured) { throw 'Yandex relay did not report configured remote authentication.' }
 
 if ($CopyActionTokenToClipboard) {
