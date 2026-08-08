@@ -1,0 +1,21 @@
+[advisories]
+ignore = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "simplest-path"
+deny = []
+skip = []
+skip-tree = []
+
+[bans.workspace-dependencies]
+duplicates = "deny"
+include-path-dependencies = true
+unused = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+required-git-spec = "rev"
+unused-allowed-source = "warn"

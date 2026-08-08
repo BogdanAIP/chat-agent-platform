@@ -1,0 +1,105 @@
+name: Supply Chain
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - "deny.toml"
+      - ".github/workflows/supply-chain.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - "deny.toml"
+      - ".github/workflows/supply-chain.yml"
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supply-chain-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-policy:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check dependency bans and sources
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
+        with:
+          rust-version: "1.97.1"
+          command: check bans sources
+          arguments: --all-features
+
+  advisories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: ${{ github.event_name == 'schedule' }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check RustSec advisories
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
+        with:
+          rust-version: "1.97.1"
+          command: check advisories
+          arguments: --all-features
+
+  sbom:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Cache cargo-cyclonedx
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-cyclonedx
+          key: cargo-cyclonedx-0.5.9-${{ runner.os }}-${{ runner.arch }}
+      - name: Install pinned cargo-cyclonedx
+        shell: bash
+        run: |
+          if ! cargo cyclonedx --version 2>/dev/null | grep -q '0.5.9'; then
+            cargo install --locked cargo-cyclonedx --version 0.5.9
+          fi
+      - name: Generate reproducible CycloneDX SBOM
+        shell: bash
+        run: |
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          cargo cyclonedx \
+            --manifest-path crates/agent-platform/Cargo.toml \
+            --format json \
+            --spec-version 1.5 \
+            --target all \
+            --all-features \
+            --override-filename agent-platform.cdx
+          mapfile -t generated < <(find "$GITHUB_WORKSPACE" -type f -name 'agent-platform.cdx.json' -print)
+          if [ "${#generated[@]}" -ne 1 ]; then
+            printf 'Expected exactly one generated SBOM, found %s\n' "${#generated[@]}" >&2
+            printf '%s\n' "${generated[@]}" >&2
+            exit 1
+          fi
+          mkdir -p runtime/sbom
+          cp "${generated[0]}" runtime/sbom/agent-platform.cdx.json
+          python -m json.tool runtime/sbom/agent-platform.cdx.json >/dev/null
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-platform-cyclonedx-sbom
+          path: runtime/sbom/agent-platform.cdx.json
+          if-no-files-found: error
+          retention-days: 30
