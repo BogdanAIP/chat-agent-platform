@@ -6,6 +6,7 @@ use agent_platform::bootstrap::build_context;
 use agent_platform::job_ops::{
     begin_job, cancel_job, checkpoint_job, fail_job, get_job, resume_job, succeed_job,
 };
+use agent_platform::mastering_workflow::produce_mastering_file;
 use agent_platform::media_ops::{
     analyze_mastering_file, convert_audio_file, extract_audio_file, mux_media_files,
     normalize_audio_file, validate_media_file,
@@ -155,6 +156,22 @@ enum Command {
         requested_risk_hint: Option<String>,
     },
     AnalyzeMastering {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(
+            long,
+            value_parser = ["music-balanced", "music-loud", "speech"],
+            default_value = "music-balanced"
+        )]
+        profile: String,
+        #[arg(long, default_value = "project")]
+        data_class: String,
+        #[arg(long)]
+        requested_risk_hint: Option<String>,
+    },
+    ProduceMaster {
         #[arg(long)]
         project_id: Option<String>,
         #[arg(long)]
@@ -351,6 +368,20 @@ fn main() -> ExitCode {
             data_class,
             requested_risk_hint,
         } => analyze_mastering_file(
+            &cli.repo_root,
+            file,
+            project_id.as_deref(),
+            data_class,
+            requested_risk_hint.as_deref(),
+            profile,
+        ),
+        Command::ProduceMaster {
+            project_id,
+            file,
+            profile,
+            data_class,
+            requested_risk_hint,
+        } => produce_mastering_file(
             &cli.repo_root,
             file,
             project_id.as_deref(),

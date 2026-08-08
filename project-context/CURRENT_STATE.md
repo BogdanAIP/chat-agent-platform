@@ -107,11 +107,36 @@ persistence подтверждена именно между process/session bou
 workflow engine, database или runtime dependency не появился. Подробности в
 `project-context/STAGE14_RUNTIME.md`.
 
-Следующий обязательный этап — Stage 15 production mastering workflow: связать Stage
-13 decision, Stage 11 processing, Artifact Store и Stage 14 jobs в одну
-идемпотентную, возобновляемую операцию с финальным quality gate. Материал, который
-Stage 13 требует отправить на review, не должен автоматически становиться успешным
-master.
+Stage 15 завершён. Policy-gated `audio.mastering_produce` / `produce-master`
+связывает Stage 13 decision layer, Stage 11 lossless/two-pass EBU R128 processing,
+Artifact Store и Stage 14 persistent jobs. Idempotency key включает workflow
+version, SHA-256 исходного файла, профиль и data class. Успешный повтор того же
+запроса возвращает существующие job/master artifact/SHA-256 и не увеличивает
+Artifact Store manifest.
+
+Stage 13 остаётся authoritative safe-auto gate: review-required материал не может
+стать успешным автоматическим master. Разрешены только `preserve` через lossless WAV
+и `normalize_loudness`; arbitrary plug-in/FFmpeg/shell chain не выставляется.
+Финальный WAV анализируется заново и должен пройти sample-rate ≥44.1 kHz,
+mono/stereo, duration-drift ≤100 ms, Stage 13 safe-auto envelope, final action
+`preserve` и true-peak ceiling. После этого master регистрируется в Artifact Store с
+workflow/job/profile/QC provenance и persisted result.
+
+Windows CI #119 прошёл реальные изолированные Project Binding сценарии: quiet
+dynamic 48 kHz stereo → normalize → final preserve; exact repeat → тот же job,
+artifact ID и SHA без нового manifest entry; already-compliant 48 kHz stereo →
+preserve; 32 kHz mono → non-retryable `MASTERING_REVIEW_REQUIRED` и отсутствие
+успешного master artifact. Строгие fmt/Clippy, все Rust tests, contracts, Python
+oracle/parity и release build зелёные. `project-context/STAGE15_MASTERING.md`
+фиксирует границу: это надёжный technical delivery master, а reference/тональный/
+художественный mastering требует отдельной capability и отдельного benchmark.
+
+После Stage 15 следующий доказанный функциональный gap — reference-based mastering,
+который подходит под Stage 19 как отдельная профессиональная capability. Stage 16–18
+остаются conditional и не реализуются автоматически без конкретного браузерного,
+видео- или distribution-сценария. Отдельно остаётся ранний Stage 4 gap: Hosted Chat
+→ local execution transport пока не доказан и должен быть закрыт тонким transport
+решением либо явным ADR без разрастания media/business logic в transport.
 
 Stage 9 остаётся conditional: отдельный supervisor/service не создаётся без
 независимого lifecycle requirement. Stage 10 имеет рабочий Windows CI baseline.

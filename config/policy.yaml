@@ -50,6 +50,13 @@
       "external_side_effect": false,
       "max_cost": 0
     },
+    "audio.mastering_produce": {
+      "decision": "allow",
+      "enforced_by": "local_mastering_workflow",
+      "allowed_data_classes": ["public", "project", "private", "sensitive"],
+      "external_side_effect": false,
+      "max_cost": 0
+    },
     "audio.reaper_render": {
       "decision": "allow",
       "enforced_by": "local_reaper_adapter",

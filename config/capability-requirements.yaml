@@ -58,6 +58,14 @@
       "acceptance": ["ebu_r128_metrics", "profile_target", "explicit_quality_flags", "safe_auto_gate", "benchmark_corpus", "artifact_sha256"]
     },
     {
+      "capability": "audio.mastering_produce",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.mastering"],
+      "fallbacks": [],
+      "acceptance": ["source_hash_idempotency", "persistent_job", "safe_auto_gate", "lossless_wav_master", "final_loudness_tolerance", "final_true_peak_ceiling", "duration_integrity", "artifact_sha256", "resume_without_duplicate_master"]
+    },
+    {
       "capability": "audio.reaper_render",
       "required": true,
       "required_quality": "professional",
