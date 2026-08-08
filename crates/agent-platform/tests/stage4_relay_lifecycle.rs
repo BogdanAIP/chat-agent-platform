@@ -1,6 +1,6 @@
 #![cfg(windows)]
 
-use std::fs;
+use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -76,13 +76,19 @@ fn make_test_repo(root: &Path) {
 }
 
 fn run(root: &Path, args: &[&str], token_env: bool) -> Value {
+    let output_id = Uuid::new_v4().simple();
+    let stdout_path = root.join(format!(".stage4-command-{output_id}.stdout"));
+    let stderr_path = root.join(format!(".stage4-command-{output_id}.stderr"));
+    let stdout_file = File::create(&stdout_path).expect("create command stdout file");
+    let stderr_file = File::create(&stderr_path).expect("create command stderr file");
+
     let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_agent-platform"));
     command
         .arg("--repo-root")
         .arg(root)
         .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stdout(Stdio::from(stdout_file))
+        .stderr(Stdio::from(stderr_file));
     if token_env {
         command.env("STAGE4_TEST_RELAY_TOKEN", TOKEN);
     }
@@ -98,16 +104,16 @@ fn run(root: &Path, args: &[&str], token_env: bool) -> Value {
     else {
         let _ = child.kill();
         let _ = child.wait();
-        panic!("agent-platform command timed out after {timeout:?}: {args:?}");
+        let stdout = fs::read_to_string(&stdout_path).unwrap_or_default();
+        let stderr = fs::read_to_string(&stderr_path).unwrap_or_default();
+        panic!(
+            "agent-platform command timed out after {timeout:?}: {args:?}; stdout={stdout} stderr={stderr}"
+        );
     };
-    let mut stdout = Vec::new();
-    let mut stderr = Vec::new();
-    if let Some(mut pipe) = child.stdout.take() {
-        pipe.read_to_end(&mut stdout).expect("read command stdout");
-    }
-    if let Some(mut pipe) = child.stderr.take() {
-        pipe.read_to_end(&mut stderr).expect("read command stderr");
-    }
+    let stdout = fs::read(&stdout_path).expect("read command stdout");
+    let stderr = fs::read(&stderr_path).expect("read command stderr");
+    let _ = fs::remove_file(&stdout_path);
+    let _ = fs::remove_file(&stderr_path);
     assert!(
         status.success(),
         "agent-platform failed for {args:?}: stdout={} stderr={}",
