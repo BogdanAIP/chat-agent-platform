@@ -77,7 +77,13 @@ fn job_state_survives_separate_binary_processes() {
 
     let running = run(
         temporary.path(),
-        &["job-resume", "--project-id", "process-test", "--job-id", &job_id],
+        &[
+            "job-resume",
+            "--project-id",
+            "process-test",
+            "--job-id",
+            &job_id,
+        ],
     );
     assert_eq!(running["status"], "running");
 
@@ -98,7 +104,13 @@ fn job_state_survives_separate_binary_processes() {
 
     let reopened = run(
         temporary.path(),
-        &["job-get", "--project-id", "process-test", "--job-id", &job_id],
+        &[
+            "job-get",
+            "--project-id",
+            "process-test",
+            "--job-id",
+            &job_id,
+        ],
     );
     assert_eq!(reopened["checkpoint"]["name"], "analysis_complete");
     assert_eq!(reopened["checkpoint"]["data"]["source"], "art_deadbeef");
@@ -117,7 +129,13 @@ fn job_state_survives_separate_binary_processes() {
     );
     let retried = run(
         temporary.path(),
-        &["job-resume", "--project-id", "process-test", "--job-id", &job_id],
+        &[
+            "job-resume",
+            "--project-id",
+            "process-test",
+            "--job-id",
+            &job_id,
+        ],
     );
     assert_eq!(retried["status"], "running");
     assert_eq!(retried["attempt"], 2);
@@ -137,7 +155,13 @@ fn job_state_survives_separate_binary_processes() {
     );
     let completed = run(
         temporary.path(),
-        &["job-get", "--project-id", "process-test", "--job-id", &job_id],
+        &[
+            "job-get",
+            "--project-id",
+            "process-test",
+            "--job-id",
+            &job_id,
+        ],
     );
     assert_eq!(completed["status"], "succeeded");
     assert_eq!(completed["result"]["artifact_id"], "art_cafebabe");
