@@ -319,12 +319,7 @@ fn run_relay_command(
             project_id,
             env_name,
             secret_ref,
-        } => store_relay_token_from_env(
-            repo_root,
-            project_id.as_deref(),
-            env_name,
-            secret_ref,
-        ),
+        } => store_relay_token_from_env(repo_root, project_id.as_deref(), env_name, secret_ref),
         RelayCommand::Start {
             project_id,
             endpoint,
@@ -343,8 +338,13 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match &cli.command {
         Command::Diagnose { project_id } => diagnose(&cli.repo_root, project_id.as_deref()),
-        Command::Probe { project_id } => write_runtime_profile(&cli.repo_root, project_id.as_deref())
-            .map(|(output, profile)| json!({"status": "success", "output": output, "profile": profile})),
+        Command::Probe { project_id } => write_runtime_profile(
+            &cli.repo_root,
+            project_id.as_deref(),
+        )
+        .map(
+            |(output, profile)| json!({"status": "success", "output": output, "profile": profile}),
+        ),
         Command::Relay { command } => run_relay_command(&cli.repo_root, command),
         Command::RelayWorker {
             project_id,
@@ -408,8 +408,10 @@ fn main() -> ExitCode {
             project_id,
             capability,
         } => build_context(&cli.repo_root, project_id.as_deref(), capability),
-        Command::Audit { project_id } => write_capability_audit(&cli.repo_root, project_id.as_deref())
-            .map(|output| json!({"status": "success", "output": output})),
+        Command::Audit { project_id } => {
+            write_capability_audit(&cli.repo_root, project_id.as_deref())
+                .map(|output| json!({"status": "success", "output": output}))
+        }
         Command::SelfTest { project_id } => self_test(&cli.repo_root, project_id.as_deref()),
         Command::JobBegin {
             project_id,
