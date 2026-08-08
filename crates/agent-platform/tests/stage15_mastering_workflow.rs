@@ -133,14 +133,8 @@ fn quiet_dynamic_program_is_mastered_once_and_reused_idempotently() {
     let peak = first["result"]["final_inspection"]["true_peak_dbtp"]
         .as_f64()
         .expect("final true peak");
-    assert!(
-        (lufs + 14.0).abs() <= 0.7,
-        "unexpected final LUFS: {lufs}"
-    );
-    assert!(
-        peak <= -0.9,
-        "true peak exceeds target tolerance: {peak}"
-    );
+    assert!((lufs + 14.0).abs() <= 0.7, "unexpected final LUFS: {lufs}");
+    assert!(peak <= -0.9, "true peak exceeds target tolerance: {peak}");
 
     let job_id = first["result"]["job_id"]
         .as_str()
