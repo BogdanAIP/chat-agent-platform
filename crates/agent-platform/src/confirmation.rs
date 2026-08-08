@@ -119,6 +119,21 @@ impl ConfirmationStore {
 
         self.with_lock(|| {
             let now = Utc::now();
+            let requested_expiry = now + Duration::seconds(ttl_seconds);
+            if let Some(mut existing) = self.find_active_locked(
+                binding,
+                &decision.capability,
+                &decision.effective_risk,
+                now,
+            )? {
+                let existing_expiry = parse_timestamp("expires_at", &existing.expires_at)?;
+                if requested_expiry < existing_expiry {
+                    existing.expires_at = requested_expiry.to_rfc3339();
+                    self.write_locked(&existing)?;
+                }
+                return Ok(existing);
+            }
+
             let record = ConfirmationRecord {
                 contract_version: "confirmation-v1".into(),
                 confirmation_id: format!("cfm_{}", Uuid::new_v4().simple()),
@@ -129,7 +144,7 @@ impl ConfirmationStore {
                 effective_risk: decision.effective_risk.clone(),
                 status: "prepared".into(),
                 created_at: now.to_rfc3339(),
-                expires_at: (now + Duration::seconds(ttl_seconds)).to_rfc3339(),
+                expires_at: requested_expiry.to_rfc3339(),
                 consumed_at: None,
             };
             self.write_locked(&record)?;
@@ -198,6 +213,52 @@ impl ConfirmationStore {
             self.write_locked(&record)?;
             Ok(ConfirmationPermit { record })
         })
+    }
+
+    fn find_active_locked(
+        &self,
+        confirmation_binding: &str,
+        capability: &str,
+        effective_risk: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<ConfirmationRecord>, PlatformError> {
+        for entry in fs::read_dir(&self.root)
+            .map_err(|error| io_error("cannot scan confirmation store", error))?
+        {
+            let entry = entry
+                .map_err(|error| io_error("cannot read confirmation store entry", error))?;
+            if !entry
+                .file_type()
+                .map_err(|error| io_error("cannot inspect confirmation store entry", error))?
+                .is_file()
+            {
+                continue;
+            }
+            let path = entry.path();
+            if path.extension().and_then(|value| value.to_str()) != Some("json") {
+                continue;
+            }
+            let Some(confirmation_id) = path.file_stem().and_then(|value| value.to_str()) else {
+                return Err(PlatformError::Validation(format!(
+                    "invalid confirmation filename: {}",
+                    path.display()
+                )));
+            };
+            validate_confirmation_id(confirmation_id)?;
+            let record = self.read_locked(confirmation_id)?;
+            if record.status != "prepared"
+                || record.capability != capability
+                || record.effective_risk != effective_risk
+                || record.confirmation_binding != confirmation_binding
+            {
+                continue;
+            }
+            let expires_at = parse_timestamp("expires_at", &record.expires_at)?;
+            if now <= expires_at {
+                return Ok(Some(record));
+            }
+        }
+        Ok(None)
     }
 
     fn read_locked(&self, confirmation_id: &str) -> Result<ConfirmationRecord, PlatformError> {
