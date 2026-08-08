@@ -92,16 +92,13 @@ fn run(root: &Path, args: &[&str], token_env: bool) -> Value {
     } else {
         Duration::from_secs(15)
     };
-    let status = match child
+    let Some(status) = child
         .wait_timeout(timeout)
         .expect("agent-platform wait must succeed")
-    {
-        Some(status) => status,
-        None => {
-            let _ = child.kill();
-            let _ = child.wait();
-            panic!("agent-platform command timed out after {timeout:?}: {args:?}");
-        }
+    else {
+        let _ = child.kill();
+        let _ = child.wait();
+        panic!("agent-platform command timed out after {timeout:?}: {args:?}");
     };
     let mut stdout = Vec::new();
     let mut stderr = Vec::new();
