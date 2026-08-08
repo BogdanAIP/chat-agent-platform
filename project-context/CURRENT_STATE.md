@@ -90,11 +90,28 @@ oracle/parity и release build. `project-context/STAGE13_BENCHMARK.md` фикс�
 границу: это профессиональный технический decision/QC layer, а не заявление, что
 LUFS-анализ сам по себе заменяет художественный мастеринг.
 
-Stage 14 теперь planned, а не абстрактно conditional: Stage 15 прямо требует job ID,
-persistence, recovery, idempotency, retry, checkpoints и resume между сессиями.
-Следующий шаг — лёгкий Rust job state machine внутри существующего binary; внешний
-workflow engine, daemon или service не добавляется, пока этот путь не докажет
-недостаточность.
+Stage 14 завершён. `agent-platform.exe` теперь содержит собственный компактный
+persistent job runtime вместо отдельного workflow-сервиса. `job-v1` хранится внутри
+bound local root в `runtime/jobs/<project_id>`, записывается атомарно и защищён
+межпроцессной блокировкой. Есть idempotent begin, status transitions, checkpoints,
+cancellation, retryable failure, attempt counter и resume; checkpoint сохраняется
+между retry. Persisted state повторно проходит contract/identity validation и
+повреждение обрабатывается fail-closed без удаления evidence.
+
+Windows CI #109 доказал конкурентную идемпотентность, запрет capability collision,
+persistence через новые `JobStore`, retry/checkpoint semantics, terminal и
+non-retryable denial и corrupt-state handling. Дополнительный integration test
+запускает собранный `agent-platform` отдельными процессами для всего цикла begin →
+resume → checkpoint → get → retryable fail → resume → succeed → get, поэтому
+persistence подтверждена именно между process/session boundaries. Новый daemon,
+workflow engine, database или runtime dependency не появился. Подробности в
+`project-context/STAGE14_RUNTIME.md`.
+
+Следующий обязательный этап — Stage 15 production mastering workflow: связать Stage
+13 decision, Stage 11 processing, Artifact Store и Stage 14 jobs в одну
+идемпотентную, возобновляемую операцию с финальным quality gate. Материал, который
+Stage 13 требует отправить на review, не должен автоматически становиться успешным
+master.
 
 Stage 9 остаётся conditional: отдельный supervisor/service не создаётся без
 независимого lifecycle requirement. Stage 10 имеет рабочий Windows CI baseline.
