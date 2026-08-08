@@ -40,6 +40,7 @@ fn make_test_repo(root: &Path) {
             "capabilities": [{
                 "capability": "audio.reference_master",
                 "executor": "edge.python.matchering",
+                "execution_path": "edge.python.matchering",
                 "enabled": true,
                 "quality": "professional",
                 "reliability": "high",
@@ -69,9 +70,11 @@ fn make_test_repo(root: &Path) {
                 "capability": "audio.reference_master",
                 "required": true,
                 "required_quality": "professional",
+                "required_reliability": "high",
+                "required_determinism": "high",
                 "execution_paths": ["edge.python.matchering"],
                 "fallbacks": [],
-                "acceptance": ["reference_match", "technical_delivery_qc", "artifact_sha256"]
+                "acceptance_evidence": ["reference_match", "technical_delivery_qc", "artifact_sha256"]
             }]
         }))
         .expect("requirements config"),

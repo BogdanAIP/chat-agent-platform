@@ -7,11 +7,13 @@ use uuid::Uuid;
 
 use crate::artifact::{Artifact, ArtifactStore};
 use crate::binding::{ProjectBinding, resolve_project};
-use crate::capability::{CapabilityRegistry, required_quality};
+use crate::capability::{CapabilityRegistry, CapabilitySelection, required_quality};
 use crate::contracts;
 use crate::error::PlatformError;
 use crate::media::{inspect_media, tool_version};
 use crate::policy::{PolicyDecision, PolicyEnforcementPoint};
+use crate::reaper::discover_reaper;
+use crate::reference_mastering::probe_matchering;
 
 pub fn inspect_file(
     repo_root: &Path,
@@ -172,7 +174,8 @@ pub fn diagnose(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pla
         "repo_root": binding.repo_root,
         "local_root": binding.local_root,
         "artifact_root": binding.artifact_root,
-        "rust": env!("CARGO_PKG_RUST_VERSION"),
+        "rust": env!("AGENT_PLATFORM_RUSTC_VERSION"),
+        "rust_msrv": env!("CARGO_PKG_RUST_VERSION"),
         "ffmpeg": tool_version("ffmpeg")?,
         "ffprobe": tool_version("ffprobe")?
     }))
@@ -185,47 +188,44 @@ pub fn write_runtime_profile(
     let binding = resolve_project(repo_root, project_id)?;
     let ffmpeg = tool_version("ffmpeg")?;
     let ffprobe = tool_version("ffprobe")?;
+    let registry = CapabilityRegistry::load(&binding.repo_root)?;
+    let selections = registry.locked_selections()?;
+    let mut capabilities = Map::new();
+    for selection in &selections {
+        capabilities.insert(
+            selection.capability().to_owned(),
+            runtime_capability_entry(&binding.repo_root, selection),
+        );
+    }
+    let required_unavailable = capabilities
+        .values()
+        .filter(|entry| {
+            entry.get("required").and_then(Value::as_bool) == Some(true)
+                && entry.get("status").and_then(Value::as_str) == Some("unavailable")
+        })
+        .count();
     let profile = json!({
         "contract_version": "runtime-capability-profile-v1",
         "verified_at": Utc::now().to_rfc3339(),
+        "status": if required_unavailable == 0 { "available" } else { "degraded" },
+        "required_unavailable": required_unavailable,
         "surface": "local_windows_rust",
         "project_id": binding.project_id,
         "system": std::env::consts::OS,
-        "rust": env!("CARGO_PKG_RUST_VERSION"),
+        "rust": {
+            "compiler": env!("AGENT_PLATFORM_RUSTC_VERSION"),
+            "msrv": env!("CARGO_PKG_RUST_VERSION")
+        },
         "tools": {
             "ffmpeg": {"available": true, "version": ffmpeg},
             "ffprobe": {"available": true, "version": ffprobe}
         },
-        "capabilities": {
-            "media.inspect": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.validate": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.convert": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.extract_audio": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.normalize_loudness": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "media.mux": {
-                "status": "available",
-                "execution_path": "rust.local.ffmpeg"
-            },
-            "runtime.self_test": {
-                "status": "available",
-                "execution_path": "rust.local.core"
-            }
+        "selection_source": {
+            "manifest": "config/tools.yaml",
+            "lock": "config/tool-lock.yaml",
+            "requirements": "config/capability-requirements.yaml"
         },
+        "capabilities": Value::Object(capabilities),
         "binding": {
             "repo_root": binding.repo_root,
             "local_root": binding.local_root,
@@ -246,6 +246,44 @@ pub fn write_runtime_profile(
     Ok((output, profile))
 }
 
+fn runtime_capability_entry(repo_root: &Path, selection: &CapabilitySelection) -> Value {
+    let (status, health) = match selection.executor() {
+        "edge.python.matchering" => match probe_matchering(repo_root) {
+            Ok(probe) => ("available", probe),
+            Err(error) => (
+                "unavailable",
+                json!({"code": error.code(), "message": error.to_string()}),
+            ),
+        },
+        "rust.local.reaper" => match discover_reaper() {
+            Ok(path) => (
+                "available",
+                json!({"executable": path.to_string_lossy().into_owned()}),
+            ),
+            Err(error) => (
+                "unavailable",
+                json!({"code": error.code(), "message": error.to_string()}),
+            ),
+        },
+        _ => ("available", json!({"built_in_or_ffmpeg_backed": true})),
+    };
+    json!({
+        "status": status,
+        "required": selection.required(),
+        "executor": selection.executor(),
+        "execution_path": selection.execution_path(),
+        "quality": selection.quality(),
+        "reliability": selection.reliability(),
+        "determinism": selection.determinism(),
+        "base_risk": selection.base_risk(),
+        "cost": selection.cost(),
+        "fallbacks": selection.fallbacks(),
+        "evidence": selection.evidence(),
+        "acceptance_evidence": selection.acceptance_evidence(),
+        "health": health
+    })
+}
+
 pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, PlatformError> {
     let request_id = format!("req_{}", Uuid::new_v4().simple());
     let request = json!({
@@ -260,9 +298,10 @@ pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pl
     });
     contracts::validate(&request, "tool-request-v1.schema.json")?;
     let binding = resolve_project(repo_root, project_id)?;
+    let required = required_quality(&binding.repo_root, "runtime.self_test")?;
     let selection = CapabilityRegistry::load(&binding.repo_root)?.select(
         "runtime.self_test",
-        "professional",
+        &required,
         request
             .get("cost_limit")
             .and_then(Value::as_u64)
@@ -302,6 +341,8 @@ pub fn self_test(repo_root: &Path, project_id: Option<&str>) -> Result<Value, Pl
             "ping": "pong",
             "controlled_write_read": "passed",
             "cleanup": "passed",
+            "rust": env!("AGENT_PLATFORM_RUSTC_VERSION"),
+            "rust_msrv": env!("CARGO_PKG_RUST_VERSION"),
             "ffmpeg": tool_version("ffmpeg")?,
             "ffprobe": tool_version("ffprobe")?
         },
