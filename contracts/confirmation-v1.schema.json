@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "confirmation-v1.schema.json",
+  "title": "Guarded confirmation v1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "confirmation_id",
+    "project_id",
+    "decision_id",
+    "capability",
+    "confirmation_binding",
+    "effective_risk",
+    "status",
+    "created_at",
+    "expires_at"
+  ],
+  "properties": {
+    "contract_version": {"const": "confirmation-v1"},
+    "confirmation_id": {"type": "string", "pattern": "^cfm_[a-f0-9]{32}$"},
+    "project_id": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "string", "pattern": "^pol_[a-f0-9]+$"},
+    "capability": {"type": "string", "minLength": 1},
+    "confirmation_binding": {"type": "string", "pattern": "^confirm_[a-f0-9]{64}$"},
+    "effective_risk": {"enum": ["low", "medium", "high", "critical"]},
+    "status": {"enum": ["prepared", "consumed"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "consumed_at": {"type": ["string", "null"], "format": "date-time"}
+  },
+  "additionalProperties": false
+}
