@@ -12,9 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::protocol::{cleanup_old_cache, poll_once};
-use super::{
-    MAX_LONG_POLL_SECONDS, authorize_transport, validate_endpoint, validate_token,
-};
+use super::{MAX_LONG_POLL_SECONDS, authorize_transport, validate_endpoint, validate_token};
 use crate::binding::{ProjectBinding, resolve_project};
 use crate::error::{PlatformError, io_error};
 use crate::secret::SecretStore;
@@ -312,7 +310,12 @@ pub fn run_relay_worker(
         Ok(())
     });
 
-    status.state = if execution.is_ok() { "stopped" } else { "error" }.into();
+    status.state = if execution.is_ok() {
+        "stopped"
+    } else {
+        "error"
+    }
+    .into();
     status.updated_at = Utc::now().to_rfc3339();
     status.message = Some(if execution.is_ok() {
         "long polling disabled".into()
@@ -339,9 +342,8 @@ fn read_status(path: &Path) -> Result<Option<WorkerStatus>, PlatformError> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(io_error("cannot read relay status", error)),
     };
-    let status: WorkerStatus = serde_json::from_str(&text).map_err(|error| {
-        PlatformError::Validation(format!("relay status is corrupt: {error}"))
-    })?;
+    let status: WorkerStatus = serde_json::from_str(&text)
+        .map_err(|error| PlatformError::Validation(format!("relay status is corrupt: {error}")))?;
     if status.contract_version != "relay-worker-status-v1" {
         return Err(PlatformError::Validation(
             "unsupported relay worker status contract".into(),
