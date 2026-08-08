@@ -115,9 +115,8 @@ pub fn reference_master_files(
 ) -> Result<Value, PlatformError> {
     let target_sha = sha256_file(target_path)?;
     let reference_sha = sha256_file(reference_path)?;
-    let idempotency_key = format!(
-        "{WORKFLOW_VERSION}:{target_sha}:{reference_sha}:{profile}:{data_class}"
-    );
+    let idempotency_key =
+        format!("{WORKFLOW_VERSION}:{target_sha}:{reference_sha}:{profile}:{data_class}");
     let auth = authorize(
         repo_root,
         target_path,
@@ -277,16 +276,22 @@ fn input_artifacts(
             .data
             .get("target_artifact_id")
             .and_then(Value::as_str)
-            .ok_or_else(|| PlatformError::Validation("target artifact checkpoint is missing".into()))?;
+            .ok_or_else(|| {
+                PlatformError::Validation("target artifact checkpoint is missing".into())
+            })?;
         let reference_id = checkpoint
             .data
             .get("reference_artifact_id")
             .and_then(Value::as_str)
-            .ok_or_else(|| PlatformError::Validation("reference artifact checkpoint is missing".into()))?;
+            .ok_or_else(|| {
+                PlatformError::Validation("reference artifact checkpoint is missing".into())
+            })?;
         return Ok((auth.store.get(target_id)?, auth.store.get(reference_id)?));
     }
 
-    let target = auth.store.import_file(target_path, CAPABILITY, data_class)?;
+    let target = auth
+        .store
+        .import_file(target_path, CAPABILITY, data_class)?;
     let reference = auth
         .store
         .import_file(reference_path, CAPABILITY, data_class)?;
@@ -372,7 +377,8 @@ fn validate_final_output(
         ));
     }
     let decision = decide_mastering(output, profile)?;
-    if decision.requires_review || !decision.auto_mastering_allowed || decision.action != "preserve" {
+    if decision.requires_review || !decision.auto_mastering_allowed || decision.action != "preserve"
+    {
         return Err(PlatformError::Validation(format!(
             "reference master failed final Stage 13 delivery gate: {}",
             decision.action
@@ -390,9 +396,7 @@ fn loudness_similarity(
     let reference_lufs = reference.integrated_lufs;
     let matched_lufs = matched.integrated_lufs;
     let before = target_lufs.zip(reference_lufs).map(|(a, b)| (a - b).abs());
-    let after = matched_lufs
-        .zip(reference_lufs)
-        .map(|(a, b)| (a - b).abs());
+    let after = matched_lufs.zip(reference_lufs).map(|(a, b)| (a - b).abs());
     json!({
         "metric": "integrated_lufs_distance",
         "before_lu": before,
@@ -438,12 +442,13 @@ fn authorize(
 
     let binding = resolve_project(repo_root, project_id)?;
     let required = required_quality(&binding.repo_root, CAPABILITY)?;
-    let selection = CapabilityRegistry::load(&binding.repo_root)?.select(CAPABILITY, &required, 0)?;
+    let selection =
+        CapabilityRegistry::load(&binding.repo_root)?.select(CAPABILITY, &required, 0)?;
     let policy = PolicyEnforcementPoint::load(&binding.policy_path)?.evaluate(
         CAPABILITY,
-        request
-            .get("parameters")
-            .ok_or_else(|| PlatformError::Validation("reference mastering parameters are missing".into()))?,
+        request.get("parameters").ok_or_else(|| {
+            PlatformError::Validation("reference mastering parameters are missing".into())
+        })?,
         data_class,
         requested_risk_hint,
         selection.base_risk(),
@@ -573,7 +578,7 @@ fn run_matchering(
             "Matchering process failed; no reference master was accepted".into(),
         ));
     }
-    if !output.is_file() || output.metadata().map_or(true, |metadata| metadata.len() == 0) {
+    if !output.is_file() || output.metadata().is_none_or(|metadata| metadata.len() == 0) {
         return Err(PlatformError::Validation(
             "Matchering did not create a non-empty output WAV".into(),
         ));
@@ -596,7 +601,9 @@ fn completed_response(auth: &AuthorizedWorkflow, job: &JobRecord) -> Result<Valu
         .and_then(Value::as_object)
         .and_then(|value| value.get("artifact_id"))
         .and_then(Value::as_str)
-        .ok_or_else(|| PlatformError::Validation("reference master result has no artifact id".into()))?;
+        .ok_or_else(|| {
+            PlatformError::Validation("reference master result has no artifact id".into())
+        })?;
     let master = auth.store.get(master_id)?;
     let response = json!({
         "request_id": auth.request_id,
@@ -686,5 +693,7 @@ fn sha256_file(path: &Path) -> Result<String, PlatformError> {
 }
 
 fn serialization_error(error: serde_json::Error) -> PlatformError {
-    PlatformError::Validation(format!("cannot serialize reference-mastering data: {error}"))
+    PlatformError::Validation(format!(
+        "cannot serialize reference-mastering data: {error}"
+    ))
 }
