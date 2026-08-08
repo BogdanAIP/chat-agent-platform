@@ -32,6 +32,38 @@ pub struct ConfirmationRecord {
     pub consumed_at: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct ConfirmationPermit {
+    record: ConfirmationRecord,
+}
+
+impl ConfirmationPermit {
+    #[must_use]
+    pub fn confirmation_id(&self) -> &str {
+        &self.record.confirmation_id
+    }
+
+    #[must_use]
+    pub fn project_id(&self) -> &str {
+        &self.record.project_id
+    }
+
+    #[must_use]
+    pub fn capability(&self) -> &str {
+        &self.record.capability
+    }
+
+    #[must_use]
+    pub fn confirmation_binding(&self) -> &str {
+        &self.record.confirmation_binding
+    }
+
+    #[must_use]
+    pub const fn record(&self) -> &ConfirmationRecord {
+        &self.record
+    }
+}
+
 pub struct ConfirmationStore {
     root: PathBuf,
     project_id: String,
@@ -68,6 +100,7 @@ impl ConfirmationStore {
         decision: &PolicyDecision,
         ttl_seconds: i64,
     ) -> Result<ConfirmationRecord, PlatformError> {
+        validate_policy_decision(decision)?;
         if decision.decision != "guarded" {
             return Err(PlatformError::Validation(
                 "only guarded policy decisions may create confirmations".into(),
@@ -83,7 +116,6 @@ impl ConfirmationStore {
         })?;
         validate_binding(binding)?;
         validate_nonempty("capability", &decision.capability)?;
-        validate_nonempty("effective risk", &decision.effective_risk)?;
 
         self.with_lock(|| {
             let now = Utc::now();
@@ -114,8 +146,9 @@ impl ConfirmationStore {
         &self,
         confirmation_id: &str,
         decision: &PolicyDecision,
-    ) -> Result<ConfirmationRecord, PlatformError> {
+    ) -> Result<ConfirmationPermit, PlatformError> {
         validate_confirmation_id(confirmation_id)?;
+        validate_policy_decision(decision)?;
         if decision.decision != "guarded" {
             return Err(PlatformError::Validation(
                 "confirmation may only authorize a fresh guarded policy decision".into(),
@@ -163,7 +196,7 @@ impl ConfirmationStore {
             record.status = "consumed".into();
             record.consumed_at = Some(now.to_rfc3339());
             self.write_locked(&record)?;
-            Ok(record)
+            Ok(ConfirmationPermit { record })
         })
     }
 
@@ -240,6 +273,11 @@ impl ConfirmationStore {
             (Ok(value), Ok(())) => Ok(value),
         }
     }
+}
+
+fn validate_policy_decision(decision: &PolicyDecision) -> Result<(), PlatformError> {
+    let value = serde_json::to_value(decision).map_err(serialization_error)?;
+    contracts::validate(&value, "policy-decision-v1.schema.json")
 }
 
 fn validate_confirmation_id(value: &str) -> Result<(), PlatformError> {
