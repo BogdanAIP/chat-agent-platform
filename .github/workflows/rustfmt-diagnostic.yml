@@ -1,0 +1,37 @@
+name: Rustfmt Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - "crates/**/*.rs"
+      - ".github/workflows/rustfmt-diagnostic.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rustfmt-diagnostic-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  rustfmt-diagnostic:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned Rustfmt
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt
+          rustup default 1.97.1
+      - name: Capture rustfmt patch
+        shell: pwsh
+        run: |
+          cargo fmt --all
+          git diff --output=rustfmt.patch
+          if (-not (Test-Path rustfmt.patch)) { throw 'rustfmt patch was not created' }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rustfmt-patch
+          path: rustfmt.patch
+          if-no-files-found: error
