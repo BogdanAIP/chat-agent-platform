@@ -140,7 +140,8 @@ pub fn start_relay_worker(
         .or_else(|| config.as_ref().map(|item| item.endpoint.as_str()))
         .ok_or_else(|| {
             PlatformError::Validation(
-                "relay is not configured; run `relay configure --endpoint <https-url>` first".into(),
+                "relay is not configured; run `relay configure --endpoint <https-url>` first"
+                    .into(),
             )
         })?;
     let secret_ref = secret_ref_override
