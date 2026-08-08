@@ -9,6 +9,7 @@ from pathlib import Path
 from gateway.yandex_function import index
 
 TOKEN = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"
+MCP_TOKEN = "mcp-abcdefghijklmnopqrstuvwxyz0123456789"
 
 
 def event(body, headers=None, method="POST"):
@@ -48,6 +49,23 @@ class GatewayTests(unittest.TestCase):
         )
         self.assertEqual(response["statusCode"], 401)
 
+    def test_optional_mcp_bearer_auth_is_enforced_when_configured(self):
+        os.environ["MCP_TOKEN"] = MCP_TOKEN
+        request = {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list",
+            "params": {},
+        }
+        denied = index.handler(event(request), None)
+        self.assertEqual(denied["statusCode"], 401)
+        allowed = index.handler(
+            event(request, {"Authorization": f"Bearer {MCP_TOKEN}"}),
+            None,
+        )
+        self.assertEqual(allowed["statusCode"], 200)
+        self.assertIn("result", parsed(allowed))
+
     def test_offline_tool_fails_without_waiting_for_task_deadline(self):
         started = time.monotonic()
         response = index.handler(
@@ -69,6 +87,33 @@ class GatewayTests(unittest.TestCase):
         self.assertTrue(payload["isError"])
         self.assertEqual(payload["structuredContent"]["code"], "AGENT_OFFLINE")
         self.assertLess(elapsed, 1.0)
+
+    def test_authenticated_offline_removes_heartbeat_immediately(self):
+        poll = index.handler(
+            event(
+                {
+                    "agent_action": "poll",
+                    "wait_seconds": 1,
+                    "project_id": "demo",
+                    "operations": ["local_ping", "runtime_self_test"],
+                },
+                {"X-Agent-Token": TOKEN},
+            ),
+            None,
+        )
+        self.assertEqual(poll["statusCode"], 200)
+        heartbeat = Path(self.tmp.name) / "agents" / "demo.json"
+        self.assertTrue(heartbeat.exists())
+        offline = index.handler(
+            event(
+                {"agent_action": "offline", "project_id": "demo"},
+                {"X-Agent-Token": TOKEN},
+            ),
+            None,
+        )
+        self.assertEqual(offline["statusCode"], 200)
+        self.assertFalse(heartbeat.exists())
+        self.assertFalse(parsed(offline)["agent_online"])
 
     def test_long_poll_rendezvous_and_result(self):
         holder = {}
