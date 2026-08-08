@@ -7,6 +7,7 @@ param(
     [string]$Runtime = 'python312',
     [switch]$AdoptExistingBucket,
     [switch]$SkipBuild,
+    [switch]$CopyActionTokenToClipboard,
     [switch]$StartRelay
 )
 
@@ -14,6 +15,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $functionSource = Join-Path $repoRoot 'gateway/yandex_function'
+$openApiTemplate = Join-Path $repoRoot 'gateway/actions-openapi.template.json'
+$openApiOutput = Join-Path $repoRoot 'runtime/relay/actions-openapi.json'
 $binary = Join-Path $repoRoot 'target/release/agent-platform.exe'
 $explicitBucket = -not [string]::IsNullOrWhiteSpace($BucketName)
 
@@ -42,8 +45,13 @@ function Invoke-Yc {
 function New-UrlSafeToken {
     param([int]$Bytes = 36)
     $buffer = [byte[]]::new($Bytes)
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($buffer)
-    return [Convert]::ToBase64String($buffer).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    try {
+        [System.Security.Cryptography.RandomNumberGenerator]::Fill($buffer)
+        return [Convert]::ToBase64String($buffer).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    }
+    finally {
+        [Array]::Clear($buffer, 0, $buffer.Length)
+    }
 }
 
 function Get-IamToken {
@@ -102,11 +110,31 @@ function Ensure-BucketUploaderRole {
     finally { $iam = $null }
 }
 
+function Write-GeneratedOpenApi {
+    param([Parameter(Mandatory)] [string]$FunctionUrl)
+    if (-not (Test-Path -LiteralPath $openApiTemplate -PathType Leaf)) {
+        throw "GPT Actions OpenAPI template is missing: $openApiTemplate"
+    }
+    $template = Get-Content -LiteralPath $openApiTemplate -Raw -Encoding utf8
+    if ($template -notmatch '__FUNCTION_URL__') {
+        throw 'GPT Actions OpenAPI template does not contain __FUNCTION_URL__ placeholder.'
+    }
+    $generated = $template.Replace('__FUNCTION_URL__', $FunctionUrl)
+    $directory = Split-Path -Parent $openApiOutput
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $generated | Set-Content -LiteralPath $openApiOutput -Encoding utf8
+    try { Get-Content -LiteralPath $openApiOutput -Raw -Encoding utf8 | ConvertFrom-Json | Out-Null }
+    catch { throw "Generated GPT Actions OpenAPI is invalid JSON: $($_.Exception.Message)" }
+}
+
 if (-not (Get-Command yc -ErrorAction SilentlyContinue)) {
     throw 'Yandex Cloud CLI (`yc`) is not installed or not on PATH.'
 }
 if (-not (Test-Path -LiteralPath (Join-Path $functionSource 'index.py') -PathType Leaf)) {
     throw "Yandex function source is missing: $functionSource"
+}
+if ($CopyActionTokenToClipboard -and -not (Get-Command Set-Clipboard -ErrorAction SilentlyContinue)) {
+    throw 'Set-Clipboard is required when -CopyActionTokenToClipboard is requested.'
 }
 
 $folderId = (& yc config get folder-id 2>&1 | Out-String).Trim()
@@ -174,7 +202,8 @@ if ([string]::IsNullOrWhiteSpace($FunctionId)) { throw 'Cloud Function ID is mis
 
 Write-Host '[4/7] Creating a new function version...'
 $agentToken = New-UrlSafeToken
-$environment = "AGENT_TOKEN=$agentToken,PROJECT_ID=$ProjectId"
+$remoteToken = New-UrlSafeToken
+$environment = "AGENT_TOKEN=$agentToken,MCP_TOKEN=$remoteToken,PROJECT_ID=$ProjectId"
 $versionArgs = @(
     'serverless','function','version','create',
     '--function-id',$FunctionId,
@@ -192,6 +221,7 @@ $version = Invoke-YcJson -Context 'function version create' -Arguments $versionA
 if (-not $version.id) { throw 'Function version was not created.' }
 Invoke-Yc -Context 'allow unauthenticated function invocation' -Arguments @('serverless','function','allow-unauthenticated-invoke','--id',$FunctionId) | Out-Null
 $functionUrl = "https://functions.yandexcloud.net/$FunctionId"
+Write-GeneratedOpenApi -FunctionUrl $functionUrl
 
 Write-Host '[5/7] Building local agent-platform...'
 Push-Location $repoRoot
@@ -204,7 +234,7 @@ try {
 finally { Pop-Location }
 if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) { throw "release binary not found: $binary" }
 
-Write-Host '[6/7] Storing relay token locally and saving endpoint...'
+Write-Host '[6/7] Storing local agent token and saving endpoint...'
 $env:AGENT_PLATFORM_RELAY_TOKEN = $agentToken
 try {
     $configureText = (& $binary --repo-root $repoRoot relay configure --project-id $ProjectId --endpoint $functionUrl | Out-String).Trim()
@@ -221,6 +251,11 @@ finally {
 Write-Host '[7/7] Verifying public gateway health...'
 $health = Invoke-RestMethod -Method Get -Uri $functionUrl -TimeoutSec 20
 if ($health.status -ne 'ok') { throw 'Yandex relay health endpoint did not return status=ok' }
+if (-not $health.remote_auth_configured) { throw 'Yandex relay did not report configured remote authentication.' }
+
+if ($CopyActionTokenToClipboard) {
+    Set-Clipboard -Value $remoteToken
+}
 
 if ($StartRelay) {
     $startText = (& $binary --repo-root $repoRoot relay start --project-id $ProjectId | Out-String).Trim()
@@ -245,6 +280,12 @@ $result = [ordered]@{
     project_id = $ProjectId
     local_configured = $true
     relay_enabled = [bool]$StartRelay
+    actions_openapi = $openApiOutput
+    remote_auth_configured = $true
+    remote_bearer_copied_to_clipboard = [bool]$CopyActionTokenToClipboard
+    remote_bearer_returned = $false
+    agent_token_returned = $false
 }
 if ($start) { $result.relay = $start.relay }
+$remoteToken = $null
 $result | ConvertTo-Json -Depth 8
