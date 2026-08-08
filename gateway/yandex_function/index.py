@@ -50,7 +50,7 @@ def _agent_token():
     return os.environ.get("AGENT_TOKEN", "")
 
 
-def _mcp_token():
+def _remote_token():
     return os.environ.get("MCP_TOKEN", "")
 
 
@@ -101,17 +101,17 @@ def _authorized_agent(event):
     return bool(expected) and hmac.compare_digest(expected, supplied)
 
 
-def _authorized_mcp(event):
-    expected = _mcp_token()
+def _authorized_remote(event):
+    expected = _remote_token()
     if not expected:
-        return True
+        return False
     headers = _headers(event)
     supplied = headers.get("x-mcp-token", "")
     if not supplied:
         authorization = headers.get("authorization", "")
         if authorization.lower().startswith("bearer "):
             supplied = authorization[7:].strip()
-    return hmac.compare_digest(expected, supplied)
+    return bool(supplied) and hmac.compare_digest(expected, supplied)
 
 
 def _read_json(path):
@@ -272,6 +272,33 @@ def _tool_result(payload, is_error=False):
     }
 
 
+def _tool_error(code, message, retryable=False):
+    return _tool_result(
+        {"code": code, "message": message, "retryable": bool(retryable)},
+        True,
+    )
+
+
+def _validate_tool_arguments(name, arguments):
+    if name not in ALLOWED_TOOLS:
+        return None, _tool_error("TOOL_NOT_FOUND", f"unknown tool: {name}")
+    if not isinstance(arguments, dict):
+        return None, _tool_error("VALIDATION_FAILED", "tool arguments must be an object")
+    if name == "runtime_self_test":
+        if arguments:
+            return None, _tool_error("VALIDATION_FAILED", "runtime_self_test does not accept parameters")
+        return {}, None
+    extra = set(arguments) - {"message"}
+    if extra:
+        return None, _tool_error("VALIDATION_FAILED", "local_ping accepts only the optional message parameter")
+    message = arguments.get("message", "ping")
+    if not isinstance(message, str):
+        return None, _tool_error("VALIDATION_FAILED", "local_ping message must be a string")
+    if len(message.encode("utf-8")) > 1024:
+        return None, _tool_error("VALIDATION_FAILED", "local_ping message exceeds 1024 bytes")
+    return {"message": message}, None
+
+
 def _mark_task(root, task_id, status):
     task_path = root / "tasks" / f"{task_id}.json"
     task = _read_json(task_path)
@@ -283,20 +310,14 @@ def _mark_task(root, task_id, status):
 
 
 def _call_local_tool(root, name, arguments):
+    arguments, error = _validate_tool_arguments(name, arguments)
+    if error:
+        return error
     project_id = _project_id()
-    if name not in ALLOWED_TOOLS:
-        return _tool_result({"code": "TOOL_NOT_FOUND", "message": f"unknown tool: {name}"}, True)
-    if not isinstance(arguments, dict):
-        return _tool_result(
-            {"code": "VALIDATION_FAILED", "message": "tool arguments must be an object"}, True
-        )
     if not _agent_online(root, project_id):
-        return _tool_result(
-            {
-                "code": "AGENT_OFFLINE",
-                "message": "Local agent is switched off or its heartbeat is stale. Enable relay locally and retry.",
-                "retryable": True,
-            },
+        return _tool_error(
+            "AGENT_OFFLINE",
+            "Local agent is switched off or its heartbeat is stale. Enable relay locally and retry.",
             True,
         )
     task_id = f"rly_{uuid.uuid4().hex}"
@@ -327,19 +348,16 @@ def _call_local_tool(root, name, arguments):
             )
         time.sleep(POLL_SLICE_SECONDS)
     _mark_task(root, task_id, "timed_out")
-    return _tool_result(
-        {
-            "code": "LOCAL_TIMEOUT",
-            "message": "Local agent did not return the task before its deadline.",
-            "retryable": True,
-        },
+    return _tool_error(
+        "LOCAL_TIMEOUT",
+        "Local agent did not return the task before its deadline.",
         True,
     )
 
 
 def _handle_mcp(root, event, body):
-    if not _authorized_mcp(event):
-        return _json_response(401, _mcp_error(body.get("id"), -32001, "MCP authorization failed"))
+    if not _authorized_remote(event):
+        return _json_response(401, _mcp_error(body.get("id"), -32001, "remote authorization failed"))
     method = body.get("method")
     request_id = body.get("id")
     params = body.get("params") or {}
@@ -370,6 +388,22 @@ def _handle_mcp(root, event, body):
     return _json_response(200, _mcp_error(request_id, -32601, f"method not found: {method}"))
 
 
+def _handle_action(root, event, body):
+    if not _authorized_remote(event):
+        return _json_response(401, {"status": "error", "error": {"code": "AUTH_FAILED", "message": "remote authorization failed"}})
+    name = str(body.get("action") or "")
+    arguments = {}
+    if "message" in body:
+        arguments["message"] = body.get("message")
+    extra = set(body) - {"action", "message"}
+    if extra:
+        return _json_response(400, {"status": "error", "error": {"code": "VALIDATION_FAILED", "message": "unknown action request fields"}})
+    result = _call_local_tool(root, name, arguments)
+    if result["isError"]:
+        return _json_response(200, {"status": "error", "error": result["structuredContent"]})
+    return _json_response(200, {"status": "success", "result": result["structuredContent"]})
+
+
 def handler(event, context):
     del context
     root = _ensure_state()
@@ -382,6 +416,7 @@ def handler(event, context):
                 "contract_version": CONTRACT,
                 "agent_online": _agent_online(root, _project_id()),
                 "project_id": _project_id(),
+                "remote_auth_configured": bool(_remote_token()),
             },
         )
     if method != "POST":
@@ -401,4 +436,6 @@ def handler(event, context):
         if action == "offline":
             return _agent_offline(root, body)
         return _json_response(400, {"ok": False, "error": "unsupported agent_action"})
+    if "action" in body:
+        return _handle_action(root, event, body)
     return _handle_mcp(root, event, body)
