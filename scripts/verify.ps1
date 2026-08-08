@@ -28,6 +28,9 @@ try {
         throw "Stage 12 REAPER acceptance script has PowerShell syntax errors: $details"
     }
 
+    & python -m py_compile (Join-Path $PSScriptRoot 'matchering_adapter.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Stage 19 Matchering adapter syntax check failed' }
+
     if (-not $SkipPythonOracle) {
         & python -m unittest discover -s tests -v
         if ($LASTEXITCODE -ne 0) { throw 'Python oracle tests failed' }
@@ -44,6 +47,7 @@ try {
         status = 'success'
         rust = 'fmt,clippy,tests'
         powershell = 'stage12-acceptance-syntax'
+        python_edge = 'stage19-matchering-adapter-syntax'
         python_oracle = if ($SkipPythonOracle) { 'skipped' } else { 'tests,parity' }
         release = if ($SkipRelease) { 'skipped' } else { 'built' }
     } | ConvertTo-Json
