@@ -336,47 +336,52 @@ pub fn run_relay_worker(
 
     let store = SecretStore::new(&binding.repo_root)?;
     let mut completed = 0_u64;
-    let execution = store.with_secret(secret_ref, &selection, |secret| {
+    let mut backoff = Duration::from_secs(1);
+    let execution = loop {
+        if paths.stop.exists() {
+            break Ok(());
+        }
+        let polled = store.with_secret(secret_ref, &selection, |secret| {
+            let token = std::str::from_utf8(secret)
+                .map_err(|_| PlatformError::SecretStore("relay token is not UTF-8".into()))?;
+            validate_token(token)?;
+            poll_once(&binding, &paths.cache, &paths.http, endpoint, token)
+        });
+        match polled {
+            Ok(processed) => {
+                status.last_poll_at = Some(Utc::now().to_rfc3339());
+                status.updated_at = Utc::now().to_rfc3339();
+                status.consecutive_errors = 0;
+                status.message = Some("long poll completed".into());
+                if let Some(task_id) = processed {
+                    completed = completed.saturating_add(1);
+                    status.last_task_id = Some(task_id);
+                }
+                write_status(&paths.status, &status)?;
+                backoff = Duration::from_secs(1);
+                if once {
+                    break Ok(());
+                }
+            }
+            Err(error) if error.retryable() || matches!(error, PlatformError::Io { .. }) => {
+                status.updated_at = Utc::now().to_rfc3339();
+                status.consecutive_errors = status.consecutive_errors.saturating_add(1);
+                status.message = Some(format!("retryable transport error: {}", error.code()));
+                write_status(&paths.status, &status)?;
+                if once {
+                    break Err(error);
+                }
+                sleep_interruptible(&paths.stop, backoff);
+                backoff = (backoff * 2).min(Duration::from_secs(15));
+            }
+            Err(error) => break Err(error),
+        }
+    };
+    let _ = store.with_secret(secret_ref, &selection, |secret| {
         let token = std::str::from_utf8(secret)
             .map_err(|_| PlatformError::SecretStore("relay token is not UTF-8".into()))?;
         validate_token(token)?;
-        let mut backoff = Duration::from_secs(1);
-        loop {
-            if paths.stop.exists() {
-                break;
-            }
-            match poll_once(&binding, &paths.cache, &paths.http, endpoint, token) {
-                Ok(processed) => {
-                    status.last_poll_at = Some(Utc::now().to_rfc3339());
-                    status.updated_at = Utc::now().to_rfc3339();
-                    status.consecutive_errors = 0;
-                    status.message = Some("long poll completed".into());
-                    if let Some(task_id) = processed {
-                        completed = completed.saturating_add(1);
-                        status.last_task_id = Some(task_id);
-                    }
-                    write_status(&paths.status, &status)?;
-                    backoff = Duration::from_secs(1);
-                    if once {
-                        break;
-                    }
-                }
-                Err(error) if error.retryable() || matches!(error, PlatformError::Io { .. }) => {
-                    status.updated_at = Utc::now().to_rfc3339();
-                    status.consecutive_errors = status.consecutive_errors.saturating_add(1);
-                    status.message = Some(format!("retryable transport error: {}", error.code()));
-                    write_status(&paths.status, &status)?;
-                    if once {
-                        return Err(error);
-                    }
-                    sleep_interruptible(&paths.stop, backoff);
-                    backoff = (backoff * 2).min(Duration::from_secs(15));
-                }
-                Err(error) => return Err(error),
-            }
-        }
-        let _ = notify_offline(&binding, &paths.http, endpoint, token);
-        Ok(())
+        notify_offline(&binding, &paths.http, endpoint, token)
     });
 
     status.state = if execution.is_ok() {
