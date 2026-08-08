@@ -83,7 +83,9 @@ pub(super) fn cleanup_old_cache(root: &Path) -> Result<(), PlatformError> {
     let cutoff = SystemTime::now()
         .checked_sub(Duration::from_secs(24 * 60 * 60))
         .unwrap_or(UNIX_EPOCH);
-    for entry in fs::read_dir(root).map_err(|error| io_error("cannot scan relay response cache", error))? {
+    for entry in
+        fs::read_dir(root).map_err(|error| io_error("cannot scan relay response cache", error))?
+    {
         let entry = entry.map_err(|error| io_error("cannot read relay cache entry", error))?;
         let metadata = entry
             .metadata()
@@ -130,9 +132,9 @@ fn read_cached_response(
         PlatformError::Validation(format!("relay response cache is corrupt: {error}"))
     })?;
     contracts::validate(&value, "relay-response-v1.schema.json")?;
-    serde_json::from_value(value)
-        .map(Some)
-        .map_err(|error| PlatformError::Validation(format!("cannot decode cached relay response: {error}")))
+    serde_json::from_value(value).map(Some).map_err(|error| {
+        PlatformError::Validation(format!("cannot decode cached relay response: {error}"))
+    })
 }
 
 fn response_cache_path(root: &Path, task_id: &str) -> Result<PathBuf, PlatformError> {
