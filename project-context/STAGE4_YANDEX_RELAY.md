@@ -9,13 +9,13 @@ The old experiment polled once per second and kept state in the function-side im
 ## Architecture
 
 ```text
-ChatGPT / MCP
+ChatGPT / MCP or GPT Actions
       |
-      | HTTPS
+      | HTTPS + remote bearer
       v
 Yandex Cloud Function (public permanent endpoint)
       |
-      | small JSON state only
+      | small JSON rendezvous only
       v
 mounted Object Storage bucket
       ^
@@ -78,7 +78,9 @@ Higher-value capabilities (`audio.mastering_produce`, `audio.reference_master`, 
 
 ## Authentication and secrets
 
-The local worker uses `X-Agent-Token` against the cloud function. The token:
+Two independent credentials deliberately separate the local agent from the public ChatGPT surface.
+
+The local worker uses `X-Agent-Token` against the cloud function. The agent token:
 
 - is stored locally only in Windows Credential Manager;
 - uses the platform Secret Store reference `secret://relay/agent_token`;
@@ -87,11 +89,13 @@ The local worker uses `X-Agent-Token` against the cloud function. The token:
 - is passed to `curl` through stdin config, not a command-line argument and not a config file;
 - is held in zeroized buffers where the existing Secret Store permits.
 
-The gateway supports optional `MCP_TOKEN` / bearer authentication for the public MCP side. Until a ChatGPT-compatible production authentication path is proven, Stage 4 exports only the two low-risk tools above.
+The public MCP/GPT Actions side requires a separate `MCP_TOKEN` bearer. The deployment script generates it independently from the agent token, installs it only in the Function environment, and can copy it once to the Windows clipboard for ChatGPT configuration. It is never written into the generated OpenAPI file or deployment JSON result.
+
+Unauthenticated `GET` exposes only minimal liveness (`status` + contract version). `agent_online`, `project_id` and remote-auth state are returned only to an authenticated remote caller.
 
 ## Reliability / idempotency
 
-Task IDs are `rly_<32 hex>` with a deadline. The local worker caches each completed `relay-response-v1` by task ID for 24 hours. If result upload/acknowledgement fails and Yandex returns the same pending task, the cached response is posted again without re-executing the local operation.
+Task IDs are `rly_<32 hex>` with a deadline. The local worker caches each completed `relay-response-v1` by task ID for 24 hours. If result upload/acknowledgement fails and Yandex returns the same still-valid task, the cached response is posted again without re-executing the local operation.
 
 The Windows integration test intentionally simulates a lost first result acknowledgement and requires the second response for the same request ID to be identical to the cached first response.
 
@@ -99,7 +103,9 @@ Retryable network failures back off from 1 to 15 seconds. Status heartbeat older
 
 ## Cloud state and minimum runtime privilege
 
-The Yandex Function uses a mounted Object Storage bucket (`/function/storage/relay`) as shared small-object state. This avoids relying on one warm function instance and avoids a VM, Redis, database or message broker. Function concurrency can remain one request per instance because separate instances rendezvous through the shared bucket.
+The Yandex Function uses a mounted Object Storage bucket (`/function/storage/relay`) as shared small-object state. This avoids relying on one warm function instance and avoids a VM, Redis, database or message broker.
+
+Cloud Functions may scale to multiple function instances. The Python runtime therefore does **not** rely on an instance-level `concurrency` setting for correctness. Task/result correctness comes from immutable per-request rendezvous objects and deterministic duplicate handling instead.
 
 The runtime service account needs only bucket role `storage.uploader`: read, write and overwrite. The gateway intentionally contains **no object-delete primitive**. It therefore does not need the broader `storage.editor` role just to maintain the relay queue.
 
@@ -111,14 +117,14 @@ results/rly_*.json
 agents/<project>.json
 ```
 
-State is append/overwrite:
+State semantics deliberately minimize read-modify-write races:
 
-- new tasks start with `status=pending`;
-- successful result writes a result object and overwrites the task as `completed`;
-- timed-out MCP calls overwrite the task as `timed_out`;
-- orderly local shutdown overwrites heartbeat with `last_seen_unix_ms=0` and an empty operations list;
-- completed/timed-out tasks are never offered by `poll` again;
-- identical duplicate results are idempotently acknowledged; a different result for the same request ID is rejected.
+- each task object is created once under a unique request ID and is not rewritten by completion/timeout bookkeeping;
+- each successful result is stored separately under the same unique request ID;
+- result existence means the task is complete, while `deadline_unix_ms` makes an old task ineligible for polling without mutating it;
+- identical duplicate results are idempotently acknowledged; a different result for the same request ID is rejected;
+- orderly local shutdown overwrites only the project heartbeat with `last_seen_unix_ms=0` and an empty operations list;
+- a temporarily unreadable/partial JSON object is treated as absent by the gateway, so failures remain fail-closed and the next poll can retry.
 
 Physical deletion of old task/result/heartbeat JSON is delegated to the lifecycle rule on the **dedicated relay bucket**, applied by Yandex Object Storage outside the Function runtime permission set.
 
@@ -132,9 +138,12 @@ Physical deletion of old task/result/heartbeat JSON is delegated to the lifecycl
 4. install a one-day lifecycle rule for the dedicated bucket;
 5. create a Cloud Function or, when `-FunctionId` is supplied, create a new version of the existing function while preserving its Function ID and public URL;
 6. mount the bucket read/write at `/function/storage/relay`;
-7. generate a random agent token, put it in the Function environment and immediately store the same token locally through `relay configure` into Windows Credential Manager;
-8. expose the Function URL for MCP and verify its health endpoint;
-9. leave the local relay switched **off** unless `-StartRelay` was explicitly supplied.
+7. generate independent random agent and remote bearer tokens;
+8. put both tokens in the Function environment, immediately store only the agent token locally through `relay configure`, and never return either raw token in deployment JSON;
+9. generate `runtime/relay/actions-openapi.json` with the actual Function URL but no secret;
+10. optionally copy the remote bearer once to the Windows clipboard for GPT Actions setup;
+11. verify both minimal public health and authenticated health;
+12. leave the local relay switched **off** unless `-StartRelay` was explicitly supplied.
 
 When an explicitly named pre-existing bucket is supplied, the script does not overwrite its lifecycle unless `-AdoptExistingBucket` is explicitly set. The default generated bucket is dedicated to the relay and is lifecycle-managed automatically.
 
@@ -144,21 +153,22 @@ Hosted CI is required to prove:
 
 1. relay contracts and exact two-operation allowlist;
 2. strict Rust fmt/Clippy and all prior platform regressions;
-3. gateway agent authentication and optional MCP bearer auth;
+3. separate gateway agent authentication and remote bearer authentication;
 4. immediate `AGENT_OFFLINE` behavior;
-5. no-delete `storage.uploader` cloud-state model;
-6. PowerShell syntax of the deployment script;
-7. real Windows Credential Manager storage of a unique relay secret;
-8. one-time configure followed by `start` with no URL argument;
-9. detached `agent-platform.exe` worker -> local fake HTTP gateway round trip;
-10. retry of one request ID after a simulated lost ACK without local re-execution;
-11. real policy-gated `runtime_self_test` through the worker;
-12. `stop` -> cloud `offline` -> final local `stopped` state.
+5. immutable task/result no-delete `storage.uploader` cloud-state model;
+6. minimal unauthenticated health response;
+7. PowerShell syntax and deploy/provision contract alignment;
+8. real Windows Credential Manager storage of a unique relay secret;
+9. one-time configure followed by `start` with no URL argument;
+10. detached `agent-platform.exe` worker -> local fake HTTP gateway round trip;
+11. retry of one request ID after a simulated lost ACK without local re-execution;
+12. real policy-gated `runtime_self_test` through the worker;
+13. `stop` -> cloud `offline` -> final local `stopped` state.
 
-Stage 4 remains **partial / E2E-ready** even after hosted CI is green. The final exit gate is one real path:
+Stage 4 remains **partial / E2E-ready** even after hosted CI is green. The final exit gate is one real path through the remote surface available in the user's ChatGPT account:
 
 ```text
-ChatGPT MCP tools/call
+ChatGPT MCP tools/call or GPT Action
   -> real Yandex Function URL
   -> mounted Object Storage task
   -> explicitly enabled Windows agent-platform relay worker
