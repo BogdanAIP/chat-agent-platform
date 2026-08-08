@@ -229,7 +229,7 @@ impl JobStore {
             if path.extension().and_then(|value| value.to_str()) != Some("json") {
                 continue;
             }
-            let job = self.read_path_locked(&path)?;
+            let job = Self::read_path_locked(&path)?;
             if job.idempotency_key.as_deref() == Some(idempotency_key) {
                 return Ok(Some(job));
             }
@@ -244,7 +244,7 @@ impl JobStore {
                 "job is not registered: {job_id}"
             )));
         }
-        let job = self.read_path_locked(&path)?;
+        let job = Self::read_path_locked(&path)?;
         if job.job_id != job_id {
             return Err(PlatformError::Validation(format!(
                 "job identity mismatch: expected {job_id}, got {}",
@@ -254,7 +254,7 @@ impl JobStore {
         Ok(job)
     }
 
-    fn read_path_locked(&self, path: &Path) -> Result<JobRecord, PlatformError> {
+    fn read_path_locked(path: &Path) -> Result<JobRecord, PlatformError> {
         let text = fs::read_to_string(path)
             .map_err(|error| io_error("cannot read persisted job", error))?;
         let value: Value = serde_json::from_str(&text).map_err(|error| {
