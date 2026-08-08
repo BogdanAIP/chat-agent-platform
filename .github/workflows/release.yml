@@ -30,7 +30,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: meta
-        name: Validate tag, version, and main ancestry
+        name: Validate tag, versions, and main ancestry
         shell: bash
         env:
           REQUESTED_TAG: ${{ github.event.inputs.tag }}
@@ -54,18 +54,40 @@ jobs:
             echo "Release tag must point to a commit reachable from main" >&2
             exit 1
           }
-          version="$(python - <<'PY'
-          import pathlib, tomllib
-          data = tomllib.loads(pathlib.Path('Cargo.toml').read_text(encoding='utf-8'))
-          print(data['workspace']['package']['version'])
+          readarray -t versions < <(python - <<'PY'
+          import ast
+          import pathlib
+          import tomllib
+
+          cargo = tomllib.loads(pathlib.Path('Cargo.toml').read_text(encoding='utf-8'))
+          pyproject = tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))
+          init_tree = ast.parse(pathlib.Path('agent_platform/__init__.py').read_text(encoding='utf-8'))
+          oracle = None
+          for node in init_tree.body:
+              if isinstance(node, ast.Assign):
+                  for target in node.targets:
+                      if isinstance(target, ast.Name) and target.id == '__version__':
+                          oracle = ast.literal_eval(node.value)
+          if not isinstance(oracle, str):
+              raise SystemExit('agent_platform.__version__ is missing')
+          print(cargo['workspace']['package']['version'])
+          print(pyproject['project']['version'])
+          print(oracle)
           PY
-          )"
-          if [[ "$tag" != "v$version" ]]; then
-            echo "Tag $tag does not match workspace version $version" >&2
+          )
+          rust_version="${versions[0]}"
+          python_package_version="${versions[1]}"
+          python_oracle_version="${versions[2]}"
+          if [[ "$rust_version" != "$python_package_version" || "$rust_version" != "$python_oracle_version" ]]; then
+            echo "Version drift: Rust=$rust_version pyproject=$python_package_version oracle=$python_oracle_version" >&2
+            exit 1
+          fi
+          if [[ "$tag" != "v$rust_version" ]]; then
+            echo "Tag $tag does not match project version $rust_version" >&2
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "version=$rust_version" >> "$GITHUB_OUTPUT"
 
   windows-binary:
     needs: validate
