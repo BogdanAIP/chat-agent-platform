@@ -244,7 +244,7 @@ fn spawn_gateway() -> (String, Arc<Mutex<GatewayState>>, thread::JoinHandle<()>)
 fn configure_start_execute_retry_stop_round_trip_uses_one_local_binary() {
     let temporary = tempdir().expect("temp directory");
     make_test_repo(temporary.path());
-    let secret_ref = format!("relay.test.{}", Uuid::new_v4().simple());
+    let secret_ref = format!("secret://relay/test/{}", Uuid::new_v4().simple());
     let _cleanup = SecretCleanup {
         root: temporary.path().to_path_buf(),
         secret_ref: secret_ref.clone(),
