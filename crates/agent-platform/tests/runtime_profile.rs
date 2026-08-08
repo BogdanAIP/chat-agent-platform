@@ -50,7 +50,10 @@ fn runtime_profile_is_derived_from_every_locked_capability() {
 
     let (path, profile) =
         write_runtime_profile(temporary.path(), Some("profile-test")).expect("runtime profile");
-    assert!(path.is_file(), "runtime capability profile must be persisted");
+    assert!(
+        path.is_file(),
+        "runtime capability profile must be persisted"
+    );
     assert_eq!(profile["contract_version"], "runtime-capability-profile-v1");
     assert!(
         profile["rust"]["compiler"]
@@ -82,7 +85,10 @@ fn runtime_profile_is_derived_from_every_locked_capability() {
         .keys()
         .cloned()
         .collect::<BTreeSet<_>>();
-    assert_eq!(profiled, locked, "runtime profile must not omit locked capabilities");
+    assert_eq!(
+        profiled, locked,
+        "runtime profile must not omit locked capabilities"
+    );
 
     for capability in locked {
         let entry = &profile["capabilities"][&capability];

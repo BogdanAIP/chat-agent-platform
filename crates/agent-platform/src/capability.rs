@@ -203,7 +203,7 @@ impl CapabilityRegistry {
             )));
         }
         let spec = self.locked_spec(capability)?;
-        self.validate_runtime_selection(capability, spec, requirement)?;
+        Self::validate_runtime_selection(capability, spec, requirement)?;
         if spec.cost > cost_limit {
             return Err(PlatformError::PolicyDenied(format!(
                 "executor {} cost {} exceeds request limit {cost_limit}",
@@ -221,7 +221,7 @@ impl CapabilityRegistry {
             .map(|capability| {
                 let spec = self.locked_spec(&capability)?;
                 let requirement = self.requirement(&capability)?;
-                self.validate_runtime_selection(&capability, spec, requirement)?;
+                Self::validate_runtime_selection(&capability, spec, requirement)?;
                 Ok(selection(spec, requirement))
             })
             .collect()
@@ -302,13 +302,12 @@ impl CapabilityRegistry {
                 )));
             }
             let spec = self.locked_spec(capability)?;
-            self.validate_runtime_selection(capability, spec, requirement)?;
+            Self::validate_runtime_selection(capability, spec, requirement)?;
         }
         Ok(())
     }
 
     fn validate_runtime_selection(
-        &self,
         capability: &str,
         spec: &CapabilitySpec,
         requirement: &CapabilityRequirement,
@@ -325,7 +324,8 @@ impl CapabilityRegistry {
                 spec.executor, spec.quality, requirement.required_quality
             )));
         }
-        if reliability_rank(&spec.reliability)? < reliability_rank(&requirement.required_reliability)?
+        if reliability_rank(&spec.reliability)?
+            < reliability_rank(&requirement.required_reliability)?
         {
             return Err(PlatformError::Validation(format!(
                 "executor {} reliability {} does not satisfy required {}",
