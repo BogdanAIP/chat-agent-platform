@@ -26,7 +26,7 @@ const CAPABILITY: &str = "audio.reference_master";
 const WORKFLOW_VERSION: &str = "reference-master-v1";
 const FINAL_CHECKPOINT: &str = "reference_master_qc_complete";
 const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
-const PROCESS_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+const PROCESS_TIMEOUT: Duration = Duration::from_mins(10);
 
 #[derive(Debug, Clone)]
 struct PythonRuntime {
@@ -380,8 +380,12 @@ fn validate_final_output(
     if decision.requires_review || !decision.auto_mastering_allowed || decision.action != "preserve"
     {
         return Err(PlatformError::Validation(format!(
-            "reference master failed final Stage 13 delivery gate: {}",
-            decision.action
+            "reference master failed final Stage 13 delivery gate: action={}, flags={}, lra={:.2} LU, lufs={:?}, peak={:?}",
+            decision.action,
+            decision.quality_flags.join(","),
+            output.loudness_range_lu,
+            output.integrated_lufs,
+            output.true_peak_dbtp
         )));
     }
     Ok(())
