@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -440,7 +441,11 @@ fn sha256_file(path: &Path) -> Result<String, PlatformError> {
         hasher.update(&buffer[..read]);
     }
     let digest = hasher.finalize();
-    Ok(format!("{digest:x}"))
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut hex, "{byte:02x}").expect("writing SHA-256 to String cannot fail");
+    }
+    Ok(hex)
 }
 
 fn serialization_error(error: serde_json::Error) -> PlatformError {
