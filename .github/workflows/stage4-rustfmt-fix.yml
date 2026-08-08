@@ -11,43 +11,25 @@ permissions:
 
 jobs:
   patch:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           ref: chat/stage4-yandex-relay
-      - name: Apply exact rustfmt diff
-        shell: python
+      - name: Install pinned Rustfmt
+        shell: pwsh
         run: |
-          from pathlib import Path
-          path = Path("crates/agent-platform/tests/stage4_relay_lifecycle.rs")
-          text = path.read_text(encoding="utf-8")
-          old = '''                Ok((stream, _)) => {
-              stream
-                  .set_nonblocking(false)
-                  .expect("accepted fake gateway stream blocking mode");
-              stream
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt
+          rustup default 1.97.1
+      - name: Apply canonical rustfmt
+        shell: pwsh
+        run: |
+          cargo fmt --all
+          if (git status --porcelain) {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -- 'crates/**/*.rs'
+            git commit -m "Apply canonical Stage 4 rustfmt"
+            git push origin HEAD:chat/stage4-yandex-relay
           }
-          '''
-          new = '''                Ok((stream, _)) => {
-                      stream
-                          .set_nonblocking(false)
-                          .expect("accepted fake gateway stream blocking mode");
-                      stream
-                  }
-          '''
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f"expected one unformatted socket arm, got {count}")
-          path.write_text(text.replace(old, new), encoding="utf-8")
-      - name: Commit formatting only
-        shell: bash
-        run: |
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add crates/agent-platform/tests/stage4_relay_lifecycle.rs
-          git diff --cached --quiet && { echo "No formatting change produced"; exit 1; }
-          git commit -m "Apply Stage 4 socket rustfmt"
-          git push origin HEAD:chat/stage4-yandex-relay
