@@ -1,6 +1,7 @@
 use std::fs;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use std::thread;
+use std::time::Duration;
 
 use agent_platform::job::JobStore;
 use serde_json::{Map, Value, json};
@@ -55,6 +56,53 @@ fn concurrent_idempotent_begin_produces_one_job() {
         .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("json"))
         .count();
     assert_eq!(persisted, 1);
+}
+
+#[test]
+fn execution_lock_serializes_workers_for_one_job() {
+    let temporary = tempdir().expect("temp directory");
+    let store = JobStore::new(temporary.path()).expect("job store");
+    let job = store
+        .begin("audio.mastering_produce", "exclusive-request")
+        .expect("begin");
+    let first_guard = store
+        .execution_lock(&job.job_id)
+        .expect("first execution lock");
+
+    let root = temporary.path().to_path_buf();
+    let job_id = job.job_id.clone();
+    let (started_tx, started_rx) = mpsc::channel();
+    let (acquired_tx, acquired_rx) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        let second = JobStore::new(&root).expect("second job store");
+        started_tx.send(()).expect("started signal");
+        let _guard = second
+            .execution_lock(&job_id)
+            .expect("second execution lock");
+        acquired_tx.send(()).expect("acquired signal");
+    });
+
+    started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("second worker must start");
+    assert!(
+        acquired_rx
+            .recv_timeout(Duration::from_millis(250))
+            .is_err(),
+        "second worker must not enter while the first execution guard is held"
+    );
+    drop(first_guard);
+    acquired_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("second worker must acquire after release");
+    worker.join().expect("second worker must finish");
+    assert!(
+        temporary
+            .path()
+            .join(format!("{}.execution.lock", job.job_id))
+            .is_file(),
+        "persistent lock path avoids delete/recreate races between waiters"
+    );
 }
 
 #[test]

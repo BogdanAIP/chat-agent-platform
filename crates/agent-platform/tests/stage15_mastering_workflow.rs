@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Arc, Barrier};
+use std::thread;
 
 use agent_platform::mastering_workflow::produce_mastering_file;
 use agent_platform::media::normalize_loudness;
@@ -171,6 +173,67 @@ fn quiet_dynamic_program_is_mastered_once_and_reused_idempotently() {
     assert_eq!(job["status"], "succeeded");
     assert_eq!(job["attempt"], 1);
     assert_eq!(job["checkpoint"]["name"], "master_qc_complete");
+}
+
+#[test]
+fn simultaneous_identical_requests_execute_once_and_return_one_master() {
+    let temporary = tempdir().expect("temp directory");
+    make_test_repo(temporary.path());
+    let source = temporary.path().join("concurrent-dynamic.wav");
+    make_dynamic_program(&source, 48_000, 2);
+
+    let root = temporary.path().to_path_buf();
+    let barrier = Arc::new(Barrier::new(3));
+    let mut workers = Vec::new();
+    for _ in 0..2 {
+        let root = root.clone();
+        let source = source.clone();
+        let barrier = Arc::clone(&barrier);
+        workers.push(thread::spawn(move || {
+            barrier.wait();
+            produce_mastering_file(
+                &root,
+                &source,
+                Some("master-test"),
+                "project",
+                None,
+                "music-balanced",
+            )
+            .expect("concurrent mastering request must succeed")
+        }));
+    }
+    barrier.wait();
+    let results = workers
+        .into_iter()
+        .map(|worker| worker.join().expect("mastering worker must finish"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        results[0]["result"]["job_id"],
+        results[1]["result"]["job_id"]
+    );
+    assert_eq!(
+        results[0]["result"]["source_artifact"]["artifact_id"],
+        results[1]["result"]["source_artifact"]["artifact_id"]
+    );
+    assert_eq!(
+        results[0]["result"]["master_artifact"]["artifact_id"],
+        results[1]["result"]["master_artifact"]["artifact_id"]
+    );
+    assert_eq!(
+        results[0]["result"]["master_artifact"]["sha256"],
+        results[1]["result"]["master_artifact"]["sha256"]
+    );
+    assert_eq!(
+        manifest_count(temporary.path()),
+        2,
+        "one immutable source snapshot and one master must be published"
+    );
+
+    let job_id = results[0]["result"]["job_id"].as_str().expect("job id");
+    let job = persisted_job(temporary.path(), job_id);
+    assert_eq!(job["status"], "succeeded");
+    assert_eq!(job["attempt"], 1);
 }
 
 #[test]

@@ -33,6 +33,18 @@ pub struct JobRecord {
     pub checkpoint: Option<JobCheckpoint>,
 }
 
+pub struct JobExecutionGuard {
+    lock: Option<fs::File>,
+}
+
+impl Drop for JobExecutionGuard {
+    fn drop(&mut self) {
+        if let Some(lock) = self.lock.take() {
+            let _ = lock.unlock();
+        }
+    }
+}
+
 pub struct JobStore {
     root: PathBuf,
 }
@@ -100,6 +112,27 @@ impl JobStore {
     pub fn get(&self, job_id: &str) -> Result<JobRecord, PlatformError> {
         validate_job_id(job_id)?;
         self.with_lock(|| self.read_locked(job_id))
+    }
+
+    pub fn execution_lock(&self, job_id: &str) -> Result<JobExecutionGuard, PlatformError> {
+        validate_job_id(job_id)?;
+        self.get(job_id)?;
+        let path = self.root.join(format!("{job_id}.execution.lock"));
+        if !path.starts_with(&self.root) {
+            return Err(PlatformError::Validation(
+                "job execution lock escapes the job store".into(),
+            ));
+        }
+        let lock = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(path)
+            .map_err(|error| io_error("cannot open job execution lock", error))?;
+        lock.lock()
+            .map_err(|error| io_error("cannot lock job execution", error))?;
+        Ok(JobExecutionGuard { lock: Some(lock) })
     }
 
     pub fn resume(&self, job_id: &str) -> Result<JobRecord, PlatformError> {

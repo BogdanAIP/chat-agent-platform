@@ -13,6 +13,7 @@ use crate::binding::{ProjectBinding, resolve_project};
 use crate::capability::{CapabilityRegistry, required_quality};
 use crate::contracts;
 use crate::error::{PlatformError, io_error};
+use crate::input_capture::{capture_expected_file, verify_artifact_identity};
 use crate::job::{JobRecord, JobStore};
 use crate::media::{MediaInspection, convert_audio, inspect_media, normalize_loudness};
 use crate::policy::{PolicyDecision, PolicyEnforcementPoint};
@@ -75,7 +76,13 @@ pub fn produce_mastering_file(
         return completed_response(&auth, &existing);
     }
 
-    let running = auth.jobs.resume(&existing.job_id)?;
+    let _execution_guard = auth.jobs.execution_lock(&existing.job_id)?;
+    let current = auth.jobs.get(&existing.job_id)?;
+    if current.status == "succeeded" {
+        return completed_response(&auth, &current);
+    }
+
+    let running = auth.jobs.resume(&current.job_id)?;
     if running
         .checkpoint
         .as_ref()
@@ -86,7 +93,14 @@ pub fn produce_mastering_file(
         return completed_response(&auth, &completed);
     }
 
-    match execute_workflow(&auth, &running, file_path, data_class, profile) {
+    match execute_workflow(
+        &auth,
+        &running,
+        file_path,
+        data_class,
+        profile,
+        &source_sha256,
+    ) {
         Ok(result) => Ok(result),
         Err(error) => {
             if auth
@@ -107,8 +121,9 @@ fn execute_workflow(
     file_path: &Path,
     data_class: &str,
     profile: &str,
+    expected_source_sha256: &str,
 ) -> Result<Value, PlatformError> {
-    let source = source_artifact(auth, job, file_path, data_class)?;
+    let source = source_artifact(auth, job, file_path, data_class, expected_source_sha256)?;
     let input_inspection = inspect_media(Path::new(&source.path))?;
     let decision = decide_mastering(&input_inspection, profile)?;
 
@@ -216,6 +231,7 @@ fn source_artifact(
     job: &JobRecord,
     file_path: &Path,
     data_class: &str,
+    expected_source_sha256: &str,
 ) -> Result<Artifact, PlatformError> {
     if let Some(artifact_id) = job
         .checkpoint
@@ -223,10 +239,18 @@ fn source_artifact(
         .and_then(|checkpoint| checkpoint.data.get("source_artifact_id"))
         .and_then(Value::as_str)
     {
-        return auth.store.get(artifact_id);
+        let source = auth.store.get(artifact_id)?;
+        verify_artifact_identity(&source, expected_source_sha256, "mastering source")?;
+        return Ok(source);
     }
 
-    let source = auth.store.import_file(file_path, CAPABILITY, data_class)?;
+    let source = capture_expected_file(
+        &auth.store,
+        file_path,
+        expected_source_sha256,
+        CAPABILITY,
+        data_class,
+    )?;
     auth.jobs.checkpoint(
         &job.job_id,
         "source_registered",
