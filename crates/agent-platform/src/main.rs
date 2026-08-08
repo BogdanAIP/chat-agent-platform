@@ -17,6 +17,10 @@ use agent_platform::reference_mastering::{probe_matchering, reference_master_fil
 use agent_platform::service::{
     diagnose, inspect_artifact, inspect_file, self_test, write_runtime_profile,
 };
+use agent_platform::transport::{
+    relay_status, remove_relay_token, run_relay_worker, start_relay_worker, stop_relay_worker,
+    store_relay_token_from_env,
+};
 use clap::{Parser, Subcommand};
 use serde_json::json;
 
@@ -34,6 +38,40 @@ struct Cli {
 }
 
 #[derive(Debug, Subcommand)]
+enum RelayCommand {
+    Configure {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long, default_value = "AGENT_PLATFORM_RELAY_TOKEN")]
+        env_name: String,
+        #[arg(long, default_value = "relay.agent_token")]
+        secret_ref: String,
+    },
+    Start {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        endpoint: String,
+        #[arg(long, default_value = "relay.agent_token")]
+        secret_ref: String,
+    },
+    Status {
+        #[arg(long)]
+        project_id: Option<String>,
+    },
+    Stop {
+        #[arg(long)]
+        project_id: Option<String>,
+    },
+    RemoveToken {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long, default_value = "relay.agent_token")]
+        secret_ref: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum Command {
     Diagnose {
         #[arg(long)]
@@ -42,6 +80,21 @@ enum Command {
     Probe {
         #[arg(long)]
         project_id: Option<String>,
+    },
+    Relay {
+        #[command(subcommand)]
+        command: RelayCommand,
+    },
+    #[command(hide = true)]
+    RelayWorker {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        endpoint: String,
+        #[arg(long, default_value = "relay.agent_token")]
+        secret_ref: String,
+        #[arg(long, default_value_t = false)]
+        once: bool,
     },
     ReaperProbe,
     MatcheringProbe,
@@ -257,16 +310,53 @@ enum Command {
     },
 }
 
+fn run_relay_command(
+    repo_root: &std::path::Path,
+    command: &RelayCommand,
+) -> Result<serde_json::Value, agent_platform::error::PlatformError> {
+    match command {
+        RelayCommand::Configure {
+            project_id,
+            env_name,
+            secret_ref,
+        } => store_relay_token_from_env(
+            repo_root,
+            project_id.as_deref(),
+            env_name,
+            secret_ref,
+        ),
+        RelayCommand::Start {
+            project_id,
+            endpoint,
+            secret_ref,
+        } => start_relay_worker(repo_root, project_id.as_deref(), endpoint, secret_ref),
+        RelayCommand::Status { project_id } => relay_status(repo_root, project_id.as_deref()),
+        RelayCommand::Stop { project_id } => stop_relay_worker(repo_root, project_id.as_deref()),
+        RelayCommand::RemoveToken {
+            project_id,
+            secret_ref,
+        } => remove_relay_token(repo_root, project_id.as_deref(), secret_ref),
+    }
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match &cli.command {
         Command::Diagnose { project_id } => diagnose(&cli.repo_root, project_id.as_deref()),
-        Command::Probe { project_id } => write_runtime_profile(
+        Command::Probe { project_id } => write_runtime_profile(&cli.repo_root, project_id.as_deref())
+            .map(|(output, profile)| json!({"status": "success", "output": output, "profile": profile})),
+        Command::Relay { command } => run_relay_command(&cli.repo_root, command),
+        Command::RelayWorker {
+            project_id,
+            endpoint,
+            secret_ref,
+            once,
+        } => run_relay_worker(
             &cli.repo_root,
             project_id.as_deref(),
-        )
-        .map(
-            |(output, profile)| json!({"status": "success", "output": output, "profile": profile}),
+            endpoint,
+            secret_ref,
+            *once,
         ),
         Command::ReaperProbe => discover_reaper().map(|path| {
             json!({
@@ -318,10 +408,8 @@ fn main() -> ExitCode {
             project_id,
             capability,
         } => build_context(&cli.repo_root, project_id.as_deref(), capability),
-        Command::Audit { project_id } => {
-            write_capability_audit(&cli.repo_root, project_id.as_deref())
-                .map(|output| json!({"status": "success", "output": output}))
-        }
+        Command::Audit { project_id } => write_capability_audit(&cli.repo_root, project_id.as_deref())
+            .map(|output| json!({"status": "success", "output": output})),
         Command::SelfTest { project_id } => self_test(&cli.repo_root, project_id.as_deref()),
         Command::JobBegin {
             project_id,
