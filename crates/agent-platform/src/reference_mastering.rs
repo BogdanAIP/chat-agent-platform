@@ -18,6 +18,7 @@ use crate::binding::{ProjectBinding, resolve_project};
 use crate::capability::{CapabilityRegistry, required_quality};
 use crate::contracts;
 use crate::error::{PlatformError, io_error};
+use crate::input_capture::{capture_expected_file, verify_artifact_identity};
 use crate::job::{JobRecord, JobStore};
 use crate::media::{MediaInspection, inspect_media, normalize_loudness_at_sample_rate};
 use crate::policy::{PolicyDecision, PolicyEnforcementPoint};
@@ -133,7 +134,13 @@ pub fn reference_master_files(
         return completed_response(&auth, &existing);
     }
 
-    let running = auth.jobs.resume(&existing.job_id)?;
+    let _execution_guard = auth.jobs.execution_lock(&existing.job_id)?;
+    let current = auth.jobs.get(&existing.job_id)?;
+    if current.status == "succeeded" {
+        return completed_response(&auth, &current);
+    }
+
+    let running = auth.jobs.resume(&current.job_id)?;
     if running
         .checkpoint
         .as_ref()
@@ -152,6 +159,8 @@ pub fn reference_master_files(
         reference_path,
         data_class,
         profile,
+        &target_sha,
+        &reference_sha,
     ) {
         Ok(result) => Ok(result),
         Err(error) => {
@@ -176,8 +185,18 @@ fn execute_workflow(
     reference_path: &Path,
     data_class: &str,
     profile: &str,
+    expected_target_sha: &str,
+    expected_reference_sha: &str,
 ) -> Result<Value, PlatformError> {
-    let (target, reference) = input_artifacts(auth, job, target_path, reference_path, data_class)?;
+    let (target, reference) = input_artifacts(
+        auth,
+        job,
+        target_path,
+        reference_path,
+        data_class,
+        expected_target_sha,
+        expected_reference_sha,
+    )?;
     let target_inspection = inspect_media(Path::new(&target.path))?;
     let reference_inspection = inspect_media(Path::new(&reference.path))?;
     validate_input("target", &target_inspection)?;
@@ -263,12 +282,15 @@ fn execute_workflow(
     completed_response(auth, &completed)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn input_artifacts(
     auth: &AuthorizedWorkflow,
     job: &JobRecord,
     target_path: &Path,
     reference_path: &Path,
     data_class: &str,
+    expected_target_sha: &str,
+    expected_reference_sha: &str,
 ) -> Result<(Artifact, Artifact), PlatformError> {
     if let Some(checkpoint) = &job.checkpoint
         && checkpoint.name == "inputs_registered"
@@ -287,15 +309,31 @@ fn input_artifacts(
             .ok_or_else(|| {
                 PlatformError::Validation("reference artifact checkpoint is missing".into())
             })?;
-        return Ok((auth.store.get(target_id)?, auth.store.get(reference_id)?));
+        let target = auth.store.get(target_id)?;
+        let reference = auth.store.get(reference_id)?;
+        verify_artifact_identity(&target, expected_target_sha, "reference-mastering target")?;
+        verify_artifact_identity(
+            &reference,
+            expected_reference_sha,
+            "reference-mastering reference",
+        )?;
+        return Ok((target, reference));
     }
 
-    let target = auth
-        .store
-        .import_file(target_path, CAPABILITY, data_class)?;
-    let reference = auth
-        .store
-        .import_file(reference_path, CAPABILITY, data_class)?;
+    let target = capture_expected_file(
+        &auth.store,
+        target_path,
+        expected_target_sha,
+        CAPABILITY,
+        data_class,
+    )?;
+    let reference = capture_expected_file(
+        &auth.store,
+        reference_path,
+        expected_reference_sha,
+        CAPABILITY,
+        data_class,
+    )?;
     auth.jobs.checkpoint(
         &job.job_id,
         "inputs_registered",
