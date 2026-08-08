@@ -23,6 +23,7 @@ fn selected_executor_can_use_secret_but_ffmpeg_cannot() {
                 {
                     "capability": "video.generate",
                     "executor": "video.api",
+                    "execution_path": "remote.video.api",
                     "enabled": true,
                     "quality": "professional",
                     "reliability": "high",
@@ -34,6 +35,7 @@ fn selected_executor_can_use_secret_but_ffmpeg_cannot() {
                 {
                     "capability": "media.inspect",
                     "executor": "rust.local.ffmpeg",
+                    "execution_path": "local.ffmpeg",
                     "enabled": true,
                     "quality": "professional",
                     "reliability": "high",
@@ -59,6 +61,36 @@ fn selected_executor_can_use_secret_but_ffmpeg_cannot() {
         .expect("lock JSON"),
     )
     .expect("lock write");
+    fs::write(
+        root.path().join("config/capability-requirements.yaml"),
+        serde_json::to_vec_pretty(&json!({
+            "contract_version": "capability-requirements-v1",
+            "requirements": [
+                {
+                    "capability": "video.generate",
+                    "required": true,
+                    "required_quality": "professional",
+                    "required_reliability": "high",
+                    "required_determinism": "standard",
+                    "execution_paths": ["remote.video.api"],
+                    "fallbacks": [],
+                    "acceptance_evidence": []
+                },
+                {
+                    "capability": "media.inspect",
+                    "required": true,
+                    "required_quality": "professional",
+                    "required_reliability": "high",
+                    "required_determinism": "high",
+                    "execution_paths": ["local.ffmpeg"],
+                    "fallbacks": [],
+                    "acceptance_evidence": []
+                }
+            ]
+        }))
+        .expect("requirements JSON"),
+    )
+    .expect("requirements write");
 
     let registry = CapabilityRegistry::load(root.path()).expect("registry");
     let video = registry
