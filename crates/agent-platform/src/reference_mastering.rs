@@ -2,7 +2,7 @@ use std::env;
 use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -578,7 +578,7 @@ fn run_matchering(
             "Matchering process failed; no reference master was accepted".into(),
         ));
     }
-    if !output.is_file() || output.metadata().is_none_or(|metadata| metadata.len() == 0) {
+    if !output.is_file() || !output.metadata().is_ok_and(|metadata| metadata.len() > 0) {
         return Err(PlatformError::Validation(
             "Matchering did not create a non-empty output WAV".into(),
         ));
