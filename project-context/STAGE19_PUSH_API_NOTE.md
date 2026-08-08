@@ -1,1 +1,0 @@
-This file exists only to verify connector writes during Stage 19 and will be removed before merge.
