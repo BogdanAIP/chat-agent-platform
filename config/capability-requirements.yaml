@@ -5,89 +5,121 @@
       "capability": "media.inspect",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["local.ffmpeg"],
       "fallbacks": [],
-      "acceptance": ["duration", "sample_rate", "channels", "integrated_lufs", "true_peak_dbtp"]
+      "acceptance_evidence": ["duration", "sample_rate", "channels", "integrated_lufs", "true_peak_dbtp"]
     },
     {
       "capability": "media.validate",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["local.ffmpeg"],
       "fallbacks": [],
-      "acceptance": ["duration", "stream_inventory", "container_probe"]
+      "acceptance_evidence": ["duration", "stream_inventory", "container_probe"]
     },
     {
       "capability": "media.convert",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["local.ffmpeg"],
       "fallbacks": [],
-      "acceptance": ["lossless_wav", "lossless_flac", "output_probe", "artifact_sha256"]
+      "acceptance_evidence": ["lossless_wav", "lossless_flac", "output_probe", "artifact_sha256"]
     },
     {
       "capability": "media.extract_audio",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["local.ffmpeg"],
       "fallbacks": [],
-      "acceptance": ["primary_audio_stream", "pcm_s24le", "output_probe"]
+      "acceptance_evidence": ["primary_audio_stream", "pcm_s24le", "output_probe"]
     },
     {
       "capability": "media.normalize_loudness",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["local.ffmpeg"],
       "fallbacks": [],
-      "acceptance": ["two_pass_ebu_r128", "target_lufs_tolerance", "true_peak_ceiling", "output_probe"]
+      "acceptance_evidence": ["two_pass_ebu_r128", "target_lufs_tolerance", "true_peak_ceiling", "output_probe"]
     },
     {
       "capability": "media.mux",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["local.ffmpeg"],
       "fallbacks": [],
-      "acceptance": ["video_stream_present", "audio_stream_present", "output_probe", "artifact_sha256"]
+      "acceptance_evidence": ["video_stream_present", "audio_stream_present", "output_probe", "artifact_sha256"]
     },
     {
       "capability": "audio.mastering_analyze",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["local.ffmpeg"],
       "fallbacks": [],
-      "acceptance": ["ebu_r128_metrics", "profile_target", "explicit_quality_flags", "safe_auto_gate", "benchmark_corpus", "artifact_sha256"]
+      "acceptance_evidence": ["ebu_r128_metrics", "profile_target", "explicit_quality_flags", "safe_auto_gate", "benchmark_corpus", "artifact_sha256"]
     },
     {
       "capability": "audio.mastering_produce",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["local.mastering"],
       "fallbacks": [],
-      "acceptance": ["source_hash_idempotency", "persistent_job", "safe_auto_gate", "lossless_wav_master", "final_loudness_tolerance", "final_true_peak_ceiling", "duration_integrity", "artifact_sha256", "resume_without_duplicate_master"]
+      "acceptance_evidence": ["source_hash_idempotency", "persistent_job", "safe_auto_gate", "lossless_wav_master", "final_loudness_tolerance", "final_true_peak_ceiling", "duration_integrity", "artifact_sha256", "resume_without_duplicate_master"]
     },
     {
       "capability": "audio.reference_master",
       "required": false,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["edge.python.matchering"],
       "fallbacks": [],
-      "acceptance": ["target_reference_hash_idempotency", "pinned_matchering_e2e", "pcm24_intermediate", "technical_delivery_qc", "duration_integrity", "artifact_sha256", "resume_without_duplicate_master"]
+      "acceptance_evidence": ["target_reference_hash_idempotency", "pinned_matchering_e2e", "pcm24_intermediate", "technical_delivery_qc", "duration_integrity", "artifact_sha256", "resume_without_duplicate_master"]
     },
     {
       "capability": "audio.reaper_render",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["local.reaper"],
       "fallbacks": [],
-      "acceptance": ["reaper_detected", "source_ffprobe_valid", "track_imported", "marker_created", "project_saved", "wav_rendered", "render_ffprobe_valid", "render_sample_rate_verified", "artifact_sha256"]
+      "acceptance_evidence": ["reaper_detected", "source_ffprobe_valid", "track_imported", "marker_created", "project_saved", "wav_rendered", "render_ffprobe_valid", "render_sample_rate_verified", "artifact_sha256"]
+    },
+    {
+      "capability": "runtime.self_test",
+      "required": true,
+      "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
+      "execution_paths": ["local.core"],
+      "fallbacks": [],
+      "acceptance_evidence": ["contract_validation", "controlled_write_read_cleanup", "ffmpeg_health", "ffprobe_health"]
     },
     {
       "capability": "transport.relay_connect",
       "required": true,
       "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
       "execution_paths": ["yandex.function.long_poll"],
       "fallbacks": [],
-      "acceptance": ["manual_start_stop", "25_second_long_poll", "heartbeat_offline_detection", "credential_manager_token", "allowlisted_operations", "no_arbitrary_shell", "shared_object_storage_state", "duplicate_request_response_cache"]
+      "acceptance_evidence": ["manual_start_stop", "25_second_long_poll", "heartbeat_offline_detection", "credential_manager_token", "allowlisted_operations", "no_arbitrary_shell", "shared_object_storage_state", "duplicate_request_response_cache"]
     }
   ]
 }
