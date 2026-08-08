@@ -94,8 +94,7 @@ fn stage11_audio_operations_are_typed_and_technically_validated() {
         .expect("normalized true peak must be measured");
     assert!(peak <= -0.8);
     assert_eq!(
-        normalized["result"]["inspection"]["sample_rate_hz"],
-        48_000,
+        normalized["result"]["inspection"]["sample_rate_hz"], 48_000,
         "professional loudness normalization must preserve source sample rate"
     );
 }
