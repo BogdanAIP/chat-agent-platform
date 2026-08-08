@@ -7,7 +7,7 @@ use std::path::Path;
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use zeroize::Zeroize;
 
 use crate::binding::{ProjectBinding, resolve_project};
@@ -169,30 +169,63 @@ fn dispatch_request_inner(
             "relay request deadline has expired".into(),
         ));
     }
+    let parameters = request.parameters.as_object().ok_or_else(|| {
+        PlatformError::Validation("relay operation parameters must be an object".into())
+    })?;
     match request.operation.as_str() {
-        "local_ping" => {
-            let message = request
-                .parameters
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or("ping");
-            if message.len() > MAX_PING_MESSAGE_BYTES {
-                return Err(PlatformError::Validation(
-                    "local_ping message exceeds 1024 bytes".into(),
-                ));
-            }
-            Ok(json!({
-                "status": "success",
-                "pong": true,
-                "message": message,
-                "project_id": project_id,
-                "executed_locally": true
-            }))
+        "local_ping" => dispatch_local_ping(project_id, parameters),
+        "runtime_self_test" => {
+            require_no_parameters("runtime_self_test", parameters)?;
+            self_test(repo_root, Some(project_id))
         }
-        "runtime_self_test" => self_test(repo_root, Some(project_id)),
         other => Err(PlatformError::PolicyDenied(format!(
             "relay operation is not allowlisted: {other}"
         ))),
+    }
+}
+
+fn dispatch_local_ping(
+    project_id: &str,
+    parameters: &Map<String, Value>,
+) -> Result<Value, PlatformError> {
+    if parameters.keys().any(|key| key != "message") {
+        return Err(PlatformError::Validation(
+            "local_ping accepts only the optional message parameter".into(),
+        ));
+    }
+    let message = match parameters.get("message") {
+        Some(Value::String(value)) => value.as_str(),
+        Some(_) => {
+            return Err(PlatformError::Validation(
+                "local_ping message must be a string".into(),
+            ));
+        }
+        None => "ping",
+    };
+    if message.len() > MAX_PING_MESSAGE_BYTES {
+        return Err(PlatformError::Validation(
+            "local_ping message exceeds 1024 bytes".into(),
+        ));
+    }
+    Ok(json!({
+        "status": "success",
+        "pong": true,
+        "message": message,
+        "project_id": project_id,
+        "executed_locally": true
+    }))
+}
+
+fn require_no_parameters(
+    operation: &str,
+    parameters: &Map<String, Value>,
+) -> Result<(), PlatformError> {
+    if parameters.is_empty() {
+        Ok(())
+    } else {
+        Err(PlatformError::Validation(format!(
+            "{operation} does not accept parameters"
+        )))
     }
 }
 
@@ -309,5 +342,28 @@ mod tests {
         let response = dispatch_request(Path::new("."), "demo", request);
         assert_eq!(response.status, "error");
         assert_eq!(response.error["code"], "VALIDATION_FAILED");
+    }
+
+    #[test]
+    fn allowlisted_operations_reject_extra_parameters() {
+        let ping = RelayRequest {
+            contract_version: "relay-request-v1".into(),
+            request_id: format!("rly_{}", Uuid::new_v4().simple()),
+            operation: "local_ping".into(),
+            parameters: json!({"message": "ok", "unexpected": true}),
+            deadline_unix_ms: Utc::now().timestamp_millis() + 10_000,
+        };
+        let ping_response = dispatch_request(Path::new("."), "demo", ping);
+        assert_eq!(ping_response.status, "error");
+
+        let self_test = RelayRequest {
+            contract_version: "relay-request-v1".into(),
+            request_id: format!("rly_{}", Uuid::new_v4().simple()),
+            operation: "runtime_self_test".into(),
+            parameters: json!({"unexpected": true}),
+            deadline_unix_ms: Utc::now().timestamp_millis() + 10_000,
+        };
+        let self_test_response = dispatch_request(Path::new("."), "demo", self_test);
+        assert_eq!(self_test_response.status, "error");
     }
 }
