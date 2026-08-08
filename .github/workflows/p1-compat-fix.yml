@@ -1,0 +1,64 @@
+name: P1 Compatibility Fix
+
+on:
+  push:
+    branches: [chat/config-profile-docs-hardening]
+    paths:
+      - ".github/workflows/p1-compat-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chat/config-profile-docs-hardening
+      - name: Align isolated fixture and preserve rust field
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_exact(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one match, got {count}")
+              p.write_text(text.replace(old, new), encoding="utf-8")
+
+          replace_exact(
+              "crates/agent-platform/tests/stage19_reference_mastering.rs",
+              '''                "executor": "edge.python.matchering",
+                  "enabled": true,
+          ''',
+              '''                "executor": "edge.python.matchering",
+                  "execution_path": "edge.python.matchering",
+                  "enabled": true,
+          ''',
+          )
+
+          service = Path("crates/agent-platform/src/service.rs")
+          text = service.read_text(encoding="utf-8")
+          marker = '        "rust_minimum": env!("CARGO_PKG_RUST_VERSION"),\n'
+          count = text.count(marker)
+          if count != 2:
+              raise SystemExit(f"service.rs: expected two rust_minimum markers, got {count}")
+          text = text.replace(
+              marker,
+              '        "rust": env!("CARGO_PKG_RUST_VERSION"),\n' + marker,
+          )
+          service.write_text(text, encoding="utf-8")
+      - name: Commit compatibility patch
+        shell: bash
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/agent-platform/src/service.rs crates/agent-platform/tests/stage19_reference_mastering.rs
+          git diff --cached --quiet && { echo "No patch produced"; exit 1; }
+          git commit -m "Preserve runtime profile compatibility"
+          git push origin HEAD:chat/config-profile-docs-hardening
