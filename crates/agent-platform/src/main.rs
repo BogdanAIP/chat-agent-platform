@@ -3,6 +3,9 @@ use std::process::ExitCode;
 
 use agent_platform::audit::write_capability_audit;
 use agent_platform::bootstrap::build_context;
+use agent_platform::job_ops::{
+    begin_job, cancel_job, checkpoint_job, fail_job, get_job, resume_job, succeed_job,
+};
 use agent_platform::media_ops::{
     analyze_mastering_file, convert_audio_file, extract_audio_file, mux_media_files,
     normalize_audio_file, validate_media_file,
@@ -70,6 +73,58 @@ enum Command {
     SelfTest {
         #[arg(long)]
         project_id: Option<String>,
+    },
+    JobBegin {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        capability: String,
+        #[arg(long)]
+        idempotency_key: String,
+    },
+    JobGet {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        job_id: String,
+    },
+    JobResume {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        job_id: String,
+    },
+    JobCheckpoint {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        job_id: String,
+        #[arg(long)]
+        name: String,
+        #[arg(long, default_value = "{}")]
+        data_json: String,
+    },
+    JobSucceed {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        job_id: String,
+        #[arg(long, default_value = "{}")]
+        result_json: String,
+    },
+    JobFail {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        job_id: String,
+        #[arg(long)]
+        error_json: String,
+    },
+    JobCancel {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        job_id: String,
     },
     Inspect {
         #[arg(long)]
@@ -214,6 +269,57 @@ fn main() -> ExitCode {
                 .map(|output| json!({"status": "success", "output": output}))
         }
         Command::SelfTest { project_id } => self_test(&cli.repo_root, project_id.as_deref()),
+        Command::JobBegin {
+            project_id,
+            capability,
+            idempotency_key,
+        } => begin_job(
+            &cli.repo_root,
+            project_id.as_deref(),
+            capability,
+            idempotency_key,
+        ),
+        Command::JobGet { project_id, job_id } => {
+            get_job(&cli.repo_root, project_id.as_deref(), job_id)
+        }
+        Command::JobResume { project_id, job_id } => {
+            resume_job(&cli.repo_root, project_id.as_deref(), job_id)
+        }
+        Command::JobCheckpoint {
+            project_id,
+            job_id,
+            name,
+            data_json,
+        } => checkpoint_job(
+            &cli.repo_root,
+            project_id.as_deref(),
+            job_id,
+            name,
+            data_json,
+        ),
+        Command::JobSucceed {
+            project_id,
+            job_id,
+            result_json,
+        } => succeed_job(
+            &cli.repo_root,
+            project_id.as_deref(),
+            job_id,
+            result_json,
+        ),
+        Command::JobFail {
+            project_id,
+            job_id,
+            error_json,
+        } => fail_job(
+            &cli.repo_root,
+            project_id.as_deref(),
+            job_id,
+            error_json,
+        ),
+        Command::JobCancel { project_id, job_id } => {
+            cancel_job(&cli.repo_root, project_id.as_deref(), job_id)
+        }
         Command::Inspect {
             project_id,
             file,
