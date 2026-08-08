@@ -8,6 +8,7 @@ pub mod config;
 pub mod contracts;
 pub mod error;
 pub mod job;
+pub mod job_ops;
 pub mod media;
 pub mod media_ops;
 pub mod policy;
