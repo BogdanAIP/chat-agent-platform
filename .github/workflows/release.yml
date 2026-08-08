@@ -26,7 +26,7 @@ jobs:
       tag: ${{ steps.meta.outputs.tag }}
       version: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
       - id: meta
@@ -99,7 +99,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.validate.outputs.tag }}
       - name: Install pinned Rust toolchain
@@ -108,7 +108,7 @@ jobs:
           rustup toolchain install 1.97.1 --profile minimal
           rustup default 1.97.1
       - name: Cache Rust dependencies and build outputs
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/.cargo/registry
@@ -125,7 +125,7 @@ jobs:
           New-Item -ItemType Directory -Path runtime/release -Force | Out-Null
           Copy-Item target/release/agent-platform.exe runtime/release/agent-platform.exe
           if ((Get-Item runtime/release/agent-platform.exe).Length -le 0) { throw 'release binary is empty' }
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-windows-binary
           path: runtime/release/agent-platform.exe
@@ -137,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.validate.outputs.tag }}
       - name: Install pinned Rust toolchain
@@ -146,7 +146,7 @@ jobs:
           rustup toolchain install 1.97.1 --profile minimal
           rustup default 1.97.1
       - name: Cache cargo-cyclonedx
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cargo/bin/cargo-cyclonedx
           key: cargo-cyclonedx-0.5.9-${{ runner.os }}-${{ runner.arch }}
@@ -177,7 +177,7 @@ jobs:
           mkdir -p runtime/release
           cp "${generated[0]}" runtime/release/agent-platform.cdx.json
           python -m json.tool runtime/release/agent-platform.cdx.json >/dev/null
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-sbom
           path: runtime/release/agent-platform.cdx.json
@@ -189,11 +189,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-windows-binary
           path: runtime/release
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-sbom
           path: runtime/release
