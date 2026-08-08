@@ -51,7 +51,10 @@ Artifact Store → FFmpeg timeout/kill → technical validation → `tool-v1`. F
 output сначала создаётся как временный файл, валидируется, импортируется в Artifact
 Store и удаляется RAII cleanup. Реальные Windows integration tests проверяют
 validate, FLAC conversion, PCM extraction, two-pass normalization, mux и rejection
-неразрешённого AAC conversion.
+неразрешённого AAC conversion. Stage 19 real E2E выявил implicit resampling в
+`loudnorm`; normalizer усилен: обычный путь сохраняет входной sample rate, typed
+delivery-вариант может требовать конкретную частоту и всегда post-validates её.
+Stage 11 regression теперь явно проверяет 48 kHz → 48 kHz.
 
 Stage 12 завершён. Rust-модуль REAPER adapter содержит typed session/track/marker
 specs, принимает только зарегистрированные и FFprobe-valid audio artifacts и
@@ -131,12 +134,37 @@ oracle/parity и release build зелёные. `project-context/STAGE15_MASTERIN
 фиксирует границу: это надёжный technical delivery master, а reference/тональный/
 художественный mastering требует отдельной capability и отдельного benchmark.
 
-После Stage 15 следующий доказанный функциональный gap — reference-based mastering,
-который подходит под Stage 19 как отдельная профессиональная capability. Stage 16–18
-остаются conditional и не реализуются автоматически без конкретного браузерного,
-видео- или distribution-сценария. Отдельно остаётся ранний Stage 4 gap: Hosted Chat
-→ local execution transport пока не доказан и должен быть закрыт тонким transport
-решением либо явным ADR без разрастания media/business logic в transport.
+Stage 19 завершён. Доказанный reference-based mastering gap закрыт отдельной
+policy-gated capability `audio.reference_master` / `reference-master`. Rust сохраняет
+Project Binding, locked tool selection, policy, Artifact Store, persistent jobs,
+idempotency и final QC. Внешний `edge.python.matchering` — replaceable edge process,
+а не новый core/runtime service. Matchering зафиксирован на версии 2.0.6 и запускается
+в отдельном Python 3.10 environment; адаптер сам отклоняет другую версию. Matchering
+не входит в Cargo graph или core `pyproject.toml`.
+
+TARGET + REFERENCE SHA-256 входят в persistent job identity. Engine получает только
+фиксированные абсолютные input/output paths. Matchering output обязан быть non-empty
+PCM 24-bit WAV и пройти duration/media checks; затем existing Stage 13/15 delivery
+normalization/QC повторно проверяет результат. Финальный sample rate обязан точно
+совпадать с исходным TARGET. Exact repeat возвращает тот же job/master artifact/SHA
+без роста manifest.
+
+Реальный benchmark на clean Windows runner использует 24 s PCM24 stereo TARGET и
+REFERENCE с заведомо различным 220 Hz/4.2 kHz tonal balance и программной
+макродинамикой. Он требует уменьшения LUFS-distance и measured high/low tonal-balance
+distance до reference, final `preserve` без review, сохранения 48 kHz, final
+LUFS/true-peak/duration/channel QC и idempotent repeat. Отдельный 32 kHz TARGET
+блокируется как non-retryable failed job. Code head
+`1cb74fe5771bf9e143a9cdecdbc632e4eeb15ec2`: normal Windows CI #159
+(`31262535449`) и real Matchering E2E #36 (`31262535446`) полностью зелёные.
+Подробности: `project-context/STAGE19_REFERENCE_MASTERING.md`.
+
+Stage 16–18 остаются conditional и не реализуются без конкретного браузерного,
+видео- или distribution-сценария. Следующий незакрытый системный gap — ранний Stage
+4: Hosted Chat → local execution transport. Наличие удалённого Chat и локального
+Windows binary за NAT уже доказывает необходимость transport; закрывать gap нужно
+одним тонким protocol adapter без переноса media/business logic и без собственного
+VPS/публичного порта.
 
 Stage 9 остаётся conditional: отдельный supervisor/service не создаётся без
 независимого lifecycle requirement. Stage 10 имеет рабочий Windows CI baseline.
