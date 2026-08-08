@@ -430,7 +430,7 @@ fn sha256_file(path: &Path) -> Result<String, PlatformError> {
         )
     })?;
     let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1024];
+    let mut buffer = vec![0_u8; 64 * 1024];
     loop {
         let read = file
             .read(&mut buffer)
