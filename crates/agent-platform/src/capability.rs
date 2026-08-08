@@ -69,6 +69,8 @@ struct CapabilityRequirement {
     capability: String,
     required: bool,
     required_quality: String,
+    required_reliability: String,
+    required_determinism: String,
     execution_paths: Vec<String>,
     #[serde(default)]
     fallbacks: Vec<String>,
@@ -201,33 +203,7 @@ impl CapabilityRegistry {
             )));
         }
         let spec = self.locked_spec(capability)?;
-        if !spec.enabled {
-            return Err(PlatformError::Validation(format!(
-                "locked executor {} is disabled",
-                spec.executor
-            )));
-        }
-        if quality_rank(&spec.quality)? < quality_rank(&requirement.required_quality)? {
-            return Err(PlatformError::Validation(format!(
-                "executor {} quality {} does not satisfy required {}",
-                spec.executor, spec.quality, requirement.required_quality
-            )));
-        }
-        if !requirement
-            .execution_paths
-            .iter()
-            .any(|path| path == &spec.execution_path)
-        {
-            return Err(PlatformError::Validation(format!(
-                "locked executor {} uses execution path {}, which is not allowed for {capability}",
-                spec.executor, spec.execution_path
-            )));
-        }
-        if spec.fallbacks != requirement.fallbacks {
-            return Err(PlatformError::Validation(format!(
-                "manifest/requirement fallback mismatch for {capability}"
-            )));
-        }
+        self.validate_runtime_selection(capability, spec, requirement)?;
         if spec.cost > cost_limit {
             return Err(PlatformError::PolicyDenied(format!(
                 "executor {} cost {} exceeds request limit {cost_limit}",
@@ -245,33 +221,7 @@ impl CapabilityRegistry {
             .map(|capability| {
                 let spec = self.locked_spec(&capability)?;
                 let requirement = self.requirement(&capability)?;
-                if !spec.enabled {
-                    return Err(PlatformError::Validation(format!(
-                        "locked executor {} is disabled",
-                        spec.executor
-                    )));
-                }
-                if quality_rank(&spec.quality)? < quality_rank(&requirement.required_quality)? {
-                    return Err(PlatformError::Validation(format!(
-                        "executor {} quality {} does not satisfy required {}",
-                        spec.executor, spec.quality, requirement.required_quality
-                    )));
-                }
-                if !requirement
-                    .execution_paths
-                    .iter()
-                    .any(|path| path == &spec.execution_path)
-                {
-                    return Err(PlatformError::Validation(format!(
-                        "locked executor {} uses execution path {}, which is not allowed for {capability}",
-                        spec.executor, spec.execution_path
-                    )));
-                }
-                if spec.fallbacks != requirement.fallbacks {
-                    return Err(PlatformError::Validation(format!(
-                        "manifest/requirement fallback mismatch for {capability}"
-                    )));
-                }
+                self.validate_runtime_selection(&capability, spec, requirement)?;
                 Ok(selection(spec, requirement))
             })
             .collect()
@@ -318,6 +268,8 @@ impl CapabilityRegistry {
         for requirement in &self.requirements.requirements {
             validate_nonempty("requirement capability", &requirement.capability)?;
             quality_rank(&requirement.required_quality)?;
+            reliability_rank(&requirement.required_reliability)?;
+            determinism_rank(&requirement.required_determinism)?;
             if requirement.execution_paths.is_empty() {
                 return Err(PlatformError::Validation(format!(
                     "capability requirement {} has no execution paths",
@@ -339,16 +291,69 @@ impl CapabilityRegistry {
         }
 
         for (capability, executor) in &self.lock.selected {
-            if self.requirement(capability).is_err() {
-                return Err(PlatformError::Validation(format!(
+            let requirement = self.requirement(capability).map_err(|_| {
+                PlatformError::Validation(format!(
                     "locked capability {capability} has no project requirement"
-                )));
-            }
+                ))
+            })?;
             if !manifest_keys.contains(&(capability.clone(), executor.clone())) {
                 return Err(PlatformError::Validation(format!(
                     "locked executor {executor} is absent from manifest for {capability}"
                 )));
             }
+            let spec = self.locked_spec(capability)?;
+            self.validate_runtime_selection(capability, spec, requirement)?;
+        }
+        Ok(())
+    }
+
+    fn validate_runtime_selection(
+        &self,
+        capability: &str,
+        spec: &CapabilitySpec,
+        requirement: &CapabilityRequirement,
+    ) -> Result<(), PlatformError> {
+        if !spec.enabled {
+            return Err(PlatformError::Validation(format!(
+                "locked executor {} is disabled",
+                spec.executor
+            )));
+        }
+        if quality_rank(&spec.quality)? < quality_rank(&requirement.required_quality)? {
+            return Err(PlatformError::Validation(format!(
+                "executor {} quality {} does not satisfy required {}",
+                spec.executor, spec.quality, requirement.required_quality
+            )));
+        }
+        if reliability_rank(&spec.reliability)? < reliability_rank(&requirement.required_reliability)?
+        {
+            return Err(PlatformError::Validation(format!(
+                "executor {} reliability {} does not satisfy required {}",
+                spec.executor, spec.reliability, requirement.required_reliability
+            )));
+        }
+        if determinism_rank(&spec.determinism)?
+            < determinism_rank(&requirement.required_determinism)?
+        {
+            return Err(PlatformError::Validation(format!(
+                "executor {} determinism {} does not satisfy required {}",
+                spec.executor, spec.determinism, requirement.required_determinism
+            )));
+        }
+        if !requirement
+            .execution_paths
+            .iter()
+            .any(|path| path == &spec.execution_path)
+        {
+            return Err(PlatformError::Validation(format!(
+                "locked executor {} uses execution path {}, which is not allowed for {capability}",
+                spec.executor, spec.execution_path
+            )));
+        }
+        if spec.fallbacks != requirement.fallbacks {
+            return Err(PlatformError::Validation(format!(
+                "manifest/requirement fallback mismatch for {capability}"
+            )));
         }
         Ok(())
     }
