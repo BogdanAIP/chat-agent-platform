@@ -125,20 +125,36 @@ Exit gate пройден реальным пользовательским E2E �
 версия evidence хранится в `project-context/STAGE12_ACCEPTANCE.md`; machine-local
 path намеренно не версионируется.
 
-### Stage 13. Audio analysis/mastering decision layer — planned
+### Stage 13. Audio analysis/mastering decision layer — done
 
-Создать benchmark corpus и decision logic поверх зрелых анализаторов.
+Добавлен policy-gated `audio.mastering_analyze` поверх существующего FFmpeg/EBU R128
+анализа. Решение содержит исходные метрики, выбранный профиль, target LUFS/true
+peak/LRA envelope, loudness delta, действие, `auto_mastering_allowed`,
+`requires_review`, quality flags и причины. Профили: `music-balanced`, `music-loud`,
+`speech`.
 
-Exit gate: technical metrics и professional quality acceptance проходят на
-репрезентативном корпусе, а не на одном тестовом тоне.
+Safe-auto gate блокирует автоматическую обработку при неполных метриках, sample rate
+ниже 44.1 kHz, multichannel вне валидированного mono/stereo пути, слишком малой/большой
+LRA и вероятном clipping/нулевом headroom. Decision layer не выдаётся за
+субъективный художественный мастеринг.
 
-### Stage 14. Workflow runtime gate — conditional
+Exit gate пройден Windows CI #95: реальные PCM 24-bit WAV генерируются FFmpeg для
+quiet/nominal/hot/32 kHz mono случаев и проходят публичный policy/artifact path;
+дополнительно один источник сравнивается между `music-balanced` и `music-loud`.
+Строгие fmt/Clippy, Rust tests, contracts, Python oracle/parity и release build
+зелёные. Детали: `project-context/STAGE13_BENCHMARK.md`.
 
-Сначала лёгкий Rust job state machine: persistence, cancellation, idempotency,
-retry, checkpoints, resume. Prefect/Node-RED/другой runtime сравнивать только если
-реальный workflow остаётся незакрыт.
+### Stage 14. Workflow runtime gate — planned
 
-Exit gate: выбран один runtime; нет собственной копии Prefect и лишнего сервиса.
+Потребность доказана Stage 15: production mastering требует job ID, persistence,
+recovery, retry, idempotency, checkpoints и resume между сессиями. Реализовать
+лёгкий Rust job state machine внутри того же binary. Prefect/Node-RED/другой runtime
+сравнивать только если этот путь не закрывает реальный workflow; новый daemon или
+service не добавлять.
+
+Exit gate: состояние переживает новый process/session; idempotency не создаёт
+дубликаты; retry/resume продолжает только разрешённые переходы; corrupt state
+fail-closed; выбран один runtime без лишнего сервиса.
 
 ### Stage 15. Production mastering workflow — planned
 
