@@ -78,6 +78,23 @@
       "fallbacks": []
     },
     {
+      "capability": "audio.mastering_analyze",
+      "executor": "rust.local.ffmpeg",
+      "enabled": true,
+      "quality": "professional",
+      "reliability": "high",
+      "determinism": "high",
+      "base_risk": "low",
+      "cost": 0,
+      "artifact_constraints": {
+        "allowed_data_classes": ["public", "project", "private", "sensitive"],
+        "requires_registered_artifact_for_reuse": true
+      },
+      "fallbacks": [],
+      "required_skill": "mastering",
+      "required_qc": ["ebu_r128_metrics", "profile_envelope", "artifact_sha256"]
+    },
+    {
       "capability": "audio.reaper_render",
       "executor": "rust.local.reaper",
       "enabled": true,

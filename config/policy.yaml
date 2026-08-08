@@ -43,6 +43,13 @@
       "external_side_effect": false,
       "max_cost": 0
     },
+    "audio.mastering_analyze": {
+      "decision": "allow",
+      "enforced_by": "local_media_adapter",
+      "allowed_data_classes": ["public", "project", "private", "sensitive"],
+      "external_side_effect": false,
+      "max_cost": 0
+    },
     "audio.reaper_render": {
       "decision": "allow",
       "enforced_by": "local_reaper_adapter",

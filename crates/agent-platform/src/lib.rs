@@ -1,4 +1,5 @@
 pub mod artifact;
+pub mod audio_analysis;
 pub mod audit;
 pub mod binding;
 pub mod bootstrap;
