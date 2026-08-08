@@ -109,6 +109,10 @@ FFmpeg runner с timeout/kill; произвольные shell/FFmpeg args/output
 
 Requirements/tool lock/policy/runtime profile согласованы. Реальные Windows tests
 проверяют все операции и негативный AAC case. PR #6 и push-CI на `main` зелёные.
+Stage 19 E2E дополнительно выявил implicit resampling `loudnorm`; общий normalizer
+усилен точной проверкой sample rate: обычный путь сохраняет частоту источника, а
+типизированный delivery-вариант может требовать конкретную частоту и post-validate
+её. Stage 11 regression теперь явно проверяет 48 kHz → 48 kHz.
 
 ### Stage 12. REAPER adapter — done
 
@@ -202,13 +206,30 @@ artifacts/policy/jobs; provider не становится внутренней �
 Только guarded prepare/confirm, platform-policy checks и точная привязка к artifact
 hash/destination/cost.
 
-### Stage 19. Additional professional capabilities — conditional
+### Stage 19. Additional professional capabilities — done
 
-Capability добавляется только при реальном сценарии, quality benchmark,
-определённом adapter owner и собственном exit gate. После Stage 15 доказан следующий
-реальный gap: reference-based mastering/тональное сопоставление не покрывается
-technical delivery mastering и должно быть отдельной capability, а не скрытым
-расширением `audio.mastering_produce`.
+Доказанный после Stage 15 gap закрыт отдельной capability `audio.reference_master`,
+а не скрытым расширением technical delivery mastering. Rust сохраняет Project
+Binding, locked selection, policy, persistent jobs, idempotency, Artifact Store и
+финальный QC; replaceable edge executor `edge.python.matchering` запускает только
+фиксированный адаптер Matchering `2.0.6` в отдельном Python 3.10 runtime. Адаптер
+сам технически отклоняет другую версию движка; arbitrary Python/shell/options не
+экспортируются.
+
+TARGET + REFERENCE SHA-256 входят в job identity. Matchering output обязан быть
+non-empty PCM 24-bit WAV и пройти duration/media validation; затем результат идёт
+через Stage 13/15 delivery normalization/QC. Финальная частота дискретизации должна
+точно совпадать с исходным TARGET, а успешный повтор возвращает тот же job/artifact/
+SHA без роста manifest.
+
+Exit gate пройден на clean Windows runner для code head
+`1cb74fe5771bf9e143a9cdecdbc632e4eeb15ec2`: normal CI #159
+(`31262535449`) полностью зелёный; dedicated real Matchering E2E #36
+(`31262535446`) также зелёный. Benchmark использует 24 s PCM24 stereo TARGET/
+REFERENCE с различным 220 Hz/4.2 kHz tonal balance и макродинамикой и требует
+улучшения и LUFS-distance, и measured high/low tonal-distance к reference. Negative
+32 kHz TARGET сохраняется как non-retryable failed job. Подробности:
+`project-context/STAGE19_REFERENCE_MASTERING.md`.
 
 ### Stage 20. Operations audit — planned
 
