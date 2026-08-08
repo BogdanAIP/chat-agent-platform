@@ -210,7 +210,10 @@ fn matchering_reference_master_is_real_qc_valid_and_idempotent() {
     assert_eq!(first["result"]["engine"], "matchering");
     assert_eq!(first["result"]["final_decision"]["action"], "preserve");
     assert_eq!(first["result"]["final_decision"]["requires_review"], false);
-    assert_eq!(first["result"]["final_inspection"]["sample_rate_hz"], 48_000);
+    assert_eq!(
+        first["result"]["final_inspection"]["sample_rate_hz"],
+        48_000
+    );
     assert_eq!(first["result"]["final_inspection"]["channels"], 2);
     let final_lufs = first["result"]["final_inspection"]["integrated_lufs"]
         .as_f64()
@@ -264,7 +267,10 @@ fn matchering_reference_master_is_real_qc_valid_and_idempotent() {
     )
     .expect("idempotent repeat must succeed");
     assert_eq!(second["result"]["job_id"], job_id);
-    assert_eq!(second["result"]["master_artifact"]["artifact_id"], artifact_id);
+    assert_eq!(
+        second["result"]["master_artifact"]["artifact_id"],
+        artifact_id
+    );
     assert_eq!(second["result"]["master_artifact"]["sha256"], sha256);
     assert_eq!(manifest_count(temporary.path()), count);
 }
@@ -297,10 +303,8 @@ fn invalid_target_is_rejected_before_reference_processing() {
         .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("json"))
         .collect::<Vec<_>>();
     assert_eq!(jobs.len(), 1);
-    let job: Value = serde_json::from_str(
-        &fs::read_to_string(jobs[0].path()).expect("failed job"),
-    )
-    .expect("job JSON");
+    let job: Value = serde_json::from_str(&fs::read_to_string(jobs[0].path()).expect("failed job"))
+        .expect("job JSON");
     assert_eq!(job["status"], "failed");
     assert_eq!(job["error"]["retryable"], false);
 }
