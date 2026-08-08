@@ -12,8 +12,8 @@ use wait_timeout::ChildExt;
 use crate::error::PlatformError;
 
 const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
-const MEDIA_TIMEOUT_FLOOR: Duration = Duration::from_secs(60);
-const MEDIA_TIMEOUT_CEILING: Duration = Duration::from_secs(6 * 60 * 60);
+const MEDIA_TIMEOUT_FLOOR: Duration = Duration::from_mins(1);
+const MEDIA_TIMEOUT_CEILING: Duration = Duration::from_hours(6);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaInspection {
@@ -621,7 +621,7 @@ mod tests {
         assert_eq!(media_timeout(0.0), MEDIA_TIMEOUT_FLOOR);
         assert_eq!(media_timeout(f64::NAN), MEDIA_TIMEOUT_FLOOR);
         assert_eq!(media_timeout(1.0), MEDIA_TIMEOUT_FLOOR);
-        assert_eq!(media_timeout(30.0), Duration::from_secs(120));
+        assert_eq!(media_timeout(30.0), Duration::from_mins(2));
         assert_eq!(media_timeout(600.0), Duration::from_secs(1_830));
         assert_eq!(media_timeout(100_000.0), MEDIA_TIMEOUT_CEILING);
     }
