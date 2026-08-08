@@ -4,8 +4,8 @@ use std::process::ExitCode;
 use agent_platform::audit::write_capability_audit;
 use agent_platform::bootstrap::build_context;
 use agent_platform::media_ops::{
-    convert_audio_file, extract_audio_file, mux_media_files, normalize_audio_file,
-    validate_media_file,
+    analyze_mastering_file, convert_audio_file, extract_audio_file, mux_media_files,
+    normalize_audio_file, validate_media_file,
 };
 use agent_platform::reaper::discover_reaper;
 use agent_platform::reaper_ops::{ReaperRenderOptions, render_reaper_file};
@@ -94,6 +94,22 @@ enum Command {
         project_id: Option<String>,
         #[arg(long)]
         file: PathBuf,
+        #[arg(long, default_value = "project")]
+        data_class: String,
+        #[arg(long)]
+        requested_risk_hint: Option<String>,
+    },
+    AnalyzeMastering {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(
+            long,
+            value_parser = ["music-balanced", "music-loud", "speech"],
+            default_value = "music-balanced"
+        )]
+        profile: String,
         #[arg(long, default_value = "project")]
         data_class: String,
         #[arg(long)]
@@ -231,6 +247,20 @@ fn main() -> ExitCode {
             project_id.as_deref(),
             data_class,
             requested_risk_hint.as_deref(),
+        ),
+        Command::AnalyzeMastering {
+            project_id,
+            file,
+            profile,
+            data_class,
+            requested_risk_hint,
+        } => analyze_mastering_file(
+            &cli.repo_root,
+            file,
+            project_id.as_deref(),
+            data_class,
+            requested_risk_hint.as_deref(),
+            profile,
         ),
         Command::ConvertAudio {
             project_id,

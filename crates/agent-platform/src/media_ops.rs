@@ -5,12 +5,14 @@ use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
 use crate::artifact::{Artifact, ArtifactStore};
+use crate::audio_analysis::decide_mastering;
 use crate::binding::{ProjectBinding, resolve_project};
 use crate::capability::{CapabilityRegistry, required_quality};
 use crate::contracts;
 use crate::error::PlatformError;
 use crate::media::{
-    convert_audio, extract_audio, mux_audio_video, normalize_loudness, validate_media,
+    convert_audio, extract_audio, inspect_media, mux_audio_video, normalize_loudness,
+    validate_media,
 };
 use crate::policy::{PolicyDecision, PolicyEnforcementPoint};
 
@@ -74,6 +76,41 @@ pub fn validate_media_file(
         &serde_json::to_value(&validation).map_err(serialization_error)?,
     )?;
     complete_response(&auth, json!({"validation": validation}), &[artifact])
+}
+
+pub fn analyze_mastering_file(
+    repo_root: &Path,
+    file_path: &Path,
+    project_id: Option<&str>,
+    data_class: &str,
+    requested_risk_hint: Option<&str>,
+    profile: &str,
+) -> Result<Value, PlatformError> {
+    let parameters = json!({
+        "source_name": source_name(file_path),
+        "data_class": data_class,
+        "profile": profile,
+        "analysis_standard": "ebu_r128_plus_delivery_envelope"
+    });
+    let auth = authorize_file(
+        repo_root,
+        file_path,
+        project_id,
+        data_class,
+        requested_risk_hint,
+        "audio.mastering_analyze",
+        parameters,
+    )?;
+    let inspection = inspect_media(Path::new(&auth.artifact.path))?;
+    let decision = decide_mastering(&inspection, profile)?;
+    let validation = serde_json::to_value(&decision).map_err(serialization_error)?;
+    let artifact = update_output_metadata(
+        &auth.store,
+        &auth.artifact.artifact_id,
+        "audio.mastering_analyze",
+        &validation,
+    )?;
+    complete_response(&auth, validation, &[artifact])
 }
 
 pub fn convert_audio_file(

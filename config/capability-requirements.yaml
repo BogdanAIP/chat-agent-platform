@@ -50,6 +50,14 @@
       "acceptance": ["video_stream_present", "audio_stream_present", "output_probe", "artifact_sha256"]
     },
     {
+      "capability": "audio.mastering_analyze",
+      "required": true,
+      "required_quality": "professional",
+      "execution_paths": ["local.ffmpeg"],
+      "fallbacks": [],
+      "acceptance": ["ebu_r128_metrics", "profile_target", "explicit_quality_flags", "safe_auto_gate", "benchmark_corpus", "artifact_sha256"]
+    },
+    {
       "capability": "audio.reaper_render",
       "required": true,
       "required_quality": "professional",
