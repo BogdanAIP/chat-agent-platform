@@ -54,6 +54,11 @@ jobs:
             echo "Release tag must point to a commit reachable from main" >&2
             exit 1
           }
+          git checkout --detach "$tag_sha"
+          if [[ "$(git rev-parse HEAD)" != "$tag_sha" ]]; then
+            echo "Release validation checkout does not match requested tag SHA" >&2
+            exit 1
+          fi
           readarray -t versions < <(python - <<'PY'
           import ast
           import pathlib
@@ -79,7 +84,7 @@ jobs:
           python_package_version="${versions[1]}"
           python_oracle_version="${versions[2]}"
           if [[ "$rust_version" != "$python_package_version" || "$rust_version" != "$python_oracle_version" ]]; then
-            echo "Version drift: Rust=$rust_version pyproject=$python_package_version oracle=$python_oracle_version" >&2
+            echo "Version drift at tag $tag: Rust=$rust_version pyproject=$python_package_version oracle=$python_oracle_version" >&2
             exit 1
           fi
           if [[ "$tag" != "v$rust_version" ]]; then
@@ -208,6 +213,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.validate.outputs.tag }}
         run: |
           set -euo pipefail
