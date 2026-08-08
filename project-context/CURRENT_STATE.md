@@ -7,10 +7,14 @@ locked tool selection, policy, Artifact Store и Secret Store, а зрелые �
 behavioral oracle для parity-проверок.
 
 Hosted Chat → GitHub read/write подтверждён реальными branch/edit/PR/CI/merge
-циклами через GitHub plugin. Hosted Chat → local execution transport и
-account-level MCP write/modify ещё не проверены и не считаются доступными.
-Подтверждённый локальный execution path — local/Codex CLI; отдельный transport,
-daemon и supervisor не добавлены без доказанной lifecycle-потребности.
+циклами через GitHub plugin. Stage 4 теперь имеет один тонкий outbound-only transport:
+Yandex Cloud Function + mounted Object Storage rendezvous + явно включаемый локальный
+`agent-platform.exe` long-poll worker. Hosted Windows CI доказывает Credential Manager,
+отдельные local/remote токены, immutable task/result state, duplicate-response cache,
+`local_ping`, policy-gated `runtime_self_test` и manual start/status/stop lifecycle.
+Реальный account-level ChatGPT → Yandex → Windows → ChatGPT round trip ещё не пройден,
+поэтому Hosted Chat → local execution остаётся `partial`, а не заявляется готовым.
+Отдельный VPS, Redis, DB, message broker или supervisor не добавлены.
 
 Stage 1 завершён: Rust vertical slice выполняет
 `binding → policy → artifact → FFprobe/FFmpeg → validation → tool-v1` и совпадает
@@ -19,10 +23,14 @@ positive/negative fixtures проходят Rust и Python. Stage 3 Project Memo
 Bootstrap и skills дают новой сессии минимальный связанный контекст вместо полного
 дампа проекта.
 
-Stage 6 завершён: `tools.yaml` + `tool-lock.yaml` выбирают executor после mandatory
-quality/cost gates; PEP отделяет `decision` от `effective_risk`, model risk hint не
-понижает enforcement, guarded confirmation привязан к capability/parameters/data
-class/hash. `CapabilitySelection` неизменяем извне после выбора.
+Stage 6 завершён и дополнительно hardened после Stage 4: versioned `tools.yaml`,
+`tool-lock.yaml` и `capability-requirements.yaml` декодируются fail-closed, неизвестные
+поля/дубликаты/битые lock targets отклоняются, а выбранный executor имеет отдельный
+`execution_path`, который обязан входить в разрешённые project requirements. Selector
+технически применяет enabled/lock/quality/cost/execution-path gates; adapter-specific
+`required_qc`/`acceptance` остаются явно evidence-метаданными и доказываются тестами,
+а не притворяются универсальным selector gate. PEP по-прежнему отделяет `decision` от
+`effective_risk`; model risk hint не понижает enforcement.
 
 Stage 7 завершён: `SecretStore` использует Windows Credential Manager через safe
 Rust backend без собственной криптографии, vault/daemon и `unsafe` в platform
@@ -93,13 +101,14 @@ oracle/parity и release build. `project-context/STAGE13_BENCHMARK.md` фикс�
 границу: это профессиональный технический decision/QC layer, а не заявление, что
 LUFS-анализ сам по себе заменяет художественный мастеринг.
 
-Stage 14 завершён. `agent-platform.exe` теперь содержит собственный компактный
-persistent job runtime вместо отдельного workflow-сервиса. `job-v1` хранится внутри
-bound local root в `runtime/jobs/<project_id>`, записывается атомарно и защищён
-межпроцессной блокировкой. Есть idempotent begin, status transitions, checkpoints,
-cancellation, retryable failure, attempt counter и resume; checkpoint сохраняется
-между retry. Persisted state повторно проходит contract/identity validation и
-повреждение обрабатывается fail-closed без удаления evidence.
+Stage 14 завершён. `agent-platform.exe` содержит компактный persistent job runtime
+вместо отдельного workflow-сервиса. `job-v1` хранится внутри bound local root в
+`runtime/jobs/<project_id>`, записывается атомарно и защищён краткоживущей store-lock.
+Дополнительно каждый фактический workflow получает persistent per-job OS execution lock,
+удерживаемый всё время обработки: два процесса/вкладки могут найти один idempotent job,
+но физически выполнять DSP может только один. OS освобождает lock при crash, поэтому
+checkpoint/resume recovery сохраняется. Есть status transitions, checkpoints,
+cancellation, retryable failure, attempt counter и fail-closed persisted-state validation.
 
 Windows CI #109 доказал конкурентную идемпотентность, запрет capability collision,
 persistence через новые `JobStore`, retry/checkpoint semantics, terminal и
@@ -112,10 +121,11 @@ workflow engine, database или runtime dependency не появился. По�
 
 Stage 15 завершён. Policy-gated `audio.mastering_produce` / `produce-master`
 связывает Stage 13 decision layer, Stage 11 lossless/two-pass EBU R128 processing,
-Artifact Store и Stage 14 persistent jobs. Idempotency key включает workflow
-version, SHA-256 исходного файла, профиль и data class. Успешный повтор того же
-запроса возвращает существующие job/master artifact/SHA-256 и не увеличивает
-Artifact Store manifest.
+Artifact Store и Stage 14 persistent jobs. До DSP исходный path захватывается в
+immutable snapshot: SHA-256 snapshot обязан совпасть с SHA, использованным для policy/
+idempotency, иначе workflow fail-closed до публикации артефакта. Per-job execution lock
+исключает двойной mastering при одновременных одинаковых запросах. Успешный повтор
+возвращает существующие job/master artifact/SHA-256 без роста manifest.
 
 Stage 13 остаётся authoritative safe-auto gate: review-required материал не может
 стать успешным автоматическим master. Разрешены только `preserve` через lossless WAV
@@ -142,12 +152,13 @@ idempotency и final QC. Внешний `edge.python.matchering` — replaceable
 в отдельном Python 3.10 environment; адаптер сам отклоняет другую версию. Matchering
 не входит в Cargo graph или core `pyproject.toml`.
 
-TARGET + REFERENCE SHA-256 входят в persistent job identity. Engine получает только
-фиксированные абсолютные input/output paths. Matchering output обязан быть non-empty
-PCM 24-bit WAV и пройти duration/media checks; затем existing Stage 13/15 delivery
-normalization/QC повторно проверяет результат. Финальный sample rate обязан точно
-совпадать с исходным TARGET. Exact repeat возвращает тот же job/master artifact/SHA
-без роста manifest.
+TARGET + REFERENCE SHA-256 входят в persistent job identity. Оба входа сначала
+захватываются как immutable Artifact Store snapshots и обязаны совпасть с SHA job identity;
+per-job execution lock запрещает параллельный двойной Matchering для одного job. Engine
+получает только snapshot paths. Matchering output обязан быть non-empty PCM 24-bit WAV и
+пройти duration/media checks; затем Stage 13/15 delivery normalization/QC повторно
+проверяет результат. Финальный sample rate точно совпадает с TARGET. Exact repeat
+возвращает тот же job/master artifact/SHA без роста manifest.
 
 Реальный benchmark на clean Windows runner использует 24 s PCM24 stereo TARGET и
 REFERENCE с заведомо различным 220 Hz/4.2 kHz tonal balance и программной
@@ -160,11 +171,11 @@ LUFS/true-peak/duration/channel QC и idempotent repeat. Отдельный 32 k
 Подробности: `project-context/STAGE19_REFERENCE_MASTERING.md`.
 
 Stage 16–18 остаются conditional и не реализуются без конкретного браузерного,
-видео- или distribution-сценария. Следующий незакрытый системный gap — ранний Stage
-4: Hosted Chat → local execution transport. Наличие удалённого Chat и локального
-Windows binary за NAT уже доказывает необходимость transport; закрывать gap нужно
-одним тонким protocol adapter без переноса media/business logic и без собственного
-VPS/публичного порта.
+видео- или distribution-сценария. Незакрытая часть Stage 4 теперь только пользовательский
+account-level acceptance: реальный ChatGPT должен вызвать `runtime_self_test` через
+развёрнутую Yandex Function и включённый Windows worker и получить ответ обратно.
+Архитектурный transport gap уже закрыт одним тонким adapter без переноса media/business
+logic, собственного VPS или публичного порта на ПК.
 
 Stage 9 остаётся conditional: отдельный supervisor/service не создаётся без
 независимого lifecycle requirement. Stage 10 имеет рабочий Windows CI baseline.

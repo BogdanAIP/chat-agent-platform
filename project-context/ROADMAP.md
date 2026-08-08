@@ -44,14 +44,18 @@ github-development, ограниченный mastering skill и handoff template
 
 ## Horizon B — безопасное выполнение
 
-### Stage 4. Local execution + transport capability probe — partial
+### Stage 4. Local execution + transport capability probe — partial / E2E-ready
 
-Локальный Rust `self-test` проверяет policy, ping, controlled write/read/cleanup,
-FFmpeg/ffprobe health и contracts. Hosted Chat → local execution/reconnect ещё не
-доказан.
+Выбран и реализован один тонкий outbound-only adapter: Yandex Cloud Function + mounted
+Object Storage rendezvous + локальный Windows `agent-platform.exe` long-poll worker.
+Hosted Windows CI доказывает раздельные local/remote токены, Credential Manager,
+immutable task/result state, heartbeat/offline, duplicate-response cache, manual
+configure/start/status/stop и allowlist `local_ping`/`runtime_self_test`. Relay выключен
+по умолчанию; VPS/Redis/DB/message broker/public inbound port не добавлены.
 
-Exit gate: либо принято ADR «transport не нужен», либо выбран один тонкий transport
-adapter без media/business logic.
+Exit gate: один реальный ChatGPT account-level вызов `runtime_self_test` должен пройти
+ChatGPT → Yandex → пользовательский Windows worker → Yandex → ChatGPT. До этого Stage 4
+остаётся partial независимо от зелёного hosted E2E.
 
 ### Stage 5. MCP discovery/runtime comparison — conditional
 
@@ -61,10 +65,14 @@ adapter без media/business logic.
 
 ### Stage 6. Tool Manifest + selection + hardened PEP — done
 
-`tools.yaml` + `tool-lock.yaml`, required-quality/cost gates, immutable
-`CapabilitySelection`, независимые `decision/effective_risk`, guarded confirmation
-binding по capability/parameters/data class/hash. Model hint не снижает enforcement.
-Windows CI покрывает negative gates и bypass resistance.
+Versioned `tools.yaml` + `tool-lock.yaml` + `capability-requirements.yaml` декодируются
+fail-closed. Unknown fields, duplicate identities, invalid lock targets и execution-path
+mismatch отклоняются; selector применяет enabled/quality/cost gates и возвращает
+immutable `CapabilitySelection` с отдельными executor/execution_path. Adapter-specific
+QC/acceptance хранится как структурированное evidence и подтверждается тестами, а не
+трактуется как универсальный selector gate. `decision/effective_risk` независимы,
+guarded confirmation binding привязан к capability/parameters/data class/hash, model
+hint не снижает enforcement.
 
 ### Stage 7. Secret Store + consumer ACL — done
 
