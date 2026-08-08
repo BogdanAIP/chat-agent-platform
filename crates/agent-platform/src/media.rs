@@ -285,6 +285,23 @@ pub fn normalize_loudness(
     target_lufs: f64,
     target_true_peak_dbtp: f64,
 ) -> Result<NormalizationResult, PlatformError> {
+    let input_inspection = inspect_media(input)?;
+    normalize_loudness_at_sample_rate(
+        input,
+        output,
+        target_lufs,
+        target_true_peak_dbtp,
+        input_inspection.sample_rate_hz,
+    )
+}
+
+pub fn normalize_loudness_at_sample_rate(
+    input: &Path,
+    output: &Path,
+    target_lufs: f64,
+    target_true_peak_dbtp: f64,
+    output_sample_rate_hz: u32,
+) -> Result<NormalizationResult, PlatformError> {
     if !(-36.0..=-5.0).contains(&target_lufs) {
         return Err(PlatformError::Validation(
             "target LUFS must be between -36 and -5".into(),
@@ -295,7 +312,11 @@ pub fn normalize_loudness(
             "target true peak must be between -9 and 0 dBTP".into(),
         ));
     }
-    let input_inspection = inspect_media(input)?;
+    if !(8_000..=384_000).contains(&output_sample_rate_hz) {
+        return Err(PlatformError::Validation(
+            "output sample rate must be between 8 kHz and 384 kHz".into(),
+        ));
+    }
     let first_filter =
         format!("loudnorm=I={target_lufs}:TP={target_true_peak_dbtp}:LRA=11:print_format=json");
     let first_arguments = vec![
@@ -336,15 +357,15 @@ pub fn normalize_loudness(
         "-c:a".into(),
         "pcm_s24le".into(),
         "-ar".into(),
-        input_inspection.sample_rate_hz.to_string(),
+        output_sample_rate_hz.to_string(),
         output.to_string_lossy().into_owned(),
     ];
     run_owned("ffmpeg", &second_arguments)?;
     let inspection = inspect_media(output)?;
-    if inspection.sample_rate_hz != input_inspection.sample_rate_hz {
+    if inspection.sample_rate_hz != output_sample_rate_hz {
         return Err(PlatformError::Validation(format!(
-            "normalized output changed sample rate: input={} Hz output={} Hz",
-            input_inspection.sample_rate_hz, inspection.sample_rate_hz
+            "normalized output sample rate mismatch: requested={output_sample_rate_hz} Hz output={} Hz",
+            inspection.sample_rate_hz
         )));
     }
     let measured_lufs = inspection.integrated_lufs.ok_or_else(|| {
