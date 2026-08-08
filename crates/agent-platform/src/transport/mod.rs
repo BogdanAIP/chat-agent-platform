@@ -21,7 +21,7 @@ use crate::service::self_test;
 pub use lifecycle::{relay_status, run_relay_worker, start_relay_worker, stop_relay_worker};
 
 const CAPABILITY: &str = "transport.relay_connect";
-pub const DEFAULT_SECRET_REF: &str = "relay.agent_token";
+pub const DEFAULT_SECRET_REF: &str = "secret://relay/agent_token";
 pub const DEFAULT_LONG_POLL_SECONDS: u64 = 25;
 pub(super) const MAX_LONG_POLL_SECONDS: u64 = 30;
 pub(super) const MAX_PING_MESSAGE_BYTES: usize = 1024;
