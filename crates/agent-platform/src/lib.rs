@@ -5,6 +5,7 @@ pub mod binding;
 pub mod bootstrap;
 pub mod capability;
 pub mod config;
+pub mod confirmation;
 pub mod contracts;
 pub mod error;
 mod input_capture;
