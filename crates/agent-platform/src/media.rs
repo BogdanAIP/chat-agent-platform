@@ -11,6 +11,10 @@ use wait_timeout::ChildExt;
 
 use crate::error::PlatformError;
 
+const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
+const MEDIA_TIMEOUT_FLOOR: Duration = Duration::from_secs(60);
+const MEDIA_TIMEOUT_CEILING: Duration = Duration::from_secs(6 * 60 * 60);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaInspection {
     pub duration_seconds: f64,
@@ -86,19 +90,23 @@ pub fn inspect_media(path: &Path) -> Result<MediaInspection, PlatformError> {
         .unwrap_or("unknown")
         .to_owned();
 
-    let loudness = run(
+    let loudness = run_with_timeout(
         "ffmpeg",
         &[
             "-hide_banner",
             "-nostats",
+            "-nostdin",
+            "-loglevel",
+            "info",
             "-i",
             &path_text,
             "-filter_complex",
-            "ebur128=peak=true:framelog=verbose",
+            "ebur128=peak=true:framelog=quiet",
             "-f",
             "null",
             "-",
         ],
+        media_timeout(duration_seconds),
     )?;
     let stderr = String::from_utf8_lossy(&loudness.stderr);
     let pattern = Regex::new(
@@ -255,7 +263,7 @@ pub fn convert_audio(
         codec.into(),
         output.to_string_lossy().into_owned(),
     ];
-    run_owned("ffmpeg", &arguments)?;
+    run_owned_for_media("ffmpeg", &arguments, &[input])?;
     inspect_media(output)
 }
 
@@ -275,7 +283,7 @@ pub fn extract_audio(input: &Path, output: &Path) -> Result<MediaInspection, Pla
         "pcm_s24le".into(),
         output.to_string_lossy().into_owned(),
     ];
-    run_owned("ffmpeg", &arguments)?;
+    run_owned_for_media("ffmpeg", &arguments, &[input])?;
     inspect_media(output)
 }
 
@@ -332,7 +340,7 @@ pub fn normalize_loudness_at_sample_rate(
         "null".into(),
         "-".into(),
     ];
-    let first = run_owned("ffmpeg", &first_arguments)?;
+    let first = run_owned_for_media("ffmpeg", &first_arguments, &[input])?;
     let measured = loudnorm_measurements(&String::from_utf8_lossy(&first.stderr))?;
     let second_filter = format!(
         "loudnorm=I={target_lufs}:TP={target_true_peak_dbtp}:LRA=11:measured_I={}:measured_TP={}:measured_LRA={}:measured_thresh={}:offset={}:linear=true:print_format=summary",
@@ -360,7 +368,7 @@ pub fn normalize_loudness_at_sample_rate(
         output_sample_rate_hz.to_string(),
         output.to_string_lossy().into_owned(),
     ];
-    run_owned("ffmpeg", &second_arguments)?;
+    run_owned_for_media("ffmpeg", &second_arguments, &[input])?;
     let inspection = inspect_media(output)?;
     if inspection.sample_rate_hz != output_sample_rate_hz {
         return Err(PlatformError::Validation(format!(
@@ -416,7 +424,7 @@ pub fn mux_audio_video(
         "-shortest".into(),
         output.to_string_lossy().into_owned(),
     ];
-    run_owned("ffmpeg", &arguments)?;
+    run_owned_for_media("ffmpeg", &arguments, &[video, audio])?;
     let validation = validate_media(output)?;
     if validation.video_streams == 0 || validation.audio_streams == 0 {
         return Err(PlatformError::Validation(
@@ -475,13 +483,37 @@ fn loudnorm_measurements(stderr: &str) -> Result<LoudnormMeasurements, PlatformE
     })
 }
 
-fn run_owned(program: &str, arguments: &[String]) -> Result<Output, PlatformError> {
+fn run_owned_for_media(
+    program: &str,
+    arguments: &[String],
+    inputs: &[&Path],
+) -> Result<Output, PlatformError> {
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    run(program, &borrowed)
+    let timeout = media_timeout_for_inputs(inputs)?;
+    run_with_timeout(program, &borrowed, timeout)
+}
+
+fn media_timeout_for_inputs(inputs: &[&Path]) -> Result<Duration, PlatformError> {
+    let mut longest_seconds = 0.0_f64;
+    for input in inputs {
+        let duration_seconds = validate_media(input)?.duration_seconds;
+        longest_seconds = longest_seconds.max(duration_seconds);
+    }
+    Ok(media_timeout(longest_seconds))
+}
+
+fn media_timeout(duration_seconds: f64) -> Duration {
+    if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
+        return MEDIA_TIMEOUT_FLOOR;
+    }
+    let budget_seconds = (30.0 + duration_seconds * 3.0).ceil();
+    Duration::from_secs_f64(budget_seconds)
+        .max(MEDIA_TIMEOUT_FLOOR)
+        .min(MEDIA_TIMEOUT_CEILING)
 }
 
 fn run(program: &str, arguments: &[&str]) -> Result<Output, PlatformError> {
-    run_with_timeout(program, arguments, Duration::from_mins(1))
+    run_with_timeout(program, arguments, PROBE_TIMEOUT)
 }
 
 fn run_with_timeout(
