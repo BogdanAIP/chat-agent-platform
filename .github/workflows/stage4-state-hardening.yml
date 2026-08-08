@@ -1,0 +1,165 @@
+name: Stage 4 State Hardening Patch
+
+on:
+  push:
+    branches: [chat/stage4-yandex-relay]
+    paths:
+      - ".github/workflows/stage4-state-hardening.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chat/stage4-yandex-relay
+      - name: Make task/result rendezvous immutable
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_exact(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one match, got {count}")
+              p.write_text(text.replace(old, new), encoding="utf-8")
+
+          replace_exact(
+              "gateway/yandex_function/index.py",
+              '''def _task_is_pending(root, task):
+              if task.get("status", "pending") != "pending":
+                  return False
+              request_id = str(task.get("request_id") or "")
+          ''',
+              '''def _task_is_pending(root, task):
+              request_id = str(task.get("request_id") or "")
+          ''',
+          )
+
+          replace_exact(
+              "gateway/yandex_function/index.py",
+              '''    existing = _read_json(result_path)
+              if existing:
+                  if existing != response:
+                      return _json_response(409, {"ok": False, "error": "result identity collision"})
+                  task = _read_json(task_path)
+                  if task and task.get("status", "pending") == "pending":
+                      task["status"] = "completed"
+                      task["completed_unix_ms"] = _now_ms()
+                      _write_json(task_path, task)
+                  return _json_response(200, {"ok": True, "duplicate": True})
+              task = _read_json(task_path)
+              if not task or task.get("request_id") != task_id:
+                  return _json_response(409, {"ok": False, "error": "task is no longer pending"})
+              if task.get("status", "pending") != "pending":
+                  return _json_response(409, {"ok": False, "error": "task is no longer pending"})
+              _write_json(result_path, response)
+              task["status"] = "completed"
+              task["completed_unix_ms"] = _now_ms()
+              _write_json(task_path, task)
+              return _json_response(200, {"ok": True, "duplicate": False})
+          ''',
+              '''    existing = _read_json(result_path)
+              if existing:
+                  if existing != response:
+                      return _json_response(409, {"ok": False, "error": "result identity collision"})
+                  return _json_response(200, {"ok": True, "duplicate": True})
+              task = _read_json(task_path)
+              if not task or task.get("request_id") != task_id:
+                  return _json_response(409, {"ok": False, "error": "task is no longer pending"})
+              if int(task.get("deadline_unix_ms", 0)) < _now_ms():
+                  return _json_response(409, {"ok": False, "error": "task deadline has expired"})
+              _write_json(result_path, response)
+              return _json_response(200, {"ok": True, "duplicate": False})
+          ''',
+          )
+
+          replace_exact(
+              "gateway/yandex_function/index.py",
+              '''def _mark_task(root, task_id, status):
+              task_path = root / "tasks" / f"{task_id}.json"
+              task = _read_json(task_path)
+              if not task:
+                  return
+              task["status"] = status
+              task[f"{status}_unix_ms"] = _now_ms()
+              _write_json(task_path, task)
+          
+          
+          ''',
+              '''''',
+          )
+
+          replace_exact(
+              "gateway/yandex_function/index.py",
+              '''        "project_id": project_id,
+                  "created_unix_ms": _now_ms(),
+                  "status": "pending",
+              }
+          ''',
+              '''        "project_id": project_id,
+                  "created_unix_ms": _now_ms(),
+              }
+          ''',
+          )
+
+          replace_exact(
+              "gateway/yandex_function/index.py",
+              '''    _mark_task(root, task_id, "timed_out")
+              return _tool_error(
+          ''',
+              '''    return _tool_error(
+          ''',
+          )
+
+          replace_exact(
+              "scripts/deploy-stage4-yandex.ps1",
+              '''    '--execution-timeout','70s',
+              '--concurrency','1',
+              '--service-account-id',$serviceAccountId,
+          ''',
+              '''    '--execution-timeout','70s',
+              '--service-account-id',$serviceAccountId,
+          ''',
+          )
+
+          replace_exact(
+              "tests/test_stage4_yandex_gateway.py",
+              '''        self.assertTrue(task_path.exists())
+                  self.assertTrue(result_path.exists())
+                  self.assertEqual(json.loads(task_path.read_text(encoding="utf-8"))["status"], "completed")
+          ''',
+              '''        self.assertTrue(task_path.exists())
+                  self.assertTrue(result_path.exists())
+                  stored_task = json.loads(task_path.read_text(encoding="utf-8"))
+                  self.assertNotIn("status", stored_task)
+                  self.assertEqual(stored_task["request_id"], task_id)
+          ''',
+          )
+
+          p = Path("tests/test_stage4_powershell_syntax.py")
+          text = p.read_text(encoding="utf-8")
+          marker = '        self.assertIn("MCP_TOKEN=$remoteToken", deploy)\n'
+          if text.count(marker) != 1:
+              raise SystemExit("powershell contract marker is not unique")
+          text = text.replace(
+              marker,
+              marker + '        self.assertNotIn("--concurrency", deploy)\n',
+          )
+          p.write_text(text, encoding="utf-8")
+      - name: Commit patch
+        shell: bash
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gateway/yandex_function/index.py scripts/deploy-stage4-yandex.ps1 tests/test_stage4_yandex_gateway.py tests/test_stage4_powershell_syntax.py
+          git diff --cached --quiet && { echo "No patch produced"; exit 1; }
+          git commit -m "Make Stage 4 rendezvous state immutable"
+          git push origin HEAD:chat/stage4-yandex-relay
