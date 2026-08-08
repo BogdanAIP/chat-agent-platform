@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transport-result-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "request_commit_sha", "processed_at", "status", "result", "error"],
+  "properties": {
+    "contract_version": {"const": "transport-result-v1"},
+    "request_id": {"type": "string", "pattern": "^trq_[a-zA-Z0-9_-]{8,96}$"},
+    "request_commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "processed_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["success", "error"]},
+    "result": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+    "error": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["code", "message", "retryable", "safe_to_retry"],
+          "properties": {
+            "code": {"type": "string", "minLength": 1},
+            "message": {"type": "string"},
+            "retryable": {"type": "boolean"},
+            "safe_to_retry": {"type": "boolean"}
+          }
+        }
+      ]
+    }
+  }
+}
