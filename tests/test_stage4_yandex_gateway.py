@@ -88,7 +88,7 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(payload["structuredContent"]["code"], "AGENT_OFFLINE")
         self.assertLess(elapsed, 1.0)
 
-    def test_authenticated_offline_removes_heartbeat_immediately(self):
+    def test_authenticated_offline_overwrites_heartbeat_without_delete_permission(self):
         poll = index.handler(
             event(
                 {
@@ -112,10 +112,15 @@ class GatewayTests(unittest.TestCase):
             None,
         )
         self.assertEqual(offline["statusCode"], 200)
-        self.assertFalse(heartbeat.exists())
+        self.assertTrue(heartbeat.exists())
+        heartbeat_value = json.loads(heartbeat.read_text(encoding="utf-8"))
+        self.assertEqual(heartbeat_value["last_seen_unix_ms"], 0)
+        self.assertEqual(heartbeat_value["operations"], [])
         self.assertFalse(parsed(offline)["agent_online"])
+        health = parsed(index.handler(event({}, method="GET"), None))
+        self.assertFalse(health["agent_online"])
 
-    def test_long_poll_rendezvous_and_result(self):
+    def test_long_poll_rendezvous_result_and_duplicate_are_no_delete(self):
         holder = {}
 
         def agent():
@@ -143,6 +148,7 @@ class GatewayTests(unittest.TestCase):
                 },
                 "error": None,
             }
+            holder["result"] = result
             ack = index.handler(
                 event(
                     {
@@ -184,7 +190,50 @@ class GatewayTests(unittest.TestCase):
         self.assertTrue(payload["structuredContent"]["pong"])
         self.assertEqual(payload["structuredContent"]["message"], "stage4")
         self.assertTrue(holder["ack"]["ok"])
+        self.assertFalse(holder["ack"]["duplicate"])
         self.assertEqual(holder["task"]["operation"], "local_ping")
+
+        task_id = holder["task"]["request_id"]
+        task_path = Path(self.tmp.name) / "tasks" / f"{task_id}.json"
+        result_path = Path(self.tmp.name) / "results" / f"{task_id}.json"
+        self.assertTrue(task_path.exists())
+        self.assertTrue(result_path.exists())
+        self.assertEqual(json.loads(task_path.read_text(encoding="utf-8"))["status"], "completed")
+
+        duplicate = index.handler(
+            event(
+                {
+                    "agent_action": "result",
+                    "task_id": task_id,
+                    "response": holder["result"],
+                },
+                {"X-Agent-Token": TOKEN},
+            ),
+            None,
+        )
+        self.assertTrue(parsed(duplicate)["duplicate"])
+        self.assertTrue(task_path.exists())
+        self.assertTrue(result_path.exists())
+
+        second_poll = index.handler(
+            event(
+                {
+                    "agent_action": "poll",
+                    "wait_seconds": 1,
+                    "project_id": "demo",
+                    "operations": ["local_ping", "runtime_self_test"],
+                },
+                {"X-Agent-Token": TOKEN},
+            ),
+            None,
+        )
+        self.assertIsNone(parsed(second_poll)["task"])
+
+    def test_gateway_runtime_source_has_no_object_delete_primitives(self):
+        source = Path(index.__file__).read_text(encoding="utf-8")
+        self.assertNotIn(".unlink(", source)
+        self.assertNotIn("os.remove(", source)
+        self.assertNotIn("os.unlink(", source)
 
     def test_tools_list_exports_only_allowlisted_local_operations(self):
         response = index.handler(
