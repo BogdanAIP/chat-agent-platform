@@ -229,7 +229,9 @@ class GatewayTests(unittest.TestCase):
         result_path = Path(self.tmp.name) / "results" / f"{task_id}.json"
         self.assertTrue(task_path.exists())
         self.assertTrue(result_path.exists())
-        self.assertEqual(json.loads(task_path.read_text(encoding="utf-8"))["status"], "completed")
+        stored_task = json.loads(task_path.read_text(encoding="utf-8"))
+        self.assertNotIn("status", stored_task)
+        self.assertEqual(stored_task["request_id"], task_id)
 
         duplicate = index.handler(
             event(

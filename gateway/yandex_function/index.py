@@ -159,8 +159,6 @@ def _validate_agent_project(body):
 
 
 def _task_is_pending(root, task):
-    if task.get("status", "pending") != "pending":
-        return False
     request_id = str(task.get("request_id") or "")
     if not REQUEST_ID.fullmatch(request_id):
         return False
@@ -234,21 +232,13 @@ def _agent_result(root, body):
     if existing:
         if existing != response:
             return _json_response(409, {"ok": False, "error": "result identity collision"})
-        task = _read_json(task_path)
-        if task and task.get("status", "pending") == "pending":
-            task["status"] = "completed"
-            task["completed_unix_ms"] = _now_ms()
-            _write_json(task_path, task)
         return _json_response(200, {"ok": True, "duplicate": True})
     task = _read_json(task_path)
     if not task or task.get("request_id") != task_id:
         return _json_response(409, {"ok": False, "error": "task is no longer pending"})
-    if task.get("status", "pending") != "pending":
-        return _json_response(409, {"ok": False, "error": "task is no longer pending"})
+    if int(task.get("deadline_unix_ms", 0)) < _now_ms():
+        return _json_response(409, {"ok": False, "error": "task deadline has expired"})
     _write_json(result_path, response)
-    task["status"] = "completed"
-    task["completed_unix_ms"] = _now_ms()
-    _write_json(task_path, task)
     return _json_response(200, {"ok": True, "duplicate": False})
 
 
@@ -299,16 +289,6 @@ def _validate_tool_arguments(name, arguments):
     return {"message": message}, None
 
 
-def _mark_task(root, task_id, status):
-    task_path = root / "tasks" / f"{task_id}.json"
-    task = _read_json(task_path)
-    if not task:
-        return
-    task["status"] = status
-    task[f"{status}_unix_ms"] = _now_ms()
-    _write_json(task_path, task)
-
-
 def _call_local_tool(root, name, arguments):
     arguments, error = _validate_tool_arguments(name, arguments)
     if error:
@@ -330,7 +310,6 @@ def _call_local_tool(root, name, arguments):
         "deadline_unix_ms": deadline_ms,
         "project_id": project_id,
         "created_unix_ms": _now_ms(),
-        "status": "pending",
     }
     task_path = root / "tasks" / f"{task_id}.json"
     result_path = root / "results" / f"{task_id}.json"
@@ -347,7 +326,6 @@ def _call_local_tool(root, name, arguments):
                 True,
             )
         time.sleep(POLL_SLICE_SECONDS)
-    _mark_task(root, task_id, "timed_out")
     return _tool_error(
         "LOCAL_TIMEOUT",
         "Local agent did not return the task before its deadline.",

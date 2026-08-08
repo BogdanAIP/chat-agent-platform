@@ -42,6 +42,7 @@ class Stage4PowerShellSyntaxTests(unittest.TestCase):
 
         self.assertIn("[switch]$CopyActionTokenToClipboard", deploy)
         self.assertIn("MCP_TOKEN=$remoteToken", deploy)
+        self.assertNotIn("--concurrency", deploy)
         self.assertIn("runtime/relay/actions-openapi.json", deploy.replace("\\", "/"))
         self.assertIn("Set-Clipboard -Value $remoteToken", deploy)
         self.assertIn("CopyActionTokenToClipboard = $true", provision)

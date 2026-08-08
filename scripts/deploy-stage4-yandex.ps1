@@ -211,7 +211,6 @@ $versionArgs = @(
     '--entrypoint','index.handler',
     '--memory','128MB',
     '--execution-timeout','70s',
-    '--concurrency','1',
     '--service-account-id',$serviceAccountId,
     '--source-path',$functionSource,
     '--mount',"type=object-storage,mount-point=relay,bucket=$BucketName,mode=rw",
