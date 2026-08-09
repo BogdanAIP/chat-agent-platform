@@ -11,6 +11,7 @@ on:
       - "contracts/relay-*.schema.json"
       - "gateway/**"
       - "tests/test_stage4_yandex_gateway.py"
+      - "tests/test_stage4_actions_openapi.py"
       - "scripts/deploy-stage4-yandex.ps1"
       - ".github/workflows/stage4-relay.yml"
       - "config/tools.yaml"
@@ -28,6 +29,7 @@ on:
       - "contracts/relay-*.schema.json"
       - "gateway/**"
       - "tests/test_stage4_yandex_gateway.py"
+      - "tests/test_stage4_actions_openapi.py"
       - "scripts/deploy-stage4-yandex.ps1"
       - ".github/workflows/stage4-relay.yml"
       - "config/tools.yaml"
@@ -101,7 +103,9 @@ jobs:
 
       - name: Prove Yandex gateway MCP and GPT Actions contracts
         shell: pwsh
-        run: python -m unittest tests.test_stage4_yandex_gateway -v
+        run: |
+          python -m unittest tests.test_stage4_yandex_gateway -v
+          python -m unittest tests.test_stage4_actions_openapi -v
 
       - name: Validate Yandex deployment script syntax
         shell: pwsh
