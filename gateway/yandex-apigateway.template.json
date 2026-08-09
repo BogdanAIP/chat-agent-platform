@@ -30,6 +30,39 @@
           "payload_format_version": "0.1"
         }
       }
+    },
+    "/gpt": {
+      "post": {
+        "parameters": [
+          {
+            "name": "X-MCP-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GPT Action relay operation response"
+          }
+        },
+        "x-yc-apigateway-integration": {
+          "type": "http",
+          "url": "https://functions.yandexcloud.net/__FUNCTION_ID__",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "X-MCP-Token": "{X-MCP-Token}"
+          },
+          "omitEmptyHeaders": true,
+          "timeouts": {
+            "connect": 5,
+            "read": 70
+          }
+        }
+      }
     }
   }
 }
