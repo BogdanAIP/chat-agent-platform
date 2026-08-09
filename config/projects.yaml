@@ -8,7 +8,13 @@
       "local_root": "..",
       "artifact_root": "../artifacts",
       "policy": "policy.yaml"
+    },
+    {
+      "project_id": "chat-agent-platform",
+      "repo_root": "..",
+      "local_root": "..",
+      "artifact_root": "../artifacts",
+      "policy": "policy.yaml"
     }
   ]
 }
-

@@ -42,12 +42,15 @@ class Stage4PowerShellSyntaxTests(unittest.TestCase):
 
         self.assertIn("[switch]$CopyActionTokenToClipboard", deploy)
         self.assertIn("MCP_TOKEN=$remoteToken", deploy)
-        self.assertNotIn("--concurrency", deploy)
+        self.assertIn("'--concurrency','4'", deploy)
         self.assertIn("runtime/relay/actions-openapi.json", deploy.replace("\\", "/"))
         self.assertIn("Set-Clipboard -Value $remoteToken", deploy)
         self.assertIn("CopyActionTokenToClipboard = $true", provision)
         self.assertIn("Get-Clipboard -Raw", provision)
-        self.assertIn("__FUNCTION_URL__", template)
+        self.assertIn("__GATEWAY_URL__", template)
+        self.assertIn("serverless','api-gateway','create", deploy)
+        self.assertIn("serverless','api-gateway','update", deploy)
+        self.assertIn("endpoint_url = $gatewayUrl", deploy)
         self.assertIn("remote_bearer_returned = $false", deploy)
         self.assertIn("agent_token_returned = $false", deploy)
 

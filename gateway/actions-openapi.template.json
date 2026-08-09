@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "__FUNCTION_URL__"
+      "url": "__GATEWAY_URL__"
     }
   ],
   "paths": {

@@ -1,0 +1,35 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Agent Platform Relay Gateway",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Relay health response"
+          }
+        },
+        "x-yc-apigateway-integration": {
+          "type": "cloud_functions",
+          "function_id": "__FUNCTION_ID__",
+          "payload_format_version": "0.1"
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Relay operation response"
+          }
+        },
+        "x-yc-apigateway-integration": {
+          "type": "cloud_functions",
+          "function_id": "__FUNCTION_ID__",
+          "payload_format_version": "0.1"
+        }
+      }
+    }
+  }
+}
