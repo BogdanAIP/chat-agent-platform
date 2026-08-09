@@ -41,6 +41,9 @@ class ReleaseMetadataTests(unittest.TestCase):
         workflow = (self.repo / ".github" / "workflows" / "release.yml").read_text(
             encoding="utf-8"
         )
+        assembler = (
+            self.repo / "scripts" / "assemble-release-package.sh"
+        ).read_text(encoding="utf-8")
         self.assertIn('tags:\n      - "v*.*.*"', workflow)
         self.assertIn("git merge-base --is-ancestor", workflow)
         self.assertIn('git checkout --detach "$tag_sha"', workflow)
@@ -48,7 +51,8 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertIn("GH_REPO: ${{ github.repository }}", workflow)
         self.assertIn("--verify-tag", workflow)
         self.assertIn("--generate-notes", workflow)
-        self.assertIn("sha256sum -c SHA256SUMS", workflow)
+        self.assertIn("bash scripts/assemble-release-package.sh", workflow)
+        self.assertIn("sha256sum -c SHA256SUMS", assembler)
         self.assertIn("cargo build --workspace --release --locked", workflow)
         self.assertIn("agent-platform.cdx.json", workflow)
         self.assertNotIn("--clobber", workflow)
