@@ -12,7 +12,11 @@ on:
       - "gateway/**"
       - "tests/test_stage4_yandex_gateway.py"
       - "tests/test_stage4_actions_openapi.py"
+      - "tests/test_stage4_gpt_ingress.py"
+      - "tests/test_stage4_gateway_recovery.py"
       - "scripts/deploy-stage4-yandex.ps1"
+      - "scripts/ensure-stage4-gateway-active.ps1"
+      - "scripts/prepare-stage4-gpt-action.ps1"
       - ".github/workflows/stage4-relay.yml"
       - "config/tools.yaml"
       - "config/tool-lock.yaml"
@@ -30,7 +34,11 @@ on:
       - "gateway/**"
       - "tests/test_stage4_yandex_gateway.py"
       - "tests/test_stage4_actions_openapi.py"
+      - "tests/test_stage4_gpt_ingress.py"
+      - "tests/test_stage4_gateway_recovery.py"
       - "scripts/deploy-stage4-yandex.ps1"
+      - "scripts/ensure-stage4-gateway-active.ps1"
+      - "scripts/prepare-stage4-gpt-action.ps1"
       - ".github/workflows/stage4-relay.yml"
       - "config/tools.yaml"
       - "config/tool-lock.yaml"
@@ -106,18 +114,26 @@ jobs:
         run: |
           python -m unittest tests.test_stage4_yandex_gateway -v
           python -m unittest tests.test_stage4_actions_openapi -v
+          python -m unittest tests.test_stage4_gpt_ingress -v
+          python -m unittest tests.test_stage4_gateway_recovery -v
 
-      - name: Validate Yandex deployment script syntax
+      - name: Validate Yandex Stage 4 PowerShell syntax
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $PWD 'scripts/deploy-stage4-yandex.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
-          if ($errors.Count -ne 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          foreach ($script in @(
+            'scripts/deploy-stage4-yandex.ps1',
+            'scripts/ensure-stage4-gateway-active.ps1',
+            'scripts/prepare-stage4-gpt-action.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $script),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) {
+              $errors | ForEach-Object { Write-Error "$script`: $($_.Message)" }
+              exit 1
+            }
           }
