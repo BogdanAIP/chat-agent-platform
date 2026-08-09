@@ -97,7 +97,10 @@ fn wait_until_listening(child: &mut Child, port: u16) {
         if let Some(status) = child.try_wait().expect("child status must be readable") {
             panic!("local ingress exited before listening: {status}");
         }
-        assert!(Instant::now() < deadline, "local ingress did not start in time");
+        assert!(
+            Instant::now() < deadline,
+            "local ingress did not start in time"
+        );
         thread::sleep(Duration::from_millis(100));
     }
 }
