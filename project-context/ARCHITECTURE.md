@@ -12,8 +12,13 @@ Chat / Codex
     `-- optional remote tool call
             |
             v
-      Yandex Function + Object Storage
-      thin JSON rendezvous only
+      Yandex API Gateway
+            |
+            v
+      Yandex Cloud Function
+            |
+            v
+      Object Storage JSON rendezvous
             |
             | outbound long poll
             v
@@ -70,11 +75,26 @@ Changing artifact hash/destination/parameters invalidates the confirmation. Repl
 
 ### Cloud transport is intentionally thin
 
-Stage 4 uses a permanent Yandex Function URL plus mounted Object Storage. The Windows binary makes outbound HTTPS long polls; no inbound Windows port/NAT change is required.
+Stage 4 uses a permanent **Yandex API Gateway** endpoint as the public Chat/GPT Actions ingress. The Gateway invokes a Yandex Cloud Function, which keeps only relay/auth/rendezvous logic and uses Object Storage for task/result/heartbeat JSON. The Windows binary makes outbound HTTPS long polls; no inbound Windows port/NAT change is required.
+
+The API Gateway is not optional decoration. Direct Yandex Function invocation consumes `Authorization` for the cloud platform itself, so it cannot reliably carry the arbitrary GPT Actions `Authorization: Bearer <remote-token>` header. The Gateway preserves that external Bearer contract while invoking the Function internally.
 
 Cloud state contains only task/result/heartbeat JSON. Task/result rendezvous is immutable by request ID; deadline and result existence define state without relying on Python instance serialization. The cloud has no media files, FFmpeg, REAPER, Matchering or business workflow logic.
 
-The relay is off by default and currently exports only `local_ping` and `runtime_self_test`. Hosted CI is green; one real ChatGPT-originated round trip remains a manual exit gate.
+Two independent credentials remain mandatory:
+
+- remote GPT/MCP Bearer -> checked by the Function after passing through API Gateway;
+- local `AGENT_TOKEN` -> stored in Windows Credential Manager and sent by the explicit Windows relay.
+
+Normal redeployments may reuse the current pair; explicit `-RotateTokens` rotates both. Neither token belongs in Git, OpenAPI, acceptance evidence or chat text.
+
+The relay is off by default and currently exports only `local_ping` and `runtime_self_test`.
+
+Evidence status:
+
+- hosted Stage 4 CI is green;
+- real Yandex API Gateway -> Function -> Object Storage -> Windows transport acceptance passed 2026-08-09;
+- one real **ChatGPT-originated** call through the private GPT Action remains the final Stage 4 exit gate before exposing higher-value local capabilities remotely.
 
 ## Transitional code
 
