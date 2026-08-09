@@ -12,7 +12,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
@@ -188,6 +188,10 @@ jobs:
     needs: [validate, windows-binary, sbom]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -209,6 +213,10 @@ jobs:
           zip -9 "agent-platform-${RELEASE_TAG}-windows-x86_64.zip" agent-platform.exe agent-platform.cdx.json
           sha256sum agent-platform.exe agent-platform.cdx.json "agent-platform-${RELEASE_TAG}-windows-x86_64.zip" > SHA256SUMS
           sha256sum -c SHA256SUMS
+      - name: Attest release artifact provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-checksums: runtime/release/SHA256SUMS
       - name: Create immutable GitHub Release assets
         shell: bash
         env:
