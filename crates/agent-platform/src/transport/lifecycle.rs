@@ -576,9 +576,7 @@ fn acquire_worker_lock(path: &Path) -> Result<File, PlatformError> {
         Err(TryLockError::WouldBlock) => Err(PlatformError::Validation(
             "relay worker lock is already held by another process".into(),
         )),
-        Err(TryLockError::Error(error)) => {
-            Err(io_error("cannot acquire relay worker lock", error))
-        }
+        Err(TryLockError::Error(error)) => Err(io_error("cannot acquire relay worker lock", error)),
     }
 }
 
@@ -591,9 +589,7 @@ fn worker_lock_is_held(path: &Path) -> Result<bool, PlatformError> {
             Ok(false)
         }
         Err(TryLockError::WouldBlock) => Ok(true),
-        Err(TryLockError::Error(error)) => {
-            Err(io_error("cannot probe relay worker lock", error))
-        }
+        Err(TryLockError::Error(error)) => Err(io_error("cannot probe relay worker lock", error)),
     }
 }
 
@@ -602,6 +598,7 @@ fn open_worker_lock(path: &Path) -> Result<File, PlatformError> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(path)
         .map_err(|error| io_error("cannot open relay worker lock", error))
 }
