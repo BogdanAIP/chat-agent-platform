@@ -54,6 +54,7 @@ impl Store {
         })
     }
 
+    #[cfg(test)]
     pub fn open_in_memory() -> Result<Self, StoreError> {
         let connection = Connection::open_in_memory()?;
         Self::initialize_connection(&connection)?;

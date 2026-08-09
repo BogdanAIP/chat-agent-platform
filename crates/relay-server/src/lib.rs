@@ -319,7 +319,7 @@ async fn agent_poll(state: Arc<AppState>, body: &Map<String, Value>) -> Response
         let remaining = deadline.saturating_duration_since(now);
         let wait = remaining.min(AGENT_POLL_FALLBACK_INTERVAL);
         tokio::select! {
-            _ = notified => {},
+            () = notified => {},
             () = sleep(wait) => {},
         }
     }
@@ -601,7 +601,7 @@ async fn call_local_tool(state: Arc<AppState>, name: &str, arguments: Value) -> 
         }
         let remaining = deadline.saturating_duration_since(now_instant);
         tokio::select! {
-            _ = notified => {},
+            () = notified => {},
             () = sleep(remaining.min(RESULT_POLL_INTERVAL)) => {},
         }
     }
