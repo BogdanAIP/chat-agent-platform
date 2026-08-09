@@ -2,11 +2,13 @@
 
 ## Snapshot
 
-Architecture v1.4 is **Rust-first / native-edge**. Chat is primary intelligence; one local `agent-platform.exe` owns contracts, Project Binding, locked capability selection, policy, guarded confirmations, artifacts, persistent jobs and secret ACL. Mature tools remain typed edge executors.
+Architecture v1.4 is **Rust-first / native-edge**. Chat is primary intelligence; one local `agent-platform.exe` owns contracts, Project Binding, locked capability selection, policy, guarded confirmations, artifacts, persistent jobs and secret ACL. Mature tools and network components remain replaceable edge executors.
 
 Python v0.1 is retained only as a behavioral oracle for parity. It is not the target runtime.
 
 Repository is **public** and licensed under the standard **MIT License** with no additional mandatory conditions. Project support/donations are voluntary and separate from MIT rights.
+
+The connector architecture is **provider-neutral**. There is no canonical Yandex/VPS/cloud transport. Canonical boundaries are the MCP/relay contracts and the local security/execution boundary; hosting/tunnel/provider is chosen at deployment time. See `CONNECTOR_ARCHITECTURE.md` and ADR-009.
 
 ## Stage status
 
@@ -16,8 +18,8 @@ Repository is **public** and licensed under the standard **MIT License** with no
 | 1 Rust vertical core | done | binding -> policy -> artifact -> typed tool -> validated result |
 | 2 Contracts | done | embedded schemas for tool/artifact/policy/confirmation/secret/job/relay |
 | 3 Memory/bootstrap/skills | done | minimal project context + bootstrap path |
-| 4 Hosted transport | partial / live-transport accepted | real Yandex API Gateway -> Function -> Object Storage -> Windows acceptance passed 2026-08-09; final ChatGPT-originated call pending; direct Codex->Function MCP path is a tested auth candidate awaiting live acceptance |
-| 5 MCP aggregation | conditional | no extra aggregator justified |
+| 4 Hosted Chat -> local connector | partial / one live backend accepted | local polling client is provider-neutral; real Yandex backend -> Windows acceptance passed 2026-08-09; Rust relay-server has CI/integration acceptance; final Hosted Chat-originated call and one live non-Yandex path remain |
+| 5 MCP aggregation | conditional | no extra aggregator justified; standard MCP should use official SDK, not a home-grown aggregator |
 | 6 Capability selection + PEP | done | fail-closed quality/reliability/determinism/path/fallback/cost gates |
 | 7 Secret Store | done | Windows Credential Manager + executor ACL |
 | 8 Artifact hardening/staging | done | immutable SHA-verified inputs, recovery, controlled staging |
@@ -32,7 +34,7 @@ Repository is **public** and licensed under the standard **MIT License** with no
 | 17 Video production | conditional | no concrete scenario selected |
 | 18 Distribution | conditional | confirmation primitive done; external executors intentionally absent |
 | 19 Reference mastering | done | real pinned Matchering engine + technical benchmark |
-| 20 Operations audit | partial / manual-gated | automated hardening + branch ruleset + live Yandex->Windows acceptance complete; ChatGPT-originated Stage 4 call and first release remain |
+| 20 Operations audit | partial / manual-gated | automated hardening complete; first release and final connector acceptance remain |
 
 Stages are not a strict linear dependency chain. A later independent capability may be done while an earlier external/manual gate remains partial.
 
@@ -61,74 +63,93 @@ No publishing/distribution executor exists yet, so Stage 18 creates no external 
 - Mastering: Stage 13 is the technical safe-auto gate; Stage 15 produces idempotent technical masters; Stage 19 invokes pinned Matchering 2.0.6 as a replaceable Python 3.10 edge process and then reuses Rust delivery QC.
 - Stage 19 proves integration on a synthetic PCM24 benchmark. Subjective professional quality on a real musical corpus remains a separate quality-validation task.
 
-## Stage 4 transport
+## Stage 4 connector architecture
+
+### Canonical boundary
 
 ```text
-ChatGPT private GPT Action
+Hosted Chat / Codex / other MCP client
         |
-        | Authorization: Bearer <remote-token>
+        | preferred: standard MCP Streamable HTTP
+        | compatibility: GPT Action / polling relay
         v
-Yandex API Gateway
+replaceable public ingress
+        |
+        | direct HTTPS / reverse tunnel / VPS proxy / serverless relay
+        v
+local MCP boundary or outbound polling worker
         |
         v
-Yandex Cloud Function
-        |
-        v
-Object Storage task/result/heartbeat JSON
-        ^
-        | outbound HTTPS long poll
-        |
-agent-platform.exe on Windows
-
-Codex MCP (optional parallel ingress)
-        |
-        | Gateway + Bearer
-        | OR direct public Function + X-MCP-Token
-        v
-same relay Function / same Windows agent
+agent-platform.exe -> policy -> typed local capability
 ```
 
-The API Gateway is required for the **GPT Actions Bearer contract** because Yandex Cloud Functions remove/consume the incoming `Authorization` header before user code. That does **not** make the direct Function URL universally unusable.
+The provider is not part of the capability contract.
 
-The relay Function implements MCP JSON-RPC and accepts `X-MCP-Token` before Bearer. Codex supports environment-backed custom HTTP headers for Streamable HTTP MCP, so direct Codex -> public Function with `X-MCP-Token` is a deliberate candidate path. Its application-auth branch now has a regression test, but the real Codex-originated network path is not yet marked accepted or preferred until a live test passes.
+### Existing provider-neutral polling client
+
+The Windows runtime already stores only:
+
+```text
+endpoint
+secret_ref
+```
+
+It accepts a normal HTTPS endpoint and sends the same authenticated JSON `poll/result/offline` protocol. Therefore changing the compatible server from Yandex to the Rust relay-server or another implementation requires configuration, not changes to local capability code.
+
+Current polling backends:
+
+- `crates/relay-server` — provider-neutral Rust implementation for an ordinary Linux host, with SQLite short-lived state and bounded retention;
+- Yandex API Gateway / Function / Object Storage — provider-specific tested implementation retained as an adapter/reference.
+
+### Preferred MCP direction
+
+For MCP-capable callers the target is standard MCP Streamable HTTP. Protocol implementation should migrate to the official Rust MCP SDK (`rmcp`) in a separate change set rather than extending the hand-written compatibility implementation in `relay-server`.
+
+When an outbound reverse tunnel can publish a local MCP endpoint, no custom polling relay is required. Mature tunnel/reverse-proxy software should be used instead of reimplementing NAT traversal. The architecture records frp as the self-hosted VPS reference and zrok as an optional managed/self-hosted zero-trust alternative; equivalent mature deployment choices remain allowed.
+
+### GPT Action compatibility
+
+The existing private GPT Action/OpenAPI surface remains useful where that is the available ChatGPT integration. Its HTTPS target is replaceable. The Yandex API Gateway requirement was specific to the tested Yandex adapter's handling of the incoming Authorization header and is not a platform invariant.
+
+### Stage 4 evidence
 
 Already proved:
 
-- hosted CI: explicit configure/start/status/stop, token separation, Credential Manager storage, exact remote allowlist (`local_ping`, `runtime_self_test`), immutable task/result rendezvous, lost-ACK retry and offline lifecycle;
-- real Windows/Yandex acceptance on 2026-08-09 through the public API Gateway endpoint:
+- hosted CI for explicit configure/start/status/stop, token separation, Credential Manager storage, exact remote allowlist (`local_ping`, `runtime_self_test`), immutable task/result semantics, lost-ACK retry and offline lifecycle;
+- real Yandex polling-backend -> Windows acceptance on 2026-08-09:
   - `local_ping`: `pong=true`, `executed_locally=true`;
   - `runtime_self_test`: success;
-  - controlled write/read: passed;
-  - cleanup: passed;
-  - relay returned to disabled state and no background worker remained;
-- the remote token is not written to committed files or acceptance evidence; the local agent token remains in Windows Credential Manager.
+  - controlled write/read and cleanup: passed;
+  - relay returned to disabled state;
+- provider-neutral Rust relay-server integration/CI round trip;
+- relay-server long-running SQLite retention is bounded during active traffic.
 
-The only remaining Stage 4 exit gate is a request **originated by ChatGPT itself** through the private GPT Action. A separate direct Codex live test is useful for optimizing the secondary ingress, but it is not a blocker for the ChatGPT Stage 4 exit rule.
+Still required before provider portability is considered fully proved:
+
+1. a request originated by Hosted Chat through the chosen supported ingress and returned from real local execution;
+2. one real non-Yandex remote -> Windows path using either the Rust polling relay or standard tunneled MCP.
+
+Until the Hosted Chat gate passes, higher-value local media/mastering/distribution capabilities are not exposed remotely.
 
 ## Public CI / supply chain
 
 Current enforced baseline:
 
 - `ci / verify-windows` runs on every PR and every `main` push;
-- active repository ruleset `main-protection` targets the default branch, requires PR-based merging, strict up-to-date checks `verify-windows` + `gitleaks-history`, linear history, and blocks deletion/force-push with no bypass actors;
-- every `actions/checkout` reference is immutable-SHA pinned and uses `persist-credentials: false`;
-- all GitHub-owned Actions under `actions/*` and `github/*` are immutable-SHA pinned by repository-wide regression test;
+- active repository ruleset `main-protection` requires PR-based merging, strict up-to-date checks `verify-windows` + `gitleaks-history`, linear history, and blocks deletion/force-push with no bypass actors;
+- every `actions/checkout` uses an immutable SHA and `persist-credentials: false`;
 - Rust 1.97.1 and hosted FFmpeg 9.0.0 are pinned;
-- checksum-pinned cargo-deny 0.20.2 enforces dependency licenses, bans, sources and RustSec advisories;
-- dependency license allow-list is explicit and evidence-driven with no package-level license exceptions;
-- checksum-pinned Gitleaks 8.30.1 scans complete reachable git history with full redaction; the first public-history scan was green;
-- CodeQL v4 scans Rust, Python and GitHub Actions on PR/main/schedule; SARIF is checked fail-closed inside the job, and the first real scan completed with zero findings;
-- CodeQL is intentionally not yet a required `main-protection` status check after only one observed clean run;
-- reproducible CycloneDX SBOM is generated with pinned cargo-cyclonedx 0.5.9;
-- checksum-pinned cargo-about 0.9.1 generates Windows third-party notices; notice policy must equal cargo-deny license policy;
-- weekly grouped Dependabot updates remain enabled;
-- `SECURITY.md` defines public vulnerability-reporting and secret-handling rules without inventing an external contact or response SLA.
+- cargo-deny enforces dependency licenses, bans, sources and RustSec advisories;
+- Gitleaks scans reachable git history with redaction;
+- CodeQL scans Rust, Python and GitHub Actions;
+- reproducible CycloneDX SBOM and Windows third-party notices are generated;
+- weekly grouped Dependabot updates remain enabled.
 
 ## Release path
 
-The tag-gated release path now requires an existing exact `vX.Y.Z` reachable from `main` and validates Rust/Python/oracle version alignment from that exact tag.
+The tag-gated release path requires an existing exact `vX.Y.Z` reachable from `main` and validates Rust/Python/oracle version alignment from that exact tag.
 
-A real non-publishing Release Package E2E already proves cross-job assembly of:
+A non-publishing Release Package E2E proves:
 
 ```text
 Windows release binary
@@ -139,18 +160,18 @@ Windows release binary
   -> SHA256SUMS self-check
 ```
 
-The raw `.exe` is not a standalone GitHub Release asset. The public distribution ZIP always carries the project and dependency license material. `SHA256SUMS` covers the binary, SBOM, license files and ZIP. The release workflow performs GitHub build-provenance attestation before `gh release create`; attestation failure blocks publication. Existing releases are never overwritten.
-
-The first actual `v0.2.0` tag/release has intentionally not been created yet, so real tag-triggered publication/attestation remains a manual acceptance gate even though the package pipeline itself is E2E-tested.
+The release workflow performs GitHub build-provenance attestation before publication and refuses to overwrite existing releases. The first actual `v0.2.0` tag/release has intentionally not been created yet.
 
 ## Manual gates remaining
 
-1. Run the real Stage 4 ChatGPT -> API Gateway -> Yandex Function -> Windows -> ChatGPT acceptance.
-2. Deliberately push the first `v0.2.0` tag and verify generated Release assets, checksums and provenance.
+1. Complete real Hosted Chat -> local Windows -> Hosted Chat Stage 4 acceptance using a supported ingress.
+2. Prove one real non-Yandex connector path to demonstrate deployment portability rather than only code-level portability.
+3. Deliberately push the first `v0.2.0` tag and verify generated Release assets, checksums and provenance.
 
 ## Conditional/non-blocking follow-up
 
-- live-test optional direct Codex MCP -> public Function + `X-MCP-Token` and compare it with Codex -> Gateway before choosing a preferred Codex ingress;
+- migrate standard MCP ingress to `rmcp` and test MCP 2026-07-28 compatibility;
+- add thin frp/zrok deployment recipes only when running the real second connector acceptance; do not embed either tunnel into the core;
 - real licensed/owned music corpus + human listening acceptance before subjective professional-quality claims;
 - support/donation addresses when available;
 - ArtifactStore unresolved-orphan operator cleanup when operational demand appears;
@@ -158,4 +179,4 @@ The first actual `v0.2.0` tag/release has intentionally not been created yet, so
 - Python oracle removal after a separate parity/stability gate;
 - Stages 16–18 only from concrete product scenarios.
 
-See `STAGE20_OPERATIONS.md`, `ROADMAP.md` and `KNOWN_ISSUES.md`.
+See `CONNECTOR_ARCHITECTURE.md`, `STAGE20_OPERATIONS.md`, `ROADMAP.md` and `KNOWN_ISSUES.md`.
