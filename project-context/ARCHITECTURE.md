@@ -5,36 +5,31 @@
 Chat является primary intelligence. Один локальный Rust binary `agent-platform.exe` превращает намерение Chat в проверяемое выполнение через explicit Project Binding, versioned contracts и fail-closed policy. Зрелые программы остаются заменяемыми edge-инструментами; они не становятся core dependency без необходимости.
 
 ```text
-Chat / Codex
+ChatGPT private GPT Action
     |
-    +-- GitHub: source/project context
+    | Authorization: Bearer <remote-token>
+    v
+Yandex API Gateway
     |
-    `-- optional remote tool call
-            |
-            v
-      Yandex API Gateway
-            |
-            v
-      Yandex Cloud Function
-            |
-            v
-      Object Storage JSON rendezvous
-            |
-            | outbound long poll
-            v
+    v
+Yandex Cloud Function
+    |
+    v
+Object Storage JSON rendezvous
+    ^
+    | outbound long poll
+    |
 agent-platform.exe
-    |-- Project Binding / bootstrap
-    |-- capability requirements + tool lock
-    |-- Policy Enforcement Point
-    |-- guarded ConfirmationStore
-    |-- ArtifactStore
-    |-- JobStore
-    |-- SecretStore -> Windows Credential Manager
+
+Codex MCP (optional parallel ingress)
     |
-    +-- rust.local.ffmpeg -> FFmpeg/FFprobe CLI
-    +-- rust.local.reaper -> limited Lua/ReaScript -> REAPER
-    `-- edge.python.matchering -> fixed adapter -> Matchering 2.0.6
+    | candidate A: Gateway + Bearer
+    | candidate B: direct public Function + X-MCP-Token
+    v
+same Yandex Cloud Function / same local relay
 ```
+
+GitHub остаётся source/project-context каналом для Chat/Codex и не заменяет runtime transport.
 
 ## Core invariants
 
@@ -75,16 +70,20 @@ Changing artifact hash/destination/parameters invalidates the confirmation. Repl
 
 ### Cloud transport is intentionally thin
 
-Stage 4 uses a permanent **Yandex API Gateway** endpoint as the public Chat/GPT Actions ingress. The Gateway invokes a Yandex Cloud Function, which keeps only relay/auth/rendezvous logic and uses Object Storage for task/result/heartbeat JSON. The Windows binary makes outbound HTTPS long polls; no inbound Windows port/NAT change is required.
+Stage 4 has one relay Function and two possible public ingress styles depending on the caller.
 
-The API Gateway is not optional decoration. Direct Yandex Function invocation consumes `Authorization` for the cloud platform itself, so it cannot reliably carry the arbitrary GPT Actions `Authorization: Bearer <remote-token>` header. The Gateway preserves that external Bearer contract while invoking the Function internally.
+**ChatGPT private GPT Action:** use the permanent **Yandex API Gateway**. GPT Actions puts the project remote token in `Authorization: Bearer ...`; Yandex Cloud Functions strips/consumes the `Authorization` request header before user code, so the raw Function URL cannot implement that exact caller contract. API Gateway preserves the GPT Actions Bearer request for the relay Function.
+
+**Codex remote MCP:** the relay Function already implements MCP JSON-RPC (`initialize`, `ping`, `tools/list`, `tools/call`) and application auth accepts `X-MCP-Token` before falling back to Bearer. Codex supports environment-backed custom HTTP headers for Streamable HTTP MCP servers, so a direct public Function URL with `X-MCP-Token` is a supported candidate path. It may remove one Gateway hop, but it is **not yet marked accepted or preferred until a real Codex-originated live test passes**. Codex may also use the Gateway/Bearer path if that proves simpler or more reliable.
+
+The Function is public only at the Yandex invocation layer. Application-level remote operations remain fail-closed behind `MCP_TOKEN`; local worker operations separately require `AGENT_TOKEN`. Unauthenticated public GET health remains deliberately minimal.
 
 Cloud state contains only task/result/heartbeat JSON. Task/result rendezvous is immutable by request ID; deadline and result existence define state without relying on Python instance serialization. The cloud has no media files, FFmpeg, REAPER, Matchering or business workflow logic.
 
 Two independent credentials remain mandatory:
 
-- remote GPT/MCP Bearer -> checked by the Function after passing through API Gateway;
-- local `AGENT_TOKEN` -> stored in Windows Credential Manager and sent by the explicit Windows relay.
+- remote `MCP_TOKEN` -> GPT Action uses it as Bearer through Gateway; direct Codex candidate uses the same value in `X-MCP-Token`;
+- local `AGENT_TOKEN` -> stored in Windows Credential Manager and sent only by the explicit Windows relay.
 
 Normal redeployments may reuse the current pair; explicit `-RotateTokens` rotates both. Neither token belongs in Git, OpenAPI, acceptance evidence or chat text.
 
@@ -94,7 +93,9 @@ Evidence status:
 
 - hosted Stage 4 CI is green;
 - real Yandex API Gateway -> Function -> Object Storage -> Windows transport acceptance passed 2026-08-09;
-- one real **ChatGPT-originated** call through the private GPT Action remains the final Stage 4 exit gate before exposing higher-value local capabilities remotely.
+- the `X-MCP-Token` application-auth path is regression-tested for the direct Function candidate;
+- one real **ChatGPT-originated** call through the private GPT Action remains the final Stage 4 exit gate before exposing higher-value local capabilities remotely;
+- a separate real **Codex-originated direct Function** call is desirable as an optimization/compatibility acceptance, but it is not a blocker for closing the ChatGPT Stage 4 exit gate.
 
 ## Transitional code
 
