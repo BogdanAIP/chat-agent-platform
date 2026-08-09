@@ -13,7 +13,10 @@ class SupplyChainPolicyTests(unittest.TestCase):
         allowed = set(licenses["allow"])
 
         self.assertIn("MIT", allowed)
+        self.assertIn("MIT-0", allowed)
         self.assertIn("Apache-2.0", allowed)
+        self.assertNotIn("ISC", allowed)
+        self.assertNotIn("MPL-2.0", allowed)
         self.assertEqual(licenses["confidence-threshold"], 0.8)
         self.assertNotIn("exceptions", licenses)
 
