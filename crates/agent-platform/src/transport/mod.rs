@@ -264,7 +264,8 @@ pub(super) fn authorize_transport_capability(
 ) -> Result<(ProjectBinding, CapabilitySelection, PolicyDecision), PlatformError> {
     let binding = resolve_project(repo_root, project_id)?;
     let quality = required_quality(&binding.repo_root, capability)?;
-    let selection = CapabilityRegistry::load(&binding.repo_root)?.select(capability, &quality, 0)?;
+    let selection =
+        CapabilityRegistry::load(&binding.repo_root)?.select(capability, &quality, 0)?;
     let data_class = parameters
         .get("data_class")
         .and_then(Value::as_str)
