@@ -32,7 +32,7 @@ class WorkflowCheckoutSecurityTests(unittest.TestCase):
         self.assertNotIn("paths-ignore:", workflow)
         self.assertNotIn("paths:", workflow)
         self.assertIn("name: ci", workflow)
-        self.assertIn("name: verify-windows", workflow)
+        self.assertIn("  verify-windows:\n", workflow)
 
 
 if __name__ == "__main__":
