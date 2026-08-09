@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -9,6 +10,9 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::model::{AgentStatus, RelayResponse, RelayTask, StoredTask};
+
+const RETENTION_MS: i64 = 24 * 60 * 60 * 1_000;
+const CLEANUP_INTERVAL_MS: i64 = 60 * 60 * 1_000;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
@@ -37,6 +41,7 @@ pub enum SaveResultOutcome {
 #[derive(Debug, Clone)]
 pub struct Store {
     connection: Arc<Mutex<Connection>>,
+    last_cleanup_unix_ms: Arc<AtomicI64>,
 }
 
 impl Store {
@@ -51,6 +56,7 @@ impl Store {
         Self::initialize_connection(&connection)?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
+            last_cleanup_unix_ms: Arc::new(AtomicI64::new(0)),
         })
     }
 
@@ -60,6 +66,7 @@ impl Store {
         Self::initialize_connection(&connection)?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
+            last_cleanup_unix_ms: Arc::new(AtomicI64::new(0)),
         })
     }
 
@@ -109,6 +116,25 @@ impl Store {
             "DELETE FROM agents WHERE last_seen_unix_ms > 0 AND last_seen_unix_ms < ?1",
             params![older_than_unix_ms],
         )?;
+        Ok(())
+    }
+
+    fn maybe_cleanup(&self, now_unix_ms: i64) -> Result<(), StoreError> {
+        let previous = self.last_cleanup_unix_ms.load(Ordering::Acquire);
+        if previous > 0 && now_unix_ms.saturating_sub(previous) < CLEANUP_INTERVAL_MS {
+            return Ok(());
+        }
+        if self
+            .last_cleanup_unix_ms
+            .compare_exchange(previous, now_unix_ms, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return Ok(());
+        }
+        if let Err(error) = self.cleanup(now_unix_ms.saturating_sub(RETENTION_MS)) {
+            self.last_cleanup_unix_ms.store(previous, Ordering::Release);
+            return Err(error);
+        }
         Ok(())
     }
 
@@ -165,6 +191,7 @@ impl Store {
     }
 
     pub fn insert_task(&self, task: &StoredTask) -> Result<(), StoreError> {
+        self.maybe_cleanup(task.created_unix_ms)?;
         let parameters_json = serde_json::to_string(&task.task.parameters)?;
         let connection = self.connection()?;
         connection.execute(
@@ -318,7 +345,7 @@ mod tests {
 
     use super::*;
 
-    fn task(id: &str, deadline: i64) -> StoredTask {
+    fn task_at(id: &str, created: i64, deadline: i64) -> StoredTask {
         StoredTask {
             task: RelayTask {
                 contract_version: "relay-request-v1".to_owned(),
@@ -328,8 +355,12 @@ mod tests {
                 deadline_unix_ms: deadline,
             },
             project_id: "project".to_owned(),
-            created_unix_ms: 10,
+            created_unix_ms: created,
         }
+    }
+
+    fn task(id: &str, deadline: i64) -> StoredTask {
+        task_at(id, 10, deadline)
     }
 
     #[test]
@@ -403,5 +434,52 @@ mod tests {
             store.save_result(request_id, &changed, 102),
             Err(StoreError::ResultCollision)
         ));
+    }
+
+    #[test]
+    fn active_task_insertion_prunes_state_older_than_retention_window() {
+        let store = Store::open_in_memory().expect("store");
+        let old_request_id = "rly_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        store
+            .insert_task(&task_at(old_request_id, 10, 1_000))
+            .expect("old task");
+        let response = RelayResponse {
+            contract_version: "relay-response-v1".to_owned(),
+            request_id: old_request_id.to_owned(),
+            status: "success".to_owned(),
+            result: json!({"pong": true}),
+            error: Value::Null,
+        };
+        store
+            .save_result(old_request_id, &response, 100)
+            .expect("old result");
+        store
+            .upsert_heartbeat("stale-project", &["local_ping".to_owned()], 10)
+            .expect("stale heartbeat");
+
+        let now = RETENTION_MS + CLEANUP_INTERVAL_MS + 2_000;
+        let new_request_id = "rly_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        store
+            .insert_task(&task_at(new_request_id, now, now + 60_000))
+            .expect("new task");
+
+        assert!(
+            store
+                .read_result(old_request_id)
+                .expect("old result lookup")
+                .is_none()
+        );
+        assert!(
+            store
+                .agent_status("stale-project")
+                .expect("stale status")
+                .is_none()
+        );
+        assert!(
+            store
+                .lease_next_task("project", &["local_ping".to_owned()], now, now + 1_000,)
+                .expect("new task lease")
+                .is_some()
+        );
     }
 }
