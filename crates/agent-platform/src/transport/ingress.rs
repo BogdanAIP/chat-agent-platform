@@ -312,9 +312,10 @@ fn json_response(status: StatusCode, body: Value) -> Response {
     response
         .headers_mut()
         .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response
-        .headers_mut()
-        .insert(CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    response.headers_mut().insert(
+        CONTENT_TYPE_OPTIONS.clone(),
+        HeaderValue::from_static("nosniff"),
+    );
     response
 }
 
