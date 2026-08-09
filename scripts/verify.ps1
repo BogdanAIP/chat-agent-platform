@@ -47,6 +47,9 @@ try {
     Assert-PowerShellSyntax `
         -Path (Join-Path $PSScriptRoot 'prepare-stage4-gpt-action.ps1') `
         -Label 'Stage 4 GPT Action ingress preparation script'
+    Assert-PowerShellSyntax `
+        -Path (Join-Path $PSScriptRoot 'prepare-relay-gpt-action.ps1') `
+        -Label 'Provider-neutral Rust relay GPT Action preparation script'
 
     & python -m py_compile (Join-Path $PSScriptRoot 'matchering_adapter.py')
     if ($LASTEXITCODE -ne 0) { throw 'Stage 19 Matchering adapter syntax check failed' }
@@ -66,7 +69,7 @@ try {
     [ordered]@{
         status = 'success'
         rust = 'fmt,clippy,tests'
-        powershell = 'stage12-acceptance-syntax,stage4-yandex-deploy-syntax,stage4-gateway-recovery-syntax,stage4-gpt-action-prepare-syntax'
+        powershell = 'stage12-acceptance-syntax,stage4-yandex-deploy-syntax,stage4-gateway-recovery-syntax,stage4-gpt-action-prepare-syntax,relay-gpt-action-prepare-syntax'
         python_edge = 'stage19-matchering-adapter-syntax'
         python_oracle = if ($SkipPythonOracle) { 'skipped' } else { 'tests,parity' }
         release = if ($SkipRelease) { 'skipped' } else { 'built' }

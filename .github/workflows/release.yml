@@ -120,7 +120,7 @@ jobs:
           restore-keys: ${{ runner.os }}-rust-
       - name: Build locked release binary
         shell: pwsh
-        run: cargo build --workspace --release --locked
+        run: cargo build -p agent-platform --release --locked
       - name: Stage binary
         shell: pwsh
         run: |
@@ -165,20 +165,15 @@ jobs:
           set -euo pipefail
           export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
           cargo cyclonedx \
-            --manifest-path crates/agent-platform/Cargo.toml \
+            --manifest-path Cargo.toml \
             --format json \
             --spec-version 1.5 \
             --target all \
-            --all-features \
-            --override-filename agent-platform.cdx
-          mapfile -t generated < <(find "$GITHUB_WORKSPACE" -type f -name 'agent-platform.cdx.json' -print)
-          [[ "${#generated[@]}" -eq 1 ]] || {
-            printf 'Expected exactly one generated SBOM, found %s\n' "${#generated[@]}" >&2
-            printf '%s\n' "${generated[@]}" >&2
-            exit 1
-          }
+            --all-features
+          source_sbom="$GITHUB_WORKSPACE/crates/agent-platform/agent-platform.cdx.json"
+          test -s "$source_sbom"
           mkdir -p runtime/release
-          cp "${generated[0]}" runtime/release/agent-platform.cdx.json
+          cp "$source_sbom" runtime/release/agent-platform.cdx.json
           python -m json.tool runtime/release/agent-platform.cdx.json >/dev/null
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

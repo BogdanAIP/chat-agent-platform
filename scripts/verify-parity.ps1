@@ -19,7 +19,7 @@ if (-not $MediaPath) {
 try {
     $pythonJson = & python -m agent_platform inspect --project-id demo --file $MediaPath
     if ($LASTEXITCODE -ne 0) { throw 'Python oracle failed' }
-    $rustJson = & cargo run --quiet --manifest-path (Join-Path $repoRoot 'Cargo.toml') -- --repo-root $repoRoot inspect --project-id demo --file $MediaPath
+    $rustJson = & cargo run --quiet --manifest-path (Join-Path $repoRoot 'Cargo.toml') --package agent-platform -- --repo-root $repoRoot inspect --project-id demo --file $MediaPath
     if ($LASTEXITCODE -ne 0) { throw 'Rust core failed' }
 
     $python = $pythonJson | ConvertFrom-Json
