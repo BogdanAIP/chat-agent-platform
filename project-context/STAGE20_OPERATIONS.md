@@ -1,6 +1,6 @@
 # Stage 20 — Operations audit
 
-Статус: **partial**. Большая часть технических эксплуатационных рисков уже закрыта автоматизированно, но этап нельзя считать `done` до ручных/юридических gates ниже.
+Статус: **partial**. Большая часть технических эксплуатационных рисков уже закрыта автоматизированно. После перехода repository в public снят лимит hosted Actions и закрыт юридический gap: проект использует стандартную MIT License. Остались эксплуатационные/manual gates ниже.
 
 ## Автоматически доказано
 
@@ -58,7 +58,15 @@
 - RustSec advisories блокируют dependency-changing PR/push runs;
 - CycloneDX SBOM генерируется pinned `cargo-cyclonedx 0.5.9` с `SOURCE_DATE_EPOCH`;
 - Dependabot сгруппирован по weekly non-major updates;
-- CI path filters и caches уменьшают private Actions minutes без удаления продуктовых gates.
+- CI path filters и caches уменьшают стоимость/время hosted CI без удаления продуктовых gates;
+- repository public, поэтому hosted Actions снова доступны без прежнего private spending-limit blocker.
+
+### Licensing
+
+- корневой `LICENSE` содержит стандартную MIT License;
+- Rust workspace metadata использует SPDX `MIT`;
+- Python package metadata ссылается на тот же `LICENSE`;
+- добровольная поддержка проекта явно отделена от лицензионных прав и не создаёт дополнительного условия.
 
 ## Release packaging
 
@@ -71,27 +79,26 @@ existing vX.Y.Z tag reachable from main
   -> reproducible CycloneDX SBOM
   -> binary + SBOM ZIP
   -> SHA256SUMS + self-check
-  -> immutable private GitHub Release assets
+  -> immutable GitHub Release assets
 ```
 
 Workflow не создаёт tag сам и не перезаписывает существующий release. Первый реальный `v0.2.0` tag/release является отдельной осознанной операцией.
 
-GitHub artifact attestation не включается, пока private repository не имеет подходящего entitlement. Если repository когда-либо станет public, provenance attestation следует добавить отдельным PR.
+После перехода repository в public GitHub artifact provenance/attestation стала доступна без прежнего Enterprise-only ограничения private repository. Её следует добавить в release workflow до первого публичного релиза.
 
 ## Остающиеся ручные gates
 
 1. **Stage 4 real ChatGPT acceptance** — один реальный ChatGPT-originated `runtime_self_test` через Yandex и пользовательский Windows agent.
-2. **Project license** — выбрать лицензию или явно решить, что проект остаётся proprietary/private. `LicenseRef-UNLICENSED` не является лицензией.
-3. **GitHub branch protection/ruleset** — включить технический запрет обхода PR/required checks; сейчас discipline process-based.
-4. **First release tag** — осознанно создать `v0.2.0` и проверить реальные release assets/checksums на GitHub.
-5. **Real music corpus** — если reference mastering будет заявляться как профессиональный музыкальный продукт, добавить набор реальных лицензированных/собственных материалов и human listening acceptance.
+2. **GitHub branch protection/ruleset** — включить технический запрет обхода PR/required checks; сейчас discipline process-based.
+3. **First release tag** — после provenance hardening осознанно создать `v0.2.0` и проверить реальные release assets/checksums/attestation на GitHub.
+4. **Real music corpus** — если reference mastering будет заявляться как профессиональный музыкальный продукт, добавить набор реальных лицензированных/собственных материалов и human listening acceptance.
+5. **Support addresses** — добавить реальные способы добровольной поддержки проекта, когда они появятся; это не влияет на MIT License.
 
 ## Conditional follow-up, не блокирующий Stage 20 автоматически
 
 - индекс/retention для JSON JobStore/ConfirmationStore — только после измеримого роста;
 - operator cleanup unresolved ArtifactStore orphans — когда появится реальная эксплуатационная потребность;
 - supervisor/service — только если ручной relay lifecycle перестанет быть достаточным;
-- public-repo artifact attestations — только после фактического перехода в public;
 - удаление Python oracle — отдельный migration gate после стабилизации Rust behavior.
 
 ## Stage 20 exit rule
