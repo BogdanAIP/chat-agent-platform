@@ -35,58 +35,93 @@ Embedded schemas существуют для tool request/result, artifact, poli
 
 ## Horizon B — Safe execution
 
-### Stage 4 — Hosted Chat -> local connector — done / legacy path accepted
+### Stage 4 — Hosted Chat -> local connector — done
 
 Original Stage 4 exit gate is complete.
 
 Real evidence:
 - on 2026-08-06 the installed ChatGPT integration `Music Video MCP Yandex Test` successfully executed `local_ping` through the Yandex-hosted gateway and returned a response from local Windows machine `ID182019`, Windows 11, agent `0.2.1`, back to ChatGPT;
 - on 2026-08-09 the current Yandex polling backend separately passed local `local_ping`, `runtime_self_test`, controlled write/read, cleanup and clean relay shutdown;
-- offline behavior was also observed: a later ChatGPT-originated `runtime_self_test` reported `agent_offline` when the local agent was stopped.
+- offline behavior was observed: a later ChatGPT-originated `runtime_self_test` reported `agent_offline` when the local agent was stopped.
 
 Therefore **Hosted Chat -> remote integration -> local Windows execution -> response** is no longer an open Stage 4 gate.
 
 Architecture rule:
 - there is **no canonical cloud provider**;
-- canonical boundaries are standard MCP/relay contracts plus the local Project Binding/policy/execution boundary;
-- Yandex, VPS, container hosting, reverse tunnels and future providers are replaceable deployment choices;
-- local capability code must not branch on provider identity.
+- NAT traversal, TLS/public routing and tunnel multiplexing are mature edge infrastructure, not platform subsystems;
+- local capability code must not branch on provider/tunnel identity;
+- `agent-platform.exe` remains the authority for Project Binding, authentication, policy and typed local execution.
 
-Current provider-neutral polling implementation:
-- Windows configuration stores only `endpoint + secret_ref`;
-- any HTTPS endpoint satisfying the polling contract can be configured;
-- outbound-only Windows `poll/result/offline` protocol;
-- independent agent/remote tokens for polling relay deployments;
-- Credential Manager local secret;
-- immutable task/result semantics and lost-ACK response cache;
-- explicit start/status/stop, no autostart;
-- exact remote allowlist `local_ping`, `runtime_self_test`;
-- Rust `relay-server` is a provider-neutral polling-relay reference implementation with SQLite short-lived state and bounded retention;
-- Yandex Function/Object Storage is one tested provider-specific backend, not the platform architecture.
+#### Direct loopback ingress — implemented and process-tested
+
+The preferred compatibility path now exists in the same Rust binary:
+
+```text
+mature HTTPS tunnel
+  -> 127.0.0.1:8787/gpt
+  -> X-MCP-Token auth
+  -> Project Binding + policy
+  -> shared local allowlisted dispatch
+```
+
+Implemented:
+- required capability `transport.local_ingress` / executor `rust.local.ingress`;
+- loopback-only bind; no `0.0.0.0` mode;
+- explicit foreground CLI (`ingress configure-token`, `ingress serve`, `ingress remove-token`);
+- Windows Credential Manager-backed caller secret;
+- exact allowlist `local_ping`, `runtime_self_test`;
+- auth before dispatch;
+- 8 KiB request limit and bounded concurrency;
+- direct ingress and polling relay reuse one local operation dispatcher;
+- compatibility `/gpt` + `X-MCP-Token` contract retained.
+
+Windows Stage 4 E2E proves a real process, not only a handler unit test:
+- stores a unique token in Credential Manager;
+- starts the real `agent-platform.exe` on an ephemeral loopback port;
+- proves `401` without the token;
+- proves authenticated `local_ping` returns `200` and `executed_locally=true`;
+- stops the process and removes the credential.
+
+The existing polling relay remains green as rollback/fallback:
+- provider-neutral Windows `endpoint + secret_ref` configuration;
+- outbound `poll/result/offline` lifecycle;
+- Rust `relay-server` reference backend with bounded SQLite retention;
+- Yandex backend retained as historical/tested adapter.
 
 #### Connector modernization after Stage 4
 
-The next connector work is a migration/portability improvement, **not an unfinished Stage 4 exit gate**:
+Next live acceptance deliberately changes only network reachability:
 
 ```text
-ChatGPT Work / Codex / another MCP caller
-  -> standard public HTTPS /mcp
-  -> official rmcp server
-  -> agent-platform policy + typed local execution
+existing ChatGPT action/plugin
+  -> mature non-Yandex public HTTPS tunnel
+  -> 127.0.0.1:8787/gpt
+  -> agent-platform
+```
+
+If this passes, Yandex/VPS/custom polling state is proven unnecessary for the normal current ChatGPT action path.
+
+After that, add the target standard protocol:
+
+```text
+MCP-capable caller
+  -> public HTTPS /mcp
+  -> official rmcp adapter
+  -> same agent-platform policy + typed execution
 ```
 
 Rules:
-- use official Rust MCP SDK `rmcp`; do not continue growing the hand-written MCP standards implementation;
-- test the normal public HTTPS `/mcp` path first because current OpenAI plugin docs accept it directly;
-- treat OpenAI Secure MCP Tunnel as an optional private reachability adapter, not a prerequisite;
-- use mature frp/zrok-class tunneling only when normal public HTTPS or caller-native private reachability is unsuitable;
-- keep the already-proved Yandex/GPT Action-compatible path until standard MCP passes the same real acceptance on the user's actual ChatGPT surface.
+- use official Rust MCP SDK `rmcp`; do not grow the hand-written MCP standards implementation;
+- public HTTPS/reverse tunnel is sufficient when acceptable;
+- OpenAI Secure MCP Tunnel is optional private reachability, not a prerequisite;
+- mature tunnel/proxy products remain replaceable deployment choices;
+- keep polling/Yandex compatibility until direct non-Yandex and native MCP acceptance are both proven.
 
-Remaining portability evidence:
-1. one direct native standard MCP `/mcp` call from the user's real ChatGPT Work/plugin surface;
-2. one real non-Yandex remote -> Windows round trip before claiming provider portability end-to-end.
+Remaining migration/deprecation evidence:
+1. real non-Yandex ChatGPT -> mature HTTPS tunnel -> direct ingress -> Windows -> ChatGPT round trip;
+2. native standard MCP `/mcp` call on the user's actual ChatGPT surface after `rmcp` exists.
 
-These are migration/deprecation gates. They do not reopen Stage 4.
+These do not reopen Stage 4.
 
 ### Stage 5 — MCP aggregation — conditional
 
@@ -108,7 +143,7 @@ SHA-256 identity, pending lifecycle, atomic publish, per-artifact locks, conserv
 
 ### Stage 9 — Supervisor/service — conditional
 
-Add only if explicit connector lifecycle becomes operationally insufficient. No permanent service just for convenience. A third-party tunnel process is an edge deployment component and must not become a second orchestration core.
+Add only if explicit ingress/connector lifecycle becomes operationally insufficient. No permanent service just for convenience. A third-party tunnel process is an edge deployment component and must not become a second orchestration core.
 
 ### Stage 10 — CI + supply chain — done baseline
 
@@ -118,7 +153,8 @@ Current baseline:
 - pinned Rust 1.97.1 and hosted FFmpeg 9.0.0;
 - all first-party GitHub Actions pinned by immutable commit SHA;
 - every checkout uses `persist-credentials: false`;
-- scoped Stage 4 and real Stage 19 E2E;
+- Stage 4 Windows E2E covers direct loopback ingress plus legacy polling fallback;
+- real Stage 19 E2E;
 - checksum-pinned cargo-deny enforcing dependency licenses/bans/sources and RustSec advisories;
 - explicit evidence-driven dependency-license allow-list with no package exceptions;
 - checksum-pinned Gitleaks full-history scan with full redaction;
@@ -188,11 +224,11 @@ Automated/hardened baseline completed:
 - job execution ownership and immutable workflow inputs;
 - executable capability contracts and runtime-profile drift detection;
 - one-shot guarded confirmations;
-- provider-neutral local polling transport (`endpoint + secret_ref`);
-- provider-neutral Rust polling relay reference implementation;
+- direct loopback-only authenticated ingress in the main `agent-platform.exe`;
+- Windows process-level ingress E2E with real Credential Manager/auth/local execution;
+- polling transport/relay retained as provider-neutral fallback;
 - real ChatGPT -> plugin -> Yandex -> Windows -> ChatGPT acceptance recorded;
-- real Yandex->Windows polling-backend acceptance retained as backend evidence;
-- explicit connector architecture preventing Yandex/VPS/cloud-provider identity from becoming a core contract;
+- explicit connector architecture preventing provider/tunnel identity from becoming a core contract;
 - duration-aware FFmpeg execution/logging;
 - public repository under standard MIT License;
 - always-on Windows CI with immutable-SHA Actions and no persisted checkout credentials;
@@ -207,18 +243,18 @@ Automated/hardened baseline completed:
 - GitHub provenance attestation before release publication;
 - raw `.exe` excluded from standalone public Release assets.
 
-Remaining mandatory manual gate:
+Remaining mandatory manual release gate:
 1. create the first explicit `v0.2.0` tag and inspect the real GitHub Release assets/checksums/provenance.
 
-Connector modernization before deprecating Yandex compatibility:
+Connector migration before deprecating Yandex compatibility:
+- prove the direct `/gpt` path through one mature non-Yandex HTTPS tunnel from real ChatGPT;
 - implement standard local MCP Streamable HTTP using official `rmcp`;
-- test public HTTPS `/mcp` from the user's real ChatGPT Work/plugin surface;
-- prove one non-Yandex remote -> Windows path;
+- test public HTTPS `/mcp` from the user's actual ChatGPT surface;
 - only then decide whether the legacy polling/GPT Action/Yandex deployment can be retired.
 
 Conditional follow-up:
 - Secure MCP Tunnel as an optional OpenAI-private profile when useful and actually available;
-- frp/zrok/other mature tunnel profiles only when deployment requirements warrant them;
+- tunnel-specific recipes only for real deployment requirements;
 - real music corpus/human listening before subjective professional-quality claims;
 - support/donation addresses when available;
 - unresolved-artifact operator cleanup if operational demand appears;
@@ -240,4 +276,4 @@ Detailed checklist: `project-context/STAGE20_OPERATIONS.md`.
 8. New dependency/process/service has a measured reason and replacement/removal plan.
 9. Runtime profile/evidence does not replace versioned requirements.
 10. Documentation is updated in the same development cycle.
-11. Network/cloud provider identity must not enter the local capability contract without a separately proven provider-specific requirement.
+11. Network/cloud/tunnel provider identity must not enter the local capability contract without a separately proven provider-specific requirement.
