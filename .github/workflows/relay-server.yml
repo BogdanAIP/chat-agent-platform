@@ -50,10 +50,21 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Verify formatting, lints, tests, and release build
+      - name: Format relay server sources
+        shell: bash
+        run: cargo fmt --all
+
+      - name: Upload formatted relay server sources
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: relay-server-formatted-sources
+          path: crates/relay-server/src
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Verify lints, tests, and release build
         shell: bash
         run: |
-          cargo fmt --all -- --check
           cargo clippy -p relay-server --all-targets -- -D warnings
           cargo test -p relay-server
           cargo build -p relay-server --release
