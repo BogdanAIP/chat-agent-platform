@@ -13,15 +13,13 @@
 
 ## Horizon A — Core
 
-### Stage 0 — Reality baseline + Project Binding — partial
+### Stage 0 — Reality baseline + Project Binding — done
 
-Done:
+Proved:
 - explicit Project Binding;
 - Chat -> GitHub branch/edit/PR/CI/merge path;
-- versioned requirements отдельно от runtime profile.
-
-Open exit gate:
-- окончательный Hosted Chat -> local Windows execution path через Stage 4 connector.
+- versioned requirements отдельно от runtime profile;
+- real Hosted Chat -> installed plugin/app -> Yandex -> local Windows agent -> response back to ChatGPT on 2026-08-06.
 
 ### Stage 1 — Rust vertical architecture — done
 
@@ -37,17 +35,26 @@ Embedded schemas существуют для tool request/result, artifact, poli
 
 ## Horizon B — Safe execution
 
-### Stage 4 — Hosted Chat -> local connector — partial / provider-neutral core accepted
+### Stage 4 — Hosted Chat -> local connector — done / legacy path accepted
+
+Original Stage 4 exit gate is complete.
+
+Real evidence:
+- on 2026-08-06 the installed ChatGPT integration `Music Video MCP Yandex Test` successfully executed `local_ping` through the Yandex-hosted gateway and returned a response from local Windows machine `ID182019`, Windows 11, agent `0.2.1`, back to ChatGPT;
+- on 2026-08-09 the current Yandex polling backend separately passed local `local_ping`, `runtime_self_test`, controlled write/read, cleanup and clean relay shutdown;
+- offline behavior was also observed: a later ChatGPT-originated `runtime_self_test` reported `agent_offline` when the local agent was stopped.
+
+Therefore **Hosted Chat -> remote integration -> local Windows execution -> response** is no longer an open Stage 4 gate.
 
 Architecture rule:
-- **there is no canonical cloud provider**;
+- there is **no canonical cloud provider**;
 - canonical boundaries are standard MCP/relay contracts plus the local Project Binding/policy/execution boundary;
 - Yandex, VPS, container hosting, reverse tunnels and future providers are replaceable deployment choices;
 - local capability code must not branch on provider identity.
 
-Implemented and proved at local/contract level:
-- provider-neutral Windows polling configuration stores only `endpoint + secret_ref`;
-- any normal HTTPS endpoint satisfying the polling contract can be configured;
+Current provider-neutral polling implementation:
+- Windows configuration stores only `endpoint + secret_ref`;
+- any HTTPS endpoint satisfying the polling contract can be configured;
 - outbound-only Windows `poll/result/offline` protocol;
 - independent agent/remote tokens for polling relay deployments;
 - Credential Manager local secret;
@@ -55,51 +62,31 @@ Implemented and proved at local/contract level:
 - explicit start/status/stop, no autostart;
 - exact remote allowlist `local_ping`, `runtime_self_test`;
 - Rust `relay-server` is a provider-neutral polling-relay reference implementation with SQLite short-lived state and bounded retention;
-- existing Yandex Function/Object Storage path is a provider-specific implementation of the same local polling contract;
-- real Yandex backend -> Windows acceptance passed 2026-08-09:
-  - `local_ping`: local execution proved;
-  - `runtime_self_test`: success;
-  - controlled write/read + cleanup: passed;
-  - relay returned to disabled state;
-- Rust relay-server round-trip, auth and failure paths are covered by dedicated CI/integration tests.
+- Yandex Function/Object Storage is one tested provider-specific backend, not the platform architecture.
 
-Preferred MCP direction:
+#### Connector modernization after Stage 4
+
+The next connector work is a migration/portability improvement, **not an unfinished Stage 4 exit gate**:
 
 ```text
-MCP-capable caller
-  -> standard MCP Streamable HTTP
-  -> replaceable HTTPS ingress
-     (direct host / reverse proxy / mature reverse tunnel)
-  -> loopback local MCP boundary
+ChatGPT Work / Codex / another MCP caller
+  -> standard public HTTPS /mcp
+  -> official rmcp server
   -> agent-platform policy + typed local execution
 ```
 
-The standard MCP boundary should use the official Rust MCP SDK (`rmcp`). Do not continue growing a hand-written standards implementation. NAT traversal/publication should reuse mature solutions such as frp or zrok rather than becoming a platform subsystem.
+Rules:
+- use official Rust MCP SDK `rmcp`; do not continue growing the hand-written MCP standards implementation;
+- test the normal public HTTPS `/mcp` path first because current OpenAI plugin docs accept it directly;
+- treat OpenAI Secure MCP Tunnel as an optional private reachability adapter, not a prerequisite;
+- use mature frp/zrok-class tunneling only when normal public HTTPS or caller-native private reachability is unsuitable;
+- keep the already-proved Yandex/GPT Action-compatible path until standard MCP passes the same real acceptance on the user's actual ChatGPT surface.
 
-Polling relay remains a compatibility profile:
+Remaining portability evidence:
+1. one direct native standard MCP `/mcp` call from the user's real ChatGPT Work/plugin surface;
+2. one real non-Yandex remote -> Windows round trip before claiming provider portability end-to-end.
 
-```text
-remote caller / compatibility ingress
-  -> any compatible HTTPS polling backend
-  -> outbound Windows poll
-  -> agent-platform local execution
-  -> result back through the same backend
-```
-
-Use the polling profile for serverless or other environments where a transparent reverse tunnel is unavailable, undesirable or unsupported.
-
-GPT Action remains a compatibility ingress where it is the available Hosted Chat integration. The existing Yandex API Gateway requirement is specific to that Yandex deployment's Authorization-header behavior, not a platform invariant.
-
-Remaining Stage 4 exit gates:
-
-1. Real request originated by Hosted Chat through a supported ingress -> user Windows `agent-platform.exe` -> local execution -> result back to Hosted Chat.
-2. One real **non-Yandex** remote -> Windows acceptance, using either:
-   - standard tunneled MCP; or
-   - the Rust `relay-server` polling backend.
-
-Until the Hosted Chat gate passes, do not expose mastering/REAPER/media/distribution capabilities remotely.
-
-Provider portability is not considered fully proved by CI alone. The Yandex acceptance remains valid evidence for one backend, while the second live path proves that deployment choice is actually replaceable.
+These are migration/deprecation gates. They do not reopen Stage 4.
 
 ### Stage 5 — MCP aggregation — conditional
 
@@ -195,7 +182,7 @@ No distribution executor is implemented yet. Do not expose side effects until on
 
 ## Horizon E — Operations
 
-### Stage 20 — Operations audit — partial / manual-gated
+### Stage 20 — Operations audit — partial / release-gated
 
 Automated/hardened baseline completed:
 - job execution ownership and immutable workflow inputs;
@@ -203,7 +190,8 @@ Automated/hardened baseline completed:
 - one-shot guarded confirmations;
 - provider-neutral local polling transport (`endpoint + secret_ref`);
 - provider-neutral Rust polling relay reference implementation;
-- real Yandex->Windows polling-backend acceptance retained as one backend's evidence;
+- real ChatGPT -> plugin -> Yandex -> Windows -> ChatGPT acceptance recorded;
+- real Yandex->Windows polling-backend acceptance retained as backend evidence;
 - explicit connector architecture preventing Yandex/VPS/cloud-provider identity from becoming a core contract;
 - duration-aware FFmpeg execution/logging;
 - public repository under standard MIT License;
@@ -219,18 +207,18 @@ Automated/hardened baseline completed:
 - GitHub provenance attestation before release publication;
 - raw `.exe` excluded from standalone public Release assets.
 
-Remaining mandatory manual gates:
-1. complete real Hosted Chat-originated Stage 4 round trip through a supported ingress;
-2. prove one real non-Yandex connector path so provider portability is runtime evidence, not only architecture/code evidence;
-3. create the first explicit `v0.2.0` tag and inspect the real GitHub Release assets/checksums/provenance.
+Remaining mandatory manual gate:
+1. create the first explicit `v0.2.0` tag and inspect the real GitHub Release assets/checksums/provenance.
 
-Next connector engineering change set:
+Connector modernization before deprecating Yandex compatibility:
 - implement standard local MCP Streamable HTTP using official `rmcp`;
-- keep the current GPT Action and polling relay as compatibility surfaces;
-- use mature reverse tunnel/proxy software for live non-Yandex acceptance instead of adding custom tunnel code.
+- test public HTTPS `/mcp` from the user's real ChatGPT Work/plugin surface;
+- prove one non-Yandex remote -> Windows path;
+- only then decide whether the legacy polling/GPT Action/Yandex deployment can be retired.
 
-Conditional follow-up (not Stage 20 blockers):
-- compare frp/zrok/other mature tunnel profiles only when deployment requirements warrant it;
+Conditional follow-up:
+- Secure MCP Tunnel as an optional OpenAI-private profile when useful and actually available;
+- frp/zrok/other mature tunnel profiles only when deployment requirements warrant them;
 - real music corpus/human listening before subjective professional-quality claims;
 - support/donation addresses when available;
 - unresolved-artifact operator cleanup if operational demand appears;
