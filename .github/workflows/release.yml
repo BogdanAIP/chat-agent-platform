@@ -238,26 +238,7 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ needs.validate.outputs.tag }}
-        run: |
-          set -euo pipefail
-          cd runtime/release
-          test -s agent-platform.exe
-          test -s agent-platform.cdx.json
-          test -s LICENSE
-          test -s THIRD_PARTY_LICENSES.html
-          zip -9 "agent-platform-${RELEASE_TAG}-windows-x86_64.zip" \
-            agent-platform.exe \
-            agent-platform.cdx.json \
-            LICENSE \
-            THIRD_PARTY_LICENSES.html
-          sha256sum \
-            agent-platform.exe \
-            agent-platform.cdx.json \
-            LICENSE \
-            THIRD_PARTY_LICENSES.html \
-            "agent-platform-${RELEASE_TAG}-windows-x86_64.zip" \
-            > SHA256SUMS
-          sha256sum -c SHA256SUMS
+        run: bash scripts/assemble-release-package.sh "$RELEASE_TAG" runtime/release
       - name: Attest release artifact provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
