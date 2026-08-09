@@ -1,5 +1,5 @@
 use std::env;
-use std::fs;
+use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -21,6 +21,7 @@ use crate::error::{PlatformError, io_error};
 use crate::secret::SecretStore;
 
 const STATUS_STALE_SECONDS: i64 = 90;
+const WORKER_LOCK_PROTOCOL: &str = "worker-lock-v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RelayConfig {
@@ -43,12 +44,15 @@ struct WorkerStatus {
     last_task_id: Option<String>,
     consecutive_errors: u32,
     message: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    liveness_protocol: Option<String>,
 }
 
 struct RelayPaths {
     config: PathBuf,
     status: PathBuf,
     stop: PathBuf,
+    worker_lock: PathBuf,
     cache: PathBuf,
     http: PathBuf,
 }
@@ -75,6 +79,7 @@ impl RelayPaths {
             config: root.join("config.json"),
             status: root.join("status.json"),
             stop: root.join("stop.request"),
+            worker_lock: root.join("worker.lock"),
             cache,
             http,
         })
@@ -124,7 +129,12 @@ pub fn relay_status(repo_root: &Path, project_id: Option<&str>) -> Result<Value,
     let paths = RelayPaths::for_binding(&binding)?;
     let config = read_config(&paths.config)?;
     let status = read_status(&paths.status)?;
-    Ok(status_value(status.as_ref(), config.as_ref()))
+    let worker_lock_held = worker_lock_is_held(&paths.worker_lock)?;
+    Ok(status_value(
+        status.as_ref(),
+        config.as_ref(),
+        worker_lock_held,
+    ))
 }
 
 pub fn start_relay_worker(
@@ -159,12 +169,13 @@ pub fn start_relay_worker(
     )?;
     SecretStore::new(&authorized_binding.repo_root)?
         .with_secret(secret_ref, &selection, |_| Ok(()))?;
+    let worker_lock_held = worker_lock_is_held(&paths.worker_lock)?;
     if let Some(existing) = read_status(&paths.status)?
-        && status_is_live(&existing)
+        && status_is_live(&existing, worker_lock_held)
     {
         return Ok(json!({
             "status": "already_running",
-            "relay": status_value(Some(&existing), config.as_ref()),
+            "relay": status_value(Some(&existing), config.as_ref(), worker_lock_held),
             "policy_decision_id": policy.decision_id
         }));
     }
@@ -186,6 +197,7 @@ pub fn start_relay_worker(
             last_task_id: None,
             consecutive_errors: 0,
             message: Some("starting detached long-poll worker".into()),
+            liveness_protocol: None,
         },
     )?;
 
@@ -224,16 +236,19 @@ pub fn start_relay_worker(
         if let Some(current) = read_status(&paths.status)?
             && matches!(current.state.as_str(), "running" | "error")
         {
+            let worker_lock_held = worker_lock_is_held(&paths.worker_lock)?;
             return Ok(json!({
                 "status": if current.state == "running" { "started" } else { "error" },
-                "relay": status_value(Some(&current), config.as_ref()),
+                "relay": status_value(Some(&current), config.as_ref(), worker_lock_held),
                 "policy_decision_id": policy.decision_id
             }));
         }
     }
+    let current = read_status(&paths.status)?;
+    let worker_lock_held = worker_lock_is_held(&paths.worker_lock)?;
     Ok(json!({
         "status": "starting",
-        "relay": status_value(read_status(&paths.status)?.as_ref(), config.as_ref()),
+        "relay": status_value(current.as_ref(), config.as_ref(), worker_lock_held),
         "policy_decision_id": policy.decision_id
     }))
 }
@@ -253,11 +268,12 @@ pub fn stop_relay_worker(
         return Ok(json!({
             "status": "stopped",
             "already_stopped": true,
-            "relay": status_value(None, config.as_ref()),
+            "relay": status_value(None, config.as_ref(), false),
             "policy_decision_id": policy.decision_id
         }));
     };
-    if !status_is_live(&status) || status.state == "stopped" {
+    let worker_lock_held = worker_lock_is_held(&paths.worker_lock)?;
+    if !status_is_live(&status, worker_lock_held) || status.state == "stopped" {
         status.state = "stopped".into();
         status.updated_at = Utc::now().to_rfc3339();
         status.message = Some("worker was not live when stop was requested".into());
@@ -266,7 +282,7 @@ pub fn stop_relay_worker(
         return Ok(json!({
             "status": "stopped",
             "already_stopped": true,
-            "relay": status_value(Some(&status), config.as_ref()),
+            "relay": status_value(Some(&status), config.as_ref(), false),
             "policy_decision_id": policy.decision_id
         }));
     }
@@ -283,18 +299,36 @@ pub fn stop_relay_worker(
     for _ in 0..(MAX_LONG_POLL_SECONDS * 10 + 30) {
         thread::sleep(Duration::from_millis(100));
         let current = read_status(&paths.status)?;
+        let worker_lock_held = worker_lock_is_held(&paths.worker_lock)?;
         if current.as_ref().is_none_or(|item| item.state == "stopped") {
             remove_if_exists(&paths.stop)?;
             return Ok(json!({
                 "status": "stopped",
-                "relay": status_value(current.as_ref(), config.as_ref()),
+                "relay": status_value(current.as_ref(), config.as_ref(), worker_lock_held),
+                "policy_decision_id": policy.decision_id
+            }));
+        }
+        if let Some(mut item) = current
+            && item.liveness_protocol.as_deref() == Some(WORKER_LOCK_PROTOCOL)
+            && !worker_lock_held
+        {
+            item.state = "stopped".into();
+            item.updated_at = Utc::now().to_rfc3339();
+            item.message = Some("worker process exited before final status update".into());
+            write_status(&paths.status, &item)?;
+            remove_if_exists(&paths.stop)?;
+            return Ok(json!({
+                "status": "stopped",
+                "relay": status_value(Some(&item), config.as_ref(), false),
                 "policy_decision_id": policy.decision_id
             }));
         }
     }
+    let current = read_status(&paths.status)?;
+    let worker_lock_held = worker_lock_is_held(&paths.worker_lock)?;
     Ok(json!({
         "status": "stopping",
-        "relay": status_value(read_status(&paths.status)?.as_ref(), config.as_ref()),
+        "relay": status_value(current.as_ref(), config.as_ref(), worker_lock_held),
         "policy_decision_id": policy.decision_id
     }))
 }
@@ -318,6 +352,7 @@ pub fn run_relay_worker(
     )?;
     let paths = RelayPaths::for_binding(&binding)?;
     cleanup_old_cache(&paths.cache)?;
+    let _worker_lock = acquire_worker_lock(&paths.worker_lock)?;
     let started_at = Utc::now().to_rfc3339();
     let mut status = WorkerStatus {
         contract_version: "relay-worker-status-v1".into(),
@@ -331,6 +366,7 @@ pub fn run_relay_worker(
         last_task_id: None,
         consecutive_errors: 0,
         message: Some("long polling enabled".into()),
+        liveness_protocol: Some(WORKER_LOCK_PROTOCOL.into()),
     };
     write_status(&paths.status, &status)?;
 
@@ -474,7 +510,11 @@ fn write_status(path: &Path, status: &WorkerStatus) -> Result<(), PlatformError>
         .map_err(|error| io_error("cannot commit atomic relay status", error))
 }
 
-fn status_value(status: Option<&WorkerStatus>, config: Option<&RelayConfig>) -> Value {
+fn status_value(
+    status: Option<&WorkerStatus>,
+    config: Option<&RelayConfig>,
+    worker_lock_held: bool,
+) -> Value {
     let Some(status) = status else {
         return json!({
             "contract_version": "relay-worker-status-v1",
@@ -484,7 +524,8 @@ fn status_value(status: Option<&WorkerStatus>, config: Option<&RelayConfig>) -> 
             "endpoint": config.map(|item| item.endpoint.as_str())
         });
     };
-    let live = status_is_live(status);
+    let heartbeat_stale = !heartbeat_is_fresh(status);
+    let live = status_is_live(status, worker_lock_held);
     json!({
         "contract_version": status.contract_version,
         "state": if live { status.state.as_str() } else { "stopped" },
@@ -498,28 +539,68 @@ fn status_value(status: Option<&WorkerStatus>, config: Option<&RelayConfig>) -> 
         "last_poll_at": status.last_poll_at,
         "last_task_id": status.last_task_id,
         "consecutive_errors": status.consecutive_errors,
+        "liveness_protocol": status.liveness_protocol,
+        "worker_lock_held": status.liveness_protocol.as_deref() == Some(WORKER_LOCK_PROTOCOL) && worker_lock_held,
+        "heartbeat_stale": heartbeat_stale,
         "message": if live {
             status.message.clone()
         } else {
-            Some("worker heartbeat is stale; relay is treated as stopped".into())
+            Some("worker liveness evidence is stale; relay is treated as stopped".into())
         }
     })
 }
 
-fn status_is_live(status: &WorkerStatus) -> bool {
+fn status_is_live(status: &WorkerStatus, worker_lock_held: bool) -> bool {
     if !matches!(status.state.as_str(), "starting" | "running" | "stopping") {
         return false;
     }
-    let timestamp = status
-        .last_poll_at
-        .as_deref()
-        .unwrap_or(status.updated_at.as_str());
-    chrono::DateTime::parse_from_rfc3339(timestamp).is_ok_and(|value| {
+    if status.liveness_protocol.as_deref() == Some(WORKER_LOCK_PROTOCOL) {
+        return worker_lock_held;
+    }
+    heartbeat_is_fresh(status)
+}
+
+fn heartbeat_is_fresh(status: &WorkerStatus) -> bool {
+    chrono::DateTime::parse_from_rfc3339(&status.updated_at).is_ok_and(|value| {
         Utc::now()
             .timestamp_millis()
             .saturating_sub(value.timestamp_millis())
             <= STATUS_STALE_SECONDS * 1000
     })
+}
+
+fn acquire_worker_lock(path: &Path) -> Result<File, PlatformError> {
+    let file = open_worker_lock(path)?;
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(TryLockError::WouldBlock) => Err(PlatformError::Validation(
+            "relay worker lock is already held by another process".into(),
+        )),
+        Err(TryLockError::Error(error)) => Err(io_error("cannot acquire relay worker lock", error)),
+    }
+}
+
+fn worker_lock_is_held(path: &Path) -> Result<bool, PlatformError> {
+    let file = open_worker_lock(path)?;
+    match file.try_lock() {
+        Ok(()) => {
+            file.unlock()
+                .map_err(|error| io_error("cannot release relay worker probe lock", error))?;
+            Ok(false)
+        }
+        Err(TryLockError::WouldBlock) => Ok(true),
+        Err(TryLockError::Error(error)) => Err(io_error("cannot probe relay worker lock", error)),
+    }
+}
+
+fn open_worker_lock(path: &Path) -> Result<File, PlatformError> {
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)
+        .map_err(|error| io_error("cannot open relay worker lock", error))
 }
 
 fn remove_if_exists(path: &Path) -> Result<(), PlatformError> {
@@ -552,3 +633,48 @@ fn configure_detached(command: &mut Command) {
 
 #[cfg(not(windows))]
 fn configure_detached(_command: &mut Command) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn status(updated_at: String, last_poll_at: Option<String>) -> WorkerStatus {
+        WorkerStatus {
+            contract_version: "relay-worker-status-v1".into(),
+            state: "running".into(),
+            pid: 123,
+            project_id: "test".into(),
+            endpoint: "https://example.invalid".into(),
+            started_at: updated_at.clone(),
+            updated_at,
+            last_poll_at,
+            last_task_id: None,
+            consecutive_errors: 10,
+            message: Some("retryable transport error".into()),
+            liveness_protocol: None,
+        }
+    }
+
+    #[test]
+    fn legacy_retry_heartbeat_uses_updated_at_not_last_successful_poll() {
+        let old_poll = (Utc::now() - chrono::Duration::minutes(10)).to_rfc3339();
+        let current = status(Utc::now().to_rfc3339(), Some(old_poll));
+        assert!(status_is_live(&current, false));
+    }
+
+    #[test]
+    fn worker_lock_is_authoritative_for_new_worker_liveness() {
+        let temporary = tempfile::tempdir().expect("temporary relay directory");
+        let lock_path = temporary.path().join("worker.lock");
+        let _lock = acquire_worker_lock(&lock_path).expect("acquire worker lock");
+        assert!(worker_lock_is_held(&lock_path).expect("probe held worker lock"));
+
+        let mut current = status(
+            (Utc::now() - chrono::Duration::minutes(10)).to_rfc3339(),
+            None,
+        );
+        current.liveness_protocol = Some(WORKER_LOCK_PROTOCOL.into());
+        assert!(status_is_live(&current, true));
+        assert!(!status_is_live(&current, false));
+    }
+}

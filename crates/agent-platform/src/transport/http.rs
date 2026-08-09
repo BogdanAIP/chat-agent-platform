@@ -30,16 +30,17 @@ pub(super) fn post_json(
     let cleanup = HttpBodyCleanup(body_path.clone());
 
     let curl = if cfg!(windows) { "curl.exe" } else { "curl" };
-    let mut child = Command::new(curl)
+    let mut command = Command::new(curl);
+    command
         .arg("--config")
         .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| {
-            PlatformError::ToolUnavailable(format!("cannot start {curl} for relay HTTPS: {error}"))
-        })?;
+        .stderr(Stdio::piped());
+    configure_background_child(&mut command);
+    let mut child = command.spawn().map_err(|error| {
+        PlatformError::ToolUnavailable(format!("cannot start {curl} for relay HTTPS: {error}"))
+    })?;
 
     let mut config = curl_config(endpoint, token, &body_path, max_time_seconds)?;
     let mut stdin = child
@@ -103,6 +104,17 @@ fn escape_curl_config(value: &str) -> Result<String, PlatformError> {
     }
     Ok(value.replace('\\', "\\\\").replace('"', "\\\""))
 }
+
+#[cfg(windows)]
+fn configure_background_child(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn configure_background_child(_command: &mut Command) {}
 
 struct HttpBodyCleanup(PathBuf);
 
