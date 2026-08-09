@@ -1,6 +1,6 @@
 # Stage 20 — Operations audit
 
-Статус: **partial / manual-gated**. Автоматический technical/release hardening текущего core завершён. Остались только внешние/административные acceptance gates, которые нельзя честно закрыть одним кодом в репозитории.
+Статус: **partial / manual-gated**. Автоматический technical/release hardening текущего core завершён. Репозиторий дополнительно защищён активным ruleset для `main`. Остались только два внешних acceptance gate: реальный ChatGPT-originated Stage 4 round trip и первый настоящий `v0.2.0` release.
 
 ## Автоматически доказано
 
@@ -61,6 +61,18 @@
 - Stage 4 и Stage 19 сохраняют отдельные scoped E2E gates;
 - GitHub Actions spending-limit blocker исчез после перевода repository в public.
 
+### Main branch governance
+
+Активный repository ruleset `main-protection` применён к default branch и проверен через GitHub API:
+
+- enforcement: `active`;
+- bypass actors: none; current user cannot bypass;
+- pull request обязателен, approvals `0`;
+- required checks: `verify-windows`, `gitleaks-history`;
+- strict up-to-date status-check policy включён;
+- linear history обязателен;
+- deletion и non-fast-forward/force-push заблокированы.
+
 ### Supply chain / secrets / licensing
 
 - проект распространяется по стандартной MIT License без дополнительных обязательных условий;
@@ -106,9 +118,8 @@ Raw `agent-platform.exe` не публикуется как отдельный G
 
 ## Остающиеся обязательные manual gates
 
-1. **GitHub branch ruleset** — включить технический запрет обхода PR/required checks для `main`. CI уже подготовлен: стабильные always-on checks `verify-windows` и `gitleaks-history` существуют на каждом PR.
-2. **Stage 4 real ChatGPT acceptance** — один реальный ChatGPT-originated `runtime_self_test` через Yandex и пользовательский Windows agent.
-3. **First release tag** — осознанно создать `v0.2.0` и проверить реальные GitHub Release assets, `SHA256SUMS` и provenance attestation.
+1. **Stage 4 real ChatGPT acceptance** — один реальный ChatGPT-originated `runtime_self_test` через Yandex и пользовательский Windows agent.
+2. **First release tag** — осознанно создать `v0.2.0` и проверить реальные GitHub Release assets, `SHA256SUMS` и provenance attestation.
 
 ## Conditional / non-blocking follow-up
 
@@ -122,4 +133,4 @@ Raw `agent-platform.exe` не публикуется как отдельный G
 
 ## Stage 20 exit rule
 
-Stage 20 можно пометить `done`, когда автоматические gates остаются зелёными и выполнены три обязательных manual gates выше. Conditional будущие продукты и subjective-quality расширения сами по себе Stage 20 текущего core не блокируют.
+Stage 20 можно пометить `done`, когда автоматические gates остаются зелёными и выполнены два обязательных manual gates выше. Conditional будущие продукты и subjective-quality расширения сами по себе Stage 20 текущего core не блокируют.
