@@ -1,0 +1,177 @@
+name: Release Package E2E
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - "LICENSE"
+      - "about.toml"
+      - "about.hbs"
+      - "scripts/generate-third-party-licenses.sh"
+      - "scripts/assemble-release-package.sh"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-package-e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - "LICENSE"
+      - "about.toml"
+      - "about.hbs"
+      - "scripts/generate-third-party-licenses.sh"
+      - "scripts/assemble-release-package.sh"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-package-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-package-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-binary:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Cache Rust dependencies and build outputs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-rust-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-rust-
+      - name: Build locked release binary
+        shell: pwsh
+        run: cargo build --workspace --release --locked
+      - name: Stage binary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path runtime/release -Force | Out-Null
+          Copy-Item target/release/agent-platform.exe runtime/release/agent-platform.exe
+          if ((Get-Item runtime/release/agent-platform.exe).Length -le 0) { throw 'release binary is empty' }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: e2e-windows-binary
+          path: runtime/release/agent-platform.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  sbom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Cache cargo-cyclonedx
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cargo/bin/cargo-cyclonedx
+          key: cargo-cyclonedx-0.5.9-${{ runner.os }}-${{ runner.arch }}
+      - name: Install pinned cargo-cyclonedx
+        shell: bash
+        run: |
+          if ! cargo cyclonedx --version 2>/dev/null | grep -q '0.5.9'; then
+            cargo install --locked cargo-cyclonedx --version 0.5.9
+          fi
+      - name: Generate CycloneDX SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          cargo cyclonedx \
+            --manifest-path crates/agent-platform/Cargo.toml \
+            --format json \
+            --spec-version 1.5 \
+            --target all \
+            --all-features \
+            --override-filename agent-platform.cdx
+          mapfile -t generated < <(find "$GITHUB_WORKSPACE" -type f -name 'agent-platform.cdx.json' -print)
+          [[ "${#generated[@]}" -eq 1 ]] || exit 1
+          mkdir -p runtime/release
+          cp "${generated[0]}" runtime/release/agent-platform.cdx.json
+          python -m json.tool runtime/release/agent-platform.cdx.json >/dev/null
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: e2e-sbom
+          path: runtime/release/agent-platform.cdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+  licenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Generate license bundle
+        shell: bash
+        run: |
+          bash scripts/generate-third-party-licenses.sh runtime/release/THIRD_PARTY_LICENSES.html
+          cp LICENSE runtime/release/LICENSE
+          test -s runtime/release/LICENSE
+          test -s runtime/release/THIRD_PARTY_LICENSES.html
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: e2e-licenses
+          path: |
+            runtime/release/LICENSE
+            runtime/release/THIRD_PARTY_LICENSES.html
+          if-no-files-found: error
+          retention-days: 7
+
+  package:
+    needs: [windows-binary, sbom, licenses]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: e2e-windows-binary
+          path: runtime/release
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: e2e-sbom
+          path: runtime/release
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: e2e-licenses
+          path: runtime/release
+      - name: Assemble and verify release package
+        shell: bash
+        run: |
+          tag="ci-${GITHUB_SHA:0:12}"
+          bash scripts/assemble-release-package.sh "$tag" runtime/release
+          test -s "runtime/release/agent-platform-${tag}-windows-x86_64.zip"
+          test -s runtime/release/SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-package-e2e
+          path: |
+            runtime/release/agent-platform-ci-*-windows-x86_64.zip
+            runtime/release/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
