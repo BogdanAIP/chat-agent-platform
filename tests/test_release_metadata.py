@@ -67,6 +67,24 @@ class ReleaseMetadataTests(unittest.TestCase):
                 f"{action} must be pinned to an immutable commit SHA",
             )
 
+    def test_release_provenance_is_fail_closed_and_least_privilege(self):
+        workflow = (self.repo / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("permissions:\n  contents: read\n", workflow)
+        self.assertIn(
+            "permissions:\n      contents: write\n      id-token: write\n      attestations: write",
+            workflow,
+        )
+        self.assertIn(
+            "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
+            workflow,
+        )
+        self.assertIn("subject-checksums: runtime/release/SHA256SUMS", workflow)
+        attest_index = workflow.index("name: Attest release artifact provenance")
+        publish_index = workflow.index("name: Create immutable GitHub Release assets")
+        self.assertLess(attest_index, publish_index)
+
 
 if __name__ == "__main__":
     unittest.main()
