@@ -1,5 +1,6 @@
 import ast
 import pathlib
+import re
 import tomllib
 import unittest
 
@@ -32,6 +33,9 @@ class ReleaseMetadataTests(unittest.TestCase):
         )
         self.assertIn('tags:\n      - "v*.*.*"', workflow)
         self.assertIn("git merge-base --is-ancestor", workflow)
+        self.assertIn('git checkout --detach "$tag_sha"', workflow)
+        self.assertIn("git rev-parse HEAD", workflow)
+        self.assertIn("GH_REPO: ${{ github.repository }}", workflow)
         self.assertIn("--verify-tag", workflow)
         self.assertIn("--generate-notes", workflow)
         self.assertIn("sha256sum -c SHA256SUMS", workflow)
@@ -39,6 +43,19 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertIn("agent-platform.cdx.json", workflow)
         self.assertNotIn("--clobber", workflow)
         self.assertIn("already exists; refusing to overwrite", workflow)
+
+    def test_release_first_party_actions_are_sha_pinned(self):
+        workflow = (self.repo / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        first_party_uses = re.findall(r"uses:\s+(actions/[\w-]+)@([^\s#]+)", workflow)
+        self.assertTrue(first_party_uses, "release workflow must use first-party actions")
+        for action, ref in first_party_uses:
+            self.assertRegex(
+                ref,
+                r"^[0-9a-f]{40}$",
+                f"{action} must be pinned to an immutable commit SHA",
+            )
 
 
 if __name__ == "__main__":
