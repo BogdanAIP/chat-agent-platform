@@ -22,7 +22,7 @@ Repository is **public** and licensed under the standard **MIT License** with no
 | 7 Secret Store | done | Windows Credential Manager + executor ACL |
 | 8 Artifact hardening/staging | done | immutable SHA-verified inputs, recovery, controlled staging |
 | 9 Supervisor/service | conditional | current explicit relay lifecycle is sufficient |
-| 10 CI + supply chain | done baseline | always-on Windows CI, SHA-pinned Actions, secret/license/advisory/SBOM gates |
+| 10 CI + supply chain | done baseline | always-on Windows CI, active main ruleset, SHA-pinned Actions, secret/license/advisory/SBOM gates |
 | 11 FFmpeg adapter | done | typed operations, EBU QC, duration-aware timeouts |
 | 12 REAPER adapter | done | real user Windows acceptance passed 2026-08-08 |
 | 13 Mastering analysis | done | profile-aware technical decision/safe-auto gate |
@@ -32,7 +32,7 @@ Repository is **public** and licensed under the standard **MIT License** with no
 | 17 Video production | conditional | no concrete scenario selected |
 | 18 Distribution | conditional | confirmation primitive done; external executors intentionally absent |
 | 19 Reference mastering | done | real pinned Matchering engine + technical benchmark |
-| 20 Operations audit | partial / manual-gated | automated hardening complete; branch ruleset, real Stage 4 call and first release remain |
+| 20 Operations audit | partial / manual-gated | automated hardening + branch ruleset complete; real Stage 4 call and first release remain |
 
 Stages are not a strict linear dependency chain. A later independent capability may be done while an earlier external/manual gate remains partial.
 
@@ -86,6 +86,7 @@ The final ChatGPT-originated round trip is still manual. Until it passes, higher
 Current enforced baseline:
 
 - `ci / verify-windows` runs on every PR and every `main` push;
+- active repository ruleset `main-protection` targets the default branch, requires PR-based merging, strict up-to-date checks `verify-windows` + `gitleaks-history`, linear history, and blocks deletion/force-push with no bypass actors;
 - every `actions/checkout` reference is immutable-SHA pinned and uses `persist-credentials: false`;
 - all first-party GitHub Actions are immutable-SHA pinned by repository-wide regression test;
 - Rust 1.97.1 and hosted FFmpeg 9.0.0 are pinned;
@@ -117,9 +118,8 @@ The first actual `v0.2.0` tag/release has intentionally not been created yet, so
 
 ## Manual gates remaining
 
-1. Enable a GitHub branch ruleset for `main`, requiring the stable `verify-windows` and `gitleaks-history` checks and PR-based merging.
-2. Run the real Stage 4 ChatGPT -> Yandex -> Windows -> ChatGPT acceptance.
-3. Deliberately push the first `v0.2.0` tag and verify generated Release assets, checksums and provenance.
+1. Run the real Stage 4 ChatGPT -> Yandex -> Windows -> ChatGPT acceptance.
+2. Deliberately push the first `v0.2.0` tag and verify generated Release assets, checksums and provenance.
 
 ## Conditional/non-blocking follow-up
 
