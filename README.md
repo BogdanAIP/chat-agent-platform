@@ -7,29 +7,21 @@ Chat-centric платформа с **Rust-first локальным execution cor
 ## Архитектура
 
 ```text
-Chat / Codex
-    |
-    | GitHub context + optional thin remote call
-    v
-explicit Project Binding
-    |
-    +--> Yandex API Gateway -> Cloud Function -> Object Storage JSON rendezvous
-    |                                      ^
-    |                                      | outbound HTTPS long poll
-    |                                      |
-    `-------------------------------- agent-platform.exe (Rust)
-                                           |-- strict capability requirements + locked executor
-                                           |-- Policy Enforcement Point + one-shot guarded confirmation
-                                           |-- Artifact Store + immutable input snapshots
-                                           |-- persistent jobs + exclusive physical execution lock
-                                           |-- Windows Credential Manager Secret Store
-                                           `-- typed adapters
-                                                 |-- FFmpeg / FFprobe
-                                                 |-- REAPER via limited Lua/ReaScript
-                                                 `-- Matchering 2.0.6 as replaceable Python edge process
+ChatGPT private GPT Action
+    -> Yandex API Gateway
+    -> Cloud Function
+    -> Object Storage JSON rendezvous
+    <-> outbound HTTPS long poll
+    <-> agent-platform.exe (Rust)
+
+Codex MCP (optional)
+    -> Gateway + Bearer
+    OR
+    -> direct public Function + X-MCP-Token
+    -> same relay / same Windows agent
 ```
 
-Yandex не содержит media/business logic и не хранит media-файлы. API Gateway + Cloud Function + Object Storage используются только как небольшой JSON rendezvous для Hosted Chat -> Windows. Gateway нужен для сохранения GPT Actions Bearer auth: прямой Yandex Function URL использует `Authorization` для platform invocation и не подходит как внешний GPT Actions endpoint.
+Yandex не содержит media/business logic и не хранит media-файлы. API Gateway нужен именно для GPT Actions Bearer auth: Yandex Cloud Functions удаляют входящий `Authorization` до пользовательского кода. Это не означает, что прямой Function URL бесполезен вообще. Для Codex текущая Function уже поддерживает MCP JSON-RPC и `X-MCP-Token`, поэтому direct Codex -> Function рассматривается как отдельный оптимизированный ingress-кандидат и будет принят только после реального Codex-originated теста.
 
 ## Реализовано
 
@@ -46,8 +38,9 @@ Yandex не содержит media/business logic и не хранит media-ф�
 - typed FFmpeg media operations, EBU R128 analysis/normalization, duration-aware timeouts;
 - REAPER render adapter и реальный пользовательский Stage 12 acceptance;
 - technical mastering + reference mastering через pinned Matchering 2.0.6;
-- outbound-only Yandex relay через API Gateway с независимыми local/remote tokens, minimal public health и hosted Windows E2E;
+- outbound-only Yandex relay с независимыми local/remote tokens, minimal public health и hosted Windows E2E;
 - реальный Yandex API Gateway -> Function -> Object Storage -> Windows Stage 4 transport acceptance от 2026-08-09;
+- application-auth regression test для `X-MCP-Token` direct Function candidate;
 - Windows CI, pinned Rust/FFmpeg, RustSec/cargo-deny policy, CycloneDX SBOM, full-history secret scan, third-party license notices и Dependabot;
 - активный `main-protection` ruleset с обязательными `verify-windows` + `gitleaks-history`.
 
@@ -65,6 +58,8 @@ Yandex не содержит media/business logic и не хранит media-ф�
 
 - `local_ping`;
 - `runtime_self_test`.
+
+Отдельно, как необязательная оптимизация, будет проверен `Codex MCP -> direct Function + X-MCP-Token`. Его успех или неуспех не меняет критерий закрытия ChatGPT Stage 4.
 
 ## Быстрый локальный старт
 
@@ -88,6 +83,8 @@ agent-platform relay stop --project-id chat-agent-platform
 ```
 
 Инструкция по private GPT Action: `project-context/STAGE4_CHATGPT_ACTIONS_SETUP.md`.
+
+План отдельной проверки direct Codex MCP: `project-context/STAGE4_CODEX_DIRECT_MCP_ACCEPTANCE.md`.
 
 ## Помочь проекту / Support the Project
 
