@@ -2,7 +2,7 @@
 
 Chat-centric платформа с **Rust-first локальным execution core** и тонкими адаптерами к зрелым инструментам. Chat остаётся primary intelligence; локальный `agent-platform.exe` отвечает за проверяемые контракты, Project Binding, tool selection, policy, artifacts, jobs, secrets и выполнение разрешённых capabilities.
 
-Репозиторий сейчас приватный. Open-source лицензия **ещё не выбрана**; `LicenseRef-UNLICENSED` означает именно это и не является разрешением на публичное распространение.
+Репозиторий публичный и распространяется по стандартной **MIT License** без дополнительных обязательных условий.
 
 ## Архитектура
 
@@ -76,6 +76,10 @@ agent-platform relay start
 agent-platform relay status
 agent-platform relay stop
 ```
+
+## Помочь проекту / Support the Project
+
+Поддержка проекта добровольная и **не является условием MIT License**. Способы поддержки и адреса для донатов будут добавлены отдельно; отсутствие доната никак не ограничивает права, предоставленные лицензией MIT.
 
 ## Правила развития
 

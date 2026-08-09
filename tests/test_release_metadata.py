@@ -27,6 +27,16 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertEqual(rust_version, python_package_version)
         self.assertEqual(rust_version, oracle)
 
+    def test_project_license_metadata_is_standard_mit(self):
+        cargo = tomllib.loads((self.repo / "Cargo.toml").read_text(encoding="utf-8"))
+        pyproject = tomllib.loads((self.repo / "pyproject.toml").read_text(encoding="utf-8"))
+        license_text = (self.repo / "LICENSE").read_text(encoding="utf-8")
+
+        self.assertEqual(cargo["workspace"]["package"]["license"], "MIT")
+        self.assertEqual(pyproject["project"]["license"], "MIT")
+        self.assertIn("LICENSE", pyproject["project"]["license-files"])
+        self.assertTrue(license_text.startswith("MIT License\n"))
+
     def test_release_workflow_is_tag_gated_and_immutable(self):
         workflow = (self.repo / ".github" / "workflows" / "release.yml").read_text(
             encoding="utf-8"
