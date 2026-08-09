@@ -1,6 +1,6 @@
 # Stage 20 — Operations audit
 
-Статус: **partial**. Большая часть технических эксплуатационных рисков уже закрыта автоматизированно. После перехода repository в public снят лимит hosted Actions и закрыт юридический gap: проект использует стандартную MIT License. Остались эксплуатационные/manual gates ниже.
+Статус: **partial / manual-gated**. Автоматический technical/release hardening текущего core завершён. Остались только внешние/административные acceptance gates, которые нельзя честно закрыть одним кодом в репозитории.
 
 ## Автоматически доказано
 
@@ -18,7 +18,7 @@
 - locked executor обязан существовать и быть enabled;
 - quality, reliability, determinism, execution path, fallback и cost проверяются кодом;
 - runtime profile генерируется из того же locked selection set и regression-test сравнивает его с `tool-lock.yaml`;
-- actual build `rustc` и package MSRV показываются отдельно.
+- фактический build `rustc` и package MSRV показываются отдельно.
 
 ### External-side-effect authority
 
@@ -27,16 +27,16 @@
 - repeated prepare идемпотентен и не может продлить окно подтверждения;
 - changed artifact/destination/binding, expiry и replay блокируются;
 - concurrent double-consume выдаёт ровно один `ConfirmationPermit`;
-- publishing/distribution executors пока отсутствуют, поэтому primitive не создаёт side effect сам по себе.
+- publishing/distribution executors пока отсутствуют, поэтому primitive сам по себе не создаёт side effect.
 
 ### Media/runtime reliability
 
 - typed FFmpeg operations не принимают arbitrary argument arrays от Chat;
 - short probes имеют отдельный timeout;
 - media operations получают duration-aware timeout с floor/ceiling;
-- EBU R128 inspection использует quiet frame logging и сохраняет final Summary;
+- EBU R128 inspection подавляет покадровый шум и сохраняет final Summary;
 - REAPER и Matchering изолированы как typed edge adapters;
-- Stage 12 реальный пользовательский REAPER acceptance пройден;
+- Stage 12 real-user REAPER acceptance пройден;
 - Stage 19 запускает реальный pinned Matchering engine и технический benchmark.
 
 ### Remote transport
@@ -47,60 +47,79 @@
 - публичный health минимален;
 - cloud хранит только task/result/heartbeat JSON, без media/business logic;
 - immutable task/result rendezvous не полагается на Python instance concurrency;
-- hosted Windows E2E доказывает configure/start/retry/self-test/stop/offline lifecycle.
+- hosted Windows E2E доказывает configure/start/retry/self-test/stop/offline lifecycle;
+- окончательный ChatGPT-originated round trip намеренно остаётся отдельным manual acceptance.
 
-### Supply chain
+### Public CI / trusted workflow surface
 
-- Rust 1.97.1 зафиксирован в CI;
-- hosted FFmpeg зафиксирован на Chocolatey 9.0.0;
-- Matchering зафиксирован на 2.0.6 / Python 3.10 edge runtime;
-- `cargo-deny` проверяет bans/sources;
-- RustSec advisories блокируют dependency-changing PR/push runs;
+- `ci / verify-windows` запускается на каждом PR и каждом push в `main`, без path bypass;
+- Rust 1.97.1 и hosted FFmpeg 9.0.0 зафиксированы;
+- все first-party GitHub Actions зафиксированы по immutable commit SHA;
+- repository-wide test запрещает возврат mutable `actions/...@vN`;
+- каждый `actions/checkout` явно использует `persist-credentials: false`;
+- repository-wide test требует это для каждого checkout во всех workflow;
+- Stage 4 и Stage 19 сохраняют отдельные scoped E2E gates;
+- GitHub Actions spending-limit blocker исчез после перевода repository в public.
+
+### Supply chain / secrets / licensing
+
+- проект распространяется по стандартной MIT License без дополнительных обязательных условий;
+- Rust Cargo metadata и Python PEP 639 metadata используют MIT;
+- checksum-pinned cargo-deny 0.20.2 напрямую, без Action wrapper, проверяет licenses/bans/sources и RustSec advisories;
+- dependency license allow-list явный, evidence-driven и без package-level license exceptions;
+- checksum-pinned Gitleaks 8.30.1 сканирует полный reachable git history с `--redact=100`; первый public-history scan зелёный;
 - CycloneDX SBOM генерируется pinned `cargo-cyclonedx 0.5.9` с `SOURCE_DATE_EPOCH`;
-- Dependabot сгруппирован по weekly non-major updates;
-- CI path filters и caches уменьшают стоимость/время hosted CI без удаления продуктовых gates;
-- repository public, поэтому hosted Actions снова доступны без прежнего private spending-limit blocker.
+- checksum-pinned cargo-about 0.9.1 генерирует Windows third-party notices;
+- `about.toml` обязан иметь тот же accepted SPDX set, что и `deny.toml`;
+- реальный License Notices E2E успешно генерирует notice bundle для текущего Windows dependency graph;
+- Dependabot сгруппирован по weekly non-major updates.
 
-### Licensing
+## Release path
 
-- корневой `LICENSE` содержит стандартную MIT License;
-- Rust workspace metadata использует SPDX `MIT`;
-- Python package metadata ссылается на тот же `LICENSE`;
-- добровольная поддержка проекта явно отделена от лицензионных прав и не создаёт дополнительного условия.
-
-## Release packaging
-
-Release workflow уже находится в `main` и реализует:
+Release workflow уже реализует и тестами фиксирует:
 
 ```text
-existing vX.Y.Z tag reachable from main
-  -> Rust/Python version consistency gate
+existing exact vX.Y.Z tag reachable from main
+  -> read versions from exact tag commit
   -> locked Windows release build
   -> reproducible CycloneDX SBOM
-  -> binary + SBOM ZIP
+  -> MIT LICENSE + THIRD_PARTY_LICENSES.html
+  -> exact-content Windows ZIP
   -> SHA256SUMS + self-check
-  -> immutable GitHub Release assets
+  -> GitHub build-provenance attestation
+  -> immutable GitHub Release
 ```
 
-Workflow не создаёт tag сам и не перезаписывает существующий release. Первый реальный `v0.2.0` tag/release является отдельной осознанной операцией.
+Дополнительный **Release Package E2E** без write/OIDC/attestation permissions уже реально прошёл:
 
-После перехода repository в public GitHub artifact provenance/attestation стала доступна без прежнего Enterprise-only ограничения private repository. Её следует добавить в release workflow до первого публичного релиза.
+- собирает настоящий Windows release binary;
+- создаёт SBOM и license bundle отдельными jobs;
+- переносит три набора файлов через GitHub Actions artifacts;
+- скачивает их обратно в packaging job;
+- вызывает тот же `scripts/assemble-release-package.sh`, который использует настоящий release workflow;
+- проверяет точный состав ZIP и `SHA256SUMS`;
+- успешно загружает dry-run package artifact.
 
-## Остающиеся ручные gates
+Raw `agent-platform.exe` не публикуется как отдельный GitHub Release asset: нормальный binary distribution path — ZIP с `.exe`, SBOM, MIT LICENSE и third-party notices. Attestation выполняется **до** `gh release create`, поэтому её ошибка блокирует публикацию. Existing release assets не перезаписываются.
 
-1. **Stage 4 real ChatGPT acceptance** — один реальный ChatGPT-originated `runtime_self_test` через Yandex и пользовательский Windows agent.
-2. **GitHub branch protection/ruleset** — включить технический запрет обхода PR/required checks; сейчас discipline process-based.
-3. **First release tag** — после provenance hardening осознанно создать `v0.2.0` и проверить реальные release assets/checksums/attestation на GitHub.
-4. **Real music corpus** — если reference mastering будет заявляться как профессиональный музыкальный продукт, добавить набор реальных лицензированных/собственных материалов и human listening acceptance.
-5. **Support addresses** — добавить реальные способы добровольной поддержки проекта, когда они появятся; это не влияет на MIT License.
+Первый реальный `v0.2.0` tag/release всё ещё является отдельной осознанной операцией: package mechanics уже доказаны, но tag-triggered GitHub Release/attestation нужно один раз принять на настоящем release.
 
-## Conditional follow-up, не блокирующий Stage 20 автоматически
+## Остающиеся обязательные manual gates
 
-- индекс/retention для JSON JobStore/ConfirmationStore — только после измеримого роста;
-- operator cleanup unresolved ArtifactStore orphans — когда появится реальная эксплуатационная потребность;
-- supervisor/service — только если ручной relay lifecycle перестанет быть достаточным;
-- удаление Python oracle — отдельный migration gate после стабилизации Rust behavior.
+1. **GitHub branch ruleset** — включить технический запрет обхода PR/required checks для `main`. CI уже подготовлен: стабильные always-on checks `verify-windows` и `gitleaks-history` существуют на каждом PR.
+2. **Stage 4 real ChatGPT acceptance** — один реальный ChatGPT-originated `runtime_self_test` через Yandex и пользовательский Windows agent.
+3. **First release tag** — осознанно создать `v0.2.0` и проверить реальные GitHub Release assets, `SHA256SUMS` и provenance attestation.
+
+## Conditional / non-blocking follow-up
+
+- real licensed/owned music corpus + human listening acceptance — только перед subjective professional-quality claims;
+- support/donation addresses — когда появятся, оставаясь добровольными и отдельно от MIT;
+- operator cleanup unresolved ArtifactStore orphans — при реальной эксплуатационной потребности;
+- Job/ConfirmationStore indexing/retention — только после измеримого роста;
+- supervisor/service — только если явный relay lifecycle станет недостаточным;
+- Python oracle removal — отдельный parity/stability migration gate;
+- browser/video/distribution adapters — только после конкретного пользовательского сценария.
 
 ## Stage 20 exit rule
 
-Stage 20 можно пометить `done`, когда автоматические checks остаются зелёными и выполнены ручные gates, относящиеся к выбранной модели поставки. Conditional будущие продукты (browser/video/distribution) сами по себе не блокируют operations audit текущего core.
+Stage 20 можно пометить `done`, когда автоматические gates остаются зелёными и выполнены три обязательных manual gates выше. Conditional будущие продукты и subjective-quality расширения сами по себе Stage 20 текущего core не блокируют.
