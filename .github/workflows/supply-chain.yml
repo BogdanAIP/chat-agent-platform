@@ -124,30 +124,34 @@ jobs:
           if ! cargo cyclonedx --version 2>/dev/null | grep -q '0.5.9'; then
             cargo install --locked cargo-cyclonedx --version 0.5.9
           fi
-      - name: Generate reproducible CycloneDX SBOM
+      - name: Generate reproducible CycloneDX SBOMs
         shell: bash
         run: |
+          set -euo pipefail
           export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
           cargo cyclonedx \
-            --manifest-path crates/agent-platform/Cargo.toml \
+            --manifest-path Cargo.toml \
             --format json \
             --spec-version 1.5 \
             --target all \
-            --all-features \
-            --override-filename agent-platform.cdx
-          mapfile -t generated < <(find "$GITHUB_WORKSPACE" -type f -name 'agent-platform.cdx.json' -print)
-          if [ "${#generated[@]}" -ne 1 ]; then
-            printf 'Expected exactly one generated SBOM, found %s\n' "${#generated[@]}" >&2
-            printf '%s\n' "${generated[@]}" >&2
-            exit 1
-          fi
+            --all-features
+
+          agent_sbom="$GITHUB_WORKSPACE/crates/agent-platform/agent-platform.cdx.json"
+          relay_sbom="$GITHUB_WORKSPACE/crates/relay-server/relay-server.cdx.json"
+          test -s "$agent_sbom"
+          test -s "$relay_sbom"
+
           mkdir -p runtime/sbom
-          cp "${generated[0]}" runtime/sbom/agent-platform.cdx.json
+          cp "$agent_sbom" runtime/sbom/agent-platform.cdx.json
+          cp "$relay_sbom" runtime/sbom/relay-server.cdx.json
           python -m json.tool runtime/sbom/agent-platform.cdx.json >/dev/null
-      - name: Upload SBOM
+          python -m json.tool runtime/sbom/relay-server.cdx.json >/dev/null
+      - name: Upload SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: agent-platform-cyclonedx-sbom
-          path: runtime/sbom/agent-platform.cdx.json
+          name: rust-cyclonedx-sboms
+          path: |
+            runtime/sbom/agent-platform.cdx.json
+            runtime/sbom/relay-server.cdx.json
           if-no-files-found: error
           retention-days: 30
