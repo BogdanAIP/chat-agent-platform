@@ -6,9 +6,9 @@ Architecture v1.4 is **Rust-first / native-edge**. Chat is primary intelligence;
 
 Python v0.1 is retained only as a behavioral oracle for parity. It is not the target runtime.
 
-Repository is private. `LicenseRef-UNLICENSED` means no project license has been selected yet.
+Repository is public. Project licensing is standard **MIT License** with no additional mandatory conditions. `LICENSE`, Rust workspace metadata and Python package metadata use that decision consistently.
 
-**Current infrastructure blocker:** GitHub hosted Actions no longer starts private-repository jobs because the account spending/payment limit has been reached. GitHub returns the blocker before checkout or any project step. The user pre-authorized converting the repository to public if this exact condition blocks development, but the GitHub connector exposed to this Chat session has no repository-visibility mutation, so private -> public currently requires a manual GitHub UI/admin action. Code PRs requiring CI must remain unmerged until runner access is restored.
+The earlier private-repository GitHub Actions spending-limit block is resolved by the public repository transition: hosted runners allocate normally again.
 
 ## Stage status
 
@@ -24,7 +24,7 @@ Repository is private. `LicenseRef-UNLICENSED` means no project license has been
 | 7 Secret Store | done | Windows Credential Manager + executor ACL |
 | 8 Artifact hardening/staging | done | SHA/recovery/staging controls |
 | 9 Supervisor/service | conditional | not required by current manual lifecycle |
-| 10 CI baseline | done but runner access blocked | Windows verify/path filters/caches/pinned tools + supply-chain gates were green before spending-limit block |
+| 10 CI baseline | done | Windows verify, path filters, caches, pinned Rust/FFmpeg + supply-chain gates; public hosted runners available |
 | 11 FFmpeg adapter | done | typed media operations, EBU QC, duration-aware timeouts |
 | 12 REAPER adapter | done | real user Windows acceptance passed 2026-08-08 |
 | 13 Mastering analysis | done | profile-aware technical decision/safe-auto gate |
@@ -34,7 +34,7 @@ Repository is private. `LicenseRef-UNLICENSED` means no project license has been
 | 17 Video production | conditional | no concrete scenario selected |
 | 18 Distribution | conditional | confirmation primitive done; external executors intentionally absent |
 | 19 Reference mastering | done | real pinned Matchering engine + technical benchmark |
-| 20 Operations audit | partial | hardening/release packaging done; manual gates + current runner-access blocker remain |
+| 20 Operations audit | partial | hardening/release packaging done; first release, branch protection and real Stage 4 acceptance remain |
 
 Stages are **not a strict linear dependency chain**. A later independent local capability may be completed while an earlier external/manual gate remains partial. A stage is `done` only for its own exit criteria.
 
@@ -112,7 +112,7 @@ Object Storage task/result/heartbeat JSON
 agent-platform.exe on Windows
 ```
 
-Properties already proved in hosted CI before the current account-level Actions block:
+Properties already proved in hosted CI:
 
 - relay off by default, explicit configure/start/status/stop;
 - independent `AGENT_TOKEN` and remote bearer;
@@ -127,7 +127,7 @@ Final real ChatGPT-originated round trip is intentionally deferred. Until it is 
 
 ## Supply chain / release operations
 
-Current automated controls, last proven green before the account-level Actions block:
+Current automated controls:
 
 - Rust 1.97.1 pinned in CI;
 - hosted FFmpeg 9.0.0 pinned;
@@ -141,20 +141,20 @@ Current automated controls, last proven green before the account-level Actions b
 - release build uses locked dependencies and packages Windows binary + SBOM + verified `SHA256SUMS`;
 - existing GitHub Release assets are treated as immutable and never overwritten by the workflow.
 
-The first real tag/release has intentionally not been created. GitHub artifact attestation is not enabled while the private repository lacks the required entitlement.
+Because the repository is now public, GitHub artifact provenance/attestation can be added to the release path as a further Stage 20 hardening step without Enterprise-only private-repository restrictions.
 
-## Active unmerged work held for CI
+## Active work
 
-- PR #25 fixes manual release validation to read metadata from the selected tag commit and sets explicit `GH_REPO` for checkout-less publish jobs. Its latest check did not run any project step because GitHub refused to allocate a runner under the current spending limit.
-- branch `chat/pin-first-party-actions` pins first-party GitHub Actions to exact commit SHAs; it is intentionally not merged without restored CI.
+- PR #25 hardens manual release validation, checkout-less `gh release` repository binding and immutable SHA pinning of first-party release Actions; its CI was restarted successfully after the repository became public.
+- branch `chat/pin-first-party-actions` extends exact SHA pinning to normal CI, Stage 4, Stage 19 and supply-chain workflows.
+- branch `chat/mit-license` records the already-chosen standard MIT License and voluntary project-support wording.
 
 ## Manual/decision gates remaining
 
-1. Restore GitHub Actions runner access. The pre-authorized path is to make the repository public; current Chat tooling cannot change repository visibility, so this requires a manual GitHub UI/admin action.
-2. Run the deferred real Stage 4 ChatGPT -> Yandex -> Windows -> ChatGPT acceptance.
-3. Choose a project license or explicitly decide to keep the project proprietary/private. If the repository is made public only for Actions, `LicenseRef-UNLICENSED` still means no open-source license has been granted.
-4. Enable GitHub branch protection/ruleset for `main` when available through manual settings/tooling.
-5. After CI resumes and PR #25 is validated/merged, deliberately create the first `v0.2.0` tag and verify generated GitHub Release assets/checksums.
-6. Add a real licensed/owned musical corpus before making subjective professional-quality claims for reference mastering.
+1. Run the deferred real Stage 4 ChatGPT -> Yandex -> Windows -> ChatGPT acceptance.
+2. Enable GitHub branch protection/ruleset for `main` when available through manual settings/tooling.
+3. After release hardening is validated, deliberately create the first `v0.2.0` tag and verify generated GitHub Release assets/checksums/attestation.
+4. Add a real licensed/owned musical corpus before making subjective professional-quality claims for reference mastering.
+5. Add actual donation/support addresses when available; project support remains voluntary and separate from MIT licensing rights.
 
 See `STAGE20_OPERATIONS.md` for the operational checklist and `KNOWN_ISSUES.md` for the remaining gaps.
