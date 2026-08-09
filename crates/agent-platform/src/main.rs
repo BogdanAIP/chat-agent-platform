@@ -351,12 +351,7 @@ fn run_ingress_command(
             project_id,
             env_name,
             secret_ref,
-        } => store_ingress_token_from_env(
-            repo_root,
-            project_id.as_deref(),
-            env_name,
-            secret_ref,
-        ),
+        } => store_ingress_token_from_env(repo_root, project_id.as_deref(), env_name, secret_ref),
         IngressCommand::Serve {
             project_id,
             port,
