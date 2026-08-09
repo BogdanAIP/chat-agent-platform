@@ -4,13 +4,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::Json;
+use axum::Router;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{DefaultBodyLimit, State};
 use axum::http::header::CACHE_CONTROL;
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::Router;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -145,7 +145,9 @@ pub fn serve_local_ingress(
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .map_err(|error| PlatformError::Validation(format!("cannot start ingress runtime: {error}")))?;
+        .map_err(|error| {
+            PlatformError::Validation(format!("cannot start ingress runtime: {error}"))
+        })?;
 
     eprintln!(
         "agent-platform local ingress listening on http://{address} for project {}; publish this loopback endpoint only through a trusted HTTPS tunnel",
@@ -310,10 +312,9 @@ fn json_response(status: StatusCode, body: Value) -> Response {
     response
         .headers_mut()
         .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response.headers_mut().insert(
-        CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff"),
-    );
+    response
+        .headers_mut()
+        .insert(CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
     response
 }
 
@@ -323,8 +324,14 @@ mod tests {
 
     #[test]
     fn token_comparison_does_not_short_circuit_by_prefix() {
-        assert!(constant_time_eq(b"abcdefghijklmnopqrstuvwxyz", b"abcdefghijklmnopqrstuvwxyz"));
-        assert!(!constant_time_eq(b"abcdefghijklmnopqrstuvwxy0", b"abcdefghijklmnopqrstuvwxyz"));
+        assert!(constant_time_eq(
+            b"abcdefghijklmnopqrstuvwxyz",
+            b"abcdefghijklmnopqrstuvwxyz"
+        ));
+        assert!(!constant_time_eq(
+            b"abcdefghijklmnopqrstuvwxy0",
+            b"abcdefghijklmnopqrstuvwxyz"
+        ));
         assert!(!constant_time_eq(b"short", b"abcdefghijklmnopqrstuvwxyz"));
     }
 
