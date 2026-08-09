@@ -158,17 +158,17 @@ fn direct_ingress_process_authenticates_and_executes_locally() {
         port,
     );
 
-    let unauthorized = send_post(port, None, r#"{"action":"local_ping","message":"blocked"}"#);
+    let unauthorized_body =
+        serde_json::json!({"action": "local_ping", "message": "blocked"}).to_string();
+    let unauthorized = send_post(port, None, &unauthorized_body);
     assert!(
         unauthorized.starts_with("HTTP/1.1 401"),
         "missing token must be rejected: {unauthorized}"
     );
 
-    let authorized = send_post(
-        port,
-        Some(&token),
-        r#"{"action":"local_ping","message":"direct-e2e"}"#,
-    );
+    let authorized_body =
+        serde_json::json!({"action": "local_ping", "message": "direct-e2e"}).to_string();
+    let authorized = send_post(port, Some(&token), &authorized_body);
     assert!(
         authorized.starts_with("HTTP/1.1 200"),
         "authenticated request must succeed: {authorized}"
