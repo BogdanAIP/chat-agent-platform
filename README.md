@@ -42,6 +42,7 @@ Yandex не содержит media/business logic и не хранит media-ф�
 - реальный Yandex API Gateway -> Function -> Object Storage -> Windows Stage 4 transport acceptance от 2026-08-09;
 - application-auth regression test для `X-MCP-Token` direct Function candidate;
 - Windows CI, pinned Rust/FFmpeg, RustSec/cargo-deny policy, CycloneDX SBOM, full-history secret scan, third-party license notices и Dependabot;
+- fail-closed CodeQL v4 scan для Rust, Python и GitHub Actions; первый реальный SARIF-прогон прошёл без findings;
 - активный `main-protection` ruleset с обязательными `verify-windows` + `gitleaks-history`.
 
 ## Текущая граница Stage 4
@@ -85,6 +86,10 @@ agent-platform relay stop --project-id chat-agent-platform
 Инструкция по private GPT Action: `project-context/STAGE4_CHATGPT_ACTIONS_SETUP.md`.
 
 План отдельной проверки direct Codex MCP: `project-context/STAGE4_CODEX_DIRECT_MCP_ACCEPTANCE.md`.
+
+## Безопасность
+
+Правила сообщения об уязвимостях и обращения с секретами: `SECURITY.md`. Не публикуйте реальные токены, credentials, private keys или exploit details в публичных issue/PR.
 
 ## Помочь проекту / Support the Project
 
