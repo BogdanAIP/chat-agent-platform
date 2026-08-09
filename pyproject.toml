@@ -3,6 +3,7 @@ name = "chat-agent-platform"
 version = "0.2.0"
 description = "Rust-first local execution core for the chat-centric agent platform"
 requires-python = ">=3.11"
+license = { file = "LICENSE" }
 dependencies = ["jsonschema>=4.23,<5"]
 
 [tool.setuptools]
