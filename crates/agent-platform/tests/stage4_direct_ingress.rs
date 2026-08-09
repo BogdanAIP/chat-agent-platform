@@ -1,7 +1,7 @@
 #![cfg(windows)]
 
 use std::io::{Read, Write};
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
@@ -78,9 +78,7 @@ fn send_post(port: u16, token: Option<&str>, body: &str) -> String {
     stream
         .write_all(request.as_bytes())
         .expect("HTTP request must write");
-    stream
-        .shutdown(Shutdown::Write)
-        .expect("request write side must close");
+    stream.flush().expect("HTTP request must flush");
     let mut response = String::new();
     stream
         .read_to_string(&mut response)
