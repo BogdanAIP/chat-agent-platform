@@ -57,6 +57,18 @@ class GatewayTests(unittest.TestCase):
         )
         self.assertEqual(response["statusCode"], 401)
 
+    def test_agent_health_is_authenticated_and_side_effect_free(self):
+        response = index.handler(
+            event(
+                {"agent_action": "health", "project_id": "demo"},
+                {"X-Agent-Token": TOKEN},
+            ),
+            None,
+        )
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(parsed(response), {"ok": True, "project_id": "demo"})
+        self.assertFalse((Path(self.tmp.name) / "agents" / "demo.json").exists())
+
     def test_remote_auth_fails_closed_when_missing_or_unconfigured(self):
         request = {
             "jsonrpc": "2.0",
@@ -276,7 +288,23 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(action["operationId"], "runLocalAgentTool")
         action_enum = action["requestBody"]["content"]["application/json"]["schema"]["properties"]["action"]["enum"]
         self.assertEqual(action_enum, ["local_ping", "runtime_self_test"])
-        self.assertEqual(schema["servers"][0]["url"], "__FUNCTION_URL__")
+        self.assertEqual(schema["servers"][0]["url"], "__GATEWAY_URL__")
+
+    def test_yandex_api_gateway_forwards_get_and_post_to_the_cloud_function(self):
+        template = Path("gateway/yandex-apigateway.template.json")
+        schema = json.loads(template.read_text(encoding="utf-8"))
+        self.assertEqual(schema["openapi"], "3.0.0")
+        for method in ("get", "post"):
+            integration = schema["paths"]["/"][method]["x-yc-apigateway-integration"]
+            self.assertEqual(integration["type"], "cloud_functions")
+            self.assertEqual(integration["function_id"], "__FUNCTION_ID__")
+            self.assertEqual(integration["payload_format_version"], "0.1")
+
+    def test_context_token_extracts_iam_access_token(self):
+        self.assertEqual(
+            index._context_token({"token": {"access_token": "iam-token", "token_type": "Bearer"}}),
+            "iam-token",
+        )
 
     def test_tools_list_exports_only_allowlisted_local_operations(self):
         response = index.handler(

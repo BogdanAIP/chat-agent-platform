@@ -1,4 +1,5 @@
 import base64
+import fnmatch
 import hmac
 import json
 import os
@@ -6,6 +7,10 @@ import re
 import time
 import uuid
 from pathlib import Path
+from urllib import error as urlerror
+from urllib import parse as urlparse
+from urllib import request as urlrequest
+from xml.etree import ElementTree
 
 CONTRACT = "yandex-relay-gateway-v1"
 DEFAULT_STATE_DIR = "/function/storage/relay"
@@ -38,7 +43,135 @@ def _now_ms():
     return int(time.time() * 1000)
 
 
-def _state_root():
+class _ObjectStorage:
+    def __init__(self, bucket, token):
+        self.bucket = bucket
+        self.token = token
+
+    def path(self, key=""):
+        return _ObjectPath(self, key.strip("/"))
+
+    def _url(self, key="", query=""):
+        suffix = "/" + urlparse.quote(key, safe="/") if key else ""
+        return f"https://storage.yandexcloud.net/{self.bucket}{suffix}{query}"
+
+    def request(self, method, key="", body=None, query=""):
+        headers = {"Authorization": f"Bearer {self.token}"}
+        if body is not None:
+            headers["Content-Type"] = "application/json; charset=utf-8"
+        request = urlrequest.Request(self._url(key, query), data=body, headers=headers, method=method)
+        try:
+            return urlrequest.urlopen(request, timeout=15)
+        except urlerror.HTTPError as error:
+            if error.code == 404:
+                raise FileNotFoundError(key) from error
+            print(f"Object Storage {method} failed with HTTP {error.code}: key={key}", flush=True)
+            raise OSError(f"Object Storage {method} failed with HTTP {error.code}") from error
+        except urlerror.URLError as error:
+            print(f"Object Storage {method} transport failed: key={key}", flush=True)
+            raise OSError(f"Object Storage {method} failed") from error
+
+    def list_keys(self, prefix):
+        keys = []
+        continuation = None
+        while True:
+            parameters = {"list-type": "2", "prefix": prefix}
+            if continuation:
+                parameters["continuation-token"] = continuation
+            query = "?" + urlparse.urlencode(parameters)
+            with self.request("GET", query=query) as response:
+                root = ElementTree.fromstring(response.read())
+            for element in root.iter():
+                if element.tag.rsplit("}", 1)[-1] == "Key" and element.text:
+                    keys.append(element.text)
+            truncated = next(
+                (element.text for element in root.iter() if element.tag.rsplit("}", 1)[-1] == "IsTruncated"),
+                "false",
+            )
+            if str(truncated).lower() != "true":
+                break
+            continuation = next(
+                (
+                    element.text
+                    for element in root.iter()
+                    if element.tag.rsplit("}", 1)[-1] == "NextContinuationToken"
+                ),
+                None,
+            )
+            if not continuation:
+                break
+        return keys
+
+
+class _ObjectPath:
+    def __init__(self, storage, key):
+        self.storage = storage
+        self.key = key.strip("/")
+
+    def __truediv__(self, child):
+        key = "/".join(part for part in (self.key, str(child).strip("/")) if part)
+        return _ObjectPath(self.storage, key)
+
+    @property
+    def name(self):
+        return self.key.rsplit("/", 1)[-1]
+
+    @property
+    def parent(self):
+        return _ObjectPath(self.storage, self.key.rsplit("/", 1)[0] if "/" in self.key else "")
+
+    def resolve(self):
+        return self
+
+    def mkdir(self, parents=False, exist_ok=False):
+        del parents, exist_ok
+
+    def read_text(self, encoding="utf-8"):
+        with self.storage.request("GET", self.key) as response:
+            return response.read().decode(encoding)
+
+    def write_text(self, text, encoding="utf-8"):
+        payload = text.encode(encoding)
+        with self.storage.request("PUT", self.key, payload):
+            return len(payload)
+
+    def exists(self):
+        try:
+            with self.storage.request("HEAD", self.key):
+                return True
+        except FileNotFoundError:
+            return False
+
+    def glob(self, pattern):
+        prefix = self.key + "/" if self.key else ""
+        matches = []
+        for key in self.storage.list_keys(prefix):
+            remainder = key[len(prefix) :]
+            if remainder and "/" not in remainder and fnmatch.fnmatch(remainder, pattern):
+                matches.append(_ObjectPath(self.storage, key))
+        return matches
+
+
+def _context_token(context):
+    if context is None:
+        return ""
+    if isinstance(context, dict):
+        token_info = context.get("token")
+    else:
+        token_info = getattr(context, "token", None)
+    if isinstance(token_info, dict):
+        return str(token_info.get("access_token") or "")
+    access_token = getattr(token_info, "access_token", None)
+    if access_token:
+        return str(access_token)
+    return str(token_info or "")
+
+
+def _state_root(context=None):
+    bucket = os.environ.get("BUCKET_NAME", "").strip()
+    token = _context_token(context)
+    if bucket and token:
+        return _ObjectStorage(bucket, token).path()
     return Path(os.environ.get("RELAY_STATE_DIR", DEFAULT_STATE_DIR)).resolve()
 
 
@@ -54,8 +187,8 @@ def _remote_token():
     return os.environ.get("MCP_TOKEN", "")
 
 
-def _ensure_state():
-    root = _state_root()
+def _ensure_state(context=None):
+    root = _state_root(context)
     for name in ("tasks", "results", "agents"):
         (root / name).mkdir(parents=True, exist_ok=True)
     return root
@@ -382,9 +515,7 @@ def _handle_action(root, event, body):
     return _json_response(200, {"status": "success", "result": result["structuredContent"]})
 
 
-def handler(event, context):
-    del context
-    root = _ensure_state()
+def _handle_request(root, event):
     method = str(event.get("httpMethod") or "POST").upper()
     if method == "GET":
         health = {"status": "ok", "contract_version": CONTRACT}
@@ -407,6 +538,8 @@ def handler(event, context):
         if not _authorized_agent(event):
             return _json_response(401, {"ok": False, "error": "agent authorization failed"})
         action = body.get("agent_action")
+        if action == "health":
+            return _json_response(200, {"ok": True, "project_id": _project_id()})
         if action == "poll":
             return _agent_poll(root, body)
         if action == "result":
@@ -417,3 +550,17 @@ def handler(event, context):
     if "action" in body:
         return _handle_action(root, event, body)
     return _handle_mcp(root, event, body)
+
+
+def handler(event, context):
+    root = _ensure_state(context)
+    try:
+        return _handle_request(root, event)
+    except OSError as error:
+        return _json_response(
+            503,
+            {
+                "status": "error",
+                "error": {"code": "STATE_BACKEND_UNAVAILABLE", "message": str(error)},
+            },
+        )
