@@ -33,7 +33,21 @@ class ReleaseLicenseBundleTests(unittest.TestCase):
         self.assertIn("--fail", script)
         self.assertNotIn("cargo install", script)
 
-    def test_release_bundles_notices_and_does_not_publish_raw_exe(self):
+    def test_shared_assembler_requires_exact_release_contents(self):
+        script = (self.repo / "scripts" / "assemble-release-package.sh").read_text(
+            encoding="utf-8"
+        )
+        for required in (
+            "agent-platform.exe",
+            "agent-platform.cdx.json",
+            "LICENSE",
+            "THIRD_PARTY_LICENSES.html",
+        ):
+            self.assertIn(required, script)
+        self.assertIn("unexpected release ZIP contents", script)
+        self.assertIn("sha256sum -c SHA256SUMS", script)
+
+    def test_release_uses_shared_assembler_and_does_not_publish_raw_exe(self):
         workflow = (self.repo / ".github" / "workflows" / "release.yml").read_text(
             encoding="utf-8"
         )
@@ -42,17 +56,10 @@ class ReleaseLicenseBundleTests(unittest.TestCase):
         self.assertIn("THIRD_PARTY_LICENSES.html", workflow)
         self.assertIn("runtime/release/LICENSE", workflow)
         self.assertIn("bash scripts/generate-third-party-licenses.sh", workflow)
-
-        zip_start = workflow.index('zip -9 "agent-platform-${RELEASE_TAG}-windows-x86_64.zip"')
-        zip_end = workflow.index("sha256sum", zip_start)
-        zip_block = workflow[zip_start:zip_end]
-        for required in (
-            "agent-platform.exe",
-            "agent-platform.cdx.json",
-            "LICENSE",
-            "THIRD_PARTY_LICENSES.html",
-        ):
-            self.assertIn(required, zip_block)
+        self.assertIn(
+            'bash scripts/assemble-release-package.sh "$RELEASE_TAG" runtime/release',
+            workflow,
+        )
 
         release_start = workflow.index('gh release create "$RELEASE_TAG"')
         release_end = workflow.index("--verify-tag", release_start)
@@ -71,6 +78,18 @@ class ReleaseLicenseBundleTests(unittest.TestCase):
         self.assertIn("bash scripts/generate-third-party-licenses.sh", workflow)
         self.assertIn("Third Party Licenses", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
+
+    def test_release_package_e2e_is_non_publishing_and_uses_shared_assembler(self):
+        workflow = (
+            self.repo / ".github" / "workflows" / "release-package-e2e.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("needs: [windows-binary, sbom, licenses]", workflow)
+        self.assertIn("bash scripts/assemble-release-package.sh", workflow)
+        self.assertIn("permissions:\n  contents: read", workflow)
+        self.assertNotIn("contents: write", workflow)
+        self.assertNotIn("id-token: write", workflow)
+        self.assertNotIn("attestations: write", workflow)
+        self.assertNotIn("gh release create", workflow)
 
 
 if __name__ == "__main__":
