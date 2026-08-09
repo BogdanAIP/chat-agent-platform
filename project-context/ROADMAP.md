@@ -86,17 +86,20 @@ Add only if explicit relay lifecycle becomes operationally insufficient. No perm
 ### Stage 10 — CI + supply chain — done baseline
 
 Current baseline:
+- `ci / verify-windows` runs on every pull request and every `main` push;
 - Windows fmt/Clippy/tests/contracts/Python parity/release build;
-- pinned Rust 1.97.1;
-- pinned hosted FFmpeg 9.0.0;
-- scoped heavy Stage 4/19 E2E;
-- caches/path filters;
-- cargo-deny bans/sources;
-- blocking RustSec dependency advisories;
+- pinned Rust 1.97.1 and hosted FFmpeg 9.0.0;
+- all first-party GitHub Actions pinned by immutable commit SHA;
+- every checkout uses `persist-credentials: false`;
+- scoped Stage 4 and real Stage 19 E2E;
+- checksum-pinned cargo-deny 0.20.2 enforcing dependency licenses/bans/sources and RustSec advisories;
+- explicit evidence-driven dependency-license allow-list with no package exceptions;
+- checksum-pinned Gitleaks 8.30.1 full-history scan with full redaction;
 - pinned reproducible CycloneDX SBOM;
+- checksum-pinned cargo-about 0.9.1 Windows third-party license notices;
 - weekly grouped Dependabot.
 
-Branch protection remains a separate manual repository-setting gap.
+Branch protection/ruleset remains a manual repository-setting gate, but the stable always-on checks needed for it now exist.
 
 ## Horizon C — Professional media/audio
 
@@ -153,28 +156,38 @@ No distribution executor is implemented yet. Do not expose side effects until on
 
 ## Horizon E — Operations
 
-### Stage 20 — Operations audit — partial
+### Stage 20 — Operations audit — partial / manual-gated
 
-Technical hardening completed:
-- job execution ownership;
-- immutable workflow inputs;
-- executable capability contracts;
-- runtime-profile drift detection;
+Automated hardening completed:
+- job execution ownership and immutable workflow inputs;
+- executable capability contracts and runtime-profile drift detection;
 - one-shot guarded confirmations;
 - Stage 4 immutable cloud rendezvous/auth separation;
 - duration-aware FFmpeg execution/logging;
-- Rust dependency/advisory policy;
+- public repository under standard MIT License;
+- always-on Windows CI with immutable-SHA Actions and no persisted checkout credentials;
+- direct checksum-pinned dependency/advisory/license policy;
+- green full-history secret scan;
 - reproducible SBOM;
-- CI cost controls;
-- Rust/Python version-source alignment;
-- immutable tag-gated private GitHub Release packaging with Windows binary + SBOM + verified SHA256SUMS.
+- Windows third-party license notices with policy parity;
+- exact-tag version validation;
+- immutable tag-gated GitHub Release workflow;
+- non-publishing Release Package E2E proving real Windows binary + SBOM + project/dependency licenses -> exact ZIP -> SHA256SUMS;
+- GitHub provenance attestation before release publication;
+- raw `.exe` excluded from standalone public Release assets.
 
-Manual/decision gates:
-1. Stage 4 real ChatGPT acceptance;
-2. project license/proprietary decision;
-3. main branch protection/ruleset;
-4. first explicit `v0.2.0` tag/release and inspection of generated assets;
-5. real music corpus if subjective professional reference-mastering quality is claimed.
+Remaining mandatory manual gates:
+1. enable a `main` GitHub branch ruleset requiring PR flow and stable checks `verify-windows` + `gitleaks-history`;
+2. complete real ChatGPT-originated Stage 4 round trip;
+3. create the first explicit `v0.2.0` tag and inspect the real GitHub Release assets/checksums/provenance.
+
+Conditional follow-up (not Stage 20 blockers):
+- real music corpus/human listening before subjective professional-quality claims;
+- support/donation addresses when available;
+- unresolved-artifact operator cleanup if operational demand appears;
+- Job/ConfirmationStore indexing only after measured growth;
+- supervisor/service only if explicit lifecycle becomes insufficient;
+- Python oracle removal after a separate parity/stability gate.
 
 Detailed checklist: `project-context/STAGE20_OPERATIONS.md`.
 
