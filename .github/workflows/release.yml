@@ -29,6 +29,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - id: meta
         name: Validate tag, versions, and main ancestry
         shell: bash
@@ -102,6 +103,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.validate.outputs.tag }}
+          persist-credentials: false
       - name: Install pinned Rust toolchain
         shell: pwsh
         run: |
@@ -140,6 +142,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.validate.outputs.tag }}
+          persist-credentials: false
       - name: Install pinned Rust toolchain
         shell: bash
         run: |
@@ -192,6 +195,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.validate.outputs.tag }}
+          persist-credentials: false
       - name: Install pinned Rust toolchain
         shell: bash
         run: |
