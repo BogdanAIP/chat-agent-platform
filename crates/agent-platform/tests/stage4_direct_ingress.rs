@@ -110,6 +110,7 @@ fn direct_ingress_process_authenticates_and_executes_locally() {
     let token = format!("ingress-test-token-{nonce}");
     let secret_ref = format!("secret://ingress/test-{nonce}");
     let port = free_port();
+    let port_text = port.to_string();
 
     let configure = Command::new(&binary)
         .arg("--repo-root")
@@ -138,7 +139,7 @@ fn direct_ingress_process_authenticates_and_executes_locally() {
             "--project-id",
             PROJECT_ID,
             "--port",
-            &port.to_string(),
+            &port_text,
             "--secret-ref",
             &secret_ref,
         ])
