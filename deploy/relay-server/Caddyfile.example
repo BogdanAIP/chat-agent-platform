@@ -8,9 +8,4 @@ relay.example.com {
         Referrer-Policy no-referrer
         -Server
     }
-
-    log {
-        output file /var/log/caddy/agent-platform-relay-access.log
-        format json
-    }
 }
