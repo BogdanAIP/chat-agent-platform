@@ -1,0 +1,54 @@
+name: License Notices
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - "deny.toml"
+      - "about.toml"
+      - "about.hbs"
+      - "LICENSE"
+      - "scripts/generate-third-party-licenses.sh"
+      - ".github/workflows/license-notices.yml"
+      - ".github/workflows/release.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - "deny.toml"
+      - "about.toml"
+      - "about.hbs"
+      - "LICENSE"
+      - "scripts/generate-third-party-licenses.sh"
+      - ".github/workflows/license-notices.yml"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: license-notices-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate-windows-notices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Generate Windows third-party license notices
+        shell: bash
+        run: |
+          bash scripts/generate-third-party-licenses.sh runtime/release/THIRD_PARTY_LICENSES.html
+          test -s runtime/release/THIRD_PARTY_LICENSES.html
+          grep -q "Third Party Licenses" runtime/release/THIRD_PARTY_LICENSES.html
