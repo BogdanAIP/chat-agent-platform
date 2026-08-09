@@ -1,0 +1,82 @@
+name: CodeQL Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  packages: read
+  actions: read
+
+jobs:
+  analyze:
+    name: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3
+        with:
+          languages: rust,python,actions
+          build-mode: none
+
+      - name: Analyze
+        id: analyze
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3
+        with:
+          output: codeql-results
+          upload-database: false
+
+      - name: Fail closed on CodeQL findings
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path("codeql-results")
+          sarif_files = sorted(root.rglob("*.sarif"))
+          if not sarif_files:
+              raise SystemExit("CodeQL produced no SARIF files; refusing to treat the scan as green")
+
+          findings = []
+          for sarif_path in sarif_files:
+              payload = json.loads(sarif_path.read_text(encoding="utf-8"))
+              for run in payload.get("runs", []):
+                  for result in run.get("results", []) or []:
+                      rule_id = result.get("ruleId", "unknown-rule")
+                      message_obj = result.get("message", {}) or {}
+                      message = message_obj.get("text") or message_obj.get("markdown") or "CodeQL finding"
+                      uri = "unknown-file"
+                      line = "?"
+                      locations = result.get("locations", []) or []
+                      if locations:
+                          physical = (locations[0].get("physicalLocation", {}) or {})
+                          artifact = physical.get("artifactLocation", {}) or {}
+                          region = physical.get("region", {}) or {}
+                          uri = artifact.get("uri") or uri
+                          line = region.get("startLine") or line
+                      findings.append((rule_id, uri, line, " ".join(str(message).split())))
+
+          if findings:
+              print(f"CodeQL findings: {len(findings)}")
+              for rule_id, uri, line, message in findings[:100]:
+                  print(f"- {rule_id} {uri}:{line} — {message}")
+              if len(findings) > 100:
+                  print(f"... {len(findings) - 100} additional findings omitted")
+              sys.exit(1)
+
+          print(f"CodeQL SARIF clean across {len(sarif_files)} file(s)")
+          PY
