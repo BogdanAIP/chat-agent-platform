@@ -24,6 +24,55 @@ permissions:
   contents: read
 
 jobs:
+  normalize-source:
+    if: github.event_name == 'pull_request' && github.head_ref == 'chat/rust-relay-server' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: chat/rust-relay-server
+          persist-credentials: true
+
+      - name: Install pinned Rust formatter
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt
+          rustup default 1.97.1
+
+      - name: Apply compiler fix, format, and resolve lockfile
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('crates/relay-server/src/lib.rs')
+          text = path.read_text(encoding='utf-8')
+          old = 'headers.insert(CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));'
+          new = '''headers.insert(
+                  CONTENT_TYPE_OPTIONS.clone(),
+                  HeaderValue::from_static("nosniff"),
+              );'''
+          if old in text:
+              path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          cargo fmt --all
+          cargo generate-lockfile
+
+      - name: Commit normalized sources when needed
+        shell: bash
+        run: |
+          if git diff --quiet -- Cargo.lock crates/relay-server/src; then
+            echo 'Relay source and lockfile already normalized.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Cargo.lock crates/relay-server/src
+          git commit -m 'Normalize Rust relay sources and lockfile'
+          git push origin HEAD:chat/rust-relay-server
+
   verify-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -38,36 +87,18 @@ jobs:
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
           rustup default 1.97.1
 
-      - name: Resolve workspace lockfile
+      - name: Verify committed lockfile and formatting
         shell: bash
-        run: cargo generate-lockfile
-
-      - name: Upload resolved lockfile for review
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: relay-server-generated-lockfile
-          path: Cargo.lock
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Format relay server sources
-        shell: bash
-        run: cargo fmt --all
-
-      - name: Upload formatted relay server sources
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: relay-server-formatted-sources
-          path: crates/relay-server/src
-          if-no-files-found: error
-          retention-days: 1
+        run: |
+          cargo metadata --locked --format-version 1 >/dev/null
+          cargo fmt --all -- --check
 
       - name: Verify lints, tests, and release build
         shell: bash
         run: |
-          cargo clippy -p relay-server --all-targets -- -D warnings
-          cargo test -p relay-server
-          cargo build -p relay-server --release
+          cargo clippy -p relay-server --all-targets --locked -- -D warnings
+          cargo test -p relay-server --locked
+          cargo build -p relay-server --release --locked
 
       - name: Smoke-test GPT header compatibility and relay round trip
         shell: bash
