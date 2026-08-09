@@ -41,6 +41,9 @@ try {
     Assert-PowerShellSyntax `
         -Path (Join-Path $PSScriptRoot 'deploy-stage4-yandex.ps1') `
         -Label 'Stage 4 Yandex deployment script'
+    Assert-PowerShellSyntax `
+        -Path (Join-Path $PSScriptRoot 'ensure-stage4-gateway-active.ps1') `
+        -Label 'Stage 4 Yandex API Gateway recovery script'
 
     & python -m py_compile (Join-Path $PSScriptRoot 'matchering_adapter.py')
     if ($LASTEXITCODE -ne 0) { throw 'Stage 19 Matchering adapter syntax check failed' }
@@ -60,7 +63,7 @@ try {
     [ordered]@{
         status = 'success'
         rust = 'fmt,clippy,tests'
-        powershell = 'stage12-acceptance-syntax,stage4-yandex-deploy-syntax'
+        powershell = 'stage12-acceptance-syntax,stage4-yandex-deploy-syntax,stage4-gateway-recovery-syntax'
         python_edge = 'stage19-matchering-adapter-syntax'
         python_oracle = if ($SkipPythonOracle) { 'skipped' } else { 'tests,parity' }
         release = if ($SkipRelease) { 'skipped' } else { 'built' }
