@@ -67,27 +67,41 @@ consumer callback.
 CI; новый service/process для Secret Store не допускается без отдельной lifecycle
 потребности.
 
-## ADR-009 — canonical contracts, not a canonical cloud provider
+## ADR-009 — canonical standards/contracts, not a canonical cloud provider
 
 Stage 4 не имеет канонического Yandex/VPS/cloud transport. Каноническими являются
-границы протокола и безопасности, а способ публикации endpoint выбирается при
-развёртывании.
+границы MCP, локальной безопасности и execution contracts, а способ reachability
+выбирается при развёртывании.
 
-Целевой MCP ingress использует стандартный MCP Streamable HTTP и должен опираться
-на официальный Rust SDK `rmcp`, а не расширять самописную реализацию стандарта.
-Доступ к локальному endpoint за NAT должен использовать зрелые reverse-tunnel /
-reverse-proxy решения (например, frp или zrok) там, где они применимы. Платформа
-не реализует собственные NAT traversal, multiplexing, ACME/TLS automation или
-public routing.
+Целевой MCP boundary должен опираться на официальный Rust SDK `rmcp`, а не
+расширять самописную реализацию меняющегося стандарта. Для переносимого UI
+принимается открытый **MCP Apps** standard: общие `ui://` resources и `ui/*`
+bridge являются primary contract; host-specific API (например `window.openai`)
+используются только как feature-detected extensions поверх portable foundation.
+
+Для OpenAI products, когда account/plan/cost policy позволяют, предпочтительным
+private-reachability adapter является официальный **Secure MCP Tunnel**: локальный
+`tunnel-client` инициирует outbound HTTPS, получает MCP work, проксирует его к
+локальному MCP server и возвращает результат. Поэтому проект не должен повторно
+строить OpenAI-specific tunnel поверх Yandex/VPS, если официальный путь доступен.
+Secure MCP Tunnel при этом не становится universal core dependency: он
+OpenAI-specific, требует Platform tunnel identity/runtime credentials и может
+быть недоступен в конкретном ChatGPT plan.
+
+Для других hosts или при недоступности caller-native tunnel используются зрелые
+reverse-tunnel/reverse-proxy решения (например frp/zrok class), а не собственная
+реализация NAT traversal, multiplexing, ACME/TLS automation или public routing.
 
 Существующий `poll/result/offline` transport сохраняется как
-`polling-relay-http-v1` compatibility profile для serverless и других сценариев,
-где прозрачный reverse tunnel недоступен или нежелателен. Его Windows-клиент уже
-provider-neutral: конфигурация содержит только HTTPS `endpoint` и `secret_ref`.
-Rust `relay-server` является reference implementation этого polling-профиля;
-Yandex Function/Object Storage — ещё один проверенный backend implementation.
+`polling-relay-http-v1` compatibility profile для сценариев, где standard/private
+MCP reachability недоступна. Его Windows-клиент уже provider-neutral:
+конфигурация содержит только HTTPS `endpoint` и `secret_ref`. Rust `relay-server`
+является reference/fallback implementation этого polling-профиля; Yandex
+Function/Object Storage — ещё один проверенный backend implementation.
 
-Смена Yandex на VPS, другой cloud/serverless provider или tunnel не должна менять
-локальные capability contracts, policy, artifact/job semantics или исполнители.
-Provider-specific SDK/enum в core запрещён без отдельной доказанной необходимости.
+Смена Yandex на VPS, caller-native tunnel, другой cloud/serverless provider или
+другой MCP host не должна менять локальные capability contracts, policy,
+artifact/job semantics или исполнители. Provider-specific SDK/enum в core
+запрещён без отдельной доказанной необходимости.
+
 Подробная схема и migration rules: `project-context/CONNECTOR_ARCHITECTURE.md`.
