@@ -29,6 +29,10 @@ def remote_headers():
     return {"Authorization": f"Bearer {REMOTE_TOKEN}"}
 
 
+def direct_mcp_headers():
+    return {"X-MCP-Token": REMOTE_TOKEN}
+
+
 class GatewayTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -88,6 +92,21 @@ class GatewayTests(unittest.TestCase):
             None,
         )
         self.assertEqual(unconfigured["statusCode"], 401)
+
+    def test_remote_auth_accepts_x_mcp_token_for_direct_function_ingress(self):
+        request = {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/list",
+            "params": {},
+        }
+        allowed = index.handler(event(request, direct_mcp_headers()), None)
+        self.assertEqual(allowed["statusCode"], 200)
+        names = [item["name"] for item in parsed(allowed)["result"]["tools"]]
+        self.assertEqual(names, ["local_ping", "runtime_self_test"])
+
+        denied = index.handler(event(request, {"X-MCP-Token": "wrong-token"}), None)
+        self.assertEqual(denied["statusCode"], 401)
 
     def test_offline_mcp_tool_fails_without_waiting_for_task_deadline(self):
         started = time.monotonic()
