@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Check dependency bans and sources
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
         with:
@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 10
     continue-on-error: ${{ github.event_name == 'schedule' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Check RustSec advisories
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
         with:
@@ -59,14 +59,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install pinned Rust toolchain
         shell: bash
         run: |
           rustup toolchain install 1.97.1 --profile minimal
           rustup default 1.97.1
       - name: Cache cargo-cyclonedx
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cargo/bin/cargo-cyclonedx
           key: cargo-cyclonedx-0.5.9-${{ runner.os }}-${{ runner.arch }}
@@ -97,7 +97,7 @@ jobs:
           cp "${generated[0]}" runtime/sbom/agent-platform.cdx.json
           python -m json.tool runtime/sbom/agent-platform.cdx.json >/dev/null
       - name: Upload SBOM
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: agent-platform-cyclonedx-sbom
           path: runtime/sbom/agent-platform.cdx.json
