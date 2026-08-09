@@ -1,6 +1,6 @@
 # Roadmap v1.4
 
-Это исполняемый план, а не список обещаний. Source of truth по факту — этот файл + `CURRENT_STATE.md`; operational evidence хранится отдельно.
+Это исполняемый план, а не список обещаний. Source of truth по факту — этот файл + `CURRENT_STATE.md`; operational evidence хранится отдельно. Connector architecture additionally follows `CONNECTOR_ARCHITECTURE.md` and ADR-009.
 
 ## Правила статусов
 
@@ -13,15 +13,13 @@
 
 ## Horizon A — Core
 
-### Stage 0 — Reality baseline + Project Binding — partial
+### Stage 0 — Reality baseline + Project Binding — done
 
-Done:
+Proved:
 - explicit Project Binding;
 - Chat -> GitHub branch/edit/PR/CI/merge path;
-- versioned requirements отдельно от runtime profile.
-
-Open exit gate:
-- окончательный Hosted Chat -> local Windows execution path через Stage 4 private GPT Action.
+- versioned requirements отдельно от runtime profile;
+- real Hosted Chat -> installed plugin/app -> Yandex -> local Windows agent -> response back to ChatGPT on 2026-08-06.
 
 ### Stage 1 — Rust vertical architecture — done
 
@@ -37,62 +35,64 @@ Embedded schemas существуют для tool request/result, artifact, poli
 
 ## Horizon B — Safe execution
 
-### Stage 4 — Hosted Chat -> local transport — partial / live-transport accepted
+### Stage 4 — Hosted Chat -> local connector — done / legacy path accepted
 
-Implemented and proved:
-- permanent Yandex API Gateway endpoint for Chat/GPT Actions traffic;
-- Yandex Cloud Function behind the Gateway as thin relay logic;
-- Function-side MCP JSON-RPC surface for `initialize`, `ping`, `tools/list`, `tools/call`;
-- Object Storage task/result/heartbeat rendezvous;
-- outbound-only Windows long poll;
-- independent agent/remote tokens;
+Original Stage 4 exit gate is complete.
+
+Real evidence:
+- on 2026-08-06 the installed ChatGPT integration `Music Video MCP Yandex Test` successfully executed `local_ping` through the Yandex-hosted gateway and returned a response from local Windows machine `ID182019`, Windows 11, agent `0.2.1`, back to ChatGPT;
+- on 2026-08-09 the current Yandex polling backend separately passed local `local_ping`, `runtime_self_test`, controlled write/read, cleanup and clean relay shutdown;
+- offline behavior was also observed: a later ChatGPT-originated `runtime_self_test` reported `agent_offline` when the local agent was stopped.
+
+Therefore **Hosted Chat -> remote integration -> local Windows execution -> response** is no longer an open Stage 4 gate.
+
+Architecture rule:
+- there is **no canonical cloud provider**;
+- canonical boundaries are standard MCP/relay contracts plus the local Project Binding/policy/execution boundary;
+- Yandex, VPS, container hosting, reverse tunnels and future providers are replaceable deployment choices;
+- local capability code must not branch on provider identity.
+
+Current provider-neutral polling implementation:
+- Windows configuration stores only `endpoint + secret_ref`;
+- any HTTPS endpoint satisfying the polling contract can be configured;
+- outbound-only Windows `poll/result/offline` protocol;
+- independent agent/remote tokens for polling relay deployments;
 - Credential Manager local secret;
-- minimal public health;
-- immutable task/result semantics;
-- lost-ACK response cache;
+- immutable task/result semantics and lost-ACK response cache;
 - explicit start/status/stop, no autostart;
 - exact remote allowlist `local_ping`, `runtime_self_test`;
-- application auth accepts `X-MCP-Token` for a direct-MCP candidate and has regression coverage;
-- real Yandex API Gateway -> Function -> Object Storage -> Windows acceptance passed 2026-08-09:
-  - `local_ping`: local execution proved;
-  - `runtime_self_test`: success;
-  - controlled write/read + cleanup: passed;
-  - relay returned to disabled state.
+- Rust `relay-server` is a provider-neutral polling-relay reference implementation with SQLite short-lived state and bounded retention;
+- Yandex Function/Object Storage is one tested provider-specific backend, not the platform architecture.
 
-Ingress rule:
-- **GPT Actions** -> API Gateway, because the direct Function invocation path removes/consumes the incoming `Authorization` header and cannot carry the GPT Actions Bearer contract to user code;
-- **Codex MCP** -> either the same Gateway/Bearer path or a candidate direct public Function path using `X-MCP-Token`. The direct Codex path is technically supported by the current Function and Codex custom-header configuration, but must not be called preferred/accepted until a real Codex-originated live test passes.
+#### Connector modernization after Stage 4
 
-Exit gate still manual:
+The next connector work is a migration/portability improvement, **not an unfinished Stage 4 exit gate**:
 
 ```text
-ChatGPT-originated runtime_self_test
-  -> private GPT Action
-  -> Yandex API Gateway
-  -> Yandex Cloud Function
-  -> Object Storage rendezvous
-  -> user Windows agent-platform.exe
-  -> local execution
-  -> result back to ChatGPT
+ChatGPT Work / Codex / another MCP caller
+  -> standard public HTTPS /mcp
+  -> official rmcp server
+  -> agent-platform policy + typed local execution
 ```
 
-Until this gate passes, do not expose mastering/REAPER/media/distribution capabilities remotely.
+Rules:
+- use official Rust MCP SDK `rmcp`; do not continue growing the hand-written MCP standards implementation;
+- test the normal public HTTPS `/mcp` path first because current OpenAI plugin docs accept it directly;
+- treat OpenAI Secure MCP Tunnel as an optional private reachability adapter, not a prerequisite;
+- use mature frp/zrok-class tunneling only when normal public HTTPS or caller-native private reachability is unsuitable;
+- keep the already-proved Yandex/GPT Action-compatible path until standard MCP passes the same real acceptance on the user's actual ChatGPT surface.
 
-Optional non-blocking acceptance:
+Remaining portability evidence:
+1. one direct native standard MCP `/mcp` call from the user's real ChatGPT Work/plugin surface;
+2. one real non-Yandex remote -> Windows round trip before claiming provider portability end-to-end.
 
-```text
-Codex MCP
-  -> direct public Yandex Function
-  -> X-MCP-Token
-  -> same Object Storage/Windows relay
-  -> local_ping + runtime_self_test
-```
-
-If that path passes reliably, it may become the preferred Codex ingress after comparison with Codex -> Gateway. It does not change the ChatGPT Stage 4 exit rule.
+These are migration/deprecation gates. They do not reopen Stage 4.
 
 ### Stage 5 — MCP aggregation — conditional
 
 Do not add ToolHive/1MCP/n8n-style aggregation unless direct/native surface produces a measured governance/context/isolation problem.
+
+Using the official MCP SDK for the platform's own standard MCP endpoint is **not** MCP aggregation. Third-party stdio/SSE/HTTP bridges may use mature MCP proxy tools only when a concrete compatibility requirement appears.
 
 ### Stage 6 — Tool Manifest + selection + hardened PEP — done
 
@@ -108,7 +108,7 @@ SHA-256 identity, pending lifecycle, atomic publish, per-artifact locks, conserv
 
 ### Stage 9 — Supervisor/service — conditional
 
-Add only if explicit relay lifecycle becomes operationally insufficient. No permanent service just for convenience.
+Add only if explicit connector lifecycle becomes operationally insufficient. No permanent service just for convenience. A third-party tunnel process is an edge deployment component and must not become a second orchestration core.
 
 ### Stage 10 — CI + supply chain — done baseline
 
@@ -119,11 +119,11 @@ Current baseline:
 - all first-party GitHub Actions pinned by immutable commit SHA;
 - every checkout uses `persist-credentials: false`;
 - scoped Stage 4 and real Stage 19 E2E;
-- checksum-pinned cargo-deny 0.20.2 enforcing dependency licenses/bans/sources and RustSec advisories;
+- checksum-pinned cargo-deny enforcing dependency licenses/bans/sources and RustSec advisories;
 - explicit evidence-driven dependency-license allow-list with no package exceptions;
-- checksum-pinned Gitleaks 8.30.1 full-history scan with full redaction;
+- checksum-pinned Gitleaks full-history scan with full redaction;
 - pinned reproducible CycloneDX SBOM;
-- checksum-pinned cargo-about 0.9.1 Windows third-party license notices;
+- checksum-pinned cargo-about Windows third-party license notices;
 - weekly grouped Dependabot;
 - active `main-protection` repository ruleset requiring PR flow, strict up-to-date `verify-windows` + `gitleaks-history`, linear history, and blocking deletion/force-push with no bypass actors.
 
@@ -182,15 +182,17 @@ No distribution executor is implemented yet. Do not expose side effects until on
 
 ## Horizon E — Operations
 
-### Stage 20 — Operations audit — partial / manual-gated
+### Stage 20 — Operations audit — partial / release-gated
 
 Automated/hardened baseline completed:
 - job execution ownership and immutable workflow inputs;
 - executable capability contracts and runtime-profile drift detection;
 - one-shot guarded confirmations;
-- Stage 4 Gateway + Function + Object Storage auth/rendezvous separation for ChatGPT;
-- direct Function + `X-MCP-Token` Codex candidate preserved separately rather than incorrectly banning direct invocation;
-- real Yandex->Windows Stage 4 transport acceptance;
+- provider-neutral local polling transport (`endpoint + secret_ref`);
+- provider-neutral Rust polling relay reference implementation;
+- real ChatGPT -> plugin -> Yandex -> Windows -> ChatGPT acceptance recorded;
+- real Yandex->Windows polling-backend acceptance retained as backend evidence;
+- explicit connector architecture preventing Yandex/VPS/cloud-provider identity from becoming a core contract;
 - duration-aware FFmpeg execution/logging;
 - public repository under standard MIT License;
 - always-on Windows CI with immutable-SHA Actions and no persisted checkout credentials;
@@ -205,12 +207,18 @@ Automated/hardened baseline completed:
 - GitHub provenance attestation before release publication;
 - raw `.exe` excluded from standalone public Release assets.
 
-Remaining mandatory manual gates:
-1. complete real ChatGPT-originated Stage 4 round trip through the private GPT Action;
-2. create the first explicit `v0.2.0` tag and inspect the real GitHub Release assets/checksums/provenance.
+Remaining mandatory manual gate:
+1. create the first explicit `v0.2.0` tag and inspect the real GitHub Release assets/checksums/provenance.
 
-Conditional follow-up (not Stage 20 blockers):
-- live-test direct Codex MCP -> Function + `X-MCP-Token` and compare with Codex -> Gateway;
+Connector modernization before deprecating Yandex compatibility:
+- implement standard local MCP Streamable HTTP using official `rmcp`;
+- test public HTTPS `/mcp` from the user's real ChatGPT Work/plugin surface;
+- prove one non-Yandex remote -> Windows path;
+- only then decide whether the legacy polling/GPT Action/Yandex deployment can be retired.
+
+Conditional follow-up:
+- Secure MCP Tunnel as an optional OpenAI-private profile when useful and actually available;
+- frp/zrok/other mature tunnel profiles only when deployment requirements warrant them;
 - real music corpus/human listening before subjective professional-quality claims;
 - support/donation addresses when available;
 - unresolved-artifact operator cleanup if operational demand appears;
@@ -232,3 +240,4 @@ Detailed checklist: `project-context/STAGE20_OPERATIONS.md`.
 8. New dependency/process/service has a measured reason and replacement/removal plan.
 9. Runtime profile/evidence does not replace versioned requirements.
 10. Documentation is updated in the same development cycle.
+11. Network/cloud provider identity must not enter the local capability contract without a separately proven provider-specific requirement.

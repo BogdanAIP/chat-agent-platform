@@ -66,3 +66,53 @@ consumer callback.
 компилятором. До замены зависимости фиксируются `Cargo.lock` и проверяются Windows
 CI; новый service/process для Secret Store не допускается без отдельной lifecycle
 потребности.
+
+## ADR-009 — canonical standards/contracts, not a canonical cloud provider
+
+Stage 4 не имеет канонического Yandex/VPS/cloud transport. Каноническими являются
+границы MCP, локальной безопасности и execution contracts, а способ reachability
+выбирается при развёртывании.
+
+Целевой MCP boundary должен опираться на официальный Rust SDK `rmcp`, а не
+расширять самописную реализацию меняющегося стандарта. Для переносимого UI
+принимается открытый **MCP Apps** standard: общие `ui://` resources и `ui/*`
+bridge являются primary contract; host-specific API используются только как
+feature-detected extensions поверх portable foundation.
+
+Для remote MCP первым проверяется самый простой переносимый вариант — обычный
+public HTTPS Streamable HTTP endpoint (`/mcp`). Current OpenAI plugin development
+flow принимает такой endpoint напрямую, поэтому Secure MCP Tunnel не является
+обязательной частью OpenAI integration.
+
+Официальный **OpenAI Secure MCP Tunnel** принимается как optional
+private-reachability adapter: локальный `tunnel-client` инициирует outbound HTTPS,
+получает MCP work, проксирует его к локальному MCP server и возвращает результат.
+Он применяется, когда private reachability действительно полезна и account /
+Platform access её поддерживает. Tunnel остаётся OpenAI-specific edge component,
+требует Platform tunnel identity/runtime credentials и не должен считаться частью
+ChatGPT subscription или universal core.
+
+Для других hosts или когда public HTTPS/private caller-native path неудобен,
+используются зрелые reverse-tunnel/reverse-proxy решения (например frp/zrok
+class), а не собственная реализация NAT traversal, multiplexing, ACME/TLS
+automation или public routing.
+
+Существующий `poll/result/offline` transport сохраняется как
+`polling-relay-http-v1` compatibility profile для сценариев, где standard MCP
+reachability недоступна. Его Windows-клиент уже provider-neutral: конфигурация
+содержит только HTTPS `endpoint` и `secret_ref`. Rust `relay-server` является
+reference/fallback implementation этого polling-профиля; Yandex Function/Object
+Storage — ещё один проверенный backend implementation.
+
+Historical acceptance нельзя терять: 2026-08-06 установленный ChatGPT integration
+`Music Video MCP Yandex Test` успешно выполнил `local_ping` на реальном Windows
+agent и вернул результат обратно в ChatGPT. Поэтому Hosted Chat round trip уже
+доказан; отдельный native `/mcp` test является migration/portability gate, а не
+повторным Stage 4 exit gate.
+
+Смена Yandex на VPS, caller-native tunnel, другой cloud/serverless provider или
+другой MCP host не должна менять локальные capability contracts, policy,
+artifact/job semantics или исполнители. Provider-specific SDK/enum в core
+запрещён без отдельной доказанной необходимости.
+
+Подробная схема и migration rules: `project-context/CONNECTOR_ARCHITECTURE.md`.
