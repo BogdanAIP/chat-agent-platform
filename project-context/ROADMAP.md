@@ -97,9 +97,8 @@ Current baseline:
 - checksum-pinned Gitleaks 8.30.1 full-history scan with full redaction;
 - pinned reproducible CycloneDX SBOM;
 - checksum-pinned cargo-about 0.9.1 Windows third-party license notices;
-- weekly grouped Dependabot.
-
-Branch protection/ruleset remains a manual repository-setting gate, but the stable always-on checks needed for it now exist.
+- weekly grouped Dependabot;
+- active `main-protection` repository ruleset requiring PR flow, strict up-to-date `verify-windows` + `gitleaks-history`, linear history, and blocking deletion/force-push with no bypass actors.
 
 ## Horizon C — Professional media/audio
 
@@ -166,6 +165,7 @@ Automated hardening completed:
 - duration-aware FFmpeg execution/logging;
 - public repository under standard MIT License;
 - always-on Windows CI with immutable-SHA Actions and no persisted checkout credentials;
+- active `main-protection` ruleset with no bypass actors;
 - direct checksum-pinned dependency/advisory/license policy;
 - green full-history secret scan;
 - reproducible SBOM;
@@ -177,9 +177,8 @@ Automated hardening completed:
 - raw `.exe` excluded from standalone public Release assets.
 
 Remaining mandatory manual gates:
-1. enable a `main` GitHub branch ruleset requiring PR flow and stable checks `verify-windows` + `gitleaks-history`;
-2. complete real ChatGPT-originated Stage 4 round trip;
-3. create the first explicit `v0.2.0` tag and inspect the real GitHub Release assets/checksums/provenance.
+1. complete real ChatGPT-originated Stage 4 round trip;
+2. create the first explicit `v0.2.0` tag and inspect the real GitHub Release assets/checksums/provenance.
 
 Conditional follow-up (not Stage 20 blockers):
 - real music corpus/human listening before subjective professional-quality claims;
