@@ -21,7 +21,7 @@ Done:
 - versioned requirements отдельно от runtime profile.
 
 Open exit gate:
-- реальный Hosted Chat -> local Windows execution path через Stage 4.
+- окончательный Hosted Chat -> local Windows execution path через Stage 4 private GPT Action.
 
 ### Stage 1 — Rust vertical architecture — done
 
@@ -37,25 +37,36 @@ Embedded schemas существуют для tool request/result, artifact, poli
 
 ## Horizon B — Safe execution
 
-### Stage 4 — Hosted Chat -> local transport — partial / E2E-ready
+### Stage 4 — Hosted Chat -> local transport — partial / live-transport accepted
 
-Implemented and hosted-CI proven:
-- permanent Yandex Function URL;
+Implemented and proved:
+- permanent Yandex API Gateway endpoint for Chat/GPT Actions traffic;
+- Yandex Cloud Function behind the Gateway as thin relay logic;
+- Object Storage task/result/heartbeat rendezvous;
 - outbound-only Windows long poll;
-- mounted Object Storage rendezvous;
 - independent agent/remote tokens;
 - Credential Manager local secret;
 - minimal public health;
 - immutable task/result semantics;
 - lost-ACK response cache;
 - explicit start/status/stop, no autostart;
-- exact remote allowlist `local_ping`, `runtime_self_test`.
+- exact remote allowlist `local_ping`, `runtime_self_test`;
+- real Yandex API Gateway -> Function -> Object Storage -> Windows acceptance passed 2026-08-09:
+  - `local_ping`: local execution proved;
+  - `runtime_self_test`: success;
+  - controlled write/read + cleanup: passed;
+  - relay returned to disabled state.
+
+Why the Gateway is mandatory: the direct Yandex Function URL consumes `Authorization` for platform invocation and therefore cannot reliably carry the arbitrary GPT Actions Bearer token. API Gateway preserves that public auth contract and invokes the Function internally.
 
 Exit gate still manual:
 
 ```text
 ChatGPT-originated runtime_self_test
-  -> real Yandex Function
+  -> private GPT Action
+  -> Yandex API Gateway
+  -> Yandex Cloud Function
+  -> Object Storage rendezvous
   -> user Windows agent-platform.exe
   -> local execution
   -> result back to ChatGPT
@@ -157,11 +168,12 @@ No distribution executor is implemented yet. Do not expose side effects until on
 
 ### Stage 20 — Operations audit — partial / manual-gated
 
-Automated hardening completed:
+Automated/hardened baseline completed:
 - job execution ownership and immutable workflow inputs;
 - executable capability contracts and runtime-profile drift detection;
 - one-shot guarded confirmations;
-- Stage 4 immutable cloud rendezvous/auth separation;
+- Stage 4 API Gateway + Function + Object Storage auth/rendezvous separation;
+- real Yandex->Windows Stage 4 transport acceptance;
 - duration-aware FFmpeg execution/logging;
 - public repository under standard MIT License;
 - always-on Windows CI with immutable-SHA Actions and no persisted checkout credentials;
@@ -177,7 +189,7 @@ Automated hardening completed:
 - raw `.exe` excluded from standalone public Release assets.
 
 Remaining mandatory manual gates:
-1. complete real ChatGPT-originated Stage 4 round trip;
+1. complete real ChatGPT-originated Stage 4 round trip through the private GPT Action;
 2. create the first explicit `v0.2.0` tag and inspect the real GitHub Release assets/checksums/provenance.
 
 Conditional follow-up (not Stage 20 blockers):
