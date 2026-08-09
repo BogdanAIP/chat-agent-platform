@@ -12,11 +12,11 @@ Repository is **public** and licensed under the standard **MIT License** with no
 
 | Stage | Status | Current evidence |
 | --- | --- | --- |
-| 0 Reality baseline + Binding | partial | Binding/GitHub proven; real Hosted Chat -> Windows round trip still pending |
+| 0 Reality baseline + Binding | partial | Binding/GitHub proven; final Hosted Chat -> Windows call still pending through Stage 4 |
 | 1 Rust vertical core | done | binding -> policy -> artifact -> typed tool -> validated result |
 | 2 Contracts | done | embedded schemas for tool/artifact/policy/confirmation/secret/job/relay |
 | 3 Memory/bootstrap/skills | done | minimal project context + bootstrap path |
-| 4 Hosted transport | partial / E2E-ready | Yandex relay hosted E2E green; final real ChatGPT-originated call pending |
+| 4 Hosted transport | partial / live-transport accepted | real Yandex API Gateway -> Function -> Object Storage -> Windows acceptance passed 2026-08-09; final ChatGPT-originated call pending; direct Codex->Function MCP path is a tested auth candidate awaiting live acceptance |
 | 5 MCP aggregation | conditional | no extra aggregator justified |
 | 6 Capability selection + PEP | done | fail-closed quality/reliability/determinism/path/fallback/cost gates |
 | 7 Secret Store | done | Windows Credential Manager + executor ACL |
@@ -32,7 +32,7 @@ Repository is **public** and licensed under the standard **MIT License** with no
 | 17 Video production | conditional | no concrete scenario selected |
 | 18 Distribution | conditional | confirmation primitive done; external executors intentionally absent |
 | 19 Reference mastering | done | real pinned Matchering engine + technical benchmark |
-| 20 Operations audit | partial / manual-gated | automated hardening + branch ruleset complete; real Stage 4 call and first release remain |
+| 20 Operations audit | partial / manual-gated | automated hardening + branch ruleset + live Yandex->Windows acceptance complete; ChatGPT-originated Stage 4 call and first release remain |
 
 Stages are not a strict linear dependency chain. A later independent capability may be done while an earlier external/manual gate remains partial.
 
@@ -64,7 +64,11 @@ No publishing/distribution executor exists yet, so Stage 18 creates no external 
 ## Stage 4 transport
 
 ```text
-ChatGPT MCP / private GPT Action
+ChatGPT private GPT Action
+        |
+        | Authorization: Bearer <remote-token>
+        v
+Yandex API Gateway
         |
         v
 Yandex Cloud Function
@@ -75,11 +79,31 @@ Object Storage task/result/heartbeat JSON
         | outbound HTTPS long poll
         |
 agent-platform.exe on Windows
+
+Codex MCP (optional parallel ingress)
+        |
+        | Gateway + Bearer
+        | OR direct public Function + X-MCP-Token
+        v
+same relay Function / same Windows agent
 ```
 
-Hosted CI proves: explicit configure/start/status/stop, independent local/remote tokens, Credential Manager storage, exact remote allowlist (`local_ping`, `runtime_self_test`), immutable task/result rendezvous, lost-ACK retry without local re-execution, minimal unauthenticated health and offline lifecycle.
+The API Gateway is required for the **GPT Actions Bearer contract** because Yandex Cloud Functions remove/consume the incoming `Authorization` header before user code. That does **not** make the direct Function URL universally unusable.
 
-The final ChatGPT-originated round trip is still manual. Until it passes, higher-value local capabilities remain unavailable through the remote surface.
+The relay Function implements MCP JSON-RPC and accepts `X-MCP-Token` before Bearer. Codex supports environment-backed custom HTTP headers for Streamable HTTP MCP, so direct Codex -> public Function with `X-MCP-Token` is a deliberate candidate path. Its application-auth branch now has a regression test, but the real Codex-originated network path is not yet marked accepted or preferred until a live test passes.
+
+Already proved:
+
+- hosted CI: explicit configure/start/status/stop, token separation, Credential Manager storage, exact remote allowlist (`local_ping`, `runtime_self_test`), immutable task/result rendezvous, lost-ACK retry and offline lifecycle;
+- real Windows/Yandex acceptance on 2026-08-09 through the public API Gateway endpoint:
+  - `local_ping`: `pong=true`, `executed_locally=true`;
+  - `runtime_self_test`: success;
+  - controlled write/read: passed;
+  - cleanup: passed;
+  - relay returned to disabled state and no background worker remained;
+- the remote token is not written to committed files or acceptance evidence; the local agent token remains in Windows Credential Manager.
+
+The only remaining Stage 4 exit gate is a request **originated by ChatGPT itself** through the private GPT Action. A separate direct Codex live test is useful for optimizing the secondary ingress, but it is not a blocker for the ChatGPT Stage 4 exit rule.
 
 ## Public CI / supply chain
 
@@ -118,11 +142,12 @@ The first actual `v0.2.0` tag/release has intentionally not been created yet, so
 
 ## Manual gates remaining
 
-1. Run the real Stage 4 ChatGPT -> Yandex -> Windows -> ChatGPT acceptance.
+1. Run the real Stage 4 ChatGPT -> API Gateway -> Yandex Function -> Windows -> ChatGPT acceptance.
 2. Deliberately push the first `v0.2.0` tag and verify generated Release assets, checksums and provenance.
 
 ## Conditional/non-blocking follow-up
 
+- live-test optional direct Codex MCP -> public Function + `X-MCP-Token` and compare it with Codex -> Gateway before choosing a preferred Codex ingress;
 - real licensed/owned music corpus + human listening acceptance before subjective professional-quality claims;
 - support/donation addresses when available;
 - ArtifactStore unresolved-orphan operator cleanup when operational demand appears;

@@ -7,27 +7,21 @@ Chat-centric платформа с **Rust-first локальным execution cor
 ## Архитектура
 
 ```text
-Chat / Codex
-    |
-    | GitHub context + optional thin remote call
-    v
-explicit Project Binding
-    |
-    v
-agent-platform.exe (Rust)
-    |-- strict capability requirements + locked executor
-    |-- Policy Enforcement Point + one-shot guarded confirmation
-    |-- Artifact Store + immutable input snapshots
-    |-- persistent jobs + exclusive physical execution lock
-    |-- Windows Credential Manager Secret Store
-    |-- typed adapters
-    |     |-- FFmpeg / FFprobe
-    |     |-- REAPER via limited Lua/ReaScript
-    |     `-- Matchering 2.0.6 as replaceable Python edge process
-    `-- outbound-only Yandex relay (Stage 4, off by default)
+ChatGPT private GPT Action
+    -> Yandex API Gateway
+    -> Cloud Function
+    -> Object Storage JSON rendezvous
+    <-> outbound HTTPS long poll
+    <-> agent-platform.exe (Rust)
+
+Codex MCP (optional)
+    -> Gateway + Bearer
+    OR
+    -> direct public Function + X-MCP-Token
+    -> same relay / same Windows agent
 ```
 
-Yandex не содержит media/business logic и не хранит media-файлы. Cloud Function + Object Storage используются только как небольшой JSON rendezvous для Hosted Chat -> Windows. Высокоценные локальные capabilities через этот transport пока не экспортируются.
+Yandex не содержит media/business logic и не хранит media-файлы. API Gateway нужен именно для GPT Actions Bearer auth: Yandex Cloud Functions удаляют входящий `Authorization` до пользовательского кода. Это не означает, что прямой Function URL бесполезен вообще. Для Codex текущая Function уже поддерживает MCP JSON-RPC и `X-MCP-Token`, поэтому direct Codex -> Function рассматривается как отдельный оптимизированный ingress-кандидат и будет принят только после реального Codex-originated теста.
 
 ## Реализовано
 
@@ -44,17 +38,28 @@ Yandex не содержит media/business logic и не хранит media-ф�
 - typed FFmpeg media operations, EBU R128 analysis/normalization, duration-aware timeouts;
 - REAPER render adapter и реальный пользовательский Stage 12 acceptance;
 - technical mastering + reference mastering через pinned Matchering 2.0.6;
-- outbound-only Yandex long-poll relay с независимыми local/remote tokens, minimal public health и hosted Windows E2E;
-- Windows CI, pinned Rust/FFmpeg, RustSec/cargo-deny policy, CycloneDX SBOM и Dependabot.
+- outbound-only Yandex relay с независимыми local/remote tokens, minimal public health и hosted Windows E2E;
+- реальный Yandex API Gateway -> Function -> Object Storage -> Windows Stage 4 transport acceptance от 2026-08-09;
+- application-auth regression test для `X-MCP-Token` direct Function candidate;
+- Windows CI, pinned Rust/FFmpeg, RustSec/cargo-deny policy, CycloneDX SBOM, full-history secret scan, third-party license notices и Dependabot;
+- активный `main-protection` ruleset с обязательными `verify-windows` + `gitleaks-history`.
 
 ## Текущая граница Stage 4
 
-Hosted CI доказывает relay lifecycle, Credential Manager, local allowlist, lost-ACK retry, `local_ping`, `runtime_self_test`, gateway auth и immutable Object Storage rendezvous. **Последний реальный ChatGPT -> Yandex -> Windows -> ChatGPT round trip отложен вручную**, поэтому Stage 4 остаётся `partial / E2E-ready`.
+Реальная cloud-to-local цепочка уже доказана:
 
-До этого испытания через remote surface разрешены только:
+- `local_ping`: `pong=true`, `executed_locally=true`;
+- `runtime_self_test`: success;
+- controlled write/read и cleanup: passed;
+- relay после acceptance штатно выключен;
+- фоновых worker-процессов не осталось.
+
+**Остался только финальный ChatGPT-originated call через private GPT Action.** Пока именно этот вызов не пройден, Stage 4 остаётся `partial / live-transport accepted`, а через remote surface разрешены только:
 
 - `local_ping`;
 - `runtime_self_test`.
+
+Отдельно, как необязательная оптимизация, будет проверен `Codex MCP -> direct Function + X-MCP-Token`. Его успех или неуспех не меняет критерий закрытия ChatGPT Stage 4.
 
 ## Быстрый локальный старт
 
@@ -72,10 +77,14 @@ powershell -File scripts\verify.ps1
 Relay после одноразовой настройки всегда остаётся выключенным, пока его явно не запустили:
 
 ```powershell
-agent-platform relay start
-agent-platform relay status
-agent-platform relay stop
+agent-platform relay start --project-id chat-agent-platform
+agent-platform relay status --project-id chat-agent-platform
+agent-platform relay stop --project-id chat-agent-platform
 ```
+
+Инструкция по private GPT Action: `project-context/STAGE4_CHATGPT_ACTIONS_SETUP.md`.
+
+План отдельной проверки direct Codex MCP: `project-context/STAGE4_CODEX_DIRECT_MCP_ACCEPTANCE.md`.
 
 ## Помочь проекту / Support the Project
 

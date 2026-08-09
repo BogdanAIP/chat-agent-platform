@@ -2,7 +2,7 @@
 
 Актуальные незакрытые ограничения. Закрытые исторические проблемы сюда не возвращать.
 
-1. **Stage 4 final acceptance ещё не выполнен.** Hosted Windows CI доказывает relay/gateway/auth/lifecycle, но реальный ChatGPT -> Yandex -> Windows -> ChatGPT `runtime_self_test` ещё не выполнен. До него remote surface ограничен `local_ping` и `runtime_self_test`.
+1. **Stage 4 final ChatGPT-originated acceptance ещё не выполнен.** Реальный Yandex API Gateway -> Cloud Function -> Object Storage -> Windows acceptance уже успешно пройден 2026-08-09 (`local_ping`, `runtime_self_test`, controlled write/read, cleanup, relay shutdown). Остался только запрос, инициированный самим ChatGPT через private GPT Action. До него remote surface ограничен `local_ping` и `runtime_self_test`.
 2. **Первый versioned release/tag ещё не выпускался.** Package E2E доказал Windows binary + SBOM + MIT LICENSE + third-party notices -> ZIP -> SHA256SUMS, а release workflow содержит provenance attestation и immutable publish, но реальный `v0.2.0` tag-triggered publish ещё не проверен.
 3. **Stage 18 adapters не реализованы.** Guarded one-shot confirmation primitive есть, но ни один внешний publishing/distribution executor пока не имеет права выполнять side effect.
 4. **Python behavioral oracle всё ещё присутствует.** Он полезен для parity, но удваивает часть maintenance surface. Removal gate не пройден.

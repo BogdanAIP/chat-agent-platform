@@ -1,6 +1,6 @@
 # Stage 20 — Operations audit
 
-Статус: **partial / manual-gated**. Автоматический technical/release hardening текущего core завершён. Репозиторий дополнительно защищён активным ruleset для `main`. Остались только два внешних acceptance gate: реальный ChatGPT-originated Stage 4 round trip и первый настоящий `v0.2.0` release.
+Статус: **partial / manual-gated**. Автоматический technical/release hardening текущего core завершён. Репозиторий защищён активным ruleset для `main`. Реальный Yandex API Gateway -> Cloud Function -> Object Storage -> Windows transport acceptance также пройден. Остались только два внешних acceptance gate: запрос, инициированный самим ChatGPT через private GPT Action, и первый настоящий `v0.2.0` release.
 
 ## Автоматически доказано
 
@@ -41,6 +41,18 @@
 
 ### Remote transport
 
+Текущая реальная цепочка:
+
+```text
+ChatGPT / private GPT Action
+  -> Yandex API Gateway
+  -> Yandex Cloud Function
+  -> Object Storage task/result/heartbeat JSON
+  <-> outbound HTTPS long poll
+  <-> agent-platform.exe on Windows
+```
+
+- API Gateway является обязательной границей для GPT Actions Bearer auth: direct Function URL использует `Authorization` для platform invocation и не подходит для произвольного remote bearer;
 - Yandex relay off by default и не требует inbound Windows port;
 - local agent token и remote bearer независимы;
 - local token хранится в Windows Credential Manager;
@@ -48,7 +60,14 @@
 - cloud хранит только task/result/heartbeat JSON, без media/business logic;
 - immutable task/result rendezvous не полагается на Python instance concurrency;
 - hosted Windows E2E доказывает configure/start/retry/self-test/stop/offline lifecycle;
-- окончательный ChatGPT-originated round trip намеренно остаётся отдельным manual acceptance.
+- **реальный transport acceptance пройден 2026-08-09** через публичный API Gateway:
+  - `local_ping`: `pong=true`, `executed_locally=true`;
+  - `runtime_self_test`: success;
+  - controlled write/read: passed;
+  - cleanup: passed;
+  - relay штатно выключен, фоновых процессов не осталось;
+- acceptance evidence хранится локально в `runtime/stage4-yandex-acceptance.json`; remote bearer в него не записывается;
+- окончательный ChatGPT-originated round trip остаётся отдельным manual acceptance, потому что только он доказывает реальный GPT Action caller path.
 
 ### Public CI / trusted workflow surface
 
@@ -63,7 +82,7 @@
 
 ### Main branch governance
 
-Активный repository ruleset `main-protection` применён к default branch и проверен через GitHub API:
+Активный repository ruleset `main-protection` применён к default branch и проверен через GitHub API и реальный PR cycle:
 
 - enforcement: `active`;
 - bypass actors: none; current user cannot bypass;
@@ -118,7 +137,7 @@ Raw `agent-platform.exe` не публикуется как отдельный G
 
 ## Остающиеся обязательные manual gates
 
-1. **Stage 4 real ChatGPT acceptance** — один реальный ChatGPT-originated `runtime_self_test` через Yandex и пользовательский Windows agent.
+1. **Stage 4 real ChatGPT acceptance** — один реальный ChatGPT-originated `runtime_self_test` через private GPT Action -> Yandex API Gateway -> Function -> пользовательский Windows agent -> результат обратно в ChatGPT.
 2. **First release tag** — осознанно создать `v0.2.0` и проверить реальные GitHub Release assets, `SHA256SUMS` и provenance attestation.
 
 ## Conditional / non-blocking follow-up
