@@ -206,27 +206,21 @@ async fn handle_action(
             json!({"status": "error", "error": {"code": "UNAUTHORIZED", "message": "caller authentication failed", "retryable": false, "safe_to_retry": false}}),
         );
     }
-    let Json(request) = match payload {
-        Ok(value) => value,
-        Err(_) => {
-            return json_response(
-                StatusCode::BAD_REQUEST,
-                json!({"status": "error", "error": {"code": "VALIDATION_FAILED", "message": "request body must match the local action schema", "retryable": false, "safe_to_retry": false}}),
-            );
-        }
+    let Ok(Json(request)) = payload else {
+        return json_response(
+            StatusCode::BAD_REQUEST,
+            json!({"status": "error", "error": {"code": "VALIDATION_FAILED", "message": "request body must match the local action schema", "retryable": false, "safe_to_retry": false}}),
+        );
     };
     let (operation, parameters) = match action_parameters(request) {
         Ok(value) => value,
         Err(error) => return platform_error_response(StatusCode::OK, &error),
     };
-    let permit = match Arc::clone(&state.in_flight).try_acquire_owned() {
-        Ok(value) => value,
-        Err(_) => {
-            return json_response(
-                StatusCode::TOO_MANY_REQUESTS,
-                json!({"status": "error", "error": {"code": "BUSY", "message": "local ingress concurrency limit reached", "retryable": true, "safe_to_retry": true}}),
-            );
-        }
+    let Ok(permit) = Arc::clone(&state.in_flight).try_acquire_owned() else {
+        return json_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            json!({"status": "error", "error": {"code": "BUSY", "message": "local ingress concurrency limit reached", "retryable": true, "safe_to_retry": true}}),
+        );
     };
     let repo_root = state.repo_root.clone();
     let project_id = state.project_id.clone();
