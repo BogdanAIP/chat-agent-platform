@@ -22,7 +22,7 @@ Repository is **public** and licensed under the standard **MIT License** with no
 | 7 Secret Store | done | Windows Credential Manager + executor ACL |
 | 8 Artifact hardening/staging | done | immutable SHA-verified inputs, recovery, controlled staging |
 | 9 Supervisor/service | conditional | current explicit relay lifecycle is sufficient |
-| 10 CI + supply chain | done baseline | always-on Windows CI, active main ruleset, SHA-pinned Actions, secret/license/advisory/SBOM gates |
+| 10 CI + supply chain | done baseline | always-on Windows CI, active main ruleset, SHA-pinned Actions, secret/license/advisory/SBOM/CodeQL gates |
 | 11 FFmpeg adapter | done | typed operations, EBU QC, duration-aware timeouts |
 | 12 REAPER adapter | done | real user Windows acceptance passed 2026-08-08 |
 | 13 Mastering analysis | done | profile-aware technical decision/safe-auto gate |
@@ -112,14 +112,17 @@ Current enforced baseline:
 - `ci / verify-windows` runs on every PR and every `main` push;
 - active repository ruleset `main-protection` targets the default branch, requires PR-based merging, strict up-to-date checks `verify-windows` + `gitleaks-history`, linear history, and blocks deletion/force-push with no bypass actors;
 - every `actions/checkout` reference is immutable-SHA pinned and uses `persist-credentials: false`;
-- all first-party GitHub Actions are immutable-SHA pinned by repository-wide regression test;
+- all GitHub-owned Actions under `actions/*` and `github/*` are immutable-SHA pinned by repository-wide regression test;
 - Rust 1.97.1 and hosted FFmpeg 9.0.0 are pinned;
 - checksum-pinned cargo-deny 0.20.2 enforces dependency licenses, bans, sources and RustSec advisories;
 - dependency license allow-list is explicit and evidence-driven with no package-level license exceptions;
 - checksum-pinned Gitleaks 8.30.1 scans complete reachable git history with full redaction; the first public-history scan was green;
+- CodeQL v4 scans Rust, Python and GitHub Actions on PR/main/schedule; SARIF is checked fail-closed inside the job, and the first real scan completed with zero findings;
+- CodeQL is intentionally not yet a required `main-protection` status check after only one observed clean run;
 - reproducible CycloneDX SBOM is generated with pinned cargo-cyclonedx 0.5.9;
 - checksum-pinned cargo-about 0.9.1 generates Windows third-party notices; notice policy must equal cargo-deny license policy;
-- weekly grouped Dependabot updates remain enabled.
+- weekly grouped Dependabot updates remain enabled;
+- `SECURITY.md` defines public vulnerability-reporting and secret-handling rules without inventing an external contact or response SLA.
 
 ## Release path
 
