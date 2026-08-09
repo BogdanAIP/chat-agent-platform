@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "__GATEWAY_URL__"
+      "url": "__FUNCTION_URL__"
     }
   ],
   "paths": {
-    "/gpt": {
+    "/": {
       "post": {
         "operationId": "runLocalAgentTool",
         "summary": "Run an allowlisted local agent operation",
@@ -28,16 +28,11 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "action"
-                ],
+                "required": ["action"],
                 "properties": {
                   "action": {
                     "type": "string",
-                    "enum": [
-                      "local_ping",
-                      "runtime_self_test"
-                    ]
+                    "enum": ["local_ping", "runtime_self_test"]
                   },
                   "message": {
                     "type": "string",
@@ -57,25 +52,11 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": true,
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "success",
-                        "error"
-                      ]
-                    },
-                    "result": {
-                      "type": "object",
-                      "additionalProperties": true
-                    },
-                    "error": {
-                      "type": "object",
-                      "additionalProperties": true
-                    }
+                    "status": {"type": "string", "enum": ["success", "error"]},
+                    "result": {"type": "object", "additionalProperties": true},
+                    "error": {"type": "object", "additionalProperties": true}
                   }
                 }
               }
