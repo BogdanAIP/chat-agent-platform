@@ -34,12 +34,33 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Install checksum-pinned cargo-deny
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="0.20.2"
+          archive="cargo-deny-${version}-x86_64-unknown-linux-musl.tar.gz"
+          expected_sha256="9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f"
+          url="https://github.com/EmbarkStudios/cargo-deny/releases/download/${version}/${archive}"
+          curl --fail --location --proto '=https' --tlsv1.2 --output "$RUNNER_TEMP/$archive" "$url"
+          echo "$expected_sha256  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/cargo-deny"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/cargo-deny" --strip-components=1
+          chmod +x "$RUNNER_TEMP/cargo-deny/cargo-deny"
+          "$RUNNER_TEMP/cargo-deny/cargo-deny" --version
       - name: Check dependency licenses, bans, and sources
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
-        with:
-          rust-version: "1.97.1"
-          command: check licenses bans sources
-          arguments: --all-features
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/cargo-deny/cargo-deny" \
+            --log-level warn \
+            --manifest-path ./Cargo.toml \
+            --all-features \
+            check licenses bans sources
 
   advisories:
     runs-on: ubuntu-latest
@@ -47,12 +68,33 @@ jobs:
     continue-on-error: ${{ github.event_name == 'schedule' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Install checksum-pinned cargo-deny
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="0.20.2"
+          archive="cargo-deny-${version}-x86_64-unknown-linux-musl.tar.gz"
+          expected_sha256="9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f"
+          url="https://github.com/EmbarkStudios/cargo-deny/releases/download/${version}/${archive}"
+          curl --fail --location --proto '=https' --tlsv1.2 --output "$RUNNER_TEMP/$archive" "$url"
+          echo "$expected_sha256  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/cargo-deny"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/cargo-deny" --strip-components=1
+          chmod +x "$RUNNER_TEMP/cargo-deny/cargo-deny"
+          "$RUNNER_TEMP/cargo-deny/cargo-deny" --version
       - name: Check RustSec advisories
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
-        with:
-          rust-version: "1.97.1"
-          command: check advisories
-          arguments: --all-features
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/cargo-deny/cargo-deny" \
+            --log-level warn \
+            --manifest-path ./Cargo.toml \
+            --all-features \
+            check advisories
 
   sbom:
     if: github.event_name != 'schedule'
