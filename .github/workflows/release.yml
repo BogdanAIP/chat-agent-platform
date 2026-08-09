@@ -184,8 +184,37 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  licenses:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Generate third-party license bundle
+        shell: bash
+        run: |
+          bash scripts/generate-third-party-licenses.sh runtime/release/THIRD_PARTY_LICENSES.html
+          cp LICENSE runtime/release/LICENSE
+          test -s runtime/release/LICENSE
+          test -s runtime/release/THIRD_PARTY_LICENSES.html
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-licenses
+          path: |
+            runtime/release/LICENSE
+            runtime/release/THIRD_PARTY_LICENSES.html
+          if-no-files-found: error
+          retention-days: 30
+
   publish:
-    needs: [validate, windows-binary, sbom]
+    needs: [validate, windows-binary, sbom, licenses]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -201,6 +230,10 @@ jobs:
         with:
           name: release-sbom
           path: runtime/release
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-licenses
+          path: runtime/release
       - name: Assemble archive and checksums
         shell: bash
         env:
@@ -210,8 +243,20 @@ jobs:
           cd runtime/release
           test -s agent-platform.exe
           test -s agent-platform.cdx.json
-          zip -9 "agent-platform-${RELEASE_TAG}-windows-x86_64.zip" agent-platform.exe agent-platform.cdx.json
-          sha256sum agent-platform.exe agent-platform.cdx.json "agent-platform-${RELEASE_TAG}-windows-x86_64.zip" > SHA256SUMS
+          test -s LICENSE
+          test -s THIRD_PARTY_LICENSES.html
+          zip -9 "agent-platform-${RELEASE_TAG}-windows-x86_64.zip" \
+            agent-platform.exe \
+            agent-platform.cdx.json \
+            LICENSE \
+            THIRD_PARTY_LICENSES.html
+          sha256sum \
+            agent-platform.exe \
+            agent-platform.cdx.json \
+            LICENSE \
+            THIRD_PARTY_LICENSES.html \
+            "agent-platform-${RELEASE_TAG}-windows-x86_64.zip" \
+            > SHA256SUMS
           sha256sum -c SHA256SUMS
       - name: Attest release artifact provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
@@ -230,9 +275,10 @@ jobs:
             exit 1
           fi
           gh release create "$RELEASE_TAG" \
-            runtime/release/agent-platform.exe \
-            runtime/release/agent-platform.cdx.json \
             "runtime/release/agent-platform-${RELEASE_TAG}-windows-x86_64.zip" \
+            runtime/release/agent-platform.cdx.json \
+            runtime/release/LICENSE \
+            runtime/release/THIRD_PARTY_LICENSES.html \
             runtime/release/SHA256SUMS \
             --verify-tag \
             --generate-notes \
