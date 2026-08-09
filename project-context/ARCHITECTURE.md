@@ -9,13 +9,13 @@ Chat является primary intelligence. Один локальный Rust bin
 ```text
 ChatGPT / Codex / Claude / another MCP-capable caller
         |
-        | standard MCP 2026-07-28
+        | standard MCP
         | + optional MCP Apps UI
         v
 replaceable reachability layer
         |
-        | caller-native private MCP tunnel
-        | OR direct/reverse-proxied HTTPS MCP
+        | public HTTPS MCP
+        | OR caller-native private MCP tunnel
         | OR generic mature reverse tunnel
         | OR polling-relay compatibility backend
         v
@@ -28,7 +28,7 @@ agent-platform.exe
 Project Binding -> policy -> typed capability -> local executor
 ```
 
-Examples of replaceable reachability choices include OpenAI Secure MCP Tunnel where available, an own VPS/reverse proxy, a managed container host, frp/zrok-class reverse tunnels, the Rust `relay-server`, and the existing Yandex backend. None of them defines the platform contract.
+Examples of replaceable reachability choices include an ordinary public HTTPS endpoint, OpenAI Secure MCP Tunnel when private reachability is useful and available, an own VPS/reverse proxy, a managed container host, frp/zrok-class reverse tunnels, the Rust `relay-server`, and the existing Yandex backend. None of them defines the platform contract.
 
 GitHub остаётся source/project-context каналом для Chat/Codex и не заменяет runtime transport.
 
@@ -78,9 +78,9 @@ Changing artifact hash/destination/parameters invalidates the confirmation. Repl
 
 ### Standard MCP boundary
 
-For MCP-capable callers the target interface is standard MCP. MCP protocol details are an external standard, not project business logic. The target Rust implementation should therefore use the official `rmcp` SDK and keep project-specific authorization/tool dispatch behind that adapter.
+For MCP-capable callers the target interface is standard MCP. MCP protocol details are an external standard, not project business logic. The target Rust implementation should use the official `rmcp` SDK and keep project-specific authorization/tool dispatch behind that adapter.
 
-The MCP `2026-07-28` architecture is intentionally friendly to ordinary HTTP infrastructure and first-class extensions. Hosting choice must not leak into capability names, Project Binding, policy, jobs or artifacts.
+Hosting choice must not leak into capability names, Project Binding, policy, jobs or artifacts.
 
 ### Portable UI: MCP Apps
 
@@ -91,34 +91,37 @@ typed MCP tool
   -> optional _meta.ui.resourceUri
   -> ui:// HTML resource
   -> compatible host renders sandboxed UI
-  -> ui/* JSON-RPC bridge for tool/input/result/context interaction
+  -> ui/* bridge for tool/input/result/context interaction
 ```
 
 The same tool must remain useful without UI. Future dashboards, job/progress views, artifact/media inspectors and approval/configuration forms are candidates for MCP Apps only when the UI materially helps.
 
-OpenAI-specific `window.openai` methods or another host-specific API may be feature-detected for capabilities the shared standard does not cover, but they must not become the portable execution contract.
+Host-specific UI methods may be feature-detected for capabilities the shared standard does not cover, but they must not become the portable execution contract.
 
-### Preferred OpenAI private path: Secure MCP Tunnel when available
+### Primary remote path: public standard MCP HTTPS
 
-OpenAI now provides Secure MCP Tunnel for supported OpenAI products. A customer-run `tunnel-client` stays inside the private network, makes outbound HTTPS connections to OpenAI, receives queued MCP work, forwards JSON-RPC to a local stdio/HTTP MCP server, and returns responses through the same tunnel.
-
-For ChatGPT/Codex this directly overlaps the problem that originally motivated our custom Yandex polling relay. Therefore, when the user's actual OpenAI account/plan and cost policy support Secure MCP Tunnel, prefer:
+Current OpenAI plugin developer documentation explicitly supports a public HTTPS Streamable HTTP MCP endpoint, normally `/mcp`, as a direct connection method. Therefore the primary portability target is:
 
 ```text
-ChatGPT / Codex
-  -> OpenAI-hosted MCP tunnel endpoint
-  -> outbound tunnel-client on Windows/private network
-  -> loopback local rmcp MCP server
+ChatGPT Work / Codex / other MCP client
+  -> public HTTPS /mcp
+  -> standard rmcp server
   -> agent-platform policy + typed execution
 ```
 
-No public listener, VPS, Yandex function or third-party tunnel is needed in that path.
+The public endpoint may be an ordinary VPS/reverse proxy, managed container host or mature reverse tunnel. The platform owns none of those hosting products.
 
-Secure MCP Tunnel is still an OpenAI-specific deployment adapter, not the universal core. It currently depends on OpenAI Platform tunnel identity/runtime credentials, so the architecture must not assume that a ChatGPT subscription alone provides or pays for this access.
+### Optional OpenAI private path: Secure MCP Tunnel
+
+OpenAI Secure MCP Tunnel is useful when the local MCP server should remain private. A customer-run `tunnel-client` makes outbound HTTPS connections to OpenAI, receives MCP work and forwards it to a local stdio/HTTP MCP server.
+
+It is **not required** when a public HTTPS MCP endpoint is acceptable. It is also OpenAI-specific and depends on separate OpenAI Platform tunnel/runtime credentials, so a ChatGPT subscription must not be assumed to include or pay for it.
+
+Treat Secure MCP Tunnel as a deployment adapter selected for private reachability, never as the core architecture.
 
 ### Generic private/remote MCP path
 
-For other MCP hosts, or when OpenAI Secure MCP Tunnel is unavailable/inappropriate, expose the same local MCP server through mature infrastructure:
+For other MCP hosts, or when a public endpoint needs a transparent path to a local loopback server, use mature infrastructure:
 
 ```text
 remote MCP caller
@@ -128,11 +131,11 @@ remote MCP caller
   -> agent-platform policy + typed execution
 ```
 
-This path does not need a custom task database or rendezvous relay. frp is a self-hosted reference when the operator already has any ordinary VPS; zrok is an optional managed/self-hosted zero-trust class. Equivalent mature vendor-native tunnels are allowed.
+frp is a self-hosted reference when the operator already has an ordinary VPS; zrok is an optional managed/self-hosted zero-trust class. Equivalent mature tools remain allowed.
 
 ### Polling relay compatibility path
 
-The existing Windows transport remains valuable where standard/private MCP reachability is unavailable, undesirable or unsupported by the caller/provider.
+The existing Windows transport remains valuable where standard MCP reachability is unavailable, undesirable or unsupported.
 
 Its local contract is already provider-neutral:
 
@@ -153,30 +156,35 @@ Current implementations:
 
 The Rust relay-server must remain a thin compatibility backend. It must not grow into a custom replacement for MCP SDKs, Secure MCP Tunnel, reverse tunnels, TLS automation or generic cloud orchestration.
 
-### GPT Action compatibility
+### GPT Action / legacy app compatibility
 
-The private GPT Action/OpenAPI path remains working compatibility infrastructure. It should no longer drive new core design now that MCP Apps/standard MCP are the portable target and OpenAI has an official private MCP tunnel option.
+The existing OpenAPI/GPT Action-compatible Yandex path remains working compatibility infrastructure. It should no longer drive new core design.
 
-Do not delete the GPT Action/Yandex path until a replacement standard MCP path passes real acceptance on the user's actual ChatGPT plan/account. Yandex API Gateway was required by that specific Yandex deployment because of its Authorization-header behavior; this is not a platform invariant.
-
-### Credentials
-
-For polling relay deployments, two independent credentials remain mandatory:
-
-- remote caller credential -> public relay ingress;
-- local agent credential -> stored in Windows Credential Manager and used only by the outbound Windows worker.
-
-For standard MCP tunnels, transport authentication follows the selected MCP/tunnel adapter and must still fail closed before local capability dispatch. Tunnel identity never replaces local Project Binding/policy authorization.
+Do not delete it until a replacement standard MCP path passes real acceptance on the user's actual ChatGPT surface. Yandex API Gateway requirements are properties of that adapter, not platform invariants.
 
 ## Stage 4 evidence interpretation
 
-The 2026-08-09 Yandex API Gateway -> Function -> Object Storage -> Windows acceptance proves that **one polling-relay backend implementation** can complete the transport contract. It is historical evidence, not a declaration that Yandex is canonical.
+Stage 4's original Hosted Chat -> local execution requirement is complete.
 
-The provider-neutral Rust `relay-server` proves a second server implementation at CI/integration level. Provider portability is fully proved only after the same real remote -> local acceptance is run through at least one non-Yandex deployment path.
+On 2026-08-06, the installed ChatGPT integration `Music Video MCP Yandex Test` successfully executed `local_ping` and returned the real local Windows agent response (`ID182019`, Windows 11, agent `0.2.1`) back into ChatGPT. This proves the Hosted Chat -> remote integration -> Windows -> Hosted Chat round trip.
 
-The preferred next real acceptance should test the standard local MCP boundary first and then the best reachability adapter actually available to the user's account: OpenAI Secure MCP Tunnel if available/acceptable; otherwise a generic standard-MCP path. This avoids building another custom network layer.
+On 2026-08-09, the current Yandex polling backend separately passed `local_ping`, `runtime_self_test`, controlled write/read, cleanup and clean shutdown. A later ChatGPT-originated offline test correctly returned `agent_offline` while the local agent was stopped.
 
-Until the final Hosted Chat-originated acceptance passes, remotely exposed local capabilities remain limited to the Stage 4 allowlist.
+The provider-neutral Rust `relay-server` proves another backend implementation at CI/integration level.
+
+What is **not** yet proved is that the historical installed integration used today's standard MCP Streamable HTTP `/mcp` connection. That is a connector migration question, not an unfinished Stage 4 gate.
+
+## Connector migration gates
+
+Before deprecating Yandex/GPT Action compatibility:
+
+1. implement the standard local MCP server using current official `rmcp`;
+2. expose it through one normal public HTTPS `/mcp` endpoint;
+3. add/call that endpoint from the user's real ChatGPT Work/plugin surface;
+4. prove one non-Yandex remote -> Windows round trip;
+5. only then decide whether legacy polling/Yandex infrastructure can be removed.
+
+Secure MCP Tunnel may be tested separately if private reachability is useful. It is not a prerequisite for steps 1–4.
 
 ## Transitional code
 
