@@ -23,7 +23,21 @@ class SupplyChainPolicyTests(unittest.TestCase):
         workflow = (
             self.repo / ".github" / "workflows" / "supply-chain.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("command: check licenses bans sources", workflow)
+        self.assertIn("check licenses bans sources", workflow)
+
+    def test_cargo_deny_binary_is_checksum_pinned_without_action_wrapper(self):
+        workflow = (
+            self.repo / ".github" / "workflows" / "supply-chain.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('version="0.20.2"', workflow)
+        self.assertIn(
+            'expected_sha256="9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f"',
+            workflow,
+        )
+        self.assertIn("sha256sum --check --strict", workflow)
+        self.assertIn("check advisories", workflow)
+        self.assertNotIn("EmbarkStudios/cargo-deny-action@", workflow)
 
 
 if __name__ == "__main__":
