@@ -41,7 +41,10 @@ pub struct Store {
 
 impl Store {
     pub fn open(path: &Path) -> Result<Self, StoreError> {
-        if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        if let Some(parent) = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
             fs::create_dir_all(parent)?;
         }
         let connection = Connection::open(path)?;
@@ -355,7 +358,9 @@ mod tests {
     #[test]
     fn task_is_leased_once_until_lease_expires() {
         let store = Store::open_in_memory().expect("store");
-        store.insert_task(&task("rly_0123456789abcdef0123456789abcdef", 1_000)).expect("insert");
+        store
+            .insert_task(&task("rly_0123456789abcdef0123456789abcdef", 1_000))
+            .expect("insert");
         let operations = vec!["local_ping".to_owned()];
         let first = store
             .lease_next_task("project", &operations, 100, 500)

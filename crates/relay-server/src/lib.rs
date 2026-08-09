@@ -224,7 +224,10 @@ async fn root_post(
     Json(body): Json<Value>,
 ) -> Response {
     let Some(object) = body.as_object() else {
-        return json_response(StatusCode::BAD_REQUEST, json!({"error": "JSON body must be an object"}));
+        return json_response(
+            StatusCode::BAD_REQUEST,
+            json!({"error": "JSON body must be an object"}),
+        );
     };
     if object.contains_key("agent_action") {
         return handle_agent(state, &headers, object).await;
@@ -288,9 +291,10 @@ async fn agent_poll(state: Arc<AppState>, body: &Map<String, Value>) -> Response
         let notified = state.task_notify.notified();
         let now_ms = now_unix_ms();
         if now_ms >= next_heartbeat_ms {
-            if let Err(error) = state
-                .store
-                .upsert_heartbeat(state.config.project_id(), &operations, now_ms)
+            if let Err(error) =
+                state
+                    .store
+                    .upsert_heartbeat(state.config.project_id(), &operations, now_ms)
             {
                 return state_backend_error(&error);
             }
@@ -389,10 +393,7 @@ fn agent_offline(state: Arc<AppState>, body: &Map<String, Value>) -> Response {
         return response;
     }
     match state.store.mark_offline(state.config.project_id()) {
-        Ok(()) => json_response(
-            StatusCode::OK,
-            json!({"ok": true, "agent_online": false}),
-        ),
+        Ok(()) => json_response(StatusCode::OK, json!({"ok": true, "agent_online": false})),
         Err(error) => state_backend_error(&error),
     }
 }
@@ -425,7 +426,10 @@ async fn handle_action(
         );
     }
     let allowed_fields = BTreeSet::from(["action", "message"]);
-    if body.keys().any(|key| !allowed_fields.contains(key.as_str())) {
+    if body
+        .keys()
+        .any(|key| !allowed_fields.contains(key.as_str()))
+    {
         return json_response(
             StatusCode::BAD_REQUEST,
             json!({
@@ -510,7 +514,10 @@ async fn handle_mcp(
                 .get("name")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            let arguments = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+            let arguments = params
+                .get("arguments")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
             let outcome = call_local_tool(state, name, arguments).await;
             json_response(
                 StatusCode::OK,
@@ -709,8 +716,9 @@ fn allowed_operations_from_poll(body: &Map<String, Value>) -> Vec<String> {
 }
 
 fn authorized_agent(state: &AppState, headers: &HeaderMap) -> bool {
-    header_value(headers, &AGENT_TOKEN_HEADER)
-        .is_some_and(|supplied| constant_time_eq(state.config.agent_token.as_bytes(), supplied.as_bytes()))
+    header_value(headers, &AGENT_TOKEN_HEADER).is_some_and(|supplied| {
+        constant_time_eq(state.config.agent_token.as_bytes(), supplied.as_bytes())
+    })
 }
 
 fn authorized_remote(state: &AppState, headers: &HeaderMap) -> bool {
@@ -725,7 +733,8 @@ fn authorized_remote(state: &AppState, headers: &HeaderMap) -> bool {
             })
             .map(str::trim)
     });
-    supplied.is_some_and(|value| constant_time_eq(state.config.mcp_token.as_bytes(), value.as_bytes()))
+    supplied
+        .is_some_and(|value| constant_time_eq(state.config.mcp_token.as_bytes(), value.as_bytes()))
 }
 
 fn header_value<'a>(headers: &'a HeaderMap, name: &HeaderName) -> Option<&'a str> {
@@ -831,10 +840,14 @@ fn json_response(status: StatusCode, body: Value) -> Response {
     let mut response = (status, Json(body)).into_response();
     let headers = response.headers_mut();
     headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    headers.insert(CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
-    response
-        .headers_mut()
-        .insert(CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"));
+    headers.insert(
+        CONTENT_TYPE_OPTIONS.clone(),
+        HeaderValue::from_static("nosniff"),
+    );
+    response.headers_mut().insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("application/json; charset=utf-8"),
+    );
     response
 }
 
@@ -862,20 +875,24 @@ mod tests {
 
     #[test]
     fn tokens_are_separate_and_url_safe() {
-        assert!(RelayServerConfig::new(
-            "project".to_owned(),
-            "same-token-abcdefghijklmnopqrstuvwxyz".to_owned(),
-            "same-token-abcdefghijklmnopqrstuvwxyz".to_owned(),
-            PathBuf::from("relay.sqlite3")
-        )
-        .is_err());
-        assert!(RelayServerConfig::new(
-            "project".to_owned(),
-            "bad token with spaces but long enough".to_owned(),
-            "agent-token-abcdefghijklmnopqrstuvwxyz0".to_owned(),
-            PathBuf::from("relay.sqlite3")
-        )
-        .is_err());
+        assert!(
+            RelayServerConfig::new(
+                "project".to_owned(),
+                "same-token-abcdefghijklmnopqrstuvwxyz".to_owned(),
+                "same-token-abcdefghijklmnopqrstuvwxyz".to_owned(),
+                PathBuf::from("relay.sqlite3")
+            )
+            .is_err()
+        );
+        assert!(
+            RelayServerConfig::new(
+                "project".to_owned(),
+                "bad token with spaces but long enough".to_owned(),
+                "agent-token-abcdefghijklmnopqrstuvwxyz0".to_owned(),
+                PathBuf::from("relay.sqlite3")
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -897,7 +914,9 @@ mod tests {
     fn request_id_contract_is_strict() {
         assert!(valid_request_id("rly_0123456789abcdef0123456789abcdef"));
         assert!(!valid_request_id("rly_0123456789ABCDEF0123456789ABCDEF"));
-        assert!(!valid_request_id("eca27359-989e-4d83-a24d-3592998fe7f5/probe"));
+        assert!(!valid_request_id(
+            "eca27359-989e-4d83-a24d-3592998fe7f5/probe"
+        ));
     }
 
     #[test]
