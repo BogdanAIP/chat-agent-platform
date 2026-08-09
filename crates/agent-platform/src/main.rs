@@ -18,8 +18,8 @@ use agent_platform::service::{
     diagnose, inspect_artifact, inspect_file, self_test, write_runtime_profile,
 };
 use agent_platform::transport::{
-    configure_relay, relay_status, remove_relay_token, run_relay_worker, start_relay_worker,
-    stop_relay_worker,
+    configure_relay, relay_status, remove_ingress_token, remove_relay_token, run_relay_worker,
+    serve_local_ingress, start_relay_worker, stop_relay_worker, store_ingress_token_from_env,
 };
 use clap::{Parser, Subcommand};
 use serde_json::json;
@@ -35,6 +35,32 @@ struct Cli {
     repo_root: PathBuf,
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+enum IngressCommand {
+    ConfigureToken {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long, default_value = "AGENT_PLATFORM_INGRESS_TOKEN")]
+        env_name: String,
+        #[arg(long, default_value = "secret://ingress/caller_token")]
+        secret_ref: String,
+    },
+    Serve {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long, default_value_t = 8787)]
+        port: u16,
+        #[arg(long, default_value = "secret://ingress/caller_token")]
+        secret_ref: String,
+    },
+    RemoveToken {
+        #[arg(long)]
+        project_id: Option<String>,
+        #[arg(long, default_value = "secret://ingress/caller_token")]
+        secret_ref: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -82,6 +108,10 @@ enum Command {
     Probe {
         #[arg(long)]
         project_id: Option<String>,
+    },
+    Ingress {
+        #[command(subcommand)]
+        command: IngressCommand,
     },
     Relay {
         #[command(subcommand)]
@@ -312,6 +342,33 @@ enum Command {
     },
 }
 
+fn run_ingress_command(
+    repo_root: &std::path::Path,
+    command: &IngressCommand,
+) -> Result<serde_json::Value, agent_platform::error::PlatformError> {
+    match command {
+        IngressCommand::ConfigureToken {
+            project_id,
+            env_name,
+            secret_ref,
+        } => store_ingress_token_from_env(
+            repo_root,
+            project_id.as_deref(),
+            env_name,
+            secret_ref,
+        ),
+        IngressCommand::Serve {
+            project_id,
+            port,
+            secret_ref,
+        } => serve_local_ingress(repo_root, project_id.as_deref(), *port, secret_ref),
+        IngressCommand::RemoveToken {
+            project_id,
+            secret_ref,
+        } => remove_ingress_token(repo_root, project_id.as_deref(), secret_ref),
+    }
+}
+
 fn run_relay_command(
     repo_root: &std::path::Path,
     command: &RelayCommand,
@@ -359,6 +416,7 @@ fn main() -> ExitCode {
         .map(
             |(output, profile)| json!({"status": "success", "output": output, "profile": profile}),
         ),
+        Command::Ingress { command } => run_ingress_command(&cli.repo_root, command),
         Command::Relay { command } => run_relay_command(&cli.repo_root, command),
         Command::RelayWorker {
             project_id,

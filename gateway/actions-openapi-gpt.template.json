@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Agent Platform Local Relay",
+    "title": "Agent Platform Local Ingress",
     "version": "1.0.0",
-    "description": "Calls only the two Stage 4 allowlisted operations through the user's explicitly enabled local agent-platform relay."
+    "description": "Calls only the two allowlisted local agent-platform operations through an explicitly enabled authenticated HTTPS ingress."
   },
   "servers": [
     {
@@ -15,7 +15,7 @@
       "post": {
         "operationId": "runLocalAgentTool",
         "summary": "Run an allowlisted local agent operation",
-        "description": "Use local_ping to verify the local Windows agent, or runtime_self_test to run the policy-gated local runtime health test. The local relay must be explicitly switched on.",
+        "description": "Use local_ping to verify the local Windows agent, or runtime_self_test to run the policy-gated local runtime health test. The local ingress and its HTTPS tunnel must be explicitly enabled.",
         "security": [
           {
             "mcpToken": []
@@ -83,6 +83,9 @@
           },
           "401": {
             "description": "X-MCP-Token API key is missing or invalid."
+          },
+          "429": {
+            "description": "Local ingress concurrency limit reached."
           }
         }
       }
