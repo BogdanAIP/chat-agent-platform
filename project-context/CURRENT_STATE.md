@@ -16,7 +16,7 @@ Repository is **public** and licensed under the standard **MIT License** with no
 | 1 Rust vertical core | done | binding -> policy -> artifact -> typed tool -> validated result |
 | 2 Contracts | done | embedded schemas for tool/artifact/policy/confirmation/secret/job/relay |
 | 3 Memory/bootstrap/skills | done | minimal project context + bootstrap path |
-| 4 Hosted transport | partial / live-transport accepted | real Yandex API Gateway -> Function -> Object Storage -> Windows acceptance passed 2026-08-09; final ChatGPT-originated call pending |
+| 4 Hosted transport | partial / live-transport accepted | real Yandex API Gateway -> Function -> Object Storage -> Windows acceptance passed 2026-08-09; final ChatGPT-originated call pending; direct Codex->Function MCP path is a tested auth candidate awaiting live acceptance |
 | 5 MCP aggregation | conditional | no extra aggregator justified |
 | 6 Capability selection + PEP | done | fail-closed quality/reliability/determinism/path/fallback/cost gates |
 | 7 Secret Store | done | Windows Credential Manager + executor ACL |
@@ -64,8 +64,9 @@ No publishing/distribution executor exists yet, so Stage 18 creates no external 
 ## Stage 4 transport
 
 ```text
-ChatGPT MCP / private GPT Action
+ChatGPT private GPT Action
         |
+        | Authorization: Bearer <remote-token>
         v
 Yandex API Gateway
         |
@@ -78,9 +79,18 @@ Object Storage task/result/heartbeat JSON
         | outbound HTTPS long poll
         |
 agent-platform.exe on Windows
+
+Codex MCP (optional parallel ingress)
+        |
+        | Gateway + Bearer
+        | OR direct public Function + X-MCP-Token
+        v
+same relay Function / same Windows agent
 ```
 
-The API Gateway is required because the direct Yandex Function URL consumes `Authorization` for platform invocation and therefore cannot reliably carry the arbitrary GPT Actions `Authorization: Bearer <remote-token>` contract. The Gateway preserves that Bearer header while invoking the Function internally.
+The API Gateway is required for the **GPT Actions Bearer contract** because Yandex Cloud Functions remove/consume the incoming `Authorization` header before user code. That does **not** make the direct Function URL universally unusable.
+
+The relay Function implements MCP JSON-RPC and accepts `X-MCP-Token` before Bearer. Codex supports environment-backed custom HTTP headers for Streamable HTTP MCP, so direct Codex -> public Function with `X-MCP-Token` is a deliberate candidate path. Its application-auth branch now has a regression test, but the real Codex-originated network path is not yet marked accepted or preferred until a live test passes.
 
 Already proved:
 
@@ -91,9 +101,9 @@ Already proved:
   - controlled write/read: passed;
   - cleanup: passed;
   - relay returned to disabled state and no background worker remained;
-- the remote GPT bearer is not written to committed files or acceptance evidence; the local agent token remains in Windows Credential Manager.
+- the remote token is not written to committed files or acceptance evidence; the local agent token remains in Windows Credential Manager.
 
-The only remaining Stage 4 exit gate is a request **originated by ChatGPT itself** through the private GPT Action. Until it passes, higher-value local capabilities remain unavailable through the remote surface.
+The only remaining Stage 4 exit gate is a request **originated by ChatGPT itself** through the private GPT Action. A separate direct Codex live test is useful for optimizing the secondary ingress, but it is not a blocker for the ChatGPT Stage 4 exit rule.
 
 ## Public CI / supply chain
 
@@ -137,6 +147,7 @@ The first actual `v0.2.0` tag/release has intentionally not been created yet, so
 
 ## Conditional/non-blocking follow-up
 
+- live-test optional direct Codex MCP -> public Function + `X-MCP-Token` and compare it with Codex -> Gateway before choosing a preferred Codex ingress;
 - real licensed/owned music corpus + human listening acceptance before subjective professional-quality claims;
 - support/donation addresses when available;
 - ArtifactStore unresolved-orphan operator cleanup when operational demand appears;
