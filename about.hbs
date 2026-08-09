@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat Agent Platform — Third Party Licenses</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1, h2, h3 { line-height: 1.2; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 1rem; background: #f4f4f4; }
+    .used-by { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <h1>Third Party Licenses</h1>
+  <p>This file lists license texts for Rust dependencies included in the Chat Agent Platform Windows release.</p>
+  {{#each licenses}}
+  <section>
+    <h2>{{name}}</h2>
+    <h3>Used by</h3>
+    <ul class="used-by">
+      {{#each used_by}}
+      <li>{{crate.name}} {{crate.version}}{{#if crate.repository}} — <a href="{{crate.repository}}">source</a>{{/if}}</li>
+      {{/each}}
+    </ul>
+    <pre>{{text}}</pre>
+  </section>
+  {{/each}}
+</body>
+</html>
