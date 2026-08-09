@@ -78,6 +78,13 @@
       "external_side_effect": false,
       "max_cost": 0
     },
+    "transport.local_ingress": {
+      "decision": "allow",
+      "enforced_by": "rust_local_ingress",
+      "allowed_data_classes": ["project", "sensitive"],
+      "external_side_effect": false,
+      "max_cost": 0
+    },
     "transport.relay_connect": {
       "decision": "allow",
       "enforced_by": "rust_local_relay",

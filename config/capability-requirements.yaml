@@ -112,14 +112,24 @@
       "acceptance_evidence": ["contract_validation", "controlled_write_read_cleanup", "ffmpeg_health", "ffprobe_health"]
     },
     {
-      "capability": "transport.relay_connect",
+      "capability": "transport.local_ingress",
       "required": true,
       "required_quality": "professional",
       "required_reliability": "high",
       "required_determinism": "high",
-      "execution_paths": ["yandex.function.long_poll"],
+      "execution_paths": ["local.http.loopback"],
       "fallbacks": [],
-      "acceptance_evidence": ["manual_start_stop", "25_second_long_poll", "heartbeat_offline_detection", "credential_manager_token", "allowlisted_operations", "no_arbitrary_shell", "shared_object_storage_state", "duplicate_request_response_cache"]
+      "acceptance_evidence": ["loopback_only", "credential_manager_token", "auth_before_dispatch", "bounded_body", "bounded_concurrency", "allowlisted_operations", "no_arbitrary_shell"]
+    },
+    {
+      "capability": "transport.relay_connect",
+      "required": false,
+      "required_quality": "professional",
+      "required_reliability": "high",
+      "required_determinism": "high",
+      "execution_paths": ["relay.polling.outbound"],
+      "fallbacks": [],
+      "acceptance_evidence": ["manual_start_stop", "long_poll", "heartbeat_offline_detection", "credential_manager_token", "allowlisted_operations", "no_arbitrary_shell", "duplicate_request_response_cache"]
     }
   ]
 }

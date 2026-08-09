@@ -8,6 +8,7 @@ on:
       - "crates/agent-platform/src/contracts.rs"
       - "crates/agent-platform/src/secret.rs"
       - "crates/agent-platform/tests/stage4_relay_*.rs"
+      - "crates/agent-platform/tests/stage4_direct_ingress.rs"
       - "contracts/relay-*.schema.json"
       - "gateway/**"
       - "tests/test_stage4_yandex_gateway.py"
@@ -30,6 +31,7 @@ on:
       - "crates/agent-platform/src/contracts.rs"
       - "crates/agent-platform/src/secret.rs"
       - "crates/agent-platform/tests/stage4_relay_*.rs"
+      - "crates/agent-platform/tests/stage4_direct_ingress.rs"
       - "contracts/relay-*.schema.json"
       - "gateway/**"
       - "tests/test_stage4_yandex_gateway.py"
@@ -104,6 +106,10 @@ jobs:
       - name: Prove relay Credential Manager ACL
         shell: pwsh
         run: cargo test -p agent-platform --test stage4_relay_secret -- --nocapture
+
+      - name: Prove direct loopback ingress process and auth
+        shell: pwsh
+        run: cargo test -p agent-platform --test stage4_direct_ingress -- --nocapture
 
       - name: Prove configure-start-retry-selftest-stop lifecycle
         shell: pwsh

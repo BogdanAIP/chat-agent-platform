@@ -1,4 +1,5 @@
 mod http;
+mod ingress;
 mod lifecycle;
 mod protocol;
 
@@ -18,9 +19,13 @@ use crate::policy::{PolicyDecision, PolicyEnforcementPoint};
 use crate::secret::SecretStore;
 use crate::service::self_test;
 
+pub use ingress::{
+    DEFAULT_PORT as DEFAULT_INGRESS_PORT, DEFAULT_SECRET_REF as DEFAULT_INGRESS_SECRET_REF,
+    remove_ingress_token, serve_local_ingress, store_ingress_token_from_env,
+};
 pub use lifecycle::{relay_status, run_relay_worker, start_relay_worker, stop_relay_worker};
 
-const CAPABILITY: &str = "transport.relay_connect";
+const RELAY_CAPABILITY: &str = "transport.relay_connect";
 pub const DEFAULT_SECRET_REF: &str = "secret://relay/agent_token";
 pub const DEFAULT_LONG_POLL_SECONDS: u64 = 25;
 pub(super) const MAX_LONG_POLL_SECONDS: u64 = 30;
@@ -169,17 +174,31 @@ fn dispatch_request_inner(
             "relay request deadline has expired".into(),
         ));
     }
-    let parameters = request.parameters.as_object().ok_or_else(|| {
-        PlatformError::Validation("relay operation parameters must be an object".into())
+    dispatch_operation(
+        repo_root,
+        project_id,
+        &request.operation,
+        &request.parameters,
+    )
+}
+
+pub(super) fn dispatch_operation(
+    repo_root: &Path,
+    project_id: &str,
+    operation: &str,
+    parameters: &Value,
+) -> Result<Value, PlatformError> {
+    let parameters = parameters.as_object().ok_or_else(|| {
+        PlatformError::Validation("remote operation parameters must be an object".into())
     })?;
-    match request.operation.as_str() {
+    match operation {
         "local_ping" => dispatch_local_ping(project_id, parameters),
         "runtime_self_test" => {
             require_no_parameters("runtime_self_test", parameters)?;
             self_test(repo_root, Some(project_id))
         }
         other => Err(PlatformError::PolicyDenied(format!(
-            "relay operation is not allowlisted: {other}"
+            "remote operation is not allowlisted: {other}"
         ))),
     }
 }
@@ -234,16 +253,25 @@ pub(super) fn authorize_transport(
     project_id: Option<&str>,
     parameters: Value,
 ) -> Result<(ProjectBinding, CapabilitySelection, PolicyDecision), PlatformError> {
+    authorize_transport_capability(repo_root, project_id, RELAY_CAPABILITY, parameters)
+}
+
+pub(super) fn authorize_transport_capability(
+    repo_root: &Path,
+    project_id: Option<&str>,
+    capability: &str,
+    parameters: Value,
+) -> Result<(ProjectBinding, CapabilitySelection, PolicyDecision), PlatformError> {
     let binding = resolve_project(repo_root, project_id)?;
-    let quality = required_quality(&binding.repo_root, CAPABILITY)?;
+    let quality = required_quality(&binding.repo_root, capability)?;
     let selection =
-        CapabilityRegistry::load(&binding.repo_root)?.select(CAPABILITY, &quality, 0)?;
+        CapabilityRegistry::load(&binding.repo_root)?.select(capability, &quality, 0)?;
     let data_class = parameters
         .get("data_class")
         .and_then(Value::as_str)
         .unwrap_or("project");
     let policy = PolicyEnforcementPoint::load(&binding.policy_path)?.evaluate(
-        CAPABILITY,
+        capability,
         &parameters,
         data_class,
         None,
@@ -279,7 +307,7 @@ pub(super) fn validate_token(token: &str) -> Result<(), PlatformError> {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~'))
     {
         return Err(PlatformError::Validation(
-            "relay token must be 24-256 URL-safe ASCII characters".into(),
+            "transport token must be 24-256 URL-safe ASCII characters".into(),
         ));
     }
     Ok(())
