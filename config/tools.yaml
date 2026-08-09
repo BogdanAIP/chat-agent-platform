@@ -159,9 +159,25 @@
       }
     },
     {
+      "capability": "transport.local_ingress",
+      "executor": "rust.local.ingress",
+      "execution_path": "local.http.loopback",
+      "enabled": true,
+      "quality": "professional",
+      "reliability": "high",
+      "determinism": "high",
+      "base_risk": "medium",
+      "cost": 0,
+      "fallbacks": [],
+      "evidence": {
+        "required_skill": "bootstrap",
+        "qc": ["loopback_only", "credential_manager_token", "auth_before_dispatch", "bounded_body", "bounded_concurrency", "operation_allowlist"]
+      }
+    },
+    {
       "capability": "transport.relay_connect",
       "executor": "rust.local.relay",
-      "execution_path": "yandex.function.long_poll",
+      "execution_path": "relay.polling.outbound",
       "enabled": true,
       "quality": "professional",
       "reliability": "high",
