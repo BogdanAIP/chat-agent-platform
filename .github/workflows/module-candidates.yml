@@ -1,0 +1,71 @@
+name: Module Candidate Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/candidates/**"
+      - "scripts/test-module-candidates.ps1"
+      - ".github/workflows/module-candidates.yml"
+      - "project-context/MODULE_CATALOG.md"
+      - "project-context/MODULE_SELECTION_POLICY.md"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/candidates/**"
+      - "scripts/test-module-candidates.ps1"
+      - ".github/workflows/module-candidates.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: module-candidates-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-candidates:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment
+        shell: pwsh
+        run: |
+          node --version
+          npx --version
+          if (-not (Get-Command chrome.exe -ErrorAction SilentlyContinue)) {
+            $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+            if (-not (Test-Path $chrome)) { throw 'Google Chrome is required for the pinned Playwright candidate test.' }
+            $env:PATH = "$(Split-Path $chrome -Parent);$env:PATH"
+          }
+
+      - name: Parse candidate test script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/test-module-candidates.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) { throw ($errors -join '; ') }
+
+      - name: Enforce pinned free candidates
+        shell: pwsh
+        run: |
+          $fs = Get-Content 'runtime/candidates/filesystem-readonly.json' -Raw -Encoding utf8
+          $pw = Get-Content 'runtime/candidates/playwright-headless.json' -Raw -Encoding utf8
+          if ($fs -notmatch [regex]::Escape('@modelcontextprotocol/server-filesystem@0.6.3')) { throw 'Filesystem version is not pinned.' }
+          if ($pw -notmatch [regex]::Escape('@playwright/mcp@0.0.79')) { throw 'Playwright version is not pinned.' }
+          foreach ($forbidden in @('api_key','subscription','browserbase','apify','firecrawl')) {
+            if (($fs + $pw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
+          }
+
+      - name: Prove candidate health and calls
+        shell: pwsh
+        run: ./scripts/test-module-candidates.ps1
