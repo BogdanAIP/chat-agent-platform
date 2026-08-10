@@ -15,6 +15,27 @@ function Stop-CandidateRuntime {
     }
 }
 
+function Show-CandidateDiagnostics {
+    param(
+        [Parameter(Mandatory)] [string]$ConfigPath,
+        [object]$LastHealth
+    )
+
+    if ($null -ne $LastHealth) {
+        Write-Host '--- last health payload ---' -ForegroundColor Yellow
+        $LastHealth | ConvertTo-Json -Depth 8 | Write-Host
+    }
+
+    $logPath = Join-Path (Split-Path $ConfigPath -Parent) 'logs/server.log'
+    if (Test-Path $logPath) {
+        Write-Host "--- 1MCP server log tail: $logPath ---" -ForegroundColor Yellow
+        Get-Content $logPath -Tail 160 | ForEach-Object { Write-Host $_ }
+    }
+    else {
+        Write-Host "No 1MCP server log found at $logPath" -ForegroundColor Yellow
+    }
+}
+
 function Start-CandidateRuntime {
     param(
         [Parameter(Mandatory)] [string]$ConfigPath,
@@ -32,14 +53,16 @@ function Start-CandidateRuntime {
         --enable-async-loading `
         --background
     if ($LASTEXITCODE -ne 0) {
+        Show-CandidateDiagnostics -ConfigPath $ConfigPath
         throw "1MCP failed to start candidate '$ServerName'."
     }
 
     $healthUri = "http://127.0.0.1:$Port/health/mcp/$ServerName"
+    $lastHealth = $null
     for ($attempt = 1; $attempt -le 90; $attempt++) {
         try {
-            $health = Invoke-RestMethod -Method Get -Uri $healthUri -TimeoutSec 5
-            if ([string]$health.state -eq 'ready') {
+            $lastHealth = Invoke-RestMethod -Method Get -Uri $healthUri -TimeoutSec 5
+            if ([string]$lastHealth.state -eq 'ready') {
                 return
             }
         }
@@ -47,6 +70,7 @@ function Start-CandidateRuntime {
         Start-Sleep -Seconds 1
     }
 
+    Show-CandidateDiagnostics -ConfigPath $ConfigPath -LastHealth $lastHealth
     throw "Candidate '$ServerName' did not become ready: $healthUri"
 }
 
