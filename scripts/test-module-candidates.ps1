@@ -85,6 +85,23 @@ function Invoke-1McpText {
     return $output
 }
 
+function Invoke-1McpToolWithJson {
+    param(
+        [Parameter(Mandatory)] [string]$Tool,
+        [Parameter(Mandatory)] [string]$BaseUrl,
+        [Parameter(Mandatory)] [string]$Json
+    )
+
+    # 1MCP 0.34.4 supports a JSON object on stdin when --args is omitted.
+    # This is intentionally used instead of --args on Windows because JSON
+    # quote characters are otherwise rewritten while crossing pwsh -> npx.cmd.
+    $output = $Json | & npx.cmd -y $pkg run $Tool --url $BaseUrl --format text 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "1MCP tool call failed ($LASTEXITCODE): $Tool`n$output"
+    }
+    return $output
+}
+
 Push-Location $repoRoot
 try {
     Write-Host '=== Filesystem candidate: read-only scoped root ===' -ForegroundColor Cyan
@@ -112,7 +129,7 @@ try {
         }
 
         $readArgs = (@{ path = $marker } | ConvertTo-Json -Compress)
-        $readResult = Invoke-1McpText -Arguments @('run', 'filesystem/read_text_file', '--url', $baseUrl, '--args', $readArgs, '--format', 'text')
+        $readResult = Invoke-1McpToolWithJson -Tool 'filesystem/read_text_file' -BaseUrl $baseUrl -Json $readArgs
         if ($readResult -notmatch 'FILESYSTEM_CANDIDATE_OK') {
             throw 'Filesystem candidate did not return the expected marker content.'
         }
@@ -138,7 +155,7 @@ try {
 
         $page = 'data:text/html,<html><body><h1>PLAYWRIGHT_CANDIDATE_OK</h1></body></html>'
         $navigateArgs = (@{ url = $page } | ConvertTo-Json -Compress)
-        $navigateResult = Invoke-1McpText -Arguments @('run', 'playwright/browser_navigate', '--url', $baseUrl, '--args', $navigateArgs, '--format', 'text')
+        $navigateResult = Invoke-1McpToolWithJson -Tool 'playwright/browser_navigate' -BaseUrl $baseUrl -Json $navigateArgs
         if ($navigateResult -notmatch 'PLAYWRIGHT_CANDIDATE_OK') {
             throw 'Playwright candidate navigation did not return the expected accessibility snapshot.'
         }
