@@ -1,4 +1,4 @@
-# Roadmap v1.5 — Chat-to-Local Bridge
+# Roadmap v1.6 — Chat-to-Local Bridge
 
 ## Goal
 
@@ -6,93 +6,104 @@ Build the smallest reliable bridge that lets **ordinary ChatGPT Chat** use repla
 
 Do not build a second agent runtime. Prefer mature maintained MCP runtimes, gateways, tunnels and servers. Project-owned code is justified only for convenience/configuration or for a local program that lacks an acceptable MCP adapter.
 
-Source of truth:
-
-- `project-context/BRIDGE_ARCHITECTURE.md`
-- `project-context/ARCHITECTURE.md`
-- `project-context/CONNECTOR_ARCHITECTURE.md`
-- `project-context/CURRENT_STATE.md`
-
 ## Phase A — Prove a zero-custom-core bridge
 
-### A1 — Public localhost reachability — done
+### A1 — Hosted Chat -> local Windows — done
 
-Evidence from 2026-08-10:
+Historical evidence already proved ChatGPT could reach the local Windows machine through the legacy Yandex path.
 
-- Tailscale Funnel exposes a stable public HTTPS origin for the Windows laptop;
-- a direct request reached the local process;
-- `local_ping` returned `status=success`, `pong=true`, `executed_locally=true`.
+### A2 — Off-the-shelf local MCP runtime — done
 
-This proves reachability only. It does not yet prove native ChatGPT MCP.
+Accepted local runtime candidate: **1MCP**.
 
-### A2 — Off-the-shelf MCP runtime pilot — prepared
+Accepted test components:
 
-Selected first candidate: **1MCP**.
+- `@1mcp/agent@0.34.4`;
+- official `@modelcontextprotocol/server-sequential-thinking@2026.7.4`;
+- local Streamable HTTP endpoint `http://127.0.0.1:3050/mcp`.
 
-Prepared assets:
+The reference server was intentionally harmless and exposed no filesystem, shell, browser, credentials or local application control.
 
-- pinned 1MCP runtime `@1mcp/agent@0.34.4`;
-- pinned official `@modelcontextprotocol/server-sequential-thinking@2026.7.4`;
-- loopback runtime `127.0.0.1:3050`;
-- separate Tailscale Funnel listener on HTTPS `8443`;
-- expected public endpoint `https://id182019.tailc0abda.ts.net:8443/mcp`;
-- start/stop scripts that do not modify the existing `443` route.
+### A3 / Stage 21 — Native ChatGPT MCP round trip — done
 
-### A3 — Native ChatGPT MCP round trip — next manual gate
+Accepted on 2026-08-10 through the official **OpenAI Secure MCP Tunnel**.
 
-From ordinary ChatGPT Chat:
+Observed end-to-end path:
 
-1. create a **new** development MCP connection for the pilot; do not modify the working Yandex connection;
-2. use `https://id182019.tailc0abda.ts.net:8443/mcp`;
-3. scan tools;
-4. verify `sequential_thinking` is discovered;
-5. invoke it from Chat;
-6. receive the result;
-7. stop the unauthenticated pilot listener.
+```text
+ordinary ChatGPT Chat
+  -> development MCP app `Chat Local Bridge Test`
+  -> OpenAI Secure MCP Tunnel
+  -> official `openai/tunnel-client`
+  -> http://127.0.0.1:3050/mcp
+  -> 1MCP
+  -> sequential_thinking
+  -> result returned to the same ChatGPT conversation
+```
 
-If this passes, the project has proved that the central runtime/transport does not need custom Rust code.
+Returned tool result included:
 
-If it fails, identify whether the failure is:
+```json
+{
+  "thoughtNumber": 1,
+  "totalThoughts": 1,
+  "nextThoughtNeeded": false,
+  "branches": [],
+  "thoughtHistoryLength": 1
+}
+```
 
-- ChatGPT account/plan/developer-mode policy;
-- 1MCP protocol compatibility;
-- MCP authentication expectations;
-- HTTPS/Funnel behavior.
+This proves that the bridge core does **not** require a project-owned MCP transport, public ingress or autonomous agent runtime.
 
-Do not implement a custom MCP server before testing mature alternatives for the identified failure mode.
+Tailscale Funnel `8443` is no longer the primary ChatGPT transport. It remains optional/fallback evidence only. The pre-existing HTTPS `443`/Yandex path remains untouched until a separate cleanup decision.
 
-## Phase B — Select the permanent bridge runtime
+## Phase B — Permanent bridge stack — accepted baseline
 
-### B1 — Accept 1MCP if A3 passes
+Default baseline:
 
-Adopt 1MCP as the default local runtime while keeping it replaceable.
+```text
+ChatGPT Chat
+  -> OpenAI Secure MCP Tunnel
+  -> official tunnel-client
+  -> replaceable local MCP runtime (currently 1MCP)
+  -> replaceable MCP modules/adapters
+  -> local programs/files/devices
+```
 
-### B2 — Fallback evaluation only if needed
+1MCP is accepted as the current default local runtime because it passed the real ChatGPT round trip. It remains replaceable.
 
-- **ToolHive** — stronger isolation, auth, audit/rate limiting, registry/governance and protocol translation.
-- **agentgateway** — protocol/security edge when routing/auth/version translation is the actual gap.
+Fallbacks are evaluated only for a measured gap:
+
+- **ToolHive** — stronger isolation/governance/security/runtime management;
+- **agentgateway** — protocol/auth/routing edge;
 - **Docker MCP Toolkit** — only when Docker Desktop is an accepted baseline dependency.
 
-No bake-off is required if the narrowest candidate already satisfies the real ChatGPT test.
+Do not carry all candidates permanently.
 
-## Phase C — Secure privileged local access
+## Phase C / Stage 22 — Legacy subsystem classification — next
 
-Before any filesystem/program-control module is exposed publicly:
+Classify every existing custom subsystem as exactly one of:
 
-1. choose an authentication method supported by the selected runtime and the actual ChatGPT MCP surface;
-2. restrict exposed servers and tools;
-3. test unauthorized public requests;
-4. verify ChatGPT permission/confirmation behavior;
-5. document start/stop/recovery behavior;
-6. only then enable privileged modules.
+- **remove** — mature ecosystem component replaces it;
+- **extract** — useful as an optional MCP adapter/module;
+- **retain** — concrete measured requirement remains;
+- **archive/reference** — historical evidence only.
 
-The tunnel itself is never treated as authorization.
+Priority inventory:
 
-## Phase D — Modular local capabilities
+- `agent-platform.exe` universal runtime;
+- custom `/gpt` ingress;
+- polling relay/Yandex transport;
+- Project Binding/policy/confirmation layers;
+- Secret/Artifact/Job stores;
+- FFmpeg/REAPER/media workflows;
+- Python behavioral oracle.
 
-Capabilities are installed independently.
+Do not delete by sunk-cost reaction or wholesale rewrite. Reduce only from evidence.
 
-For every requested local program/service:
+## Phase D / Stage 23 — Module catalog
+
+For each requested local capability:
 
 ```text
 official MCP exists?
@@ -104,64 +115,42 @@ official MCP exists?
                     no  -> implement one small project-owned adapter
 ```
 
-Examples such as files, Git, browser, REAPER, FFmpeg, Origin, Blender, CAD, local models and hardware must remain replaceable modules.
+Programs such as files, Git, browser, REAPER, FFmpeg, Origin, Blender, CAD, local models and hardware remain independent modules.
 
-Adding or removing one module must not require a bridge-core release.
+## Phase E / Stage 24 — Privilege and auth model
 
-## Phase E — Convenience product layer
+Before privileged modules are enabled:
 
-Only after the direct bridge works and module management is understood, consider a thin Windows configurator that can:
+1. keep tunnel runtime credentials outside git;
+2. use the minimum OpenAI tunnel permission set (`Tunnels Read + Use`) for the runtime key;
+3. define which local MCP modules/tools are exposed per profile;
+4. verify ChatGPT permission behavior;
+5. add negative tests for unauthorized/unintended access where applicable;
+6. document rotation/recovery/stop behavior.
 
-- install/detect the chosen runtime;
+Secure MCP Tunnel is transport and control-plane access, not a replacement for least-privilege tool design.
+
+## Phase F / Stage 25 — Optional Windows bridge manager
+
+Only after Stage 22-24, consider a thin Windows layer that can:
+
+- detect/install the supported tunnel client and local MCP runtime;
 - add/remove/update MCP modules;
-- group modules into profiles;
-- start/stop the bridge and reachability profile;
-- show health and the ChatGPT connection URL;
-- manage secrets through the selected runtime/OS facilities;
+- manage profiles;
+- start/stop/status the local bridge;
+- show health/ready state;
+- keep secrets outside repository files;
 - export diagnostics.
 
-This layer must not become an autonomous agent or workflow engine.
-
-## Phase F — Legacy reduction
-
-The repository already contains substantial custom Rust infrastructure from the previous architecture:
-
-- universal `agent-platform.exe` runtime;
-- Project Binding/policy/capability machinery;
-- Secret/Artifact/Job/Confirmation stores;
-- custom `/gpt` ingress;
-- polling relay/Yandex transport;
-- media-specific adapters and workflows.
-
-Do not delete it before Phase A3.
-
-After direct off-the-shelf MCP acceptance, classify each component:
-
-- **remove** — mature ecosystem component replaces it;
-- **extract** — useful as one optional MCP adapter/module;
-- **retain** — only when a concrete bridge requirement cannot be met otherwise;
-- **archive/reference** — valuable historical acceptance evidence but not shipped runtime.
-
-The reduction should lower installation complexity, background processes, code maintenance and security surface.
-
-## Historical implementation inventory
-
-The previous Stages 0–20 remain evidence of work already completed, not the v1.5 development plan. In particular:
-
-- Hosted Chat -> local execution was proved through the legacy Yandex path;
-- Rust local execution, policy, jobs, artifacts, FFmpeg, REAPER and mastering work exist;
-- CI/supply-chain hardening exists;
-- first versioned public release has not yet been published.
-
-No historical implementation is automatically a permanent dependency.
+It must not become a second planner, agent or workflow engine.
 
 ## Definition of Done
 
-The bridge is successful when:
+The product direction is successful when:
 
-1. ordinary ChatGPT Chat is the intelligence/orchestration surface;
-2. ChatGPT reaches one standard MCP endpoint on the laptop through a mature reachability layer;
-3. local capabilities can be added, removed or replaced as MCP modules without changing the bridge core;
-4. Work, Codex and OpenAI API model billing are optional, not required for normal operation;
-5. privileged local access is authenticated and permission-bounded;
-6. the permanent project-owned runtime surface is smaller than the ecosystem components it coordinates.
+1. ordinary ChatGPT Chat remains the intelligence/orchestration surface;
+2. ChatGPT reaches the laptop through a mature supported MCP transport;
+3. local capabilities are replaceable MCP modules;
+4. Work, Codex and model API billing are optional rather than required for normal interaction;
+5. privileged capabilities are bounded by explicit security profiles;
+6. project-owned infrastructure is smaller than the mature components it coordinates.
