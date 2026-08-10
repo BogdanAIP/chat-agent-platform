@@ -1,0 +1,18 @@
+{
+  "$schema": "https://docs.1mcp.app/schemas/v1.0.0/mcp-config.json",
+  "mcpServers": {
+    "sequential-thinking": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking@2026.7.4"
+      ],
+      "tags": [
+        "pilot",
+        "safe-reference"
+      ]
+    }
+  }
+}
