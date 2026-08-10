@@ -26,9 +26,20 @@ if (-not $tailscale) {
 }
 
 Write-Host "Disabling only Tailscale Funnel HTTPS :$FunnelPort ..."
-& $tailscale.Source funnel --https=$FunnelPort off
-if ($LASTEXITCODE -ne 0) {
-    throw "Failed to disable Funnel HTTPS :$FunnelPort."
+$funnelOutput = @(& $tailscale.Source funnel --https=$FunnelPort off 2>&1)
+$funnelExit = $LASTEXITCODE
+if ($funnelExit -ne 0) {
+    $funnelText = $funnelOutput -join "`n"
+    if ($funnelText -match 'handler does not exist') {
+        Write-Host "Funnel HTTPS :$FunnelPort is already absent; continuing cleanup."
+    }
+    else {
+        $funnelOutput | ForEach-Object { Write-Host $_ }
+        throw "Failed to disable Funnel HTTPS :$FunnelPort."
+    }
+}
+else {
+    $funnelOutput | ForEach-Object { Write-Host $_ }
 }
 
 if (Test-Path -LiteralPath $configPath -PathType Leaf) {
