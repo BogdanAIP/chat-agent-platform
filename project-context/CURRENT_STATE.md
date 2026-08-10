@@ -30,6 +30,20 @@ The active tree is intentionally thin:
 
 There is no project-owned universal runtime, public ingress, polling relay, Yandex deployment code, Python behavioral oracle, media/mastering core, or release pipeline for `agent-platform.exe` in the active tree.
 
+## Stage 23 module selection
+
+Stage 23 is in progress with a hard product rule: **zero new mandatory SaaS subscriptions in the baseline path** while keeping quality as a separate hard gate.
+
+The first candidates are intentionally isolated from the default ChatGPT-facing `runtime/mcp.json`:
+
+- read-only scoped Model Context Protocol Filesystem server, pinned to `0.6.3`;
+- Microsoft Playwright MCP, pinned to `0.0.79`, tested in isolated/headless mode;
+- TwelveTake REAPER MCP classified for real local REAPER benchmark;
+- `sbroenne/mcp-windows` classified as a high-privilege Windows UI Automation fallback;
+- OriginLab `originpro` selected as the preferred vendor API foundation for a future thin Origin MCP adapter.
+
+Candidate profiles live under `runtime/candidates/`. Promotion into the default tool surface waits for Stage 24 least-privilege/security acceptance.
+
 ## Legacy preservation
 
 Nothing important was erased from history. The complete pre-cleanup implementation is recoverable at:
@@ -38,7 +52,7 @@ Nothing important was erased from history. The complete pre-cleanup implementati
 a446397d99276856c614bc49526cab422c7e74bd
 ```
 
-FFmpeg, REAPER and mastering code from that history is classified as **candidate extraction material**, not active product code. Stage 23 will first look for better ready-made MCP modules before recovering any of it.
+FFmpeg, REAPER and mastering code from that history is classified as **candidate extraction material**, not active product code. Do not recover it unless ready-made/vendor-first research leaves a measured gap.
 
 ## External fallback evidence
 
