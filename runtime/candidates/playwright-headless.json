@@ -7,7 +7,7 @@
         "/c",
         "npx",
         "-y",
-        "@playwright/mcp@0.0.79",
+        "@playwright/mcp@0.0.78",
         "--headless",
         "--browser",
         "chrome",
