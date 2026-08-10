@@ -18,46 +18,60 @@ This is the compatibility authority for the current project direction. Ordinary 
 
 ## Active repository after Stage 22
 
-The active tree is intentionally thin:
+The active tree is intentionally thin. There is no project-owned universal runtime, public ingress, polling relay, Yandex deployment code, Python behavioral oracle, media/mastering core, or release pipeline for `agent-platform.exe` in the active tree.
 
-- `runtime/mcp.json` — safe reference 1MCP config;
-- `scripts/start-local-bridge.ps1` — local 1MCP lifecycle;
-- `scripts/status-local-bridge.ps1`;
-- `scripts/stop-local-bridge.ps1`;
-- minimal Windows bridge CI;
-- secret-history scan and GitHub Actions CodeQL;
-- project architecture/security/roadmap documentation.
+## Stage 23 — complete
 
-There is no project-owned universal runtime, public ingress, polling relay, Yandex deployment code, Python behavioral oracle, media/mastering core, or release pipeline for `agent-platform.exe` in the active tree.
+Stage 23 established the hard product rule **zero new mandatory SaaS subscriptions in the baseline path** and a supply-channel/quality/security selection process.
 
-## Stage 23 module selection
+Two baseline modules passed real Windows acceptance through pinned `@1mcp/agent@0.34.4`:
 
-Stage 23 is in progress with a hard product rule: **zero new mandatory SaaS subscriptions in the baseline path** while keeping quality as a separate hard gate.
+- **Filesystem `2026.7.10` — CI-ACCEPTED.** Scoped root; create/write/edit/move hidden; real `read_text_file` call passed.
+- **Microsoft Playwright MCP `0.0.78` — CI-ACCEPTED.** Isolated/headless Chrome; real navigation/content/close calls passed.
 
-Two baseline modules have now passed real Windows acceptance through pinned `@1mcp/agent@0.34.4`:
+Ready-made-first application candidates are documented for REAPER, Origin, FFmpeg, Windows UI Automation and Blender. Legacy project adapters stay historical unless a measured gap remains.
 
-- **Filesystem `2026.7.10` — CI-ACCEPTED.** It starts with one scoped root, dangerous create/write/edit/move tools are hidden at the 1MCP layer, and a real `read_text_file` call returned the expected marker.
-- **Microsoft Playwright MCP `0.0.78` — CI-ACCEPTED.** It starts in isolated/headless Chrome mode, exposes `browser_navigate`, successfully navigates to a deterministic data page, returns the expected page content, and closes cleanly.
+## Stage 24 — in progress
 
-They remain intentionally isolated from the permanent ChatGPT-facing `runtime/mcp.json`. The next gate is local validation through the already accepted Secure MCP Tunnel plus Stage 24 least-privilege task profiles; passing CI is not permission to expose broad filesystem or authenticated-browser access by default.
+Stage 24 converts accepted capabilities into explicit least-privilege task profiles for ordinary Chat.
 
-Other Stage 23 candidates:
+Current profile design:
 
-- TwelveTake REAPER MCP is the primary REAPER family candidate: GitHub release `v1.6.4` exists, while the PyPI evidence inspected still reports `1.6.0`; the exact artifact must be chosen and pinned before local benchmarking;
-- `youngminsw/Origin-Pro-MCP` is the primary ready-made Origin family candidate: source `0.3.1` is pinned by commit `1e9741af96c45bcac9e619c3ba32264bac6950e7`, while PyPI currently publishes `0.1.0`; those must not be treated as the same artifact;
-- `kevinwatt/ffmpeg-mcp-lite==0.2.2` is verified on PyPI and is the primary small typed FFmpeg candidate; project-owned FFmpeg code is fallback only;
-- `sbroenne/mcp-windows` remains a high-privilege Windows UI Automation fallback;
-- Blender selection is narrowed to a deep-but-broad `dcc-mcp/dcc-mcp-blender` candidate and a smaller `djeada/blender-mcp-server` candidate.
+### `files-readonly`
 
-Candidate CI/research has already caught real integration mistakes instead of accepting README claims:
+- one Filesystem MCP server only;
+- one explicit workspace directory supplied locally at start time;
+- whole drives and broad/system roots are rejected;
+- create/write/edit/move disabled;
+- no browser capability.
 
-1. source-tree version strings can differ from published package versions, so the selection policy requires proving the real npm/PyPI/GitHub Release/vendor supply channel;
-2. 1MCP `0.34.4` does not inherit the entire parent environment for stdio servers by default. Scoped variables must be imported deliberately; the Filesystem candidate imports only `CHAT_LOCAL_FILES_ROOT` rather than the whole Windows environment;
-3. Windows shell quoting can corrupt JSON passed through `--args`; the acceptance harness uses 1MCP's documented JSON-on-stdin path for tool calls;
-4. an unpinned `uvx package` command is not sufficient evidence when PyPI lags behind upstream source/release. The chosen artifact must be explicit and reproducible;
-5. hosted Windows runners can have a cold npm cache. The local bridge lifecycle now has an explicit readiness timeout parameter, while the normal local default remains bounded and CI gets a larger cold-start allowance.
+### `browser-isolated`
 
-At the current Stage 23 head, Module Candidate Acceptance, normal Windows CI, CodeQL and Secret History Scan all pass.
+- one Playwright MCP server only;
+- isolated headless Chrome;
+- no filesystem capability;
+- service workers and code generation disabled;
+- `browser_run_code_unsafe`, `browser_evaluate`, `browser_file_upload` and direct `browser_network_request` disabled.
+
+The profiles are deliberately **not combined**. Read-only local data plus an open network-capable browser can still form an exfiltration path under prompt injection. Capability separation is therefore the baseline security boundary.
+
+New lifecycle scripts keep the official tunnel target at `http://127.0.0.1:3050/mcp` and switch which local 1MCP Runtime Scope owns that port:
+
+- `scripts/start-chat-profile.ps1`;
+- `scripts/status-chat-profile.ps1`;
+- `scripts/stop-chat-profile.ps1`.
+
+The profile switch is an explicit local action. Ordinary Chat cannot silently grant itself a broader profile.
+
+Stage 24 is not accepted until both profiles pass their dedicated Windows profile CI and then each passes one harmless ordinary-Chat end-to-end call through the existing Secure MCP Tunnel. Authenticated browser reuse, filesystem writes, Windows UI control and shell access remain outside the baseline.
+
+## Application candidates after Stage 24
+
+- TwelveTake REAPER MCP: choose one exact immutable artifact before real REAPER benchmarking;
+- Origin-Pro-MCP: source and PyPI versions currently differ, so choose one exact artifact before testing installed Origin;
+- `ffmpeg-mcp-lite==0.2.2`: primary typed FFmpeg candidate, still requires path/output audit and media benchmarks;
+- `sbroenne/mcp-windows`: high-privilege fallback only;
+- Blender: compare a reduced DCC-MCP profile against the smaller `djeada` server.
 
 ## Legacy preservation
 
@@ -67,11 +81,11 @@ Nothing important was erased from history. The complete pre-cleanup implementati
 a446397d99276856c614bc49526cab422c7e74bd
 ```
 
-FFmpeg, REAPER and mastering code from that history is classified as **candidate extraction material**, not active product code. Do not recover it unless ready-made/vendor-first research leaves a measured gap.
+FFmpeg, REAPER and mastering code from that history is candidate extraction material, not active product code.
 
 ## External fallback evidence
 
-The older Yandex integration and Tailscale route are not active repository dependencies. They may remain externally available as rollback evidence until separately retired. Do not add new features to those paths.
+The older Yandex integration and Tailscale route are not active repository dependencies. Do not add new features to those paths.
 
 ## Secrets
 
