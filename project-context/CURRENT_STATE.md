@@ -14,7 +14,7 @@ ChatGPT
   -> result back to ChatGPT
 ```
 
-This is the compatibility authority for the current project direction.
+This is the compatibility authority for the current project direction. Ordinary Chat remains the primary intelligence surface; Work, Codex and Workspace Agents are optional consumers/accelerators rather than required architecture.
 
 ## Active repository after Stage 22
 
@@ -38,13 +38,18 @@ The first candidates are intentionally isolated from the default ChatGPT-facing 
 
 - read-only scoped Model Context Protocol Filesystem server, pinned to published npm release `2026.7.10`;
 - Microsoft Playwright MCP, pinned to published npm release `0.0.78`, tested in isolated/headless mode;
-- TwelveTake REAPER MCP classified for real local REAPER benchmark;
-- `sbroenne/mcp-windows` classified as a high-privilege Windows UI Automation fallback;
-- OriginLab `originpro` selected as the preferred vendor API foundation for a future thin Origin MCP adapter.
+- TwelveTake REAPER MCP `v1.6.4` selected for a real local REAPER benchmark;
+- `youngminsw/Origin-Pro-MCP` `0.3.1` is now the primary ready-made Origin candidate; the official OriginLab `originpro` API becomes the fallback foundation only if a measured gap remains;
+- `kevinwatt/ffmpeg-mcp-lite` `0.2.2` is now the primary small typed FFmpeg candidate; project-owned FFmpeg code is fallback only;
+- `sbroenne/mcp-windows` remains a high-privilege Windows UI Automation fallback;
+- Blender selection is narrowed to a deep-but-broad `dcc-mcp/dcc-mcp-blender` candidate and a smaller `djeada/blender-mcp-server` candidate.
 
-An early candidate CI run caught that source-tree `package.json` versions can be newer than the actual published package channel. Selection policy now requires proving that an installation pin exists in npm/PyPI/GitHub Releases/vendor distribution before acceptance.
+Candidate CI has already caught two real integration mistakes instead of accepting README claims:
 
-Candidate profiles live under `runtime/candidates/`. Promotion into the default tool surface waits for Stage 24 least-privilege/security acceptance.
+1. source-tree version strings can differ from published package versions, so the selection policy now requires proving the real npm/PyPI/GitHub Release/vendor supply channel;
+2. 1MCP `0.34.4` does not inherit the entire parent environment for stdio servers by default. Scoped variables must be imported deliberately; the Filesystem candidate now imports only `CHAT_LOCAL_FILES_ROOT` rather than the whole Windows environment.
+
+Candidate profiles live under `runtime/candidates/`. Promotion into the default tool surface waits for real acceptance plus Stage 24 least-privilege/security review.
 
 ## Legacy preservation
 
