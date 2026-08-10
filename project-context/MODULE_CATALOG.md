@@ -12,8 +12,8 @@ Status meanings:
 | Capability | Candidate | Cost model | License / owner | Status | Decision |
 |---|---|---|---|---|---|
 | MCP aggregation | `@1mcp/agent@0.34.4` | local, no SaaS required | Apache-2.0, 1mcp-app | accepted infrastructure | Keep. Already passed ChatGPT E2E through Secure MCP Tunnel. |
-| Files | `@modelcontextprotocol/server-filesystem@0.6.3` | local, free | MIT in server README, Model Context Protocol project | ACCEPTED-CANDIDATE | Use scoped roots. Candidate profile disables create/write/edit/move so Stage 23 tests are read-only. |
-| Browser | `@playwright/mcp@0.0.79` | local, free | Apache-2.0, Microsoft | ACCEPTED-CANDIDATE | Best current browser foundation: structured accessibility snapshots, isolated/headless test mode, no paid browser cloud required. Production permissions belong to Stage 24. |
+| Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | local, free | MIT in server README, Model Context Protocol project | ACCEPTED-CANDIDATE | Use scoped roots. Candidate profile disables create/write/edit/move so Stage 23 tests are read-only. |
+| Browser | `@playwright/mcp@0.0.78` | local, free | Apache-2.0, Microsoft | ACCEPTED-CANDIDATE | Best current browser foundation: structured accessibility snapshots, isolated/headless test mode, no paid browser cloud required. Production permissions belong to Stage 24. |
 | Windows desktop fallback | `sbroenne/mcp-windows` v1.3.18 | local, free | MIT | LOCAL-TEST-REQUIRED | Strong fallback because it uses Windows UI Automation by semantic element names. High privilege; never default until Stage 24 and real Origin/REAPER tests. |
 | REAPER | `TwelveTake-Studios/reaper-mcp` v1.6.4 | local, free beyond REAPER itself | MIT | LOCAL-TEST-REQUIRED | Primary REAPER candidate. 176 tools and maintained file-based bridge. Benchmark on real project before considering old project code. |
 | OriginPro | official `originpro` external Python API | no extra service fee beyond installed Origin | OriginLab vendor API | THIN-ADAPTER | Prefer a small MCP adapter over UI automation. Official API reads/writes data and creates/exports graphs via Origin Automation Server COM; requires Origin 2021+. |
@@ -35,9 +35,11 @@ Repository: `https://github.com/1mcp-app/agent`
 ### Filesystem MCP
 
 Repository: `https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem`
+Package channel: `https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem`
 
 - npm package: `@modelcontextprotocol/server-filesystem`.
-- Repository package version observed: `0.6.3`.
+- Published stable version selected for tests: `2026.7.10`.
+- The source-tree package metadata may be ahead/behind the npm release numbering; install pinning follows the real npm supply channel, not an unreleased source-tree version string.
 - Supports explicit allowed directories / MCP Roots.
 - Tools carry read-only/destructive annotations.
 - README license: MIT.
@@ -45,9 +47,11 @@ Repository: `https://github.com/modelcontextprotocol/servers/tree/main/src/files
 ### Microsoft Playwright MCP
 
 Repository: `https://github.com/microsoft/playwright-mcp`
+Package channel: `https://www.npmjs.com/package/@playwright/mcp`
 
 - Apache-2.0.
-- Repository package version observed: `0.0.79`.
+- Published stable version selected for tests: `0.0.78`.
+- Repository `main` package metadata was observed ahead at `0.0.79`; that unreleased source version is not used as an install pin.
 - Uses structured accessibility snapshots rather than pixel-only interaction.
 - Supports headless, isolated profiles, browser selection, origin controls and optional connection to an existing browser through its extension.
 - Upstream explicitly notes that Playwright MCP itself is not a security boundary; Stage 24 must provide the boundary.
