@@ -13,6 +13,7 @@
       "env": {
         "CHAT_LOCAL_FILES_ROOT": "${CHAT_LOCAL_FILES_ROOT}"
       },
+      "stderr": "inherit",
       "tags": ["candidate", "filesystem", "read-only", "free"],
       "disabledTools": [
         "create_directory",
