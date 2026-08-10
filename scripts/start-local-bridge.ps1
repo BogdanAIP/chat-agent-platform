@@ -50,7 +50,7 @@ for ($attempt = 1; $attempt -le $ReadyTimeoutSeconds; $attempt++) {
             Write-Host 'LOCAL_BRIDGE_STATUS=ready' -ForegroundColor Green
             Write-Host "MCP_URL=http://127.0.0.1:$Port/mcp"
             Write-Host "HEALTH_SERVER=$HealthServerName"
-            exit 0
+            return
         }
     }
     catch {}
