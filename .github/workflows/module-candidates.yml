@@ -55,13 +55,21 @@ jobs:
           ) | Out-Null
           if ($errors.Count -ne 0) { throw ($errors -join '; ') }
 
-      - name: Enforce pinned free candidates
+      - name: Enforce pinned published free candidates
         shell: pwsh
         run: |
+          $fsVersion = '2026.7.10'
+          $pwVersion = '0.0.78'
           $fs = Get-Content 'runtime/candidates/filesystem-readonly.json' -Raw -Encoding utf8
           $pw = Get-Content 'runtime/candidates/playwright-headless.json' -Raw -Encoding utf8
-          if ($fs -notmatch [regex]::Escape('@modelcontextprotocol/server-filesystem@0.6.3')) { throw 'Filesystem version is not pinned.' }
-          if ($pw -notmatch [regex]::Escape('@playwright/mcp@0.0.79')) { throw 'Playwright version is not pinned.' }
+          if ($fs -notmatch [regex]::Escape("@modelcontextprotocol/server-filesystem@$fsVersion")) { throw 'Filesystem version is not pinned.' }
+          if ($pw -notmatch [regex]::Escape("@playwright/mcp@$pwVersion")) { throw 'Playwright version is not pinned.' }
+
+          $publishedFs = (& npm.cmd view "@modelcontextprotocol/server-filesystem@$fsVersion" version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $publishedFs -ne $fsVersion) { throw "Filesystem release $fsVersion is not available from npm." }
+          $publishedPw = (& npm.cmd view "@playwright/mcp@$pwVersion" version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $publishedPw -ne $pwVersion) { throw "Playwright release $pwVersion is not available from npm." }
+
           foreach ($forbidden in @('api_key','subscription','browserbase','apify','firecrawl')) {
             if (($fs + $pw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
           }
