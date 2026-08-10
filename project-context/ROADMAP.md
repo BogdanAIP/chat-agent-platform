@@ -1,156 +1,73 @@
-# Roadmap v1.6 — Chat-to-Local Bridge
+# Roadmap — Chat-to-Local Bridge
 
 ## Goal
 
-Build the smallest reliable bridge that lets **ordinary ChatGPT Chat** use replaceable capabilities on the user's local computer through standard MCP.
+Keep ordinary ChatGPT Chat as the intelligence layer while local capabilities remain replaceable standard MCP modules.
 
-Do not build a second agent runtime. Prefer mature maintained MCP runtimes, gateways, tunnels and servers. Project-owned code is justified only for convenience/configuration or for a local program that lacks an acceptable MCP adapter.
+## Stage 21 — Native ChatGPT ↔ local MCP — DONE
 
-## Phase A — Prove a zero-custom-core bridge
+Accepted 2026-08-10:
 
-### A1 — Hosted Chat -> local Windows — done
+- official OpenAI Secure MCP Tunnel created and linked to the ChatGPT workspace;
+- official `openai/tunnel-client` reached `ready` on Windows;
+- local 1MCP reached `ready`;
+- ChatGPT discovered and invoked `sequential_thinking`;
+- result returned to the same ChatGPT conversation.
 
-Historical evidence already proved ChatGPT could reach the local Windows machine through the legacy Yandex path.
+## Stage 22 — Remove superseded custom platform infrastructure — DONE
 
-### A2 — Off-the-shelf local MCP runtime — done
+The active repository no longer ships the old universal Rust/Python core or transport stack.
 
-Accepted local runtime candidate: **1MCP**.
+Removed from the active tree:
 
-Accepted test components:
+- `agent-platform.exe` universal runtime source;
+- custom `/gpt` ingress and polling transport;
+- Rust `relay-server`;
+- Yandex gateway/function/deployment assets;
+- Stage 4 relay/GPT Action tests and workflows;
+- Python behavioral oracle and Rust/Python parity layer;
+- media/REAPER/mastering implementation as platform core;
+- release/SBOM/license packaging built around the deprecated universal binary;
+- Tailscale `8443` pilot lifecycle from the product path.
 
-- `@1mcp/agent@0.34.4`;
-- official `@modelcontextprotocol/server-sequential-thinking@2026.7.4`;
-- local Streamable HTTP endpoint `http://127.0.0.1:3050/mcp`.
+The pre-cleanup tree is preserved by Git history at `a446397d99276856c614bc49526cab422c7e74bd`.
 
-The reference server was intentionally harmless and exposed no filesystem, shell, browser, credentials or local application control.
+## Stage 23 — Module catalog and ready-made selection — NEXT
 
-### A3 / Stage 21 — Native ChatGPT MCP round trip — done
+For every desired local capability:
 
-Accepted on 2026-08-10 through the official **OpenAI Secure MCP Tunnel**.
+1. define the exact user operation and risk;
+2. find official/vendor MCP;
+3. find mature OSS MCP;
+4. find a mature generic CLI/API adapter;
+5. only if all fail, extract or implement one small project-owned MCP adapter.
 
-Observed end-to-end path:
+Do not restore old media code merely because it already exists in history.
 
-```text
-ordinary ChatGPT Chat
-  -> development MCP app `Chat Local Bridge Test`
-  -> OpenAI Secure MCP Tunnel
-  -> official `openai/tunnel-client`
-  -> http://127.0.0.1:3050/mcp
-  -> 1MCP
-  -> sequential_thinking
-  -> result returned to the same ChatGPT conversation
-```
+Deliverable: a compatibility catalog with tested install/start/health/call evidence for each accepted module.
 
-Returned tool result included:
+## Stage 24 — Privileged module security
 
-```json
-{
-  "thoughtNumber": 1,
-  "totalThoughts": 1,
-  "nextThoughtNeeded": false,
-  "branches": [],
-  "thoughtHistoryLength": 1
-}
-```
+Before enabling filesystem, shell, browser, application control, credentials or devices:
 
-This proves that the bridge core does **not** require a project-owned MCP transport, public ingress or autonomous agent runtime.
+- define least-privilege tool exposure;
+- verify ChatGPT-side permission behavior;
+- add module-specific allowlists/scopes;
+- run negative/unauthorized tests;
+- document secret handling and recovery.
 
-Tailscale Funnel `8443` is no longer the primary ChatGPT transport. It remains optional/fallback evidence only. The pre-existing HTTPS `443`/Yandex path remains untouched until a separate cleanup decision.
+## Stage 25 — Optional Windows manager
 
-## Phase B — Permanent bridge stack — accepted baseline
+Only after module management stabilizes, consider a thin UI/manager for:
 
-Default baseline:
+- installing/detecting 1MCP and official tunnel-client;
+- adding/removing MCP modules;
+- start/stop/status;
+- diagnostics;
+- safe local secret references.
 
-```text
-ChatGPT Chat
-  -> OpenAI Secure MCP Tunnel
-  -> official tunnel-client
-  -> replaceable local MCP runtime (currently 1MCP)
-  -> replaceable MCP modules/adapters
-  -> local programs/files/devices
-```
-
-1MCP is accepted as the current default local runtime because it passed the real ChatGPT round trip. It remains replaceable.
-
-Fallbacks are evaluated only for a measured gap:
-
-- **ToolHive** — stronger isolation/governance/security/runtime management;
-- **agentgateway** — protocol/auth/routing edge;
-- **Docker MCP Toolkit** — only when Docker Desktop is an accepted baseline dependency.
-
-Do not carry all candidates permanently.
-
-## Phase C / Stage 22 — Legacy subsystem classification — next
-
-Classify every existing custom subsystem as exactly one of:
-
-- **remove** — mature ecosystem component replaces it;
-- **extract** — useful as an optional MCP adapter/module;
-- **retain** — concrete measured requirement remains;
-- **archive/reference** — historical evidence only.
-
-Priority inventory:
-
-- `agent-platform.exe` universal runtime;
-- custom `/gpt` ingress;
-- polling relay/Yandex transport;
-- Project Binding/policy/confirmation layers;
-- Secret/Artifact/Job stores;
-- FFmpeg/REAPER/media workflows;
-- Python behavioral oracle.
-
-Do not delete by sunk-cost reaction or wholesale rewrite. Reduce only from evidence.
-
-## Phase D / Stage 23 — Module catalog
-
-For each requested local capability:
-
-```text
-official MCP exists?
-  yes -> use it
-  no  -> mature OSS MCP exists?
-           yes -> use it
-           no  -> generic adapter/API/CLI bridge exists?
-                    yes -> use it
-                    no  -> implement one small project-owned adapter
-```
-
-Programs such as files, Git, browser, REAPER, FFmpeg, Origin, Blender, CAD, local models and hardware remain independent modules.
-
-## Phase E / Stage 24 — Privilege and auth model
-
-Before privileged modules are enabled:
-
-1. keep tunnel runtime credentials outside git;
-2. use the minimum OpenAI tunnel permission set (`Tunnels Read + Use`) for the runtime key;
-3. define which local MCP modules/tools are exposed per profile;
-4. verify ChatGPT permission behavior;
-5. add negative tests for unauthorized/unintended access where applicable;
-6. document rotation/recovery/stop behavior.
-
-Secure MCP Tunnel is transport and control-plane access, not a replacement for least-privilege tool design.
-
-## Phase F / Stage 25 — Optional Windows bridge manager
-
-Only after Stage 22-24, consider a thin Windows layer that can:
-
-- detect/install the supported tunnel client and local MCP runtime;
-- add/remove/update MCP modules;
-- manage profiles;
-- start/stop/status the local bridge;
-- show health/ready state;
-- keep secrets outside repository files;
-- export diagnostics.
-
-It must not become a second planner, agent or workflow engine.
+It must not become an agent, workflow engine or second policy platform.
 
 ## Definition of Done
 
-The product direction is successful when:
-
-1. ordinary ChatGPT Chat remains the intelligence/orchestration surface;
-2. ChatGPT reaches the laptop through a mature supported MCP transport;
-3. local capabilities are replaceable MCP modules;
-4. Work, Codex and model API billing are optional rather than required for normal interaction;
-5. privileged capabilities are bounded by explicit security profiles;
-6. project-owned infrastructure is smaller than the mature components it coordinates.
+The product succeeds when ordinary ChatGPT can use useful local modules with no project-owned generic transport/runtime and a user can add or replace a module without changing the bridge core.

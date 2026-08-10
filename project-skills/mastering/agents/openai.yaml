@@ -1,4 +1,0 @@
-interface:
-  display_name: "Audio Mastering"
-  short_description: "Plan and validate professional mastering work"
-  default_prompt: "Use $mastering to assess this track and plan a mastering workflow."

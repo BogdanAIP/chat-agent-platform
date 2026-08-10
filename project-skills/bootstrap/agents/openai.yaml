@@ -1,4 +1,0 @@
-interface:
-  display_name: "Agent Platform Bootstrap"
-  short_description: "Bind project and load minimal agent context"
-  default_prompt: "Use $bootstrap to bind the active project and inspect a media file safely."
