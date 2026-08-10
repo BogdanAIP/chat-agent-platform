@@ -69,14 +69,29 @@ function Resolve-SafeFilesRoot {
     return $full
 }
 
-function Test-InventoryTool {
+function Get-InventoryToolNames {
     param(
-        [Parameter(Mandatory)] [string]$Inventory,
-        [Parameter(Mandatory)] [string]$ToolName
+        [Parameter(Mandatory)] [string]$ServerName,
+        [Parameter(Mandatory)] [string]$BaseUrl
     )
 
-    $pattern = '"name"\s*:\s*"' + [regex]::Escape($ToolName) + '"'
-    return $Inventory -match $pattern
+    $inventoryText = & npx.cmd -y $pkg inspect $ServerName --url $BaseUrl --format json --all 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not inspect '$ServerName'.`n$inventoryText"
+    }
+
+    try {
+        $inventory = $inventoryText | ConvertFrom-Json
+    }
+    catch {
+        throw "1MCP inspect returned non-JSON output for '$ServerName'.`n$inventoryText"
+    }
+
+    if ([string]$inventory.kind -ne 'server' -or [string]$inventory.server -ne $ServerName) {
+        throw "Unexpected 1MCP inspect payload for '$ServerName'."
+    }
+
+    return @($inventory.tools | ForEach-Object { [string]$_.tool })
 }
 
 function Assert-ProfileSurface {
@@ -86,36 +101,34 @@ function Assert-ProfileSurface {
     )
 
     if ($ProfileName -eq 'files-readonly') {
-        $inventory = & npx.cmd -y $pkg inspect filesystem --url $BaseUrl --format json --all 2>&1 | Out-String
-        if ($LASTEXITCODE -ne 0) { throw "Could not inspect files profile.`n$inventory" }
+        $tools = @(Get-InventoryToolNames -ServerName 'filesystem' -BaseUrl $BaseUrl)
         foreach ($forbidden in @('create_directory', 'write_file', 'edit_file', 'move_file')) {
-            if (Test-InventoryTool -Inventory $inventory -ToolName $forbidden) {
+            if ($tools -contains $forbidden) {
                 throw "Files profile unexpectedly exposes '$forbidden'."
             }
         }
         foreach ($required in @('read_text_file', 'list_allowed_directories')) {
-            if (-not (Test-InventoryTool -Inventory $inventory -ToolName $required)) {
+            if ($tools -notcontains $required) {
                 throw "Files profile is missing '$required'."
             }
         }
-        if ($inventory -match '"name"\s*:\s*"browser_') {
+        if ($tools | Where-Object { $_ -like 'browser_*' }) {
             throw 'Files profile unexpectedly exposes browser tools.'
         }
         return
     }
 
-    $inventory = & npx.cmd -y $pkg inspect playwright --url $BaseUrl --format json --all 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) { throw "Could not inspect browser profile.`n$inventory" }
-    if (-not (Test-InventoryTool -Inventory $inventory -ToolName 'browser_navigate')) {
+    $tools = @(Get-InventoryToolNames -ServerName 'playwright' -BaseUrl $BaseUrl)
+    if ($tools -notcontains 'browser_navigate') {
         throw 'Browser profile is missing browser_navigate.'
     }
     foreach ($forbidden in @('browser_run_code_unsafe', 'browser_evaluate', 'browser_file_upload', 'browser_network_request')) {
-        if (Test-InventoryTool -Inventory $inventory -ToolName $forbidden) {
+        if ($tools -contains $forbidden) {
             throw "Browser profile unexpectedly exposes '$forbidden'."
         }
     }
     foreach ($filesystemTool in @('read_text_file', 'write_file', 'list_allowed_directories')) {
-        if (Test-InventoryTool -Inventory $inventory -ToolName $filesystemTool) {
+        if ($tools -contains $filesystemTool) {
             throw "Browser profile unexpectedly exposes filesystem tool '$filesystemTool'."
         }
     }
