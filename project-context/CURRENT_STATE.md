@@ -36,11 +36,13 @@ Stage 23 is in progress with a hard product rule: **zero new mandatory SaaS subs
 
 The first candidates are intentionally isolated from the default ChatGPT-facing `runtime/mcp.json`:
 
-- read-only scoped Model Context Protocol Filesystem server, pinned to `0.6.3`;
-- Microsoft Playwright MCP, pinned to `0.0.79`, tested in isolated/headless mode;
+- read-only scoped Model Context Protocol Filesystem server, pinned to published npm release `2026.7.10`;
+- Microsoft Playwright MCP, pinned to published npm release `0.0.78`, tested in isolated/headless mode;
 - TwelveTake REAPER MCP classified for real local REAPER benchmark;
 - `sbroenne/mcp-windows` classified as a high-privilege Windows UI Automation fallback;
 - OriginLab `originpro` selected as the preferred vendor API foundation for a future thin Origin MCP adapter.
+
+An early candidate CI run caught that source-tree `package.json` versions can be newer than the actual published package channel. Selection policy now requires proving that an installation pin exists in npm/PyPI/GitHub Releases/vendor distribution before acceptance.
 
 Candidate profiles live under `runtime/candidates/`. Promotion into the default tool surface waits for Stage 24 least-privilege/security acceptance.
 
