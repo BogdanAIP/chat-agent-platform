@@ -96,6 +96,9 @@ jobs:
           if ($start -match '--https=443' -or $stop -match '--https=443') {
             throw 'Bridge pilot must not modify the existing HTTPS 443 Funnel route.'
           }
+          if ($start -match '--external-url') {
+            throw 'Unauthenticated bridge pilot must not couple 1MCP local readiness to the public Funnel URL.'
+          }
 
       - name: Prove pinned 1MCP and reference server on Windows
         shell: pwsh
