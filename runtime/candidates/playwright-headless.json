@@ -1,0 +1,26 @@
+{
+  "$schema": "https://docs.1mcp.app/schemas/v1.0.0/mcp-config.json",
+  "mcpServers": {
+    "playwright": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@playwright/mcp@0.0.79",
+        "--headless",
+        "--browser",
+        "chrome",
+        "--isolated",
+        "--image-responses",
+        "omit",
+        "--block-service-workers",
+        "--codegen",
+        "none"
+      ],
+      "tags": ["candidate", "browser", "isolated", "free"],
+      "connectionTimeout": 60000,
+      "requestTimeout": 60000
+    }
+  }
+}
