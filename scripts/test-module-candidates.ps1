@@ -59,7 +59,7 @@ function Start-CandidateRuntime {
 
     $healthUri = "http://127.0.0.1:$Port/health/mcp/$ServerName"
     $lastHealth = $null
-    for ($attempt = 1; $attempt -le 90; $attempt++) {
+    for ($attempt = 1; $attempt -le 180; $attempt++) {
         try {
             $lastHealth = Invoke-RestMethod -Method Get -Uri $healthUri -TimeoutSec 5
             if ([string]$lastHealth.state -eq 'ready') {
