@@ -7,6 +7,7 @@ Status meanings:
 - **ACCEPTED-CANDIDATE** — quality/cost/licensing look strong enough for technical acceptance tests; not automatically exposed to ChatGPT yet.
 - **LOCAL-TEST-REQUIRED** — promising but must be tested against the user's real installed application before promotion.
 - **SECURITY-REVIEW-REQUIRED** — technically strong but exposes a broad or dangerous surface that must be reduced before promotion.
+- **SUPPLY-PIN-REQUIRED** — upstream source is promising, but the desired source version is not yet the same version available from the normal package channel; choose and test an immutable install source before promotion.
 - **THIN-ADAPTER-FALLBACK** — a small project-owned adapter is allowed only if the better ready-made candidate fails measured requirements.
 - **RESEARCH** — no candidate promoted yet.
 
@@ -16,10 +17,10 @@ Status meanings:
 | Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | local, free | MIT, Model Context Protocol project | ACCEPTED-CANDIDATE | Use scoped roots. Candidate profile disables create/write/edit/move so Stage 23 acceptance is read-only. Do not promote until the real 1MCP compatibility test is green. |
 | Browser | `@playwright/mcp@0.0.78` | local, free | Apache-2.0, Microsoft | ACCEPTED-CANDIDATE | Primary browser foundation: structured accessibility snapshots, isolated/headless test mode, no paid browser cloud required. Real-session permissions belong to Stage 24. |
 | Windows desktop fallback | `sbroenne/mcp-windows` | local, free | MIT | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED | Strong semantic Windows UI Automation fallback. Keep screenshot/mouse/keyboard as fallback only; never expose the whole desktop surface by default. |
-| REAPER | `TwelveTake-Studios/reaper-mcp` v1.6.4 | local, free beyond REAPER itself | MIT | LOCAL-TEST-REQUIRED | Primary REAPER candidate. 176 tools, actively maintained file-based bridge, stock REAPER Lua and high-level production helpers. Benchmark on a real project before considering legacy project code. |
-| OriginPro | `youngminsw/Origin-Pro-MCP` 0.3.1 | local, no extra SaaS; requires installed/licensed Origin | MIT | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED | New primary Origin candidate. It already implements COM-based worksheets, import/export, plotting, styling, fitting, FFT, peak analysis and guarded LabTalk. Test against the user's actual Origin version before writing anything. |
+| REAPER | `TwelveTake-Studios/reaper-mcp` | local, free beyond REAPER itself | MIT | LOCAL-TEST-REQUIRED / SUPPLY-PIN-REQUIRED | GitHub release `v1.6.4` exists and is the desired source line, while the package-channel evidence inspected still shows PyPI `1.6.0`. Choose either the verified PyPI build or an immutable `v1.6.4` source/release install and benchmark exactly that artifact. |
+| OriginPro | `youngminsw/Origin-Pro-MCP` | local, no extra SaaS; requires installed/licensed Origin | MIT | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED / SUPPLY-PIN-REQUIRED | Source `main` is `0.3.1` at commit `1e9741af96c45bcac9e619c3ba32264bac6950e7`, but PyPI currently publishes `0.1.0`. Do not use an unpinned `uvx` and assume it matches source. Benchmark either published `0.1.0` or the exact source commit after review. |
 | OriginPro fallback | official OriginLab `originpro` external Python API | no extra service fee beyond installed Origin | OriginLab vendor API | THIN-ADAPTER-FALLBACK | Use only if the ready-made Origin MCP fails compatibility, safety or workflow quality. Do not build an adapter pre-emptively. |
-| FFmpeg/media | `kevinwatt/ffmpeg-mcp-lite` 0.2.2 | local, free; requires local FFmpeg | MIT | ACCEPTED-CANDIDATE | Small typed surface for info/convert/compress/trim/merge/audio/frames/subtitles. Source uses argument arrays with `create_subprocess_exec`; no generic arbitrary-shell tool was found in the inspected surface. Audit all tools and run real media tests before promotion. |
+| FFmpeg/media | `kevinwatt/ffmpeg-mcp-lite` `0.2.2` | local, free; requires local FFmpeg | MIT | ACCEPTED-CANDIDATE | PyPI `0.2.2` is verified. Small typed surface for info/convert/compress/trim/merge/audio/frames/subtitles. Audit all tools and run real media tests before promotion. |
 | FFmpeg fallback | native FFmpeg CLI behind a small allowlisted adapter | local, free | FFmpeg project + project adapter | THIN-ADAPTER-FALLBACK | Only build if `ffmpeg-mcp-lite` fails measured needs. Never expose arbitrary shell as the media API. |
 | Blender | `dcc-mcp/dcc-mcp-blender` | local, free | MIT source/PyPI; Blender Extension distribution GPL-3.0-or-later | SECURITY-REVIEW-REQUIRED | Very broad and active 200+ tool ecosystem with E2E CI and progressive skills, but includes raw Python/script execution. Interesting for deep Blender work only after a reduced tool profile is proven. |
 | Blender alternative | `djeada/blender-mcp-server` | local, free | MIT | LOCAL-TEST-REQUIRED | Smaller 22-tool surface is attractive for a safer baseline. Compare actual workflow coverage and maintenance against DCC-MCP before selection. |
@@ -74,33 +75,34 @@ Repository: `https://github.com/sbroenne/mcp-windows`
 ### TwelveTake REAPER MCP
 
 Repository: `https://github.com/TwelveTake-Studios/reaper-mcp`
-Release: `v1.6.4`, published 2026-08-08.
+GitHub release: `v1.6.4`, published 2026-08-08.
 
 - MIT.
 - 176 tools for track/FX/routing/automation/MIDI/rendering plus higher-level production workflows.
 - The supported communication path is a local file-based bridge; deprecated HTTP mode is not selected.
 - The REAPER bridge uses stock Lua and requires no cloud service or paid API.
-- Published package can be launched with `uvx`/`pipx`.
-- Latest release specifically improves long render timeout reporting, which is relevant for production use.
+- GitHub `v1.6.4` specifically improves long render timeout reporting.
+- The PyPI project evidence inspected during this Stage still reported `1.6.0`; therefore an eventual config must not blindly claim `uvx twelvetake-reaper-mcp==1.6.4` until that exact package build is verified. A pinned GitHub release/source install remains possible if we deliberately choose it.
 
 ### Origin Pro MCP
 
 Repository: `https://github.com/youngminsw/Origin-Pro-MCP`
-Package metadata version observed: `0.3.1`.
+Source commit selected for review: `1e9741af96c45bcac9e619c3ba32264bac6950e7` (`0.3.1`).
+PyPI version verified on 2026-08-10: `0.1.0`.
 
 - MIT, Python 3.10+, Windows runtime using `pywin32` and Origin COM Automation.
-- Provides worksheet management, CSV/Excel import/export, matrices/3D, graph creation/layers/styling, fitting, FFT, smoothing, integration, differentiation, interpolation, peak finding, statistics and project operations.
-- Includes guarded LabTalk rather than making raw destructive file/project commands the normal path.
+- The newer source line provides worksheet management, CSV/Excel import/export, matrices/3D, graph creation/layers/styling, fitting, FFT, smoothing, integration, differentiation, interpolation, peak finding, statistics and project operations.
+- Includes guarded LabTalk, but raw LabTalk remains a high-risk capability and must not be in a least-privilege default profile.
 - Ships extensive unit/integration/live test files for import/export, graphing, fitting and connection behavior.
-- Can be launched through `uvx` or installed from PyPI.
-- Upstream currently states its verified environment is Origin Pro 2020; other versions are explicitly unverified. Therefore the user's installed Origin must pass a real smoke test before promotion.
+- The repository README's simple `uvx origin-pro-mcp` path currently resolves the PyPI package, which is older than source `0.3.1`; Stage 23 must choose the artifact explicitly rather than conflating them.
+- Upstream source documents Origin 2020 COM quirks; actual compatibility with the installed Origin must be measured locally.
 
 Vendor fallback: OriginLab's official external Python `originpro` API remains the preferred foundation if a small custom compatibility adapter is eventually required.
 
 ### FFmpeg MCP Lite
 
 Repository: `https://github.com/kevinwatt/ffmpeg-mcp-lite`
-Package metadata version observed: `0.2.2`.
+PyPI version verified: `0.2.2`.
 
 - MIT, Python 3.10+, local FFmpeg/ffprobe.
 - Small tool set: media info, conversion, compression, trim, merge, audio extraction, frame extraction and subtitle burn-in.
@@ -125,8 +127,8 @@ Package metadata version observed: `0.2.2`.
 
 1. Get read-only Filesystem and isolated/headless Playwright green through real 1MCP acceptance on Windows.
 2. Test the same two candidates locally through the existing Secure MCP Tunnel without adding them to the permanent default profile yet.
-3. Benchmark TwelveTake REAPER MCP on a real REAPER project.
-4. Benchmark `Origin-Pro-MCP` on the installed Origin; only fall back to an `originpro` adapter if a measured gap remains.
-5. Audit and benchmark `ffmpeg-mcp-lite` on representative media operations before recovering or writing any FFmpeg adapter.
+3. Choose an immutable REAPER artifact (published PyPI build or pinned GitHub release) and benchmark it on a real REAPER project.
+4. Choose an immutable Origin-Pro-MCP artifact (published `0.1.0` or reviewed commit `1e9741a...`) and benchmark it on the installed Origin; only fall back to an `originpro` adapter if a measured gap remains.
+5. Audit and benchmark verified PyPI `ffmpeg-mcp-lite==0.2.2` on representative media operations before recovering or writing any FFmpeg adapter.
 6. Test Windows MCP only as fallback for operations that specialized APIs cannot expose cleanly.
 7. Compare the reduced DCC-MCP Blender profile with the smaller `djeada` server before selecting a Blender default.
