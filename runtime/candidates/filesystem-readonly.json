@@ -10,9 +10,9 @@
         "@modelcontextprotocol/server-filesystem@2026.7.10",
         "${CHAT_LOCAL_FILES_ROOT}"
       ],
-      "env": {
-        "CHAT_LOCAL_FILES_ROOT": "${CHAT_LOCAL_FILES_ROOT}"
-      },
+      "env": [
+        "CHAT_LOCAL_FILES_ROOT"
+      ],
       "stderr": "inherit",
       "tags": ["candidate", "filesystem", "read-only", "free"],
       "disabledTools": [
