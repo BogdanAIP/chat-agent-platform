@@ -69,6 +69,16 @@ function Resolve-SafeFilesRoot {
     return $full
 }
 
+function Test-InventoryTool {
+    param(
+        [Parameter(Mandatory)] [string]$Inventory,
+        [Parameter(Mandatory)] [string]$ToolName
+    )
+
+    $pattern = '"name"\s*:\s*"' + [regex]::Escape($ToolName) + '"'
+    return $Inventory -match $pattern
+}
+
 function Assert-ProfileSurface {
     param(
         [Parameter(Mandatory)] [string]$ProfileName,
@@ -79,16 +89,16 @@ function Assert-ProfileSurface {
         $inventory = & npx.cmd -y $pkg inspect filesystem --url $BaseUrl --format json --all 2>&1 | Out-String
         if ($LASTEXITCODE -ne 0) { throw "Could not inspect files profile.`n$inventory" }
         foreach ($forbidden in @('create_directory', 'write_file', 'edit_file', 'move_file')) {
-            if ($inventory -match [regex]::Escape($forbidden)) {
+            if (Test-InventoryTool -Inventory $inventory -ToolName $forbidden) {
                 throw "Files profile unexpectedly exposes '$forbidden'."
             }
         }
         foreach ($required in @('read_text_file', 'list_allowed_directories')) {
-            if ($inventory -notmatch [regex]::Escape($required)) {
+            if (-not (Test-InventoryTool -Inventory $inventory -ToolName $required)) {
                 throw "Files profile is missing '$required'."
             }
         }
-        if ($inventory -match 'browser_') {
+        if ($inventory -match '"name"\s*:\s*"browser_') {
             throw 'Files profile unexpectedly exposes browser tools.'
         }
         return
@@ -96,16 +106,18 @@ function Assert-ProfileSurface {
 
     $inventory = & npx.cmd -y $pkg inspect playwright --url $BaseUrl --format json --all 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) { throw "Could not inspect browser profile.`n$inventory" }
-    if ($inventory -notmatch 'browser_navigate') {
+    if (-not (Test-InventoryTool -Inventory $inventory -ToolName 'browser_navigate')) {
         throw 'Browser profile is missing browser_navigate.'
     }
     foreach ($forbidden in @('browser_run_code_unsafe', 'browser_evaluate', 'browser_file_upload', 'browser_network_request')) {
-        if ($inventory -match [regex]::Escape($forbidden)) {
+        if (Test-InventoryTool -Inventory $inventory -ToolName $forbidden) {
             throw "Browser profile unexpectedly exposes '$forbidden'."
         }
     }
-    if ($inventory -match 'read_text_file|write_file|list_allowed_directories') {
-        throw 'Browser profile unexpectedly exposes filesystem tools.'
+    foreach ($filesystemTool in @('read_text_file', 'write_file', 'list_allowed_directories')) {
+        if (Test-InventoryTool -Inventory $inventory -ToolName $filesystemTool) {
+            throw "Browser profile unexpectedly exposes filesystem tool '$filesystemTool'."
+        }
     }
 }
 
