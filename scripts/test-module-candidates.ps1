@@ -1,0 +1,172 @@
+param(
+    [int]$FilesystemPort = 3061,
+    [int]$PlaywrightPort = 3062
+)
+
+$ErrorActionPreference = 'Stop'
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$pkg = '@1mcp/agent@0.34.4'
+
+function Stop-CandidateRuntime {
+    param([Parameter(Mandatory)] [string]$ConfigPath)
+    & npx.cmd -y $pkg serve --config $ConfigPath --stop *> $null
+    if ($LASTEXITCODE -notin @(0, 3, 7)) {
+        Write-Warning "1MCP cleanup returned exit code $LASTEXITCODE for $ConfigPath"
+    }
+}
+
+function Show-CandidateDiagnostics {
+    param(
+        [Parameter(Mandatory)] [string]$ConfigPath,
+        [object]$LastHealth
+    )
+
+    if ($null -ne $LastHealth) {
+        Write-Host '--- last health payload ---' -ForegroundColor Yellow
+        $LastHealth | ConvertTo-Json -Depth 8 | Write-Host
+    }
+
+    $logPath = Join-Path (Split-Path $ConfigPath -Parent) 'logs/server.log'
+    if (Test-Path $logPath) {
+        Write-Host "--- 1MCP server log tail: $logPath ---" -ForegroundColor Yellow
+        Get-Content $logPath -Tail 160 | ForEach-Object { Write-Host $_ }
+    }
+    else {
+        Write-Host "No 1MCP server log found at $logPath" -ForegroundColor Yellow
+    }
+}
+
+function Start-CandidateRuntime {
+    param(
+        [Parameter(Mandatory)] [string]$ConfigPath,
+        [Parameter(Mandatory)] [int]$Port,
+        [Parameter(Mandatory)] [string]$ServerName
+    )
+
+    Stop-CandidateRuntime -ConfigPath $ConfigPath
+
+    & npx.cmd -y $pkg serve `
+        --config $ConfigPath `
+        --host 127.0.0.1 `
+        --port $Port `
+        --health-info-level minimal `
+        --enable-async-loading `
+        --background
+    if ($LASTEXITCODE -ne 0) {
+        Show-CandidateDiagnostics -ConfigPath $ConfigPath
+        throw "1MCP failed to start candidate '$ServerName'."
+    }
+
+    $healthUri = "http://127.0.0.1:$Port/health/mcp/$ServerName"
+    $lastHealth = $null
+    for ($attempt = 1; $attempt -le 180; $attempt++) {
+        try {
+            $lastHealth = Invoke-RestMethod -Method Get -Uri $healthUri -TimeoutSec 5
+            if ([string]$lastHealth.state -eq 'ready') {
+                return
+            }
+        }
+        catch {}
+        Start-Sleep -Seconds 1
+    }
+
+    Show-CandidateDiagnostics -ConfigPath $ConfigPath -LastHealth $lastHealth
+    throw "Candidate '$ServerName' did not become ready: $healthUri"
+}
+
+function Invoke-1McpText {
+    param(
+        [Parameter(Mandatory)] [string[]]$Arguments
+    )
+    $output = & npx.cmd -y $pkg @Arguments 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "1MCP command failed ($LASTEXITCODE): $($Arguments -join ' ')`n$output"
+    }
+    return $output
+}
+
+function Invoke-1McpToolWithJson {
+    param(
+        [Parameter(Mandatory)] [string]$Tool,
+        [Parameter(Mandatory)] [string]$BaseUrl,
+        [Parameter(Mandatory)] [string]$Json
+    )
+
+    # 1MCP 0.34.4 supports a JSON object on stdin when --args is omitted.
+    # This is intentionally used instead of --args on Windows because JSON
+    # quote characters are otherwise rewritten while crossing pwsh -> npx.cmd.
+    $output = $Json | & npx.cmd -y $pkg run $Tool --url $BaseUrl --format text 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "1MCP tool call failed ($LASTEXITCODE): $Tool`n$output"
+    }
+    return $output
+}
+
+Push-Location $repoRoot
+try {
+    Write-Host '=== Filesystem candidate: read-only scoped root ===' -ForegroundColor Cyan
+    $filesystemConfig = (Resolve-Path 'runtime/candidates/filesystem-readonly.json').Path
+    $filesRoot = Join-Path ([System.IO.Path]::GetTempPath()) "chat-local-files-$PID"
+    New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+    $marker = Join-Path $filesRoot 'candidate-marker.txt'
+    Set-Content -Path $marker -Value 'FILESYSTEM_CANDIDATE_OK' -Encoding utf8
+    $env:CHAT_LOCAL_FILES_ROOT = $filesRoot
+
+    try {
+        Start-CandidateRuntime -ConfigPath $filesystemConfig -Port $FilesystemPort -ServerName 'filesystem'
+        $baseUrl = "http://127.0.0.1:$FilesystemPort"
+
+        $inventory = Invoke-1McpText -Arguments @('inspect', 'filesystem', '--url', $baseUrl, '--format', 'json', '--all')
+        foreach ($forbidden in @('write_file', 'edit_file', 'move_file', 'create_directory')) {
+            if ($inventory -match [regex]::Escape($forbidden)) {
+                throw "Read-only filesystem candidate exposed forbidden tool '$forbidden'."
+            }
+        }
+        foreach ($required in @('read_text_file', 'list_allowed_directories')) {
+            if ($inventory -notmatch [regex]::Escape($required)) {
+                throw "Filesystem candidate is missing required tool '$required'."
+            }
+        }
+
+        $readArgs = (@{ path = $marker } | ConvertTo-Json -Compress)
+        $readResult = Invoke-1McpToolWithJson -Tool 'filesystem/read_text_file' -BaseUrl $baseUrl -Json $readArgs
+        if ($readResult -notmatch 'FILESYSTEM_CANDIDATE_OK') {
+            throw 'Filesystem candidate did not return the expected marker content.'
+        }
+
+        Write-Host 'FILESYSTEM_CANDIDATE=passed' -ForegroundColor Green
+    }
+    finally {
+        Stop-CandidateRuntime -ConfigPath $filesystemConfig
+        Remove-Item Env:CHAT_LOCAL_FILES_ROOT -ErrorAction SilentlyContinue
+        Remove-Item $filesRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-Host '=== Playwright candidate: isolated headless browser ===' -ForegroundColor Cyan
+    $playwrightConfig = (Resolve-Path 'runtime/candidates/playwright-headless.json').Path
+    try {
+        Start-CandidateRuntime -ConfigPath $playwrightConfig -Port $PlaywrightPort -ServerName 'playwright'
+        $baseUrl = "http://127.0.0.1:$PlaywrightPort"
+
+        $inventory = Invoke-1McpText -Arguments @('inspect', 'playwright', '--url', $baseUrl, '--format', 'json', '--all')
+        if ($inventory -notmatch 'browser_navigate') {
+            throw 'Playwright candidate did not expose browser_navigate.'
+        }
+
+        $page = 'data:text/html,<html><body><h1>PLAYWRIGHT_CANDIDATE_OK</h1></body></html>'
+        $navigateArgs = (@{ url = $page } | ConvertTo-Json -Compress)
+        $navigateResult = Invoke-1McpToolWithJson -Tool 'playwright/browser_navigate' -BaseUrl $baseUrl -Json $navigateArgs
+        if ($navigateResult -notmatch 'PLAYWRIGHT_CANDIDATE_OK') {
+            throw 'Playwright candidate navigation did not return the expected accessibility snapshot.'
+        }
+
+        Invoke-1McpToolWithJson -Tool 'playwright/browser_close' -BaseUrl $baseUrl -Json '{}' | Out-Null
+        Write-Host 'PLAYWRIGHT_CANDIDATE=passed' -ForegroundColor Green
+    }
+    finally {
+        Stop-CandidateRuntime -ConfigPath $playwrightConfig
+    }
+}
+finally {
+    Pop-Location
+}

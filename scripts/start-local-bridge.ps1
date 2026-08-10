@@ -1,6 +1,8 @@
 param(
     [int]$Port = 3050,
-    [string]$ConfigPath = (Join-Path $PSScriptRoot '..\runtime\mcp.json')
+    [string]$ConfigPath = (Join-Path $PSScriptRoot '..\runtime\mcp.json'),
+    [ValidateRange(10, 600)]
+    [int]$ReadyTimeoutSeconds = 120
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,7 +37,7 @@ else {
 }
 
 $health = "http://127.0.0.1:$Port/health/mcp/sequential-thinking"
-for ($attempt = 1; $attempt -le 60; $attempt++) {
+for ($attempt = 1; $attempt -le $ReadyTimeoutSeconds; $attempt++) {
     try {
         $result = Invoke-RestMethod -Method Get -Uri $health -TimeoutSec 5
         if ([string]$result.state -eq 'ready') {
@@ -49,4 +51,4 @@ for ($attempt = 1; $attempt -le 60; $attempt++) {
     Start-Sleep -Seconds 1
 }
 
-throw "Local MCP did not become ready: $health"
+throw "Local MCP did not become ready within $ReadyTimeoutSeconds seconds: $health"

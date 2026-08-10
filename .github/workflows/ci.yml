@@ -60,7 +60,10 @@ jobs:
         shell: pwsh
         run: |
           try {
-            ./scripts/start-local-bridge.ps1 -Port 3059
+            # Hosted runners have an empty npm cache. Keep the production default
+            # strict, but give CI enough time to download pinned packages before
+            # judging MCP readiness.
+            ./scripts/start-local-bridge.ps1 -Port 3059 -ReadyTimeoutSeconds 240
             ./scripts/status-local-bridge.ps1 -Port 3059
           }
           finally {

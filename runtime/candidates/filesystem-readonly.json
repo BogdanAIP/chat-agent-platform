@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.1mcp.app/schemas/v1.0.0/mcp-config.json",
+  "mcpServers": {
+    "filesystem": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem@2026.7.10",
+        "${CHAT_LOCAL_FILES_ROOT}"
+      ],
+      "env": [
+        "CHAT_LOCAL_FILES_ROOT"
+      ],
+      "stderr": "inherit",
+      "tags": ["candidate", "filesystem", "read-only", "free"],
+      "disabledTools": [
+        "create_directory",
+        "write_file",
+        "edit_file",
+        "move_file"
+      ],
+      "connectionTimeout": 120000,
+      "requestTimeout": 30000
+    }
+  }
+}
