@@ -1,0 +1,120 @@
+name: Chat Profile Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/chat-profiles/**"
+      - "scripts/start-chat-profile.ps1"
+      - "scripts/status-chat-profile.ps1"
+      - "scripts/stop-chat-profile.ps1"
+      - "scripts/start-local-bridge.ps1"
+      - "scripts/status-local-bridge.ps1"
+      - ".github/workflows/chat-profiles.yml"
+      - "project-context/STAGE24_LEAST_PRIVILEGE.md"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/chat-profiles/**"
+      - "scripts/start-chat-profile.ps1"
+      - "scripts/status-chat-profile.ps1"
+      - "scripts/stop-chat-profile.ps1"
+      - "scripts/start-local-bridge.ps1"
+      - "scripts/status-local-bridge.ps1"
+      - ".github/workflows/chat-profiles.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-profiles-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-profiles:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment
+        shell: pwsh
+        run: |
+          node --version
+          npx --version
+          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+          if (-not (Test-Path $chrome)) { throw 'Google Chrome is required for browser profile acceptance.' }
+          $env:PATH = "$(Split-Path $chrome -Parent);$env:PATH"
+
+      - name: Parse profile lifecycle scripts
+        shell: pwsh
+        run: |
+          foreach ($script in @(
+            'scripts/start-local-bridge.ps1',
+            'scripts/status-local-bridge.ps1',
+            'scripts/start-chat-profile.ps1',
+            'scripts/status-chat-profile.ps1',
+            'scripts/stop-chat-profile.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $script), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
+          }
+
+      - name: Enforce mutually exclusive pinned profiles
+        shell: pwsh
+        run: |
+          $files = Get-Content 'runtime/chat-profiles/files-readonly/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $browser = Get-Content 'runtime/chat-profiles/browser-isolated/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
+
+          $fileServers = @($files.mcpServers.PSObject.Properties)
+          $browserServers = @($browser.mcpServers.PSObject.Properties)
+          if ($fileServers.Count -ne 1 -or $fileServers[0].Name -ne 'filesystem') { throw 'Files profile must expose exactly filesystem.' }
+          if ($browserServers.Count -ne 1 -or $browserServers[0].Name -ne 'playwright') { throw 'Browser profile must expose exactly playwright.' }
+
+          $fileRaw = Get-Content 'runtime/chat-profiles/files-readonly/mcp.json' -Raw -Encoding utf8
+          $browserRaw = Get-Content 'runtime/chat-profiles/browser-isolated/mcp.json' -Raw -Encoding utf8
+          if ($fileRaw -notmatch [regex]::Escape('@modelcontextprotocol/server-filesystem@2026.7.10')) { throw 'Filesystem pin drifted.' }
+          if ($browserRaw -notmatch [regex]::Escape('@playwright/mcp@0.0.78')) { throw 'Playwright pin drifted.' }
+
+          foreach ($tool in @('create_directory','write_file','edit_file','move_file')) {
+            if (@($fileServers[0].Value.disabledTools) -notcontains $tool) { throw "Files profile must disable $tool." }
+          }
+          foreach ($tool in @('browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
+            if (@($browserServers[0].Value.disabledTools) -notcontains $tool) { throw "Browser profile must disable $tool." }
+          }
+
+          if ($fileRaw -match '@playwright/mcp|browser_') { throw 'Files profile must not contain browser capability.' }
+          if ($browserRaw -match 'server-filesystem|CHAT_LOCAL_FILES_ROOT') { throw 'Browser profile must not contain filesystem capability.' }
+          foreach ($forbidden in @('api_key','subscription','browserbase','apify','firecrawl')) {
+            if (($fileRaw + $browserRaw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
+          }
+
+      - name: Prove profile switching and isolation
+        shell: pwsh
+        run: |
+          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-profile-files'
+          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+          Set-Content -LiteralPath (Join-Path $filesRoot 'marker.txt') -Value 'CHAT_PROFILE_FILES_OK' -Encoding utf8
+
+          try {
+            ./scripts/start-chat-profile.ps1 -Profile files-readonly -FilesRoot $filesRoot -Port 3066 -ReadyTimeoutSeconds 240
+            $filesStatus = ./scripts/status-chat-profile.ps1 -Port 3066 | Out-String | ConvertFrom-Json
+            if ($filesStatus.active_count -ne 1 -or $filesStatus.active_profile -ne 'files-readonly') {
+              throw 'files-readonly did not become the only active Chat profile.'
+            }
+
+            ./scripts/start-chat-profile.ps1 -Profile browser-isolated -Port 3066 -ReadyTimeoutSeconds 240
+            $browserStatus = ./scripts/status-chat-profile.ps1 -Port 3066 | Out-String | ConvertFrom-Json
+            if ($browserStatus.active_count -ne 1 -or $browserStatus.active_profile -ne 'browser-isolated') {
+              throw 'browser-isolated did not replace files-readonly as the only active Chat profile.'
+            }
+          }
+          finally {
+            ./scripts/stop-chat-profile.ps1
+          }
