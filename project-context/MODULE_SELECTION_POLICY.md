@@ -28,7 +28,8 @@ A candidate cannot become a default module until all applicable gates pass:
 - **Maintenance:** upstream is not archived/abandoned and has credible recent activity.
 - **Security:** least-privilege exposure is possible; dangerous tools can be disabled or scoped.
 - **Locality:** local files, installed software and local execution stay local unless the operation explicitly requires external access.
-- **Pinning:** production configs pin a tested version or immutable release.
+- **Supply channel:** the selected version must actually exist in the channel used to install it (npm, PyPI, GitHub Release, vendor installer). A newer version string in an unreleased source-tree `package.json` is not install evidence.
+- **Pinning:** production configs pin a tested published version or immutable release.
 - **Evidence:** install/start/health/tool-call behavior is tested before promotion.
 
 ## Paid layer
