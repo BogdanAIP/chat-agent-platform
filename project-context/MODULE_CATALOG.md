@@ -5,6 +5,7 @@ Research snapshot: 2026-08-10.
 Status meanings:
 
 - **ACCEPTED-CANDIDATE** — quality/cost/licensing look strong enough for technical acceptance tests; not automatically exposed to ChatGPT yet.
+- **CI-ACCEPTED** — real Windows acceptance through pinned 1MCP passed health, discovery and harmless tool calls; still not automatically exposed to ChatGPT.
 - **LOCAL-TEST-REQUIRED** — promising but must be tested against the user's real installed application before promotion.
 - **SECURITY-REVIEW-REQUIRED** — technically strong but exposes a broad or dangerous surface that must be reduced before promotion.
 - **SUPPLY-PIN-REQUIRED** — upstream source is promising, but the desired source version is not yet the same version available from the normal package channel; choose and test an immutable install source before promotion.
@@ -14,8 +15,8 @@ Status meanings:
 | Capability | Candidate | Cost model | License / owner | Status | Decision |
 |---|---|---|---|---|---|
 | MCP aggregation | `@1mcp/agent@0.34.4` | local, no SaaS required | Apache-2.0, 1mcp-app | accepted infrastructure | Keep. Already passed ChatGPT E2E through Secure MCP Tunnel. |
-| Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | local, free | MIT, Model Context Protocol project | ACCEPTED-CANDIDATE | Use scoped roots. Candidate profile disables create/write/edit/move so Stage 23 acceptance is read-only. Do not promote until the real 1MCP compatibility test is green. |
-| Browser | `@playwright/mcp@0.0.78` | local, free | Apache-2.0, Microsoft | ACCEPTED-CANDIDATE | Primary browser foundation: structured accessibility snapshots, isolated/headless test mode, no paid browser cloud required. Real-session permissions belong to Stage 24. |
+| Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | local, free | MIT, Model Context Protocol project | CI-ACCEPTED | Real Windows 1MCP acceptance passed: scoped root, dangerous create/write/edit/move tools hidden, and `read_text_file` successfully read a marker. Next gate is local Secure MCP Tunnel validation with one explicit user workspace root. |
+| Browser | `@playwright/mcp@0.0.78` | local, free | Apache-2.0, Microsoft | CI-ACCEPTED | Real Windows 1MCP acceptance passed: isolated/headless server became ready, exposed `browser_navigate`, navigated to a deterministic data page and closed cleanly. Real authenticated browser/session access remains a later least-privilege decision. |
 | Windows desktop fallback | `sbroenne/mcp-windows` | local, free | MIT | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED | Strong semantic Windows UI Automation fallback. Keep screenshot/mouse/keyboard as fallback only; never expose the whole desktop surface by default. |
 | REAPER | `TwelveTake-Studios/reaper-mcp` | local, free beyond REAPER itself | MIT | LOCAL-TEST-REQUIRED / SUPPLY-PIN-REQUIRED | GitHub release `v1.6.4` exists and is the desired source line, while the package-channel evidence inspected still shows PyPI `1.6.0`. Choose either the verified PyPI build or an immutable `v1.6.4` source/release install and benchmark exactly that artifact. |
 | OriginPro | `youngminsw/Origin-Pro-MCP` | local, no extra SaaS; requires installed/licensed Origin | MIT | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED / SUPPLY-PIN-REQUIRED | Source `main` is `0.3.1` at commit `1e9741af96c45bcac9e619c3ba32264bac6950e7`, but PyPI currently publishes `0.1.0`. Do not use an unpinned `uvx` and assume it matches source. Benchmark either published `0.1.0` or the exact source commit after review. |
@@ -49,6 +50,7 @@ Package channel: `https://www.npmjs.com/package/@modelcontextprotocol/server-fil
 - Supports explicit allowed directories / MCP Roots.
 - Tools carry read-only/destructive annotations.
 - The Stage 23 profile additionally disables create/write/edit/move at the 1MCP layer.
+- Windows candidate acceptance passed through pinned `@1mcp/agent@0.34.4`: the server reached `ready`, hidden write-capable tools stayed absent from discovery, and `read_text_file` returned the expected marker from the scoped temporary root.
 
 ### Microsoft Playwright MCP
 
@@ -61,6 +63,7 @@ Package channel: `https://www.npmjs.com/package/@playwright/mcp`
 - Uses structured accessibility snapshots rather than pixel-only interaction.
 - Supports headless, isolated profiles, browser selection, origin controls and optional connection to an existing browser through its extension.
 - Upstream explicitly notes that Playwright MCP itself is not a security boundary; Stage 24 must provide the boundary.
+- Windows candidate acceptance passed through pinned `@1mcp/agent@0.34.4`: the server reached `ready`, `browser_navigate` was discovered, a deterministic data page returned the expected content, and `browser_close` completed successfully.
 
 ### Windows MCP
 
@@ -125,8 +128,8 @@ PyPI version verified: `0.2.2`.
 
 ## Promotion order
 
-1. Get read-only Filesystem and isolated/headless Playwright green through real 1MCP acceptance on Windows.
-2. Test the same two candidates locally through the existing Secure MCP Tunnel without adding them to the permanent default profile yet.
+1. Test the CI-accepted Filesystem and Playwright profiles locally through the existing Secure MCP Tunnel without adding them to the permanent default profile yet.
+2. Define Stage 24 least-privilege task profiles: one explicit Filesystem root and isolated browser by default; authenticated browser access is opt-in.
 3. Choose an immutable REAPER artifact (published PyPI build or pinned GitHub release) and benchmark it on a real REAPER project.
 4. Choose an immutable Origin-Pro-MCP artifact (published `0.1.0` or reviewed commit `1e9741a...`) and benchmark it on the installed Origin; only fall back to an `originpro` adapter if a measured gap remains.
 5. Audit and benchmark verified PyPI `ffmpeg-mcp-lite==0.2.2` on representative media operations before recovering or writing any FFmpeg adapter.
