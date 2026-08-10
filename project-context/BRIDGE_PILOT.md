@@ -1,105 +1,123 @@
-# Native Chat-to-Local Bridge Pilot
+# Native Chat-to-Local Bridge Pilot — Accepted
 
 ## Purpose
 
 Prove that ordinary ChatGPT Chat can use a local MCP module through entirely off-the-shelf bridge infrastructure.
 
-This test must not modify the working `Music Video MCP Yandex Test` connection.
+The working legacy `Music Video MCP Yandex Test` connection was left unchanged throughout the experiment.
 
-## Test path
+## Final accepted path
+
+The original Tailscale `8443` public-endpoint experiment was replaced by the official OpenAI Secure MCP Tunnel after the ChatGPT UI exposed that supported local-server path.
+
+Accepted on 2026-08-10:
 
 ```text
-ChatGPT Chat
-  -> new development MCP connection
-  -> https://id182019.tailc0abda.ts.net:8443/mcp
-  -> Tailscale Funnel HTTPS :8443
+ordinary ChatGPT Chat
+  -> development MCP app `Chat Local Bridge Test`
+  -> OpenAI Secure MCP Tunnel
+  -> official `openai/tunnel-client`
   -> http://127.0.0.1:3050/mcp
   -> 1MCP 0.34.4
   -> official Sequential Thinking server 2026.7.4
+  -> response returned to ChatGPT
 ```
 
-The existing Funnel HTTPS `443` route is intentionally left untouched.
+## Local runtime evidence
 
-## Start
+1MCP local health reported the reference server as ready:
 
-From the repository root in PowerShell:
-
-```powershell
-git switch main
-git pull --ff-only
-.\scripts\start-chat-bridge-pilot.ps1
+```json
+{
+  "name": "sequential-thinking",
+  "state": "ready"
+}
 ```
 
-Successful local/public preparation prints:
+The local MCP endpoint remained:
 
 ```text
-BRIDGE_PILOT_STATUS=ready
-MCP_URL=https://id182019.tailc0abda.ts.net:8443/mcp
-EXPECTED_TOOL=sequential_thinking
+http://127.0.0.1:3050/mcp
 ```
 
-## ChatGPT connection
+## Secure MCP Tunnel setup evidence
 
-Create a **new** development MCP app/connection for this pilot.
+A tunnel named `Chat Local Bridge Test` was created in OpenAI Platform and attached to the target ChatGPT workspace.
 
-Use:
+The official `openai/tunnel-client` was configured to connect that tunnel to the local 1MCP Streamable HTTP endpoint.
+
+The runtime credential uses the minimum required tunnel permissions:
 
 ```text
-URL: https://id182019.tailc0abda.ts.net:8443/mcp
-Authentication: none
+Tunnels: Read + Use
 ```
 
-Do not edit or remove the existing Yandex development connection.
+The credential value is a secret and must never be committed or documented.
 
-Scan/refresh the new connection's tools. The expected tool is:
+The tunnel client reached `ready` before the ChatGPT connector was tested.
+
+## ChatGPT app evidence
+
+A new development MCP app was created with:
 
 ```text
-sequential_thinking
+Name: Chat Local Bridge Test
+Connection: Tunnel
+Tunnel: Chat Local Bridge Test
+MCP authentication: none (reference server only)
 ```
 
-Then invoke that tool from ordinary ChatGPT Chat with a harmless test problem.
+The existing Yandex development app was not modified.
 
-Acceptance requires the tool result to return into the same Chat conversation.
+## End-to-end acceptance
 
-## Stop immediately after the test
-
-```powershell
-.\scripts\stop-chat-bridge-pilot.ps1
-```
-
-Expected:
+From an ordinary ChatGPT conversation, the user invoked:
 
 ```text
-BRIDGE_PILOT_STATUS=stopped
+Chat Local Bridge Test -> sequential_thinking
 ```
 
-This disables only Funnel HTTPS `8443` and stops only the 1MCP runtime selected by `runtime/bridge-pilot/mcp.json`. It must not modify the existing HTTPS `443` Funnel route.
+The local MCP returned:
+
+```json
+{
+  "thoughtNumber": 1,
+  "totalThoughts": 1,
+  "nextThoughtNeeded": false,
+  "branches": [],
+  "thoughtHistoryLength": 1
+}
+```
+
+The response was delivered back into ChatGPT.
+
+Therefore the pilot exit gate is **passed**.
+
+## What this proves
+
+The project does not need to own:
+
+- MCP transport protocol implementation;
+- public NAT/TLS ingress for normal ChatGPT-local connectivity;
+- a universal autonomous local agent runtime;
+- a custom cloud relay for the primary path.
+
+A mature official tunnel plus a mature local MCP runtime is sufficient for the central bridge.
+
+## Tailscale experiment status
+
+Tailscale Funnel remains valid historical/fallback reachability evidence.
+
+The temporary `8443 -> 3050` route is not the accepted primary ChatGPT path and should not be used as a privileged permanent ingress.
+
+The existing HTTPS `443` legacy/Yandex route is deliberately untouched pending a separate cleanup decision.
 
 ## Security boundary
 
-This pilot intentionally has no MCP authentication. Its config is CI-locked to exactly one non-privileged reference server.
+The accepted pilot exposed only Sequential Thinking.
 
-Do not add:
+Do not infer that filesystem, shell, browser, local application control or secrets are automatically safe to expose. Privileged modules require Stage 24 exposure/auth/permission work.
 
-- filesystem;
-- shell/PowerShell;
-- browser automation;
-- REAPER/FFmpeg/Origin/Blender;
-- credentials/secrets;
-- local program control;
-- other privileged MCP servers.
+## Next
 
-The pilot profile is disposable evidence, not the future privileged runtime profile.
-
-## If ChatGPT cannot connect
-
-Do not write a new MCP implementation immediately.
-
-Collect which gate failed:
-
-1. public `/health` unreachable -> reachability/Funnel issue;
-2. public health works but MCP connection scan fails -> protocol/auth/account-policy edge;
-3. scan works but `sequential_thinking` is missing -> 1MCP/upstream discovery issue;
-4. tool appears but call fails -> invocation/transport/runtime issue.
-
-Then test the mature alternative appropriate to that exact failure (ToolHive and/or agentgateway) before creating project-owned compatibility code.
+Stage 22: classify the old custom Rust/Yandex subsystems as remove, extract, retain or archive/reference.
