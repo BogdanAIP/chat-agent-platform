@@ -26,7 +26,7 @@ concurrency:
 jobs:
   validate-windows-pilot:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -95,4 +95,53 @@ jobs:
           }
           if ($start -match '--https=443' -or $stop -match '--https=443') {
             throw 'Bridge pilot must not modify the existing HTTPS 443 Funnel route.'
+          }
+
+      - name: Prove pinned 1MCP and reference server on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --version
+          npx --version
+          $pkg = '@1mcp/agent@0.34.4'
+          $config = Join-Path $PWD 'runtime/bridge-pilot/mcp.json'
+          $port = 3059
+          try {
+            & npx.cmd -y $pkg --version
+            if ($LASTEXITCODE -ne 0) { throw 'Pinned 1MCP package did not resolve.' }
+
+            & npx.cmd -y $pkg serve `
+              --config $config `
+              --host 127.0.0.1 `
+              --port $port `
+              --filter pilot `
+              --health-info-level minimal `
+              --enable-async-loading `
+              --background
+            if ($LASTEXITCODE -ne 0) { throw 'Pinned 1MCP runtime did not start.' }
+
+            $ready = $false
+            $healthUri = "http://127.0.0.1:$port/health/mcp/sequential-thinking"
+            for ($attempt = 1; $attempt -le 60; $attempt++) {
+              try {
+                $server = Invoke-RestMethod -Method Get -Uri $healthUri -TimeoutSec 5
+                if ([string]$server.state -eq 'ready') {
+                  $ready = $true
+                  break
+                }
+              }
+              catch {}
+              Start-Sleep -Seconds 1
+            }
+            if (-not $ready) {
+              throw "Pinned Sequential Thinking server did not become ready: $healthUri"
+            }
+
+            Write-Host 'Pinned 1MCP + Sequential Thinking Windows runtime is ready.'
+          }
+          finally {
+            & npx.cmd -y $pkg serve --config $config --stop
+            if ($LASTEXITCODE -notin @(0, 3)) {
+              Write-Warning "1MCP cleanup returned exit code $LASTEXITCODE"
+            }
           }
