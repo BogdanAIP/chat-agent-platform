@@ -160,7 +160,7 @@ try {
             throw 'Playwright candidate navigation did not return the expected accessibility snapshot.'
         }
 
-        Invoke-1McpText -Arguments @('run', 'playwright/browser_close', '--url', $baseUrl, '--format', 'text') | Out-Null
+        Invoke-1McpToolWithJson -Tool 'playwright/browser_close' -BaseUrl $baseUrl -Json '{}' | Out-Null
         Write-Host 'PLAYWRIGHT_CANDIDATE=passed' -ForegroundColor Green
     }
     finally {
