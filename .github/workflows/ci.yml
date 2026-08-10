@@ -16,57 +16,53 @@ permissions:
 jobs:
   verify-windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.13"
-          cache: pip
-
-      - name: Install pinned Rust toolchain
+      - name: Parse lifecycle scripts
         shell: pwsh
         run: |
-          rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
-          rustup default 1.97.1
+          foreach ($script in @(
+            'scripts/start-local-bridge.ps1',
+            'scripts/status-local-bridge.ps1',
+            'scripts/stop-local-bridge.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $script), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
+          }
 
-      - name: Cache Rust dependencies and build outputs
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-rust-${{ hashFiles('Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-rust-
-
-      - name: Ensure pinned FFmpeg is available
+      - name: Enforce harmless reference config
         shell: pwsh
         run: |
-          $current = $null
-          if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
-            $current = (& ffmpeg -version | Select-Object -First 1)
+          $config = Get-Content 'runtime/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $servers = @($config.mcpServers.PSObject.Properties)
+          if ($servers.Count -ne 1 -or $servers[0].Name -ne 'sequential-thinking') {
+            throw 'Reference config must expose exactly sequential-thinking.'
           }
-          if (-not $current -or $current -notmatch 'ffmpeg version 9\.0') {
-            choco install ffmpeg --version=9.0.0 -y --no-progress --allow-downgrade
+          $args = @($servers[0].Value.args | ForEach-Object { [string]$_ })
+          $expected = @('/c','npx','-y','@modelcontextprotocol/server-sequential-thinking@2026.7.4')
+          if (($args -join "`n") -ne ($expected -join "`n")) {
+            throw 'Sequential Thinking command/version drifted from the accepted reference.'
           }
-          ffmpeg -version
-          ffprobe -version
+          $raw = Get-Content 'runtime/mcp.json' -Raw -Encoding utf8
+          foreach ($forbidden in @('filesystem','shell','powershell','browser','reaper','ffmpeg','blender','origin','get-env')) {
+            if ($raw -match [regex]::Escape($forbidden)) { throw "Privileged module '$forbidden' is forbidden in the reference config." }
+          }
 
-      - name: Install Python oracle
+      - name: Prove local MCP runtime on Windows
         shell: pwsh
-        run: python -m pip install -e . --disable-pip-version-check
-
-      - name: Verify Rust, contracts, Python oracle, parity, and release
-        shell: pwsh
-        run: ./scripts/verify.ps1
-
-      - name: Upload release binary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: agent-platform-windows-release
-          path: target/release/agent-platform.exe
-          if-no-files-found: error
+        run: |
+          try {
+            ./scripts/start-local-bridge.ps1 -Port 3059
+            ./scripts/status-local-bridge.ps1 -Port 3059
+          }
+          finally {
+            ./scripts/stop-local-bridge.ps1
+          }

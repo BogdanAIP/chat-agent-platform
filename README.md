@@ -1,107 +1,62 @@
 # Chat Agent Platform
 
-Chat-centric платформа с **Rust-first локальным execution core** и тонкими адаптерами к зрелым инструментам. Chat остаётся primary intelligence; локальный `agent-platform.exe` отвечает за проверяемые контракты, Project Binding, tool selection, policy, artifacts, jobs, secrets и выполнение разрешённых capabilities.
+Тонкий мост между **обычным ChatGPT Chat** и локальным компьютером через стандартный MCP. ChatGPT остаётся интеллектом и выбирает инструменты; репозиторий не содержит второго агента, собственного tunnel/gateway или универсального execution core.
 
-Репозиторий публичный и распространяется по стандартной **MIT License** без дополнительных обязательных условий.
-
-## Архитектура
+## Принятая архитектура
 
 ```text
-ChatGPT private GPT Action
-    -> Yandex API Gateway
-    -> Cloud Function
-    -> Object Storage JSON rendezvous
-    <-> outbound HTTPS long poll
-    <-> agent-platform.exe (Rust)
-
-Codex MCP (optional)
-    -> Gateway + Bearer
-    OR
-    -> direct public Function + X-MCP-Token
-    -> same relay / same Windows agent
+ordinary ChatGPT Chat
+  -> ChatGPT custom MCP app/plugin
+  -> OpenAI Secure MCP Tunnel
+  -> official openai/tunnel-client on Windows
+  -> 1MCP on 127.0.0.1
+  -> replaceable MCP servers/adapters
+  -> local programs/files/devices
 ```
 
-Yandex не содержит media/business logic и не хранит media-файлы. API Gateway нужен именно для GPT Actions Bearer auth: Yandex Cloud Functions удаляют входящий `Authorization` до пользовательского кода. Это не означает, что прямой Function URL бесполезен вообще. Для Codex текущая Function уже поддерживает MCP JSON-RPC и `X-MCP-Token`, поэтому direct Codex -> Function рассматривается как отдельный оптимизированный ingress-кандидат и будет принят только после реального Codex-originated теста.
+Полный round trip принят 2026-08-10: `Chat Local Bridge Test` успешно вызвал локальный `sequential_thinking`, и результат вернулся в тот же ChatGPT Chat.
 
-## Реализовано
+## Почему репозиторий стал маленьким
 
-- однозначный Project Binding и Project Memory/bootstrap;
-- versioned JSON Schema contracts;
-- fail-closed capability manifest/requirements: quality, reliability, determinism, execution path, fallback, enabled/cost gates;
-- runtime capability profile, генерируемый из того же locked selection source of truth;
-- Policy Enforcement Point с independently derived effective risk;
-- one-shot guarded confirmation с TTL, stable action binding, replay protection и atomic consume;
-- SHA-256 Artifact Store, recovery, data classification и controlled external staging;
-- Windows Credential Manager Secret Store с executor ACL и zeroized secret buffers;
-- persistent JobStore с idempotency/checkpoints/retry и exclusive per-job execution lock;
-- immutable input capture: idempotency/policy identity привязаны к тем же байтам, которые реально обрабатываются;
-- typed FFmpeg media operations, EBU R128 analysis/normalization, duration-aware timeouts;
-- REAPER render adapter и реальный пользовательский Stage 12 acceptance;
-- technical mastering + reference mastering через pinned Matchering 2.0.6;
-- outbound-only Yandex relay с независимыми local/remote tokens, minimal public health и hosted Windows E2E;
-- реальный Yandex API Gateway -> Function -> Object Storage -> Windows Stage 4 transport acceptance от 2026-08-09;
-- application-auth regression test для `X-MCP-Token` direct Function candidate;
-- Windows CI, pinned Rust/FFmpeg, RustSec/cargo-deny policy, CycloneDX SBOM, full-history secret scan, third-party license notices и Dependabot;
-- fail-closed CodeQL v4 scan для Rust, Python и GitHub Actions; первый реальный SARIF-прогон прошёл без findings;
-- активный `main-protection` ruleset с обязательными `verify-windows` + `gitleaks-history`.
+Stage 22 удалил активную реализацию старой архитектуры: `agent-platform.exe`, `/gpt`, polling relay, Yandex gateway/deploy, Python oracle, media/mastering core и release pipeline для старого бинарника. Они сохранены в Git history и могут быть извлечены позже только как отдельные MCP-модули, если для нужной программы не найдётся хорошего готового решения.
 
-## Текущая граница Stage 4
+Правило разработки:
 
-Реальная cloud-to-local цепочка уже доказана:
+1. официальный/vendor MCP;
+2. зрелый open-source MCP;
+3. готовый generic adapter/proxy;
+4. только затем маленький project-owned adapter для конкретной программы.
 
-- `local_ping`: `pong=true`, `executed_locally=true`;
-- `runtime_self_test`: success;
-- controlled write/read и cleanup: passed;
-- relay после acceptance штатно выключен;
-- фоновых worker-процессов не осталось.
+## Локальный MCP runtime
 
-**Остался только финальный ChatGPT-originated call через private GPT Action.** Пока именно этот вызов не пройден, Stage 4 остаётся `partial / live-transport accepted`, а через remote surface разрешены только:
-
-- `local_ping`;
-- `runtime_self_test`.
-
-Отдельно, как необязательная оптимизация, будет проверен `Codex MCP -> direct Function + X-MCP-Token`. Его успех или неуспех не меняет критерий закрытия ChatGPT Stage 4.
-
-## Быстрый локальный старт
-
-Из корня репозитория:
+Текущий проверенный runtime — `@1mcp/agent@0.34.4`. Безопасный reference-модуль находится в `runtime/mcp.json`.
 
 ```powershell
-cargo run -- --repo-root . diagnose --project-id demo
-cargo run -- --repo-root . bootstrap --project-id demo --capability media.inspect
-cargo run -- --repo-root . audit --project-id demo
-cargo run -- --repo-root . self-test --project-id demo
-cargo run -- --repo-root . inspect --project-id demo --file C:\path\to\audio.wav
-powershell -File scripts\verify.ps1
+.\scripts\start-local-bridge.ps1
+.\scripts\status-local-bridge.ps1
+.\scripts\stop-local-bridge.ps1
 ```
 
-Relay после одноразовой настройки всегда остаётся выключенным, пока его явно не запустили:
+Локальный MCP endpoint:
 
-```powershell
-agent-platform relay start --project-id chat-agent-platform
-agent-platform relay status --project-id chat-agent-platform
-agent-platform relay stop --project-id chat-agent-platform
+```text
+http://127.0.0.1:3050/mcp
 ```
 
-Инструкция по private GPT Action: `project-context/STAGE4_CHATGPT_ACTIONS_SETUP.md`.
-
-План отдельной проверки direct Codex MCP: `project-context/STAGE4_CODEX_DIRECT_MCP_ACCEPTANCE.md`.
+OpenAI Secure MCP Tunnel запускается официальным `openai/tunnel-client` отдельно и подключается к этому loopback endpoint. Runtime API key хранится только локально и должен иметь минимальные права `Tunnels: Read + Use`. Секреты и tunnel IDs в репозиторий не коммитятся.
 
 ## Безопасность
 
-Правила сообщения об уязвимостях и обращения с секретами: `SECURITY.md`. Не публикуйте реальные токены, credentials, private keys или exploit details в публичных issue/PR.
+Reference-конфигурация содержит только `sequential_thinking`. Filesystem, shell, browser и управление локальными приложениями считаются привилегированными модулями и не добавляются до отдельного принятого профиля разрешений и негативных тестов.
 
-## Помочь проекту / Support the Project
+См. `SECURITY.md` и `project-context/SECURITY_POLICY.md`.
 
-Поддержка проекта добровольная и **не является условием MIT License**. Способы поддержки и адреса для донатов будут добавлены отдельно; отсутствие доната никак не ограничивает права, предоставленные лицензией MIT.
+## Что дальше
 
-## Правила развития
+Stage 23 — каталог реальных локальных возможностей и выбор готовых MCP-модулей. Stage 24 — профиль безопасности для привилегированных модулей. Тонкий Windows manager рассматривается только после того, как модель модулей стабилизирована.
 
-1. Не добавлять service/database/broker только «на будущее».
-2. Использовать mature бесплатные/open-source edge tools, если они дают лучший результат, не перенося их внутрь core.
-3. Никаких arbitrary shell/FFmpeg/Python options наружу: capabilities должны оставаться typed и policy-gated.
-4. External side effect требует свежей policy evaluation и consumed `ConfirmationPermit`.
-5. Любая новая capability должна иметь positive/negative/integration evidence пропорционально риску.
-6. Python v0.1 остаётся только behavioral oracle до отдельного migration/removal gate.
+Актуальное состояние: `project-context/CURRENT_STATE.md`. План: `project-context/ROADMAP.md`.
 
-Фактическое состояние этапов: `project-context/CURRENT_STATE.md`. Порядок дальнейшей работы: `project-context/ROADMAP.md`. Известные ограничения: `project-context/KNOWN_ISSUES.md`.
+## License / Support
+
+MIT License без дополнительных обязательных условий. Механика `Support the Project` остаётся добровольной; способы поддержки будут добавлены отдельно.

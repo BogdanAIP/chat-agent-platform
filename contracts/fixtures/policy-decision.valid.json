@@ -1,8 +1,0 @@
-{
-  "decision_id": "pol_0123456789abcdef",
-  "capability": "media.inspect",
-  "decision": "allow",
-  "effective_risk": "low",
-  "enforced_by": "local_media_adapter",
-  "reasons": ["configured_decision=allow", "base_risk=low"]
-}

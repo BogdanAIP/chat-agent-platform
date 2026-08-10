@@ -1,161 +1,48 @@
 # Development Principles
 
-## 1. Outcome before infrastructure
+## 1. Chat is the agent
 
-Начинать с короткого реального запроса и проверяемого результата. Не строить
-gateway, registry, workflow engine или supervisor до сценария, который без него
-невозможно надёжно выполнить.
+Do not add a second planner, workflow brain or autonomous coordinator behind ChatGPT. Local components expose capabilities; ChatGPT decides when to use them.
 
-## 2. Vertical slices before abstractions
+## 2. Off-the-shelf first
 
-Сначала проводить один путь через binding, policy, artifacts, executor и
-validation. Обобщать только интерфейсы, уже проявившиеся минимум в одном
-production-like потоке.
+For transport, MCP runtime, discovery, lifecycle and common integrations, use maintained ecosystem components before writing project code.
 
-## 3. Rust-first, not Rust-only
+For a local capability use this order:
 
-Новый собственный platform core по умолчанию писать на Rust. Зрелые системы
-использовать через их сильнейший native interface: FFmpeg CLI, REAPER Lua,
-Blender Python, Playwright/Node, Git CLI/API. Переписывание ради единого языка
-запрещено.
+```text
+official/vendor MCP
+  -> mature OSS MCP
+  -> mature generic API/CLI adapter
+  -> smallest project-owned MCP adapter
+```
 
-## 4. One binary is a delivery property, not a monolith
+## 3. Evidence before architecture
 
-Стремиться к одному `agent-platform.exe`, сохраняя модули и чёткие boundaries.
-Создавать отдельный crate или process только при независимом lifecycle,
-изоляции, масштабировании либо повторном использовании.
+A component becomes part of the supported stack only after a real install/start/health/call test on the target Windows environment. Documentation claims are not acceptance evidence by themselves.
 
-## 5. Contract is not a service
+## 4. Thin project-owned surface
 
-Использовать JSON Schema, Rust types/traits и fixtures. Новый daemon не возникает
-из-за появления нового DTO.
+Allowed project code should normally be one of:
 
-## 6. Explicit project binding
+- lifecycle/configuration convenience;
+- compatibility tests;
+- a focused adapter for one program/device with no acceptable MCP server.
 
-Любая write/import/job операция обязана иметь однозначный project ID и проверенный
-root. При неоднозначности останавливаться; не угадывать по последней папке или
-тексту Chat.
+Do not rebuild generic tunnels, gateways, registries, vaults, databases, job systems or policy engines without a measured gap.
 
-## 7. Policy derives authority
+## 5. Replaceability
 
-Модель передаёт контекст, но не полномочия. Effective risk вычисляется из
-capability, parameters, target, artifact class, reversibility, external effects и
-cost. `requested_risk_hint` никогда не снижает риск.
+Removing one module must not require changing the bridge protocol or ChatGPT app. Runtime and tunnel choices are implementation details, not domain APIs.
 
-## 8. Deny by default at boundaries
+## 6. Security follows capability risk
 
-Неизвестная capability, consumer, external destination, data class или secret ref
-блокируется. Разрешения добавляются узко и тестируются отрицательным сценарием.
+Harmless read-only reference tools may be used for connectivity tests. Filesystem, shell, browser, app control and secrets require least-privilege configuration and negative tests before acceptance.
 
-## 9. Artifact IDs over arbitrary paths
+## 7. No sunk-cost architecture
 
-После импорта инструменты работают с устойчивым artifact ID. Store отвечает за
-path containment, hash, provenance, classification и lifecycle. Бинарные данные
-не проходят через Chat или JSON contracts.
+Git history is the archive. Old code is not kept in the active tree merely because it took time to build. Recover only the exact part that later proves useful.
 
-## 10. Requirements are not runtime availability
+## 8. Cost discipline
 
-Project requirements версионируются. Runtime profile — датированный снимок
-конкретного ПК/surface. Outage меняет profile, но не переписывает требования.
-
-## 11. Mature component first
-
-Сложный стандартный слой брать из зрелого компонента. Собственный код оставлять
-для уникальных policy, selection, context и quality logic. Не писать криптографию,
-media codecs, browser engine, Git или MCP protocol stack.
-
-## 12. Dependency gate
-
-Добавлять зависимость, только если она уменьшает риск или существенный объём кода.
-Проверять maintenance, license, security, platform support и transitive footprint.
-Фиксировать lockfile; необязательные edge dependencies не включать в core startup.
-
-## 13. Small reversible changes
-
-Один change set решает одну проверяемую задачу. Сначала вводить совместимый путь,
-затем переключать default, потом удалять старый путь после parity. Не смешивать
-миграцию языка с изменением поведения.
-
-## 14. Behavioral parity before replacement
-
-Python spike является временным oracle. Rust получает те же fixtures и contracts.
-Удаление Python разрешено только после parity по success/error behavior, artifacts,
-policy и FFmpeg results.
-
-## 15. Tests follow risk
-
-- pure policy/contracts: быстрые unit/property tests;
-- filesystem/process boundaries: integration tests с temp directories;
-- FFmpeg: настоящий WAV, не mock-only;
-- dangerous actions: обязательные negative/expiry/idempotency tests;
-- quality claims: benchmark corpus.
-
-Mocks не могут быть единственным доказательством интеграции.
-
-## 16. Deterministic interfaces, tolerant measurements
-
-Contract shape, IDs, error codes и policy decisions детерминированы. Media metrics
-сравниваются с обоснованным tolerance, потому что версии FFmpeg и floating-point
-могут давать малые расхождения.
-
-## 17. Structured errors and safe retries
-
-Каждая boundary error имеет stable code, human message, `retryable` и
-`safe_to_retry`. Retry не повторяет external/guarded side effects без idempotency.
-
-## 18. Observability without leakage
-
-Логировать correlation IDs, capability, duration, executor version, outcome и
-artifact IDs. Не логировать secrets, cookies, raw private payloads и signed URLs.
-
-## 19. Generated views have one source
-
-Markdown audits генерируются из YAML/JSON sources и runtime snapshot. Generated
-файл маркируется и не редактируется вручную.
-
-## 20. Progressive context and discovery
-
-Загружать binding, три минимальных context-файла, релевантный skill и один
-capability slice. Не отправлять весь manifest, все schemas и все tools в Chat.
-
-## 21. Quality before price, price before excess
-
-Mandatory quality gate выполняется до ranking стоимости. После достижения
-требуемого качества выбирать минимальную полную стоимость владения: установка,
-обслуживание, compute, API и ручной труд.
-
-## 22. Security-sensitive work is two-phase
-
-Guarded действие: prepare → immutable snapshot/preview → single-use confirmation →
-exact execution. Изменение параметров, artifact hash, destination или cost требует
-нового confirmation.
-
-## 23. CI mirrors the real Windows path
-
-Минимум: formatting, clippy with denied warnings, tests, schema fixtures, release
-build и smoke test с FFmpeg. Linux-only CI не доказывает Windows-local product.
-Тесты сами создают всё временное runtime-состояние и не зависят от ignored-файлов
-или предварительного ручного запуска: зелёный warmed workspace не является
-доказательством воспроизводимости.
-Feature-ветка проверяется одним PR-run; прямой push-run нужен только для `main`.
-Новый commit отменяет устаревшую проверку той же ветки, чтобы не расходовать
-runner time на заведомо неактуальный результат.
-Cargo registry и build outputs кэшируются по `Cargo.lock`: изменение dependency
-graph создаёт новый точный cache key, а совместимый предыдущий кэш используется
-только как ускоряющая база, не как источник результата проверки.
-
-## 24. Documentation describes reality
-
-`CURRENT_STATE` говорит только о работающем. `ROADMAP` — о следующем. ADR фиксирует
-решение и trade-off. Нельзя выдавать skeleton, schema или test double за capability.
-
-## 25. Stop rules protect efficiency
-
-Остановить расширение, если:
-
-- нет реального пользовательского сценария;
-- wrapper требует больше обслуживания, чем экономит;
-- появляется второй core/runtime без доказанного gap;
-- новая абстракция не уменьшает coupling минимум для двух реальных implementations;
-- quality нельзя проверить;
-- следующая операция требует новой пользовательской authority.
+Prefer local/free/open-source components where quality is adequate. Do not introduce paid servers or model API usage as mandatory dependencies when ordinary ChatGPT plus the local bridge already satisfies the goal.

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Media Inspection"
-  short_description: "Inspect local media safely with Rust and FFmpeg"
-  default_prompt: "Use $media-inspection to inspect this local audio file safely."

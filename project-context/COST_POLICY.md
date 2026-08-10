@@ -1,9 +1,8 @@
 # Cost Policy
 
-- По умолчанию использовать уже оплаченный Chat и локальные open-source tools.
-- Не добавлять платный LLM/API для задачи, которую закрывает текущий Chat.
-- Платный executor допускается только при измеримом quality/capacity gap.
-- Сравнивать total cost: лицензия, API, compute, установка, обслуживание и ручной труд.
-- Не держать постоянный GPU/VPS/workflow SaaS без устойчивой загрузки.
-- Любой monetary side effect выше нуля проходит policy; превышение лимита guarded.
-
+- Ordinary ChatGPT Chat remains the intelligence surface chosen by the user.
+- The bridge does not require OpenAI model API inference calls.
+- The OpenAI runtime key used by official `tunnel-client` is control-plane authentication for Secure MCP Tunnel; bridge code must not silently reuse it for model API calls.
+- Prefer free/open-source local MCP runtimes and modules when they meet quality and security requirements.
+- Paid cloud/VPS/GPU services are optional and require a concrete user-approved reason.
+- Do not create persistent cloud infrastructure for functions that can run locally or through the official tunnel.
