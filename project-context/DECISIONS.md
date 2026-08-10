@@ -28,8 +28,9 @@ oracle, а не целевой platform core.
 полезно для проверки process control, path/policy enforcement, artifact/job/secret
 primitives и реальных локальных media executors.
 
-ADR-010 supersedes the assumption that this Rust binary must remain the universal
-bridge core. Rust remains allowed for genuinely missing local adapters.
+ADR-010 и ADR-011 supersede предположение, что этот Rust binary должен оставаться
+универсальным bridge core. Rust остаётся допустимым для действительно отсутствующих
+локальных adapters.
 
 ## ADR-006 — strangler migration with behavioral parity
 
@@ -41,42 +42,24 @@ Python выполняется отдельным change set после стаб�
 
 Пользователь разрешил Chat самостоятельно вести реализацию до Stage 19
 включительно и принимать технические решения без отдельного согласования, если
-они служат целям проекта. Разрешение включает внедрение полезных технических
-решений, но не отменяет architecture, quality, security, cost и no-zoo gates.
-
-Это не разрешение на бесконечное расширение продукта: новый component/dependency
-должен иметь измеримую пользу, не дублировать зрелый инструмент без причины и
-оставаться заменяемым. Отдельная пользовательская authority всё ещё нужна для
-необратимых/внешних действий, новых расходов, раскрытия секретов или изменения
-продуктовой цели.
+они служат целям проекта. Разрешение не отменяет architecture, quality, security,
+cost и no-zoo gates.
 
 ## ADR-008 — safe native Windows credential backend for Stage 7
 
 Stage 7 использует `windows-native-keyring-store` + `keyring-core` как тонкий
-safe Rust adapter к Windows Credential Manager. Это сохраняет native Windows
-secret storage и правило workspace `unsafe_code = "forbid"`, не добавляя daemon,
-внешний vault, собственную криптографию или отдельный процесс.
+safe Rust adapter к Windows Credential Manager. После ADR-010/011 этот backend
+является частью existing experimental inventory, а не обязательной зависимостью
+будущего bridge runtime.
 
-После ADR-010 этот backend является частью existing experimental inventory, а не
-обязательной зависимостью будущего bridge runtime. Если выбранный mature MCP
-runtime/host закрывает secret/auth requirement достаточным способом, отдельный
-project-owned Secret Store не сохраняется только из-за sunk cost.
-
-## ADR-009 — canonical standards/contracts, not a canonical cloud provider — retained, narrowed by ADR-010
+## ADR-009 — canonical standards/contracts, not a canonical cloud provider — retained, narrowed
 
 Канонического Yandex/VPS/cloud transport нет. Standard MCP остаётся canonical
-remote protocol boundary, а NAT/TLS/public routing должны выполняться зрелой
+remote protocol boundary, а reachability/control-plane должен выполняться зрелой
 инфраструктурой.
 
-Historical acceptance сохраняется: 2026-08-06 установленный ChatGPT integration
-`Music Video MCP Yandex Test` успешно выполнил `local_ping` на реальном Windows
-agent и вернул результат обратно в ChatGPT. 2026-08-10 Tailscale Funnel также
-доказал прямую public HTTPS reachability до localhost.
-
-ADR-010 меняет способ реализации MCP/local runtime: вместо обязательного
-project-owned `rmcp` server сначала используется готовый maintained MCP
-runtime/gateway. Собственный MCP server допускается только после доказанного
-неустранимого compatibility gap.
+Historical acceptance сохраняется: legacy Yandex path доказал Hosted Chat -> local
+Windows execution; Tailscale Funnel доказал public HTTPS -> localhost reachability.
 
 ## ADR-010 — ordinary ChatGPT Chat + off-the-shelf MCP runtime is the target bridge
 
@@ -87,18 +70,16 @@ runtime/gateway. Собственный MCP server допускается тол
 ```text
 ordinary ChatGPT Chat
   -> standard MCP
-  -> mature reachability
+  -> mature reachability/control plane
   -> mature local MCP runtime/gateway
   -> replaceable MCP servers/adapters
   -> local programs/files/devices
 ```
 
-ChatGPT Chat остаётся primary intelligence/orchestrator. Work, Codex и OpenAI API
-не являются обязательным model/runtime path проекта.
+ChatGPT Chat остаётся primary intelligence/orchestrator. Work, Codex и OpenAI model
+API не являются обязательным normal-runtime path проекта.
 
-Локальные программы и сценарии (REAPER, FFmpeg, Origin, Blender, browser, files,
-CAD, local models, hardware и т.д.) являются заменяемыми modules, а не частями
-platform core.
+Локальные программы и сценарии являются заменяемыми modules, а не platform core.
 
 ### Build-vs-buy rule
 
@@ -112,53 +93,72 @@ platform core.
 Наличие уже написанного собственного кода не является причиной сохранить его как
 mandatory dependency.
 
-### First runtime candidate
+### Local runtime candidate
 
-Первым проверяется 1MCP как минимальный готовый Windows-friendly aggregated MCP
-runtime. Первый реальный pilot не содержит project-owned MCP implementation:
+1MCP выбран первым минимальным Windows-friendly aggregated MCP runtime и принят
+после реального Stage 21 round trip.
+
+Fallbacks используются только для измеримого gap:
+
+- ToolHive — isolation/auth/audit/governance/runtime management;
+- agentgateway — protocol/security/routing edge;
+- Docker MCP Toolkit — когда Docker Desktop сам принят как baseline.
+
+## ADR-011 — OpenAI Secure MCP Tunnel is the primary ChatGPT-to-local transport
+
+### Decision
+
+После реального acceptance 2026-08-10 основной путь фиксируется как:
 
 ```text
-ChatGPT Chat
-  -> Tailscale Funnel :8443
-  -> 1MCP 127.0.0.1:3050
-  -> official Sequential Thinking reference MCP server
+ordinary ChatGPT Chat
+  -> development MCP app/plugin
+  -> OpenAI Secure MCP Tunnel
+  -> official `openai/tunnel-client`
+  -> 1MCP on localhost
+  -> replaceable MCP module
 ```
 
-Если direct native-MCP acceptance проходит, 1MCP принимается как default runtime,
-пока не появится измеримая причина заменить его.
+Stage 21 доказал этот путь реальным вызовом `sequential_thinking` и возвратом
+результата в тот же ChatGPT conversation.
 
-Если возникает конкретный gap:
+### Consequences
 
-- ToolHive — first fallback для isolation/auth/audit/governance/protocol translation;
-- agentgateway — optional protocol/security edge;
-- Docker MCP Toolkit — только когда Docker Desktop сам по себе принят как baseline.
-
-Нельзя одновременно тащить все кандидаты «на всякий случай».
-
-### Existing Rust/Yandex core
-
-Existing `agent-platform.exe`, `/gpt`, polling relay, Yandex assets, universal
-policy/job/artifact/confirmation layers and media workflows remain temporary
-experimental inventory until the new path is accepted.
-
-После acceptance каждый subsystem получает одну классификацию:
-
-- remove;
-- extract as optional MCP module;
-- retain for a concrete measured requirement;
-- archive/reference.
+- Project-owned public MCP ingress не нужен для нормальной ChatGPT-local связи.
+- Tailscale Funnel больше не является обязательным transport dependency; он
+  остаётся optional/fallback reachability.
+- Existing HTTPS `443`/Yandex path пока сохраняется как rollback/reference и не
+  получает новых feature investments.
+- Runtime API key для tunnel-client хранится вне git и имеет только `Tunnels
+  Read + Use`.
+- `openai/tunnel-client` и 1MCP являются заменяемыми зрелыми компонентами, а не
+  новой собственной platform core.
+- Project-owned code концентрируется на configuration/lifecycle UX и missing
+  local adapters.
 
 ### Security
 
-Public tunnel != authorization. Первый unauthenticated pilot допускается только с
-одним harmless reference server и временным Funnel listener. Privileged modules
-(filesystem, shell, browser, app control, secrets) не подключаются до отдельного
-accepted auth/permission profile.
+Stage 21 принимал только harmless Sequential Thinking reference tool.
+
+Secure tunnel != permission model для локальных privileged tools. Filesystem,
+shell, browser, application control и secrets подключаются только после отдельного
+exposure/auth/confirmation profile и negative tests.
+
+### Existing Rust/Yandex core
+
+После acceptance old subsystems переходят в Stage 22 classification:
+
+- remove;
+- extract as optional MCP module;
+- retain for concrete measured requirement;
+- archive/reference.
+
+Wholesale deletion до этой классификации не выполняется.
 
 ### Acceptance authority
 
 Реальный ChatGPT surface пользователя является практическим acceptance gate.
-Публичная документация тарифов OpenAI не считается основанием обещать одинаковый
-full-MCP behavior всем Plus accounts, если это не подтверждено официально.
+Успешный custom MCP round trip подтверждает этот environment, но не является
+универсальной гарантией для всех Plus accounts или будущих product packages.
 
 Подробности: `BRIDGE_ARCHITECTURE.md`, `BRIDGE_PILOT.md`, `ROADMAP.md`.
