@@ -18,6 +18,7 @@ on:
       - "scripts/deploy-stage4-yandex.ps1"
       - "scripts/ensure-stage4-gateway-active.ps1"
       - "scripts/prepare-stage4-gpt-action.ps1"
+      - "scripts/prepare-direct-gpt-action.ps1"
       - ".github/workflows/stage4-relay.yml"
       - "config/tools.yaml"
       - "config/tool-lock.yaml"
@@ -41,6 +42,7 @@ on:
       - "scripts/deploy-stage4-yandex.ps1"
       - "scripts/ensure-stage4-gateway-active.ps1"
       - "scripts/prepare-stage4-gpt-action.ps1"
+      - "scripts/prepare-direct-gpt-action.ps1"
       - ".github/workflows/stage4-relay.yml"
       - "config/tools.yaml"
       - "config/tool-lock.yaml"
@@ -123,13 +125,14 @@ jobs:
           python -m unittest tests.test_stage4_gpt_ingress -v
           python -m unittest tests.test_stage4_gateway_recovery -v
 
-      - name: Validate Yandex Stage 4 PowerShell syntax
+      - name: Validate Stage 4 PowerShell syntax
         shell: pwsh
         run: |
           foreach ($script in @(
             'scripts/deploy-stage4-yandex.ps1',
             'scripts/ensure-stage4-gateway-active.ps1',
-            'scripts/prepare-stage4-gpt-action.ps1'
+            'scripts/prepare-stage4-gpt-action.ps1',
+            'scripts/prepare-direct-gpt-action.ps1'
           )) {
             $tokens = $null
             $errors = $null
