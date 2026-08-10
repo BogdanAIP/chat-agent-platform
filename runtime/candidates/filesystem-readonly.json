@@ -21,7 +21,7 @@
         "edit_file",
         "move_file"
       ],
-      "connectionTimeout": 30000,
+      "connectionTimeout": 120000,
       "requestTimeout": 30000
     }
   }
