@@ -60,11 +60,13 @@ switch ($statusExit) {
     }
     3 {
         Write-Host 'Starting 1MCP background runtime...'
+        # Do not couple local 1MCP startup to the public Funnel origin. This
+        # unauthenticated pilot needs no OAuth redirect generation, and Funnel is
+        # intentionally created only after local readiness succeeds.
         & $npx.Source -y $oneMcpPackage serve `
             --config $configPath `
             --host 127.0.0.1 `
             --port $LocalPort `
-            --external-url $PublicOrigin `
             --filter pilot `
             --health-info-level minimal `
             --enable-async-loading `
