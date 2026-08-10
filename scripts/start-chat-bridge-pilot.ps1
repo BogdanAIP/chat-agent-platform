@@ -47,28 +47,47 @@ if ($LASTEXITCODE -ne 0) {
     throw "Failed to resolve $oneMcpPackage."
 }
 
-# Runtime Scope is selected by the exact --config path. Re-running this script does
-# not touch unrelated 1MCP runtimes.
+# Runtime Scope is selected by the exact --config path. Start a new background
+# runtime only when 1MCP reports exit code 3 (not running). Codes 4 and 5 mean
+# that the selected runtime is alive but not ready yet, so the health loop below
+# should wait rather than launching a competing process.
 & $npx.Source -y $oneMcpPackage serve --config $configPath --status *> $null
 $statusExit = $LASTEXITCODE
 
-if ($statusExit -ne 0) {
-    Write-Host 'Starting 1MCP background runtime...'
-    & $npx.Source -y $oneMcpPackage serve `
-        --config $configPath `
-        --host 127.0.0.1 `
-        --port $LocalPort `
-        --external-url $PublicOrigin `
-        --filter pilot `
-        --health-info-level minimal `
-        --enable-async-loading `
-        --background
-    if ($LASTEXITCODE -ne 0) {
-        throw '1MCP failed to start.'
+switch ($statusExit) {
+    0 {
+        Write-Host '1MCP pilot runtime is already running and ready.'
     }
-}
-else {
-    Write-Host '1MCP pilot runtime is already running.'
+    3 {
+        Write-Host 'Starting 1MCP background runtime...'
+        & $npx.Source -y $oneMcpPackage serve `
+            --config $configPath `
+            --host 127.0.0.1 `
+            --port $LocalPort `
+            --external-url $PublicOrigin `
+            --filter pilot `
+            --health-info-level minimal `
+            --enable-async-loading `
+            --background
+        if ($LASTEXITCODE -ne 0) {
+            throw '1MCP failed to start.'
+        }
+    }
+    4 {
+        Write-Host '1MCP pilot runtime is alive and still becoming ready.'
+    }
+    5 {
+        Write-Host '1MCP pilot runtime is restarting; waiting for readiness.'
+    }
+    6 {
+        throw '1MCP pilot runtime is in crash-loop state. Run the stop script, inspect 1MCP logs, then retry.'
+    }
+    7 {
+        throw '1MCP pilot runtime is orphaned. Stop/repair this runtime scope before retrying.'
+    }
+    default {
+        throw "Unexpected 1MCP status exit code: $statusExit"
+    }
 }
 
 $localHealth = "http://127.0.0.1:$LocalPort/health"
@@ -76,7 +95,7 @@ $serverHealth = "http://127.0.0.1:$LocalPort/health/mcp/sequential-thinking"
 $ready = $false
 for ($attempt = 1; $attempt -le 30; $attempt++) {
     try {
-        $health = Invoke-RestMethod -Method Get -Uri $localHealth -TimeoutSec 5
+        $null = Invoke-RestMethod -Method Get -Uri $localHealth -TimeoutSec 5
         $server = Invoke-RestMethod -Method Get -Uri $serverHealth -TimeoutSec 5
         if ([string]$server.state -eq 'ready') {
             $ready = $true
