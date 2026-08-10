@@ -18,7 +18,7 @@ The connector architecture is **provider-neutral**. There is no canonical Yandex
 | 1 Rust vertical core | done | binding -> policy -> artifact -> typed tool -> validated result |
 | 2 Contracts | done | embedded schemas for tool/artifact/policy/confirmation/secret/job/relay |
 | 3 Memory/bootstrap/skills | done | minimal project context + bootstrap path |
-| 4 Hosted Chat -> local connector | done | real ChatGPT-originated local execution passed 2026-08-06; direct authenticated loopback ingress now has Windows process E2E; Yandex/polling relay remains fallback |
+| 4 Hosted Chat -> local connector | done | real ChatGPT-originated local execution passed 2026-08-06; direct authenticated loopback ingress has Windows process E2E; public non-Yandex Tailscale Funnel -> direct ingress -> local execution passed 2026-08-10; polling relay remains fallback |
 | 5 MCP aggregation | conditional | no extra aggregator justified; standard MCP should use official SDK, not a home-grown aggregator |
 | 6 Capability selection + PEP | done | fail-closed quality/reliability/determinism/path/fallback/cost gates |
 | 7 Secret Store | done | Windows Credential Manager + executor ACL |
@@ -111,7 +111,7 @@ Properties:
 - direct ingress and polling relay share the same local operation dispatcher;
 - `/gpt` + `X-MCP-Token` remain compatible with the existing action schema.
 
-Windows Stage 4 E2E now proves the real process boundary:
+Windows Stage 4 E2E proves the real process boundary:
 
 1. unique caller token stored in Windows Credential Manager;
 2. real `agent-platform.exe ingress serve` started on an ephemeral loopback port;
@@ -122,25 +122,52 @@ Windows Stage 4 E2E now proves the real process boundary:
 
 This proves the local half of the preferred direct-tunnel path without adding another network service.
 
+### Public non-Yandex reachability is now accepted
+
+On 2026-08-10 the live Windows runtime was published through Tailscale Funnel without Yandex, VPS or a project-owned relay in the request path:
+
+```text
+public HTTPS
+  -> https://id182019.tailc0abda.ts.net/gpt
+  -> Tailscale Funnel
+  -> 127.0.0.1:8787/gpt
+  -> agent-platform
+  -> local_ping
+```
+
+Observed live evidence:
+
+- public Funnel URL: `https://id182019.tailc0abda.ts.net`;
+- public `/gpt` endpoint accepted the configured caller credential;
+- `local_ping` returned `status=success`;
+- `pong=true`;
+- `executed_locally=true`;
+- ingress and Funnel were intentionally left running for the subsequent Hosted Chat test;
+- the caller token remains outside repository/chat content in Windows Credential Manager and the user's local clipboard.
+
+This closes the external network/reachability half of the non-Yandex migration. The only remaining compatibility-path acceptance is to point the existing ChatGPT action/plugin at this public URL and repeat `local_ping` from Hosted Chat.
+
 ### Polling relay remains fallback
 
 The provider-neutral Rust `relay-server` still passes dedicated round-trip/auth/failure CI and bounds SQLite retention during active traffic. The Yandex polling backend remains retained acceptance evidence and rollback infrastructure, not the target request path.
 
 ## Connector modernization
 
-### Immediate live portability test
+### Final Hosted Chat compatibility acceptance
 
-The next real network acceptance should reuse the currently working action contract and change only reachability:
+Public non-Yandex reachability is already proved. The remaining compatibility test changes only the ChatGPT integration configuration:
 
 ```text
 ChatGPT existing action/plugin
-  -> mature public HTTPS tunnel
+  -> https://id182019.tailc0abda.ts.net/gpt
+  -> Tailscale Funnel
   -> 127.0.0.1:8787/gpt
   -> agent-platform auth + policy
   -> local_ping / runtime_self_test
+  -> response back to ChatGPT
 ```
 
-Passing this proves that Yandex/VPS relay state is unnecessary for the current ChatGPT integration.
+Passing this proves the complete Hosted Chat path without Yandex/VPS/polling relay state. No additional transport implementation is required for that test.
 
 ### Standard MCP remains the target protocol
 
@@ -161,9 +188,9 @@ OpenAI Secure MCP Tunnel is an optional private reachability adapter. It must no
 
 ### What still needs direct proof
 
-Two migration/deprecation checks remain:
+Two migration/deprecation checks remain, but only one transport/network component is still unaccepted:
 
-1. one real **non-Yandex ChatGPT -> mature HTTPS tunnel -> direct loopback ingress -> Windows -> ChatGPT** round trip;
+1. one real **ChatGPT -> Tailscale Funnel -> direct loopback ingress -> Windows -> ChatGPT** round trip using the existing action/plugin; the Funnel/network leg itself is already accepted;
 2. native standard MCP `/mcp` acceptance on the user's actual ChatGPT surface after the `rmcp` adapter exists.
 
 These do not reopen Stage 4; they determine when legacy Yandex/polling compatibility can be retired.
@@ -174,7 +201,7 @@ Current enforced baseline:
 
 - `ci / verify-windows` runs on every PR and every `main` push;
 - active repository ruleset `main-protection` requires PR-based merging, strict up-to-date checks `verify-windows` + `gitleaks-history`, linear history, and blocks deletion/force-push with no bypass actors;
-- Stage 4 Windows E2E now covers both the direct loopback ingress and the legacy polling fallback;
+- Stage 4 Windows E2E covers both the direct loopback ingress and the legacy polling fallback;
 - every `actions/checkout` uses an immutable SHA and `persist-credentials: false`;
 - Rust 1.97.1 and hosted FFmpeg 9.0.0 are pinned;
 - cargo-deny enforces dependency licenses, bans, sources and RustSec advisories;
@@ -206,7 +233,7 @@ The release workflow performs GitHub build-provenance attestation before publica
 
 ## Connector migration before legacy deprecation
 
-- run the real non-Yandex direct-tunnel acceptance against `/gpt`;
+- switch the existing ChatGPT action/plugin to the accepted Tailscale Funnel URL and prove the Hosted Chat-originated `/gpt` round trip;
 - implement standard local MCP Streamable HTTP using official `rmcp`;
 - test public HTTPS `/mcp` from the user's actual ChatGPT surface;
 - only then decide whether the legacy polling/GPT Action/Yandex deployment can be removed.
