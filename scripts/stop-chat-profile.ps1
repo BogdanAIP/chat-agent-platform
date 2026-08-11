@@ -11,8 +11,9 @@ $configs = @(
 foreach ($config in $configs) {
     if (-not (Test-Path -LiteralPath $config)) { continue }
     & npx.cmd -y $pkg serve --config $config --stop *> $null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to stop 1MCP Runtime Scope for $config (exit $LASTEXITCODE)."
+    $stopCode = $LASTEXITCODE
+    if ($stopCode -notin @(0, 3, 7)) {
+        throw "Unable to stop 1MCP Runtime Scope for $config (exit $stopCode)."
     }
 }
 
