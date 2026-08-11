@@ -9,3 +9,5 @@ runtime/**/server.pid
 runtime/**/presets.json
 runtime/**/sessions/
 .tunnel-client/
+__pycache__/
+*.py[cod]
