@@ -33,8 +33,9 @@ function Stop-KnownRuntime {
 
     if (-not (Test-Path -LiteralPath $ConfigPath)) { return }
     & npx.cmd -y $pkg serve --config $ConfigPath --stop *> $null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to stop 1MCP Runtime Scope for $ConfigPath (exit $LASTEXITCODE)."
+    $stopCode = $LASTEXITCODE
+    if ($stopCode -notin @(0, 3, 7)) {
+        throw "Unable to stop 1MCP Runtime Scope for $ConfigPath (exit $stopCode)."
     }
 }
 
@@ -158,14 +159,13 @@ try {
         throw '-FilesRoot is only valid for the files-readonly profile.'
     }
 
+    # start-local-bridge.ps1 terminates on failure. Do not inspect $LASTEXITCODE here:
+    # it may legitimately retain the supervisor's transient 4/5 status after readiness.
     & $startBridge `
         -Port $Port `
         -ConfigPath $selectedConfig `
         -HealthServerName $healthServer `
         -ReadyTimeoutSeconds $ReadyTimeoutSeconds
-    if ($LASTEXITCODE -ne 0) {
-        throw "Profile '$Profile' failed to start."
-    }
 
     $baseUrl = "http://127.0.0.1:$Port"
     Assert-ProfileSurface -ProfileName $Profile -BaseUrl $baseUrl

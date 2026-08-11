@@ -95,6 +95,12 @@ jobs:
             if (($fileRaw + $browserRaw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
           }
 
+      - name: Prove profile stop is idempotent
+        shell: pwsh
+        run: |
+          ./scripts/stop-chat-profile.ps1
+          ./scripts/stop-chat-profile.ps1
+
       - name: Prove profile switching and isolation
         shell: pwsh
         run: |
