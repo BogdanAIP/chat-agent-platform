@@ -5,4 +5,7 @@
 runtime/logs/
 runtime/state/
 runtime/secrets/
+runtime/**/server.pid
+runtime/**/presets.json
+runtime/**/sessions/
 .tunnel-client/
