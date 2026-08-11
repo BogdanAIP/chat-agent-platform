@@ -25,6 +25,7 @@ $LogDir = Join-Path $LocalRoot "logs"
 
 $SettingsFile = Join-Path $StateDir "settings.json"
 $SecretFile = Join-Path $SecretDir "control-plane-api-key.dpapi"
+$TunnelHealthUrlFile = Join-Path $StateDir "tunnel-health.url"
 
 $TunnelExe = Join-Path $BinDir "tunnel-client.exe"
 $TunnelProfile = Join-Path $TunnelDir "local-1mcp.yaml"
@@ -33,6 +34,7 @@ $TunnelStdout = Join-Path $LogDir "tunnel-stdout.log"
 $TunnelStderr = Join-Path $LogDir "tunnel-stderr.log"
 $ControllerLog = Join-Path $LogDir "controller.log"
 
+$StartLocalBridgeScript = Join-Path $RepoRoot "scripts\start-local-bridge.ps1"
 $StartChatScript = Join-Path $RepoRoot "scripts\start-chat-profile.ps1"
 $StopChatScript = Join-Path $RepoRoot "scripts\stop-chat-profile.ps1"
 $StatusChatScript = Join-Path $RepoRoot "scripts\status-chat-profile.ps1"
@@ -158,103 +160,186 @@ function Save-Settings {
 
 
 function Get-ChatProfileStatus {
-    $profiles = @(
-        "reference",
-        "files-readonly",
-        "browser-isolated"
+    $pwsh = (
+        Get-Command `
+            "pwsh.exe" `
+            -ErrorAction Stop
+    ).Source
+
+    $output = @(
+        & $pwsh `
+            -NoLogo `
+            -NoProfile `
+            -File $StatusChatScript `
+            2>&1
     )
 
-    $runningProfiles = @()
+    if ($LASTEXITCODE -ne 0) {
+        throw (
+            "Chat profile status failed with exit code {0}: {1}" -f `
+            $LASTEXITCODE,
+            (($output | Out-String).Trim())
+        )
+    }
 
-    foreach ($name in $profiles) {
-        $runtimeRoot = Join-Path `
-            $RepoRoot `
-            "runtime\chat-profiles"
-
-        $profileDir = Join-Path `
-            $runtimeRoot `
-            $name
-
-        $pidFile = Join-Path `
-            $profileDir `
-            "server.pid"
-
-        if (-not (Test-Path $pidFile)) {
-            continue
-        }
-
-        try {
-            $state = (
-                Get-Content `
-                    -LiteralPath $pidFile `
-                    -Raw `
-                    -ErrorAction Stop |
+    try {
+        return (
+            $output |
+                Out-String |
                 ConvertFrom-Json `
                     -ErrorAction Stop
-            )
-        }
-        catch {
-            continue
-        }
-
-        [int]$pidValue = 0
-
-        if (
-            $null -eq $state.pid -or
-            -not [int]::TryParse(
-                [string]$state.pid,
-                [ref]$pidValue
-            )
-        ) {
-            continue
-        }
-
-        try {
-            $process = Get-Process `
-                -Id $pidValue `
-                -ErrorAction Stop
-
-            if (-not $process.HasExited) {
-                $runningProfiles += $name
-            }
-        }
-        catch {
-            continue
-        }
+        )
     }
-
-    $runningProfiles = @($runningProfiles)
-
-    $activeProfile = $null
-
-    if ($runningProfiles.Count -eq 1) {
-        $activeProfile = $runningProfiles[0]
-    }
-
-    return [pscustomobject]@{
-        active_count = $runningProfiles.Count
-        active_profile = $activeProfile
+    catch {
+        throw (
+            "Chat profile status returned invalid JSON: {0}" -f `
+            (($output | Out-String).Trim())
+        )
     }
 }
+
+
 function Get-TunnelProcesses {
+    if (-not (Test-Path $TunnelExe)) {
+        return @()
+    }
+
+    $expectedExe = [System.IO.Path]::GetFullPath($TunnelExe)
+    $profileDirPattern = ('(?i)--profile-dir\s+"?' + [regex]::Escape($TunnelDir))
+
     return @(
         Get-CimInstance Win32_Process `
             -ErrorAction SilentlyContinue |
         Where-Object {
-            $_.Name -eq "tunnel-client.exe" -and
-            $_.CommandLine -match '--profile\s+local-1mcp'
+            if ($_.Name -ne "tunnel-client.exe") {
+                return $false
+            }
+
+            $actualExe = [string]$_.ExecutablePath
+            $commandLine = [string]$_.CommandLine
+
+            if (
+                [string]::IsNullOrWhiteSpace($actualExe) -or
+                [string]::IsNullOrWhiteSpace($commandLine)
+            ) {
+                return $false
+            }
+
+            try {
+                $actualExe = [System.IO.Path]::GetFullPath($actualExe)
+            }
+            catch {
+                return $false
+            }
+
+            return (
+                $actualExe -ieq $expectedExe -and
+                $commandLine -match '(?i)--profile\s+"?local-1mcp"?' -and
+                $commandLine -match $profileDirPattern
+            )
         }
     )
 }
 
 
 function Test-TunnelRunning {
-    $processes = @(
-        Get-TunnelProcesses
+    return (@(Get-TunnelProcesses).Count -gt 0)
+}
+
+
+function Get-TunnelHealthBaseUrl {
+    if (-not (Test-Path $TunnelHealthUrlFile)) {
+        return $null
+    }
+
+    try {
+        $url = (
+            Get-Content `
+                -LiteralPath $TunnelHealthUrlFile `
+                -Raw `
+                -ErrorAction Stop
+        ).Trim().TrimEnd("/")
+
+        if ($url -notmatch '^https?://127\.0\.0\.1(?::\d+)?$') {
+            return $null
+        }
+
+        return $url
+    }
+    catch {
+        return $null
+    }
+}
+
+
+function Test-TunnelReady {
+    if (-not (Test-TunnelRunning)) {
+        return $false
+    }
+
+    $baseUrl = Get-TunnelHealthBaseUrl
+
+    if ([string]::IsNullOrWhiteSpace($baseUrl)) {
+        return $false
+    }
+
+    try {
+        $response = Invoke-WebRequest `
+            -Uri "$baseUrl/readyz" `
+            -Method Get `
+            -TimeoutSec 2 `
+            -ErrorAction Stop
+
+        return ($response.StatusCode -eq 200)
+    }
+    catch {
+        return $false
+    }
+}
+
+
+function Wait-TunnelReady {
+    param(
+        [ValidateRange(1, 120)]
+        [int]$TimeoutSeconds = 45
     )
 
-    return ($processes.Count -gt 0)
+    for ($attempt = 1; $attempt -le $TimeoutSeconds; $attempt++) {
+        if (Test-TunnelReady) {
+            return $true
+        }
+
+        if (-not (Test-TunnelRunning)) {
+            return $false
+        }
+
+        Start-Sleep -Seconds 1
+    }
+
+    return $false
 }
+
+
+function Get-TunnelErrorTail {
+    if (-not (Test-Path $TunnelStderr)) {
+        return ""
+    }
+
+    try {
+        return (
+            Get-Content `
+                -LiteralPath $TunnelStderr `
+                -Tail 20 `
+                -ErrorAction Stop |
+            Out-String
+        ).Trim()
+    }
+    catch {
+        return ""
+    }
+}
+
+
 function Protect-ApiKey {
     Initialize-LocalDirectories
 
@@ -274,7 +359,6 @@ function Protect-ApiKey {
 
     try {
         $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
-
         $plainBytes = [Text.Encoding]::UTF8.GetBytes($plain)
 
         $protectedBytes = `
@@ -291,23 +375,14 @@ function Protect-ApiKey {
     }
     finally {
         if ($plainBytes) {
-            [Array]::Clear(
-                $plainBytes,
-                0,
-                $plainBytes.Length
-            )
+            [Array]::Clear($plainBytes, 0, $plainBytes.Length)
         }
 
         if ($protectedBytes) {
-            [Array]::Clear(
-                $protectedBytes,
-                0,
-                $protectedBytes.Length
-            )
+            [Array]::Clear($protectedBytes, 0, $protectedBytes.Length)
         }
 
         $plain = $null
-
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
     }
 }
@@ -342,19 +417,11 @@ Run:
             return [Text.Encoding]::UTF8.GetString($plainBytes)
         }
         finally {
-            [Array]::Clear(
-                $plainBytes,
-                0,
-                $plainBytes.Length
-            )
+            [Array]::Clear($plainBytes, 0, $plainBytes.Length)
         }
     }
     finally {
-        [Array]::Clear(
-            $protectedBytes,
-            0,
-            $protectedBytes.Length
-        )
+        [Array]::Clear($protectedBytes, 0, $protectedBytes.Length)
     }
 }
 
@@ -368,7 +435,6 @@ function Protect-RepositoryLocalConfig {
 
     $excludeFile = Join-Path $gitDir "info\exclude"
     $rule = "config/openai-tunnel-client/"
-
     $existing = @()
 
     if (Test-Path $excludeFile) {
@@ -386,10 +452,7 @@ function Protect-RepositoryLocalConfig {
 
 function Install-DesktopShortcut {
     $desktop = [Environment]::GetFolderPath("Desktop")
-
-    $shortcutPath = Join-Path `
-        $desktop `
-        "Chat Agent Platform.lnk"
+    $shortcutPath = Join-Path $desktop "Chat Agent Platform.lnk"
 
     $pwsh = (
         Get-Command `
@@ -407,28 +470,24 @@ function Install-DesktopShortcut {
 
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
-
     $shortcut.TargetPath = $pwsh
-
     $shortcut.Arguments = (
         '-NoLogo -NoProfile -ExecutionPolicy Bypass ' +
         '-WindowStyle Hidden ' +
         '-File "{0}"' -f $trayScript
     )
-
     $shortcut.WorkingDirectory = $RepoRoot
-
     $shortcut.IconLocation = (
         "{0}\System32\shell32.dll,44" -f $env:SystemRoot
     )
-
     $shortcut.Description = `
         "Chat Agent Platform — индикатор и ВКЛ/ВЫКЛ"
-
     $shortcut.Save()
 
     return $shortcutPath
 }
+
+
 function Install-Platform {
     Initialize-LocalDirectories
     Protect-RepositoryLocalConfig
@@ -441,21 +500,10 @@ function Install-Platform {
         $RepoRoot `
         "config\openai-tunnel-client\local-1mcp.yaml"
 
-    #
-    # tunnel-client binary
-    #
-    # Installation must remain safe while the tunnel is running.
-    # Windows locks the active executable, so never overwrite an
-    # identical binary and defer replacement when a different version
-    # is currently in use.
-    #
-
     $binarySource = "local-existing"
 
     if (Test-Path $repoTunnelExe) {
-
         if (Test-Path $TunnelExe) {
-
             $repoBinaryHash = (
                 Get-FileHash `
                     -LiteralPath $repoTunnelExe `
@@ -471,40 +519,34 @@ function Install-Platform {
             if ($repoBinaryHash -eq $localBinaryHash) {
                 $binarySource = "local-existing-identical"
             }
+            elseif (Test-TunnelRunning) {
+                $binarySource = "local-running-update-deferred"
+
+                Write-ControllerLog `
+                    -Level "WARN" `
+                    -Message (
+                        "A newer/different tunnel-client binary exists " +
+                        "in the repository, but the installed binary is " +
+                        "currently running. Update deferred until stopped."
+                    )
+            }
             else {
-                $runningTunnel = @(
-                    Get-TunnelProcesses
-                )
+                Copy-Item `
+                    -LiteralPath $repoTunnelExe `
+                    -Destination $TunnelExe `
+                    -Force
 
-                if ($runningTunnel.Count -gt 0) {
-                    $binarySource = "local-running-update-deferred"
+                $installedHash = (
+                    Get-FileHash `
+                        -LiteralPath $TunnelExe `
+                        -Algorithm SHA256
+                ).Hash
 
-                    Write-ControllerLog `
-                        -Level "WARN" `
-                        -Message (
-                            "A newer/different tunnel-client binary exists " +
-                            "in the repository, but the installed binary is " +
-                            "currently running. Update deferred until stopped."
-                        )
+                if ($repoBinaryHash -ne $installedHash) {
+                    throw "Tunnel binary copy verification failed."
                 }
-                else {
-                    Copy-Item `
-                        -LiteralPath $repoTunnelExe `
-                        -Destination $TunnelExe `
-                        -Force
 
-                    $installedHash = (
-                        Get-FileHash `
-                            -LiteralPath $TunnelExe `
-                            -Algorithm SHA256
-                    ).Hash
-
-                    if ($repoBinaryHash -ne $installedHash) {
-                        throw "Tunnel binary copy verification failed."
-                    }
-
-                    $binarySource = "repository-updated"
-                }
+                $binarySource = "repository-updated"
             }
         }
         else {
@@ -541,17 +583,9 @@ $TunnelExe
 "@
     }
 
-    #
-    # Tunnel profile
-    #
-    # %LOCALAPPDATA% is authoritative after first migration.
-    # Never overwrite an existing working profile from Git.
-    #
-
     $profileSource = "local-existing"
 
     if (-not (Test-Path $TunnelProfile)) {
-
         if (-not (Test-Path $repoTunnelProfile)) {
             throw @"
 Tunnel profile is not configured.
@@ -588,10 +622,6 @@ $repoTunnelProfile
         $profileSource = "migrated-from-repository"
     }
 
-    #
-    # Persistent user settings / secret
-    #
-
     if (-not (Test-Path $SettingsFile)) {
         Save-Settings ([pscustomobject]@{
             profile = "reference"
@@ -603,10 +633,6 @@ $repoTunnelProfile
     if (-not (Test-Path $SecretFile)) {
         Protect-ApiKey
     }
-
-    #
-    # Desktop entry always points to the tray controller.
-    #
 
     $shortcut = Install-DesktopShortcut
 
@@ -628,23 +654,46 @@ $repoTunnelProfile
         -Title "Chat Agent Platform" `
         -Message "Установка и локальная конфигурация готовы."
 }
+
+
 function Start-ChatProfile {
     $settings = Get-Settings
-
-    $desiredProfile = $settings.profile
+    $desiredProfile = [string]$settings.profile
 
     if (-not [string]::IsNullOrWhiteSpace($Profile)) {
         $desiredProfile = $Profile
     }
 
+    $existing = Get-ChatProfileStatus
+
+    if (
+        $existing.active_count -eq 1 -and
+        [string]$existing.active_profile -eq $desiredProfile
+    ) {
+        Write-ControllerLog `
+            "Chat profile already active: $desiredProfile"
+
+        return $existing
+    }
+
     Write-ControllerLog `
         "Starting Chat profile: $desiredProfile"
 
-    if ($desiredProfile -eq "files-readonly") {
+    if ($desiredProfile -eq "reference") {
+        $stopOutput = @(& $StopChatScript 2>&1)
+        foreach ($line in $stopOutput) {
+            Write-ControllerLog "profile-stop: $line"
+        }
+
+        $output = @(
+            & $StartLocalBridgeScript 2>&1
+        )
+    }
+    elseif ($desiredProfile -eq "files-readonly") {
         $root = $FilesRoot
 
         if ([string]::IsNullOrWhiteSpace($root)) {
-            $root = $settings.files_root
+            $root = [string]$settings.files_root
         }
 
         if ([string]::IsNullOrWhiteSpace($root)) {
@@ -665,7 +714,7 @@ Use:
     else {
         $output = @(
             & $StartChatScript `
-                -Profile $desiredProfile `
+                -Profile browser-isolated `
                 2>&1
         )
     }
@@ -675,14 +724,16 @@ Use:
     }
 
     Start-Sleep -Seconds 1
-
     $status = Get-ChatProfileStatus
 
     if (
-        $null -eq $status -or
-        $status.active_count -lt 1
+        $status.active_count -ne 1 -or
+        [string]$status.active_profile -ne $desiredProfile
     ) {
-        throw "Chat profile did not become active."
+        throw (
+            "Chat profile did not become the only active profile: {0}" -f `
+            $desiredProfile
+        )
     }
 
     return $status
@@ -691,8 +742,16 @@ Use:
 
 function Start-Tunnel {
     if (Test-TunnelRunning) {
-        Write-ControllerLog "Tunnel already running."
-        return
+        if (Test-TunnelReady) {
+            Write-ControllerLog "Tunnel already running and ready."
+            return
+        }
+
+        Write-ControllerLog `
+            -Level "WARN" `
+            -Message "Tunnel is running but not ready; restarting it."
+
+        Stop-Tunnel
     }
 
     if (-not (Test-Path $TunnelExe)) {
@@ -703,20 +762,22 @@ function Start-Tunnel {
         throw "Installed tunnel profile missing: $TunnelProfile"
     }
 
+    Remove-Item `
+        $TunnelStdout, $TunnelStderr, $TunnelHealthUrlFile `
+        -Force `
+        -ErrorAction SilentlyContinue
+
     $apiKey = Get-DecryptedApiKey
+    $process = $null
 
     try {
         $env:CONTROL_PLANE_API_KEY = $apiKey
 
-        Remove-Item `
-            $TunnelStdout, $TunnelStderr `
-            -Force `
-            -ErrorAction SilentlyContinue
-
         $arguments = (
-            'run --profile local-1mcp --profile-dir "{0}"' -f `
-            $TunnelDir
-        )
+            'run --profile local-1mcp --profile-dir "{0}" ' +
+            '--health.listen-addr 127.0.0.1:0 ' +
+            '--health.url-file "{1}"'
+        ) -f $TunnelDir, $TunnelHealthUrlFile
 
         $process = Start-Process `
             -FilePath $TunnelExe `
@@ -734,30 +795,27 @@ function Start-Tunnel {
         $apiKey = $null
     }
 
-    Start-Sleep -Seconds 4
+    Write-ControllerLog `
+        "Tunnel process started. PID=$($process.Id)"
 
-    if ($process.HasExited) {
-        $tail = ""
+    if (-not (Wait-TunnelReady -TimeoutSeconds 45)) {
+        $tail = Get-TunnelErrorTail
+        Stop-Tunnel
 
-        if (Test-Path $TunnelStderr) {
-            $tail = (
-                Get-Content `
-                    -LiteralPath $TunnelStderr `
-                    -Tail 20 |
-                Out-String
-            ).Trim()
+        if ([string]::IsNullOrWhiteSpace($tail)) {
+            throw "Tunnel did not become ready within 45 seconds."
         }
 
-        throw "Tunnel exited with code $($process.ExitCode). $tail"
+        throw "Tunnel did not become ready within 45 seconds. $tail"
     }
 
     Write-ControllerLog `
-        "Tunnel started. PID=$($process.Id)"
+        "Tunnel ready. PID=$($process.Id)"
 }
 
 
 function Stop-Tunnel {
-    $processes = Get-TunnelProcesses
+    $processes = @(Get-TunnelProcesses)
 
     foreach ($process in $processes) {
         try {
@@ -779,39 +837,16 @@ function Stop-Tunnel {
                 )
         }
     }
+
+    Remove-Item `
+        -LiteralPath $TunnelHealthUrlFile `
+        -Force `
+        -ErrorAction SilentlyContinue
 }
 
 
 function Stop-ChatProfile {
-    $status = Get-ChatProfileStatus
-
-    if (
-        $null -eq $status -or
-        $status.active_count -eq 0
-    ) {
-        Write-ControllerLog "No active Chat profile."
-        return
-    }
-
-    $active = [string]$status.active_profile
-
-    $command = Get-Command $StopChatScript
-
-    if (
-        $command.Parameters.ContainsKey("Profile") -and
-        -not [string]::IsNullOrWhiteSpace($active)
-    ) {
-        $output = @(
-            & $StopChatScript `
-                -Profile $active `
-                2>&1
-        )
-    }
-    else {
-        $output = @(
-            & $StopChatScript 2>&1
-        )
-    }
+    $output = @(& $StopChatScript 2>&1)
 
     foreach ($line in $output) {
         Write-ControllerLog "profile-stop: $line"
@@ -822,8 +857,27 @@ function Stop-ChatProfile {
 function Start-Platform {
     Initialize-LocalDirectories
 
-    $status = Start-ChatProfile
-    Start-Tunnel
+    $chatStarted = $false
+
+    try {
+        $status = Start-ChatProfile
+        $chatStarted = $true
+
+        Start-Tunnel
+
+        if (-not (Test-TunnelReady)) {
+            throw "Tunnel readiness was lost before platform startup completed."
+        }
+    }
+    catch {
+        Stop-Tunnel
+
+        if ($chatStarted) {
+            Stop-ChatProfile
+        }
+
+        throw
+    }
 
     $active = [string]$status.active_profile
 
@@ -833,6 +887,7 @@ function Start-Platform {
     Write-Host "CHAT_PLATFORM_STATUS=running"
     Write-Host "ACTIVE_PROFILE=$active"
     Write-Host "TUNNEL_RUNNING=True"
+    Write-Host "TUNNEL_READY=True"
 
     Show-PlatformNotification `
         -Title "Chat Agent Platform — ВКЛ" `
@@ -845,7 +900,6 @@ function Stop-Platform {
     Stop-ChatProfile
 
     Write-ControllerLog "Platform stopped."
-
     Write-Host "CHAT_PLATFORM_STATUS=stopped"
 
     Show-PlatformNotification `
@@ -856,20 +910,18 @@ function Stop-Platform {
 
 function Get-PlatformStatus {
     $chat = Get-ChatProfileStatus
-    $tunnel = Test-TunnelRunning
+    $tunnelRunning = Test-TunnelRunning
+    $tunnelReady = $false
 
-    $active = $null
-    $activeCount = 0
-
-    if ($null -ne $chat) {
-        $active = $chat.active_profile
-        $activeCount = $chat.active_count
+    if ($tunnelRunning) {
+        $tunnelReady = Test-TunnelReady
     }
 
     return [pscustomobject]@{
-        tunnel_running = $tunnel
-        active_profile = $active
-        active_count = $activeCount
+        tunnel_running = $tunnelRunning
+        tunnel_ready = $tunnelReady
+        active_profile = $chat.active_profile
+        active_count = $chat.active_count
         local_root = $LocalRoot
         settings = Get-Settings
     }
@@ -881,8 +933,13 @@ function Set-PlatformProfile {
         throw "-Profile is required for SetProfile."
     }
 
-    $settings = Get-Settings
+    $state = Get-ChatProfileStatus
 
+    if ($state.active_count -gt 0) {
+        throw "Stop the platform before changing its default profile."
+    }
+
+    $settings = Get-Settings
     $settings.profile = $Profile
 
     if ($Profile -eq "files-readonly") {
@@ -944,8 +1001,8 @@ try {
             $state | ConvertTo-Json -Depth 6
 
             $mode = if (
-                $state.tunnel_running -and
-                $state.active_count -gt 0
+                $state.tunnel_ready -and
+                $state.active_count -eq 1
             ) {
                 "Работает"
             }
