@@ -199,13 +199,51 @@ function Get-ChatProfileStatus {
 }
 
 
+function Test-ChatProfileReady {
+    param(
+        [Parameter(Mandatory)]
+        $Status,
+
+        [Parameter(Mandatory)]
+        [ValidateSet("reference", "files-readonly", "browser-isolated")]
+        [string]$ProfileName
+    )
+
+    if (
+        $null -eq $Status -or
+        $Status.active_count -ne 1 -or
+        [string]$Status.active_profile -ne $ProfileName
+    ) {
+        return $false
+    }
+
+    $matchingScopes = @(
+        $Status.scopes |
+            Where-Object {
+                [string]$_.profile -eq $ProfileName
+            }
+    )
+
+    return (
+        $matchingScopes.Count -eq 1 -and
+        [bool]$matchingScopes[0].running -and
+        [string]$matchingScopes[0].health_state -eq "ready"
+    )
+}
+
+
 function Get-TunnelProcesses {
     if (-not (Test-Path $TunnelExe)) {
         return @()
     }
 
     $expectedExe = [System.IO.Path]::GetFullPath($TunnelExe)
-    $profileDirPattern = ('(?i)--profile-dir\s+"?' + [regex]::Escape($TunnelDir))
+    $escapedTunnelDir = [regex]::Escape($TunnelDir)
+    $profilePattern = `
+        '(?i)(?:^|\s)--profile\s+local-1mcp(?=\s|$)'
+    $profileDirPattern = `
+        ('(?i)(?:^|\s)--profile-dir\s+"{0}"(?=\s|$)' -f `
+            $escapedTunnelDir)
 
     return @(
         Get-CimInstance Win32_Process `
@@ -234,7 +272,7 @@ function Get-TunnelProcesses {
 
             return (
                 $actualExe -ieq $expectedExe -and
-                $commandLine -match '(?i)--profile\s+"?local-1mcp"?' -and
+                $commandLine -match $profilePattern -and
                 $commandLine -match $profileDirPattern
             )
         }
@@ -667,13 +705,25 @@ function Start-ChatProfile {
     $existing = Get-ChatProfileStatus
 
     if (
-        $existing.active_count -eq 1 -and
-        [string]$existing.active_profile -eq $desiredProfile
+        Test-ChatProfileReady `
+            -Status $existing `
+            -ProfileName $desiredProfile
     ) {
         Write-ControllerLog `
-            "Chat profile already active: $desiredProfile"
+            "Chat profile already active and ready: $desiredProfile"
 
         return $existing
+    }
+
+    if (
+        $existing.active_count -gt 0
+    ) {
+        Write-ControllerLog `
+            -Level "WARN" `
+            -Message (
+                "Chat profile state is active but not ready for {0}; " +
+                "restarting profile runtime."
+            ) -f $desiredProfile
     }
 
     Write-ControllerLog `
@@ -727,11 +777,14 @@ Use:
     $status = Get-ChatProfileStatus
 
     if (
-        $status.active_count -ne 1 -or
-        [string]$status.active_profile -ne $desiredProfile
+        -not (
+            Test-ChatProfileReady `
+                -Status $status `
+                -ProfileName $desiredProfile
+        )
     ) {
         throw (
-            "Chat profile did not become the only active profile: {0}" -f `
+            "Chat profile did not become ready: {0}" -f `
             $desiredProfile
         )
     }
@@ -857,26 +910,58 @@ function Stop-ChatProfile {
 function Start-Platform {
     Initialize-LocalDirectories
 
-    $chatStarted = $false
-
     try {
         $status = Start-ChatProfile
-        $chatStarted = $true
+        $expectedProfile = [string]$status.active_profile
 
         Start-Tunnel
 
         if (-not (Test-TunnelReady)) {
             throw "Tunnel readiness was lost before platform startup completed."
         }
-    }
-    catch {
-        Stop-Tunnel
 
-        if ($chatStarted) {
-            Stop-ChatProfile
+        $finalStatus = Get-ChatProfileStatus
+
+        if (
+            -not (
+                Test-ChatProfileReady `
+                    -Status $finalStatus `
+                    -ProfileName $expectedProfile
+            )
+        ) {
+            throw "MCP readiness was lost before platform startup completed."
         }
 
-        throw
+        $status = $finalStatus
+    }
+    catch {
+        $startupError = $_
+
+        try {
+            Stop-Tunnel
+        }
+        catch {
+            Write-ControllerLog `
+                -Level "WARN" `
+                -Message (
+                    "Tunnel rollback failed: {0}" -f `
+                    $_.Exception.Message
+                )
+        }
+
+        try {
+            Stop-ChatProfile
+        }
+        catch {
+            Write-ControllerLog `
+                -Level "WARN" `
+                -Message (
+                    "Chat profile rollback failed: {0}" -f `
+                    $_.Exception.Message
+                )
+        }
+
+        throw $startupError
     }
 
     $active = [string]$status.active_profile
@@ -886,6 +971,7 @@ function Start-Platform {
 
     Write-Host "CHAT_PLATFORM_STATUS=running"
     Write-Host "ACTIVE_PROFILE=$active"
+    Write-Host "MCP_READY=True"
     Write-Host "TUNNEL_RUNNING=True"
     Write-Host "TUNNEL_READY=True"
 
@@ -910,6 +996,19 @@ function Stop-Platform {
 
 function Get-PlatformStatus {
     $chat = Get-ChatProfileStatus
+    $mcpReady = $false
+
+    if (
+        $chat.active_count -eq 1 -and
+        -not [string]::IsNullOrWhiteSpace(
+            [string]$chat.active_profile
+        )
+    ) {
+        $mcpReady = Test-ChatProfileReady `
+            -Status $chat `
+            -ProfileName ([string]$chat.active_profile)
+    }
+
     $tunnelRunning = Test-TunnelRunning
     $tunnelReady = $false
 
@@ -920,6 +1019,7 @@ function Get-PlatformStatus {
     return [pscustomobject]@{
         tunnel_running = $tunnelRunning
         tunnel_ready = $tunnelReady
+        mcp_ready = $mcpReady
         active_profile = $chat.active_profile
         active_count = $chat.active_count
         local_root = $LocalRoot
@@ -1001,6 +1101,7 @@ try {
             $state | ConvertTo-Json -Depth 6
 
             $mode = if (
+                $state.mcp_ready -and
                 $state.tunnel_ready -and
                 $state.active_count -eq 1
             ) {
