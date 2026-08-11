@@ -28,7 +28,12 @@ jobs:
           foreach ($script in @(
             'scripts/start-local-bridge.ps1',
             'scripts/status-local-bridge.ps1',
-            'scripts/stop-local-bridge.ps1'
+            'scripts/stop-local-bridge.ps1',
+            'scripts/start-chat-profile.ps1',
+            'scripts/status-chat-profile.ps1',
+            'scripts/stop-chat-profile.ps1',
+            'scripts/chat-platform-controller.ps1',
+            'scripts/chat-platform-tray.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -37,6 +42,12 @@ jobs:
             ) | Out-Null
             if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
           }
+
+      - name: Run Python controller contract tests
+        shell: pwsh
+        run: |
+          python --version
+          python -m unittest discover -s tests -p "test_*.py"
 
       - name: Enforce harmless reference config
         shell: pwsh
@@ -68,4 +79,21 @@ jobs:
           }
           finally {
             ./scripts/stop-local-bridge.ps1
+          }
+
+      - name: Prove clean controller status path
+        shell: pwsh
+        run: |
+          ./scripts/stop-chat-profile.ps1
+          $state = ./scripts/chat-platform-controller.ps1 -Action Status -NoNotify |
+            Out-String |
+            ConvertFrom-Json
+          if ($state.active_count -ne 0) {
+            throw 'Controller should report zero active profiles after cleanup.'
+          }
+          if ($state.tunnel_running -or $state.tunnel_ready) {
+            throw 'Controller should not report a tunnel on a clean hosted runner.'
+          }
+          if ([string]$state.settings.profile -ne 'reference') {
+            throw 'Clean controller status must preserve the reference default.'
           }
