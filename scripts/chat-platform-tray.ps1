@@ -17,7 +17,7 @@ public static class ChatPlatformNativeIcon
 }
 "@
 
-$ControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
+$CommandPath = Join-Path $PSScriptRoot "chat-platform.ps1"
 $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
 $ControllerLog = Join-Path $LocalRoot "logs\controller.log"
 
@@ -91,7 +91,7 @@ function Invoke-ControllerStatus {
             -NoLogo `
             -NoProfile `
             -ExecutionPolicy Bypass `
-            -File $ControllerPath `
+            -File $CommandPath `
             -Action Status `
             -NoNotify `
             2>&1
@@ -99,7 +99,7 @@ function Invoke-ControllerStatus {
 
     if ($LASTEXITCODE -ne 0) {
         throw (
-            "Controller status failed with exit code {0}: {1}" -f `
+            "Manager status failed with exit code {0}: {1}" -f `
             $LASTEXITCODE,
             (($output | Out-String).Trim())
         )
@@ -115,7 +115,7 @@ function Invoke-ControllerStatus {
     }
     catch {
         throw (
-            "Controller status returned invalid JSON: {0}" -f `
+            "Manager status returned invalid JSON: {0}" -f `
             (($output | Out-String).Trim())
         )
     }
@@ -357,10 +357,10 @@ function Start-ControllerOperation {
     Set-VisualState -Mode busy -Profile ""
 
     $script:OperationJob = Start-Job `
-        -ArgumentList $ControllerPath, $Action `
+        -ArgumentList $CommandPath, $Action `
         -ScriptBlock {
             param(
-                $ControllerPath,
+                $CommandPath,
                 $Action
             )
 
@@ -376,7 +376,7 @@ function Start-ControllerOperation {
                     -NoLogo `
                     -NoProfile `
                     -ExecutionPolicy Bypass `
-                    -File $ControllerPath `
+                    -File $CommandPath `
                     -Action $Action `
                     -NoNotify `
                     2>&1
@@ -384,7 +384,7 @@ function Start-ControllerOperation {
 
             if ($LASTEXITCODE -ne 0) {
                 throw (
-                    "Controller action {0} failed: {1}" -f `
+                    "Manager action {0} failed: {1}" -f `
                     $Action,
                     (($output | Out-String).Trim())
                 )
