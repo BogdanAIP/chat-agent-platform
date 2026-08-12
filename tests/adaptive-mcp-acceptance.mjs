@@ -139,20 +139,30 @@ function assertIncludes(haystack, needle, message) {
   }
 }
 
-async function waitServerRunning(name) {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    const status = structured(
-      await callTool('1mcp_1mcp_mcp_status', {
-        name,
-        details: true,
-        health: true,
-      }),
-    );
-    const server = status?.servers?.find((entry) => entry?.name === name);
-    if (server?.status === 'running') return server;
+async function waitForLazyTool(server, toolName) {
+  let observed;
+  for (let attempt = 0; attempt < 90; attempt += 1) {
+    observed = structured(await callTool('tool_list', { server }));
+    const tools = Array.isArray(observed?.tools) ? observed.tools : [];
+    if (tools.some((tool) => tool?.name === toolName)) return observed;
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  throw new Error(`Adaptive backend ${name} did not become running.`);
+  throw new Error(
+    `Adaptive backend ${server} did not publish ${toolName}. Observed: ${JSON.stringify(observed)}`,
+  );
+}
+
+async function waitForLazyToolRemoval(server, toolName) {
+  let observed;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    observed = structured(await callTool('tool_list', { server }));
+    const tools = Array.isArray(observed?.tools) ? observed.tools : [];
+    if (!tools.some((tool) => tool?.name === toolName)) return;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(
+    `Adaptive backend ${server} still publishes ${toolName} after disable. Observed: ${JSON.stringify(observed)}`,
+  );
 }
 
 async function main() {
@@ -181,10 +191,7 @@ async function main() {
 
   try {
     await callTool('1mcp_1mcp_mcp_enable', { name: 'filesystem' });
-    await waitServerRunning('filesystem');
-
-    const fileTools = structured(await callTool('tool_list', { server: 'filesystem' }));
-    assertIncludes(fileTools, 'read_text_file', 'Lazy filesystem discovery');
+    await waitForLazyTool('filesystem', 'read_text_file');
 
     const read = structured(
       await callTool('tool_invoke', {
@@ -196,12 +203,10 @@ async function main() {
     assertIncludes(read, 'CHAT_ADAPTIVE_FILES_OK', 'Adaptive filesystem invocation');
 
     await callTool('1mcp_1mcp_mcp_disable', { name: 'filesystem', graceful: true });
+    await waitForLazyToolRemoval('filesystem', 'read_text_file');
 
     await callTool('1mcp_1mcp_mcp_enable', { name: 'playwright' });
-    await waitServerRunning('playwright');
-
-    const browserTools = structured(await callTool('tool_list', { server: 'playwright' }));
-    assertIncludes(browserTools, 'browser_navigate', 'Lazy browser discovery');
+    await waitForLazyTool('playwright', 'browser_navigate');
 
     const page = structured(
       await callTool('tool_invoke', {
@@ -218,6 +223,7 @@ async function main() {
       args: {},
     });
     await callTool('1mcp_1mcp_mcp_disable', { name: 'playwright', graceful: true });
+    await waitForLazyToolRemoval('playwright', 'browser_navigate');
   } finally {
     for (const name of ['filesystem', 'playwright']) {
       try {
