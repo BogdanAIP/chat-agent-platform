@@ -13,6 +13,7 @@ $ProgressPreference = "SilentlyContinue"
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $SourceControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
+$SourceCommandPath = Join-Path $PSScriptRoot "chat-platform.ps1"
 $SourceTrayPath = Join-Path $PSScriptRoot "chat-platform-tray.ps1"
 
 $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
@@ -26,6 +27,7 @@ $TunnelExe = Join-Path $BinDir "tunnel-client.exe"
 $TunnelProfile = Join-Path $TunnelDir "local-1mcp.yaml"
 $InstallMetadata = Join-Path $StateDir "tunnel-client-install.json"
 $AppInstallMetadata = Join-Path $StateDir "manager-install.json"
+$CommandPath = Join-Path $AppScriptsDir "chat-platform.ps1"
 $ControllerPath = Join-Path $AppScriptsDir "chat-platform-controller.ps1"
 $TrayPath = Join-Path $AppScriptsDir "chat-platform-tray.ps1"
 
@@ -78,11 +80,10 @@ function Assert-WindowsEnvironment {
     }
     Write-Host "ONE_MCP=$OneMcpPackage"
 
-    if (-not (Test-Path -LiteralPath $SourceControllerPath)) {
-        throw "Controller source script is missing: $SourceControllerPath"
-    }
-    if (-not (Test-Path -LiteralPath $SourceTrayPath)) {
-        throw "Tray source script is missing: $SourceTrayPath"
+    foreach ($source in @($SourceControllerPath, $SourceCommandPath, $SourceTrayPath)) {
+        if (-not (Test-Path -LiteralPath $source)) {
+            throw "Manager source script is missing: $source"
+        }
     }
 }
 
@@ -388,6 +389,7 @@ function Install-ManagerBundle {
         "status-chat-profile.ps1",
         "stop-chat-profile.ps1",
         "chat-platform-controller.ps1",
+        "chat-platform.ps1",
         "chat-platform-tray.ps1"
     )
 
@@ -418,11 +420,10 @@ function Install-ManagerBundle {
             -Destination ([string]$entry.Destination)
     }
 
-    if (-not (Test-Path -LiteralPath $ControllerPath)) {
-        throw "Installed controller is missing after manager bundle copy."
-    }
-    if (-not (Test-Path -LiteralPath $TrayPath)) {
-        throw "Installed tray is missing after manager bundle copy."
+    foreach ($installed in @($CommandPath, $ControllerPath, $TrayPath)) {
+        if (-not (Test-Path -LiteralPath $installed)) {
+            throw "Installed manager script is missing after bundle copy: $installed"
+        }
     }
 
     [ordered]@{
@@ -450,7 +451,7 @@ function Invoke-ControllerProcess {
     )
     $pwsh = Require-Command "pwsh.exe"
     $output = @(
-        & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $ControllerPath -Action $Action -NoNotify 2>&1
+        & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $CommandPath -Action $Action -NoNotify 2>&1
     )
     return [pscustomobject]@{
         exit_code = $LASTEXITCODE
@@ -471,12 +472,12 @@ function Invoke-SmokeTest {
     try {
         $start = Invoke-ControllerProcess -Action Start
         if ($start.exit_code -ne 0) {
-            throw "Controller start failed during bootstrap smoke test: $($start.output -join ' ')"
+            throw "Manager start failed during bootstrap smoke test: $($start.output -join ' ')"
         }
 
         $statusResult = Invoke-ControllerProcess -Action Status
         if ($statusResult.exit_code -ne 0) {
-            throw "Controller status failed during bootstrap smoke test: $($statusResult.output -join ' ')"
+            throw "Manager status failed during bootstrap smoke test: $($statusResult.output -join ' ')"
         }
         $status = $statusResult.output | Out-String | ConvertFrom-Json
         if (-not [bool]$status.mcp_ready) {
@@ -531,4 +532,4 @@ Write-Host "LOCAL_ROOT=$LocalRoot"
 Write-Host "APP_ROOT=$AppRoot"
 Write-Host "DEFAULT_MCP_URL=$McpUrl"
 Write-Host "PLATFORM_STATE=stopped"
-Write-Host "NEXT=Use the desktop shortcut; the installed manager no longer depends on the git checkout."
+Write-Host "NEXT=Use the desktop shortcut or the installed chat-platform.ps1 command facade."
