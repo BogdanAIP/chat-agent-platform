@@ -33,6 +33,7 @@ jobs:
             'scripts/status-chat-profile.ps1',
             'scripts/stop-chat-profile.ps1',
             'scripts/chat-platform-controller.ps1',
+            'scripts/chat-platform.ps1',
             'scripts/chat-platform-tray.ps1',
             'scripts/bootstrap-chat-platform.ps1'
           )) {
@@ -82,19 +83,19 @@ jobs:
             ./scripts/stop-local-bridge.ps1
           }
 
-      - name: Prove clean controller status path
+      - name: Prove clean public manager status path
         shell: pwsh
         run: |
           ./scripts/stop-chat-profile.ps1
-          $state = ./scripts/chat-platform-controller.ps1 -Action Status -NoNotify |
+          $state = ./scripts/chat-platform.ps1 -Action Status -NoNotify |
             Out-String |
             ConvertFrom-Json
           if ($state.active_count -ne 0) {
-            throw 'Controller should report zero active profiles after cleanup.'
+            throw 'Manager should report zero active profiles after cleanup.'
           }
           if ($state.tunnel_running -or $state.tunnel_ready) {
-            throw 'Controller should not report a tunnel on a clean hosted runner.'
+            throw 'Manager should not report a tunnel on a clean hosted runner.'
           }
           if ([string]$state.settings.profile -ne 'reference') {
-            throw 'Clean controller status must preserve the reference default.'
+            throw 'Clean manager status must preserve the reference default.'
           }
