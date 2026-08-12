@@ -9,6 +9,7 @@ CONTROLLER = ROOT / "scripts" / "chat-platform-controller.ps1"
 TRAY = ROOT / "scripts" / "chat-platform-tray.ps1"
 COMMAND = ROOT / "scripts" / "chat-platform.ps1"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
+START_LOCAL = ROOT / "scripts" / "start-local-bridge.ps1"
 STATUS_PROFILE = ROOT / "scripts" / "status-chat-profile.ps1"
 STOP_LOCAL = ROOT / "scripts" / "stop-local-bridge.ps1"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
@@ -22,6 +23,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         cls.tray = TRAY.read_text(encoding="utf-8")
         cls.command = COMMAND.read_text(encoding="utf-8")
         cls.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
+        cls.start_local = START_LOCAL.read_text(encoding="utf-8")
         cls.status_profile = STATUS_PROFILE.read_text(encoding="utf-8")
         cls.stop_local = STOP_LOCAL.read_text(encoding="utf-8")
         cls.ci = CI.read_text(encoding="utf-8")
@@ -125,6 +127,22 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("WaitForExit()", body)
         self.assertIn("$process.ExitCode", body)
         self.assertNotIn("& $pwsh", body)
+
+    def test_windows_1mcp_worker_is_hidden_without_background_detach(self):
+        self.assertIn("$ForegroundWorker", self.start_local)
+        self.assertIn("System.Diagnostics.ProcessStartInfo", self.start_local)
+        self.assertIn("$startInfo.CreateNoWindow = $true", self.start_local)
+        self.assertIn("$startInfo.UseShellExecute = $false", self.start_local)
+        self.assertIn("--transport http", self.start_local)
+        self.assertIn("--log-file $serverLog", self.start_local)
+        windows_branch = re.search(
+            r"if \(\$IsWindows\) \{(.*?)\n    \}\n    else \{",
+            self.start_local,
+            re.S,
+        )
+        self.assertIsNotNone(windows_branch)
+        self.assertIn("-ForegroundWorker", windows_branch.group(1))
+        self.assertNotIn("--background", windows_branch.group(1))
 
     def test_profile_status_keeps_conflict_machine_readable(self):
         self.assertIn("conflict = $conflict", self.status_profile)
