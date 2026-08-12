@@ -122,6 +122,7 @@ function Get-OfficialTunnelRelease {
     if ($sumAsset.Count -ne 1) {
         throw "Official release $tag does not contain SHA256SUMS.txt."
     }
+
     $expectedPrefix = "https://github.com/openai/tunnel-client/releases/download/$tag/"
     foreach ($url in @([string]$asset[0].browser_download_url, [string]$sumAsset[0].browser_download_url)) {
         if (-not $url.StartsWith($expectedPrefix, [System.StringComparison]::Ordinal)) {
@@ -144,6 +145,7 @@ function Get-ExpectedChecksum {
         [Parameter(Mandatory)] [string]$SumsPath,
         [Parameter(Mandatory)] [string]$AssetName
     )
+
     $pattern = '^(?<hash>[0-9A-Fa-f]{64})\s+[*]?' + [regex]::Escape($AssetName) + '$'
     foreach ($line in Get-Content -LiteralPath $SumsPath) {
         $trimmed = $line.Trim()
@@ -151,6 +153,7 @@ function Get-ExpectedChecksum {
             return $Matches.hash.ToLowerInvariant()
         }
     }
+
     throw "SHA256SUMS.txt does not contain a checksum for $AssetName."
 }
 
@@ -158,6 +161,7 @@ function Get-ExactTunnelProcesses {
     if (-not (Test-Path -LiteralPath $TunnelExe)) {
         return @()
     }
+
     $expected = [System.IO.Path]::GetFullPath($TunnelExe)
     return @(
         Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -182,6 +186,7 @@ function Install-OfficialTunnelClient {
 
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("chat-agent-platform-bootstrap-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+
     try {
         $zipPath = Join-Path $tempRoot $release.asset_name
         $sumsPath = Join-Path $tempRoot "SHA256SUMS.txt"
@@ -197,6 +202,7 @@ function Install-OfficialTunnelClient {
         if ($publishedChecksum -ne $expected) {
             throw "Official SHA256SUMS.txt disagrees with the reviewed checksum pinned in this repository."
         }
+
         $actual = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($actual -ne $expected) {
             throw "Official tunnel-client ZIP checksum mismatch. Expected $expected, got $actual."
@@ -238,6 +244,7 @@ function Install-OfficialTunnelClient {
             if (@(Get-ExactTunnelProcesses).Count -gt 0) {
                 throw "The installed tunnel-client is running. Stop Chat Agent Platform before updating it."
             }
+
             $newPath = "$TunnelExe.new"
             Copy-Item -LiteralPath $candidate -Destination $newPath -Force
             $newHash = (Get-FileHash -LiteralPath $newPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -280,6 +287,7 @@ function Resolve-TunnelId {
                 ForEach-Object { $_.Value } |
                 Select-Object -Unique
         )
+
         if ($matches.Count -eq 1) {
             $candidate = [string]$matches[0]
             Write-Host "TUNNEL_ID_SOURCE=existing-profile"
@@ -295,6 +303,7 @@ function Resolve-TunnelId {
     if ($candidate -notmatch '^tunnel_[0-9a-f]{32}$') {
         throw "TunnelId has invalid format. Expected tunnel_ followed by 32 lowercase hexadecimal characters."
     }
+
     return $candidate
 }
 
@@ -303,6 +312,7 @@ function Test-TunnelProfileContract {
         [Parameter(Mandatory)] [string]$Path,
         [Parameter(Mandatory)] [string]$ResolvedTunnelId
     )
+
     if (-not (Test-Path -LiteralPath $Path)) { return $false }
     $raw = Get-Content -LiteralPath $Path -Raw
     return (
@@ -342,6 +352,7 @@ function Initialize-OfficialTunnelProfile {
         "--health-listen-addr", "127.0.0.1:0",
         "--force"
     )
+
     $output = @(& $TunnelExe @args 2>&1)
     if ($LASTEXITCODE -ne 0) {
         throw "Official tunnel-client init failed: $($output -join ' ')"
@@ -443,19 +454,71 @@ function Install-ManagerBundle {
     Write-Host "MANAGER_BUNDLE_VERIFIED=True" -ForegroundColor Green
 }
 
-function Invoke-ControllerProcess {
-    param(
-        [Parameter(Mandatory)]
-        [ValidateSet("Start", "Stop", "Status")]
-        [string]$Action
-    )
+function Invoke-ManagerStatusCapture {
     $pwsh = Require-Command "pwsh.exe"
     $output = @(
-        & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $CommandPath -Action $Action -NoNotify 2>&1
+        & $pwsh `
+            -NoLogo `
+            -NoProfile `
+            -ExecutionPolicy Bypass `
+            -File $CommandPath `
+            -Action Status `
+            -NoNotify `
+            2>&1
     )
+
     return [pscustomobject]@{
         exit_code = $LASTEXITCODE
         output = $output
+    }
+}
+
+function Invoke-ManagerAction {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet("Start", "Stop")]
+        [string]$Action,
+
+        [ValidateSet("reference", "files-readonly", "browser-isolated")]
+        [string]$Profile
+    )
+
+    $pwsh = Require-Command "pwsh.exe"
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $pwsh
+    $startInfo.UseShellExecute = $false
+
+    foreach ($argument in @(
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $CommandPath,
+        "-Action", $Action,
+        "-NoNotify"
+    )) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Profile)) {
+        $startInfo.ArgumentList.Add("-Profile")
+        $startInfo.ArgumentList.Add($Profile)
+    }
+
+    # Mutating manager actions can create persistent descendants. Waiting on
+    # an exact Process handle avoids PowerShell pipeline EOF being held open by
+    # inherited handles from 1MCP or tunnel-client.
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+
+    try {
+        if (-not $process.Start()) {
+            throw "Failed to start manager action $Action."
+        }
+        $process.WaitForExit()
+        return $process.ExitCode
+    }
+    finally {
+        $process.Dispose()
     }
 }
 
@@ -479,19 +542,26 @@ function Install-Manager {
 
 function Invoke-SmokeTest {
     Write-Host "Starting reference MCP + Secure MCP Tunnel for bootstrap smoke test..." -ForegroundColor Yellow
-    try {
-        $start = Invoke-ControllerProcess -Action Start
-        if ($start.exit_code -ne 0) {
-            throw "Manager start failed during bootstrap smoke test: $($start.output -join ' ')"
-        }
 
-        $statusResult = Invoke-ControllerProcess -Action Status
+    $startSucceeded = $false
+    try {
+        $startExit = Invoke-ManagerAction -Action Start -Profile reference
+        if ($startExit -ne 0) {
+            throw "Manager start failed during bootstrap smoke test with exit code $startExit."
+        }
+        $startSucceeded = $true
+
+        $statusResult = Invoke-ManagerStatusCapture
         if ($statusResult.exit_code -ne 0) {
             throw "Manager status failed during bootstrap smoke test: $($statusResult.output -join ' ')"
         }
+
         $status = $statusResult.output | Out-String | ConvertFrom-Json
+        if ([string]$status.active_profile -ne "reference") {
+            throw "Bootstrap smoke test started unexpected profile '$($status.active_profile)' instead of reference."
+        }
         if (-not [bool]$status.mcp_ready) {
-            throw "Bootstrap smoke test: MCP is not ready."
+            throw "Bootstrap smoke test: reference MCP is not ready."
         }
         if (-not [bool]$status.tunnel_ready) {
             throw "Bootstrap smoke test: Secure MCP Tunnel is not ready."
@@ -499,10 +569,27 @@ function Invoke-SmokeTest {
         if ([int]$status.active_count -ne 1) {
             throw "Bootstrap smoke test: expected exactly one active MCP profile."
         }
+
+        Write-Host "BOOTSTRAP_SMOKE_PROFILE=reference"
         Write-Host "BOOTSTRAP_SMOKE_TEST=passed" -ForegroundColor Green
     }
     finally {
-        $null = Invoke-ControllerProcess -Action Stop
+        if ($startSucceeded) {
+            $stopExit = Invoke-ManagerAction -Action Stop
+            if ($stopExit -ne 0) {
+                Write-Warning "Bootstrap cleanup stop returned exit code $stopExit."
+            }
+        }
+        else {
+            # Start performs its own rollback, but a best-effort Stop also
+            # clears any pre-existing partial state from an interrupted setup.
+            try {
+                $null = Invoke-ManagerAction -Action Stop
+            }
+            catch {
+                Write-Warning "Bootstrap cleanup could not invoke Stop: $($_.Exception.Message)"
+            }
+        }
     }
 }
 
