@@ -2,6 +2,7 @@ param(
     [int]$Port = 3050,
     [string]$ConfigPath = (Join-Path $PSScriptRoot '..\runtime\mcp.json'),
     [string]$HealthServerName = 'sequential-thinking',
+    [string]$OneMcpPackage = '@1mcp/agent@0.34.4',
     [switch]$RuntimeReadyOnly,
     [switch]$EnableLazyLoading,
     [switch]$DisableAsyncLoading,
@@ -11,7 +12,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$pkg = '@1mcp/agent@0.34.4'
+
+if ($OneMcpPackage -notmatch '^@1mcp/agent@[0-9A-Za-z.+-]+$') {
+    throw 'OneMcpPackage must be an exact @1mcp/agent version.'
+}
+
+$pkg = $OneMcpPackage
 $config = (Resolve-Path $ConfigPath).Path
 $runtimeScope = Split-Path -Parent $config
 $logsDir = Join-Path $runtimeScope 'logs'
