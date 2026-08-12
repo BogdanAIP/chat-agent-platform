@@ -17,6 +17,7 @@ $ErrorActionPreference = "Stop"
 $ControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
 $MutexName = "Local\ChatAgentPlatformControllerOperation"
 $MutexTimeoutMilliseconds = 30000
+$script:LastControllerExitCode = 1
 
 if (-not (Test-Path -LiteralPath $ControllerPath)) {
     throw "Internal controller is missing: $ControllerPath"
@@ -49,17 +50,20 @@ function Invoke-InternalController {
         $arguments += "-NoNotify"
     }
 
+    # Keep controller stdout/stderr transparent to the caller. Store the exit
+    # code out-of-band so Status JSON is never captured into an object array.
     & $pwsh @arguments
-    return $LASTEXITCODE
+    $script:LastControllerExitCode = $LASTEXITCODE
 }
 
 if ($Action -eq "Status") {
-    $code = Invoke-InternalController
-    exit $code
+    Invoke-InternalController
+    exit $script:LastControllerExitCode
 }
 
 $mutex = New-Object System.Threading.Mutex($false, $MutexName)
 $acquired = $false
+$exitCode = 1
 
 try {
     try {
@@ -78,8 +82,8 @@ try {
         )
     }
 
-    $code = Invoke-InternalController
-    exit $code
+    Invoke-InternalController
+    $exitCode = $script:LastControllerExitCode
 }
 finally {
     if ($acquired) {
@@ -94,3 +98,5 @@ finally {
 
     $mutex.Dispose()
 }
+
+exit $exitCode
