@@ -11,6 +11,7 @@ on:
       - "scripts/status-local-bridge.ps1"
       - "scripts/stop-local-bridge.ps1"
       - "scripts/chat-platform-controller.ps1"
+      - "scripts/chat-platform.ps1"
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
       - ".github/workflows/chat-profiles.yml"
@@ -26,6 +27,7 @@ on:
       - "scripts/status-local-bridge.ps1"
       - "scripts/stop-local-bridge.ps1"
       - "scripts/chat-platform-controller.ps1"
+      - "scripts/chat-platform.ps1"
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
       - ".github/workflows/chat-profiles.yml"
@@ -67,6 +69,7 @@ jobs:
             'scripts/status-chat-profile.ps1',
             'scripts/stop-chat-profile.ps1',
             'scripts/chat-platform-controller.ps1',
+            'scripts/chat-platform.ps1',
             'scripts/chat-platform-tray.ps1',
             'scripts/bootstrap-chat-platform.ps1'
           )) {
@@ -139,7 +142,7 @@ jobs:
             ./scripts/stop-chat-profile.ps1
           }
 
-      - name: Prove controller can observe and clean conflicting runtime scopes
+      - name: Prove public manager can observe and clean conflicting runtime scopes
         shell: pwsh
         run: |
           $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-profile-conflict-files'
@@ -158,16 +161,16 @@ jobs:
               -HealthServerName playwright `
               -ReadyTimeoutSeconds 240
 
-            $conflict = ./scripts/chat-platform-controller.ps1 -Action Status -NoNotify |
+            $conflict = ./scripts/chat-platform.ps1 -Action Status -NoNotify |
               Out-String |
               ConvertFrom-Json
-            if ($conflict.active_count -ne 2) { throw 'Controller did not preserve active_count=2 conflict state.' }
+            if ($conflict.active_count -ne 2) { throw 'Manager did not preserve active_count=2 conflict state.' }
 
-            ./scripts/chat-platform-controller.ps1 -Action Toggle -NoNotify
-            $clean = ./scripts/chat-platform-controller.ps1 -Action Status -NoNotify |
+            ./scripts/chat-platform.ps1 -Action Toggle -NoNotify
+            $clean = ./scripts/chat-platform.ps1 -Action Status -NoNotify |
               Out-String |
               ConvertFrom-Json
-            if ($clean.active_count -ne 0) { throw 'Controller did not clean conflicting Runtime Scopes.' }
+            if ($clean.active_count -ne 0) { throw 'Manager did not clean conflicting Runtime Scopes.' }
           }
           finally {
             Remove-Item Env:CHAT_LOCAL_FILES_ROOT -ErrorAction SilentlyContinue
