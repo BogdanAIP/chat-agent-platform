@@ -23,41 +23,89 @@ if (-not (Test-Path -LiteralPath $ControllerPath)) {
     throw "Internal controller is missing: $ControllerPath"
 }
 
-function Invoke-InternalController {
+function Get-ControllerArguments {
+    $arguments = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($value in @(
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $ControllerPath,
+        "-Action", $Action
+    )) {
+        $arguments.Add([string]$value)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Profile)) {
+        $arguments.Add("-Profile")
+        $arguments.Add($Profile)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($FilesRoot)) {
+        $arguments.Add("-FilesRoot")
+        $arguments.Add($FilesRoot)
+    }
+
+    if ($NoNotify) {
+        $arguments.Add("-NoNotify")
+    }
+
+    return $arguments
+}
+
+function Invoke-InternalControllerStatus {
     $pwsh = (
         Get-Command `
             "pwsh.exe" `
             -ErrorAction Stop
     ).Source
 
-    $arguments = @(
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", $ControllerPath,
-        "-Action", $Action
-    )
+    $arguments = Get-ControllerArguments
 
-    if (-not [string]::IsNullOrWhiteSpace($Profile)) {
-        $arguments += @("-Profile", $Profile)
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($FilesRoot)) {
-        $arguments += @("-FilesRoot", $FilesRoot)
-    }
-
-    if ($NoNotify) {
-        $arguments += "-NoNotify"
-    }
-
-    # Keep controller stdout/stderr transparent to the caller. Store the exit
-    # code out-of-band so Status JSON is never captured into an object array.
+    # Status never starts a persistent child. Keep its JSON stdout transparent
+    # so callers can parse it directly.
     & $pwsh @arguments
     $script:LastControllerExitCode = $LASTEXITCODE
 }
 
+function Invoke-InternalControllerMutation {
+    $pwsh = (
+        Get-Command `
+            "pwsh.exe" `
+            -ErrorAction Stop
+    ).Source
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $pwsh
+    $startInfo.UseShellExecute = $false
+
+    foreach ($argument in (Get-ControllerArguments)) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+
+    # Do not invoke the mutating controller through a PowerShell pipeline.
+    # Start/Toggle may spawn long-lived 1MCP/tunnel descendants; if their
+    # inherited stdout handle belongs to an outer pipeline, EOF can be held
+    # open after the controller itself has completed. Wait on the exact child
+    # process handle instead.
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+
+    try {
+        if (-not $process.Start()) {
+            throw "Failed to start the internal Chat Agent Platform controller."
+        }
+
+        $process.WaitForExit()
+        $script:LastControllerExitCode = $process.ExitCode
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
 if ($Action -eq "Status") {
-    Invoke-InternalController
+    Invoke-InternalControllerStatus
     exit $script:LastControllerExitCode
 }
 
@@ -82,7 +130,7 @@ try {
         )
     }
 
-    Invoke-InternalController
+    Invoke-InternalControllerMutation
     $exitCode = $script:LastControllerExitCode
 }
 finally {
