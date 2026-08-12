@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('files-readonly', 'browser-isolated')]
+    [ValidateSet('files-readonly', 'browser-isolated', 'adaptive')]
     [string]$Profile,
     [string]$FilesRoot,
     [int]$Port = 3050,
@@ -16,15 +16,32 @@ $startBridge = Join-Path $PSScriptRoot 'start-local-bridge.ps1'
 $referenceConfig = Join-Path $repoRoot 'runtime\mcp.json'
 $filesConfig = Join-Path $repoRoot 'runtime\chat-profiles\files-readonly\mcp.json'
 $browserConfig = Join-Path $repoRoot 'runtime\chat-profiles\browser-isolated\mcp.json'
+$adaptiveConfig = Join-Path $repoRoot 'runtime\chat-profiles\adaptive\mcp.json'
 
 $definitions = @{
     'files-readonly' = @{
         Config = $filesConfig
         HealthServer = 'filesystem'
+        RuntimeReadyOnly = $false
+        EnableLazyLoading = $false
+        DisableAsyncLoading = $false
+        InternalTools = ''
     }
     'browser-isolated' = @{
         Config = $browserConfig
         HealthServer = 'playwright'
+        RuntimeReadyOnly = $false
+        EnableLazyLoading = $false
+        DisableAsyncLoading = $false
+        InternalTools = ''
+    }
+    'adaptive' = @{
+        Config = $adaptiveConfig
+        HealthServer = ''
+        RuntimeReadyOnly = $true
+        EnableLazyLoading = $true
+        DisableAsyncLoading = $true
+        InternalTools = 'list,status,enable,disable,reload'
     }
 }
 
@@ -95,11 +112,47 @@ function Get-InventoryToolNames {
     return @($inventory.tools | ForEach-Object { [string]$_.tool })
 }
 
+function Assert-AdaptiveConfigContract {
+    param([Parameter(Mandatory)] [string]$ConfigPath)
+
+    $configObject = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    foreach ($serverName in @('filesystem', 'playwright')) {
+        $server = $configObject.mcpServers.$serverName
+        if ($null -eq $server) {
+            throw "Adaptive profile is missing backend '$serverName'."
+        }
+        if (-not [bool]$server.disabled) {
+            throw "Adaptive backend '$serverName' must start disabled for task-driven activation."
+        }
+    }
+
+    $filesystemDisabled = @($configObject.mcpServers.filesystem.disabledTools)
+    foreach ($forbidden in @('create_directory', 'write_file', 'edit_file', 'move_file')) {
+        if ($filesystemDisabled -notcontains $forbidden) {
+            throw "Adaptive filesystem backend must keep '$forbidden' disabled."
+        }
+    }
+
+    $browserDisabled = @($configObject.mcpServers.playwright.disabledTools)
+    foreach ($forbidden in @('browser_run_code_unsafe', 'browser_evaluate', 'browser_file_upload', 'browser_network_request')) {
+        if ($browserDisabled -notcontains $forbidden) {
+            throw "Adaptive browser backend must keep '$forbidden' disabled."
+        }
+    }
+}
+
 function Assert-ProfileSurface {
     param(
         [Parameter(Mandatory)] [string]$ProfileName,
         [Parameter(Mandatory)] [string]$BaseUrl
     )
+
+    if ($ProfileName -eq 'adaptive') {
+        # The adaptive profile intentionally starts with every backend disabled.
+        # Its Chat-facing surface is the stable 1MCP lazy/meta-tool contract and
+        # selected lifecycle tools; real Chat acceptance verifies that snapshot.
+        return
+    }
 
     if ($ProfileName -eq 'files-readonly') {
         $tools = @(Get-InventoryToolNames -ServerName 'filesystem' -BaseUrl $BaseUrl)
@@ -140,7 +193,7 @@ $selectedConfig = [string]$selected.Config
 $healthServer = [string]$selected.HealthServer
 
 # Only one Chat-facing Runtime Scope may own the fixed tunnel target port.
-foreach ($config in @($referenceConfig, $filesConfig, $browserConfig)) {
+foreach ($config in @($referenceConfig, $filesConfig, $browserConfig, $adaptiveConfig)) {
     Stop-KnownRuntime -ConfigPath $config
 }
 
@@ -148,24 +201,45 @@ $hadFilesRoot = Test-Path Env:CHAT_LOCAL_FILES_ROOT
 $oldFilesRoot = if ($hadFilesRoot) { $env:CHAT_LOCAL_FILES_ROOT } else { $null }
 
 try {
-    if ($Profile -eq 'files-readonly') {
+    if ($Profile -in @('files-readonly', 'adaptive')) {
         if ([string]::IsNullOrWhiteSpace($FilesRoot)) {
-            throw 'files-readonly requires -FilesRoot with one explicit workspace directory.'
+            throw "$Profile requires -FilesRoot with one explicit workspace directory."
         }
         $env:CHAT_LOCAL_FILES_ROOT = Resolve-SafeFilesRoot -Path $FilesRoot
         Write-Host "FILES_ROOT=$env:CHAT_LOCAL_FILES_ROOT" -ForegroundColor Yellow
     }
     elseif (-not [string]::IsNullOrWhiteSpace($FilesRoot)) {
-        throw '-FilesRoot is only valid for the files-readonly profile.'
+        throw '-FilesRoot is only valid for files-readonly or adaptive.'
+    }
+
+    if ($Profile -eq 'adaptive') {
+        Assert-AdaptiveConfigContract -ConfigPath $selectedConfig
+    }
+
+    $bridgeArgs = @{
+        Port = $Port
+        ConfigPath = $selectedConfig
+        ReadyTimeoutSeconds = $ReadyTimeoutSeconds
+    }
+    if ([bool]$selected.RuntimeReadyOnly) {
+        $bridgeArgs.RuntimeReadyOnly = $true
+    }
+    else {
+        $bridgeArgs.HealthServerName = $healthServer
+    }
+    if ([bool]$selected.EnableLazyLoading) {
+        $bridgeArgs.EnableLazyLoading = $true
+    }
+    if ([bool]$selected.DisableAsyncLoading) {
+        $bridgeArgs.DisableAsyncLoading = $true
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$selected.InternalTools)) {
+        $bridgeArgs.InternalTools = [string]$selected.InternalTools
     }
 
     # start-local-bridge.ps1 terminates on failure. Do not inspect $LASTEXITCODE here:
     # it may legitimately retain the supervisor's transient 4/5 status after readiness.
-    & $startBridge `
-        -Port $Port `
-        -ConfigPath $selectedConfig `
-        -HealthServerName $healthServer `
-        -ReadyTimeoutSeconds $ReadyTimeoutSeconds
+    & $startBridge @bridgeArgs
 
     $baseUrl = "http://127.0.0.1:$Port"
     Assert-ProfileSurface -ProfileName $Profile -BaseUrl $baseUrl
