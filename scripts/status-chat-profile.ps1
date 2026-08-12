@@ -7,9 +7,10 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $pkg = '@1mcp/agent@0.34.4'
 
 $scopes = @(
-    @{ Name = 'reference'; Config = (Join-Path $repoRoot 'runtime\mcp.json'); Health = 'sequential-thinking' },
-    @{ Name = 'files-readonly'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\files-readonly\mcp.json'); Health = 'filesystem' },
-    @{ Name = 'browser-isolated'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\browser-isolated\mcp.json'); Health = 'playwright' }
+    @{ Name = 'reference'; Config = (Join-Path $repoRoot 'runtime\mcp.json'); Health = 'sequential-thinking'; RuntimeReadyOnly = $false },
+    @{ Name = 'files-readonly'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\files-readonly\mcp.json'); Health = 'filesystem'; RuntimeReadyOnly = $false },
+    @{ Name = 'browser-isolated'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\browser-isolated\mcp.json'); Health = 'playwright'; RuntimeReadyOnly = $false },
+    @{ Name = 'adaptive'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\adaptive\mcp.json'); Health = '1mcp-runtime'; RuntimeReadyOnly = $true }
 )
 
 $result = @()
@@ -22,8 +23,14 @@ foreach ($scope in $scopes) {
 
     if ($code -eq 0) {
         try {
-            $health = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$Port/health/mcp/$($scope.Health)" -TimeoutSec 5
-            $healthState = [string]$health.state
+            if ([bool]$scope.RuntimeReadyOnly) {
+                $health = Invoke-WebRequest -Method Get -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec 5
+                $healthState = if ($health.StatusCode -eq 200) { 'ready' } else { 'unhealthy' }
+            }
+            else {
+                $health = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$Port/health/mcp/$($scope.Health)" -TimeoutSec 5
+                $healthState = [string]$health.state
+            }
         }
         catch {
             $healthState = 'unreachable'
