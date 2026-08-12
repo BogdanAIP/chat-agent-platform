@@ -1,7 +1,25 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$NoConsoleHost
+)
 
 $ErrorActionPreference = "Stop"
+
+if ($IsWindows -and -not $NoConsoleHost) {
+    $launcher = Join-Path $PSScriptRoot "chat-platform-tray-launch.vbs"
+    if (Test-Path -LiteralPath $launcher) {
+        $wscript = Join-Path $env:SystemRoot "System32\wscript.exe"
+        if (-not (Test-Path -LiteralPath $wscript)) {
+            throw "Windows Script Host not found: $wscript"
+        }
+
+        & $wscript //B //NoLogo $launcher
+        if ($LASTEXITCODE -ne 0) {
+            throw "No-console tray launcher failed with exit code $LASTEXITCODE."
+        }
+        exit 0
+    }
+}
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
