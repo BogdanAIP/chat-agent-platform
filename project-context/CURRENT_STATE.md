@@ -74,19 +74,36 @@ Bootstrap now:
 - keeps tunnel binary/profile/state/secrets outside the app bundle;
 - requests the runtime API key only when not already configured and stores it through Windows DPAPI `CurrentUser`;
 - installs the desktop shortcut from the installed manager copy;
-- performs a default reference-profile MCP + tunnel readiness smoke test, then stops the platform.
+- performs a forced `reference` MCP + tunnel readiness smoke test, validates that `reference` is the only active profile, then stops the platform.
+
+Mutating manager actions do not run the internal controller through a PowerShell output pipeline. They wait on the exact controller process handle instead, so long-lived 1MCP/tunnel descendants cannot keep an outer bootstrap/tray pipeline open after lifecycle completion.
 
 Tray is now UI-only. It gets authoritative status from `chat-platform-controller.ps1`; it no longer duplicates PID/process/tunnel/MCP health discovery.
 
 Manager/profile/bootstrap changes trigger the dedicated `Chat Profile Acceptance` Windows workflow in addition to normal CI, CodeQL and secret-history scanning.
+
+### Real Windows bootstrap evidence — 2026-08-12
+
+The first real bootstrap attempt on the target Windows machine successfully completed dependency checks, official tunnel-client verification, existing tunnel-profile validation, standalone manager bundle installation, DPAPI secret reuse and desktop shortcut installation.
+
+The installed `%LOCALAPPDATA%\ChatAgentPlatform\app` copy then started the configured `files-readonly` profile and the official Secure MCP Tunnel successfully. Independent installed-manager status reported:
+
+- `tunnel_running=true`;
+- `tunnel_ready=true`;
+- `mcp_ready=true`;
+- `active_profile=files-readonly`;
+- `active_count=1`;
+- filesystem health `ready`.
+
+That run exposed two bootstrap orchestration defects rather than a tunnel/MCP failure: the smoke test inherited the saved default `files-readonly` profile instead of forcing `reference`, and its mutating child was invoked through a captured PowerShell pipeline that could remain open after `Platform started`. Both defects are fixed on the active PR branch and require one clean real-machine bootstrap rerun before Stage 24 acceptance.
 
 ## Remaining Stage 24 gates
 
 Before Stage 24 is accepted:
 
 1. current manager/bootstrap CI must remain green on the final branch state;
-2. the bootstrap must be exercised on the real Windows machine using the existing provisioned tunnel ID/runtime key path;
-3. `files-readonly` must complete one harmless call from ordinary Chat through Secure MCP Tunnel;
+2. rerun the corrected bootstrap on the real Windows machine and require `BOOTSTRAP_SMOKE_PROFILE=reference`, `BOOTSTRAP_SMOKE_TEST=passed`, final cleanup and `CHAT_PLATFORM_BOOTSTRAP=OK`;
+3. `files-readonly` must complete one harmless call from ordinary Chat through Secure MCP Tunnel using the installed manager path;
 4. `browser-isolated` must complete one harmless call from ordinary Chat through Secure MCP Tunnel;
 5. switching profiles must be checked from the real Chat surface so the previous tool surface is no longer discoverable.
 
