@@ -62,7 +62,7 @@ $statusCode = $LASTEXITCODE
 if ($statusCode -eq 0) {
     Write-Host '1MCP is already running.' -ForegroundColor Yellow
 }
-elif ($statusCode -in @(3,7)) {
+elseif ($statusCode -in @(3,7)) {
     if ($IsWindows) {
         $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
         $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
