@@ -5,7 +5,8 @@ $pkg = '@1mcp/agent@0.34.4'
 $configs = @(
     (Join-Path $repoRoot 'runtime\mcp.json'),
     (Join-Path $repoRoot 'runtime\chat-profiles\files-readonly\mcp.json'),
-    (Join-Path $repoRoot 'runtime\chat-profiles\browser-isolated\mcp.json')
+    (Join-Path $repoRoot 'runtime\chat-profiles\browser-isolated\mcp.json'),
+    (Join-Path $repoRoot 'runtime\chat-profiles\adaptive\mcp.json')
 )
 
 foreach ($config in $configs) {
