@@ -446,7 +446,7 @@ function Install-ManagerBundle {
 function Invoke-ControllerProcess {
     param(
         [Parameter(Mandatory)]
-        [ValidateSet("Install", "Start", "Stop", "Status")]
+        [ValidateSet("Start", "Stop", "Status")]
         [string]$Action
     )
     $pwsh = Require-Command "pwsh.exe"
@@ -460,11 +460,21 @@ function Invoke-ControllerProcess {
 }
 
 function Install-Manager {
-    $result = Invoke-ControllerProcess -Action Install
-    if ($result.exit_code -ne 0) {
-        throw "Manager installation failed: $($result.output -join ' ')"
+    # Install may ask for CONTROL_PLANE_API_KEY through Read-Host. Keep the
+    # child process attached to the console instead of capturing its output so
+    # the hidden interactive prompt is always visible to the user.
+    $pwsh = Require-Command "pwsh.exe"
+    & $pwsh `
+        -NoLogo `
+        -NoProfile `
+        -ExecutionPolicy Bypass `
+        -File $CommandPath `
+        -Action Install `
+        -NoNotify
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Manager installation failed with exit code $LASTEXITCODE."
     }
-    $result.output | ForEach-Object { Write-Host $_ }
 }
 
 function Invoke-SmokeTest {
