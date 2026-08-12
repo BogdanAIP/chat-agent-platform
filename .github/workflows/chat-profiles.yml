@@ -43,7 +43,7 @@ concurrency:
 jobs:
   windows-profiles:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -81,33 +81,46 @@ jobs:
             if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
           }
 
-      - name: Enforce mutually exclusive pinned profiles
+      - name: Enforce pinned direct profiles and adaptive catalog
         shell: pwsh
         run: |
           $files = Get-Content 'runtime/chat-profiles/files-readonly/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
           $browser = Get-Content 'runtime/chat-profiles/browser-isolated/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $adaptive = Get-Content 'runtime/chat-profiles/adaptive/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
 
           $fileServers = @($files.mcpServers.PSObject.Properties)
           $browserServers = @($browser.mcpServers.PSObject.Properties)
+          $adaptiveServers = @($adaptive.mcpServers.PSObject.Properties)
           if ($fileServers.Count -ne 1 -or $fileServers[0].Name -ne 'filesystem') { throw 'Files profile must expose exactly filesystem.' }
           if ($browserServers.Count -ne 1 -or $browserServers[0].Name -ne 'playwright') { throw 'Browser profile must expose exactly playwright.' }
+          if ($adaptiveServers.Count -ne 2) { throw 'Adaptive profile must register exactly the two accepted test backends.' }
+          foreach ($name in @('filesystem','playwright')) {
+            $entry = @($adaptiveServers | Where-Object Name -eq $name)
+            if ($entry.Count -ne 1) { throw "Adaptive profile is missing $name." }
+            if (-not [bool]$entry[0].Value.disabled) { throw "Adaptive backend $name must start disabled." }
+          }
 
           $fileRaw = Get-Content 'runtime/chat-profiles/files-readonly/mcp.json' -Raw -Encoding utf8
           $browserRaw = Get-Content 'runtime/chat-profiles/browser-isolated/mcp.json' -Raw -Encoding utf8
+          $adaptiveRaw = Get-Content 'runtime/chat-profiles/adaptive/mcp.json' -Raw -Encoding utf8
           if ($fileRaw -notmatch [regex]::Escape('@modelcontextprotocol/server-filesystem@2026.7.10')) { throw 'Filesystem pin drifted.' }
           if ($browserRaw -notmatch [regex]::Escape('@playwright/mcp@0.0.78')) { throw 'Playwright pin drifted.' }
+          if ($adaptiveRaw -notmatch [regex]::Escape('@modelcontextprotocol/server-filesystem@2026.7.10')) { throw 'Adaptive filesystem pin drifted.' }
+          if ($adaptiveRaw -notmatch [regex]::Escape('@playwright/mcp@0.0.78')) { throw 'Adaptive Playwright pin drifted.' }
 
           foreach ($tool in @('create_directory','write_file','edit_file','move_file')) {
             if (@($fileServers[0].Value.disabledTools) -notcontains $tool) { throw "Files profile must disable $tool." }
+            if (@($adaptive.mcpServers.filesystem.disabledTools) -notcontains $tool) { throw "Adaptive filesystem must disable $tool." }
           }
           foreach ($tool in @('browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
             if (@($browserServers[0].Value.disabledTools) -notcontains $tool) { throw "Browser profile must disable $tool." }
+            if (@($adaptive.mcpServers.playwright.disabledTools) -notcontains $tool) { throw "Adaptive Playwright must disable $tool." }
           }
 
           if ($fileRaw -match '@playwright/mcp|browser_') { throw 'Files profile must not contain browser capability.' }
           if ($browserRaw -match 'server-filesystem|CHAT_LOCAL_FILES_ROOT') { throw 'Browser profile must not contain filesystem capability.' }
           foreach ($forbidden in @('api_key','subscription','browserbase','apify','firecrawl')) {
-            if (($fileRaw + $browserRaw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
+            if (($fileRaw + $browserRaw + $adaptiveRaw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
           }
 
       - name: Prove profile stop is idempotent
@@ -118,7 +131,7 @@ jobs:
           ./scripts/stop-local-bridge.ps1
           ./scripts/stop-local-bridge.ps1
 
-      - name: Prove profile switching and isolation
+      - name: Prove direct profile switching and isolation
         shell: pwsh
         run: |
           $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-profile-files'
@@ -137,6 +150,85 @@ jobs:
             if ($browserStatus.active_count -ne 1 -or $browserStatus.active_profile -ne 'browser-isolated' -or $browserStatus.conflict) {
               throw 'browser-isolated did not replace files-readonly as the only active Chat profile.'
             }
+          }
+          finally {
+            ./scripts/stop-chat-profile.ps1
+          }
+
+      - name: Prove adaptive lazy runtime can activate backends on demand
+        shell: pwsh
+        run: |
+          $pkg = '@1mcp/agent@0.34.4'
+          $url = 'http://127.0.0.1:3068'
+          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-adaptive-files'
+          $marker = Join-Path $filesRoot 'marker.txt'
+          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+          Set-Content -LiteralPath $marker -Value 'CHAT_ADAPTIVE_FILES_OK' -Encoding utf8
+
+          function Invoke-OneMcpTool {
+            param(
+              [Parameter(Mandatory)] [string]$Target,
+              [hashtable]$Arguments
+            )
+            $invoke = @('-y', $pkg, 'run', $Target, '--url', $url, '--format', 'json')
+            if ($null -ne $Arguments) {
+              $invoke += @('--args', ($Arguments | ConvertTo-Json -Depth 10 -Compress))
+            }
+            $text = & npx.cmd @invoke 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "1MCP tool $Target failed: $text" }
+            return $text
+          }
+
+          function Wait-ServerConnected {
+            param([Parameter(Mandatory)] [string]$Name)
+            for ($attempt = 1; $attempt -le 60; $attempt++) {
+              $status = Invoke-OneMcpTool -Target '1mcp/mcp_status' -Arguments @{ name = $Name; details = $true; health = $true }
+              if ($status -match 'connected') { return }
+              Start-Sleep -Seconds 1
+            }
+            throw "Adaptive backend $Name did not become connected."
+          }
+
+          try {
+            ./scripts/start-chat-profile.ps1 -Profile adaptive -FilesRoot $filesRoot -Port 3068 -ReadyTimeoutSeconds 240
+            $adaptiveStatus = ./scripts/status-chat-profile.ps1 -Port 3068 | Out-String | ConvertFrom-Json
+            if ($adaptiveStatus.active_count -ne 1 -or $adaptiveStatus.active_profile -ne 'adaptive' -or $adaptiveStatus.conflict) {
+              throw 'adaptive did not become the only active Chat profile.'
+            }
+
+            $inventory = Invoke-OneMcpTool -Target '1mcp/mcp_list' -Arguments @{}
+            foreach ($server in @('filesystem','playwright')) {
+              if ($inventory -notmatch $server) { throw "Adaptive inventory does not contain $server." }
+            }
+
+            $null = Invoke-OneMcpTool -Target '1mcp/mcp_enable' -Arguments @{ name = 'filesystem' }
+            Wait-ServerConnected -Name 'filesystem'
+            $tools = Invoke-OneMcpTool -Target '1mcp/tool_list' -Arguments @{}
+            if ($tools -notmatch 'read_text_file') { throw 'Lazy tool_list did not discover filesystem/read_text_file.' }
+            $read = Invoke-OneMcpTool -Target '1mcp/tool_invoke' -Arguments @{
+              server = 'filesystem'
+              toolName = 'read_text_file'
+              args = @{ path = $marker }
+            }
+            if ($read -notmatch 'CHAT_ADAPTIVE_FILES_OK') { throw 'Adaptive lazy filesystem invocation returned unexpected content.' }
+            $null = Invoke-OneMcpTool -Target '1mcp/mcp_disable' -Arguments @{ name = 'filesystem'; graceful = $true }
+
+            $null = Invoke-OneMcpTool -Target '1mcp/mcp_enable' -Arguments @{ name = 'playwright' }
+            Wait-ServerConnected -Name 'playwright'
+            $tools = Invoke-OneMcpTool -Target '1mcp/tool_list' -Arguments @{}
+            if ($tools -notmatch 'browser_navigate') { throw 'Lazy tool_list did not discover Playwright browser_navigate.' }
+            $page = Invoke-OneMcpTool -Target '1mcp/tool_invoke' -Arguments @{
+              server = 'playwright'
+              toolName = 'browser_navigate'
+              args = @{ url = 'https://example.com' }
+            }
+            if ($page -notmatch 'Example Domain') { throw 'Adaptive lazy browser invocation did not reach example.com.' }
+            $null = Invoke-OneMcpTool -Target '1mcp/tool_invoke' -Arguments @{
+              server = 'playwright'
+              toolName = 'browser_close'
+              args = @{}
+            }
+            $null = Invoke-OneMcpTool -Target '1mcp/mcp_disable' -Arguments @{ name = 'playwright'; graceful = $true }
           }
           finally {
             ./scripts/stop-chat-profile.ps1
