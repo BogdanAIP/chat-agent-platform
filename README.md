@@ -44,15 +44,17 @@ Bootstrap выполняет полный локальный setup:
 
 ## Локальный manager
 
-Прямые команды установленного controller доступны из `%LOCALAPPDATA%\ChatAgentPlatform\app\scripts`:
+Публичная командная точка установленного manager находится в `%LOCALAPPDATA%\ChatAgentPlatform\app\scripts`:
 
 ```powershell
-.\chat-platform-controller.ps1 -Action Status
-.\chat-platform-controller.ps1 -Action Start
-.\chat-platform-controller.ps1 -Action Stop
+.\chat-platform.ps1 -Action Status
+.\chat-platform.ps1 -Action Start
+.\chat-platform.ps1 -Action Stop
 ```
 
-Tray является только UI: он не определяет процессы, PID или health самостоятельно, а отображает авторитетное состояние controller. Зелёный статус возможен только при одном активном MCP-профиле, готовом MCP и готовом Secure MCP Tunnel.
+`chat-platform.ps1` сериализует изменяющие lifecycle-операции через локальный named mutex, поэтому tray и ручная команда не должны одновременно запускать конкурирующие Start/Stop/Install/Toggle/SetProfile. `Status` остаётся неблокирующим.
+
+`chat-platform-controller.ps1` является внутренней реализацией lifecycle. Tray является только UI: он не определяет процессы, PID или health самостоятельно, а получает авторитетное состояние через публичный manager facade. Зелёный статус возможен только при одном активном MCP-профиле, готовом MCP и готовом Secure MCP Tunnel.
 
 ## Профили обычного Chat
 
