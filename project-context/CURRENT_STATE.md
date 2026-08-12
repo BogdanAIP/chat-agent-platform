@@ -102,14 +102,39 @@ Real-machine evidence:
 
 This closes the standalone-bootstrap and no-console tray real-machine gates. Earlier real-machine failures exposed three acceptance defects that are fixed on the active PR branch: pipeline lifetime coupling, non-portable relative tunnel log paths, and Windows Terminal capture of the resident tray process.
 
+### Real ordinary-Chat `files-readonly` acceptance — passed 2026-08-12
+
+The installed standalone manager started the `files-readonly` profile with exactly one active Runtime Scope and both MCP and Secure MCP Tunnel ready:
+
+- `ACTIVE_PROFILE=files-readonly`;
+- `MCP_READY=True`;
+- `TUNNEL_RUNNING=True`;
+- `TUNNEL_READY=True`;
+- `active_count=1`;
+- allowed root `C:\Users\eahra\AppData\Local\Temp\chat-local-bridge-files-test`.
+
+A harmless file `hello.txt` containing `CHAT_LOCAL_FILES_E2E_OK` was created locally in that allowed root. Ordinary ChatGPT, through `Chat Local Bridge Test`, successfully read the file and returned the exact expected content `CHAT_LOCAL_FILES_E2E_OK`.
+
+This closes the real ordinary-Chat E2E gate for the read-only filesystem profile:
+
+```text
+ordinary ChatGPT Chat
+  -> Chat Local Bridge Test
+  -> OpenAI Secure MCP Tunnel
+  -> official tunnel-client
+  -> local 1MCP
+  -> files-readonly Filesystem MCP
+  -> hello.txt
+  -> exact content back to ChatGPT
+```
+
 ## Remaining Stage 24 gates
 
 Before Stage 24 is accepted:
 
 1. current manager/bootstrap CI must remain green on the final branch state;
-2. `files-readonly` must complete one harmless call from ordinary Chat through Secure MCP Tunnel using the installed manager path;
-3. `browser-isolated` must complete one harmless call from ordinary Chat through Secure MCP Tunnel;
-4. switching profiles must be checked from the real Chat surface so the previous tool surface is no longer discoverable.
+2. `browser-isolated` must complete one harmless call from ordinary Chat through Secure MCP Tunnel;
+3. switching profiles must be checked from the real Chat surface so the previous `files-readonly` tool surface is no longer discoverable after switching to `browser-isolated`.
 
 Authenticated browser reuse, filesystem writes, shell access and desktop automation remain outside the baseline.
 
