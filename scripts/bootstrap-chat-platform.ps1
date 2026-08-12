@@ -12,15 +12,23 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$ControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
-$TrayPath = Join-Path $PSScriptRoot "chat-platform-tray.ps1"
+$SourceControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
+$SourceTrayPath = Join-Path $PSScriptRoot "chat-platform-tray.ps1"
+
 $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
+$AppRoot = Join-Path $LocalRoot "app"
+$AppScriptsDir = Join-Path $AppRoot "scripts"
+$AppRuntimeDir = Join-Path $AppRoot "runtime"
 $BinDir = Join-Path $LocalRoot "bin"
 $TunnelDir = Join-Path $LocalRoot "tunnel"
 $StateDir = Join-Path $LocalRoot "state"
 $TunnelExe = Join-Path $BinDir "tunnel-client.exe"
 $TunnelProfile = Join-Path $TunnelDir "local-1mcp.yaml"
 $InstallMetadata = Join-Path $StateDir "tunnel-client-install.json"
+$AppInstallMetadata = Join-Path $StateDir "manager-install.json"
+$ControllerPath = Join-Path $AppScriptsDir "chat-platform-controller.ps1"
+$TrayPath = Join-Path $AppScriptsDir "chat-platform-tray.ps1"
+
 $McpUrl = "http://127.0.0.1:3050/mcp"
 $AcceptedTunnelClientVersion = "v0.0.11"
 $OfficialReleaseApi = "https://api.github.com/repos/openai/tunnel-client/releases/tags/$AcceptedTunnelClientVersion"
@@ -70,11 +78,11 @@ function Assert-WindowsEnvironment {
     }
     Write-Host "ONE_MCP=$OneMcpPackage"
 
-    if (-not (Test-Path -LiteralPath $ControllerPath)) {
-        throw "Controller script is missing: $ControllerPath"
+    if (-not (Test-Path -LiteralPath $SourceControllerPath)) {
+        throw "Controller source script is missing: $SourceControllerPath"
     }
-    if (-not (Test-Path -LiteralPath $TrayPath)) {
-        throw "Tray script is missing: $TrayPath"
+    if (-not (Test-Path -LiteralPath $SourceTrayPath)) {
+        throw "Tray source script is missing: $SourceTrayPath"
     }
 }
 
@@ -345,6 +353,95 @@ function Initialize-OfficialTunnelProfile {
     Write-Host "TUNNEL_PROFILE_SOURCE=official-tunnel-client-init"
 }
 
+function Copy-VerifiedManagerFile {
+    param(
+        [Parameter(Mandatory)] [string]$Source,
+        [Parameter(Mandatory)] [string]$Destination
+    )
+
+    if (-not (Test-Path -LiteralPath $Source)) {
+        throw "Manager source file is missing: $Source"
+    }
+
+    $parent = Split-Path -Parent $Destination
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+
+    $temporary = "$Destination.new"
+    Copy-Item -LiteralPath $Source -Destination $temporary -Force
+
+    $sourceHash = (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash
+    $copyHash = (Get-FileHash -LiteralPath $temporary -Algorithm SHA256).Hash
+    if ($sourceHash -ne $copyHash) {
+        Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+        throw "Manager file copy verification failed: $Source"
+    }
+
+    Move-Item -LiteralPath $temporary -Destination $Destination -Force
+}
+
+function Install-ManagerBundle {
+    $scriptNames = @(
+        "start-local-bridge.ps1",
+        "status-local-bridge.ps1",
+        "stop-local-bridge.ps1",
+        "start-chat-profile.ps1",
+        "status-chat-profile.ps1",
+        "stop-chat-profile.ps1",
+        "chat-platform-controller.ps1",
+        "chat-platform-tray.ps1"
+    )
+
+    foreach ($name in $scriptNames) {
+        Copy-VerifiedManagerFile `
+            -Source (Join-Path $RepoRoot "scripts\$name") `
+            -Destination (Join-Path $AppScriptsDir $name)
+    }
+
+    $runtimeFiles = @(
+        @{
+            Source = Join-Path $RepoRoot "runtime\mcp.json"
+            Destination = Join-Path $AppRuntimeDir "mcp.json"
+        },
+        @{
+            Source = Join-Path $RepoRoot "runtime\chat-profiles\files-readonly\mcp.json"
+            Destination = Join-Path $AppRuntimeDir "chat-profiles\files-readonly\mcp.json"
+        },
+        @{
+            Source = Join-Path $RepoRoot "runtime\chat-profiles\browser-isolated\mcp.json"
+            Destination = Join-Path $AppRuntimeDir "chat-profiles\browser-isolated\mcp.json"
+        }
+    )
+
+    foreach ($entry in $runtimeFiles) {
+        Copy-VerifiedManagerFile `
+            -Source ([string]$entry.Source) `
+            -Destination ([string]$entry.Destination)
+    }
+
+    if (-not (Test-Path -LiteralPath $ControllerPath)) {
+        throw "Installed controller is missing after manager bundle copy."
+    }
+    if (-not (Test-Path -LiteralPath $TrayPath)) {
+        throw "Installed tray is missing after manager bundle copy."
+    }
+
+    [ordered]@{
+        schema_version = 1
+        app_root = $AppRoot
+        source_root = $RepoRoot
+        installed_at = (Get-Date).ToUniversalTime().ToString("o")
+        scripts = $scriptNames
+        runtime_configs = @(
+            "runtime/mcp.json",
+            "runtime/chat-profiles/files-readonly/mcp.json",
+            "runtime/chat-profiles/browser-isolated/mcp.json"
+        )
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $AppInstallMetadata -Encoding utf8
+
+    Write-Host "MANAGER_APP_ROOT=$AppRoot"
+    Write-Host "MANAGER_BUNDLE_VERIFIED=True" -ForegroundColor Green
+}
+
 function Invoke-ControllerProcess {
     param(
         [Parameter(Mandatory)]
@@ -408,6 +505,9 @@ Write-Step "Настройка официального tunnel-профиля"
 $resolvedTunnelId = Resolve-TunnelId
 Initialize-OfficialTunnelProfile -ResolvedTunnelId $resolvedTunnelId
 
+Write-Step "Установка независимой локальной копии manager"
+Install-ManagerBundle
+
 Write-Step "Установка manager и защищённого runtime key"
 Install-Manager
 
@@ -428,6 +528,7 @@ if ($LaunchTray) {
 
 Write-Host "`nCHAT_PLATFORM_BOOTSTRAP=OK" -ForegroundColor Green
 Write-Host "LOCAL_ROOT=$LocalRoot"
+Write-Host "APP_ROOT=$AppRoot"
 Write-Host "DEFAULT_MCP_URL=$McpUrl"
 Write-Host "PLATFORM_STATE=stopped"
-Write-Host "NEXT=Use the desktop shortcut or run chat-platform-controller.ps1 -Action Start"
+Write-Host "NEXT=Use the desktop shortcut; the installed manager no longer depends on the git checkout."
