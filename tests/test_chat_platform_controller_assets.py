@@ -242,15 +242,29 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             '"local-1mcp"',
         ):
             self.assertIn(expected, self.bootstrap)
-        self.assertIn(
-            "Invoke-ControllerProcess -Action Install",
-            self.bootstrap,
-        )
         self.assertIn("BOOTSTRAP_SMOKE_TEST=passed", self.bootstrap)
         self.assertIn('Join-Path $LocalRoot "app"', self.bootstrap)
         self.assertIn('"chat-platform.ps1"', self.bootstrap)
         self.assertIn("Copy-VerifiedManagerFile", self.bootstrap)
         self.assertIn("MANAGER_BUNDLE_VERIFIED=True", self.bootstrap)
+
+    def test_bootstrap_keeps_first_key_prompt_interactive(self):
+        self.assertRegex(
+            self.bootstrap,
+            re.compile(
+                r"function Install-Manager \{.*?"
+                r"& \$pwsh.*?"
+                r"-Action Install",
+                re.S,
+            ),
+        )
+        invoke_match = re.search(
+            r"function Invoke-ControllerProcess \{(.*?)\n\}",
+            self.bootstrap,
+            re.S,
+        )
+        self.assertIsNotNone(invoke_match)
+        self.assertNotIn('"Install"', invoke_match.group(1))
 
     def test_profile_acceptance_runs_when_manager_changes(self):
         for expected in (
