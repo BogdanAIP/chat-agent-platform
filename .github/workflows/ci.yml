@@ -33,7 +33,8 @@ jobs:
             'scripts/status-chat-profile.ps1',
             'scripts/stop-chat-profile.ps1',
             'scripts/chat-platform-controller.ps1',
-            'scripts/chat-platform-tray.ps1'
+            'scripts/chat-platform-tray.ps1',
+            'scripts/bootstrap-chat-platform.ps1'
           )) {
             $tokens = $null
             $errors = $null
