@@ -315,6 +315,30 @@ function Test-TunnelProfileContract {
 
     if (-not (Test-Path -LiteralPath $Path)) { return $false }
     $raw = Get-Content -LiteralPath $Path -Raw
+
+    # Old project-managed profiles could pin log.file to a repository-relative
+    # path such as runtime/openai-tunnel-client/local-1mcp.log. That silently
+    # tied tunnel startup to whichever current working directory happened to
+    # launch the manager. The current official remote-no-auth sample does not
+    # need a profile-owned log file, so bootstrap repairs only relative log.file
+    # entries by regenerating the profile through official `tunnel-client init`.
+    $logBlock = [regex]::Match(
+        $raw,
+        '(?ms)^\s*log:\s*\r?\n(?<body>(?:[ \t]+[^\r\n]*(?:\r?\n|$))*)'
+    )
+    if ($logBlock.Success) {
+        $logFileMatch = [regex]::Match(
+            $logBlock.Groups['body'].Value,
+            '(?m)^[ \t]+file:\s*(?<value>[^\r\n#]+)'
+        )
+        if ($logFileMatch.Success) {
+            $logFile = $logFileMatch.Groups['value'].Value.Trim().Trim('"').Trim("'")
+            if (-not [System.IO.Path]::IsPathRooted($logFile)) {
+                return $false
+            }
+        }
+    }
+
     return (
         $raw -match [regex]::Escape($ResolvedTunnelId) -and
         $raw -match [regex]::Escape($McpUrl) -and
@@ -326,14 +350,19 @@ function Initialize-OfficialTunnelProfile {
     param([Parameter(Mandatory)] [string]$ResolvedTunnelId)
 
     New-Item -ItemType Directory -Force -Path $TunnelDir | Out-Null
+    $profileValid = Test-TunnelProfileContract -Path $TunnelProfile -ResolvedTunnelId $ResolvedTunnelId
 
     if (
         -not $ReconfigureTunnelProfile -and
-        (Test-TunnelProfileContract -Path $TunnelProfile -ResolvedTunnelId $ResolvedTunnelId)
+        $profileValid
     ) {
         Write-Host "TUNNEL_PROFILE=$TunnelProfile"
         Write-Host "TUNNEL_PROFILE_SOURCE=existing-validated"
         return
+    }
+
+    if ((Test-Path -LiteralPath $TunnelProfile) -and -not $profileValid) {
+        Write-Host "TUNNEL_PROFILE_COMPATIBILITY=reconfigure-required"
     }
 
     if (Test-Path -LiteralPath $TunnelProfile) {
