@@ -268,6 +268,14 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("Copy-VerifiedManagerFile", self.bootstrap)
         self.assertIn("MANAGER_BUNDLE_VERIFIED=True", self.bootstrap)
 
+    def test_bootstrap_repairs_legacy_relative_tunnel_log_profile(self):
+        self.assertIn("Test-TunnelProfileContract", self.bootstrap)
+        self.assertIn("[System.IO.Path]::IsPathRooted", self.bootstrap)
+        self.assertIn("TUNNEL_PROFILE_COMPATIBILITY=reconfigure-required", self.bootstrap)
+        self.assertIn("TUNNEL_PROFILE_BACKUP", self.bootstrap)
+        self.assertIn("TUNNEL_PROFILE_SOURCE=official-tunnel-client-init", self.bootstrap)
+        self.assertIn("logFileMatch", self.bootstrap)
+
     def test_bootstrap_keeps_first_key_prompt_interactive(self):
         self.assertRegex(
             self.bootstrap,
