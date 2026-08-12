@@ -3,9 +3,7 @@ param(
     [string]$ConfigPath = (Join-Path $PSScriptRoot '..\runtime\mcp.json'),
     [string]$HealthServerName = 'sequential-thinking',
     [ValidateRange(10, 600)]
-    [int]$ReadyTimeoutSeconds = 120,
-    [switch]$ForegroundWorker,
-    [string]$WorkerLogPath
+    [int]$ReadyTimeoutSeconds = 120
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,12 +12,8 @@ $config = (Resolve-Path $ConfigPath).Path
 $runtimeScope = Split-Path -Parent $config
 $logsDir = Join-Path $runtimeScope 'logs'
 $serverLog = Join-Path $logsDir 'server.log'
-$launcherLog = if ([string]::IsNullOrWhiteSpace($WorkerLogPath)) {
-    Join-Path $logsDir 'launcher.log'
-}
-else {
-    $WorkerLogPath
-}
+$launcherLog = Join-Path $logsDir 'launcher.log'
+$windowsLauncher = Join-Path $logsDir 'hidden-1mcp-worker.cmd'
 
 if ([string]::IsNullOrWhiteSpace($HealthServerName) -or $HealthServerName -notmatch '^[A-Za-z0-9._-]+$') {
     throw 'HealthServerName must be a non-empty MCP server name.'
@@ -27,27 +21,50 @@ if ([string]::IsNullOrWhiteSpace($HealthServerName) -or $HealthServerName -notma
 
 New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
 
-if ($ForegroundWorker) {
-    # Windows UI wrapper: keep 1MCP in normal foreground mode inside this
-    # deliberately hidden pwsh process. 1MCP's own --background implementation
-    # uses a detached Node child which creates a visible console on Windows.
-    # Runtime Scope PID/status/stop semantics remain owned by 1MCP itself.
-    try {
-        & npx.cmd -y $pkg serve `
-            --config $config `
-            --transport http `
-            --host 127.0.0.1 `
-            --port $Port `
-            --health-info-level minimal `
-            --enable-async-loading `
-            --log-file $serverLog `
-            *>> $launcherLog
-
-        exit $LASTEXITCODE
+function Start-HiddenWindowsWorker {
+    $npx = (Get-Command 'npx.cmd' -ErrorAction Stop).Source
+    $cmd = if (-not [string]::IsNullOrWhiteSpace($env:ComSpec)) {
+        $env:ComSpec
     }
-    catch {
-        $_ | Out-String | Add-Content -LiteralPath $launcherLog -Encoding utf8
-        exit 1
+    else {
+        (Get-Command 'cmd.exe' -ErrorAction Stop).Source
+    }
+
+    # Invoke npx from an explicitly CREATE_NO_WINDOW cmd.exe. Hiding only an
+    # outer pwsh process is insufficient on Windows because a later npx.cmd /
+    # node console process may allocate a visible terminal of its own.
+    $lines = @(
+        '@echo off',
+        ('call "{0}" -y "{1}" serve --config "{2}" --transport http --host 127.0.0.1 --port {3} --health-info-level minimal --enable-async-loading --log-file "{4}" >> "{5}" 2>&1' -f `
+            $npx,
+            $pkg,
+            $config,
+            $Port,
+            $serverLog,
+            $launcherLog),
+        'exit /b %ERRORLEVEL%'
+    )
+    Set-Content -LiteralPath $windowsLauncher -Value $lines -Encoding ascii
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $cmd
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.WorkingDirectory = $runtimeScope
+    $startInfo.ArgumentList.Add('/d')
+    $startInfo.ArgumentList.Add('/c')
+    $startInfo.ArgumentList.Add($windowsLauncher)
+
+    $worker = [System.Diagnostics.Process]::new()
+    $worker.StartInfo = $startInfo
+    try {
+        if (-not $worker.Start()) {
+            throw 'Failed to start hidden 1MCP worker process.'
+        }
+        Write-Host "1MCP hidden cmd worker started. PID=$($worker.Id)" -ForegroundColor DarkGray
+    }
+    finally {
+        $worker.Dispose()
     }
 }
 
@@ -64,38 +81,7 @@ if ($statusCode -eq 0) {
 }
 elseif ($statusCode -in @(3,7)) {
     if ($IsWindows) {
-        $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
-        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-        $startInfo.FileName = $pwsh
-        $startInfo.UseShellExecute = $false
-        $startInfo.CreateNoWindow = $true
-
-        foreach ($argument in @(
-            '-NoLogo',
-            '-NoProfile',
-            '-ExecutionPolicy', 'Bypass',
-            '-File', $PSCommandPath,
-            '-Port', [string]$Port,
-            '-ConfigPath', $config,
-            '-HealthServerName', $HealthServerName,
-            '-ReadyTimeoutSeconds', [string]$ReadyTimeoutSeconds,
-            '-ForegroundWorker',
-            '-WorkerLogPath', $launcherLog
-        )) {
-            $startInfo.ArgumentList.Add([string]$argument)
-        }
-
-        $worker = [System.Diagnostics.Process]::new()
-        $worker.StartInfo = $startInfo
-        try {
-            if (-not $worker.Start()) {
-                throw 'Failed to start hidden 1MCP worker host.'
-            }
-            Write-Host "1MCP hidden worker host started. PID=$($worker.Id)" -ForegroundColor DarkGray
-        }
-        finally {
-            $worker.Dispose()
-        }
+        Start-HiddenWindowsWorker
     }
     else {
         & npx.cmd -y $pkg serve `
