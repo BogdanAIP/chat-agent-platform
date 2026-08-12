@@ -3,7 +3,7 @@ param(
     [ValidateSet("Install", "Start", "Stop", "Toggle", "Status", "SetProfile")]
     [string]$Action = "Status",
 
-    [ValidateSet("reference", "files-readonly", "browser-isolated")]
+    [ValidateSet("reference", "files-readonly", "browser-isolated", "adaptive")]
     [string]$Profile,
 
     [string]$FilesRoot,
