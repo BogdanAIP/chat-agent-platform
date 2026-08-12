@@ -128,13 +128,21 @@ ordinary ChatGPT Chat
   -> exact content back to ChatGPT
 ```
 
+### Chat action snapshot finding — 2026-08-12
+
+The local manager successfully switched from `files-readonly` to `browser-isolated` and reported exactly one active profile with `MCP_READY=True`, `TUNNEL_RUNNING=True`, and `TUNNEL_READY=True`. However, ordinary Chat using the already-connected `Chat Local Bridge Test` still exposed only the previously discovered `filesystem_*` actions and did not expose Playwright/browser actions.
+
+This proves the local profile switch and Chat-visible action discovery are separate concerns. The current Chat app/plugin keeps a previously discovered action snapshot; changing the MCP server's live tool list behind the same app connection does not automatically replace the actions already exposed in Chat.
+
+Therefore the earlier Stage 24 assumption that one Chat-facing app could dynamically change its visible tool surface purely by switching the local 1MCP profile is rejected. The final design must explicitly account for Chat-side action refresh/versioning. Preferred direction is separate Chat-facing app/plugin definitions per least-privilege profile, or an explicit Chat action refresh/re-scan step during profile changes; a single silently changing action surface is not an accepted UX/security baseline.
+
 ## Remaining Stage 24 gates
 
 Before Stage 24 is accepted:
 
 1. current manager/bootstrap CI must remain green on the final branch state;
-2. `browser-isolated` must complete one harmless call from ordinary Chat through Secure MCP Tunnel;
-3. switching profiles must be checked from the real Chat surface so the previous `files-readonly` tool surface is no longer discoverable after switching to `browser-isolated`.
+2. expose/refresh a Chat-facing browser action snapshot while `browser-isolated` is the active local profile and complete one harmless ordinary-Chat Playwright call;
+3. settle and verify the final Chat-facing profile model so filesystem and browser actions are not simultaneously enabled by default. The preferred target is one frozen Chat app/plugin action snapshot per least-privilege profile rather than relying on dynamic mutation of one app's tool list.
 
 Authenticated browser reuse, filesystem writes, shell access and desktop automation remain outside the baseline.
 
