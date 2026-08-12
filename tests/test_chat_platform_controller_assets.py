@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 CONTROLLER = ROOT / "scripts" / "chat-platform-controller.ps1"
 TRAY = ROOT / "scripts" / "chat-platform-tray.ps1"
+COMMAND = ROOT / "scripts" / "chat-platform.ps1"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
 STATUS_PROFILE = ROOT / "scripts" / "status-chat-profile.ps1"
 STOP_LOCAL = ROOT / "scripts" / "stop-local-bridge.ps1"
@@ -19,14 +20,16 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
     def setUpClass(cls):
         cls.controller = CONTROLLER.read_text(encoding="utf-8")
         cls.tray = TRAY.read_text(encoding="utf-8")
+        cls.command = COMMAND.read_text(encoding="utf-8")
         cls.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
         cls.status_profile = STATUS_PROFILE.read_text(encoding="utf-8")
         cls.stop_local = STOP_LOCAL.read_text(encoding="utf-8")
         cls.ci = CI.read_text(encoding="utf-8")
         cls.profile_ci = PROFILE_CI.read_text(encoding="utf-8")
 
-    def test_controller_tray_and_bootstrap_exist(self):
+    def test_controller_tray_command_and_bootstrap_exist(self):
         self.assertTrue(CONTROLLER.is_file())
+        self.assertTrue(COMMAND.is_file())
         self.assertTrue(TRAY.is_file())
         self.assertTrue(BOOTSTRAP.is_file())
 
@@ -46,7 +49,15 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         )
 
     def test_secret_is_not_embedded_in_source(self):
-        combined = self.controller + "\n" + self.tray + "\n" + self.bootstrap
+        combined = (
+            self.controller
+            + "\n"
+            + self.command
+            + "\n"
+            + self.tray
+            + "\n"
+            + self.bootstrap
+        )
         self.assertIsNone(
             re.search(r"sk-[A-Za-z0-9_-]{20,}", combined)
         )
@@ -82,24 +93,40 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             ),
         )
 
+    def test_public_manager_serializes_mutating_operations(self):
+        self.assertIn(
+            "Local\\ChatAgentPlatformControllerOperation",
+            self.command,
+        )
+        self.assertIn(
+            "WaitOne($MutexTimeoutMilliseconds)",
+            self.command,
+        )
+        self.assertIn("AbandonedMutexException", self.command)
+        self.assertIn('if ($Action -eq "Status")', self.command)
+        self.assertIn('"chat-platform-controller.ps1"', self.command)
+
     def test_profile_status_keeps_conflict_machine_readable(self):
         self.assertIn("conflict = $conflict", self.status_profile)
         self.assertIn("'conflict'", self.status_profile)
         self.assertIn("exit 0", self.status_profile)
-        self.assertNotIn("More than one Chat-facing Runtime Scope", self.status_profile)
+        self.assertNotIn(
+            "More than one Chat-facing Runtime Scope",
+            self.status_profile,
+        )
 
     def test_stop_scripts_share_idempotent_exit_codes(self):
         self.assertIn("-in @(3, 7)", self.stop_local)
-        self.assertIn(
-            "-notin @(0, 3, 7)",
-            (ROOT / "scripts" / "stop-chat-profile.ps1").read_text(
-                encoding="utf-8"
-            ),
-        )
+        stop_chat = (
+            ROOT / "scripts" / "stop-chat-profile.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertIn("-notin @(0, 3, 7)", stop_chat)
 
-    def test_tray_uses_authoritative_controller_status_only(self):
+    def test_tray_uses_authoritative_serialized_manager_status_only(self):
         self.assertIn("Invoke-ControllerStatus", self.tray)
+        self.assertIn('"chat-platform.ps1"', self.tray)
         self.assertIn("-Action Status", self.tray)
+        self.assertNotIn("chat-platform-controller.ps1", self.tray)
         self.assertNotIn("Win32_Process", self.tray)
         self.assertNotIn("server.pid", self.tray)
         self.assertNotIn("Get-TunnelProcesses", self.tray)
@@ -133,7 +160,10 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
     def test_tunnel_readiness_uses_official_readyz_probe(self):
         self.assertIn("tunnel-health.url", self.controller)
         self.assertIn("/readyz", self.controller)
-        self.assertIn("--health.listen-addr 127.0.0.1:0", self.controller)
+        self.assertIn(
+            "--health.listen-addr 127.0.0.1:0",
+            self.controller,
+        )
         self.assertIn("--health.url-file", self.controller)
         self.assertIn("Wait-TunnelReady", self.controller)
         self.assertIn("tunnel_ready", self.controller)
@@ -180,7 +210,10 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             self.assertIn(profile, self.controller)
 
     def test_bootstrap_pins_official_tunnel_client_release_and_checksums(self):
-        self.assertIn('$AcceptedTunnelClientVersion = "v0.0.11"', self.bootstrap)
+        self.assertIn(
+            '$AcceptedTunnelClientVersion = "v0.0.11"',
+            self.bootstrap,
+        )
         self.assertIn(
             "https://api.github.com/repos/openai/tunnel-client/releases/tags/",
             self.bootstrap,
@@ -198,7 +231,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("asset_digest", self.bootstrap)
         self.assertIn("Get-FileHash", self.bootstrap)
 
-    def test_bootstrap_uses_official_cli_to_create_local_profile(self):
+    def test_bootstrap_uses_official_cli_and_standalone_manager_bundle(self):
         for expected in (
             '"init"',
             '"sample_mcp_remote_no_auth"',
@@ -209,23 +242,32 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             '"local-1mcp"',
         ):
             self.assertIn(expected, self.bootstrap)
-        self.assertIn("Invoke-ControllerProcess -Action Install", self.bootstrap)
+        self.assertIn(
+            "Invoke-ControllerProcess -Action Install",
+            self.bootstrap,
+        )
         self.assertIn("BOOTSTRAP_SMOKE_TEST=passed", self.bootstrap)
+        self.assertIn('Join-Path $LocalRoot "app"', self.bootstrap)
+        self.assertIn('"chat-platform.ps1"', self.bootstrap)
+        self.assertIn("Copy-VerifiedManagerFile", self.bootstrap)
+        self.assertIn("MANAGER_BUNDLE_VERIFIED=True", self.bootstrap)
 
     def test_profile_acceptance_runs_when_manager_changes(self):
         for expected in (
             "scripts/chat-platform-controller.ps1",
+            "scripts/chat-platform.ps1",
             "scripts/chat-platform-tray.ps1",
             "scripts/bootstrap-chat-platform.ps1",
         ):
             self.assertIn(expected, self.profile_ci)
         self.assertIn(
-            "Prove controller can observe and clean conflicting runtime scopes",
+            "Prove public manager can observe and clean conflicting runtime scopes",
             self.profile_ci,
         )
 
     def test_ci_parses_new_lifecycle_scripts_and_runs_python_tests(self):
         self.assertIn("scripts/chat-platform-controller.ps1", self.ci)
+        self.assertIn("scripts/chat-platform.ps1", self.ci)
         self.assertIn("scripts/chat-platform-tray.ps1", self.ci)
         self.assertIn("scripts/bootstrap-chat-platform.ps1", self.ci)
         self.assertIn("scripts/start-chat-profile.ps1", self.ci)
