@@ -14,6 +14,7 @@ on:
       - "scripts/chat-platform.ps1"
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
+      - "tests/adaptive-mcp-acceptance.mjs"
       - ".github/workflows/chat-profiles.yml"
       - "project-context/STAGE24_LEAST_PRIVILEGE.md"
   push:
@@ -30,6 +31,7 @@ on:
       - "scripts/chat-platform.ps1"
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
+      - "tests/adaptive-mcp-acceptance.mjs"
       - ".github/workflows/chat-profiles.yml"
   workflow_dispatch:
 
@@ -151,58 +153,20 @@ jobs:
       - name: Prove adaptive lazy runtime can activate backends on demand
         shell: pwsh
         run: |
-          $pkg = '@1mcp/agent@0.34.4'
-          $url = 'http://127.0.0.1:3068'
+          $port = 3068
           $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-adaptive-files'
           $marker = Join-Path $filesRoot 'marker.txt'
           New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
           Set-Content -LiteralPath $marker -Value 'CHAT_ADAPTIVE_FILES_OK' -Encoding utf8
 
-          function Invoke-OneMcpTool {
-            param([Parameter(Mandatory)] [string]$Target, [hashtable]$Arguments)
-            $invoke = @('-y', $pkg, 'run', $Target, '--url', $url, '--format', 'json')
-            if ($null -ne $Arguments) { $invoke += @('--args', ($Arguments | ConvertTo-Json -Depth 10 -Compress)) }
-            $text = & npx.cmd @invoke 2>&1 | Out-String
-            if ($LASTEXITCODE -ne 0) { throw "1MCP tool $Target failed: $text" }
-            return $text
-          }
-
-          function Wait-ServerRunning {
-            param([Parameter(Mandatory)] [string]$Name)
-            for ($attempt = 1; $attempt -le 60; $attempt++) {
-              $status = Invoke-OneMcpTool -Target '1mcp/mcp_status' -Arguments @{ name = $Name; details = $true; health = $true }
-              if ($status -match '\brunning\b') { return }
-              Start-Sleep -Seconds 1
-            }
-            throw "Adaptive backend $Name did not become running."
-          }
-
           try {
-            ./scripts/start-chat-profile.ps1 -Profile adaptive -FilesRoot $filesRoot -Port 3068 -ReadyTimeoutSeconds 240
-            $adaptiveStatus = ./scripts/status-chat-profile.ps1 -Port 3068 | Out-String | ConvertFrom-Json
+            ./scripts/start-chat-profile.ps1 -Profile adaptive -FilesRoot $filesRoot -Port $port -ReadyTimeoutSeconds 240
+            $adaptiveStatus = ./scripts/status-chat-profile.ps1 -Port $port | Out-String | ConvertFrom-Json
             if ($adaptiveStatus.active_count -ne 1 -or $adaptiveStatus.active_profile -ne 'adaptive' -or $adaptiveStatus.conflict) { throw 'adaptive was not the only active profile.' }
 
-            $inventory = Invoke-OneMcpTool -Target '1mcp/mcp_list' -Arguments @{}
-            foreach ($server in @('filesystem','playwright')) {
-              if ($inventory -notmatch $server) { throw "Adaptive inventory does not contain $server." }
-            }
-
-            $null = Invoke-OneMcpTool -Target '1mcp/mcp_enable' -Arguments @{ name = 'filesystem' }
-            Wait-ServerRunning -Name 'filesystem'
-            $tools = Invoke-OneMcpTool -Target '1mcp/tool_list' -Arguments @{}
-            if ($tools -notmatch 'read_text_file') { throw 'Lazy tool_list did not discover filesystem/read_text_file.' }
-            $read = Invoke-OneMcpTool -Target '1mcp/tool_invoke' -Arguments @{ server = 'filesystem'; toolName = 'read_text_file'; args = @{ path = $marker } }
-            if ($read -notmatch 'CHAT_ADAPTIVE_FILES_OK') { throw 'Adaptive filesystem invocation returned unexpected content.' }
-            $null = Invoke-OneMcpTool -Target '1mcp/mcp_disable' -Arguments @{ name = 'filesystem'; graceful = $true }
-
-            $null = Invoke-OneMcpTool -Target '1mcp/mcp_enable' -Arguments @{ name = 'playwright' }
-            Wait-ServerRunning -Name 'playwright'
-            $tools = Invoke-OneMcpTool -Target '1mcp/tool_list' -Arguments @{}
-            if ($tools -notmatch 'browser_navigate') { throw 'Lazy tool_list did not discover Playwright browser_navigate.' }
-            $page = Invoke-OneMcpTool -Target '1mcp/tool_invoke' -Arguments @{ server = 'playwright'; toolName = 'browser_navigate'; args = @{ url = 'https://example.com' } }
-            if ($page -notmatch 'Example Domain') { throw 'Adaptive browser invocation did not reach example.com.' }
-            $null = Invoke-OneMcpTool -Target '1mcp/tool_invoke' -Arguments @{ server = 'playwright'; toolName = 'browser_close'; args = @{} }
-            $null = Invoke-OneMcpTool -Target '1mcp/mcp_disable' -Arguments @{ name = 'playwright'; graceful = $true }
+            $acceptance = node tests/adaptive-mcp-acceptance.mjs "http://127.0.0.1:$port/mcp" $marker 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "Adaptive MCP session acceptance failed: $acceptance" }
+            if ($acceptance -notmatch 'ADAPTIVE_MCP_ACCEPTANCE=passed') { throw "Adaptive MCP session acceptance did not report success: $acceptance" }
           }
           finally {
             ./scripts/stop-chat-profile.ps1
