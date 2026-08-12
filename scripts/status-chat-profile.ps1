@@ -4,20 +4,21 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$pkg = '@1mcp/agent@0.34.4'
+$stablePkg = '@1mcp/agent@0.34.4'
+$adaptivePkg = '@1mcp/agent@0.35.0-beta.3'
 
 $scopes = @(
-    @{ Name = 'reference'; Config = (Join-Path $repoRoot 'runtime\mcp.json'); Health = 'sequential-thinking'; RuntimeReadyOnly = $false },
-    @{ Name = 'files-readonly'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\files-readonly\mcp.json'); Health = 'filesystem'; RuntimeReadyOnly = $false },
-    @{ Name = 'browser-isolated'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\browser-isolated\mcp.json'); Health = 'playwright'; RuntimeReadyOnly = $false },
-    @{ Name = 'adaptive'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\adaptive\mcp.json'); Health = '1mcp-runtime'; RuntimeReadyOnly = $true }
+    @{ Name = 'reference'; Config = (Join-Path $repoRoot 'runtime\mcp.json'); Package = $stablePkg; Health = 'sequential-thinking'; RuntimeReadyOnly = $false },
+    @{ Name = 'files-readonly'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\files-readonly\mcp.json'); Package = $stablePkg; Health = 'filesystem'; RuntimeReadyOnly = $false },
+    @{ Name = 'browser-isolated'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\browser-isolated\mcp.json'); Package = $stablePkg; Health = 'playwright'; RuntimeReadyOnly = $false },
+    @{ Name = 'adaptive'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\adaptive\mcp.json'); Package = $adaptivePkg; Health = '1mcp-runtime'; RuntimeReadyOnly = $true }
 )
 
 $result = @()
 foreach ($scope in $scopes) {
     if (-not (Test-Path -LiteralPath $scope.Config)) { continue }
 
-    $statusText = & npx.cmd -y $pkg serve --config $scope.Config --status 2>&1 | Out-String
+    $statusText = & npx.cmd -y ([string]$scope.Package) serve --config $scope.Config --status 2>&1 | Out-String
     $code = $LASTEXITCODE
     $healthState = 'not-running'
 
@@ -39,6 +40,7 @@ foreach ($scope in $scopes) {
 
     $result += [ordered]@{
         profile = $scope.Name
+        one_mcp = [string]$scope.Package
         supervisor_exit_code = $code
         running = ($code -eq 0)
         health_server = $scope.Health
@@ -64,6 +66,7 @@ else {
     conflict = $conflict
     active_count = $active.Count
     active_profile = if ($active.Count -eq 1) { $active[0].profile } else { $null }
+    active_one_mcp = if ($active.Count -eq 1) { $active[0].one_mcp } else { $null }
     scopes = $result
 } | ConvertTo-Json -Depth 6
 
