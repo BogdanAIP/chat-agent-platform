@@ -128,20 +128,25 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("$process.ExitCode", body)
         self.assertNotIn("& $pwsh", body)
 
-    def test_windows_1mcp_worker_is_hidden_without_background_detach(self):
-        self.assertIn("$ForegroundWorker", self.start_local)
+    def test_windows_1mcp_worker_hides_direct_cmd_host(self):
+        self.assertIn("Start-HiddenWindowsWorker", self.start_local)
+        self.assertIn("Get-Command 'npx.cmd'", self.start_local)
         self.assertIn("System.Diagnostics.ProcessStartInfo", self.start_local)
+        self.assertIn("$startInfo.FileName = $cmd", self.start_local)
         self.assertIn("$startInfo.CreateNoWindow = $true", self.start_local)
         self.assertIn("$startInfo.UseShellExecute = $false", self.start_local)
+        self.assertIn("$startInfo.ArgumentList.Add('/c')", self.start_local)
+        self.assertIn("$windowsLauncher", self.start_local)
         self.assertIn("--transport http", self.start_local)
-        self.assertIn("--log-file $serverLog", self.start_local)
+        self.assertIn("--log-file", self.start_local)
+        self.assertNotIn("$ForegroundWorker", self.start_local)
         windows_branch = re.search(
             r"if \(\$IsWindows\) \{(.*?)\n    \}\n    else \{",
             self.start_local,
             re.S,
         )
         self.assertIsNotNone(windows_branch)
-        self.assertIn("-ForegroundWorker", windows_branch.group(1))
+        self.assertIn("Start-HiddenWindowsWorker", windows_branch.group(1))
         self.assertNotIn("--background", windows_branch.group(1))
 
     def test_profile_status_keeps_conflict_machine_readable(self):
