@@ -106,6 +106,26 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn('if ($Action -eq "Status")', self.command)
         self.assertIn('"chat-platform-controller.ps1"', self.command)
 
+    def test_public_manager_waits_on_exact_mutating_child_process(self):
+        self.assertIn(
+            "System.Diagnostics.ProcessStartInfo",
+            self.command,
+        )
+        self.assertIn(
+            "Invoke-InternalControllerMutation",
+            self.command,
+        )
+        mutation = re.search(
+            r"function Invoke-InternalControllerMutation \{(.*?)\n\}",
+            self.command,
+            re.S,
+        )
+        self.assertIsNotNone(mutation)
+        body = mutation.group(1)
+        self.assertIn("WaitForExit()", body)
+        self.assertIn("$process.ExitCode", body)
+        self.assertNotIn("& $pwsh", body)
+
     def test_profile_status_keeps_conflict_machine_readable(self):
         self.assertIn("conflict = $conflict", self.status_profile)
         self.assertIn("'conflict'", self.status_profile)
@@ -258,13 +278,40 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
                 re.S,
             ),
         )
-        invoke_match = re.search(
-            r"function Invoke-ControllerProcess \{(.*?)\n\}",
+        status_capture = re.search(
+            r"function Invoke-ManagerStatusCapture \{(.*?)\n\}",
             self.bootstrap,
             re.S,
         )
-        self.assertIsNotNone(invoke_match)
-        self.assertNotIn('"Install"', invoke_match.group(1))
+        self.assertIsNotNone(status_capture)
+        self.assertNotIn('"Install"', status_capture.group(1))
+
+    def test_bootstrap_smoke_forces_reference_without_pipeline_capture(self):
+        self.assertIn(
+            "Invoke-ManagerAction -Action Start -Profile reference",
+            self.bootstrap,
+        )
+        self.assertIn(
+            'BOOTSTRAP_SMOKE_PROFILE=reference',
+            self.bootstrap,
+        )
+        self.assertIn(
+            "System.Diagnostics.ProcessStartInfo",
+            self.bootstrap,
+        )
+        action = re.search(
+            r"function Invoke-ManagerAction \{(.*?)\n\}",
+            self.bootstrap,
+            re.S,
+        )
+        self.assertIsNotNone(action)
+        body = action.group(1)
+        self.assertIn("WaitForExit()", body)
+        self.assertNotIn("& $pwsh", body)
+        self.assertNotIn(
+            "Invoke-ControllerProcess -Action Start",
+            self.bootstrap,
+        )
 
     def test_profile_acceptance_runs_when_manager_changes(self):
         for expected in (
