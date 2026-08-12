@@ -10,7 +10,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$pkg = '@1mcp/agent@0.34.4'
+$stablePkg = '@1mcp/agent@0.34.4'
+$adaptivePkg = '@1mcp/agent@0.35.0-beta.3'
+$pkg = $stablePkg
 $startBridge = Join-Path $PSScriptRoot 'start-local-bridge.ps1'
 
 $referenceConfig = Join-Path $repoRoot 'runtime\mcp.json'
@@ -21,6 +23,7 @@ $adaptiveConfig = Join-Path $repoRoot 'runtime\chat-profiles\adaptive\mcp.json'
 $definitions = @{
     'files-readonly' = @{
         Config = $filesConfig
+        Package = $stablePkg
         HealthServer = 'filesystem'
         RuntimeReadyOnly = $false
         EnableLazyLoading = $false
@@ -29,6 +32,7 @@ $definitions = @{
     }
     'browser-isolated' = @{
         Config = $browserConfig
+        Package = $stablePkg
         HealthServer = 'playwright'
         RuntimeReadyOnly = $false
         EnableLazyLoading = $false
@@ -37,6 +41,7 @@ $definitions = @{
     }
     'adaptive' = @{
         Config = $adaptiveConfig
+        Package = $adaptivePkg
         HealthServer = ''
         RuntimeReadyOnly = $true
         EnableLazyLoading = $true
@@ -46,10 +51,13 @@ $definitions = @{
 }
 
 function Stop-KnownRuntime {
-    param([Parameter(Mandatory)] [string]$ConfigPath)
+    param(
+        [Parameter(Mandatory)] [string]$ConfigPath,
+        [Parameter(Mandatory)] [string]$Package
+    )
 
     if (-not (Test-Path -LiteralPath $ConfigPath)) { return }
-    & npx.cmd -y $pkg serve --config $ConfigPath --stop *> $null
+    & npx.cmd -y $Package serve --config $ConfigPath --stop *> $null
     $stopCode = $LASTEXITCODE
     if ($stopCode -notin @(0, 3, 7)) {
         throw "Unable to stop 1MCP Runtime Scope for $ConfigPath (exit $stopCode)."
@@ -93,7 +101,7 @@ function Get-InventoryToolNames {
         [Parameter(Mandatory)] [string]$BaseUrl
     )
 
-    $inventoryText = & npx.cmd -y $pkg inspect $ServerName --url $BaseUrl --format json --all 2>&1 | Out-String
+    $inventoryText = & npx.cmd -y $stablePkg inspect $ServerName --url $BaseUrl --format json --all 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) {
         throw "Could not inspect '$ServerName'.`n$inventoryText"
     }
@@ -149,8 +157,9 @@ function Assert-ProfileSurface {
 
     if ($ProfileName -eq 'adaptive') {
         # The adaptive profile intentionally starts with every backend disabled.
-        # Its Chat-facing surface is the stable 1MCP lazy/meta-tool contract and
-        # selected lifecycle tools; real Chat acceptance verifies that snapshot.
+        # 1MCP v0.35.0-beta.3 resolves lazy visibility per request, so later
+        # mcp_enable calls can publish newly activated backends to the same MCP
+        # session without changing the Chat-facing tool snapshot.
         return
     }
 
@@ -190,11 +199,17 @@ function Assert-ProfileSurface {
 
 $selected = $definitions[$Profile]
 $selectedConfig = [string]$selected.Config
+$selectedPackage = [string]$selected.Package
 $healthServer = [string]$selected.HealthServer
 
 # Only one Chat-facing Runtime Scope may own the fixed tunnel target port.
-foreach ($config in @($referenceConfig, $filesConfig, $browserConfig, $adaptiveConfig)) {
-    Stop-KnownRuntime -ConfigPath $config
+foreach ($runtime in @(
+    @{ Config = $referenceConfig; Package = $stablePkg },
+    @{ Config = $filesConfig; Package = $stablePkg },
+    @{ Config = $browserConfig; Package = $stablePkg },
+    @{ Config = $adaptiveConfig; Package = $adaptivePkg }
+)) {
+    Stop-KnownRuntime -ConfigPath ([string]$runtime.Config) -Package ([string]$runtime.Package)
 }
 
 $hadFilesRoot = Test-Path Env:CHAT_LOCAL_FILES_ROOT
@@ -219,6 +234,7 @@ try {
     $bridgeArgs = @{
         Port = $Port
         ConfigPath = $selectedConfig
+        OneMcpPackage = $selectedPackage
         ReadyTimeoutSeconds = $ReadyTimeoutSeconds
     }
     if ([bool]$selected.RuntimeReadyOnly) {
@@ -246,10 +262,11 @@ try {
 
     Write-Host 'CHAT_PROFILE_STATUS=ready' -ForegroundColor Green
     Write-Host "CHAT_PROFILE=$Profile"
+    Write-Host "ONE_MCP=$selectedPackage"
     Write-Host "MCP_URL=$baseUrl/mcp"
 }
 catch {
-    Stop-KnownRuntime -ConfigPath $selectedConfig
+    Stop-KnownRuntime -ConfigPath $selectedConfig -Package $selectedPackage
     throw
 }
 finally {
