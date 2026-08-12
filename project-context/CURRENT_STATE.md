@@ -130,19 +130,19 @@ ordinary ChatGPT Chat
 
 ### Chat action snapshot finding — 2026-08-12
 
-The local manager successfully switched from `files-readonly` to `browser-isolated` and reported exactly one active profile with `MCP_READY=True`, `TUNNEL_RUNNING=True`, and `TUNNEL_READY=True`. However, ordinary Chat using the already-connected `Chat Local Bridge Test` still exposed only the previously discovered `filesystem_*` actions and did not expose Playwright/browser actions.
+The local manager then stopped `files-readonly` and successfully started `browser-isolated` with exactly one active Runtime Scope and `MCP_READY=True`, `TUNNEL_RUNNING=True`, and `TUNNEL_READY=True`.
 
-This proves the local profile switch and Chat-visible action discovery are separate concerns. The current Chat app/plugin keeps a previously discovered action snapshot; changing the MCP server's live tool list behind the same app connection does not automatically replace the actions already exposed in Chat.
+Ordinary Chat using the already-connected `Chat Local Bridge Test` nevertheless still exposed only the previously discovered `filesystem_*` actions and reported that no browser action existed. This demonstrates that the local profile switch and Chat-visible action discovery are separate concerns.
 
-Therefore the earlier Stage 24 assumption that one Chat-facing app could dynamically change its visible tool surface purely by switching the local 1MCP profile is rejected. The final design must explicitly account for Chat-side action refresh/versioning. Preferred direction is separate Chat-facing app/plugin definitions per least-privilege profile, or an explicit Chat action refresh/re-scan step during profile changes; a single silently changing action surface is not an accepted UX/security baseline.
+The earlier Stage 24 assumption that one Chat-facing app/plugin could silently mutate its visible tool surface whenever the local 1MCP profile changes is therefore rejected. The Chat-side action contract must be explicitly refreshed/versioned. The preferred final direction is one Chat-facing app/plugin action snapshot per least-privilege profile, with the local manager still enforcing that only the matching profile is active. A manual refresh/re-scan of a single app remains acceptable for development diagnostics, but is not the target steady-state UX.
 
 ## Remaining Stage 24 gates
 
 Before Stage 24 is accepted:
 
 1. current manager/bootstrap CI must remain green on the final branch state;
-2. expose/refresh a Chat-facing browser action snapshot while `browser-isolated` is the active local profile and complete one harmless ordinary-Chat Playwright call;
-3. settle and verify the final Chat-facing profile model so filesystem and browser actions are not simultaneously enabled by default. The preferred target is one frozen Chat app/plugin action snapshot per least-privilege profile rather than relying on dynamic mutation of one app's tool list.
+2. while `browser-isolated` is active, refresh/re-scan or create a Chat-facing browser action snapshot and complete one harmless ordinary-Chat Playwright call;
+3. verify the final Chat-facing profile model so filesystem and browser actions are not simultaneously enabled by default. Preferred target: separate frozen Chat app/plugin action snapshots for `files-readonly` and `browser-isolated`, backed by the same least-privilege local profile enforcement.
 
 Authenticated browser reuse, filesystem writes, shell access and desktop automation remain outside the baseline.
 
