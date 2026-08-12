@@ -9,6 +9,10 @@ on:
       - "scripts/stop-chat-profile.ps1"
       - "scripts/start-local-bridge.ps1"
       - "scripts/status-local-bridge.ps1"
+      - "scripts/stop-local-bridge.ps1"
+      - "scripts/chat-platform-controller.ps1"
+      - "scripts/chat-platform-tray.ps1"
+      - "scripts/bootstrap-chat-platform.ps1"
       - ".github/workflows/chat-profiles.yml"
       - "project-context/STAGE24_LEAST_PRIVILEGE.md"
   push:
@@ -20,6 +24,10 @@ on:
       - "scripts/stop-chat-profile.ps1"
       - "scripts/start-local-bridge.ps1"
       - "scripts/status-local-bridge.ps1"
+      - "scripts/stop-local-bridge.ps1"
+      - "scripts/chat-platform-controller.ps1"
+      - "scripts/chat-platform-tray.ps1"
+      - "scripts/bootstrap-chat-platform.ps1"
       - ".github/workflows/chat-profiles.yml"
   workflow_dispatch:
 
@@ -54,9 +62,13 @@ jobs:
           foreach ($script in @(
             'scripts/start-local-bridge.ps1',
             'scripts/status-local-bridge.ps1',
+            'scripts/stop-local-bridge.ps1',
             'scripts/start-chat-profile.ps1',
             'scripts/status-chat-profile.ps1',
-            'scripts/stop-chat-profile.ps1'
+            'scripts/stop-chat-profile.ps1',
+            'scripts/chat-platform-controller.ps1',
+            'scripts/chat-platform-tray.ps1',
+            'scripts/bootstrap-chat-platform.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -100,6 +112,8 @@ jobs:
         run: |
           ./scripts/stop-chat-profile.ps1
           ./scripts/stop-chat-profile.ps1
+          ./scripts/stop-local-bridge.ps1
+          ./scripts/stop-local-bridge.ps1
 
       - name: Prove profile switching and isolation
         shell: pwsh
@@ -111,16 +125,51 @@ jobs:
           try {
             ./scripts/start-chat-profile.ps1 -Profile files-readonly -FilesRoot $filesRoot -Port 3066 -ReadyTimeoutSeconds 240
             $filesStatus = ./scripts/status-chat-profile.ps1 -Port 3066 | Out-String | ConvertFrom-Json
-            if ($filesStatus.active_count -ne 1 -or $filesStatus.active_profile -ne 'files-readonly') {
+            if ($filesStatus.active_count -ne 1 -or $filesStatus.active_profile -ne 'files-readonly' -or $filesStatus.conflict) {
               throw 'files-readonly did not become the only active Chat profile.'
             }
 
             ./scripts/start-chat-profile.ps1 -Profile browser-isolated -Port 3066 -ReadyTimeoutSeconds 240
             $browserStatus = ./scripts/status-chat-profile.ps1 -Port 3066 | Out-String | ConvertFrom-Json
-            if ($browserStatus.active_count -ne 1 -or $browserStatus.active_profile -ne 'browser-isolated') {
+            if ($browserStatus.active_count -ne 1 -or $browserStatus.active_profile -ne 'browser-isolated' -or $browserStatus.conflict) {
               throw 'browser-isolated did not replace files-readonly as the only active Chat profile.'
             }
           }
           finally {
+            ./scripts/stop-chat-profile.ps1
+          }
+
+      - name: Prove controller can observe and clean conflicting runtime scopes
+        shell: pwsh
+        run: |
+          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-profile-conflict-files'
+          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+          Set-Content -LiteralPath (Join-Path $filesRoot 'marker.txt') -Value 'CHAT_PROFILE_CONFLICT_OK' -Encoding utf8
+          $env:CHAT_LOCAL_FILES_ROOT = $filesRoot
+          try {
+            ./scripts/start-local-bridge.ps1 `
+              -Port 3071 `
+              -ConfigPath runtime/chat-profiles/files-readonly/mcp.json `
+              -HealthServerName filesystem `
+              -ReadyTimeoutSeconds 240
+            ./scripts/start-local-bridge.ps1 `
+              -Port 3072 `
+              -ConfigPath runtime/chat-profiles/browser-isolated/mcp.json `
+              -HealthServerName playwright `
+              -ReadyTimeoutSeconds 240
+
+            $conflict = ./scripts/chat-platform-controller.ps1 -Action Status -NoNotify |
+              Out-String |
+              ConvertFrom-Json
+            if ($conflict.active_count -ne 2) { throw 'Controller did not preserve active_count=2 conflict state.' }
+
+            ./scripts/chat-platform-controller.ps1 -Action Toggle -NoNotify
+            $clean = ./scripts/chat-platform-controller.ps1 -Action Status -NoNotify |
+              Out-String |
+              ConvertFrom-Json
+            if ($clean.active_count -ne 0) { throw 'Controller did not clean conflicting Runtime Scopes.' }
+          }
+          finally {
+            Remove-Item Env:CHAT_LOCAL_FILES_ROOT -ErrorAction SilentlyContinue
             ./scripts/stop-chat-profile.ps1
           }
