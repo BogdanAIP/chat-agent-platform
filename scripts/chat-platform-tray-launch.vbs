@@ -17,7 +17,8 @@ If Not fso.FileExists(pwshPath) Then
 End If
 
 commandLine = Quote(pwshPath) & _
-    " -NoLogo -NoProfile -ExecutionPolicy Bypass -File " & Quote(trayScript)
+    " -NoLogo -NoProfile -ExecutionPolicy Bypass -File " & Quote(trayScript) & _
+    " -NoConsoleHost"
 
 Set locator = CreateObject("WbemScripting.SWbemLocator")
 Set service = locator.ConnectServer(".", "root\cimv2")
