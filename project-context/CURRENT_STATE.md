@@ -79,7 +79,7 @@ Bootstrap now:
 
 Mutating manager actions do not run the internal controller through a PowerShell output pipeline. They wait on the exact controller process handle instead, so long-lived 1MCP/tunnel descendants cannot keep an outer bootstrap/tray pipeline open after lifecycle completion.
 
-Tray is now UI-only. It gets authoritative status from `chat-platform-controller.ps1`; it no longer duplicates PID/process/tunnel/MCP health discovery.
+Tray is now UI-only. It gets authoritative status from `chat-platform-controller.ps1`; it no longer duplicates PID/process/tunnel/MCP health discovery. On Windows the tray self-relaunches into a `CreateNoWindow` process before acquiring its singleton mutex, so Windows Terminal is not left open while the tray remains resident.
 
 Manager/profile/bootstrap changes trigger the dedicated `Chat Profile Acceptance` Windows workflow in addition to normal CI, CodeQL and secret-history scanning.
 
@@ -97,9 +97,10 @@ Real-machine evidence:
 - the Secure MCP Tunnel reported ready;
 - startup reported `ACTIVE_PROFILE=reference`, `MCP_READY=True`, `TUNNEL_RUNNING=True`, and `TUNNEL_READY=True`;
 - bootstrap reported `BOOTSTRAP_SMOKE_PROFILE=reference` and `BOOTSTRAP_SMOKE_TEST=passed`;
-- cleanup completed with `CHAT_PROFILE_STATUS=stopped`, `CHAT_PLATFORM_STATUS=stopped`, `CHAT_PLATFORM_BOOTSTRAP=OK`, and `PLATFORM_STATE=stopped`.
+- cleanup completed with `CHAT_PROFILE_STATUS=stopped`, `CHAT_PLATFORM_STATUS=stopped`, `CHAT_PLATFORM_BOOTSTRAP=OK`, and `PLATFORM_STATE=stopped`;
+- after the no-console tray fix, `-LaunchTray` left the red tray indicator running without opening or leaving a separate Windows Terminal / npm / npx console window.
 
-This closes the standalone-bootstrap real-machine gate. The previous two real-machine failures were useful acceptance findings and are fixed on the active PR branch: pipeline lifetime coupling and non-portable relative tunnel log paths.
+This closes the standalone-bootstrap and no-console tray real-machine gates. Earlier real-machine failures exposed three acceptance defects that are fixed on the active PR branch: pipeline lifetime coupling, non-portable relative tunnel log paths, and Windows Terminal capture of the resident tray process.
 
 ## Remaining Stage 24 gates
 
