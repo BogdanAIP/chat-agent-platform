@@ -6,19 +6,34 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ($IsWindows -and -not $NoConsoleHost) {
-    $launcher = Join-Path $PSScriptRoot "chat-platform-tray-launch.vbs"
-    if (Test-Path -LiteralPath $launcher) {
-        $wscript = Join-Path $env:SystemRoot "System32\wscript.exe"
-        if (-not (Test-Path -LiteralPath $wscript)) {
-            throw "Windows Script Host not found: $wscript"
-        }
+    $pwsh = (Get-Command "pwsh.exe" -ErrorAction Stop).Source
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $pwsh
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
 
-        & $wscript //B //NoLogo $launcher
-        if ($LASTEXITCODE -ne 0) {
-            throw "No-console tray launcher failed with exit code $LASTEXITCODE."
-        }
-        exit 0
+    foreach ($argument in @(
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $PSCommandPath,
+        "-NoConsoleHost"
+    )) {
+        $startInfo.ArgumentList.Add([string]$argument)
     }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) {
+            throw "Failed to relaunch tray without a console host."
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+
+    exit 0
 }
 
 Add-Type -AssemblyName System.Windows.Forms
