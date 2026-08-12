@@ -97,16 +97,12 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             ),
         )
 
-    def test_tray_resolves_reference_pid_from_runtime_root(self):
-        self.assertIn('"runtime\\server.pid"', self.tray)
-        self.assertIn(
-            '"runtime\\chat-profiles\\$ProfileName\\server.pid"',
-            self.tray,
-        )
-        self.assertNotIn(
-            '"runtime\\chat-profiles\\$profile\\server.pid"',
-            self.tray,
-        )
+    def test_tray_uses_authoritative_controller_status_only(self):
+        self.assertIn("Invoke-ControllerStatus", self.tray)
+        self.assertIn("-Action Status", self.tray)
+        self.assertNotIn("Win32_Process", self.tray)
+        self.assertNotIn("server.pid", self.tray)
+        self.assertNotIn("Get-TunnelProcesses", self.tray)
 
     def test_tunnel_profile_is_persistent_after_migration(self):
         self.assertIn(
@@ -128,37 +124,24 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("Test-TunnelRunning", self.controller)
 
     def test_tunnel_process_matching_is_bound_to_installed_binary(self):
-        for source in (self.controller, self.tray):
-            self.assertIn("ExecutablePath", source)
-            self.assertIn("$actualExe -ieq $expectedExe", source)
-            self.assertIn("--profile-dir", source)
-            self.assertIn("local-1mcp", source)
+        self.assertIn("ExecutablePath", self.controller)
+        self.assertIn("$actualExe -ieq $expectedExe", self.controller)
+        self.assertIn("--profile-dir", self.controller)
+        self.assertIn("local-1mcp", self.controller)
+        self.assertIn("(?=\\s|$)", self.controller)
 
     def test_tunnel_readiness_uses_official_readyz_probe(self):
-        for source in (self.controller, self.tray):
-            self.assertIn("tunnel-health.url", source)
-            self.assertIn("/readyz", source)
-
+        self.assertIn("tunnel-health.url", self.controller)
+        self.assertIn("/readyz", self.controller)
         self.assertIn("--health.listen-addr 127.0.0.1:0", self.controller)
         self.assertIn("--health.url-file", self.controller)
         self.assertIn("Wait-TunnelReady", self.controller)
         self.assertIn("tunnel_ready", self.controller)
 
-    def test_mcp_health_requires_ready_payload_not_only_http_200(self):
-        self.assertIn("Invoke-RestMethod", self.tray)
-        self.assertIn(
-            '([string]$response.state -eq "ready")',
-            self.tray,
-        )
-
-    def test_green_requires_mcp_ready_and_tunnel_ready(self):
-        self.assertRegex(
-            self.tray,
-            re.compile(
-                r'\$mcp\.healthy -and\s*\$tunnel\.ready',
-                re.S,
-            ),
-        )
+    def test_tray_green_requires_controller_mcp_and_tunnel_readiness(self):
+        self.assertIn("[bool]$state.mcp_ready", self.tray)
+        self.assertIn("[bool]$state.tunnel_ready", self.tray)
+        self.assertIn('$mode = "on"', self.tray)
 
     def test_platform_start_rolls_back_on_partial_failure(self):
         match = re.search(
@@ -188,14 +171,13 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             self.assertIn(expected, self.tray)
         self.assertIn("add_DoubleClick", self.tray)
 
-    def test_expected_profiles_remain_explicit(self):
+    def test_expected_profiles_remain_explicit_in_controller(self):
         for profile in (
             "reference",
             "files-readonly",
             "browser-isolated",
         ):
             self.assertIn(profile, self.controller)
-            self.assertIn(profile, self.tray)
 
     def test_bootstrap_pins_official_tunnel_client_release_and_checksums(self):
         self.assertIn('$AcceptedTunnelClientVersion = "v0.0.11"', self.bootstrap)
