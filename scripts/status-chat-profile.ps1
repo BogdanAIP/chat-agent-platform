@@ -40,13 +40,26 @@ foreach ($scope in $scopes) {
 }
 
 $active = @($result | Where-Object { $_.running })
+$conflict = ($active.Count -gt 1)
+$state = if ($conflict) {
+    'conflict'
+}
+elseif ($active.Count -eq 1) {
+    'active'
+}
+else {
+    'stopped'
+}
+
 [ordered]@{
     mcp_url = "http://127.0.0.1:$Port/mcp"
+    state = $state
+    conflict = $conflict
     active_count = $active.Count
     active_profile = if ($active.Count -eq 1) { $active[0].profile } else { $null }
     scopes = $result
 } | ConvertTo-Json -Depth 6
 
-if ($active.Count -le 1) { exit 0 }
-Write-Error 'More than one Chat-facing Runtime Scope is active; stop profiles before continuing.'
-exit 1
+# A recognized conflict is machine-readable state, not a transport/protocol failure.
+# Lifecycle controllers can now observe active_count > 1 and safely stop/recover it.
+exit 0
