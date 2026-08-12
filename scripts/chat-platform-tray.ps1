@@ -17,18 +17,11 @@ public static class ChatPlatformNativeIcon
 }
 "@
 
-$RepoRoot = Split-Path -Parent $PSScriptRoot
 $ControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
-
 $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
-$SettingsFile = Join-Path $LocalRoot "state\settings.json"
-$TunnelHealthUrlFile = Join-Path $LocalRoot "state\tunnel-health.url"
 $ControllerLog = Join-Path $LocalRoot "logs\controller.log"
-$TunnelExe = Join-Path $LocalRoot "bin\tunnel-client.exe"
-$TunnelDir = Join-Path $LocalRoot "tunnel"
 
 $createdNew = $false
-
 $mutex = New-Object System.Threading.Mutex(
     $true,
     "Local\ChatAgentPlatformTray",
@@ -50,7 +43,6 @@ function New-StatusIcon {
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     $graphics.SmoothingMode = `
         [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-
     $graphics.Clear([System.Drawing.Color]::Transparent)
 
     $brush = New-Object System.Drawing.SolidBrush($Color)
@@ -61,7 +53,6 @@ function New-StatusIcon {
 
     $graphics.FillEllipse($brush, 3, 3, 26, 26)
     $graphics.DrawEllipse($border, 3, 3, 26, 26)
-
     $handle = $bitmap.GetHicon()
 
     try {
@@ -88,317 +79,110 @@ $script:GreenIcon = New-StatusIcon `
     ([System.Drawing.Color]::LimeGreen)
 
 
-function Get-Settings {
-    if (-not (Test-Path $SettingsFile)) {
-        return [pscustomobject]@{
-            profile = "reference"
-            files_root = $null
-        }
+function Invoke-ControllerStatus {
+    $pwsh = (
+        Get-Command `
+            "pwsh.exe" `
+            -ErrorAction Stop
+    ).Source
+
+    $output = @(
+        & $pwsh `
+            -NoLogo `
+            -NoProfile `
+            -ExecutionPolicy Bypass `
+            -File $ControllerPath `
+            -Action Status `
+            -NoNotify `
+            2>&1
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw (
+            "Controller status failed with exit code {0}: {1}" -f `
+            $LASTEXITCODE,
+            (($output | Out-String).Trim())
+        )
     }
 
     try {
         return (
-            Get-Content `
-                -LiteralPath $SettingsFile `
-                -Raw `
-                -ErrorAction Stop |
-            ConvertFrom-Json `
-                -ErrorAction Stop
-        )
-    }
-    catch {
-        return [pscustomobject]@{
-            profile = "reference"
-            files_root = $null
-        }
-    }
-}
-
-
-function Get-TunnelProcesses {
-    if (-not (Test-Path $TunnelExe)) {
-        return @()
-    }
-
-    $expectedExe = [System.IO.Path]::GetFullPath($TunnelExe)
-    $profileDirPattern = ('(?i)--profile-dir\s+"?' + [regex]::Escape($TunnelDir))
-
-    return @(
-        Get-CimInstance Win32_Process `
-            -ErrorAction SilentlyContinue |
-        Where-Object {
-            if ($_.Name -ne "tunnel-client.exe") {
-                return $false
-            }
-
-            $actualExe = [string]$_.ExecutablePath
-            $commandLine = [string]$_.CommandLine
-
-            if (
-                [string]::IsNullOrWhiteSpace($actualExe) -or
-                [string]::IsNullOrWhiteSpace($commandLine)
-            ) {
-                return $false
-            }
-
-            try {
-                $actualExe = [System.IO.Path]::GetFullPath($actualExe)
-            }
-            catch {
-                return $false
-            }
-
-            return (
-                $actualExe -ieq $expectedExe -and
-                $commandLine -match '(?i)--profile\s+"?local-1mcp"?' -and
-                $commandLine -match $profileDirPattern
-            )
-        }
-    )
-}
-
-
-function Get-TunnelHealthBaseUrl {
-    if (-not (Test-Path $TunnelHealthUrlFile)) {
-        return $null
-    }
-
-    try {
-        $url = (
-            Get-Content `
-                -LiteralPath $TunnelHealthUrlFile `
-                -Raw `
-                -ErrorAction Stop
-        ).Trim().TrimEnd("/")
-
-        if ($url -notmatch '^https?://127\.0\.0\.1(?::\d+)?$') {
-            return $null
-        }
-
-        return $url
-    }
-    catch {
-        return $null
-    }
-}
-
-
-function Get-TunnelState {
-    $running = (@(Get-TunnelProcesses).Count -gt 0)
-    $ready = $false
-
-    if ($running) {
-        $baseUrl = Get-TunnelHealthBaseUrl
-
-        if (-not [string]::IsNullOrWhiteSpace($baseUrl)) {
-            try {
-                $response = Invoke-WebRequest `
-                    -Uri "$baseUrl/readyz" `
-                    -Method Get `
-                    -TimeoutSec 1 `
+            $output |
+                Out-String |
+                ConvertFrom-Json `
                     -ErrorAction Stop
-
-                $ready = ($response.StatusCode -eq 200)
-            }
-            catch {
-                $ready = $false
-            }
-        }
-    }
-
-    return [pscustomobject]@{
-        running = $running
-        ready = $ready
-    }
-}
-
-
-function Get-ProfilePidFile {
-    param(
-        [Parameter(Mandatory)]
-        [ValidateSet("reference", "files-readonly", "browser-isolated")]
-        [string]$ProfileName
-    )
-
-    if ($ProfileName -eq "reference") {
-        return (
-            Join-Path `
-                $RepoRoot `
-                "runtime\server.pid"
         )
-    }
-
-    return (
-        Join-Path `
-            $RepoRoot `
-            "runtime\chat-profiles\$ProfileName\server.pid"
-    )
-}
-
-
-function Test-ProfileProcessRunning {
-    param(
-        [Parameter(Mandatory)]
-        [string]$PidFile
-    )
-
-    if (-not (Test-Path $PidFile)) {
-        return $false
-    }
-
-    try {
-        $state = (
-            Get-Content `
-                -LiteralPath $PidFile `
-                -Raw `
-                -ErrorAction Stop |
-            ConvertFrom-Json `
-                -ErrorAction Stop
-        )
-
-        [int]$pidValue = 0
-
-        if (
-            $null -eq $state.pid -or
-            -not [int]::TryParse(
-                [string]$state.pid,
-                [ref]$pidValue
-            )
-        ) {
-            return $false
-        }
-
-        $process = Get-Process `
-            -Id $pidValue `
-            -ErrorAction Stop
-
-        return (-not $process.HasExited)
     }
     catch {
-        return $false
-    }
-}
-
-
-function Get-McpState {
-    $profiles = @(
-        "reference",
-        "files-readonly",
-        "browser-isolated"
-    )
-
-    $runningProfiles = @()
-
-    foreach ($name in $profiles) {
-        $pidFile = Get-ProfilePidFile -ProfileName $name
-
-        if (Test-ProfileProcessRunning -PidFile $pidFile) {
-            $runningProfiles += $name
-        }
-    }
-
-    $runningProfiles = @($runningProfiles)
-    $settings = Get-Settings
-
-    if ($runningProfiles.Count -ne 1) {
-        $displayProfile = [string]$settings.profile
-
-        if ($runningProfiles.Count -gt 1) {
-            $displayProfile = "multiple"
-        }
-
-        return [pscustomobject]@{
-            running = ($runningProfiles.Count -gt 0)
-            healthy = $false
-            profile = $displayProfile
-            active_count = $runningProfiles.Count
-        }
-    }
-
-    $profile = [string]$runningProfiles[0]
-
-    $healthServer = switch ($profile) {
-        "reference" {
-            "sequential-thinking"
-        }
-        "files-readonly" {
-            "filesystem"
-        }
-        "browser-isolated" {
-            "playwright"
-        }
-    }
-
-    $healthy = $false
-
-    try {
-        $uri = (
-            "http://127.0.0.1:3050/health/mcp/{0}" -f `
-            $healthServer
+        throw (
+            "Controller status returned invalid JSON: {0}" -f `
+            (($output | Out-String).Trim())
         )
-
-        $response = Invoke-RestMethod `
-            -Uri $uri `
-            -Method Get `
-            -TimeoutSec 1 `
-            -ErrorAction Stop
-
-        $healthy = ([string]$response.state -eq "ready")
-    }
-    catch {
-        $healthy = $false
-    }
-
-    return [pscustomobject]@{
-        running = $true
-        healthy = $healthy
-        profile = $profile
-        active_count = 1
     }
 }
 
 
 function Get-PlatformVisualState {
-    $mcp = Get-McpState
-    $tunnel = Get-TunnelState
-
-    if (
-        -not $mcp.running -and
-        -not $tunnel.running
-    ) {
+    try {
+        $state = Invoke-ControllerStatus
+    }
+    catch {
         return [pscustomobject]@{
-            mode = "off"
-            profile = $mcp.profile
+            mode = "partial"
+            profile = "unknown"
             tunnel_running = $false
             tunnel_ready = $false
-            mcp = $false
-            healthy = $false
+            mcp_ready = $false
+            active_count = 0
+            error = $_.Exception.Message
+        }
+    }
+
+    $activeCount = [int]$state.active_count
+    $profile = [string]$state.active_profile
+
+    if ([string]::IsNullOrWhiteSpace($profile)) {
+        if ($activeCount -gt 1) {
+            $profile = "multiple"
+        }
+        elseif (
+            $null -ne $state.settings -and
+            -not [string]::IsNullOrWhiteSpace(
+                [string]$state.settings.profile
+            )
+        ) {
+            $profile = [string]$state.settings.profile
+        }
+        else {
+            $profile = "reference"
         }
     }
 
     if (
-        $mcp.active_count -eq 1 -and
-        $mcp.running -and
-        $mcp.healthy -and
-        $tunnel.ready
+        $activeCount -eq 0 -and
+        -not [bool]$state.tunnel_running
     ) {
-        return [pscustomobject]@{
-            mode = "on"
-            profile = $mcp.profile
-            tunnel_running = $true
-            tunnel_ready = $true
-            mcp = $true
-            healthy = $true
-        }
+        $mode = "off"
+    }
+    elseif (
+        $activeCount -eq 1 -and
+        [bool]$state.mcp_ready -and
+        [bool]$state.tunnel_ready
+    ) {
+        $mode = "on"
+    }
+    else {
+        $mode = "partial"
     }
 
     return [pscustomobject]@{
-        mode = "partial"
-        profile = $mcp.profile
-        tunnel_running = $tunnel.running
-        tunnel_ready = $tunnel.ready
-        mcp = $mcp.running
-        healthy = $mcp.healthy
+        mode = $mode
+        profile = $profile
+        tunnel_running = [bool]$state.tunnel_running
+        tunnel_ready = [bool]$state.tunnel_ready
+        mcp_ready = [bool]$state.mcp_ready
+        active_count = $activeCount
+        error = $null
     }
 }
 
@@ -442,7 +226,7 @@ $exitItem.Text = "Закрыть индикатор"
 $notify.ContextMenuStrip = $menu
 
 $script:OperationJob = $null
-$script:LastMode = $null
+$script:LastState = $null
 
 
 function Set-VisualState {
@@ -482,7 +266,7 @@ function Set-VisualState {
         default {
             $notify.Icon = $script:YellowIcon
             $notify.Text = "Chat Agent Platform — частично"
-            $statusItem.Text = "🟡 Частично запущено"
+            $statusItem.Text = "🟡 Частично — $Profile"
             $startItem.Enabled = $true
             $stopItem.Enabled = $true
         }
@@ -504,7 +288,7 @@ function Refresh-VisualState {
         -Mode $state.mode `
         -Profile $state.profile
 
-    $script:LastMode = $state.mode
+    $script:LastState = $state
 }
 
 
@@ -528,10 +312,18 @@ function Show-StateBalloon {
 
         default {
             $notify.BalloonTipTitle = "Chat Agent Platform"
-            $notify.BalloonTipText = (
-                "Система запущена частично. MCP ready={0}; " +
-                "Tunnel ready={1}."
-            ) -f $state.healthy, $state.tunnel_ready
+            if (-not [string]::IsNullOrWhiteSpace($state.error)) {
+                $notify.BalloonTipText = $state.error
+            }
+            else {
+                $notify.BalloonTipText = (
+                    "Система запущена частично. MCP ready={0}; " +
+                    "Tunnel ready={1}; profiles={2}."
+                ) -f `
+                    $state.mcp_ready,
+                    $state.tunnel_ready,
+                    $state.active_count
+            }
         }
     }
 
@@ -573,10 +365,30 @@ function Start-ControllerOperation {
             )
 
             $ErrorActionPreference = "Stop"
+            $pwsh = (
+                Get-Command `
+                    "pwsh.exe" `
+                    -ErrorAction Stop
+            ).Source
 
-            & $ControllerPath `
-                -Action $Action `
-                -NoNotify
+            $output = @(
+                & $pwsh `
+                    -NoLogo `
+                    -NoProfile `
+                    -ExecutionPolicy Bypass `
+                    -File $ControllerPath `
+                    -Action $Action `
+                    -NoNotify `
+                    2>&1
+            )
+
+            if ($LASTEXITCODE -ne 0) {
+                throw (
+                    "Controller action {0} failed: {1}" -f `
+                    $Action,
+                    (($output | Out-String).Trim())
+                )
+            }
         }
 }
 
@@ -656,7 +468,6 @@ $timer.add_Tick({
             $failed = (
                 $script:OperationJob.State -ne "Completed"
             )
-
             $reason = $null
 
             if ($failed) {
@@ -664,10 +475,18 @@ $timer.add_Tick({
                     $script:OperationJob.ChildJobs[0].JobStateInfo.Reason
             }
 
-            Receive-Job `
-                $script:OperationJob `
-                -ErrorAction SilentlyContinue |
-                Out-Null
+            try {
+                Receive-Job `
+                    $script:OperationJob `
+                    -ErrorAction Stop |
+                    Out-Null
+            }
+            catch {
+                $failed = $true
+                if ($null -eq $reason) {
+                    $reason = $_.Exception
+                }
+            }
 
             Remove-Job `
                 $script:OperationJob `
@@ -675,13 +494,11 @@ $timer.add_Tick({
                 -ErrorAction SilentlyContinue
 
             $script:OperationJob = $null
-
             Refresh-VisualState
 
             if ($failed) {
                 $notify.BalloonTipTitle = `
                     "Chat Agent Platform — ошибка"
-
                 if ($reason) {
                     $notify.BalloonTipText = $reason.Message
                 }
@@ -689,7 +506,6 @@ $timer.add_Tick({
                     $notify.BalloonTipText = `
                         "Операция завершилась с ошибкой."
                 }
-
                 $notify.ShowBalloonTip(3500)
             }
             else {
