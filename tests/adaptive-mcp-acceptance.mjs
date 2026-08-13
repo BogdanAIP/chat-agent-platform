@@ -191,6 +191,19 @@ async function main() {
     }
   }
 
+  for (const forbidden of [
+    '1mcp_1mcp_mcp_search',
+    '1mcp_1mcp_mcp_info',
+    '1mcp_1mcp_mcp_install',
+    '1mcp_1mcp_mcp_uninstall',
+    '1mcp_1mcp_mcp_update',
+    '1mcp_1mcp_mcp_edit',
+  ]) {
+    if (names.includes(forbidden)) {
+      throw new Error(`Adaptive Chat-facing surface unexpectedly exposes ${forbidden}. Visible: ${names.join(', ')}`);
+    }
+  }
+
   // Keep mcp_list as a diagnostic only. 1MCP 0.35.0-beta.3 currently returns
   // an empty inventory here even though serve --config loaded the adaptive
   // runtime config. The important compatibility gate is whether the same MCP
