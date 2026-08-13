@@ -78,11 +78,11 @@ Do not publish arbitrary catalog-management tools such as install/uninstall/upda
 - Playwright MCP `@playwright/mcp@0.0.78`.
 
 Direct profiles remain on accepted `@1mcp/agent@0.34.4`.
-Adaptive currently pins `@1mcp/agent@0.35.0-beta.3`, with Lazy Loading ON and Async Loading OFF, because this line is being evaluated for dynamic same-session capability visibility/lifecycle behavior.
+Adaptive pins `@1mcp/agent@0.35.0-beta.3`, with Lazy Loading ON and Async Loading OFF, through `runtime/1mcp-adaptive-shim`. The local package verifies the pristine upstream built-file hashes before applying two narrow lifecycle fixes; it is not a project-owned gateway or fork.
 
 Adaptive is **not** the installed-manager default and is **not accepted**.
 
-## Latest adaptive CI result — blocker
+## Adaptive blocker diagnosis and local resolution
 
 Functional baseline: `9799bec20ffeb92eebbba5061f32dff403bbe6f4`.
 
@@ -103,18 +103,15 @@ Observed adaptive sequence:
 5. after the wait window, `tool_list({server: "filesystem"})` still returned no tools;
 6. failure: `read_text_file` never became visible; observed `tools: []`, `loading retries=49`.
 
-Therefore the next engineer must not spend time re-solving the already-closed snapshot issue or claim adaptive works. The immediate technical task is to understand why the enabled backend remains unavailable to Lazy Loading capability discovery in the same MCP session.
+Upstream/source and local runtime evidence resolved the failure boundary:
 
-Investigate upstream 1MCP behavior around:
+- synchronous `ServerManager.loadMcpServer` / `unloadMcpServer` did not refresh `LazyLoadingOrchestrator`;
+- disable handling read only active transport config, which filters disabled entries, so the backend could not be found and unloaded;
+- `0.35.0-beta.4` contains no relevant fix.
 
-- `McpLoadingManager` and backend state transitions;
-- enable/load lifecycle;
-- `ServerManager.loadMcpServer` / unload/ready tracking;
-- `LazyLoadingOrchestrator.refreshCapabilities`;
-- backend capability-list change notifications;
-- stdio backend process readiness/cleanup.
+The current local compatibility package restores declared disabled entries for lifecycle reconciliation and refreshes only the lazy backend registry after every load attempt/unload. It deliberately does not mutate or notify the frozen top-level Chat tool list.
 
-Prefer an upstream-supported mechanism or a narrowly justified upstream fix/workaround. Do not introduce a project-owned universal gateway/broker until a concrete missing upstream boundary is proven.
+Local acceptance on 2026-08-13 passed Filesystem and Playwright sequentially in one MCP session: enable, lazy discovery, real read/navigation, disable, catalog retained as disabled, tool removal and process cleanup. The exact eight-tool Chat-facing allowlist remained unchanged across all four transitions, forbidden backend tools were absent, and accepted direct profiles still passed. The patched PR commit and remote CI are the next gate; adaptive is still not the installed-manager default.
 
 ## Safety model
 
@@ -132,13 +129,10 @@ The old direct `files-readonly` and `browser-isolated` separation remains valuab
 
 ## Remaining Stage 24 gates
 
-1. adaptive Filesystem: enable -> ready -> lazy discovery -> real read -> disable -> tool/process cleanup;
-2. adaptive Playwright: enable -> ready -> lazy discovery -> navigate `https://example.com` -> close -> disable -> cleanup;
-3. stable Chat-facing surface contains only approved lazy/lifecycle tools and excludes catalog mutation/admin tools;
-4. integrate accepted adaptive behavior into standalone manager/bootstrap/status/start/stop/toggle/tray without breaking direct profiles/no-console behavior;
-5. all final CI/security checks green on the exact final functional HEAD;
-6. real ordinary-Chat acceptance demonstrates that a single Chat-facing contract can use task-selected backends without creating a new plugin or requiring Refresh for every backend;
-7. only then accept Stage 24 and integrate/merge to `main`.
+1. remote CI/security checks green on the exact compatibility-patched functional HEAD;
+2. integrate accepted adaptive behavior into standalone manager/bootstrap/status/start/stop/toggle/tray without breaking direct profiles/no-console behavior;
+3. real ordinary-Chat acceptance demonstrates that a single Chat-facing contract can use task-selected backends without creating a new plugin or requiring Refresh for every backend;
+4. only then accept Stage 24 and integrate/merge to `main`.
 
 ## Work after Stage 24
 

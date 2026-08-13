@@ -14,6 +14,7 @@ $stablePkg = '@1mcp/agent@0.34.4'
 $adaptivePkg = '@1mcp/agent@0.35.0-beta.3'
 $pkg = $stablePkg
 $startBridge = Join-Path $PSScriptRoot 'start-local-bridge.ps1'
+$adaptiveShim = Join-Path $repoRoot 'runtime\1mcp-adaptive-shim'
 
 $referenceConfig = Join-Path $repoRoot 'runtime\mcp.json'
 $filesConfig = Join-Path $repoRoot 'runtime\chat-profiles\files-readonly\mcp.json'
@@ -47,7 +48,73 @@ $definitions = @{
         EnableLazyLoading = $true
         DisableAsyncLoading = $true
         InternalTools = 'list,status,enable,disable,reload'
+        LauncherExecutable = '1mcp-adaptive'
     }
+}
+
+function New-AdaptiveLauncherPackage {
+    if (-not (Test-Path -LiteralPath $adaptiveShim -PathType Container)) {
+        throw "Adaptive compatibility package is missing: $adaptiveShim"
+    }
+
+    $manifestPath = Join-Path $adaptiveShim 'package.json'
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    if ([string]$manifest.dependencies.'@1mcp/agent' -ne '0.35.0-beta.3') {
+        throw 'Adaptive compatibility package must pin @1mcp/agent 0.35.0-beta.3 exactly.'
+    }
+
+    $sourceFiles = @(Get-ChildItem -LiteralPath $adaptiveShim -Recurse -File | Sort-Object FullName)
+    if ($sourceFiles.Count -eq 0) {
+        throw "Adaptive compatibility package contains no source files: $adaptiveShim"
+    }
+    $fingerprintInput = ($sourceFiles | ForEach-Object {
+        $relative = $_.FullName.Substring($adaptiveShim.Length).TrimStart('\', '/')
+        "$relative`0$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)"
+    }) -join "`n"
+    $fingerprintBytes = [System.Text.Encoding]::UTF8.GetBytes($fingerprintInput)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $fingerprintHash = $sha256.ComputeHash($fingerprintBytes)
+    }
+    finally {
+        $sha256.Dispose()
+    }
+    $fingerprint = (($fingerprintHash | ForEach-Object { $_.ToString('x2') }) -join '').Substring(0, 16)
+
+    $cacheDir = Join-Path ([System.IO.Path]::GetTempPath()) "chat-agent-platform\adaptive-shim\$fingerprint"
+    New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+    $packageBaseName = ([string]$manifest.name).TrimStart('@').Replace('/', '-')
+    $packagePath = Join-Path $cacheDir "$packageBaseName-$($manifest.version).tgz"
+    if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
+        $npmName = if ($IsWindows) { 'npm.cmd' } else { 'npm' }
+        $npm = (Get-Command $npmName -ErrorAction Stop).Source
+        $stagingDir = Join-Path $cacheDir ('.pack-' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $stagingDir | Out-Null
+        try {
+            $stagedPackage = Join-Path $stagingDir (Split-Path -Leaf $packagePath)
+            $packOutput = & $npm pack $adaptiveShim --pack-destination $stagingDir --silent 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $stagedPackage -PathType Leaf)) {
+                throw "Could not prepare adaptive compatibility package.`n$packOutput"
+            }
+            try {
+                [System.IO.File]::Move($stagedPackage, $packagePath)
+            }
+            catch {
+                # A concurrent launcher may have atomically populated the same
+                # content-addressed cache entry first.
+                if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
+                    throw
+                }
+            }
+        }
+        finally {
+            if (Test-Path -LiteralPath $stagingDir -PathType Container) {
+                [System.IO.Directory]::Delete($stagingDir, $true)
+            }
+        }
+    }
+
+    return $packagePath
 }
 
 function Stop-KnownRuntime {
@@ -157,9 +224,8 @@ function Assert-ProfileSurface {
 
     if ($ProfileName -eq 'adaptive') {
         # The adaptive profile intentionally starts with every backend disabled.
-        # 1MCP v0.35.0-beta.3 resolves lazy visibility per request, so later
-        # mcp_enable calls can publish newly activated backends to the same MCP
-        # session without changing the Chat-facing tool snapshot.
+        # The hash-guarded compatibility package refreshes the lazy registry
+        # after backend load/unload while preserving this stable Chat surface.
         return
     }
 
@@ -251,6 +317,10 @@ try {
     }
     if (-not [string]::IsNullOrWhiteSpace([string]$selected.InternalTools)) {
         $bridgeArgs.InternalTools = [string]$selected.InternalTools
+    }
+    if ($Profile -eq 'adaptive') {
+        $bridgeArgs.OneMcpLauncherPackage = New-AdaptiveLauncherPackage
+        $bridgeArgs.OneMcpLauncherExecutable = [string]$selected.LauncherExecutable
     }
 
     # start-local-bridge.ps1 terminates on failure. Do not inspect $LASTEXITCODE here:

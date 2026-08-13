@@ -105,17 +105,20 @@ Bootstrap installs the verified official tunnel-client and standalone manager bu
 
 Adaptive must not be documented as installed/default until its runtime acceptance passes and controller/bootstrap integration is complete.
 
-## Current adaptive blocker
+## Adaptive runtime evidence
 
-On functional baseline `9799bec...`:
+The previous functional baseline failed after Filesystem enable because beta.3's synchronous lifecycle never refreshed the lazy registry. Source/runtime diagnosis also found that disable reconciliation lost disabled entries before unloading them.
 
-- adaptive runtime starts;
-- `mcp_list` sees both disabled backends;
-- Filesystem enable enters loading;
-- transitional 503/loading responses are retried;
-- lazy `tool_list` remains empty and never exposes `read_text_file` before timeout (`loading retries=49`).
+The current hash-guarded compatibility package fixes only those two upstream gaps. Local 2026-08-13 acceptance now proves:
 
-Next work is upstream-focused diagnosis of 1MCP loading/lifecycle/capability refresh. Do not add a project-owned universal broker merely to bypass this failure without proving the upstream mechanism is insufficient.
+- Filesystem and Playwright each enable, publish approved lazy tools, execute a real harmless operation and disable in one MCP session;
+- forbidden filesystem/browser tools are absent at runtime;
+- the exact eight-tool top-level Chat surface does not change across lifecycle transitions;
+- catalog entries remain pre-approved but disabled after unload;
+- backend processes are gone after disable;
+- direct fallback profiles still switch and start successfully.
+
+Remote CI, manager/bootstrap integration and the ordinary-Chat one-snapshot E2E remain. The compatibility package is not a new broker and must fail closed if the pinned upstream files drift.
 
 ## Stage 24 acceptance criteria
 

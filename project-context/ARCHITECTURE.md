@@ -34,7 +34,7 @@ ChatGPT
 
 The adaptive design uses 1MCP's own aggregation/lazy/lifecycle facilities. It does not justify a project-owned gateway/broker unless an upstream gap is measured and cannot be resolved otherwise.
 
-**Status:** target under Stage 24 acceptance, not yet accepted runtime architecture. Direct profiles remain the accepted fallback/reference until the adaptive gates pass.
+**Status:** the runtime contract passes local Stage 24 acceptance with Filesystem and Playwright through the exact beta.3 compatibility package. Remote CI, manager integration and ordinary-Chat E2E remain before architectural acceptance. Direct profiles remain the accepted fallback/reference.
 
 ## Capability lifecycle model
 
@@ -105,7 +105,7 @@ The repository does **not** own by default:
 
 - Reachability: OpenAI Secure MCP Tunnel + official `tunnel-client`.
 - Direct accepted 1MCP runtime: `@1mcp/agent@0.34.4`.
-- Adaptive experimental 1MCP line: `@1mcp/agent@0.35.0-beta.3` until the current lifecycle/discovery blocker is resolved or the experiment is revised.
+- Adaptive experimental 1MCP line: exact `@1mcp/agent@0.35.0-beta.3` plus a hash-guarded compatibility package that restores declared disabled entries during reconciliation and refreshes the lazy backend registry after lifecycle changes. Remove the patch when an accepted upstream release covers both gaps.
 - Modules: official/vendor MCP -> mature OSS -> local API/CLI adapter -> smallest project-owned missing adapter.
 
 ## Legacy

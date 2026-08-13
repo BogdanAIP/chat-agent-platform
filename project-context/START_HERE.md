@@ -69,9 +69,9 @@ Backends start disabled and are activated according to the task. More than one b
 - Playwright MCP `@playwright/mcp@0.0.78`;
 - both `disabled: true` initially.
 
-Direct profiles remain pinned to accepted `@1mcp/agent@0.34.4`. Adaptive currently tests `@1mcp/agent@0.35.0-beta.3` with Lazy Loading enabled and Async Loading disabled.
+Direct profiles remain pinned to accepted `@1mcp/agent@0.34.4`. Adaptive tests exact `@1mcp/agent@0.35.0-beta.3` with Lazy Loading enabled and Async Loading disabled through a hash-guarded local compatibility package.
 
-Latest functional CI on baseline `9799bec...`:
+Latest remote CI on PR HEAD `c7af0b0...` still reflects the unpatched baseline behavior:
 
 - `ci`: PASS;
 - `CodeQL Security`: PASS;
@@ -79,16 +79,16 @@ Latest functional CI on baseline `9799bec...`:
 - `Chat Profile Acceptance / windows-profiles`: PASS;
 - `Chat Profile Acceptance / adaptive-runtime`: FAIL.
 
-The adaptive failure is the current technical blocker, not a documentation ambiguity:
+That remote failure established the original technical blocker:
 
 1. `mcp_list` correctly returned `filesystem` and `playwright` as disabled;
 2. the Filesystem enable path entered backend loading;
 3. temporary HTTP `503 service_unavailable` while loading is handled as transitional state;
 4. after the wait window, lazy `tool_list` still returned no `read_text_file` (`tools: []`, `loading retries=49`).
 
-Therefore do **not** claim that adaptive enable/discovery/invoke/disable works yet.
+Upstream diagnosis then found two exact beta.3 lifecycle gaps: synchronous backend load/unload does not refresh the lazy registry, and a disabled entry disappears from the filtered transport config before the disable handler can unload it. Beta.4 has the same relevant built files.
 
-Next engineering task: diagnose the 1MCP enable -> loading -> Lazy Loading capability refresh path (loading manager/server lifecycle/lazy capability refresh/notifications) from upstream behavior before introducing any project-owned broker or workaround.
+The current local working tree carries a narrow hash-guarded patch for only those gaps. On 2026-08-13 the full same-session local acceptance passed for Filesystem and Playwright, including real invocation, forbidden-tool absence, exact frozen Chat surface, disabled catalog state and backend-process cleanup. Direct files/browser regressions also passed. Remote CI on the patched commit is still required before this runtime gate is accepted.
 
 ## Acceptance ownership
 
@@ -100,9 +100,9 @@ A local MCP client, mock, Codex-only browser test or narrower integration test m
 
 ## Stage 24 completion order
 
-1. make adaptive Filesystem enable -> ready -> lazy discovery -> read -> disable -> cleanup pass in one MCP session;
-2. make adaptive Playwright enable -> ready -> lazy discovery -> navigate -> disable -> cleanup pass in the same stable Chat-facing contract;
-3. prove forbidden administrative tools are absent;
+1. obtain green remote adaptive acceptance for the locally passing Filesystem and Playwright lifecycle contract;
+2. preserve the exact frozen Chat-facing allowlist and runtime least-privilege checks;
+3. keep direct profile regressions green;
 4. integrate accepted adaptive behavior into the standalone Windows manager/bootstrap/status/start/stop/toggle/tray without breaking direct profiles or no-console behavior;
 5. run all CI/security checks;
 6. perform the real ordinary-Chat acceptance that proves backend switching/selection works without creating a new plugin or refreshing the action contract for every backend;

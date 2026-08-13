@@ -2,7 +2,7 @@
 
 Only unresolved issues for the current bridge architecture are listed here.
 
-1. **Adaptive 1MCP lifecycle/discovery is not accepted.** On functional baseline `9799bec...`, `mcp_list` sees disabled Filesystem/Playwright backends and Filesystem enable enters loading, but Lazy Loading never publishes `read_text_file` before timeout (`tools: []`, `loading retries=49`). Investigate upstream lifecycle/loading/capability refresh before introducing custom infrastructure.
+1. **Adaptive 1MCP lifecycle/discovery is not accepted remotely or in ordinary Chat yet.** The beta.3 gaps are diagnosed and the hash-guarded compatibility package passes full Filesystem + Playwright lifecycle locally, but the patched PR head still needs green remote CI before manager integration and the ordinary-Chat gate.
 
 2. **Ordinary Chat action snapshots do not automatically follow local direct-profile switching.** This was proven when Chat retained `filesystem_*` after the local runtime switched successfully to `browser-isolated`. Separate per-capability Chat apps are not the target solution; Stage 24 adaptive work is intended to provide one stable action contract.
 

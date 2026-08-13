@@ -35,6 +35,8 @@ Ready-made-first candidates were recorded for REAPER, Origin, FFmpeg, Blender an
 - real ordinary-Chat `files-readonly` E2E;
 - local `browser-isolated` readiness;
 - real discovery that Chat action snapshots do not silently change after local profile switching.
+- local adaptive same-session Filesystem + Playwright enable/invoke/disable acceptance with exact surface and process-cleanup checks;
+- accepted direct files/browser regression after adding the adaptive compatibility launcher.
 
 ### Adaptive convergence
 
@@ -50,9 +52,9 @@ Backends are pre-approved locally, disabled by default and activated according t
 
 Current experimental catalog: Filesystem + Playwright. Adaptive currently tests 1MCP `0.35.0-beta.3`; it is not accepted yet.
 
-### Current blocker
+### Current gate
 
-Latest functional adaptive acceptance correctly sees both disabled backends and reaches Filesystem loading after enable, but `tool_list` never publishes `read_text_file` within the timeout. Diagnose the upstream 1MCP lifecycle/loading/lazy refresh path before adding project-owned infrastructure.
+The beta.3 lifecycle/lazy-refresh blocker is diagnosed and passes locally through a narrow hash-guarded compatibility package. The next gate is green remote CI on the patched PR head, followed by manager/bootstrap integration. Do not promote the local pass to accepted ordinary-Chat behavior before those gates.
 
 ### Stage 24 Definition of Done
 

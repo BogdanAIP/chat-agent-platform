@@ -9,6 +9,16 @@ if (!endpoint || !markerPath) {
 
 let sessionId;
 let requestId = 0;
+const allowedChatSurface = [
+  'tool_list',
+  'tool_schema',
+  'tool_invoke',
+  '1mcp_1mcp_mcp_list',
+  '1mcp_1mcp_mcp_status',
+  '1mcp_1mcp_mcp_enable',
+  '1mcp_1mcp_mcp_disable',
+  '1mcp_1mcp_mcp_reload',
+];
 
 function nextId() {
   requestId += 1;
@@ -48,9 +58,9 @@ function createHttpError(status, body) {
 }
 
 function isTransientBackendLoading(error) {
-  if (error?.status !== 503) return false;
+  if (![202, 503].includes(error?.status)) return false;
   const body = String(error?.body || error?.message || '').toLowerCase();
-  return body.includes('service_unavailable') && body.includes('loading');
+  return body.includes('servers_loading') || (body.includes('service_unavailable') && body.includes('loading'));
 }
 
 async function postRpc(payload, { expectResponse = true } = {}) {
@@ -66,16 +76,14 @@ async function postRpc(payload, { expectResponse = true } = {}) {
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw createHttpError(response.status, body);
-  }
+  const text = await response.text();
+  if (!response.ok) throw createHttpError(response.status, text);
 
   const newSessionId = response.headers.get('mcp-session-id');
   if (newSessionId) sessionId = newSessionId;
 
-  const text = await response.text();
   if (!expectResponse) return null;
+  if (response.status === 202) throw createHttpError(response.status, text);
 
   const message = parseJsonRpcBody(text, response.headers.get('content-type'));
   if (!message) throw new Error('Expected JSON-RPC response, got an empty body.');
@@ -179,8 +187,15 @@ async function waitForLazyTool(server, toolName) {
     }
     await sleep(1000);
   }
+  let status;
+  try {
+    status = structured(await callTool('1mcp_1mcp_mcp_status', { name: server }));
+  } catch (error) {
+    status = `unavailable: ${error.message}`;
+  }
   throw new Error(
-    `Adaptive backend ${server} did not publish ${toolName}. Observed: ${JSON.stringify(observed)}; loading retries=${loadingResponses}`,
+    `Adaptive backend ${server} did not publish ${toolName}. Observed: ${JSON.stringify(observed)}; `
+      + `loading retries=${loadingResponses}; management status=${JSON.stringify(status)}`,
   );
 }
 
@@ -196,43 +211,58 @@ async function waitForLazyToolRemoval(server, toolName) {
     }
     await sleep(1000);
   }
+  let status;
+  try {
+    status = structured(await callTool('1mcp_1mcp_mcp_status', { name: server }));
+  } catch (error) {
+    status = `unavailable: ${error.message}`;
+  }
   throw new Error(
-    `Adaptive backend ${server} still publishes ${toolName} after disable. Observed: ${JSON.stringify(observed)}`,
+    `Adaptive backend ${server} still publishes ${toolName} after disable. `
+      + `Observed: ${JSON.stringify(observed)}; management status=${JSON.stringify(status)}`,
   );
+}
+
+async function assertBackendDisabled(server) {
+  const inventory = structured(await callTool('1mcp_1mcp_mcp_list', { format: 'json', detailed: true }));
+  const entry = Array.isArray(inventory?.servers)
+    ? inventory.servers.find((candidate) => candidate?.name === server)
+    : undefined;
+  if (!entry || entry.status !== 'disabled') {
+    throw new Error(
+      `Adaptive backend ${server} was not retained as disabled after unload. Observed: ${JSON.stringify(inventory)}`,
+    );
+  }
+}
+
+function assertLazyToolsExcluded(inventory, forbidden, server) {
+  const names = Array.isArray(inventory?.tools)
+    ? inventory.tools.map((tool) => tool?.name).filter(Boolean)
+    : [];
+  const exposed = forbidden.filter((name) => names.includes(name));
+  if (exposed.length > 0) {
+    throw new Error(
+      `Adaptive backend ${server} exposed forbidden tools: ${exposed.join(', ')}. Visible: ${names.join(', ')}`,
+    );
+  }
+}
+
+async function assertStableChatSurface(stage) {
+  const visible = await listTools();
+  const observed = (visible?.tools || []).map((tool) => tool.name).sort();
+  const expected = [...allowedChatSurface].sort();
+  if (JSON.stringify(observed) !== JSON.stringify(expected)) {
+    throw new Error(
+      `Adaptive Chat-facing surface drifted ${stage}. Expected: ${expected.join(', ')}. `
+        + `Visible: ${observed.join(', ')}`,
+    );
+  }
 }
 
 async function main() {
   await initialize();
 
-  const visible = await listTools();
-  const names = (visible?.tools || []).map((tool) => tool.name);
-  for (const required of [
-    'tool_list',
-    'tool_schema',
-    'tool_invoke',
-    '1mcp_1mcp_mcp_list',
-    '1mcp_1mcp_mcp_status',
-    '1mcp_1mcp_mcp_enable',
-    '1mcp_1mcp_mcp_disable',
-    '1mcp_1mcp_mcp_reload',
-  ]) {
-    if (!names.includes(required)) {
-      throw new Error(`Adaptive Chat-facing surface is missing ${required}. Visible: ${names.join(', ')}`);
-    }
-  }
-
-  for (const forbidden of [
-    '1mcp_1mcp_mcp_search',
-    '1mcp_1mcp_mcp_info',
-    '1mcp_1mcp_mcp_install',
-    '1mcp_1mcp_mcp_uninstall',
-    '1mcp_1mcp_mcp_update',
-    '1mcp_1mcp_mcp_edit',
-  ]) {
-    if (names.includes(forbidden)) {
-      throw new Error(`Adaptive Chat-facing surface unexpectedly exposes ${forbidden}. Visible: ${names.join(', ')}`);
-    }
-  }
+  await assertStableChatSurface('at initialization');
 
   const inventory = structured(await callTool('1mcp_1mcp_mcp_list', { format: 'json', detailed: true }));
   assertIncludes(inventory, 'filesystem', 'Adaptive inventory');
@@ -242,7 +272,13 @@ async function main() {
   try {
     const enableFilesystem = structured(await callTool('1mcp_1mcp_mcp_enable', { name: 'filesystem' }));
     assertManagementSuccess(enableFilesystem, 'Enable filesystem');
-    await waitForLazyTool('filesystem', 'read_text_file');
+    const filesystemTools = await waitForLazyTool('filesystem', 'read_text_file');
+    assertLazyToolsExcluded(
+      filesystemTools,
+      ['create_directory', 'write_file', 'edit_file', 'move_file'],
+      'filesystem',
+    );
+    await assertStableChatSurface('after enabling filesystem');
 
     const read = structured(
       await callTool('tool_invoke', {
@@ -259,11 +295,19 @@ async function main() {
     );
     assertManagementSuccess(disableFilesystem, 'Disable filesystem');
     await waitForLazyToolRemoval('filesystem', 'read_text_file');
+    await assertBackendDisabled('filesystem');
+    await assertStableChatSurface('after disabling filesystem');
     console.log('ADAPTIVE_FILESYSTEM_DISABLE=passed');
 
     const enablePlaywright = structured(await callTool('1mcp_1mcp_mcp_enable', { name: 'playwright' }));
     assertManagementSuccess(enablePlaywright, 'Enable playwright');
-    await waitForLazyTool('playwright', 'browser_navigate');
+    const playwrightTools = await waitForLazyTool('playwright', 'browser_navigate');
+    assertLazyToolsExcluded(
+      playwrightTools,
+      ['browser_run_code_unsafe', 'browser_evaluate', 'browser_file_upload', 'browser_network_request'],
+      'playwright',
+    );
+    await assertStableChatSurface('after enabling playwright');
 
     const page = structured(
       await callTool('tool_invoke', {
@@ -285,6 +329,8 @@ async function main() {
     );
     assertManagementSuccess(disablePlaywright, 'Disable playwright');
     await waitForLazyToolRemoval('playwright', 'browser_navigate');
+    await assertBackendDisabled('playwright');
+    await assertStableChatSurface('after disabling playwright');
     console.log('ADAPTIVE_PLAYWRIGHT_DISABLE=passed');
   } finally {
     for (const name of ['filesystem', 'playwright']) {

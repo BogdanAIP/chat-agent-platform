@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "runtime/chat-profiles/**"
+      - "runtime/1mcp-adaptive-shim/**"
       - "scripts/start-chat-profile.ps1"
       - "scripts/status-chat-profile.ps1"
       - "scripts/stop-chat-profile.ps1"
@@ -15,12 +16,14 @@ on:
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
       - "tests/adaptive-mcp-acceptance.mjs"
+      - "tests/test_adaptive_profile.py"
       - ".github/workflows/chat-profiles.yml"
       - "project-context/STAGE24_LEAST_PRIVILEGE.md"
   push:
     branches: [main]
     paths:
       - "runtime/chat-profiles/**"
+      - "runtime/1mcp-adaptive-shim/**"
       - "scripts/start-chat-profile.ps1"
       - "scripts/status-chat-profile.ps1"
       - "scripts/stop-chat-profile.ps1"
@@ -32,6 +35,7 @@ on:
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
       - "tests/adaptive-mcp-acceptance.mjs"
+      - "tests/test_adaptive_profile.py"
       - ".github/workflows/chat-profiles.yml"
   workflow_dispatch:
 
@@ -194,8 +198,11 @@ jobs:
           $port = 3068
           $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-adaptive-files'
           $marker = Join-Path $filesRoot 'marker.txt'
+          $adaptiveConfig = 'runtime/chat-profiles/adaptive/mcp.json'
+          $adaptiveConfigBackup = Join-Path $env:RUNNER_TEMP 'adaptive-mcp.original.json'
           New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
           Set-Content -LiteralPath $marker -Value 'CHAT_ADAPTIVE_FILES_OK' -Encoding utf8
+          Copy-Item -LiteralPath $adaptiveConfig -Destination $adaptiveConfigBackup
 
           try {
             ./scripts/start-chat-profile.ps1 -Profile adaptive -FilesRoot $filesRoot -Port $port -ReadyTimeoutSeconds 240
@@ -206,7 +213,23 @@ jobs:
             Write-Host $acceptance
             if ($LASTEXITCODE -ne 0) { throw "Adaptive MCP session acceptance failed: $acceptance" }
             if ($acceptance -notmatch 'ADAPTIVE_MCP_ACCEPTANCE=passed') { throw "Adaptive MCP session acceptance did not report success: $acceptance" }
+
+            $backendProcesses = @(Get-CimInstance Win32_Process | Where-Object {
+              $_.Name -eq 'node.exe' -and (
+                $_.CommandLine -like '*server-filesystem*' -or
+                $_.CommandLine -like '*playwright*mcp*'
+              )
+            })
+            if ($backendProcesses.Count -ne 0) {
+              $details = $backendProcesses | Select-Object ProcessId,ParentProcessId,CommandLine | Out-String
+              throw "Adaptive backend process remained after disable: $details"
+            }
           }
           finally {
-            ./scripts/stop-chat-profile.ps1
+            try {
+              ./scripts/stop-chat-profile.ps1
+            }
+            finally {
+              Copy-Item -LiteralPath $adaptiveConfigBackup -Destination $adaptiveConfig -Force
+            }
           }

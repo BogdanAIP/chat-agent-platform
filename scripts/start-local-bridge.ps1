@@ -3,6 +3,8 @@ param(
     [string]$ConfigPath = (Join-Path $PSScriptRoot '..\runtime\mcp.json'),
     [string]$HealthServerName = 'sequential-thinking',
     [string]$OneMcpPackage = '@1mcp/agent@0.34.4',
+    [string]$OneMcpLauncherPackage,
+    [string]$OneMcpLauncherExecutable,
     [switch]$RuntimeReadyOnly,
     [switch]$EnableLazyLoading,
     [switch]$DisableAsyncLoading,
@@ -18,6 +20,25 @@ if ($OneMcpPackage -notmatch '^@1mcp/agent@[0-9A-Za-z.+-]+$') {
 }
 
 $pkg = $OneMcpPackage
+$hasLauncherPackage = -not [string]::IsNullOrWhiteSpace($OneMcpLauncherPackage)
+$hasLauncherExecutable = -not [string]::IsNullOrWhiteSpace($OneMcpLauncherExecutable)
+if ($hasLauncherPackage -ne $hasLauncherExecutable) {
+    throw 'OneMcpLauncherPackage and OneMcpLauncherExecutable must be provided together.'
+}
+
+$launcherPackage = ''
+$launcherExecutable = ''
+if ($hasLauncherPackage) {
+    $launcherPackage = (Resolve-Path -LiteralPath $OneMcpLauncherPackage).Path
+    if ([System.IO.Path]::GetExtension($launcherPackage) -ne '.tgz') {
+        throw 'OneMcpLauncherPackage must resolve to a local .tgz package.'
+    }
+    if ($OneMcpLauncherExecutable -notmatch '^[A-Za-z0-9._-]+$') {
+        throw 'OneMcpLauncherExecutable must be a simple executable name.'
+    }
+    $launcherExecutable = $OneMcpLauncherExecutable
+}
+
 $config = (Resolve-Path $ConfigPath).Path
 $runtimeScope = Split-Path -Parent $config
 $logsDir = Join-Path $runtimeScope 'logs'
@@ -62,6 +83,12 @@ function Get-RuntimeFeatureArguments {
 
 function Start-HiddenWindowsWorker {
     $npx = (Get-Command 'npx.cmd' -ErrorAction Stop).Source
+    $npm = if ($hasLauncherPackage) {
+        (Get-Command 'npm.cmd' -ErrorAction Stop).Source
+    }
+    else {
+        ''
+    }
     $cmd = if (-not [string]::IsNullOrWhiteSpace($env:ComSpec)) {
         $env:ComSpec
     }
@@ -83,18 +110,29 @@ function Start-HiddenWindowsWorker {
     }
     $featureText = ($featureParts -join ' ')
 
-    $lines = @(
-        '@echo off',
-        ('call "{0}" -y "{1}" serve --config "{2}" --transport http --host 127.0.0.1 --port {3} --health-info-level minimal {4} --log-file "{5}" >> "{6}" 2>&1' -f `
+    $workerCommand = if ($hasLauncherPackage) {
+        'call "{0}" exec --yes --package="{1}" -- "{2}" serve --config "{3}" --transport http --host 127.0.0.1 --port {4} --health-info-level minimal {5} --log-file "{6}" >> "{7}" 2>&1' -f `
+            $npm,
+            $launcherPackage,
+            $launcherExecutable,
+            $config,
+            $Port,
+            $featureText,
+            $serverLog,
+            $launcherLog
+    }
+    else {
+        'call "{0}" -y "{1}" serve --config "{2}" --transport http --host 127.0.0.1 --port {3} --health-info-level minimal {4} --log-file "{5}" >> "{6}" 2>&1' -f `
             $npx,
             $pkg,
             $config,
             $Port,
             $featureText,
             $serverLog,
-            $launcherLog),
-        'exit /b %ERRORLEVEL%'
-    )
+            $launcherLog
+    }
+
+    $lines = @('@echo off', $workerCommand, 'exit /b %ERRORLEVEL%')
     Set-Content -LiteralPath $windowsLauncher -Value $lines -Encoding ascii
 
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
@@ -128,6 +166,9 @@ Write-Host "MCP    : http://127.0.0.1:$Port/mcp"
 Write-Host "Health : $healthLabel"
 Write-Host "Lazy   : $([bool]$EnableLazyLoading)"
 Write-Host "Async  : $(-not [bool]$DisableAsyncLoading)"
+if ($hasLauncherPackage) {
+    Write-Host "Launcher: $launcherExecutable (local compatibility package)"
+}
 if (-not [string]::IsNullOrWhiteSpace($InternalTools)) {
     Write-Host "Internal: $InternalTools"
 }
@@ -143,8 +184,20 @@ elseif ($statusCode -in @(3,7)) {
     }
     else {
         $serveArgs = [System.Collections.Generic.List[string]]::new()
+        if ($hasLauncherPackage) {
+            foreach ($argument in @(
+                'exec', '--yes', "--package=$launcherPackage", '--', $launcherExecutable
+            )) {
+                $serveArgs.Add([string]$argument)
+            }
+        }
+        else {
+            foreach ($argument in @('-y', $pkg)) {
+                $serveArgs.Add([string]$argument)
+            }
+        }
         foreach ($argument in @(
-            '-y', $pkg, 'serve',
+            'serve',
             '--config', $config,
             '--host', '127.0.0.1',
             '--port', [string]$Port,
@@ -157,7 +210,12 @@ elseif ($statusCode -in @(3,7)) {
         }
         $serveArgs.Add('--background')
 
-        & npx.cmd @serveArgs
+        if ($hasLauncherPackage) {
+            & npm @serveArgs
+        }
+        else {
+            & npx @serveArgs
+        }
         if ($LASTEXITCODE -ne 0) { throw '1MCP failed to start.' }
     }
 }
