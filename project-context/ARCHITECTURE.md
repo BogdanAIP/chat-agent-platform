@@ -34,7 +34,7 @@ ChatGPT
 
 The adaptive design uses 1MCP's own aggregation/lazy/lifecycle facilities. It does not justify a project-owned gateway/broker unless an upstream gap is measured and cannot be resolved otherwise.
 
-**Status:** the runtime contract passes local and remote Stage 24 acceptance with Filesystem and Playwright through the exact beta.3 compatibility package. Standalone manager/bootstrap/tunnel/no-console integration passes locally. Remote CI on the integrated head and ordinary-Chat E2E remain before architectural acceptance. Direct profiles remain the accepted fallback/reference.
+**Status:** the runtime contract passes local and remote Stage 24 acceptance with Filesystem and Playwright through the exact beta.3 compatibility package. Standalone manager/bootstrap/tunnel/no-console integration passes locally, and integrated head `19ba303...` passes the full remote CI/security suite. Only the real ordinary-Chat E2E remains before architectural acceptance. Direct profiles remain the accepted fallback/reference.
 
 ## Capability lifecycle model
 

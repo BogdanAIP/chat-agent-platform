@@ -36,7 +36,9 @@ Ready-made-first candidates were recorded for REAPER, Origin, FFmpeg, Blender an
 - local `browser-isolated` readiness;
 - real discovery that Chat action snapshots do not silently change after local profile switching.
 - local adaptive same-session Filesystem + Playwright enable/invoke/disable acceptance with exact surface and process-cleanup checks;
-- accepted direct files/browser regression after adding the adaptive compatibility launcher.
+- accepted direct files/browser regression after adding the adaptive compatibility launcher;
+- adaptive Windows manager/bootstrap/status/start/stop/toggle/tray integration and interrupted-session recovery;
+- exact integrated head `19ba303...` passed Chat Profile Acceptance, CI, module candidates, CodeQL and Secret History Scan.
 
 ### Adaptive convergence
 
@@ -54,7 +56,7 @@ Current experimental catalog: Filesystem + Playwright. Adaptive currently tests 
 
 ### Current gate
 
-The beta.3 lifecycle/lazy-refresh blocker passes locally and in remote CI through a narrow hash-guarded compatibility package. Standalone manager/bootstrap/tunnel/no-console integration now passes locally; remote CI on the integrated head is the active gate. Do not promote this to accepted ordinary-Chat behavior before the final real-user gate.
+The beta.3 lifecycle/lazy-refresh blocker passes locally and in remote CI through a narrow hash-guarded compatibility package. Standalone manager/bootstrap/tunnel/no-console integration passes locally, and integrated-head CI is green. The active gate is now the final real ordinary-Chat one-snapshot E2E; do not promote the adaptive profile to accepted product behavior before it passes.
 
 ### Stage 24 Definition of Done
 

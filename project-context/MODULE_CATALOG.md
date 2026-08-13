@@ -17,7 +17,7 @@ Research baseline: 2026-08-10. Runtime status synchronized 2026-08-13.
 | Capability | Candidate | Status | Current decision |
 |---|---|---|---|
 | Direct local MCP runtime | `@1mcp/agent@0.34.4` | ACCEPTED-INFRASTRUCTURE | Keep for accepted direct/reference profiles while adaptive is evaluated. |
-| Adaptive local MCP runtime | `@1mcp/agent@0.35.0-beta.3` + hash-guarded compatibility package | CI-ACCEPTED (runtime) / EXPERIMENTAL (product) | Full lifecycle passes locally/remotely and standalone manager/bootstrap integration passes locally. Integrated-head CI and ordinary-Chat E2E remain. |
+| Adaptive local MCP runtime | `@1mcp/agent@0.35.0-beta.3` + hash-guarded compatibility package | CI-ACCEPTED (runtime) / EXPERIMENTAL (product) | Full lifecycle and standalone manager/bootstrap integration pass locally; integrated head `19ba303...` passes remote CI/security. Ordinary-Chat E2E remains. |
 | Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | CHAT-E2E-ACCEPTED (direct) | Scoped read-only direct profile passed real ordinary-Chat marker read. Adaptive local read/lifecycle acceptance now passes. |
 | Browser | `@playwright/mcp@0.0.78` | CI-ACCEPTED (direct) | Isolated/headless direct profile passed Windows navigation/close. Local browser profile readiness passed; ordinary-Chat browser call was blocked by stale Chat action snapshot, not local Playwright readiness. |
 | Windows desktop fallback | `sbroenne/mcp-windows` | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED | Semantic Windows UI Automation fallback; broad screenshot/mouse/keyboard/app-launch surface must not be baseline. |
@@ -52,7 +52,7 @@ Previous adaptive functional CI evidence (`c7af0b0...`, same runtime as `9799bec
 
 Diagnosis found two exact beta.3 gaps: the synchronous load/unload path does not refresh the lazy registry, and disabled entries are filtered before disable reconciliation. Beta.4 does not change the relevant files. `runtime/1mcp-adaptive-shim` hash-checks those pristine built files, restores disabled-entry reconciliation and performs refresh-only lazy registry updates.
 
-Local 2026-08-13 evidence passes both backend lifecycles, real invocations, exact frozen Chat surface, runtime disabled-tool enforcement, disabled catalog state and process cleanup. Commit `3b12fc9...` passed the same adaptive acceptance plus all profile/CI/security checks remotely.
+Local 2026-08-13 evidence passes both backend lifecycles, real invocations, exact frozen Chat surface, runtime disabled-tool enforcement, disabled catalog state and process cleanup. Commit `3b12fc9...` passed the initial adaptive acceptance remotely; integrated manager/bootstrap head `19ba303...` then passed the same adaptive acceptance plus all profile/CI/security checks.
 
 ## Filesystem MCP evidence
 
@@ -95,8 +95,7 @@ Use `sbroenne/mcp-windows` only as fallback where specialized APIs/MCPs do not e
 
 ## Promotion order
 
-1. Finish Stage 24 adaptive lifecycle/discovery acceptance with Filesystem + Playwright.
-2. Integrate accepted adaptive behavior into the standalone manager and prove the one-snapshot ordinary-Chat workflow.
-3. Benchmark REAPER, Origin, FFmpeg, Blender and Windows UI candidates on real tasks.
-4. Promote successful candidates into the pre-approved local backend catalog with scoped tools/lifecycle evidence.
-5. Adding a promoted backend should normally **not** require a new ChatGPT plugin/app or permanent process.
+1. Complete the Stage 24 one-snapshot ordinary-Chat workflow on the already accepted adaptive lifecycle/manager foundation.
+2. Benchmark REAPER, Origin, FFmpeg, Blender and Windows UI candidates on real tasks.
+3. Promote successful candidates into the pre-approved local backend catalog with scoped tools/lifecycle evidence.
+4. Adding a promoted backend should normally **not** require a new ChatGPT plugin/app or permanent process.

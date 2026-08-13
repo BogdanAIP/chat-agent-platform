@@ -118,7 +118,7 @@ The current hash-guarded compatibility package fixes only those two upstream gap
 - backend processes are gone after disable;
 - direct fallback profiles still switch and start successfully.
 
-Commit `3b12fc9...` passed the adaptive runtime, direct profiles, CI and security remotely. The installed manager/bootstrap/tunnel/no-console path then passed locally. Integrated-head CI and the ordinary-Chat one-snapshot E2E remain. The compatibility package is not a new broker and must fail closed if the pinned upstream files drift.
+Commit `3b12fc9...` passed the initial adaptive runtime, direct profiles, CI and security remotely. The installed manager/bootstrap/tunnel/no-console path then passed locally. Integrated head `19ba303...` passed Chat Profile Acceptance, CI, module candidates, CodeQL and Secret History Scan. Only the ordinary-Chat one-snapshot E2E remains. The compatibility package is not a new broker and must fail closed if the pinned upstream files drift.
 
 ## Stage 24 acceptance criteria
 

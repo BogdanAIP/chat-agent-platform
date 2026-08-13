@@ -23,8 +23,8 @@ ordinary ChatGPT Chat
 - active stage: **Stage 24**;
 - active PR: **#66 — Stage 24: standalone Windows bootstrap and lifecycle manager**;
 - active development branch: `chat/stage24-local-controller`;
-- functional code baseline before this documentation sync: `9799bec20ffeb92eebbba5061f32dff403bbe6f4`;
-- documentation-only commits after that baseline do not by themselves prove new runtime behavior.
+- accepted integrated functional head before this documentation sync: `19ba303f72c82f02c9bdffff79f5a644a3a49844`;
+- Chat Profile Acceptance run `31681061290` and the corresponding CI/security runs passed on that exact head.
 
 Always re-check the current PR HEAD and CI before editing or reporting status.
 
@@ -88,7 +88,7 @@ That remote failure established the original technical blocker:
 
 Upstream diagnosis then found two exact beta.3 lifecycle gaps: synchronous backend load/unload does not refresh the lazy registry, and a disabled entry disappears from the filtered transport config before the disable handler can unload it. Beta.4 has the same relevant built files.
 
-Commit `3b12fc98e65017d3cd931369813e130119d8d614` carries a narrow hash-guarded patch for only those gaps. On 2026-08-13 the full same-session local acceptance passed for Filesystem and Playwright, including real invocation, forbidden-tool absence, exact frozen Chat surface, disabled catalog state and backend-process cleanup. Direct files/browser regressions also passed. The exact commit then passed `adaptive-runtime`, `windows-profiles`, `ci`, module candidates, CodeQL and Secret History Scan remotely.
+Commit `3b12fc98e65017d3cd931369813e130119d8d614` carries a narrow hash-guarded patch for only those gaps. On 2026-08-13 the full same-session local acceptance passed for Filesystem and Playwright, including real invocation, forbidden-tool absence, exact frozen Chat surface, disabled catalog state and backend-process cleanup. Direct files/browser regressions also passed. Commit `65fcb05...` then integrated adaptive into the Windows manager/bootstrap lifecycle, and integrated head `19ba303...` passed `adaptive-runtime`, `windows-profiles`, `ci`, module candidates, CodeQL and Secret History Scan remotely. The only remaining Stage 24 product gate is the real ordinary-Chat one-snapshot E2E.
 
 ## Acceptance ownership
 
@@ -100,10 +100,10 @@ A local MCP client, mock, Codex-only browser test or narrower integration test m
 
 ## Stage 24 completion order
 
-1. obtain green remote CI/security checks for the locally accepted standalone adaptive manager/bootstrap integration;
-2. preserve the exact frozen Chat-facing allowlist and runtime least-privilege checks;
-3. keep direct profile regressions green;
-4. keep the safe installed default `reference` until ordinary-Chat acceptance;
+1. Green remote CI/security checks for the standalone adaptive manager/bootstrap integration — **passed on `19ba303...`**;
+2. exact frozen Chat-facing allowlist and runtime least-privilege checks — **passed locally and remotely**;
+3. direct profile regressions — **passed**;
+4. safe installed default remains `reference` — **preserved**;
 5. perform the real ordinary-Chat acceptance that proves backend switching/selection works without creating a new plugin or refreshing the action contract for every backend;
 6. only then mark Stage 24 complete and merge/integrate into `main`.
 

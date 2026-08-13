@@ -1,6 +1,6 @@
 # Current State
 
-Last synchronized with functional baseline `9799bec20ffeb92eebbba5061f32dff403bbe6f4` on 2026-08-13. Later documentation-only commits do not imply additional runtime acceptance. Always check the current PR HEAD and workflows.
+Last synchronized with integrated functional head `19ba303f72c82f02c9bdffff79f5a644a3a49844` on 2026-08-13. Chat Profile Acceptance run `31681061290` and the corresponding CI/security runs passed on that exact head. Later documentation-only commits do not imply additional runtime acceptance. Always check the current PR HEAD and workflows.
 
 ## Accepted bridge
 
@@ -123,7 +123,7 @@ The following manager integration then passed locally on the target Windows mach
 - installed adaptive MCP + Secure MCP Tunnel reach readiness, and installed tray/runtime remain resident without a visible Terminal/pwsh/cmd/npm/npx window;
 - settings and runtime return to stopped state after acceptance.
 
-Remote CI on the integrated manager head is now required. Adaptive remains opt-in until the final ordinary-Chat gate.
+Integrated head `19ba303...` passed `adaptive-runtime` (job `94386367893`), `windows-profiles` (job `94386368152`), `ci`, module candidates, CodeQL and Secret History Scan. Adaptive remains opt-in until the final ordinary-Chat gate.
 
 ## Safety model
 
@@ -141,9 +141,8 @@ The old direct `files-readonly` and `browser-isolated` separation remains valuab
 
 ## Remaining Stage 24 gates
 
-1. keep all final CI/security checks green on the exact integrated manager/bootstrap functional HEAD;
-2. real ordinary-Chat acceptance demonstrates that a single Chat-facing contract can use task-selected backends without creating a new plugin or requiring Refresh for every backend;
-3. only then accept Stage 24 and integrate/merge to `main`.
+1. real ordinary-Chat acceptance demonstrates that a single Chat-facing contract can use task-selected backends without creating a new plugin or requiring Refresh for every backend;
+2. only then accept Stage 24 and integrate/merge to `main`.
 
 ## Work after Stage 24
 
