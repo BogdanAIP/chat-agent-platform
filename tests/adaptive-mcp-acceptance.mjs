@@ -15,6 +15,10 @@ function nextId() {
   return requestId;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function parseJsonRpcBody(text, contentType) {
   const trimmed = text.trim();
   if (!trimmed) return null;
@@ -36,6 +40,19 @@ function parseJsonRpcBody(text, contentType) {
   return JSON.parse(trimmed);
 }
 
+function createHttpError(status, body) {
+  const error = new Error(`MCP HTTP ${status}: ${body}`);
+  error.status = status;
+  error.body = body;
+  return error;
+}
+
+function isTransientBackendLoading(error) {
+  if (error?.status !== 503) return false;
+  const body = String(error?.body || error?.message || '').toLowerCase();
+  return body.includes('service_unavailable') && body.includes('loading');
+}
+
 async function postRpc(payload, { expectResponse = true } = {}) {
   const headers = {
     accept: 'application/json, text/event-stream',
@@ -51,7 +68,7 @@ async function postRpc(payload, { expectResponse = true } = {}) {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`MCP HTTP ${response.status}: ${body}`);
+    throw createHttpError(response.status, body);
   }
 
   const newSessionId = response.headers.get('mcp-session-id');
@@ -147,24 +164,37 @@ function assertManagementSuccess(result, operation) {
 
 async function waitForLazyTool(server, toolName) {
   let observed;
-  for (let attempt = 0; attempt < 90; attempt += 1) {
-    observed = structured(await callTool('tool_list', { server }));
-    const tools = Array.isArray(observed?.tools) ? observed.tools : [];
-    if (tools.some((tool) => tool?.name === toolName)) return observed;
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+  let loadingResponses = 0;
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    try {
+      observed = structured(await callTool('tool_list', { server }));
+      const tools = Array.isArray(observed?.tools) ? observed.tools : [];
+      if (tools.some((tool) => tool?.name === toolName)) {
+        console.log(`ADAPTIVE_BACKEND_READY=${server};loading_retries=${loadingResponses}`);
+        return observed;
+      }
+    } catch (error) {
+      if (!isTransientBackendLoading(error)) throw error;
+      loadingResponses += 1;
+    }
+    await sleep(1000);
   }
   throw new Error(
-    `Adaptive backend ${server} did not publish ${toolName}. Observed: ${JSON.stringify(observed)}`,
+    `Adaptive backend ${server} did not publish ${toolName}. Observed: ${JSON.stringify(observed)}; loading retries=${loadingResponses}`,
   );
 }
 
 async function waitForLazyToolRemoval(server, toolName) {
   let observed;
   for (let attempt = 0; attempt < 60; attempt += 1) {
-    observed = structured(await callTool('tool_list', { server }));
-    const tools = Array.isArray(observed?.tools) ? observed.tools : [];
-    if (!tools.some((tool) => tool?.name === toolName)) return;
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      observed = structured(await callTool('tool_list', { server }));
+      const tools = Array.isArray(observed?.tools) ? observed.tools : [];
+      if (!tools.some((tool) => tool?.name === toolName)) return;
+    } catch (error) {
+      if (!isTransientBackendLoading(error)) throw error;
+    }
+    await sleep(1000);
   }
   throw new Error(
     `Adaptive backend ${server} still publishes ${toolName} after disable. Observed: ${JSON.stringify(observed)}`,
@@ -204,13 +234,10 @@ async function main() {
     }
   }
 
-  // Keep mcp_list as a diagnostic only. 1MCP 0.35.0-beta.3 currently returns
-  // an empty inventory here even though serve --config loaded the adaptive
-  // runtime config. The important compatibility gate is whether the same MCP
-  // session can enable a configured backend and immediately discover/invoke it
-  // through the stable lazy-loading surface.
   const inventory = structured(await callTool('1mcp_1mcp_mcp_list', { format: 'json', detailed: true }));
-  console.log(`ADAPTIVE_MCP_LIST_DIAGNOSTIC=${JSON.stringify(inventory)}`);
+  assertIncludes(inventory, 'filesystem', 'Adaptive inventory');
+  assertIncludes(inventory, 'playwright', 'Adaptive inventory');
+  console.log(`ADAPTIVE_MCP_LIST=${JSON.stringify(inventory)}`);
 
   try {
     const enableFilesystem = structured(await callTool('1mcp_1mcp_mcp_enable', { name: 'filesystem' }));
@@ -225,12 +252,14 @@ async function main() {
       }),
     );
     assertIncludes(read, 'CHAT_ADAPTIVE_FILES_OK', 'Adaptive filesystem invocation');
+    console.log('ADAPTIVE_FILESYSTEM_INVOKE=passed');
 
     const disableFilesystem = structured(
       await callTool('1mcp_1mcp_mcp_disable', { name: 'filesystem', graceful: true }),
     );
     assertManagementSuccess(disableFilesystem, 'Disable filesystem');
     await waitForLazyToolRemoval('filesystem', 'read_text_file');
+    console.log('ADAPTIVE_FILESYSTEM_DISABLE=passed');
 
     const enablePlaywright = structured(await callTool('1mcp_1mcp_mcp_enable', { name: 'playwright' }));
     assertManagementSuccess(enablePlaywright, 'Enable playwright');
@@ -244,6 +273,7 @@ async function main() {
       }),
     );
     assertIncludes(page, 'Example Domain', 'Adaptive browser invocation');
+    console.log('ADAPTIVE_PLAYWRIGHT_INVOKE=passed');
 
     await callTool('tool_invoke', {
       server: 'playwright',
@@ -255,6 +285,7 @@ async function main() {
     );
     assertManagementSuccess(disablePlaywright, 'Disable playwright');
     await waitForLazyToolRemoval('playwright', 'browser_navigate');
+    console.log('ADAPTIVE_PLAYWRIGHT_DISABLE=passed');
   } finally {
     for (const name of ['filesystem', 'playwright']) {
       try {
