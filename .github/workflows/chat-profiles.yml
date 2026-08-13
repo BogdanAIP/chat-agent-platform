@@ -150,28 +150,6 @@ jobs:
             ./scripts/stop-chat-profile.ps1
           }
 
-      - name: Prove adaptive lazy runtime can activate backends on demand
-        shell: pwsh
-        run: |
-          $port = 3068
-          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-adaptive-files'
-          $marker = Join-Path $filesRoot 'marker.txt'
-          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
-          Set-Content -LiteralPath $marker -Value 'CHAT_ADAPTIVE_FILES_OK' -Encoding utf8
-
-          try {
-            ./scripts/start-chat-profile.ps1 -Profile adaptive -FilesRoot $filesRoot -Port $port -ReadyTimeoutSeconds 240
-            $adaptiveStatus = ./scripts/status-chat-profile.ps1 -Port $port | Out-String | ConvertFrom-Json
-            if ($adaptiveStatus.active_count -ne 1 -or $adaptiveStatus.active_profile -ne 'adaptive' -or $adaptiveStatus.conflict) { throw 'adaptive was not the only active profile.' }
-
-            $acceptance = node tests/adaptive-mcp-acceptance.mjs "http://127.0.0.1:$port/mcp" $marker 2>&1 | Out-String
-            if ($LASTEXITCODE -ne 0) { throw "Adaptive MCP session acceptance failed: $acceptance" }
-            if ($acceptance -notmatch 'ADAPTIVE_MCP_ACCEPTANCE=passed') { throw "Adaptive MCP session acceptance did not report success: $acceptance" }
-          }
-          finally {
-            ./scripts/stop-chat-profile.ps1
-          }
-
       - name: Prove public manager can observe and clean conflicting runtime scopes
         shell: pwsh
         run: |
@@ -190,5 +168,45 @@ jobs:
           }
           finally {
             Remove-Item Env:CHAT_LOCAL_FILES_ROOT -ErrorAction SilentlyContinue
+            ./scripts/stop-chat-profile.ps1
+          }
+
+  adaptive-runtime:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Adaptive environment
+        shell: pwsh
+        run: |
+          node --version
+          npx --version
+          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+          if (-not (Test-Path $chrome)) { throw 'Google Chrome is required for adaptive browser acceptance.' }
+          $env:PATH = "$(Split-Path $chrome -Parent);$env:PATH"
+
+      - name: Prove adaptive lazy runtime can activate backends on demand
+        shell: pwsh
+        run: |
+          $port = 3068
+          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-adaptive-files'
+          $marker = Join-Path $filesRoot 'marker.txt'
+          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+          Set-Content -LiteralPath $marker -Value 'CHAT_ADAPTIVE_FILES_OK' -Encoding utf8
+
+          try {
+            ./scripts/start-chat-profile.ps1 -Profile adaptive -FilesRoot $filesRoot -Port $port -ReadyTimeoutSeconds 240
+            $adaptiveStatus = ./scripts/status-chat-profile.ps1 -Port $port | Out-String | ConvertFrom-Json
+            if ($adaptiveStatus.active_count -ne 1 -or $adaptiveStatus.active_profile -ne 'adaptive' -or $adaptiveStatus.conflict) { throw 'adaptive was not the only active profile.' }
+
+            $acceptance = node tests/adaptive-mcp-acceptance.mjs "http://127.0.0.1:$port/mcp" $marker 2>&1 | Out-String
+            Write-Host $acceptance
+            if ($LASTEXITCODE -ne 0) { throw "Adaptive MCP session acceptance failed: $acceptance" }
+            if ($acceptance -notmatch 'ADAPTIVE_MCP_ACCEPTANCE=passed') { throw "Adaptive MCP session acceptance did not report success: $acceptance" }
+          }
+          finally {
             ./scripts/stop-chat-profile.ps1
           }
