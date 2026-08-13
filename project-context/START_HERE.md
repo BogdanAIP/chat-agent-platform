@@ -104,8 +104,8 @@ A local MCP client, mock, Codex-only browser test or narrower integration test m
 2. preserve the exact frozen Chat-facing allowlist and runtime least-privilege checks;
 3. keep direct profile regressions green;
 4. keep the safe installed default `reference` until ordinary-Chat acceptance;
-6. perform the real ordinary-Chat acceptance that proves backend switching/selection works without creating a new plugin or refreshing the action contract for every backend;
-7. only then mark Stage 24 complete and merge/integrate into `main`.
+5. perform the real ordinary-Chat acceptance that proves backend switching/selection works without creating a new plugin or refreshing the action contract for every backend;
+6. only then mark Stage 24 complete and merge/integrate into `main`.
 
 ## How to continue safely
 
