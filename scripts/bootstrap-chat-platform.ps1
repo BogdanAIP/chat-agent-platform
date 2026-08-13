@@ -66,9 +66,17 @@ function Assert-WindowsEnvironment {
     }
 
     $null = Require-Command "pwsh.exe"
-    $null = Require-Command "node.exe"
+    $node = Require-Command "node.exe"
     $null = Require-Command "npm.cmd"
     $null = Require-Command "npx.cmd"
+
+    $nodeVersion = (& $node --version 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v(?<major>[0-9]+)\.') {
+        throw "Could not determine the installed Node.js version: $nodeVersion"
+    }
+    if ([int]$Matches.major -lt 20) {
+        throw "Node.js 20 or newer is required; found $nodeVersion."
+    }
 
     Write-Host "POWERSHELL=$($PSVersionTable.PSVersion)"
     Write-Host "NODE=$(& node.exe --version)"
@@ -420,7 +428,74 @@ function Copy-VerifiedManagerFile {
     Move-Item -LiteralPath $temporary -Destination $Destination -Force
 }
 
+function Stop-InstalledManagerForBundleUpdate {
+    if (-not (Test-Path -LiteralPath $CommandPath -PathType Leaf)) {
+        return
+    }
+
+    $pwsh = Require-Command "pwsh.exe"
+    & $pwsh `
+        -NoLogo `
+        -NoProfile `
+        -ExecutionPolicy Bypass `
+        -File $CommandPath `
+        -Action Stop `
+        -NoNotify
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not stop the installed manager before updating its runtime bundle."
+    }
+}
+
+function Assert-InstalledAdaptiveRuntime {
+    $manifestPath = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\package.json"
+    $adaptiveConfigPath = Join-Path $AppRuntimeDir "chat-profiles\adaptive\mcp.json"
+
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    if (
+        [string]$manifest.name -ne "@chat-agent-platform/1mcp-adaptive-shim" -or
+        [string]$manifest.version -ne "0.1.0" -or
+        [string]$manifest.bin.'1mcp-adaptive' -ne "bin/1mcp-adaptive.mjs" -or
+        [string]$manifest.scripts.postinstall -ne "node scripts/apply-compatibility-patch.mjs" -or
+        [string]$manifest.dependencies.'@1mcp/agent' -ne "0.35.0-beta.3" -or
+        [string]$manifest.engines.node -ne ">=20"
+    ) {
+        throw "Installed adaptive compatibility manifest failed its pinned contract."
+    }
+
+    $expectedPackageFiles = @(
+        "bin/1mcp-adaptive.mjs",
+        "scripts/apply-compatibility-patch.mjs"
+    )
+    if (
+        (@($manifest.files) -join "`n") -ne
+        ($expectedPackageFiles -join "`n")
+    ) {
+        throw "Installed adaptive package file allowlist drifted."
+    }
+
+    $adaptive = Get-Content -LiteralPath $adaptiveConfigPath -Raw | ConvertFrom-Json
+    foreach ($name in @("filesystem", "playwright")) {
+        if ($null -eq $adaptive.mcpServers.$name -or -not [bool]$adaptive.mcpServers.$name.disabled) {
+            throw "Installed adaptive backend '$name' must exist and start disabled."
+        }
+    }
+    $adaptiveRaw = Get-Content -LiteralPath $adaptiveConfigPath -Raw
+    foreach ($pin in @(
+        "@modelcontextprotocol/server-filesystem@2026.7.10",
+        "@playwright/mcp@0.0.78"
+    )) {
+        if ($adaptiveRaw -notmatch [regex]::Escape($pin)) {
+            throw "Installed adaptive runtime is missing pin '$pin'."
+        }
+    }
+}
+
 function Install-ManagerBundle {
+    # The adaptive catalog is mutable while running. Stop the installed
+    # manager before replacing the reviewed all-disabled catalog baseline.
+    Stop-InstalledManagerForBundleUpdate
+
     $scriptNames = @(
         "start-local-bridge.ps1",
         "status-local-bridge.ps1",
@@ -451,6 +526,22 @@ function Install-ManagerBundle {
         @{
             Source = Join-Path $RepoRoot "runtime\chat-profiles\browser-isolated\mcp.json"
             Destination = Join-Path $AppRuntimeDir "chat-profiles\browser-isolated\mcp.json"
+        },
+        @{
+            Source = Join-Path $RepoRoot "runtime\chat-profiles\adaptive\mcp.json"
+            Destination = Join-Path $AppRuntimeDir "chat-profiles\adaptive\mcp.json"
+        },
+        @{
+            Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\package.json"
+            Destination = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\package.json"
+        },
+        @{
+            Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\bin\1mcp-adaptive.mjs"
+            Destination = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\bin\1mcp-adaptive.mjs"
+        },
+        @{
+            Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\scripts\apply-compatibility-patch.mjs"
+            Destination = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\scripts\apply-compatibility-patch.mjs"
         }
     )
 
@@ -460,6 +551,8 @@ function Install-ManagerBundle {
             -Destination ([string]$entry.Destination)
     }
 
+    Assert-InstalledAdaptiveRuntime
+
     foreach ($installed in @($CommandPath, $ControllerPath, $TrayPath)) {
         if (-not (Test-Path -LiteralPath $installed)) {
             throw "Installed manager script is missing after bundle copy: $installed"
@@ -467,7 +560,7 @@ function Install-ManagerBundle {
     }
 
     [ordered]@{
-        schema_version = 1
+        schema_version = 2
         app_root = $AppRoot
         source_root = $RepoRoot
         installed_at = (Get-Date).ToUniversalTime().ToString("o")
@@ -475,7 +568,13 @@ function Install-ManagerBundle {
         runtime_configs = @(
             "runtime/mcp.json",
             "runtime/chat-profiles/files-readonly/mcp.json",
-            "runtime/chat-profiles/browser-isolated/mcp.json"
+            "runtime/chat-profiles/browser-isolated/mcp.json",
+            "runtime/chat-profiles/adaptive/mcp.json"
+        )
+        runtime_assets = @(
+            "runtime/1mcp-adaptive-shim/package.json",
+            "runtime/1mcp-adaptive-shim/bin/1mcp-adaptive.mjs",
+            "runtime/1mcp-adaptive-shim/scripts/apply-compatibility-patch.mjs"
         )
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $AppInstallMetadata -Encoding utf8
 
@@ -508,7 +607,7 @@ function Invoke-ManagerAction {
         [ValidateSet("Start", "Stop")]
         [string]$Action,
 
-        [ValidateSet("reference", "files-readonly", "browser-isolated")]
+        [ValidateSet("reference", "files-readonly", "browser-isolated", "adaptive")]
         [string]$Profile
     )
 

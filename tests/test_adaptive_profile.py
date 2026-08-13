@@ -121,6 +121,14 @@ class AdaptiveProfileTests(unittest.TestCase):
         self.assertIn("/health/ready", self.status_profile)
         self.assertIn("chat-profiles\\adaptive\\mcp.json", self.stop_profile)
 
+    def test_adaptive_start_recovers_persisted_enable_state(self):
+        self.assertIn("Reset-AdaptiveCatalogToDisabled", self.start_profile)
+        self.assertIn("ADAPTIVE_CATALOG_RESET=all-disabled", self.start_profile)
+        self.assertRegex(
+            self.start_profile,
+            r"Reset-AdaptiveCatalogToDisabled -ConfigPath \$selectedConfig",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

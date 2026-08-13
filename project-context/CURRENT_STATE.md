@@ -80,7 +80,7 @@ Do not publish arbitrary catalog-management tools such as install/uninstall/upda
 Direct profiles remain on accepted `@1mcp/agent@0.34.4`.
 Adaptive pins `@1mcp/agent@0.35.0-beta.3`, with Lazy Loading ON and Async Loading OFF, through `runtime/1mcp-adaptive-shim`. The local package verifies the pristine upstream built-file hashes before applying two narrow lifecycle fixes; it is not a project-owned gateway or fork.
 
-Adaptive is **not** the installed-manager default and is **not accepted**.
+Adaptive is supported by the locally installed manager but remains **not the default** and is **not ordinary-Chat accepted**.
 
 ## Adaptive blocker diagnosis and local resolution
 
@@ -111,7 +111,19 @@ Upstream/source and local runtime evidence resolved the failure boundary:
 
 The current local compatibility package restores declared disabled entries for lifecycle reconciliation and refreshes only the lazy backend registry after every load attempt/unload. It deliberately does not mutate or notify the frozen top-level Chat tool list.
 
-Local acceptance on 2026-08-13 passed Filesystem and Playwright sequentially in one MCP session: enable, lazy discovery, real read/navigation, disable, catalog retained as disabled, tool removal and process cleanup. The exact eight-tool Chat-facing allowlist remained unchanged across all four transitions, forbidden backend tools were absent, and accepted direct profiles still passed. The patched PR commit and remote CI are the next gate; adaptive is still not the installed-manager default.
+Local acceptance on 2026-08-13 passed Filesystem and Playwright sequentially in one MCP session: enable, lazy discovery, real read/navigation, disable, catalog retained as disabled, tool removal and process cleanup. The exact eight-tool Chat-facing allowlist remained unchanged across all four transitions, forbidden backend tools were absent, and accepted direct profiles still passed. Commit `3b12fc98e65017d3cd931369813e130119d8d614` then passed all remote runtime/profile/CI/security checks.
+
+The following manager integration then passed locally on the target Windows machine:
+
+- public `SetProfile adaptive` persists one scoped FilesRoot while the safe default remains `reference`;
+- interrupted persisted `disabled:false` state resets to the reviewed all-disabled catalog on the next start;
+- public status reports adaptive readiness/conflict correctly and Toggle performs cleanup;
+- bootstrap installs and verifies adaptive config plus the three-file compatibility package under `%LOCALAPPDATA%`;
+- the installed bundle works from outside the source checkout and completes the full same-session acceptance;
+- installed adaptive MCP + Secure MCP Tunnel reach readiness, and installed tray/runtime remain resident without a visible Terminal/pwsh/cmd/npm/npx window;
+- settings and runtime return to stopped state after acceptance.
+
+Remote CI on the integrated manager head is now required. Adaptive remains opt-in until the final ordinary-Chat gate.
 
 ## Safety model
 
@@ -129,10 +141,9 @@ The old direct `files-readonly` and `browser-isolated` separation remains valuab
 
 ## Remaining Stage 24 gates
 
-1. remote CI/security checks green on the exact compatibility-patched functional HEAD;
-2. integrate accepted adaptive behavior into standalone manager/bootstrap/status/start/stop/toggle/tray without breaking direct profiles/no-console behavior;
-3. real ordinary-Chat acceptance demonstrates that a single Chat-facing contract can use task-selected backends without creating a new plugin or requiring Refresh for every backend;
-4. only then accept Stage 24 and integrate/merge to `main`.
+1. keep all final CI/security checks green on the exact integrated manager/bootstrap functional HEAD;
+2. real ordinary-Chat acceptance demonstrates that a single Chat-facing contract can use task-selected backends without creating a new plugin or requiring Refresh for every backend;
+3. only then accept Stage 24 and integrate/merge to `main`.
 
 ## Work after Stage 24
 

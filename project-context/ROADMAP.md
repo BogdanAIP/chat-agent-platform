@@ -54,7 +54,7 @@ Current experimental catalog: Filesystem + Playwright. Adaptive currently tests 
 
 ### Current gate
 
-The beta.3 lifecycle/lazy-refresh blocker is diagnosed and passes locally through a narrow hash-guarded compatibility package. The next gate is green remote CI on the patched PR head, followed by manager/bootstrap integration. Do not promote the local pass to accepted ordinary-Chat behavior before those gates.
+The beta.3 lifecycle/lazy-refresh blocker passes locally and in remote CI through a narrow hash-guarded compatibility package. Standalone manager/bootstrap/tunnel/no-console integration now passes locally; remote CI on the integrated head is the active gate. Do not promote this to accepted ordinary-Chat behavior before the final real-user gate.
 
 ### Stage 24 Definition of Done
 

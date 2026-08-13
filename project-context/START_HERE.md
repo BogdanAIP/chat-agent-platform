@@ -71,7 +71,7 @@ Backends start disabled and are activated according to the task. More than one b
 
 Direct profiles remain pinned to accepted `@1mcp/agent@0.34.4`. Adaptive tests exact `@1mcp/agent@0.35.0-beta.3` with Lazy Loading enabled and Async Loading disabled through a hash-guarded local compatibility package.
 
-Latest remote CI on PR HEAD `c7af0b0...` still reflects the unpatched baseline behavior:
+The previous remote CI on PR HEAD `c7af0b0...` established the unpatched baseline behavior:
 
 - `ci`: PASS;
 - `CodeQL Security`: PASS;
@@ -88,7 +88,7 @@ That remote failure established the original technical blocker:
 
 Upstream diagnosis then found two exact beta.3 lifecycle gaps: synchronous backend load/unload does not refresh the lazy registry, and a disabled entry disappears from the filtered transport config before the disable handler can unload it. Beta.4 has the same relevant built files.
 
-The current local working tree carries a narrow hash-guarded patch for only those gaps. On 2026-08-13 the full same-session local acceptance passed for Filesystem and Playwright, including real invocation, forbidden-tool absence, exact frozen Chat surface, disabled catalog state and backend-process cleanup. Direct files/browser regressions also passed. Remote CI on the patched commit is still required before this runtime gate is accepted.
+Commit `3b12fc98e65017d3cd931369813e130119d8d614` carries a narrow hash-guarded patch for only those gaps. On 2026-08-13 the full same-session local acceptance passed for Filesystem and Playwright, including real invocation, forbidden-tool absence, exact frozen Chat surface, disabled catalog state and backend-process cleanup. Direct files/browser regressions also passed. The exact commit then passed `adaptive-runtime`, `windows-profiles`, `ci`, module candidates, CodeQL and Secret History Scan remotely.
 
 ## Acceptance ownership
 
@@ -100,11 +100,10 @@ A local MCP client, mock, Codex-only browser test or narrower integration test m
 
 ## Stage 24 completion order
 
-1. obtain green remote adaptive acceptance for the locally passing Filesystem and Playwright lifecycle contract;
+1. obtain green remote CI/security checks for the locally accepted standalone adaptive manager/bootstrap integration;
 2. preserve the exact frozen Chat-facing allowlist and runtime least-privilege checks;
 3. keep direct profile regressions green;
-4. integrate accepted adaptive behavior into the standalone Windows manager/bootstrap/status/start/stop/toggle/tray without breaking direct profiles or no-console behavior;
-5. run all CI/security checks;
+4. keep the safe installed default `reference` until ordinary-Chat acceptance;
 6. perform the real ordinary-Chat acceptance that proves backend switching/selection works without creating a new plugin or refreshing the action contract for every backend;
 7. only then mark Stage 24 complete and merge/integrate into `main`.
 

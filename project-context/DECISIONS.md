@@ -62,7 +62,7 @@ Backends are registered locally and disabled until a task activates them. Ordina
 
 ### Acceptance status
 
-Not accepted yet. The exact 1MCP `0.35.0-beta.3` upstream gaps were isolated and a hash-guarded two-file compatibility patch now passes the full Filesystem + Playwright same-session lifecycle locally while the exact top-level tool allowlist stays frozen. Promotion still requires green remote CI, manager/bootstrap integration and the real ordinary-Chat one-snapshot E2E.
+Not accepted yet. The exact 1MCP `0.35.0-beta.3` upstream gaps were isolated and a hash-guarded two-file compatibility patch passes the full Filesystem + Playwright same-session lifecycle locally and remotely while the exact top-level tool allowlist stays frozen. Standalone manager/bootstrap/tunnel/no-console integration passes locally. Promotion still requires green remote CI on the integrated head and the real ordinary-Chat one-snapshot E2E.
 
 Do not write a project-owned universal broker merely to preserve ADR-016; if upstream 1MCP cannot satisfy the measured contract after investigation, revisit the decision with evidence.
 

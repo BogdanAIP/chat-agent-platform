@@ -103,7 +103,7 @@ chat-platform-tray.ps1
 
 Bootstrap installs the verified official tunnel-client and standalone manager bundle under LocalAppData, stores the runtime key through DPAPI, creates the official tunnel profile through `tunnel-client init`, runs a reference readiness smoke test and leaves the platform stopped.
 
-Adaptive must not be documented as installed/default until its runtime acceptance passes and controller/bootstrap integration is complete.
+Adaptive is now installed as an opt-in manager profile with a required scoped FilesRoot. `reference` remains the default until ordinary-Chat acceptance.
 
 ## Adaptive runtime evidence
 
@@ -118,7 +118,7 @@ The current hash-guarded compatibility package fixes only those two upstream gap
 - backend processes are gone after disable;
 - direct fallback profiles still switch and start successfully.
 
-Remote CI, manager/bootstrap integration and the ordinary-Chat one-snapshot E2E remain. The compatibility package is not a new broker and must fail closed if the pinned upstream files drift.
+Commit `3b12fc9...` passed the adaptive runtime, direct profiles, CI and security remotely. The installed manager/bootstrap/tunnel/no-console path then passed locally. Integrated-head CI and the ordinary-Chat one-snapshot E2E remain. The compatibility package is not a new broker and must fail closed if the pinned upstream files drift.
 
 ## Stage 24 acceptance criteria
 

@@ -3,7 +3,7 @@ param(
     [ValidateSet("Install", "Start", "Stop", "Toggle", "Status", "SetProfile")]
     [string]$Action = "Status",
 
-    [ValidateSet("reference", "files-readonly", "browser-isolated")]
+    [ValidateSet("reference", "files-readonly", "browser-isolated", "adaptive")]
     [string]$Profile,
 
     [string]$FilesRoot,
@@ -134,12 +134,44 @@ function Get-Settings {
         }
     }
 
-    return (
+    $settings = (
         Get-Content `
             -LiteralPath $SettingsFile `
             -Raw |
         ConvertFrom-Json
     )
+
+    $supportedProfiles = @(
+        "reference",
+        "files-readonly",
+        "browser-isolated",
+        "adaptive"
+    )
+    if (
+        $null -eq $settings.PSObject.Properties["profile"] -or
+        $supportedProfiles -notcontains [string]$settings.profile
+    ) {
+        throw "Settings contain an unsupported profile."
+    }
+
+    $filesRoot = if ($null -ne $settings.PSObject.Properties["files_root"]) {
+        $settings.files_root
+    }
+    else {
+        $null
+    }
+    $tunnelProfile = if ($null -ne $settings.PSObject.Properties["tunnel_profile"]) {
+        [string]$settings.tunnel_profile
+    }
+    else {
+        "local-1mcp"
+    }
+
+    return [pscustomobject]@{
+        profile = [string]$settings.profile
+        files_root = $filesRoot
+        tunnel_profile = $tunnelProfile
+    }
 }
 
 
@@ -205,7 +237,7 @@ function Test-ChatProfileReady {
         $Status,
 
         [Parameter(Mandatory)]
-        [ValidateSet("reference", "files-readonly", "browser-isolated")]
+        [ValidateSet("reference", "files-readonly", "browser-isolated", "adaptive")]
         [string]$ProfileName
     )
 
@@ -739,7 +771,7 @@ function Start-ChatProfile {
             & $StartLocalBridgeScript 2>&1
         )
     }
-    elseif ($desiredProfile -eq "files-readonly") {
+    elseif ($desiredProfile -in @("files-readonly", "adaptive")) {
         $root = $FilesRoot
 
         if ([string]::IsNullOrWhiteSpace($root)) {
@@ -748,25 +780,28 @@ function Start-ChatProfile {
 
         if ([string]::IsNullOrWhiteSpace($root)) {
             throw @"
-files-readonly requires a configured FilesRoot.
+$desiredProfile requires a configured FilesRoot.
 Use:
-.\scripts\chat-platform-controller.ps1 -Action SetProfile -Profile files-readonly -FilesRoot "C:\path"
+.\scripts\chat-platform-controller.ps1 -Action SetProfile -Profile $desiredProfile -FilesRoot "C:\path"
 "@
         }
 
         $output = @(
             & $StartChatScript `
-                -Profile files-readonly `
+                -Profile $desiredProfile `
                 -FilesRoot $root `
                 2>&1
         )
     }
-    else {
+    elseif ($desiredProfile -eq "browser-isolated") {
         $output = @(
             & $StartChatScript `
                 -Profile browser-isolated `
                 2>&1
         )
+    }
+    else {
+        throw "Unsupported Chat profile in settings: $desiredProfile"
     }
 
     foreach ($line in $output) {
@@ -1022,6 +1057,7 @@ function Get-PlatformStatus {
         mcp_ready = $mcpReady
         active_profile = $chat.active_profile
         active_count = $chat.active_count
+        conflict = [bool]$chat.conflict
         local_root = $LocalRoot
         settings = Get-Settings
     }
@@ -1042,9 +1078,9 @@ function Set-PlatformProfile {
     $settings = Get-Settings
     $settings.profile = $Profile
 
-    if ($Profile -eq "files-readonly") {
+    if ($Profile -in @("files-readonly", "adaptive")) {
         if ([string]::IsNullOrWhiteSpace($FilesRoot)) {
-            throw "-FilesRoot is required for files-readonly."
+            throw "-FilesRoot is required for $Profile."
         }
 
         $resolved = (
@@ -1062,7 +1098,7 @@ function Set-PlatformProfile {
 
     Write-Host "DEFAULT_PROFILE=$Profile"
 
-    if ($Profile -eq "files-readonly") {
+    if ($Profile -in @("files-readonly", "adaptive")) {
         Write-Host "FILES_ROOT=$($settings.files_root)"
     }
 }

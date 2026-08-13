@@ -34,7 +34,7 @@ ChatGPT
 
 The adaptive design uses 1MCP's own aggregation/lazy/lifecycle facilities. It does not justify a project-owned gateway/broker unless an upstream gap is measured and cannot be resolved otherwise.
 
-**Status:** the runtime contract passes local Stage 24 acceptance with Filesystem and Playwright through the exact beta.3 compatibility package. Remote CI, manager integration and ordinary-Chat E2E remain before architectural acceptance. Direct profiles remain the accepted fallback/reference.
+**Status:** the runtime contract passes local and remote Stage 24 acceptance with Filesystem and Playwright through the exact beta.3 compatibility package. Standalone manager/bootstrap/tunnel/no-console integration passes locally. Remote CI on the integrated head and ordinary-Chat E2E remain before architectural acceptance. Direct profiles remain the accepted fallback/reference.
 
 ## Capability lifecycle model
 
@@ -79,7 +79,7 @@ Rules:
 - secrets, tunnel profile, binary, logs and mutable state live outside the app bundle;
 - bootstrap uses the official tunnel-client CLI/profile format.
 
-Adaptive manager integration is not accepted until adaptive runtime acceptance passes.
+Adaptive is opt-in through the standalone manager with one scoped FilesRoot; `reference` remains the safe installed default until ordinary-Chat acceptance.
 
 ## Ownership
 

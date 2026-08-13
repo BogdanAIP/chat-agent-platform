@@ -165,10 +165,10 @@ jobs:
             ./scripts/start-local-bridge.ps1 -Port 3071 -ConfigPath runtime/chat-profiles/files-readonly/mcp.json -HealthServerName filesystem -ReadyTimeoutSeconds 240
             ./scripts/start-local-bridge.ps1 -Port 3072 -ConfigPath runtime/chat-profiles/browser-isolated/mcp.json -HealthServerName playwright -ReadyTimeoutSeconds 240
             $conflict = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if ($conflict.active_count -ne 2) { throw 'Manager did not preserve active_count=2 conflict state.' }
+            if ($conflict.active_count -ne 2 -or -not $conflict.conflict) { throw 'Manager did not preserve active_count=2 conflict state.' }
             ./scripts/chat-platform.ps1 -Action Toggle -NoNotify
             $clean = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if ($clean.active_count -ne 0) { throw 'Manager did not clean conflicting Runtime Scopes.' }
+            if ($clean.active_count -ne 0 -or $clean.conflict) { throw 'Manager did not clean conflicting Runtime Scopes.' }
           }
           finally {
             Remove-Item Env:CHAT_LOCAL_FILES_ROOT -ErrorAction SilentlyContinue
@@ -195,7 +195,7 @@ jobs:
       - name: Prove adaptive lazy runtime can activate backends on demand
         shell: pwsh
         run: |
-          $port = 3068
+          $port = 3050
           $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-adaptive-files'
           $marker = Join-Path $filesRoot 'marker.txt'
           $adaptiveConfig = 'runtime/chat-profiles/adaptive/mcp.json'
@@ -205,9 +205,16 @@ jobs:
           Copy-Item -LiteralPath $adaptiveConfig -Destination $adaptiveConfigBackup
 
           try {
+            ./scripts/chat-platform.ps1 -Action SetProfile -Profile adaptive -FilesRoot $filesRoot -NoNotify
             ./scripts/start-chat-profile.ps1 -Profile adaptive -FilesRoot $filesRoot -Port $port -ReadyTimeoutSeconds 240
             $adaptiveStatus = ./scripts/status-chat-profile.ps1 -Port $port | Out-String | ConvertFrom-Json
             if ($adaptiveStatus.active_count -ne 1 -or $adaptiveStatus.active_profile -ne 'adaptive' -or $adaptiveStatus.conflict) { throw 'adaptive was not the only active profile.' }
+
+            $managerStatus = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if (-not $managerStatus.mcp_ready -or $managerStatus.active_profile -ne 'adaptive' -or $managerStatus.active_count -ne 1 -or $managerStatus.conflict) { throw 'Public manager did not recognize the ready adaptive profile.' }
+            if ($managerStatus.tunnel_running -or $managerStatus.tunnel_ready) { throw 'Hosted adaptive acceptance unexpectedly found a tunnel.' }
+            if ([string]$managerStatus.settings.profile -ne 'adaptive') { throw 'Public manager did not persist adaptive as the selected profile.' }
+            if ([System.IO.Path]::GetFullPath([string]$managerStatus.settings.files_root) -ne [System.IO.Path]::GetFullPath($filesRoot)) { throw 'Public manager did not persist the adaptive FilesRoot.' }
 
             $acceptance = node tests/adaptive-mcp-acceptance.mjs "http://127.0.0.1:$port/mcp" $marker 2>&1 | Out-String
             Write-Host $acceptance
@@ -224,6 +231,13 @@ jobs:
               $details = $backendProcesses | Select-Object ProcessId,ParentProcessId,CommandLine | Out-String
               throw "Adaptive backend process remained after disable: $details"
             }
+
+            ./scripts/chat-platform.ps1 -Action Toggle -NoNotify
+            $stopped = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if ($stopped.active_count -ne 0 -or $stopped.tunnel_running) { throw 'Public manager toggle did not stop the adaptive Runtime Scope.' }
+            ./scripts/chat-platform.ps1 -Action SetProfile -Profile reference -NoNotify
+            $reset = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if ([string]$reset.settings.profile -ne 'reference') { throw 'Public manager did not restore the safe reference default after adaptive acceptance.' }
           }
           finally {
             try {

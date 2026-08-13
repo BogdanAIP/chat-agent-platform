@@ -7,6 +7,10 @@
   "bin": {
     "1mcp-adaptive": "bin/1mcp-adaptive.mjs"
   },
+  "files": [
+    "bin/1mcp-adaptive.mjs",
+    "scripts/apply-compatibility-patch.mjs"
+  ],
   "scripts": {
     "postinstall": "node scripts/apply-compatibility-patch.mjs"
   },

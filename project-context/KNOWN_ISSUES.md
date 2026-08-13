@@ -2,11 +2,11 @@
 
 Only unresolved issues for the current bridge architecture are listed here.
 
-1. **Adaptive 1MCP lifecycle/discovery is not accepted remotely or in ordinary Chat yet.** The beta.3 gaps are diagnosed and the hash-guarded compatibility package passes full Filesystem + Playwright lifecycle locally, but the patched PR head still needs green remote CI before manager integration and the ordinary-Chat gate.
+1. **Adaptive 1MCP lifecycle/discovery is CI-accepted and locally manager-integrated but not the default or ordinary-Chat accepted yet.** The integrated manager/bootstrap head still needs remote CI; the real ordinary-Chat gate remains after that.
 
 2. **Ordinary Chat action snapshots do not automatically follow local direct-profile switching.** This was proven when Chat retained `filesystem_*` after the local runtime switched successfully to `browser-isolated`. Separate per-capability Chat apps are not the target solution; Stage 24 adaptive work is intended to provide one stable action contract.
 
-3. **Adaptive is not yet integrated/accepted in the standalone Windows manager/bootstrap.** `start-chat-profile.ps1` knows the experimental `adaptive` profile, but the authoritative controller currently accepts only `reference`, `files-readonly`, and `browser-isolated`. Do not document adaptive as installed/default until runtime acceptance and manager integration are complete.
+3. **Adaptive remains opt-in.** The standalone manager/bootstrap supports and locally accepts it, but `reference` intentionally remains the installed default until the real ordinary-Chat acceptance proves the stable action contract.
 
 4. **Final ordinary-Chat browser/adaptive E2E is still required.** Local browser readiness is proven, but the stale action snapshot prevented the intended browser call through the existing Chat app. Final Stage 24 acceptance must prove the stable Chat-facing model on the real user surface.
 

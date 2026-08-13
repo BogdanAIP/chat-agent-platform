@@ -216,6 +216,30 @@ function Assert-AdaptiveConfigContract {
     }
 }
 
+function Reset-AdaptiveCatalogToDisabled {
+    param([Parameter(Mandatory)] [string]$ConfigPath)
+
+    $configObject = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    $changed = $false
+    foreach ($serverName in @('filesystem', 'playwright')) {
+        $server = $configObject.mcpServers.$serverName
+        if ($null -eq $server) {
+            throw "Adaptive profile is missing backend '$serverName'."
+        }
+        if (-not [bool]$server.disabled) {
+            $server.disabled = $true
+            $changed = $true
+        }
+    }
+
+    if ($changed) {
+        $configObject |
+            ConvertTo-Json -Depth 20 |
+            Set-Content -LiteralPath $ConfigPath -Encoding utf8
+        Write-Host 'ADAPTIVE_CATALOG_RESET=all-disabled' -ForegroundColor DarkGray
+    }
+}
+
 function Assert-ProfileSurface {
     param(
         [Parameter(Mandatory)] [string]$ProfileName,
@@ -276,6 +300,13 @@ foreach ($runtime in @(
     @{ Config = $adaptiveConfig; Package = $adaptivePkg }
 )) {
     Stop-KnownRuntime -ConfigPath ([string]$runtime.Config) -Package ([string]$runtime.Package)
+}
+
+if ($Profile -eq 'adaptive') {
+    # mcp_enable persists its state in mcp.json. Normalize the pre-approved
+    # catalog after all Runtime Scopes are stopped so an interrupted prior
+    # session cannot make the next manager start fail open or become unusable.
+    Reset-AdaptiveCatalogToDisabled -ConfigPath $selectedConfig
 }
 
 $hadFilesRoot = Test-Path Env:CHAT_LOCAL_FILES_ROOT
