@@ -58,5 +58,8 @@ Use the model `AVAILABLE -> ACTIVE -> AUTHORIZED`:
 - parallelize only independent work; do not let agents concurrently edit the same files in one working tree;
 - `main` is the integration line for accepted stages, not a shared scratch branch;
 - do not force-push or rewrite `main` history;
-- do not claim a real Windows or ordinary-Chat acceptance test unless it actually ran on the target user surface;
-- if a final gate requires the user's machine or ChatGPT UI, provide one precise test and wait for the result.
+- Codex should perform local-machine acceptance itself whenever its environment and permissions allow it, including Windows, CLI, process lifecycle, local applications, MCP backends and local integration tests;
+- do not ask the user to perform a local test that Codex can perform itself;
+- ordinary ChatGPT UI/custom-app acceptance is a separate gate: when a test specifically requires the real ordinary-Chat user path, provide one precise user test and wait for the actual result instead of spending agentic work on reproducing that UI path;
+- never substitute a mock, local MCP client or Codex-only browser test for a claimed ordinary-Chat E2E pass;
+- after the user reports the ordinary-Chat result, record the evidence in project context and continue development.
