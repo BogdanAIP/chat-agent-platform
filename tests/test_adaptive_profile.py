@@ -63,6 +63,8 @@ class AdaptiveProfileTests(unittest.TestCase):
         self.assertIn("--enable-lazy-loading", self.start_local)
         self.assertIn("--enable-async-loading", self.start_local)
         self.assertIn("[string]$InternalTools", self.start_local)
+        self.assertIn("--enable-internal-tools", self.start_local)
+        self.assertIn("--internal-tools", self.start_local)
         self.assertIn("[switch]$RuntimeReadyOnly", self.start_local)
 
         self.assertIn("'adaptive'", self.start_profile)
