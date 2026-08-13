@@ -61,6 +61,14 @@ Git history is the archive. Old code stays out of the active tree unless later e
 
 Prefer local/free/open-source components where quality is adequate. Do not introduce paid model APIs or SaaS as mandatory dependencies when ordinary ChatGPT + local bridge satisfies the requirement.
 
-## 10. Continuation discipline
+## 10. Acceptance ownership and continuation discipline
 
-Keep `START_HERE.md` and `CURRENT_STATE.md` synchronized with functional reality at architecture-changing points. Do not claim a user-machine or ordinary-Chat test unless it actually ran. Use isolated branches/worktrees for independent parallel agents and integrate only reviewed/tested results.
+Keep `START_HERE.md` and `CURRENT_STATE.md` synchronized with functional reality at architecture-changing points.
+
+Codex should perform all locally accessible acceptance itself when its environment and permissions allow it, including Windows, CLI, process lifecycle, local applications, MCP backends and local integration tests. Do not ask the user to perform routine local tests that the development agent can execute directly.
+
+Reserve user participation for gates that specifically require the real ordinary ChatGPT UI/custom-app path or another irreducible user-only action. For such a gate, provide one precise test and wait for the actual result. Do not substitute a mock, local MCP client or narrower integration test for a claimed ordinary-Chat E2E pass.
+
+Do not claim a local-machine or ordinary-Chat test unless that exact path actually ran. After a user-run ordinary-Chat acceptance, record the evidence and continue development.
+
+Use isolated branches/worktrees for independent parallel agents and integrate only reviewed/tested results.
