@@ -7,6 +7,7 @@ Research baseline: 2026-08-10. Runtime status synchronized 2026-08-13.
 - **ACCEPTED-INFRASTRUCTURE** — accepted real bridge/runtime path.
 - **CI-ACCEPTED** — real Windows module acceptance passed harmless operations.
 - **CHAT-E2E-ACCEPTED** — ordinary Chat through the real tunnel completed the target harmless operation.
+- **ACCEPTED-CANDIDATE** — evidence is strong enough to proceed to focused audit/real workflow benchmarking, but the module is not product-promoted yet.
 - **EXPERIMENTAL** — active engineering candidate; do not describe as accepted/default.
 - **LOCAL-TEST-REQUIRED** — promising but requires the real installed application/workflow.
 - **SECURITY-REVIEW-REQUIRED** — useful but broad/high-consequence surface needs reduction/scoping.

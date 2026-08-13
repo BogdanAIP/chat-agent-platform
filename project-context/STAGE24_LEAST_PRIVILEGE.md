@@ -1,126 +1,139 @@
-# Stage 24 — Least-Privilege Ordinary Chat Profiles and Windows Lifecycle
+# Stage 24 — Windows lifecycle + adaptive ordinary-Chat capability surface
+
+This file describes the current Stage 24 scope. Earlier Stage 24 work began with mutually exclusive direct profiles; real Chat action-snapshot evidence changed the target architecture. Direct profiles remain accepted diagnostics/fallback, while the scalable adaptive path is still experimental.
 
 ## Goal
 
-Turn the Stage 23 technical candidates into safe, explicit task profiles for the already accepted path:
+Keep the accepted bridge:
 
 ```text
 ordinary ChatGPT Chat
-  -> Chat Local Bridge Test
   -> OpenAI Secure MCP Tunnel
-  -> tunnel-client
-  -> 1MCP on 127.0.0.1:3050
-  -> exactly one least-privilege local task profile
+  -> official tunnel-client
+  -> local 1MCP
+  -> replaceable local MCP backends
 ```
 
-This stage does **not** introduce Work, Codex, a second planner, a cloud browser service, a new paid subscription or a custom tunnel/runtime.
+and make it practical on Windows without introducing another AI planner, custom cloud ingress, project-owned generic gateway or mandatory paid service.
 
-## Security decision: do not combine Filesystem and open-web Browser by default
+Stage 24 must also solve capability scaling: future Browser/Files/REAPER/Origin/FFmpeg/Blender backends should not require one separate ChatGPT app/plugin each.
 
-A read-only filesystem can reveal local data. An open browser can transmit data to remote sites. Putting both capabilities in one always-on tool surface creates a cross-tool exfiltration path if an untrusted page influences the model.
-
-Therefore the baseline uses mutually exclusive profiles.
+## Accepted direct profiles
 
 ### `files-readonly`
 
-- exactly one Filesystem MCP server;
-- exactly one explicit existing workspace root supplied locally;
-- whole-drive roots are rejected;
-- Windows, Program Files, ProgramData and the user-profile root are rejected as direct roots;
-- create/write/edit/move tools are disabled at 1MCP;
-- no browser server is present.
+- one Filesystem MCP;
+- one explicit existing workspace root;
+- broad/system roots rejected;
+- create/write/edit/move disabled;
+- real ordinary-Chat read E2E passed.
 
 ### `browser-isolated`
 
-- exactly one Microsoft Playwright MCP server;
-- headless Chrome;
-- isolated browser state;
-- service workers blocked;
-- code generation disabled;
-- unsafe code/evaluate/file-upload/direct-request tools disabled at 1MCP;
-- no filesystem server is present.
+- one Playwright MCP;
+- isolated/headless Chrome;
+- unsafe code/evaluate/file-upload/direct-network tools disabled;
+- local MCP/tunnel readiness passed.
 
-Origin restrictions may be defense in depth, but capability separation is the primary boundary.
+These profiles intentionally isolate capability classes for deterministic acceptance and conservative fallback. They do **not** define a permanent rule that legitimate workflows may never use multiple backends together.
 
-## One active profile at a time
+## Measured snapshot problem
 
-The OpenAI tunnel-client forwards to one local MCP endpoint. The project does not add another router merely to switch tasks.
+After the local runtime switched successfully from `files-readonly` to `browser-isolated`, the existing Chat app still exposed the previously scanned filesystem actions.
 
-Each profile uses a separate 1MCP Runtime Scope while local lifecycle ensures normal operation has one known Chat-facing owner of the fixed endpoint. Switching profile is an explicit local action, not autonomous privilege escalation requested by Chat.
+Therefore:
 
-A recognized multiple-scope condition is reported as machine-readable `conflict` with `active_count > 1` so the manager can clean it instead of hiding the recoverable state behind a command failure.
+- local profile lifecycle and Chat action discovery are separate concerns;
+- silently swapping direct tool surfaces behind one scanned Chat app is unreliable;
+- one frozen Chat app/plugin per backend does not scale.
 
-## Thin Windows lifecycle manager
+## Adaptive target — not yet accepted
 
-A measured usability requirement is now part of Stage 24: the user should not need multiple terminal windows or repository-local tunnel secrets merely to start/stop the accepted bridge.
+Stage 24 now evaluates a stable 1MCP Lazy Loading surface:
 
-The manager boundary is:
+```text
+tool_list
+tool_schema
+tool_invoke
+```
+
+plus only lifecycle controls for a locally pre-approved catalog:
+
+```text
+mcp_list
+mcp_status
+mcp_enable
+mcp_disable
+mcp_reload
+```
+
+Ordinary Chat must not receive arbitrary catalog install/uninstall/update/edit/search controls.
+
+Current adaptive catalog contains disabled Filesystem + Playwright backends. The experimental runtime line is `@1mcp/agent@0.35.0-beta.3`, Lazy Loading ON, Async Loading OFF. Direct profiles remain on accepted `0.34.4`.
+
+## Capability/lifecycle security model
+
+Use:
+
+```text
+AVAILABLE -> ACTIVE -> AUTHORIZED
+```
+
+- registration does not imply a running process;
+- activation follows the current task;
+- sensitive operations remain scoped/confirmed as appropriate;
+- sequential activation saves resources when task stages are sequential;
+- multiple backends may remain active together when the workflow actually requires them.
+
+Avoid an unnecessarily broad always-on local-data + open-network baseline. Do not turn that into a blanket prohibition on useful combinations.
+
+## Windows lifecycle manager
+
+The accepted thin manager remains:
 
 ```text
 chat-platform.ps1
-  -> serialized public Start/Stop/Toggle/Install/SetProfile
-  -> non-blocking Status
-  -> internal chat-platform-controller.ps1
+  -> serialized public lifecycle facade
+  -> chat-platform-controller.ps1
 
 chat-platform-tray.ps1
   -> UI only
-  -> reads Status through chat-platform.ps1
+  -> consumes manager/controller status
 ```
 
-Mutating operations use a Windows named mutex so tray and manual commands cannot intentionally start competing lifecycle transitions.
+Bootstrap installs the verified official tunnel-client and standalone manager bundle under LocalAppData, stores the runtime key through DPAPI, creates the official tunnel profile through `tunnel-client init`, runs a reference readiness smoke test and leaves the platform stopped.
 
-The tray does not implement separate process/PID/health logic. Green requires controller-reported `mcp_ready`, `tunnel_ready` and exactly one active profile.
+Adaptive must not be documented as installed/default until its runtime acceptance passes and controller/bootstrap integration is complete.
 
-## Bootstrap
+## Current adaptive blocker
 
-First setup/repair is performed by:
+On functional baseline `9799bec...`:
 
-```powershell
-.\scripts\bootstrap-chat-platform.ps1
-```
+- adaptive runtime starts;
+- `mcp_list` sees both disabled backends;
+- Filesystem enable enters loading;
+- transitional 503/loading responses are retried;
+- lazy `tool_list` remains empty and never exposes `read_text_file` before timeout (`loading retries=49`).
 
-Bootstrap responsibilities are intentionally finite:
+Next work is upstream-focused diagnosis of 1MCP loading/lifecycle/capability refresh. Do not add a project-owned universal broker merely to bypass this failure without proving the upstream mechanism is insufficient.
 
-1. check Windows/PowerShell/Node/npm/npx and pinned 1MCP availability;
-2. download the reviewed official OpenAI `tunnel-client` Windows artifact;
-3. verify the fixed release tag, pinned archive SHA-256, official `SHA256SUMS.txt` and release asset digest;
-4. install the binary under `%LOCALAPPDATA%\ChatAgentPlatform\bin`;
-5. create/reuse `local-1mcp` with official `tunnel-client init` targeting `http://127.0.0.1:3050/mcp`;
-6. copy the thin scripts and runtime configs with SHA-256 copy verification to `%LOCALAPPDATA%\ChatAgentPlatform\app`;
-7. request the runtime key when missing and store it with DPAPI `CurrentUser`;
-8. install the desktop shortcut from the installed app copy;
-9. run a default reference MCP + tunnel readiness smoke test and stop afterward.
+## Stage 24 acceptance criteria
 
-The installed manager must remain usable if the source Git checkout is moved or deleted.
+1. direct reference/files/browser regressions stay green;
+2. adaptive Filesystem enable -> ready -> lazy discovery -> read -> disable -> cleanup passes in one MCP session;
+3. adaptive Playwright enable -> ready -> lazy discovery -> navigate -> close -> disable -> cleanup passes under the same stable contract;
+4. only approved lazy/lifecycle tools are Chat-facing;
+5. adaptive lifecycle is integrated into standalone manager/bootstrap/status/start/stop/toggle/tray without visible console regression;
+6. exact final functional HEAD passes CI, Chat Profile Acceptance, CodeQL and Secret History Scan;
+7. real ordinary Chat proves one stable action snapshot can select/use backends without per-backend plugin creation or routine Refresh;
+8. only then Stage 24 is accepted and integrated to `main`.
 
-## Promotion criteria
+## Outside Stage 24 unless required by the acceptance above
 
-Stage 24 is accepted only after all applicable gates pass:
-
-1. profile and runtime packages are pinned to accepted published versions;
-2. dangerous tools remain absent from actual 1MCP discovery;
-3. exactly one normal task profile owns the Chat-facing endpoint;
-4. conflicting known scopes are observable and recoverable;
-5. local MCP health is `ready`;
-6. official tunnel `/readyz` is ready before green/start success;
-7. failed startup rolls back both MCP and tunnel;
-8. manager/bootstrap/profile changes trigger dedicated Windows profile acceptance;
-9. bootstrap does not silently follow a moving tunnel-client `latest` artifact;
-10. bootstrap installs a standalone LocalAppData manager bundle and keeps secrets outside it;
-11. ordinary Chat completes one harmless `files-readonly` call through the real Secure MCP Tunnel;
-12. ordinary Chat completes one harmless `browser-isolated` call through the real Secure MCP Tunnel;
-13. switching profile removes the previous profile's tool surface;
-14. no secret, tunnel ID or user-specific absolute path is committed.
-
-## Deliberately outside this stage
-
-- no permanent combined files + browser profile;
-- no write-capable Filesystem profile;
-- no authenticated browser-session reuse;
-- no Windows desktop automation;
-- no arbitrary PowerShell/shell tool;
-- no autonomous remote profile escalation;
-- no generic workflow/policy/secret platform;
-- no mandatory paid browser/cloud service.
-
-Later profiles may combine capabilities only for a concrete workflow with a narrower boundary and a separate reviewed decision.
+- authenticated browser-session reuse;
+- general filesystem writes;
+- arbitrary shell/PowerShell exposure;
+- Windows desktop automation as a baseline;
+- automatic installation of arbitrary MCP servers from ordinary Chat;
+- generic workflow/policy/secret platform;
+- mandatory paid cloud/browser service.
