@@ -1,8 +1,10 @@
 # Current State
 
+Last synchronized with functional baseline `9799bec20ffeb92eebbba5061f32dff403bbe6f4` on 2026-08-13. Later documentation-only commits do not imply additional runtime acceptance. Always check the current PR HEAD and workflows.
+
 ## Accepted bridge
 
-Stage 21 is complete. On 2026-08-10 ordinary ChatGPT Chat successfully invoked `sequential_thinking` through:
+Stage 21 is complete. On 2026-08-10 ordinary ChatGPT successfully completed:
 
 ```text
 ChatGPT
@@ -14,79 +16,134 @@ ChatGPT
   -> result back to ChatGPT
 ```
 
-This is the compatibility authority for the current project direction. Ordinary Chat remains the primary intelligence surface; Work, Codex and Workspace Agents are optional consumers/accelerators rather than required architecture.
+Ordinary Chat remains the primary intelligence surface. Codex/Work may accelerate development but are not required product runtime components.
 
-## Active repository after Stage 22
+## Accepted module/direct-profile evidence
 
-The active tree is intentionally thin. There is no project-owned universal runtime, public ingress, polling relay, Yandex deployment code, Python behavioral oracle, media/mastering core, or release pipeline for `agent-platform.exe` in the active tree.
+Stage 23 accepted on Windows through pinned `@1mcp/agent@0.34.4`:
 
-## Stage 23 — complete
+- Filesystem `2026.7.10`: scoped root, write-capable tools hidden, real read call passed;
+- Playwright MCP `0.0.78`: isolated/headless browser, navigation/content/close passed.
 
-Stage 23 established the hard product rule **zero new mandatory SaaS subscriptions in the baseline path** and a supply-channel/quality/security selection process.
+Stage 24 real-machine evidence already passed:
 
-Two baseline modules passed real Windows acceptance through pinned `@1mcp/agent@0.34.4`:
+- standalone bootstrap and official tunnel-client verification;
+- DPAPI runtime-key storage and standalone manager bundle;
+- reference smoke with MCP + tunnel readiness;
+- tray no-console fix: no persistent Windows Terminal/npm/npx window;
+- direct `files-readonly` ordinary-Chat E2E returned the exact marker `CHAT_LOCAL_FILES_E2E_OK`;
+- local switch to `browser-isolated` produced exactly one active browser profile with MCP/tunnel readiness.
 
-- **Filesystem `2026.7.10` — CI-ACCEPTED.** Scoped root; create/write/edit/move hidden; real `read_text_file` call passed.
-- **Microsoft Playwright MCP `0.0.78` — CI-ACCEPTED.** Isolated/headless Chrome; real navigation/content/close calls passed.
+## Chat action snapshot finding
 
-Ready-made-first application candidates are documented for REAPER, Origin, FFmpeg, Windows UI Automation and Blender. Legacy project adapters stay historical unless a measured gap remains.
+After switching locally from `files-readonly` to `browser-isolated`, the already-connected `Chat Local Bridge Test` still exposed only the earlier `filesystem_*` actions. The browser backend was locally ready, but Chat did not automatically replace the action snapshot.
 
-## Stage 24 — in progress
+This invalidated the earlier target of silently switching arbitrary direct tool surfaces behind one already-scanned Chat app. Creating a separate Chat app/plugin snapshot for every future local capability is also rejected as the normal scalable UX.
 
-Stage 24 converts accepted capabilities into explicit least-privilege task profiles for ordinary Chat.
+## Stage 24 adaptive direction — experimental
 
-Current profile design:
+Current target:
 
-### `files-readonly`
+```text
+ordinary ChatGPT
+  -> one stable Chat-facing MCP action contract
+  -> Secure MCP Tunnel
+  -> official tunnel-client
+  -> one 1MCP runtime
+  -> stable Lazy Loading meta-tools
+  -> task-driven backend MCP lifecycle
+```
 
-- one Filesystem MCP server only;
-- one explicit workspace directory supplied locally at start time;
-- whole drives and broad/system roots are rejected;
-- create/write/edit/move disabled;
-- no browser capability.
+Stable Chat-facing lazy tools:
 
-### `browser-isolated`
+- `tool_list`;
+- `tool_schema`;
+- `tool_invoke`.
 
-- one Playwright MCP server only;
-- isolated headless Chrome;
-- no filesystem capability;
-- service workers and code generation disabled;
-- `browser_run_code_unsafe`, `browser_evaluate`, `browser_file_upload` and direct `browser_network_request` disabled.
+Allowed lifecycle management surface for the pre-approved catalog:
 
-The profiles are deliberately **not combined**. Read-only local data plus an open network-capable browser can still form an exfiltration path under prompt injection. Capability separation is therefore the baseline security boundary.
+- `mcp_list`;
+- `mcp_status`;
+- `mcp_enable`;
+- `mcp_disable`;
+- `mcp_reload`.
 
-New lifecycle scripts keep the official tunnel target at `http://127.0.0.1:3050/mcp` and switch which local 1MCP Runtime Scope owns that port:
+Do not publish arbitrary catalog-management tools such as install/uninstall/update/edit/search to ordinary Chat.
 
-- `scripts/start-chat-profile.ps1`;
-- `scripts/status-chat-profile.ps1`;
-- `scripts/stop-chat-profile.ps1`.
+### Adaptive runtime configuration
 
-The profile switch is an explicit local action. Ordinary Chat cannot silently grant itself a broader profile.
+`runtime/chat-profiles/adaptive/mcp.json` currently registers two disabled backends:
 
-Stage 24 is not accepted until both profiles pass their dedicated Windows profile CI and then each passes one harmless ordinary-Chat end-to-end call through the existing Secure MCP Tunnel. Authenticated browser reuse, filesystem writes, Windows UI control and shell access remain outside the baseline.
+- Filesystem MCP `@modelcontextprotocol/server-filesystem@2026.7.10`;
+- Playwright MCP `@playwright/mcp@0.0.78`.
 
-## Application candidates after Stage 24
+Direct profiles remain on accepted `@1mcp/agent@0.34.4`.
+Adaptive currently pins `@1mcp/agent@0.35.0-beta.3`, with Lazy Loading ON and Async Loading OFF, because this line is being evaluated for dynamic same-session capability visibility/lifecycle behavior.
 
-- TwelveTake REAPER MCP: choose one exact immutable artifact before real REAPER benchmarking;
-- Origin-Pro-MCP: source and PyPI versions currently differ, so choose one exact artifact before testing installed Origin;
-- `ffmpeg-mcp-lite==0.2.2`: primary typed FFmpeg candidate, still requires path/output audit and media benchmarks;
-- `sbroenne/mcp-windows`: high-privilege fallback only;
-- Blender: compare a reduced DCC-MCP profile against the smaller `djeada` server.
+Adaptive is **not** the installed-manager default and is **not accepted**.
+
+## Latest adaptive CI result — blocker
+
+Functional baseline: `9799bec20ffeb92eebbba5061f32dff403bbe6f4`.
+
+Workflow results:
+
+- `ci`: PASS;
+- `CodeQL Security`: PASS;
+- `Secret History Scan`: PASS;
+- `Chat Profile Acceptance / windows-profiles`: PASS;
+- `Chat Profile Acceptance / adaptive-runtime`: FAIL.
+
+Observed adaptive sequence:
+
+1. adaptive 1MCP started and reached runtime readiness;
+2. `mcp_list` correctly returned `filesystem` and `playwright`, both `disabled`;
+3. Filesystem activation entered backend loading;
+4. the acceptance test correctly treated HTTP `503 service_unavailable` + `loading` as transitional;
+5. after the wait window, `tool_list({server: "filesystem"})` still returned no tools;
+6. failure: `read_text_file` never became visible; observed `tools: []`, `loading retries=49`.
+
+Therefore the next engineer must not spend time re-solving the already-closed snapshot issue or claim adaptive works. The immediate technical task is to understand why the enabled backend remains unavailable to Lazy Loading capability discovery in the same MCP session.
+
+Investigate upstream 1MCP behavior around:
+
+- `McpLoadingManager` and backend state transitions;
+- enable/load lifecycle;
+- `ServerManager.loadMcpServer` / unload/ready tracking;
+- `LazyLoadingOrchestrator.refreshCapabilities`;
+- backend capability-list change notifications;
+- stdio backend process readiness/cleanup.
+
+Prefer an upstream-supported mechanism or a narrowly justified upstream fix/workaround. Do not introduce a project-owned universal gateway/broker until a concrete missing upstream boundary is proven.
+
+## Safety model
+
+Use three separate concepts:
+
+```text
+AVAILABLE
+ACTIVE
+AUTHORIZED
+```
+
+A backend can be registered without running. Start only what the task needs. Multiple backends may be active simultaneously if the workflow actually requires them. Sensitive operations should be scoped/authorized; security must not become a blanket ban on useful multi-tool workflows.
+
+The old direct `files-readonly` and `browser-isolated` separation remains valuable as diagnostic evidence and a conservative fallback, not as a permanent rule that Browser and Filesystem may never coexist.
+
+## Remaining Stage 24 gates
+
+1. adaptive Filesystem: enable -> ready -> lazy discovery -> real read -> disable -> tool/process cleanup;
+2. adaptive Playwright: enable -> ready -> lazy discovery -> navigate `https://example.com` -> close -> disable -> cleanup;
+3. stable Chat-facing surface contains only approved lazy/lifecycle tools and excludes catalog mutation/admin tools;
+4. integrate accepted adaptive behavior into standalone manager/bootstrap/status/start/stop/toggle/tray without breaking direct profiles/no-console behavior;
+5. all final CI/security checks green on the exact final functional HEAD;
+6. real ordinary-Chat acceptance demonstrates that a single Chat-facing contract can use task-selected backends without creating a new plugin or requiring Refresh for every backend;
+7. only then accept Stage 24 and integrate/merge to `main`.
+
+## Work after Stage 24
+
+Stage 25 benchmarks real professional modules (REAPER, Origin, FFmpeg, Blender, Windows UI fallback) as replaceable backends behind the stable bridge. Adding one of these backends should not normally require a new ChatGPT plugin/app. Backend processes should be task-driven, not all permanently resident.
 
 ## Legacy preservation
 
-Nothing important was erased from history. The complete pre-cleanup implementation is recoverable at:
-
-```text
-a446397d99276856c614bc49526cab422c7e74bd
-```
-
-FFmpeg, REAPER and mastering code from that history is candidate extraction material, not active product code.
-
-## External fallback evidence
-
-The older Yandex integration and Tailscale route are not active repository dependencies. Do not add new features to those paths.
-
-## Secrets
-
-OpenAI tunnel runtime keys and tunnel IDs are local operational data and are not stored in this repository. The runtime key should use the minimum required tunnel permissions (`Read + Use`).
+The complete pre-cleanup implementation remains recoverable at `a446397d99276856c614bc49526cab422c7e74bd`. Historical Yandex/Tailscale paths are not active product dependencies.
