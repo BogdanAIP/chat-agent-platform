@@ -90,6 +90,14 @@ Therefore do **not** claim that adaptive enable/discovery/invoke/disable works y
 
 Next engineering task: diagnose the 1MCP enable -> loading -> Lazy Loading capability refresh path (loading manager/server lifecycle/lazy capability refresh/notifications) from upstream behavior before introducing any project-owned broker or workaround.
 
+## Acceptance ownership
+
+Local-machine acceptance belongs to the development agent when its environment and permissions allow it. Codex should itself run Windows, CLI, process-lifecycle, local-application, MCP-backend and local integration checks instead of delegating routine local tests to the user.
+
+Ordinary ChatGPT UI/custom-app acceptance is intentionally different. When a final gate specifically requires the real ordinary-Chat user path, Codex should provide one precise test for the user and wait for the actual result. This avoids spending agentic limits on a UI check the user can perform cheaply while preserving an independent end-to-end validation of the product's real user path.
+
+A local MCP client, mock, Codex-only browser test or narrower integration test must never be reported as an ordinary-Chat E2E pass. After the user reports the ordinary-Chat result, record the evidence in project context and continue development.
+
 ## Stage 24 completion order
 
 1. make adaptive Filesystem enable -> ready -> lazy discovery -> read -> disable -> cleanup pass in one MCP session;
@@ -109,4 +117,6 @@ Before changing code:
 - distinguish accepted evidence from target architecture and experiments;
 - prefer upstream 1MCP mechanisms over a new gateway/broker;
 - preserve the accepted direct profiles until adaptive is proven;
+- run locally accessible acceptance yourself rather than delegating it to the user;
+- use the user only for the final ordinary-Chat UI/custom-app gate when that exact path is required;
 - never invent user acceptance results.
