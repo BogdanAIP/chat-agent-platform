@@ -47,6 +47,12 @@ function Get-RuntimeFeatureArguments {
         $arguments.Add('--enable-lazy-loading')
     }
     if (-not [string]::IsNullOrWhiteSpace($InternalTools)) {
+        # 1MCP 0.35 pre-releases use two gates for internal tools: the
+        # top-level enable flag authorizes execution, while --internal-tools
+        # constrains the tool surface advertised to the MCP client. Always
+        # pass both together so selected management tools are functional
+        # without publishing the broader installation/edit/discovery set.
+        $arguments.Add('--enable-internal-tools')
         $arguments.Add('--internal-tools')
         $arguments.Add($InternalTools)
     }
