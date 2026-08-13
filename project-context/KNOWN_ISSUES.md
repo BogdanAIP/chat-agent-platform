@@ -1,19 +1,23 @@
 # Known Issues
 
-Only unresolved issues for the accepted bridge architecture are listed here.
+Only unresolved issues for the current bridge architecture are listed here.
 
-1. **Privileged MCP modules are not accepted yet.** The reference config intentionally exposes only `sequential_thinking`. Filesystem, shell, browser and application control require Stage 24 security work.
+1. **Adaptive 1MCP lifecycle/discovery is not accepted.** On functional baseline `9799bec...`, `mcp_list` sees disabled Filesystem/Playwright backends and Filesystem enable enters loading, but Lazy Loading never publishes `read_text_file` before timeout (`tools: []`, `loading retries=49`). Investigate upstream lifecycle/loading/capability refresh before introducing custom infrastructure.
 
-2. **The real module catalog is not selected yet.** Stage 23 must evaluate official/vendor and mature OSS MCP servers before any old project-specific adapter is restored.
+2. **Ordinary Chat action snapshots do not automatically follow local direct-profile switching.** This was proven when Chat retained `filesystem_*` after the local runtime switched successfully to `browser-isolated`. Separate per-capability Chat apps are not the target solution; Stage 24 adaptive work is intended to provide one stable action contract.
 
-3. **OpenAI Secure MCP Tunnel lifecycle is still an external operational dependency.** The official `tunnel-client` must be installed, authenticated with a minimal runtime key and kept healthy. The repository intentionally does not wrap or reimplement its control plane.
+3. **Adaptive is not yet integrated/accepted in the standalone Windows manager/bootstrap.** `start-chat-profile.ps1` knows the experimental `adaptive` profile, but the authoritative controller currently accepts only `reference`, `files-readonly`, and `browser-isolated`. Do not document adaptive as installed/default until runtime acceptance and manager integration are complete.
 
-4. **Universal Plus availability must not be promised.** The user's real ChatGPT surface passed the custom MCP tunnel round trip, but product availability/plan rules may vary or change.
+4. **Final ordinary-Chat browser/adaptive E2E is still required.** Local browser readiness is proven, but the stale action snapshot prevented the intended browser call through the existing Chat app. Final Stage 24 acceptance must prove the stable Chat-facing model on the real user surface.
 
-5. **No end-user Windows manager exists.** Current PowerShell scripts manage only local 1MCP. A GUI/service wrapper is deferred until module lifecycle requirements are known.
+5. **npm execution is top-level version pinned but not fully dependency locked for stable distribution.** Stage 26 should move normal lifecycle away from repeated `npx -y` dependency resolution.
 
-6. **Legacy external rollback infrastructure may still exist.** Yandex and the older Tailscale route are no longer repository dependencies, but their live retirement is a separate operational action.
+6. **Runtime-key rotation/repair/uninstall are not first-class manager flows yet.** DPAPI storage exists; stable distribution still needs explicit maintenance operations.
 
-7. **No first stable release is published.** The previous release pipeline was removed because it packaged the superseded universal `agent-platform.exe`. A new release format should be designed only after Stage 23 establishes what this project actually needs to ship.
+7. **Application candidates are not product-accepted.** REAPER, Origin, FFmpeg, Blender and Windows UI require real workflow benchmarks and scoped promotion into the local backend catalog.
 
-8. **Support/donation addresses are still pending.** MIT rights remain unconditional and independent of donations.
+8. **Universal ChatGPT plan availability must not be promised.** The user's actual surface passed the tunnel E2E, but product availability may vary/change.
+
+9. **No first stable release exists.** Old release machinery belonged to the superseded universal binary; a new release format should package only the thin bridge after behavior stabilizes.
+
+10. **Repository maintenance cleanup remains.** Historical feature branches/superseded PRs can be pruned after the active Stage 24 work is accepted.

@@ -1,137 +1,100 @@
-# Stage 23 Module Catalog
+# Module Catalog
 
-Research snapshot: 2026-08-10.
+Research baseline: 2026-08-10. Runtime status synchronized 2026-08-13.
 
-Status meanings:
+## Status meanings
 
-- **ACCEPTED-CANDIDATE** — quality/cost/licensing look strong enough for technical acceptance tests; not automatically exposed to ChatGPT yet.
-- **CI-ACCEPTED** — real Windows acceptance through pinned 1MCP passed health, discovery and harmless tool calls; still not automatically exposed to ChatGPT.
-- **LOCAL-TEST-REQUIRED** — promising but must be tested against the user's real installed application before promotion.
-- **SECURITY-REVIEW-REQUIRED** — technically strong but exposes a broad or dangerous surface that must be reduced before promotion.
-- **SUPPLY-PIN-REQUIRED** — upstream source is promising, but the desired source version is not yet the same version available from the normal package channel; choose and test an immutable install source before promotion.
-- **THIN-ADAPTER-FALLBACK** — a small project-owned adapter is allowed only if the better ready-made candidate fails measured requirements.
-- **RESEARCH** — no candidate promoted yet.
+- **ACCEPTED-INFRASTRUCTURE** — accepted real bridge/runtime path.
+- **CI-ACCEPTED** — real Windows module acceptance passed harmless operations.
+- **CHAT-E2E-ACCEPTED** — ordinary Chat through the real tunnel completed the target harmless operation.
+- **ACCEPTED-CANDIDATE** — evidence is strong enough to proceed to focused audit/real workflow benchmarking, but the module is not product-promoted yet.
+- **EXPERIMENTAL** — active engineering candidate; do not describe as accepted/default.
+- **LOCAL-TEST-REQUIRED** — promising but requires the real installed application/workflow.
+- **SECURITY-REVIEW-REQUIRED** — useful but broad/high-consequence surface needs reduction/scoping.
+- **SUPPLY-PIN-REQUIRED** — choose an immutable install artifact/version before promotion.
+- **THIN-ADAPTER-FALLBACK** — custom focused adapter allowed only after a measured gap.
 
-| Capability | Candidate | Cost model | License / owner | Status | Decision |
-|---|---|---|---|---|---|
-| MCP aggregation | `@1mcp/agent@0.34.4` | local, no SaaS required | Apache-2.0, 1mcp-app | accepted infrastructure | Keep. Already passed ChatGPT E2E through Secure MCP Tunnel. |
-| Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | local, free | MIT, Model Context Protocol project | CI-ACCEPTED | Real Windows 1MCP acceptance passed: scoped root, dangerous create/write/edit/move tools hidden, and `read_text_file` successfully read a marker. Next gate is local Secure MCP Tunnel validation with one explicit user workspace root. |
-| Browser | `@playwright/mcp@0.0.78` | local, free | Apache-2.0, Microsoft | CI-ACCEPTED | Real Windows 1MCP acceptance passed: isolated/headless server became ready, exposed `browser_navigate`, navigated to a deterministic data page and closed cleanly. Real authenticated browser/session access remains a later least-privilege decision. |
-| Windows desktop fallback | `sbroenne/mcp-windows` | local, free | MIT | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED | Strong semantic Windows UI Automation fallback. Keep screenshot/mouse/keyboard as fallback only; never expose the whole desktop surface by default. |
-| REAPER | `TwelveTake-Studios/reaper-mcp` | local, free beyond REAPER itself | MIT | LOCAL-TEST-REQUIRED / SUPPLY-PIN-REQUIRED | GitHub release `v1.6.4` exists and is the desired source line, while the package-channel evidence inspected still shows PyPI `1.6.0`. Choose either the verified PyPI build or an immutable `v1.6.4` source/release install and benchmark exactly that artifact. |
-| OriginPro | `youngminsw/Origin-Pro-MCP` | local, no extra SaaS; requires installed/licensed Origin | MIT | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED / SUPPLY-PIN-REQUIRED | Source `main` is `0.3.1` at commit `1e9741af96c45bcac9e619c3ba32264bac6950e7`, but PyPI currently publishes `0.1.0`. Do not use an unpinned `uvx` and assume it matches source. Benchmark either published `0.1.0` or the exact source commit after review. |
-| OriginPro fallback | official OriginLab `originpro` external Python API | no extra service fee beyond installed Origin | OriginLab vendor API | THIN-ADAPTER-FALLBACK | Use only if the ready-made Origin MCP fails compatibility, safety or workflow quality. Do not build an adapter pre-emptively. |
-| FFmpeg/media | `kevinwatt/ffmpeg-mcp-lite` `0.2.2` | local, free; requires local FFmpeg | MIT | ACCEPTED-CANDIDATE | PyPI `0.2.2` is verified. Small typed surface for info/convert/compress/trim/merge/audio/frames/subtitles. Audit all tools and run real media tests before promotion. |
-| FFmpeg fallback | native FFmpeg CLI behind a small allowlisted adapter | local, free | FFmpeg project + project adapter | THIN-ADAPTER-FALLBACK | Only build if `ffmpeg-mcp-lite` fails measured needs. Never expose arbitrary shell as the media API. |
-| Blender | `dcc-mcp/dcc-mcp-blender` | local, free | MIT source/PyPI; Blender Extension distribution GPL-3.0-or-later | SECURITY-REVIEW-REQUIRED | Very broad and active 200+ tool ecosystem with E2E CI and progressive skills, but includes raw Python/script execution. Interesting for deep Blender work only after a reduced tool profile is proven. |
-| Blender alternative | `djeada/blender-mcp-server` | local, free | MIT | LOCAL-TEST-REQUIRED | Smaller 22-tool surface is attractive for a safer baseline. Compare actual workflow coverage and maintenance against DCC-MCP before selection. |
-| GitHub | existing ChatGPT GitHub connection | existing product connection | external connector | do not duplicate | Do not route GitHub through the laptop unless a local Git operation specifically requires it. |
+| Capability | Candidate | Status | Current decision |
+|---|---|---|---|
+| Direct local MCP runtime | `@1mcp/agent@0.34.4` | ACCEPTED-INFRASTRUCTURE | Keep for accepted direct/reference profiles while adaptive is evaluated. |
+| Adaptive local MCP runtime | `@1mcp/agent@0.35.0-beta.3` | EXPERIMENTAL | Lazy Loading ON, Async OFF, limited lifecycle tools. Catalog discovery works, but enabled Filesystem remains unavailable to lazy discovery in latest CI; not promoted. |
+| Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | CHAT-E2E-ACCEPTED (direct) | Scoped read-only direct profile passed real ordinary-Chat marker read. Adaptive lifecycle/discovery still blocked. |
+| Browser | `@playwright/mcp@0.0.78` | CI-ACCEPTED (direct) | Isolated/headless direct profile passed Windows navigation/close. Local browser profile readiness passed; ordinary-Chat browser call was blocked by stale Chat action snapshot, not local Playwright readiness. |
+| Windows desktop fallback | `sbroenne/mcp-windows` | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED | Semantic Windows UI Automation fallback; broad screenshot/mouse/keyboard/app-launch surface must not be baseline. |
+| REAPER | `TwelveTake-Studios/reaper-mcp` | LOCAL-TEST-REQUIRED / SUPPLY-PIN-REQUIRED | Choose immutable published/release artifact and benchmark a real REAPER workflow. |
+| OriginPro | `youngminsw/Origin-Pro-MCP` | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED / SUPPLY-PIN-REQUIRED | Source and PyPI versions differ; pin one artifact and benchmark installed Origin. |
+| Origin fallback | official OriginLab `originpro` API | THIN-ADAPTER-FALLBACK | Use only for measured gap in ready-made Origin MCP. |
+| FFmpeg/media | `kevinwatt/ffmpeg-mcp-lite==0.2.2` | ACCEPTED-CANDIDATE | Audit path/overwrite behavior and benchmark representative local media tasks. |
+| FFmpeg fallback | native FFmpeg CLI behind focused allowlisted adapter | THIN-ADAPTER-FALLBACK | Only if ready-made MCP fails measured requirements; never expose arbitrary shell as media API. |
+| Blender | `dcc-mcp/dcc-mcp-blender` | SECURITY-REVIEW-REQUIRED | Broad professional surface; raw Python/script tools must be removed from baseline if selected. |
+| Blender alternative | `djeada/blender-mcp-server` | LOCAL-TEST-REQUIRED | Smaller surface; compare real workflow coverage/maintenance. |
+| GitHub | existing ChatGPT GitHub connection | do not duplicate | Do not route GitHub through laptop unless local Git specifically requires it. |
 
-## Primary-source evidence
+## 1MCP evidence
 
-### 1MCP
+Repository: `1mcp-app/agent`, Apache-2.0.
 
-Repository: `https://github.com/1mcp-app/agent`
+Accepted direct baseline `0.34.4` already passed ordinary Chat -> Secure MCP Tunnel -> 1MCP E2E.
 
-- Apache-2.0.
-- Aggregates multiple MCP servers.
-- Supports server tags/filters, progressive/lazy discovery, environment substitution and per-server `disabledTools`.
-- The bridge remains pinned to the already accepted stable `0.34.4` until a deliberate upgrade test.
-- Important Windows detail verified from the pinned source: a stdio server does not inherit the whole parent environment by default. The array env form, for example `"env": ["NAME"]`, imports only the named variable and is preferred over broad inheritance.
+Stage 24 adaptive experiment pins `0.35.0-beta.3` and uses:
 
-### Filesystem MCP
+- Lazy Loading meta-tools;
+- Async Loading disabled for the experiment;
+- internal management execution enabled but Chat-facing publication limited to list/status/enable/disable/reload;
+- Filesystem and Playwright registered `disabled: true`.
 
-Repository: `https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem`
-Package channel: `https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem`
+Latest adaptive functional CI evidence (`9799bec...`):
 
-- npm package: `@modelcontextprotocol/server-filesystem`.
-- Published stable version selected for tests: `2026.7.10`.
-- Install pinning follows the real npm supply channel, not an unreleased source-tree version string.
-- Supports explicit allowed directories / MCP Roots.
-- Tools carry read-only/destructive annotations.
-- The Stage 23 profile additionally disables create/write/edit/move at the 1MCP layer.
-- Windows candidate acceptance passed through pinned `@1mcp/agent@0.34.4`: the server reached `ready`, hidden write-capable tools stayed absent from discovery, and `read_text_file` returned the expected marker from the scoped temporary root.
+- `mcp_list` returned both disabled backends correctly;
+- enable path entered Filesystem loading;
+- transient 503/loading responses were retried;
+- lazy `tool_list` remained empty and `read_text_file` did not appear before timeout (`loading retries=49`).
 
-### Microsoft Playwright MCP
+This is the current blocker. Do not replace it with a custom gateway before investigating upstream loading/lifecycle/capability refresh semantics.
 
-Repository: `https://github.com/microsoft/playwright-mcp`
-Package channel: `https://www.npmjs.com/package/@playwright/mcp`
+## Filesystem MCP evidence
 
-- Apache-2.0.
-- Published stable version selected for tests: `0.0.78`.
-- Repository `main` package metadata was observed ahead at `0.0.79`; that unreleased source version is not used as an install pin.
-- Uses structured accessibility snapshots rather than pixel-only interaction.
-- Supports headless, isolated profiles, browser selection, origin controls and optional connection to an existing browser through its extension.
-- Upstream explicitly notes that Playwright MCP itself is not a security boundary; Stage 24 must provide the boundary.
-- Windows candidate acceptance passed through pinned `@1mcp/agent@0.34.4`: the server reached `ready`, `browser_navigate` was discovered, a deterministic data page returned the expected content, and `browser_close` completed successfully.
+- package: `@modelcontextprotocol/server-filesystem@2026.7.10`;
+- explicit allowed root;
+- direct profile disables create/write/edit/move;
+- Windows discovery/read acceptance passed;
+- real ordinary-Chat `files-readonly` E2E returned `CHAT_LOCAL_FILES_E2E_OK`.
 
-### Windows MCP
+## Playwright MCP evidence
 
-Repository: `https://github.com/sbroenne/mcp-windows`
+- package: `@playwright/mcp@0.0.78`;
+- isolated/headless Chrome;
+- service workers/codegen and dangerous evaluate/file-upload/direct-network tools disabled in the accepted profile;
+- Windows direct navigation/content/close acceptance passed;
+- local `browser-isolated` + tunnel readiness passed;
+- ordinary-Chat browser E2E via the existing app was not completed because Chat retained the old filesystem action snapshot.
 
-- MIT and actively maintained in August 2026.
-- Uses Windows UI Automation names/roles as the primary mechanism rather than screen coordinates.
-- Provides structured UI snapshot/find/click/type/select/read/table/wait/batch operations.
-- Screenshot, mouse, keyboard, clipboard and app-launch capabilities make the full server high privilege even though it is local and free.
-- UAC/elevated windows remain a Windows security boundary; the project explicitly documents that a non-elevated server cannot automate secure-desktop UAC prompts.
+## Professional application candidates
 
-### TwelveTake REAPER MCP
+### REAPER
 
-Repository: `https://github.com/TwelveTake-Studios/reaper-mcp`
-GitHub release: `v1.6.4`, published 2026-08-08.
+`TwelveTake-Studios/reaper-mcp` is the current ready-made-first candidate. GitHub release `v1.6.4` existed in the Stage 23 research while package-channel evidence was older; choose one immutable artifact before testing. Benchmark real editing/routing/FX/render workflows, not a synthetic ping.
 
-- MIT.
-- 176 tools for track/FX/routing/automation/MIDI/rendering plus higher-level production workflows.
-- The supported communication path is a local file-based bridge; deprecated HTTP mode is not selected.
-- The REAPER bridge uses stock Lua and requires no cloud service or paid API.
-- GitHub `v1.6.4` specifically improves long render timeout reporting.
-- The PyPI project evidence inspected during this Stage still reported `1.6.0`; therefore an eventual config must not blindly claim `uvx twelvetake-reaper-mcp==1.6.4` until that exact package build is verified. A pinned GitHub release/source install remains possible if we deliberately choose it.
+### OriginPro
 
-### Origin Pro MCP
+`youngminsw/Origin-Pro-MCP` remains the primary candidate; source and PyPI versions observed during Stage 23 differed. Pin a specific artifact/commit and test the installed Origin. Official OriginLab `originpro` is the fallback foundation only if the ready-made MCP has a measured gap.
 
-Repository: `https://github.com/youngminsw/Origin-Pro-MCP`
-Source commit selected for review: `1e9741af96c45bcac9e619c3ba32264bac6950e7` (`0.3.1`).
-PyPI version verified on 2026-08-10: `0.1.0`.
+### FFmpeg
 
-- MIT, Python 3.10+, Windows runtime using `pywin32` and Origin COM Automation.
-- The newer source line provides worksheet management, CSV/Excel import/export, matrices/3D, graph creation/layers/styling, fitting, FFT, smoothing, integration, differentiation, interpolation, peak finding, statistics and project operations.
-- Includes guarded LabTalk, but raw LabTalk remains a high-risk capability and must not be in a least-privilege default profile.
-- Ships extensive unit/integration/live test files for import/export, graphing, fitting and connection behavior.
-- The repository README's simple `uvx origin-pro-mcp` path currently resolves the PyPI package, which is older than source `0.3.1`; Stage 23 must choose the artifact explicitly rather than conflating them.
-- Upstream source documents Origin 2020 COM quirks; actual compatibility with the installed Origin must be measured locally.
+`ffmpeg-mcp-lite==0.2.2` remains the first candidate. Audit path confinement, overwrite/output behavior and representative convert/trim/merge/audio/subtitle tasks before promotion.
 
-Vendor fallback: OriginLab's official external Python `originpro` API remains the preferred foundation if a small custom compatibility adapter is eventually required.
+### Blender
 
-### FFmpeg MCP Lite
+Compare a reduced DCC-MCP profile against `djeada/blender-mcp-server`. DCC-MCP's raw Python/script execution must not be part of a least-privilege default surface.
 
-Repository: `https://github.com/kevinwatt/ffmpeg-mcp-lite`
-PyPI version verified: `0.2.2`.
+### Windows UI Automation
 
-- MIT, Python 3.10+, local FFmpeg/ffprobe.
-- Small tool set: media info, conversion, compression, trim, merge, audio extraction, frame extraction and subtitle burn-in.
-- The inspected conversion implementation builds an argv array and invokes FFmpeg via `asyncio.create_subprocess_exec`, avoiding shell-string execution for that operation.
-- Repository includes pytest coverage and separates tools by operation.
-- Before promotion Stage 23/24 must inspect the remaining operations for path confinement, overwrite semantics and output-directory behavior, then run real media tests.
-
-### Blender candidates
-
-`dcc-mcp/dcc-mcp-blender`:
-
-- Active in August 2026, source/PyPI MIT; its Blender Extensions ZIP is GPL-3.0-or-later as required by that distribution channel.
-- Embeds a Streamable HTTP MCP server in Blender and advertises 200+ tools with progressive skills and E2E CI.
-- It also exposes raw scripting such as `execute_python` / script execution. Those tools are incompatible with a least-privilege default profile and must be disabled if this candidate is selected.
-
-`djeada/blender-mcp-server`:
-
-- MIT, smaller 22-tool surface across six namespaces.
-- Candidate for a simpler baseline if it covers the real modeling/material/render/export workflows well enough.
+Use `sbroenne/mcp-windows` only as fallback where specialized APIs/MCPs do not expose the operation cleanly. Full desktop input/screenshot/app-launch capability is high privilege.
 
 ## Promotion order
 
-1. Test the CI-accepted Filesystem and Playwright profiles locally through the existing Secure MCP Tunnel without adding them to the permanent default profile yet.
-2. Define Stage 24 least-privilege task profiles: one explicit Filesystem root and isolated browser by default; authenticated browser access is opt-in.
-3. Choose an immutable REAPER artifact (published PyPI build or pinned GitHub release) and benchmark it on a real REAPER project.
-4. Choose an immutable Origin-Pro-MCP artifact (published `0.1.0` or reviewed commit `1e9741a...`) and benchmark it on the installed Origin; only fall back to an `originpro` adapter if a measured gap remains.
-5. Audit and benchmark verified PyPI `ffmpeg-mcp-lite==0.2.2` on representative media operations before recovering or writing any FFmpeg adapter.
-6. Test Windows MCP only as fallback for operations that specialized APIs cannot expose cleanly.
-7. Compare the reduced DCC-MCP Blender profile with the smaller `djeada` server before selecting a Blender default.
+1. Finish Stage 24 adaptive lifecycle/discovery acceptance with Filesystem + Playwright.
+2. Integrate accepted adaptive behavior into the standalone manager and prove the one-snapshot ordinary-Chat workflow.
+3. Benchmark REAPER, Origin, FFmpeg, Blender and Windows UI candidates on real tasks.
+4. Promote successful candidates into the pre-approved local backend catalog with scoped tools/lifecycle evidence.
+5. Adding a promoted backend should normally **not** require a new ChatGPT plugin/app or permanent process.

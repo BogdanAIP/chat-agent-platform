@@ -2,97 +2,95 @@
 
 ## Goal
 
-Keep ordinary ChatGPT Chat as the intelligence layer while local capabilities remain replaceable standard MCP modules.
+Keep ordinary ChatGPT Chat as the intelligence layer while local capabilities remain replaceable MCP modules. Scale capability count without scaling ChatGPT plugin count or keeping every local process permanently running.
 
 ## Stage 21 — Native ChatGPT ↔ local MCP — DONE
 
-Accepted 2026-08-10:
-
-- official OpenAI Secure MCP Tunnel created and linked to the ChatGPT workspace;
-- official `openai/tunnel-client` reached `ready` on Windows;
-- local 1MCP reached `ready`;
-- ChatGPT discovered and invoked `sequential_thinking`;
-- result returned to the same ChatGPT conversation.
+Accepted 2026-08-10: Secure MCP Tunnel + official tunnel-client + local 1MCP + Sequential Thinking round trip from ordinary ChatGPT.
 
 ## Stage 22 — Remove superseded custom platform infrastructure — DONE
 
-The active repository no longer ships the old universal Rust/Python core or transport stack.
+Removed the obsolete universal Rust/Python core, custom ingress/polling/Yandex/media platform runtime. Historical implementation remains in Git at `a446397d99276856c614bc49526cab422c7e74bd`.
 
-Removed from the active tree:
+## Stage 23 — Quality-first module selection — DONE
 
-- `agent-platform.exe` universal runtime source;
-- custom `/gpt` ingress and polling transport;
-- Rust `relay-server`;
-- Yandex gateway/function/deployment assets;
-- Stage 4 relay/GPT Action tests and workflows;
-- Python behavioral oracle and Rust/Python parity layer;
-- media/REAPER/mastering implementation as platform core;
-- release/SBOM/license packaging built around the deprecated universal binary;
-- Tailscale `8443` pilot lifecycle from the product path.
+Accepted Windows candidates:
 
-The pre-cleanup tree is preserved by Git history at `a446397d99276856c614bc49526cab422c7e74bd`.
+- Filesystem MCP `2026.7.10`;
+- Microsoft Playwright MCP `0.0.78`;
+- 1MCP direct baseline `0.34.4`.
 
-## Stage 23 — Quality-first module catalog and ready-made selection — DONE
+Ready-made-first candidates were recorded for REAPER, Origin, FFmpeg, Blender and Windows UI fallback.
 
-Economic rule: the baseline bridge must add **zero mandatory SaaS subscriptions**. Quality remains a hard gate; do not choose a poor free tool over a professional local/vendor solution.
+## Stage 24 — Windows lifecycle + scalable ordinary-Chat capability surface — IN PROGRESS
 
-Accepted Stage 23 results:
+### Completed evidence inside Stage 24
 
-- module selection policy and cost firewall are documented;
-- install artifacts must be pinned from the real npm/PyPI/GitHub Release/vendor supply channel;
-- read-only Filesystem MCP `2026.7.10` passed real Windows 1MCP health/discovery/read acceptance;
-- isolated/headless Microsoft Playwright MCP `0.0.78` passed real Windows 1MCP health/discovery/navigation/close acceptance;
-- REAPER, Origin, FFmpeg, Windows UI and Blender have ready-made-first candidate paths and explicit fallback rules;
-- no legacy media/application adapter is restored without a measured gap;
-- normal Windows CI, Module Candidate Acceptance, CodeQL and secret-history checks pass.
+- least-privilege direct `files-readonly` and `browser-isolated` profiles;
+- robust profile status/conflict recovery;
+- official tunnel readiness gating and startup rollback;
+- verified standalone Windows bootstrap/manager under LocalAppData;
+- DPAPI runtime key handling;
+- tray/controller separation and no persistent console window;
+- real ordinary-Chat `files-readonly` E2E;
+- local `browser-isolated` readiness;
+- real discovery that Chat action snapshots do not silently change after local profile switching.
 
-Stage 23 does not make every researched module a default tool. It establishes the evidence-based selection process and the first technically accepted baseline capabilities.
+### Adaptive convergence
 
-## Stage 24 — Least-privilege ordinary Chat profiles — IN PROGRESS
+The scalable target now uses one stable Chat-facing 1MCP Lazy Loading contract rather than one Chat app/plugin per capability.
 
-Stage 24 promotes capabilities only through explicit task profiles on the existing Secure MCP Tunnel path.
+Required stable surface:
 
-Initial profiles:
+- `tool_list`, `tool_schema`, `tool_invoke`;
+- lifecycle `mcp_list`, `mcp_status`, `mcp_enable`, `mcp_disable`, `mcp_reload`;
+- no Chat-facing install/uninstall/update/edit/search of arbitrary MCP catalog entries.
 
-- `files-readonly` — one explicit workspace root, no browser, no create/write/edit/move;
-- `browser-isolated` — isolated/headless Playwright, no filesystem, with unsafe code/evaluate/file-upload/direct-request tools disabled.
+Backends are pre-approved locally, disabled by default and activated according to the task. Multiple backends may be active together when the workflow genuinely requires it.
 
-Security rule: do **not** combine open-web browser access and arbitrary local-file reading in an always-on baseline profile. Read-only local data plus network transmission is still an exfiltration path under prompt injection. Capability separation is the primary boundary; upstream origin filters may be defense in depth but are not treated as the security boundary.
+Current experimental catalog: Filesystem + Playwright. Adaptive currently tests 1MCP `0.35.0-beta.3`; it is not accepted yet.
 
-Before a profile is accepted for ordinary Chat:
+### Current blocker
 
-1. prove the profile starts through the pinned 1MCP runtime;
-2. prove forbidden tools are absent from actual discovery;
-3. prove only one Chat-facing profile owns the fixed local tunnel port;
-4. prove the official Secure MCP Tunnel remains ready;
-5. invoke one harmless tool from ordinary Chat and receive the result back in the same conversation;
-6. prove switching profiles does not silently expose the previous profile's tools.
+Latest functional adaptive acceptance correctly sees both disabled backends and reaches Filesystem loading after enable, but `tool_list` never publishes `read_text_file` within the timeout. Diagnose the upstream 1MCP lifecycle/loading/lazy refresh path before adding project-owned infrastructure.
 
-Authenticated browser-session reuse, write-capable filesystem access, Windows desktop control, shell access and combined profiles remain outside the baseline until separately justified and reviewed.
+### Stage 24 Definition of Done
 
-## Stage 25 — Application capability benchmarks
+1. adaptive Filesystem enable/discover/invoke/disable/cleanup passes in one MCP session;
+2. adaptive Playwright enable/discover/navigate/disable/cleanup passes under the same stable tool contract;
+3. only approved lazy/lifecycle tools are exposed to Chat;
+4. accepted adaptive behavior is integrated into manager/bootstrap/status/start/stop/toggle/tray;
+5. direct profiles remain working diagnostics/fallback during transition;
+6. exact final functional HEAD passes `ci`, `Chat Profile Acceptance`, CodeQL and Secret History Scan;
+7. real ordinary Chat proves backend selection/switching through one action snapshot without per-backend plugin creation or routine Refresh;
+8. only then Stage 24 is integrated into `main`.
 
-After Stage 24 baseline profile acceptance, benchmark the selected local professional integrations against real workflows:
+## Stage 25 — Professional application capability benchmarks
 
-- REAPER: pin one exact TwelveTake artifact and test a real project;
-- Origin: pin one exact Origin-Pro-MCP artifact and test the installed Origin; use official OriginLab `originpro` only if a measured gap remains;
-- FFmpeg: audit and benchmark `ffmpeg-mcp-lite==0.2.2`; build a small adapter only if it fails measured needs;
-- Blender: compare a reduced DCC-MCP profile with the smaller `djeada` server;
-- Windows UI Automation: use only for gaps that specialized APIs cannot cover.
+After Stage 24, benchmark real workflows and promote backends into the pre-approved local catalog:
 
-## Stage 26 — Optional Windows manager
+- REAPER: choose an immutable TwelveTake artifact and test real audio/project operations;
+- Origin: choose an immutable Origin-Pro-MCP artifact and test the installed Origin; fall back to official OriginLab APIs only for measured gaps;
+- FFmpeg: audit and benchmark `ffmpeg-mcp-lite==0.2.2` before writing an adapter;
+- Blender: compare a reduced DCC-MCP surface with the smaller `djeada` server;
+- Windows UI Automation: high-privilege fallback only where specialized APIs cannot cover the task.
 
-Only after module/profile management stabilizes, consider a thin UI/manager for:
+Promotion of a new backend should normally require catalog/config/security/acceptance work, **not a new ChatGPT plugin/app**.
 
-- installing/detecting 1MCP and official tunnel-client;
-- choosing task profiles and allowed folders;
-- adding/removing MCP modules;
-- start/stop/status;
-- diagnostics;
-- safe local secret references.
+Lifecycle should follow the task: enable required backends, keep shared backends active across dependent stages, disable idle backends, and allow concurrency when necessary.
 
-It must not become an agent, workflow engine or second policy platform.
+## Stage 26 — Distribution and maintenance hardening
+
+Once adaptive behavior and application backends are stable:
+
+- first stable release artifact;
+- reproducible local dependency installation/lock strategy instead of repeated registry resolution;
+- versioned bootstrap/update/repair/doctor/uninstall;
+- runtime-key rotation;
+- manager/1MCP/tunnel-client upgrade and rollback rules;
+- idle/process lifecycle policy and diagnostics;
+- keep controller/UI thin and non-agentic.
 
 ## Definition of Done
 
-The product succeeds when ordinary ChatGPT can use useful local modules with no project-owned generic transport/runtime, no mandatory SaaS subscription chain, and a user can add or replace a module without changing the bridge core.
+The product succeeds when ordinary ChatGPT can discover and use useful local capabilities through a stable standard-MCP bridge, starting only what tasks require, without a second AI planner, mandatory SaaS chain, project-owned generic gateway, or one ChatGPT plugin per local tool.
