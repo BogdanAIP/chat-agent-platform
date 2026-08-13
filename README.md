@@ -1,23 +1,74 @@
 # Chat Agent Platform
 
-Тонкий мост между **обычным ChatGPT Chat** и локальным Windows-компьютером через стандартный MCP. ChatGPT остаётся интеллектом и выбирает инструменты; локальная часть не содержит второго агента, собственного tunnel/gateway или универсального execution core.
+Тонкий мост между **обычным ChatGPT Chat** и локальным Windows-компьютером через стандартный MCP. ChatGPT остаётся интеллектом и выбирает инструменты; локальная часть не содержит второго агента или собственного AI/workflow runtime.
 
-## Принятая архитектура
+Для продолжения разработки из нового Chat/Codex сначала читайте [`AGENTS.md`](AGENTS.md) и [`project-context/START_HERE.md`](project-context/START_HERE.md).
+
+## Принятая основа
 
 ```text
 ordinary ChatGPT Chat
   -> ChatGPT custom MCP app/plugin
   -> OpenAI Secure MCP Tunnel
   -> official openai/tunnel-client on Windows
-  -> 1MCP on 127.0.0.1:3050
-  -> one explicit least-privilege task profile
-  -> replaceable MCP servers/adapters
+  -> 1MCP on loopback
+  -> replaceable MCP backends
   -> local programs/files/devices
 ```
 
-Полный reference round trip принят 2026-08-10: обычный ChatGPT вызвал локальный `sequential_thinking`, и результат вернулся в тот же чат.
+Полный reference round trip принят 2026-08-10: обычный ChatGPT вызвал локальный Sequential Thinking через Secure MCP Tunnel и получил результат в том же чате.
 
-## Первый запуск на Windows
+## Текущее направление Stage 24
+
+Реальный тест показал, что локальная смена профиля 1MCP не обновляет уже обнаруженный ChatGPT action snapshot. Создавать отдельный Chat app/plugin для Filesystem, Browser, REAPER, Blender, Origin, FFmpeg и каждого будущего модуля не является целевым UX.
+
+Поэтому Stage 24 сейчас проверяет **один стабильный Chat-facing contract** на штатном Lazy Loading 1MCP:
+
+```text
+tool_list
+tool_schema
+tool_invoke
+```
+
+и ограниченные lifecycle tools для заранее разрешённого локального каталога:
+
+```text
+mcp_list
+mcp_status
+mcp_enable
+mcp_disable
+mcp_reload
+```
+
+Backend MCP регистрируются локально, стартуют выключенными и включаются по задаче. Если конкретная задача требует нескольких backend одновременно, архитектура должна это позволять. Инструменты произвольной установки/удаления/редактирования каталога не должны публиковаться в ordinary Chat.
+
+**Adaptive пока экспериментальный и не принят.** Принятые direct-профили сохраняются как диагностические/reference paths, пока adaptive не пройдёт CI и реальный ordinary-Chat acceptance.
+
+## Принятые direct-профили
+
+### `reference`
+
+Harmless Sequential Thinking для connectivity/smoke tests.
+
+### `files-readonly`
+
+- один Filesystem MCP;
+- один явно выбранный root;
+- broad/system roots запрещены;
+- create/write/edit/move отключены;
+- ordinary-Chat E2E чтения реального marker-файла пройден 2026-08-12.
+
+### `browser-isolated`
+
+- Microsoft Playwright MCP;
+- isolated/headless Chrome;
+- service workers/codegen и опасные evaluate/file-upload/direct-request tools отключены;
+- локальный profile/tunnel readiness пройден;
+- ordinary-Chat browser E2E через старый app snapshot не завершён, потому что Chat продолжил показывать filesystem actions.
+
+Direct-профили доказывают отдельные capability boundaries. Они не означают постоянный архитектурный запрет на совместную работу нескольких backend в adaptive workflow.
+
+## Windows bootstrap/manager
 
 Текущий bootstrap рассчитан на PowerShell 7+, Node/npm и обычный Windows user account:
 
@@ -25,82 +76,39 @@ ordinary ChatGPT Chat
 .\scripts\bootstrap-chat-platform.ps1
 ```
 
-Bootstrap выполняет полный локальный setup:
+Он проверяет окружение и pinned dependencies, устанавливает проверенный официальный `openai/tunnel-client`, создаёт tunnel profile через официальный CLI, хранит runtime key через Windows DPAPI `CurrentUser`, устанавливает standalone manager под `%LOCALAPPDATA%\ChatAgentPlatform\app`, создаёт shortcut и выполняет reference smoke test.
 
-1. проверяет Windows, PowerShell, Node/npm/npx и pinned 1MCP;
-2. получает принятый официальный `openai/tunnel-client` для архитектуры Windows;
-3. проверяет release tag, официальный `SHA256SUMS.txt`, pinned SHA-256 и GitHub release digest;
-4. устанавливает `tunnel-client.exe` в `%LOCALAPPDATA%\ChatAgentPlatform\bin`;
-5. запрашивает или повторно использует `CONTROL_PLANE_TUNNEL_ID`;
-6. создаёт профиль `local-1mcp` штатной командой `tunnel-client init` для `http://127.0.0.1:3050/mcp`;
-7. копирует проверенный manager/runtime bundle в `%LOCALAPPDATA%\ChatAgentPlatform\app`;
-8. при первом запуске скрыто запрашивает `CONTROL_PLANE_API_KEY` и хранит его через Windows DPAPI `CurrentUser`;
-9. создаёт desktop shortcut;
-10. по умолчанию выполняет smoke test `MCP ready + Tunnel ready`, затем оставляет платформу выключенной.
+Manager/tray — только lifecycle/UI слой. Он не является агентом, MCP gateway или planner.
 
-После успешного bootstrap рабочий desktop manager запускается из `%LOCALAPPDATA%` и не зависит от расположения git checkout.
+## Принцип безопасности
 
-Для runtime API key нужны только права туннеля, необходимые обычному tunnel runtime (`Tunnels: Read + Use`). Административный API key manager не использует.
+Безопасность не должна превращаться в блокировку полезных сценариев. Рабочая модель:
 
-## Локальный manager
-
-Публичная командная точка установленного manager находится в `%LOCALAPPDATA%\ChatAgentPlatform\app\scripts`:
-
-```powershell
-.\chat-platform.ps1 -Action Status
-.\chat-platform.ps1 -Action Start
-.\chat-platform.ps1 -Action Stop
+```text
+AVAILABLE -> ACTIVE -> AUTHORIZED
 ```
 
-`chat-platform.ps1` сериализует изменяющие lifecycle-операции через локальный named mutex, поэтому tray и ручная команда не должны одновременно запускать конкурирующие Start/Stop/Install/Toggle/SetProfile. `Status` остаётся неблокирующим.
+Возможность может быть зарегистрирована, не запущена; нужные процессы включаются по задаче; чувствительные операции получают соответствующие scope/confirmation. Широкий always-on baseline с локальными данными и открытой сетью не нужен, но легитимный workflow может временно использовать несколько backend одновременно.
 
-`chat-platform-controller.ps1` является внутренней реализацией lifecycle. Tray является только UI: он не определяет процессы, PID или health самостоятельно, а получает авторитетное состояние через публичный manager facade. Зелёный статус возможен только при одном активном MCP-профиле, готовом MCP и готовом Secure MCP Tunnel.
-
-## Профили обычного Chat
-
-### `reference`
-
-Только harmless Sequential Thinking. Используется для connectivity/smoke tests.
-
-### `files-readonly`
-
-- один Filesystem MCP;
-- один явно выбранный локальный root;
-- целый диск и broad/system roots запрещены;
-- create/write/edit/move отключены;
-- browser отсутствует.
-
-### `browser-isolated`
-
-- один Microsoft Playwright MCP;
-- isolated/headless Chrome;
-- filesystem отсутствует;
-- service workers и codegen отключены;
-- unsafe code/evaluate/file-upload/direct-network tools отключены.
-
-Filesystem и open-web browser намеренно не объединяются в постоянный baseline profile: read-only локальные данные плюс сетевой browser уже образуют путь утечки при prompt injection.
-
-## Почему активный репозиторий небольшой
-
-Stage 22 удалил старый project-owned Rust/Python core, `/gpt`, polling relay, Yandex gateway/deploy и media/mastering platform core. Полная старая реализация сохранена в Git history и может использоваться только как материал для точечного MCP adapter, если готовое решение не пройдёт реальные тесты.
-
-Правило выбора локальной возможности:
+## Правило выбора модулей
 
 1. официальный/vendor MCP;
 2. зрелый open-source MCP;
 3. готовый local API/CLI + маленький adapter;
-4. только затем project-owned MCP для измеримого отсутствующего boundary.
+4. project-owned MCP только для измеримого отсутствующего boundary.
+
+Никаких обязательных дополнительных SaaS для базовых локальных возможностей.
 
 ## Состояние разработки
 
-Stage 21–23 завершены. Stage 24 доводит least-privilege profiles и локальный lifecycle/bootstrap до принятого состояния. После этого Stage 25 — реальные application benchmarks для REAPER, Origin, FFmpeg, Blender и Windows UI fallback.
+Stage 21–23 завершены. Stage 24 в работе. Точная текущая точка, включая последний падающий adaptive acceptance, находится в [`project-context/CURRENT_STATE.md`](project-context/CURRENT_STATE.md). План — [`project-context/ROADMAP.md`](project-context/ROADMAP.md).
 
-Актуальное состояние: `project-context/CURRENT_STATE.md`. План: `project-context/ROADMAP.md`.
+Не считайте README более свежим источником, чем код/tests/CI и `CURRENT_STATE.md`.
 
 ## Security
 
-Секреты, tunnel IDs и пользовательские абсолютные пути не являются repository content. Runtime key хранится локально через DPAPI. См. `SECURITY.md` и `project-context/SECURITY_POLICY.md`.
+Секреты, tunnel IDs и пользовательские абсолютные пути не являются repository content. См. `SECURITY.md` и `project-context/SECURITY_POLICY.md`.
 
 ## License / Support
 
-MIT License без дополнительных обязательных условий. Поддержка проекта остаётся добровольной и не влияет на лицензионные права.
+MIT License без дополнительных обязательных условий. Поддержка проекта добровольна и не влияет на лицензионные права.

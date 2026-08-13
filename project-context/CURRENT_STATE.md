@@ -1,8 +1,10 @@
 # Current State
 
+Last synchronized with functional baseline `9799bec20ffeb92eebbba5061f32dff403bbe6f4` on 2026-08-13. Later documentation-only commits do not imply additional runtime acceptance. Always check the current PR HEAD and workflows.
+
 ## Accepted bridge
 
-Stage 21 is complete. On 2026-08-10 ordinary ChatGPT Chat successfully invoked `sequential_thinking` through:
+Stage 21 is complete. On 2026-08-10 ordinary ChatGPT successfully completed:
 
 ```text
 ChatGPT
@@ -14,156 +16,134 @@ ChatGPT
   -> result back to ChatGPT
 ```
 
-Ordinary Chat remains the primary intelligence surface. Work, Codex and Workspace Agents are optional accelerators rather than required architecture.
+Ordinary Chat remains the primary intelligence surface. Codex/Work may accelerate development but are not required product runtime components.
 
-## Active repository
+## Accepted module/direct-profile evidence
 
-The active tree is intentionally thin. There is no project-owned universal runtime, public ingress, polling relay, Yandex deployment, media/mastering core or second AI planner.
+Stage 23 accepted on Windows through pinned `@1mcp/agent@0.34.4`:
 
-Project-owned executable behavior is limited to Windows lifecycle/bootstrap convenience and compatibility/acceptance checks around mature components.
+- Filesystem `2026.7.10`: scoped root, write-capable tools hidden, real read call passed;
+- Playwright MCP `0.0.78`: isolated/headless browser, navigation/content/close passed.
 
-## Stage 23 — complete
+Stage 24 real-machine evidence already passed:
 
-Two baseline modules passed real Windows acceptance through pinned `@1mcp/agent@0.34.4`:
+- standalone bootstrap and official tunnel-client verification;
+- DPAPI runtime-key storage and standalone manager bundle;
+- reference smoke with MCP + tunnel readiness;
+- tray no-console fix: no persistent Windows Terminal/npm/npx window;
+- direct `files-readonly` ordinary-Chat E2E returned the exact marker `CHAT_LOCAL_FILES_E2E_OK`;
+- local switch to `browser-isolated` produced exactly one active browser profile with MCP/tunnel readiness.
 
-- **Filesystem `2026.7.10` — CI-ACCEPTED.** Scoped root; create/write/edit/move hidden; real `read_text_file` call passed.
-- **Microsoft Playwright MCP `0.0.78` — CI-ACCEPTED.** Isolated/headless Chrome; real navigation/content/close calls passed.
+## Chat action snapshot finding
 
-Ready-made-first candidates are recorded for REAPER, Origin, FFmpeg, Windows UI Automation and Blender.
+After switching locally from `files-readonly` to `browser-isolated`, the already-connected `Chat Local Bridge Test` still exposed only the earlier `filesystem_*` actions. The browser backend was locally ready, but Chat did not automatically replace the action snapshot.
 
-## Stage 24 — in progress
+This invalidated the earlier target of silently switching arbitrary direct tool surfaces behind one already-scanned Chat app. Creating a separate Chat app/plugin snapshot for every future local capability is also rejected as the normal scalable UX.
 
-### Least-privilege profiles
+## Stage 24 adaptive direction — experimental
 
-`files-readonly`:
-
-- one Filesystem MCP only;
-- one explicit existing workspace root;
-- whole drives and broad/system roots rejected;
-- create/write/edit/move disabled;
-- no browser capability.
-
-`browser-isolated`:
-
-- one Playwright MCP only;
-- isolated headless Chrome;
-- no filesystem capability;
-- service workers and code generation disabled;
-- unsafe code/evaluate/file-upload/direct-request tools disabled.
-
-The profiles are deliberately not combined. Read-only local data plus an open network-capable browser can still form an exfiltration path under prompt injection.
-
-### Lifecycle state
-
-The local lifecycle scripts keep the official tunnel target at `http://127.0.0.1:3050/mcp` and use separate 1MCP Runtime Scopes.
-
-Profile status is now machine-readable even when more than one known Runtime Scope is active: that condition is reported as `conflict`/`active_count > 1` so the controller can recover it instead of losing the state behind an error exit.
-
-Idempotent 1MCP cleanup consistently accepts the known already-stopped supervisor states `3` and `7`.
-
-### Thin Windows bootstrap/manager
-
-The Stage 24 manager is deliberately not an agent. Its responsibilities are installation/configuration/lifecycle/diagnostics only.
-
-Bootstrap now:
-
-- checks PowerShell 7, Node/npm/npx and pinned 1MCP availability;
-- installs reviewed official `openai/tunnel-client v0.0.11` Windows x64/ARM64 assets only after comparing the downloaded archive against the pinned reviewed SHA-256, official `SHA256SUMS.txt` and GitHub release asset digest;
-- creates/reuses `local-1mcp` using the official `tunnel-client init` CLI and fixed loopback MCP URL;
-- rejects an old tunnel profile whose relative runtime paths are not portable into the standalone installation, backs it up and regenerates it through the official CLI;
-- installs a verified copy of the manager scripts and runtime configs under `%LOCALAPPDATA%\ChatAgentPlatform\app` so normal use does not depend on a Git checkout;
-- keeps tunnel binary/profile/state/secrets outside the app bundle;
-- requests the runtime API key only when not already configured and stores it through Windows DPAPI `CurrentUser`;
-- installs the desktop shortcut from the installed manager copy;
-- performs a forced `reference` MCP + tunnel readiness smoke test, validates that `reference` is the only active profile, then stops the platform.
-
-Mutating manager actions do not run the internal controller through a PowerShell output pipeline. They wait on the exact controller process handle instead, so long-lived 1MCP/tunnel descendants cannot keep an outer bootstrap/tray pipeline open after lifecycle completion.
-
-Tray is now UI-only. It gets authoritative status from `chat-platform-controller.ps1`; it no longer duplicates PID/process/tunnel/MCP health discovery. On Windows the tray self-relaunches into a `CreateNoWindow` process before acquiring its singleton mutex, so Windows Terminal is not left open while the tray remains resident.
-
-Manager/profile/bootstrap changes trigger the dedicated `Chat Profile Acceptance` Windows workflow in addition to normal CI, CodeQL and secret-history scanning.
-
-### Real Windows bootstrap evidence — 2026-08-12
-
-The corrected bootstrap completed successfully on the target Windows machine using the existing provisioned tunnel ID and DPAPI-protected runtime key.
-
-Real-machine evidence:
-
-- official `openai/tunnel-client v0.0.11` archive and binary verification passed;
-- the legacy `local-1mcp` profile was detected as non-portable, backed up, and regenerated by official `tunnel-client init`;
-- the independent manager bundle was installed under `%LOCALAPPDATA%\ChatAgentPlatform\app` and verified;
-- the installed manager started the forced `reference` profile from its standalone runtime config;
-- 1MCP reported `sequential-thinking` ready on `http://127.0.0.1:3050/mcp`;
-- the Secure MCP Tunnel reported ready;
-- startup reported `ACTIVE_PROFILE=reference`, `MCP_READY=True`, `TUNNEL_RUNNING=True`, and `TUNNEL_READY=True`;
-- bootstrap reported `BOOTSTRAP_SMOKE_PROFILE=reference` and `BOOTSTRAP_SMOKE_TEST=passed`;
-- cleanup completed with `CHAT_PROFILE_STATUS=stopped`, `CHAT_PLATFORM_STATUS=stopped`, `CHAT_PLATFORM_BOOTSTRAP=OK`, and `PLATFORM_STATE=stopped`;
-- after the no-console tray fix, `-LaunchTray` left the red tray indicator running without opening or leaving a separate Windows Terminal / npm / npx console window.
-
-This closes the standalone-bootstrap and no-console tray real-machine gates. Earlier real-machine failures exposed three acceptance defects that are fixed on the active PR branch: pipeline lifetime coupling, non-portable relative tunnel log paths, and Windows Terminal capture of the resident tray process.
-
-### Real ordinary-Chat `files-readonly` acceptance — passed 2026-08-12
-
-The installed standalone manager started the `files-readonly` profile with exactly one active Runtime Scope and both MCP and Secure MCP Tunnel ready:
-
-- `ACTIVE_PROFILE=files-readonly`;
-- `MCP_READY=True`;
-- `TUNNEL_RUNNING=True`;
-- `TUNNEL_READY=True`;
-- `active_count=1`;
-- allowed root `C:\Users\eahra\AppData\Local\Temp\chat-local-bridge-files-test`.
-
-A harmless file `hello.txt` containing `CHAT_LOCAL_FILES_E2E_OK` was created locally in that allowed root. Ordinary ChatGPT, through `Chat Local Bridge Test`, successfully read the file and returned the exact expected content `CHAT_LOCAL_FILES_E2E_OK`.
-
-This closes the real ordinary-Chat E2E gate for the read-only filesystem profile:
+Current target:
 
 ```text
-ordinary ChatGPT Chat
-  -> Chat Local Bridge Test
-  -> OpenAI Secure MCP Tunnel
+ordinary ChatGPT
+  -> one stable Chat-facing MCP action contract
+  -> Secure MCP Tunnel
   -> official tunnel-client
-  -> local 1MCP
-  -> files-readonly Filesystem MCP
-  -> hello.txt
-  -> exact content back to ChatGPT
+  -> one 1MCP runtime
+  -> stable Lazy Loading meta-tools
+  -> task-driven backend MCP lifecycle
 ```
 
-### Chat action snapshot finding — 2026-08-12
+Stable Chat-facing lazy tools:
 
-The local manager then stopped `files-readonly` and successfully started `browser-isolated` with exactly one active Runtime Scope and `MCP_READY=True`, `TUNNEL_RUNNING=True`, and `TUNNEL_READY=True`.
+- `tool_list`;
+- `tool_schema`;
+- `tool_invoke`.
 
-Ordinary Chat using the already-connected `Chat Local Bridge Test` nevertheless still exposed only the previously discovered `filesystem_*` actions and reported that no browser action existed. This demonstrates that the local profile switch and Chat-visible action discovery are separate concerns.
+Allowed lifecycle management surface for the pre-approved catalog:
 
-The earlier Stage 24 assumption that one Chat-facing app/plugin could silently mutate its visible tool surface whenever the local 1MCP profile changes is therefore rejected. The Chat-side action contract must be explicitly refreshed/versioned. The preferred final direction is one Chat-facing app/plugin action snapshot per least-privilege profile, with the local manager still enforcing that only the matching profile is active. A manual refresh/re-scan of a single app remains acceptable for development diagnostics, but is not the target steady-state UX.
+- `mcp_list`;
+- `mcp_status`;
+- `mcp_enable`;
+- `mcp_disable`;
+- `mcp_reload`.
+
+Do not publish arbitrary catalog-management tools such as install/uninstall/update/edit/search to ordinary Chat.
+
+### Adaptive runtime configuration
+
+`runtime/chat-profiles/adaptive/mcp.json` currently registers two disabled backends:
+
+- Filesystem MCP `@modelcontextprotocol/server-filesystem@2026.7.10`;
+- Playwright MCP `@playwright/mcp@0.0.78`.
+
+Direct profiles remain on accepted `@1mcp/agent@0.34.4`.
+Adaptive currently pins `@1mcp/agent@0.35.0-beta.3`, with Lazy Loading ON and Async Loading OFF, because this line is being evaluated for dynamic same-session capability visibility/lifecycle behavior.
+
+Adaptive is **not** the installed-manager default and is **not accepted**.
+
+## Latest adaptive CI result — blocker
+
+Functional baseline: `9799bec20ffeb92eebbba5061f32dff403bbe6f4`.
+
+Workflow results:
+
+- `ci`: PASS;
+- `CodeQL Security`: PASS;
+- `Secret History Scan`: PASS;
+- `Chat Profile Acceptance / windows-profiles`: PASS;
+- `Chat Profile Acceptance / adaptive-runtime`: FAIL.
+
+Observed adaptive sequence:
+
+1. adaptive 1MCP started and reached runtime readiness;
+2. `mcp_list` correctly returned `filesystem` and `playwright`, both `disabled`;
+3. Filesystem activation entered backend loading;
+4. the acceptance test correctly treated HTTP `503 service_unavailable` + `loading` as transitional;
+5. after the wait window, `tool_list({server: "filesystem"})` still returned no tools;
+6. failure: `read_text_file` never became visible; observed `tools: []`, `loading retries=49`.
+
+Therefore the next engineer must not spend time re-solving the already-closed snapshot issue or claim adaptive works. The immediate technical task is to understand why the enabled backend remains unavailable to Lazy Loading capability discovery in the same MCP session.
+
+Investigate upstream 1MCP behavior around:
+
+- `McpLoadingManager` and backend state transitions;
+- enable/load lifecycle;
+- `ServerManager.loadMcpServer` / unload/ready tracking;
+- `LazyLoadingOrchestrator.refreshCapabilities`;
+- backend capability-list change notifications;
+- stdio backend process readiness/cleanup.
+
+Prefer an upstream-supported mechanism or a narrowly justified upstream fix/workaround. Do not introduce a project-owned universal gateway/broker until a concrete missing upstream boundary is proven.
+
+## Safety model
+
+Use three separate concepts:
+
+```text
+AVAILABLE
+ACTIVE
+AUTHORIZED
+```
+
+A backend can be registered without running. Start only what the task needs. Multiple backends may be active simultaneously if the workflow actually requires them. Sensitive operations should be scoped/authorized; security must not become a blanket ban on useful multi-tool workflows.
+
+The old direct `files-readonly` and `browser-isolated` separation remains valuable as diagnostic evidence and a conservative fallback, not as a permanent rule that Browser and Filesystem may never coexist.
 
 ## Remaining Stage 24 gates
 
-Before Stage 24 is accepted:
+1. adaptive Filesystem: enable -> ready -> lazy discovery -> real read -> disable -> tool/process cleanup;
+2. adaptive Playwright: enable -> ready -> lazy discovery -> navigate `https://example.com` -> close -> disable -> cleanup;
+3. stable Chat-facing surface contains only approved lazy/lifecycle tools and excludes catalog mutation/admin tools;
+4. integrate accepted adaptive behavior into standalone manager/bootstrap/status/start/stop/toggle/tray without breaking direct profiles/no-console behavior;
+5. all final CI/security checks green on the exact final functional HEAD;
+6. real ordinary-Chat acceptance demonstrates that a single Chat-facing contract can use task-selected backends without creating a new plugin or requiring Refresh for every backend;
+7. only then accept Stage 24 and integrate/merge to `main`.
 
-1. current manager/bootstrap CI must remain green on the final branch state;
-2. while `browser-isolated` is active, refresh/re-scan or create a Chat-facing browser action snapshot and complete one harmless ordinary-Chat Playwright call;
-3. verify the final Chat-facing profile model so filesystem and browser actions are not simultaneously enabled by default. Preferred target: separate frozen Chat app/plugin action snapshots for `files-readonly` and `browser-isolated`, backed by the same least-privilege local profile enforcement.
+## Work after Stage 24
 
-Authenticated browser reuse, filesystem writes, shell access and desktop automation remain outside the baseline.
-
-## Application work after Stage 24
-
-- TwelveTake REAPER MCP: select one immutable artifact before real REAPER benchmarking;
-- Origin-Pro-MCP: choose one immutable published/source artifact before testing installed Origin;
-- `ffmpeg-mcp-lite==0.2.2`: audit output/path behavior and benchmark real media tasks;
-- Blender: compare a reduced DCC-MCP profile against the smaller `djeada` server;
-- Windows MCP: high-privilege fallback only.
+Stage 25 benchmarks real professional modules (REAPER, Origin, FFmpeg, Blender, Windows UI fallback) as replaceable backends behind the stable bridge. Adding one of these backends should not normally require a new ChatGPT plugin/app. Backend processes should be task-driven, not all permanently resident.
 
 ## Legacy preservation
 
-The complete pre-cleanup implementation remains recoverable at:
-
-```text
-a446397d99276856c614bc49526cab422c7e74bd
-```
-
-Historical Yandex/Tailscale paths are not active product dependencies.
-
-## Secrets
-
-Tunnel runtime keys and tunnel IDs are local operational data and are not stored in Git. The long-lived runtime key should use only the required tunnel runtime permissions (`Read + Use`).
+The complete pre-cleanup implementation remains recoverable at `a446397d99276856c614bc49526cab422c7e74bd`. Historical Yandex/Tailscale paths are not active product dependencies.

@@ -2,77 +2,112 @@
 
 ## Product boundary
 
-The project is a generic bridge that lets ordinary ChatGPT Chat use local capabilities through standard MCP. ChatGPT remains the planner/orchestrator; the local bridge does not implement a second agent.
+The project is a generic bridge that lets ordinary ChatGPT Chat use local capabilities through standard MCP. ChatGPT remains the planner/orchestrator. The local bridge does not implement a second AI agent or workflow brain.
 
-## Accepted data path
+## Accepted reachability path
 
 ```text
 ordinary ChatGPT Chat
   -> custom MCP app/plugin
   -> OpenAI Secure MCP Tunnel
   -> official openai/tunnel-client
-  -> 1MCP on loopback
-  -> one explicit task profile
-  -> replaceable MCP servers/adapters
+  -> local 1MCP
+  -> replaceable MCP backends
   -> local programs/files/devices
 ```
 
-The first end-to-end reference acceptance passed on 2026-08-10 with the official Sequential Thinking server.
+The first E2E reference acceptance passed on 2026-08-10.
+
+## Stable Chat-facing surface target
+
+A real Stage 24 test proved that local backend/profile switching does not automatically replace an already-discovered Chat action snapshot. Therefore the scalable target is not one separate Chat app per local capability and not a dynamically mutating direct tool list.
+
+Target adaptive boundary:
+
+```text
+ChatGPT
+  -> stable lazy meta-tools: tool_list / tool_schema / tool_invoke
+  -> limited lifecycle tools: list / status / enable / disable / reload
+  -> 1MCP pre-approved backend catalog
+  -> one or more task-active backends
+```
+
+The adaptive design uses 1MCP's own aggregation/lazy/lifecycle facilities. It does not justify a project-owned gateway/broker unless an upstream gap is measured and cannot be resolved otherwise.
+
+**Status:** target under Stage 24 acceptance, not yet accepted runtime architecture. Direct profiles remain the accepted fallback/reference until the adaptive gates pass.
+
+## Capability lifecycle model
+
+Treat capability state as three independent questions:
+
+- **AVAILABLE:** registered/known in the local catalog;
+- **ACTIVE:** backend process currently running because a task needs it;
+- **AUTHORIZED:** the requested operation is within the allowed scope/confirmation policy.
+
+Default behavior should avoid running the whole catalog. Sequential activation is preferred when stages are sequential, but concurrent backend activation is allowed when the real workflow requires it.
+
+This replaces the simplistic interpretation that Filesystem and Browser must never coexist. What remains forbidden is an unnecessarily broad, permanently active, unscoped local-data + open-network baseline.
+
+## Direct diagnostic/reference profiles
+
+- `reference`: harmless connectivity smoke;
+- `files-readonly`: one explicit root, write-capable tools disabled;
+- `browser-isolated`: isolated/headless Playwright with dangerous tools disabled.
+
+These profiles provide deterministic acceptance boundaries and fallback diagnostics. They are not the desired scaling mechanism for every future application integration.
 
 ## Windows management path
 
-The local management plane is deliberately separate from the MCP data path:
-
 ```text
-bootstrap (one-time / repair)
+bootstrap
   -> verified official tunnel-client install
   -> official tunnel-client init
   -> LocalAppData manager bundle
 
 user / tray
-  -> chat-platform.ps1          # public serialized command facade
-  -> chat-platform-controller   # internal lifecycle implementation
+  -> chat-platform.ps1
+  -> chat-platform-controller
   -> local 1MCP + tunnel-client processes
-
-tray
-  <- Status from chat-platform.ps1
 ```
 
 Rules:
 
-- `chat-platform.ps1` serializes mutating lifecycle commands with a local named mutex; `Status` remains read-only/non-blocking;
-- controller is the only authoritative implementation of platform/tunnel/profile readiness used by UI;
-- tray does not inspect PIDs, process command lines or MCP/tunnel health independently;
-- bootstrap installs the manager/runtime configuration under `%LOCALAPPDATA%\ChatAgentPlatform\app`, so normal use is independent of the Git checkout;
-- secrets, tunnel profile, tunnel binary, logs and mutable state live outside the app bundle in separate LocalAppData paths;
-- bootstrap calls official `tunnel-client init` instead of generating a project-owned tunnel profile format.
+- manager/tray provide lifecycle/configuration/diagnostics only;
+- controller is the authoritative local readiness/process interpretation;
+- tray consumes manager status instead of duplicating it;
+- installed runtime/config lives under `%LOCALAPPDATA%\ChatAgentPlatform\app`;
+- secrets, tunnel profile, binary, logs and mutable state live outside the app bundle;
+- bootstrap uses the official tunnel-client CLI/profile format.
+
+Adaptive manager integration is not accepted until adaptive runtime acceptance passes.
 
 ## Ownership
 
 The repository owns only thin integration assets:
 
-- pinned 1MCP/MCP configurations;
-- Windows lifecycle/profile scripts;
-- bootstrap/manager/tray convenience;
-- compatibility/acceptance tests and project context;
-- future focused adapters only when no acceptable ready-made MCP exists.
+- pinned 1MCP/MCP configuration;
+- Windows lifecycle/bootstrap/tray convenience;
+- compatibility and acceptance tests;
+- project context/documentation;
+- focused adapters only for measured missing local-program boundaries.
 
-The repository does **not** own:
+The repository does **not** own by default:
 
-- an AI planner/agent runtime;
-- public ingress or NAT/TLS;
-- an MCP aggregator implementation;
-- polling relay/cloud gateway;
-- generic jobs/artifacts/vault/policy/workflow engines;
+- AI planner/agent runtime;
+- public ingress/NAT/TLS;
+- generic MCP gateway/aggregator implementation;
+- generic registry/vault/job/policy/workflow platform;
 - media/mastering logic as platform core.
+
+1MCP is the current replaceable runtime that supplies aggregation/lazy discovery/lifecycle capabilities where accepted.
 
 ## Component choices
 
-- **Reachability:** OpenAI Secure MCP Tunnel with official `tunnel-client`.
-- **Local MCP runtime:** 1MCP is the current accepted default and remains replaceable.
-- **Modules:** prefer official/vendor MCP, then mature OSS, then generic/local API adapters, then the smallest project-owned missing adapter.
-- **Windows convenience:** bootstrap + serialized lifecycle facade + controller + tray; these may coordinate components but must not absorb their protocol/runtime responsibilities.
+- Reachability: OpenAI Secure MCP Tunnel + official `tunnel-client`.
+- Direct accepted 1MCP runtime: `@1mcp/agent@0.34.4`.
+- Adaptive experimental 1MCP line: `@1mcp/agent@0.35.0-beta.3` until the current lifecycle/discovery blocker is resolved or the experiment is revised.
+- Modules: official/vendor MCP -> mature OSS -> local API/CLI adapter -> smallest project-owned missing adapter.
 
 ## Legacy
 
-The pre-Stage-22 implementation remains recoverable from Git history at commit `a446397d99276856c614bc49526cab422c7e74bd`. It is evidence/extraction material, not active product code.
+Pre-Stage-22 implementation remains recoverable at `a446397d99276856c614bc49526cab422c7e74bd` as evidence/extraction material only.

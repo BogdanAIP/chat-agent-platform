@@ -2,52 +2,59 @@
 
 ## Product rule
 
-The baseline Chat-to-Local Bridge must work with **zero new mandatory SaaS subscriptions**.
-
-A module is acceptable only when it is both technically good enough and economically sane. "Free" is not enough if it is unreliable; "professional" is not enough if it silently creates a chain of recurring subscriptions.
+The baseline Chat-to-Local Bridge must work with **zero new mandatory SaaS subscriptions**. A module must be technically good enough, maintainable, secure enough for its intended scope and economically sane.
 
 ## Selection order
 
-For every local capability, evaluate candidates in this order:
+1. official/vendor local MCP;
+2. mature open-source MCP with acceptable license/maintenance;
+3. official/vendor local API or CLI behind the smallest focused MCP adapter;
+4. mature generic local automation (for example Windows UI Automation) as fallback;
+5. paid API/SaaS only for genuinely remote/expensive capabilities explicitly chosen by the user.
 
-1. official/vendor MCP that runs locally without a recurring service dependency;
-2. mature open-source MCP with a permissive license and active maintenance;
-3. official/vendor local API or CLI wrapped by a thin project-owned MCP adapter;
-4. mature generic local automation (for example Windows UI Automation) as a fallback;
-5. paid API/SaaS only when the task genuinely requires a remote expensive capability and the user explicitly chooses it.
-
-Do not implement a custom adapter merely because we can. Do not adopt a weak community MCP merely because it already exists.
+Do not implement a custom adapter merely because it is possible. Do not adopt a weak MCP merely because it already exists.
 
 ## Mandatory gates
 
-A candidate cannot become a default module until all applicable gates pass:
+A candidate cannot become a supported/default backend until applicable gates pass:
 
-- **Quality:** deterministic enough for the target operation; structured API preferred over pixels/coordinates.
-- **Cost:** no mandatory recurring SaaS fee in the baseline path.
-- **License:** compatible with use/distribution; license recorded in the catalog.
-- **Maintenance:** upstream is not archived/abandoned and has credible recent activity.
-- **Security:** least-privilege exposure is possible; dangerous tools can be disabled or scoped.
-- **Locality:** local files, installed software and local execution stay local unless the operation explicitly requires external access.
-- **Supply channel:** the selected version must actually exist in the channel used to install it (npm, PyPI, GitHub Release, vendor installer). A newer version string in an unreleased source-tree `package.json` is not install evidence.
-- **Pinning:** production configs pin a tested published version or immutable release.
-- **Evidence:** install/start/health/tool-call behavior is tested before promotion.
+- **Quality:** reliable enough for the target operation; structured API preferred over pixels/coordinates.
+- **Cost:** no hidden mandatory recurring SaaS dependency in the baseline path.
+- **License:** compatible and recorded.
+- **Maintenance:** upstream not clearly abandoned.
+- **Security:** useful scopes/disabled tools/allowlists or another measured containment mechanism exist.
+- **Locality:** local data stays local unless the operation explicitly needs external access.
+- **Supply channel:** selected version/artifact actually exists where installation expects it.
+- **Pinning:** tested published version or immutable source/release pin.
+- **Evidence:** install/start/health/tool-call behavior tested before promotion.
+- **Lifecycle:** backend can be started/stopped predictably and does not require permanent residence unless technically necessary.
 
-## Paid layer
+## Adaptive catalog rule
 
-Paid services are optional accelerators, never hidden prerequisites. Examples include video generation, rented GPU and specialist premium APIs.
+The target Stage 24 architecture keeps one stable Chat-facing discovery/invocation contract and a **pre-approved local backend catalog**.
 
-Rules:
+Adding a backend should normally change local catalog/config/acceptance evidence, not create another ChatGPT app/plugin.
 
-- no automatic purchase or subscription;
-- no unknown-cost execution;
-- no paid dependency in order to open files, browse, automate installed desktop software, process media locally or use the bridge itself;
-- prefer pay-per-use for genuinely expensive remote work over accumulating subscriptions;
-- a free SaaS tier is treated as optional, not as architecture, because limits/pricing can change.
+Backend registration is not activation. Start the backend(s) needed by the task; allow multiple active backends for workflows that need them; stop idle backends when safe.
 
-## Adapter rule
-
-When an official high-level API exists but no acceptable MCP exists, write the smallest useful adapter around that API. The adapter must not grow into another planner, workflow engine, generic transport, secret store or policy platform.
+Ordinary Chat may receive narrow lifecycle controls for the approved catalog, but must not receive arbitrary install/uninstall/update/edit/search controls in the baseline.
 
 ## Tool-surface rule
 
-Do not expose hundreds of unrelated tools to ChatGPT at once. Use 1MCP tags/filters/presets and, where supported, `disabledTools` or progressive discovery so a task sees only the relevant module surface.
+Do not expose hundreds of unrelated backend tools directly to Chat at once. Prefer progressive/lazy discovery (`tool_list`, `tool_schema`, `tool_invoke`) and backend-level disabled tools/scopes.
+
+Direct profiles remain useful for acceptance/fallback but are not the desired scaling mechanism for every application.
+
+## Paid layer
+
+Paid services are optional accelerators, never hidden prerequisites.
+
+- no automatic purchase/subscription;
+- no unknown-cost execution;
+- no paid dependency just to open files, browse, automate installed software or process local media;
+- prefer pay-per-use for genuinely expensive remote work;
+- free SaaS tiers are optional conveniences, not architecture.
+
+## Adapter rule
+
+When a strong local API exists but no acceptable MCP does, write the smallest useful adapter around that API. It must not grow into another planner, workflow engine, generic gateway, secret store or policy platform.

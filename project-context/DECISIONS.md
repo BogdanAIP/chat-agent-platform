@@ -1,63 +1,81 @@
 # Decisions
 
-Historical ADRs for the superseded Rust/Yandex architecture remain in Git history. Only current architecture decisions are active here.
+Historical ADRs for superseded architectures remain in Git history. Only decisions listed here are active. A decision marked **PROVISIONAL** is the current direction but must not be reported as accepted until its acceptance gate passes.
 
-## ADR-010 — Off-the-shelf MCP bridge
-
-The product is a generic bridge:
+## ADR-010 — Off-the-shelf MCP bridge — ACCEPTED
 
 ```text
 ordinary ChatGPT Chat -> standard MCP -> mature reachability -> mature local MCP runtime -> replaceable modules
 ```
 
-ChatGPT is the intelligence/orchestration layer. The project does not implement a second agent runtime.
+ChatGPT is the intelligence/orchestration layer. Infrastructure selection order is official/vendor, mature OSS, mature generic adapter, then the smallest project-owned missing adapter.
 
-Infrastructure selection order is official/vendor implementation, mature OSS, mature generic adapter, then the smallest project-owned missing adapter.
+## ADR-011 — OpenAI Secure MCP Tunnel is primary ChatGPT reachability — ACCEPTED
 
-## ADR-011 — OpenAI Secure MCP Tunnel is the primary ChatGPT reachability path
+Accepted by real E2E on 2026-08-10. Public Funnel/Yandex/custom ingress is not required for normal operation.
 
-Accepted by a real end-to-end call on 2026-08-10:
+## ADR-012 — Superseded universal core removed from active tree — ACCEPTED
+
+The old Rust/Python universal platform, relay/gateway and media platform core are historical only. Recover exact pieces only for a later measured gap. Historical source: `a446397d99276856c614bc49526cab422c7e74bd`.
+
+## ADR-013 — 1MCP is replaceable infrastructure — ACCEPTED
+
+`@1mcp/agent@0.34.4` is the accepted direct Windows baseline. 1MCP is not product identity. A different/newer line may be evaluated for measured compatibility/lifecycle requirements without making multiple gateways permanent dependencies.
+
+## ADR-014 — Privileged capabilities require scoped acceptance — ACCEPTED
+
+Filesystem, shell, browser, application control, credentials and devices require scoped configuration and negative tests before promotion. Security reviews capability risk; it does not mandate permanent isolation of every pair of tools regardless of task.
+
+## ADR-015 — Thin Windows bootstrap/manager is integration code — ACCEPTED
+
+Bootstrap/controller/tray may install, configure, start/stop, report health and coordinate accepted components. They must not become a planner, workflow engine, generic MCP gateway, registry, vault or authorization platform. Runtime secrets remain local and use DPAPI; tunnel profiles are created with the official CLI.
+
+## ADR-016 — Stable Chat-facing adaptive tool contract — PROVISIONAL
+
+### Evidence
+
+The real 2026-08-12 profile switch showed that an existing Chat app retained its previously discovered `filesystem_*` action snapshot after the local runtime changed to the browser profile. Therefore direct backend tool lists cannot be assumed to mutate transparently for an already-connected Chat app.
+
+Creating one Chat app/plugin snapshot for every future backend also does not scale.
+
+### Decision under acceptance
+
+Evaluate one stable Chat-facing 1MCP Lazy Loading surface:
 
 ```text
-ChatGPT -> OpenAI Secure MCP Tunnel -> official tunnel-client -> 1MCP -> sequential_thinking -> ChatGPT
+tool_list
+tool_schema
+tool_invoke
 ```
 
-Therefore public Funnel/Yandex/custom `/gpt` paths are not required for normal ChatGPT operation.
+with only pre-approved lifecycle controls:
 
-## ADR-012 — Remove the superseded universal core from the active tree
+```text
+mcp_list
+mcp_status
+mcp_enable
+mcp_disable
+mcp_reload
+```
 
-Stage 22 removes the custom Rust/Python universal platform, relay/gateway stack and media-specific platform code instead of keeping dead code as mandatory baggage.
+Backends are registered locally and disabled until a task activates them. Ordinary Chat must not receive generic catalog install/uninstall/update/edit/search controls.
 
-Rationale:
+### Acceptance status
 
-- official tunnel-client replaces custom reachability/control-plane work;
-- 1MCP replaces custom aggregation/process bridging;
-- standard MCP modules replace a universal capability registry;
-- old domain code is not product-defining and can be recovered from Git history only if Stage 23 proves it is needed.
+Not accepted yet. Current 1MCP `0.35.0-beta.3` adaptive test sees the disabled catalog and enters Filesystem loading after enable, but Lazy Loading does not publish `read_text_file` before timeout. Resolve or disprove this mechanism before promoting ADR-016 to ACCEPTED.
 
-The pre-cleanup source remains available at commit `a446397d99276856c614bc49526cab422c7e74bd`.
+Do not write a project-owned universal broker merely to preserve ADR-016; if upstream 1MCP cannot satisfy the measured contract after investigation, revisit the decision with evidence.
 
-## ADR-013 — 1MCP is current default, not a permanent lock-in
+## ADR-017 — Task-driven capability lifecycle and authorization — PROVISIONAL
 
-`@1mcp/agent@0.34.4` is the first accepted Windows runtime. Replace it only for a measured requirement such as isolation, auth/governance or protocol compatibility; do not carry multiple gateways by default.
+Use separate states:
 
-## ADR-014 — Privileged modules require a separate security gate
+```text
+AVAILABLE -> ACTIVE -> AUTHORIZED
+```
 
-The accepted reference profile contains only Sequential Thinking. Filesystem, shell, browser, app control, credentials and devices are not enabled until least-privilege exposure and negative tests are accepted.
+The platform should not keep every backend process running. Sequential tasks should normally activate backends sequentially. Workflows that genuinely require multiple capabilities may keep multiple backends active together.
 
-## ADR-015 — A thin Windows bootstrap/manager is integration code, not a second platform
+Avoid an unnecessarily broad always-on local-data + open-network baseline, but do not convert that safety principle into a blanket architectural prohibition on Browser + Filesystem or other legitimate combinations.
 
-A small Windows lifecycle layer is justified because ordinary users need a reliable way to install the official tunnel client, keep local configuration/secrets outside Git, select an explicit task profile, and see whether the bridge is actually ready.
-
-Boundary:
-
-- bootstrap may verify prerequisites, install a reviewed official `tunnel-client` release, call the official CLI to create the tunnel profile, install the thin local script/config bundle, request the runtime key, and perform diagnostics;
-- controller may coordinate start/stop/status/profile selection and local settings;
-- tray is UI only and consumes controller status rather than independently reimplementing process/health rules;
-- manager must not become a planner, workflow engine, generic policy service, cloud backend, MCP gateway implementation or authorization server;
-- the installed manager lives under `%LOCALAPPDATA%\ChatAgentPlatform\app` so normal use does not depend on a Git checkout;
-- runtime secrets stay outside the app bundle and use Windows DPAPI `CurrentUser`;
-- tunnel profile generation uses the official `tunnel-client init` surface rather than project-owned YAML generation;
-- the bootstrap pins a reviewed tunnel-client version/checksum rather than silently following `latest` during installation.
-
-This moves the thin lifecycle manager into Stage 24 because the operational need is now measured, while preserving the original product boundary.
+Promotion to ACCEPTED occurs with successful adaptive lifecycle/security acceptance.
