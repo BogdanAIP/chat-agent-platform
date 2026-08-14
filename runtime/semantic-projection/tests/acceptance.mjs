@@ -26,11 +26,14 @@ function textOf(result) {
     .join('\n');
 }
 
-function firstAccessibilityRef(result, label) {
+function accessibilityRefOnMatchingLine(result, needle, label) {
   const text = textOf(result);
-  const match = text.match(/\[ref=([^\]\s]+)\]/) ?? text.match(/\bref=([A-Za-z0-9_-]+)\b/);
-  assert(match, `${label} did not return an accessibility ref:\n${text}`);
-  return match[1];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.includes(needle)) continue;
+    const match = line.match(/\[ref=([^\]\s]+)\]/) ?? line.match(/\bref=([A-Za-z0-9_-]+)\b/);
+    if (match) return match[1];
+  }
+  assert.fail(`${label} did not return a matching accessibility ref for ${JSON.stringify(needle)}:\n${text}`);
 }
 
 function childEnvironment(extra) {
@@ -157,7 +160,7 @@ try {
   });
   assert.equal(findButton.isError, undefined, textOf(findButton));
   assert(textOf(findButton).includes('Continue semantic test'), textOf(findButton));
-  const buttonRef = firstAccessibilityRef(findButton, 'button search');
+  const buttonRef = accessibilityRefOnMatchingLine(findButton, 'Continue semantic test', 'button search');
 
   const click = await client.callTool({
     name: 'web_interact',
@@ -181,7 +184,7 @@ try {
     arguments: { operation: 'find', regex: 'textbox "Semantic input"' }
   });
   assert.equal(findInput.isError, undefined, textOf(findInput));
-  const inputRef = firstAccessibilityRef(findInput, 'input search');
+  const inputRef = accessibilityRefOnMatchingLine(findInput, 'textbox "Semantic input"', 'input search');
 
   const type = await client.callTool({
     name: 'web_interact',
