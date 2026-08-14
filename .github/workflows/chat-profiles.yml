@@ -5,7 +5,10 @@ on:
     paths:
       - "runtime/chat-profiles/**"
       - "runtime/1mcp-adaptive-shim/**"
+      - "runtime/semantic-projection/**"
       - "scripts/start-chat-profile.ps1"
+      - "scripts/start-semantic-profile.ps1"
+      - "scripts/semantic-projection-runtime.ps1"
       - "scripts/status-chat-profile.ps1"
       - "scripts/stop-chat-profile.ps1"
       - "scripts/start-local-bridge.ps1"
@@ -24,7 +27,10 @@ on:
     paths:
       - "runtime/chat-profiles/**"
       - "runtime/1mcp-adaptive-shim/**"
+      - "runtime/semantic-projection/**"
       - "scripts/start-chat-profile.ps1"
+      - "scripts/start-semantic-profile.ps1"
+      - "scripts/semantic-projection-runtime.ps1"
       - "scripts/status-chat-profile.ps1"
       - "scripts/stop-chat-profile.ps1"
       - "scripts/start-local-bridge.ps1"
@@ -49,7 +55,7 @@ concurrency:
 jobs:
   windows-profiles:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -72,6 +78,8 @@ jobs:
             'scripts/status-local-bridge.ps1',
             'scripts/stop-local-bridge.ps1',
             'scripts/start-chat-profile.ps1',
+            'scripts/start-semantic-profile.ps1',
+            'scripts/semantic-projection-runtime.ps1',
             'scripts/status-chat-profile.ps1',
             'scripts/stop-chat-profile.ps1',
             'scripts/chat-platform-controller.ps1',
@@ -85,18 +93,23 @@ jobs:
             if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
           }
 
-      - name: Enforce pinned direct profiles and adaptive catalog
+      - name: Enforce pinned direct profiles, semantic projection, and adaptive catalog
         shell: pwsh
         run: |
           $files = Get-Content 'runtime/chat-profiles/files-readonly/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
           $browser = Get-Content 'runtime/chat-profiles/browser-isolated/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $semantic = Get-Content 'runtime/chat-profiles/semantic/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
           $adaptive = Get-Content 'runtime/chat-profiles/adaptive/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
 
           $fileServers = @($files.mcpServers.PSObject.Properties)
           $browserServers = @($browser.mcpServers.PSObject.Properties)
+          $semanticServers = @($semantic.mcpServers.PSObject.Properties)
           $adaptiveServers = @($adaptive.mcpServers.PSObject.Properties)
           if ($fileServers.Count -ne 1 -or $fileServers[0].Name -ne 'filesystem') { throw 'Files profile must contain only filesystem.' }
           if ($browserServers.Count -ne 1 -or $browserServers[0].Name -ne 'playwright') { throw 'Browser profile must contain only playwright.' }
+          if ($semanticServers.Count -ne 1 -or $semanticServers[0].Name -ne 'semantic-projection') { throw 'Semantic profile must contain only semantic-projection.' }
+          if ([string]$semantic.mcpServers.'semantic-projection'.command -ne 'node') { throw 'Semantic profile must directly launch Node.' }
+          if (@($semantic.mcpServers.'semantic-projection'.args).Count -ne 1 -or [string]$semantic.mcpServers.'semantic-projection'.args[0] -ne '${CHAT_SEMANTIC_PROJECTION_ENTRY}') { throw 'Semantic entrypoint contract drifted.' }
           if ($adaptiveServers.Count -ne 2) { throw 'Adaptive catalog must contain exactly filesystem and playwright for this acceptance stage.' }
           foreach ($name in @('filesystem','playwright')) {
             $entry = @($adaptiveServers | Where-Object Name -eq $name)
@@ -106,6 +119,7 @@ jobs:
 
           $fileRaw = Get-Content 'runtime/chat-profiles/files-readonly/mcp.json' -Raw -Encoding utf8
           $browserRaw = Get-Content 'runtime/chat-profiles/browser-isolated/mcp.json' -Raw -Encoding utf8
+          $semanticRaw = Get-Content 'runtime/chat-profiles/semantic/mcp.json' -Raw -Encoding utf8
           $adaptiveRaw = Get-Content 'runtime/chat-profiles/adaptive/mcp.json' -Raw -Encoding utf8
           foreach ($raw in @($fileRaw,$adaptiveRaw)) {
             if ($raw -notmatch [regex]::Escape('@modelcontextprotocol/server-filesystem@2026.7.10')) { throw 'Filesystem pin drifted.' }
@@ -124,7 +138,7 @@ jobs:
           if ($fileRaw -match '@playwright/mcp|browser_') { throw 'Direct files profile contains browser capability.' }
           if ($browserRaw -match 'server-filesystem|CHAT_LOCAL_FILES_ROOT') { throw 'Direct browser profile contains filesystem capability.' }
           foreach ($forbidden in @('api_key','subscription','browserbase','apify','firecrawl')) {
-            if (($fileRaw + $browserRaw + $adaptiveRaw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
+            if (($fileRaw + $browserRaw + $semanticRaw + $adaptiveRaw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
           }
 
       - name: Prove profile stop is idempotent
@@ -149,6 +163,37 @@ jobs:
             ./scripts/start-chat-profile.ps1 -Profile browser-isolated -Port 3066 -ReadyTimeoutSeconds 240
             $browserStatus = ./scripts/status-chat-profile.ps1 -Port 3066 | Out-String | ConvertFrom-Json
             if ($browserStatus.active_count -ne 1 -or $browserStatus.active_profile -ne 'browser-isolated' -or $browserStatus.conflict) { throw 'browser-isolated did not replace files-readonly.' }
+          }
+          finally {
+            ./scripts/stop-chat-profile.ps1
+          }
+
+      - name: Prove semantic profile is understood by the public manager
+        shell: pwsh
+        run: |
+          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-semantic-manager-files'
+          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+          Set-Content -LiteralPath (Join-Path $filesRoot 'input.txt') -Value 'SEMANTIC_MANAGER_OK' -Encoding utf8
+
+          try {
+            ./scripts/chat-platform.ps1 -Action SetProfile -Profile semantic -FilesRoot $filesRoot -NoNotify
+            ./scripts/start-semantic-profile.ps1 -FilesRoot $filesRoot -Port 3050 -ReadyTimeoutSeconds 120
+
+            $managerStatus = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if (-not $managerStatus.mcp_ready -or [string]$managerStatus.active_profile -ne 'semantic' -or [int]$managerStatus.active_count -ne 1 -or $managerStatus.conflict) { throw 'Public manager did not recognize the ready semantic profile.' }
+            if ($managerStatus.tunnel_running -or $managerStatus.tunnel_ready) { throw 'Hosted semantic manager acceptance unexpectedly found a tunnel.' }
+            if ([string]$managerStatus.settings.profile -ne 'semantic') { throw 'Public manager did not persist semantic as the selected profile.' }
+            if ([System.IO.Path]::GetFullPath([string]$managerStatus.settings.files_root) -ne [System.IO.Path]::GetFullPath($filesRoot)) { throw 'Public manager did not persist the semantic FilesRoot.' }
+
+            ./scripts/chat-platform.ps1 -Action Toggle -NoNotify
+            $stopped = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if ([int]$stopped.active_count -ne 0 -or $stopped.tunnel_running) { throw 'Public manager toggle did not stop the semantic Runtime Scope.' }
+
+            ./scripts/chat-platform.ps1 -Action SetProfile -Profile reference -NoNotify
+            $reset = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if ([string]$reset.settings.profile -ne 'reference') { throw 'Public manager did not restore the safe reference default after semantic acceptance.' }
+
+            Write-Host 'SEMANTIC_PUBLIC_MANAGER=PASS'
           }
           finally {
             ./scripts/stop-chat-profile.ps1
