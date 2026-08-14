@@ -1,0 +1,73 @@
+name: Semantic Projection Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/semantic-projection/**"
+      - "project-context/TYPED_CAPABILITY_PROJECTION.md"
+      - ".github/workflows/semantic-projection.yml"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/semantic-projection/**"
+      - "project-context/TYPED_CAPABILITY_PROJECTION.md"
+      - ".github/workflows/semantic-projection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: semantic-projection-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-semantic-projection:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+          if (-not (Test-Path -LiteralPath $chrome)) {
+            throw 'Google Chrome is required for semantic projection browser acceptance.'
+          }
+
+      - name: Enforce fixed semantic projection contract
+        shell: pwsh
+        run: |
+          $manifest = Get-Content 'runtime/semantic-projection/package.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([string]$manifest.dependencies.'@modelcontextprotocol/server' -ne '2.0.0') { throw 'Semantic projection must pin @modelcontextprotocol/server 2.0.0.' }
+          if ([string]$manifest.dependencies.'@modelcontextprotocol/client' -ne '2.0.0') { throw 'Semantic projection must pin @modelcontextprotocol/client 2.0.0.' }
+          if ([string]$manifest.dependencies.zod -ne '4.4.3') { throw 'Semantic projection must pin zod 4.4.3.' }
+
+          $source = Get-Content 'runtime/semantic-projection/bin/semantic-projection.mjs' -Raw -Encoding utf8
+          foreach ($name in @('workspace_read','workspace_write','web_open','web_observe','web_interact')) {
+            if ($source -notmatch "registerTool\(\s*'$([regex]::Escape($name))'") {
+              throw "Semantic projection is missing fixed tool '$name'."
+            }
+          }
+          $registrations = [regex]::Matches($source, 'registerTool\(').Count
+          if ($registrations -ne 5) { throw "Semantic projection must register exactly five tools; found $registrations." }
+          foreach ($forbidden in @('tool_invoke','tool_schema','mcp_enable','browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
+            if ($source -match [regex]::Escape($forbidden)) {
+              throw "Semantic projection source contains forbidden generic/unsafe downstream marker '$forbidden'."
+            }
+          }
+
+      - name: Install exact projection dependencies
+        shell: pwsh
+        run: |
+          npm install --prefix runtime/semantic-projection --ignore-scripts --no-audit --no-fund --package-lock=false
+
+      - name: Run real Filesystem and Playwright semantic acceptance
+        shell: pwsh
+        run: |
+          npm --prefix runtime/semantic-projection run acceptance
