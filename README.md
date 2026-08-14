@@ -1,6 +1,6 @@
 # Chat Agent Platform
 
-Тонкий мост между **обычным ChatGPT Chat** и локальным Windows-компьютером через стандартный MCP. ChatGPT остаётся интеллектом и выбирает инструменты; локальная часть не содержит второго агента или собственного AI/workflow runtime.
+Тонкий мост между **обычным ChatGPT Chat** и локальным Windows-компьютером через стандартный MCP. ChatGPT остаётся интеллектом и выбирает инструменты; локальная часть не содержит второго planner/agent brain.
 
 Для продолжения разработки из нового Chat/Codex сначала читайте [`AGENTS.md`](AGENTS.md) и [`project-context/START_HERE.md`](project-context/START_HERE.md).
 
@@ -11,38 +11,30 @@ ordinary ChatGPT Chat
   -> ChatGPT custom MCP app/plugin
   -> OpenAI Secure MCP Tunnel
   -> official openai/tunnel-client on Windows
-  -> 1MCP on loopback
-  -> replaceable MCP backends
-  -> local programs/files/devices
+  -> 1MCP on loopback / focused local adapters
+  -> replaceable local capabilities
+  -> local programs/files/devices/models
 ```
 
 Полный reference round trip принят 2026-08-10: обычный ChatGPT вызвал локальный Sequential Thinking через Secure MCP Tunnel и получил результат в том же чате.
 
 ## Текущее направление Stage 24
 
-Реальный тест показал, что локальная смена профиля 1MCP не обновляет уже обнаруженный ChatGPT action snapshot. Создавать отдельный Chat app/plugin для Filesystem, Browser, REAPER, Blender, Origin, FFmpeg и каждого будущего модуля не является целевым UX.
+Реальные ordinary-Chat тесты дали два важных результата.
 
-Поэтому Stage 24 сейчас проверяет **один стабильный Chat-facing contract** на штатном Lazy Loading 1MCP:
+Во-первых, **конкретные типизированные действия работают**. Через один `Chat Local Bridge Test` уже пройдены:
 
-```text
-tool_list
-tool_schema
-tool_invoke
-```
+- scoped Filesystem read/write;
+- `browser_navigate`;
+- `browser_find`;
+- `browser_click`;
+- совместный Filesystem + Browser workflow в одном ordinary Chat.
 
-и ограниченные lifecycle tools для заранее разрешённого локального каталога:
+Во-вторых, generic adaptive поверхность `tool_list` / `tool_schema` / `tool_invoke` + lifecycle не стала принятым product contract: read-only list/status/discovery доходили до MCP, а lifecycle/schema/generic invocation блокировались до MCP. Adaptive runtime остаётся полезной диагностической/CI инфраструктурой, но не основным Chat-facing интерфейсом.
 
-```text
-mcp_list
-mcp_status
-mcp_enable
-mcp_disable
-mcp_reload
-```
+Также измерено давление на размер action snapshot: при 34 локальных typed actions Chat фактически показывал 20, а после сокращения локального набора до 24 нужные более поздние Browser actions стали доступны после Refresh/new Chat. Это **наблюдаемое поведение текущей конфигурации**, а не заявленный официальный лимит OpenAI.
 
-Backend MCP регистрируются локально, стартуют выключенными и включаются по задаче. Если конкретная задача требует нескольких backend одновременно, архитектура должна это позволять. Инструменты произвольной установки/удаления/редактирования каталога не должны публиковаться в ordinary Chat.
-
-**Adaptive пока экспериментальный и не принят.** Принятые direct-профили сохраняются как диагностические/reference paths, пока adaptive не пройдёт CI и реальный ordinary-Chat acceptance.
+Поэтому текущая задача Stage 24 — получить масштабируемую typed capability surface с точными схемами и честной семантикой, не создавая отдельный Chat app для каждого backend и не пряча всё за непрозрачный `tool_invoke`.
 
 ## Принятые direct-профили
 
@@ -56,17 +48,17 @@ Harmless Sequential Thinking для connectivity/smoke tests.
 - один явно выбранный root;
 - broad/system roots запрещены;
 - create/write/edit/move отключены;
-- ordinary-Chat E2E чтения реального marker-файла пройден 2026-08-12.
+- ordinary-Chat E2E чтения marker-файла пройден.
 
 ### `browser-isolated`
 
 - Microsoft Playwright MCP;
 - isolated/headless Chrome;
 - service workers/codegen и опасные evaluate/file-upload/direct-request tools отключены;
-- локальный profile/tunnel readiness пройден;
-- ordinary-Chat browser E2E через старый app snapshot не завершён, потому что Chat продолжил показывать filesystem actions.
+- local profile/tunnel readiness пройден;
+- свежий ordinary-Chat typed `browser_navigate` E2E пройден.
 
-Direct-профили доказывают отдельные capability boundaries. Они не означают постоянный архитектурный запрет на совместную работу нескольких backend в adaptive workflow.
+Direct-профили остаются диагностическими/reference boundaries. Они не означают постоянный запрет на совместную работу нескольких backend.
 
 ## Windows bootstrap/manager
 
@@ -78,30 +70,46 @@ Direct-профили доказывают отдельные capability boundar
 
 Он проверяет окружение и pinned dependencies, устанавливает проверенный официальный `openai/tunnel-client`, создаёт tunnel profile через официальный CLI, хранит runtime key через Windows DPAPI `CurrentUser`, устанавливает standalone manager под `%LOCALAPPDATA%\ChatAgentPlatform\app`, создаёт shortcut и выполняет reference smoke test.
 
+Реальный Stage 24 тест обнаружил split-brain между установленной и source-копией manager: stale installed runtime мог оставаться на `127.0.0.1:3050`. Текущий функциональный head `64fa0a27...` добавляет общий owner-state и fail-closed port handling; remote Windows/CI/security checks зелёные, target-machine acceptance этой точной правки ещё нужен.
+
 Manager/tray — только lifecycle/UI слой. Он не является агентом, MCP gateway или planner.
 
 ## Принцип безопасности
 
-Безопасность не должна превращаться в блокировку полезных сценариев. Рабочая модель:
+Рабочая модель:
 
 ```text
 AVAILABLE -> ACTIVE -> AUTHORIZED
 ```
 
-Возможность может быть зарегистрирована, не запущена; нужные процессы включаются по задаче; чувствительные операции получают соответствующие scope/confirmation. Широкий always-on baseline с локальными данными и открытой сетью не нужен, но легитимный workflow может временно использовать несколько backend одновременно.
+Возможность может быть зарегистрирована, не запущена; нужные процессы включаются по задаче; чувствительные операции получают соответствующий scope/authorization.
+
+Безопасность не должна превращаться в бесконечные approval-карточки. Предпочтение: scoped roots/workspaces, backup/git/rollback, bounded tools и подтверждение действительно значимых/необратимых последствий.
+
+При этом app permission mode — не единственный слой OpenAI safety: в реальном тесте большой составной local-file -> browser -> write запрос блокировался даже при `Allow all actions`, хотя те же typed calls по отдельности проходили.
+
+## Local specialist inference — следующий слой
+
+После Stage 24 планируется локальное specialist inference без второго AI planner.
+
+Первый runtime-manager кандидат: **LM Studio / `llmster`** — для model discovery, estimate-before-load, hardware-aware GPU/variant choice, JIT/load/unload, TTL и auto-evict.
+
+Первый preferred `local-vision` model candidate: **`LiquidAI/LFM2.5-VL-3B`**, официально выпущенный 2026-08-12. Liquid AI публикует screen/UI understanding, OCR/document/chart understanding, grounding, multi-image и GGUF/llama.cpp + ONNX support.
+
+ChatGPT остаётся мозгом; local-vision — глаза. Ни LM Studio, ни конкретная модель не считаются принятыми, пока не пройдут target Windows benchmark.
 
 ## Правило выбора модулей
 
-1. официальный/vendor MCP;
-2. зрелый open-source MCP;
-3. готовый local API/CLI + маленький adapter;
-4. project-owned MCP только для измеримого отсутствующего boundary.
+1. официальный/vendor MCP или mature local runtime;
+2. зрелый open-source MCP/runtime;
+3. готовый local API/CLI + маленький typed adapter;
+4. project-owned focused adapter только для измеримого отсутствующего boundary.
 
 Никаких обязательных дополнительных SaaS для базовых локальных возможностей.
 
 ## Состояние разработки
 
-Stage 21–23 завершены. Stage 24 в работе. Точная текущая точка, включая последний падающий adaptive acceptance, находится в [`project-context/CURRENT_STATE.md`](project-context/CURRENT_STATE.md). План — [`project-context/ROADMAP.md`](project-context/ROADMAP.md).
+Stage 21–23 завершены. Stage 24 в работе. Точная текущая точка — [`project-context/CURRENT_STATE.md`](project-context/CURRENT_STATE.md). План — [`project-context/ROADMAP.md`](project-context/ROADMAP.md).
 
 Не считайте README более свежим источником, чем код/tests/CI и `CURRENT_STATE.md`.
 
