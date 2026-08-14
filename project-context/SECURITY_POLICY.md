@@ -28,6 +28,10 @@ Prefer concrete typed actions with truthful schemas and side-effect semantics.
 
 The generic adaptive `tool_invoke` boundary is not the accepted ordinary-Chat product surface. Its runtime mechanics remain useful diagnostics, but real Chat blocked lifecycle/generic execution before MCP and one generic descriptor cannot truthfully characterize every nested downstream operation.
 
+The current Stage 24 scaling candidate is a small stable semantic typed projection. Each exposed action must have a fixed truthful schema, a coherent consequence/authorization class and deterministic routing to reviewed backend capability. The projection must not choose user goals, act as a workflow planner or recreate arbitrary `tool_invoke` under another name.
+
+Current OpenAI documentation describes ChatGPT MCP tool definitions as a frozen reviewed snapshot. Local runtime filtering cannot be treated as dynamic Chat authorization/publication. Tool Search is relevant to large tool ecosystems in the API/Agents SDK but is not a documented capability of the ordinary-Chat custom MCP path used here.
+
 Do not falsify read-only/destructive/open-world annotations or hide a consequential operation behind a harmless-looking generic tool solely to bypass product review.
 
 Do not expose arbitrary catalog mutation/admin operations such as install/uninstall/update/edit/search as part of the ordinary-Chat baseline.
@@ -110,18 +114,22 @@ For local inference candidates:
 
 LM Studio/`llmster` and `LiquidAI/LFM2.5-VL-3B` remain candidates until target-machine acceptance.
 
-## Lifecycle integrity
+## Lifecycle integrity — ACCEPTED for installed/source ownership
 
 - fixed tunnel target must resolve to one intended local 1MCP runtime;
-- installed/source manager copies must share one authoritative owner for the fixed runtime;
-- an occupied `127.0.0.1:3050` without trustworthy ownership must fail closed instead of accepting another process's health response;
-- conflict state must remain observable/recoverable;
+- installed/source manager copies share one authoritative owner for the fixed runtime through LocalAppData owner state;
+- `Status` follows the recorded owner;
+- takeover stops a foreign owner before starting the new copy;
+- an occupied `127.0.0.1:3050` without trustworthy ownership fails closed instead of accepting another process's health response;
+- conflict state remains observable/recoverable;
 - green platform state requires MCP + tunnel readiness;
 - startup failure rolls back partial lifecycle;
 - task-driven backend activation must clean up idle/disabled backend processes;
 - manager/tray must not invent an independent authorization or planning layer.
 
-Functional head `64fa0a27...` implements shared owner state and fail-closed port behavior and passes remote Windows/CI/security checks. Target-machine acceptance is still required before marking this lifecycle issue closed.
+Real target Windows acceptance on 2026-08-14 passed installed -> source -> installed handoff, cross-copy Status, foreign-owner Stop/cleanup and foreign-port fail-closed behavior. Functional head `ffcc2e407...` adds an automated Windows test that binds a real foreign listener to `3050` and verifies the public manager refuses it. CI, Chat Profile Acceptance, Module Candidate Acceptance, CodeQL and Secret History Scan all pass on that functional head.
+
+The dedicated foreign-owner `Toggle` branch remains regression-covered but was not separately repeated as an independent target-machine user test.
 
 ## External fallback paths
 
