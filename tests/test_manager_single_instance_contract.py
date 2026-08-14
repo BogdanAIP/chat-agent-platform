@@ -107,10 +107,8 @@ class ManagerSingleInstanceContractTests(unittest.TestCase):
                     "Local MCP port 3050 is already occupied",
                     combined,
                 )
-                self.assertIn(
-                    "Refusing to accept another process's health endpoint",
-                    combined,
-                )
+                self.assertIn("Refusing to accept", combined)
+                self.assertIn("another process's health endpoint", combined)
                 self.assertNotIn("Error formatting a string", combined)
 
                 owner_file = (
