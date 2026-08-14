@@ -10,6 +10,8 @@ TRAY = ROOT / "scripts" / "chat-platform-tray.ps1"
 COMMAND = ROOT / "scripts" / "chat-platform.ps1"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
 START_LOCAL = ROOT / "scripts" / "start-local-bridge.ps1"
+START_SEMANTIC = ROOT / "scripts" / "start-semantic-profile.ps1"
+SEMANTIC_RUNTIME = ROOT / "scripts" / "semantic-projection-runtime.ps1"
 STATUS_PROFILE = ROOT / "scripts" / "status-chat-profile.ps1"
 STOP_LOCAL = ROOT / "scripts" / "stop-local-bridge.ps1"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
@@ -24,6 +26,8 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         cls.command = COMMAND.read_text(encoding="utf-8")
         cls.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
         cls.start_local = START_LOCAL.read_text(encoding="utf-8")
+        cls.start_semantic = START_SEMANTIC.read_text(encoding="utf-8")
+        cls.semantic_runtime = SEMANTIC_RUNTIME.read_text(encoding="utf-8")
         cls.status_profile = STATUS_PROFILE.read_text(encoding="utf-8")
         cls.stop_local = STOP_LOCAL.read_text(encoding="utf-8")
         cls.ci = CI.read_text(encoding="utf-8")
@@ -34,6 +38,8 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertTrue(COMMAND.is_file())
         self.assertTrue(TRAY.is_file())
         self.assertTrue(BOOTSTRAP.is_file())
+        self.assertTrue(START_SEMANTIC.is_file())
+        self.assertTrue(SEMANTIC_RUNTIME.is_file())
 
     def test_controller_uses_persistent_local_appdata_and_dpapi(self):
         self.assertIn(
@@ -251,19 +257,18 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             "reference",
             "files-readonly",
             "browser-isolated",
+            "semantic",
             "adaptive",
         ):
             self.assertIn(profile, self.controller)
 
     def test_adaptive_profile_uses_scoped_files_root_and_shared_lifecycle(self):
-        self.assertIn(
-            '[ValidateSet("reference", "files-readonly", "browser-isolated", "adaptive")]',
-            self.controller,
+        expected_validate = (
+            '[ValidateSet("reference", "files-readonly", '
+            '"browser-isolated", "semantic", "adaptive")]'
         )
-        self.assertIn(
-            '[ValidateSet("reference", "files-readonly", "browser-isolated", "adaptive")]',
-            self.command,
-        )
+        self.assertIn(expected_validate, self.controller)
+        self.assertIn(expected_validate, self.command)
         for source in (self.controller, self.command, self.bootstrap):
             self.assertIn('"adaptive"', source)
         self.assertRegex(
@@ -277,9 +282,28 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             ),
         )
         self.assertIn(
-            'if ($Profile -in @("files-readonly", "adaptive"))',
+            'if ($Profile -in @("files-readonly", "semantic", "adaptive"))',
             self.controller,
         )
+
+    def test_semantic_profile_uses_fixed_projection_and_scoped_root(self):
+        self.assertIn('$StartSemanticScript', self.controller)
+        self.assertRegex(
+            self.controller,
+            re.compile(
+                r'elseif \(\$desiredProfile -eq "semantic"\).*?'
+                r'& \$StartSemanticScript.*?'
+                r'-FilesRoot \$root',
+                re.S,
+            ),
+        )
+        self.assertIn('SEMANTIC_RUNTIME_READY=True', self.controller)
+        self.assertIn('Get-SemanticProjectionEntryPath', self.controller)
+        self.assertIn('Get-SemanticProjectionEntryPath', self.start_semantic)
+        self.assertIn('-EnsureDependencies', self.start_semantic)
+        self.assertIn("'semantic'", self.status_profile)
+        for forbidden in ('tool_invoke', 'tool_schema', 'mcp_enable'):
+            self.assertNotIn(forbidden, self.start_semantic)
 
     def test_bootstrap_installs_complete_adaptive_runtime_assets(self):
         for expected in (
@@ -291,7 +315,20 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             self.assertIn(expected, self.bootstrap)
         self.assertIn("Assert-InstalledAdaptiveRuntime", self.bootstrap)
         self.assertIn("runtime_assets = @(", self.bootstrap)
-        self.assertIn('schema_version = 2', self.bootstrap)
+        self.assertIn('schema_version = 3', self.bootstrap)
+
+    def test_bootstrap_installs_semantic_runtime_source_and_helpers(self):
+        for expected in (
+            '"start-semantic-profile.ps1"',
+            '"semantic-projection-runtime.ps1"',
+            "runtime\\chat-profiles\\semantic\\mcp.json",
+            "runtime\\semantic-projection\\package.json",
+            "runtime\\semantic-projection\\bin\\semantic-projection.mjs",
+        ):
+            self.assertIn(expected, self.bootstrap)
+        self.assertIn("Assert-InstalledSemanticRuntimeSource", self.bootstrap)
+        self.assertIn("@modelcontextprotocol/server-filesystem", self.bootstrap)
+        self.assertIn("@playwright/mcp", self.bootstrap)
 
     def test_bootstrap_requires_node_20_and_stops_before_bundle_update(self):
         self.assertIn('[int]$Matches.major -lt 20', self.bootstrap)
@@ -308,7 +345,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
     def test_public_status_preserves_profile_conflict_state(self):
         self.assertIn("conflict = [bool]$chat.conflict", self.controller)
 
-    def test_default_profile_remains_reference_after_adaptive_integration(self):
+    def test_default_profile_remains_reference_after_semantic_integration(self):
         self.assertGreaterEqual(self.controller.count('profile = "reference"'), 2)
 
     def test_bootstrap_pins_official_tunnel_client_release_and_checksums(self):
