@@ -3,7 +3,7 @@ param(
     [ValidateSet("Install", "Start", "Stop", "Toggle", "Status", "SetProfile")]
     [string]$Action = "Status",
 
-    [ValidateSet("reference", "files-readonly", "browser-isolated", "adaptive")]
+    [ValidateSet("reference", "files-readonly", "browser-isolated", "semantic", "adaptive")]
     [string]$Profile,
 
     [string]$FilesRoot,
@@ -36,8 +36,10 @@ $ControllerLog = Join-Path $LogDir "controller.log"
 
 $StartLocalBridgeScript = Join-Path $RepoRoot "scripts\start-local-bridge.ps1"
 $StartChatScript = Join-Path $RepoRoot "scripts\start-chat-profile.ps1"
+$StartSemanticScript = Join-Path $RepoRoot "scripts\start-semantic-profile.ps1"
 $StopChatScript = Join-Path $RepoRoot "scripts\stop-chat-profile.ps1"
 $StatusChatScript = Join-Path $RepoRoot "scripts\status-chat-profile.ps1"
+$SemanticRuntimeHelper = Join-Path $RepoRoot "scripts\semantic-projection-runtime.ps1"
 
 
 function Initialize-LocalDirectories {
@@ -145,6 +147,7 @@ function Get-Settings {
         "reference",
         "files-readonly",
         "browser-isolated",
+        "semantic",
         "adaptive"
     )
     if (
@@ -237,7 +240,7 @@ function Test-ChatProfileReady {
         $Status,
 
         [Parameter(Mandatory)]
-        [ValidateSet("reference", "files-readonly", "browser-isolated", "adaptive")]
+        [ValidateSet("reference", "files-readonly", "browser-isolated", "semantic", "adaptive")]
         [string]$ProfileName
     )
 
@@ -692,6 +695,19 @@ $repoTunnelProfile
         $profileSource = "migrated-from-repository"
     }
 
+    if (-not (Test-Path -LiteralPath $SemanticRuntimeHelper -PathType Leaf)) {
+        throw "Semantic projection runtime helper is missing: $SemanticRuntimeHelper"
+    }
+
+    . $SemanticRuntimeHelper
+    $semanticEntry = Get-SemanticProjectionEntryPath `
+        -RepoRoot $RepoRoot `
+        -EnsureDependencies
+
+    if (-not (Test-Path -LiteralPath $semanticEntry -PathType Leaf)) {
+        throw "Semantic projection entrypoint preparation failed: $semanticEntry"
+    }
+
     if (-not (Test-Path $SettingsFile)) {
         Save-Settings ([pscustomobject]@{
             profile = "reference"
@@ -716,6 +732,8 @@ $repoTunnelProfile
     Write-Host "TUNNEL_PROFILE_SOURCE=$profileSource"
     Write-Host "TUNNEL_BINARY=$TunnelExe"
     Write-Host "TUNNEL_BINARY_SOURCE=$binarySource"
+    Write-Host "SEMANTIC_RUNTIME_READY=True"
+    Write-Host "SEMANTIC_ENTRY=$semanticEntry"
     Write-Host "SECRET_STORED_WITH_DPAPI=True"
     Write-Host "DESKTOP_SHORTCUT=$shortcut"
     Write-Host "DEFAULT_PROFILE=$((Get-Settings).profile)"
@@ -769,6 +787,27 @@ function Start-ChatProfile {
 
         $output = @(
             & $StartLocalBridgeScript 2>&1
+        )
+    }
+    elseif ($desiredProfile -eq "semantic") {
+        $root = $FilesRoot
+
+        if ([string]::IsNullOrWhiteSpace($root)) {
+            $root = [string]$settings.files_root
+        }
+
+        if ([string]::IsNullOrWhiteSpace($root)) {
+            throw @"
+semantic requires a configured FilesRoot.
+Use:
+.\scripts\chat-platform-controller.ps1 -Action SetProfile -Profile semantic -FilesRoot "C:\path"
+"@
+        }
+
+        $output = @(
+            & $StartSemanticScript `
+                -FilesRoot $root `
+                2>&1
         )
     }
     elseif ($desiredProfile -in @("files-readonly", "adaptive")) {
@@ -1078,7 +1117,7 @@ function Set-PlatformProfile {
     $settings = Get-Settings
     $settings.profile = $Profile
 
-    if ($Profile -in @("files-readonly", "adaptive")) {
+    if ($Profile -in @("files-readonly", "semantic", "adaptive")) {
         if ([string]::IsNullOrWhiteSpace($FilesRoot)) {
             throw "-FilesRoot is required for $Profile."
         }
@@ -1098,7 +1137,7 @@ function Set-PlatformProfile {
 
     Write-Host "DEFAULT_PROFILE=$Profile"
 
-    if ($Profile -in @("files-readonly", "adaptive")) {
+    if ($Profile -in @("files-readonly", "semantic", "adaptive")) {
         Write-Host "FILES_ROOT=$($settings.files_root)"
     }
 }
