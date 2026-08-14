@@ -1,4 +1,10 @@
+import os
 from pathlib import Path
+import re
+import shutil
+import socket
+import subprocess
+import tempfile
 import unittest
 
 
@@ -45,6 +51,77 @@ class ManagerSingleInstanceContractTests(unittest.TestCase):
         self.assertIn('health endpoint', self.command)
         self.assertIn('$diagnosticLine = (', self.command)
         self.assertIn('$lines.Add($diagnosticLine)', self.command)
+
+    @unittest.skipUnless(
+        os.name == "nt" and shutil.which("pwsh.exe"),
+        "Windows PowerShell runtime acceptance only",
+    )
+    def test_unowned_port_runtime_refuses_foreign_listener(self):
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+
+        try:
+            listener.bind(("127.0.0.1", 3050))
+            listener.listen(1)
+
+            with tempfile.TemporaryDirectory(
+                prefix="chat-agent-platform-owner-test-"
+            ) as local_app_data:
+                env = os.environ.copy()
+                env["LOCALAPPDATA"] = local_app_data
+
+                completed = subprocess.run(
+                    [
+                        shutil.which("pwsh.exe"),
+                        "-NoLogo",
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        str(COMMAND),
+                        "-Action",
+                        "Start",
+                        "-Profile",
+                        "reference",
+                        "-NoNotify",
+                    ],
+                    cwd=ROOT,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=20,
+                    check=False,
+                )
+
+                combined = re.sub(
+                    r"\s+",
+                    " ",
+                    f"{completed.stdout}\n{completed.stderr}",
+                ).strip()
+
+                self.assertNotEqual(completed.returncode, 0, combined)
+                self.assertIn(
+                    "Local MCP port 3050 is already occupied",
+                    combined,
+                )
+                self.assertIn(
+                    "Refusing to accept another process's health endpoint",
+                    combined,
+                )
+                self.assertNotIn("Error formatting a string", combined)
+
+                owner_file = (
+                    Path(local_app_data)
+                    / "ChatAgentPlatform"
+                    / "state"
+                    / "manager-owner.json"
+                )
+                self.assertFalse(owner_file.exists())
+                self.assertGreaterEqual(listener.fileno(), 0)
+        finally:
+            listener.close()
 
     def test_toggle_of_foreign_owner_stops_instead_of_double_start(self):
         self.assertIn('elseif ($Action -eq "Toggle" -and $foreignOwner)', self.command)
