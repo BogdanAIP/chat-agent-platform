@@ -311,15 +311,13 @@ server.registerTool(
   {
     title: 'Observe Web Page',
     description:
-      'Read-only browser observation. operation=find searches the current accessibility snapshot by plain text or regex. operation=snapshot captures the accessibility snapshot, optionally for one target. No screenshots, network bodies or arbitrary code are exposed.',
+      'Read-only browser observation. operation=find searches the current accessibility snapshot by plain text or regex. operation=snapshot captures the current accessibility snapshot, optionally for one target. No screenshots, network bodies or arbitrary code are exposed.',
     inputSchema: z
       .object({
         operation: z.enum(['find', 'snapshot']),
         text: z.string().min(1).max(2048).optional(),
         regex: z.string().min(1).max(2048).optional(),
-        target: z.string().min(1).max(4096).optional(),
-        depth: z.number().int().positive().max(100).optional(),
-        boxes: z.boolean().optional()
+        target: z.string().min(1).max(4096).optional()
       })
       .strict(),
     annotations: {
@@ -338,8 +336,6 @@ server.registerTool(
       }
       const downstream = {};
       if (args.target !== undefined) downstream.target = args.target;
-      if (args.depth !== undefined) downstream.depth = args.depth;
-      if (args.boxes !== undefined) downstream.boxes = args.boxes;
       return await callBackend('playwright', 'browser_snapshot', downstream);
     } catch (error) {
       return toolError(`web_observe failed: ${error instanceof Error ? error.message : String(error)}`);
