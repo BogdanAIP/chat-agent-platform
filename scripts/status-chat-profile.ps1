@@ -6,9 +6,9 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $stablePkg = '@1mcp/agent@0.34.4'
 $adaptivePkg = '@1mcp/agent@0.35.0-beta.3'
-$packageHelper = Join-Path $PSScriptRoot 'semantic-projection-package.ps1'
+$runtimeHelper = Join-Path $PSScriptRoot 'semantic-projection-runtime.ps1'
 
-. $packageHelper
+. $runtimeHelper
 
 $scopes = @(
     @{ Name = 'reference'; Config = (Join-Path $repoRoot 'runtime\mcp.json'); Package = $stablePkg; Health = 'sequential-thinking'; RuntimeReadyOnly = $false },
@@ -18,14 +18,14 @@ $scopes = @(
     @{ Name = 'adaptive'; Config = (Join-Path $repoRoot 'runtime\chat-profiles\adaptive\mcp.json'); Package = $adaptivePkg; Health = '1mcp-runtime'; RuntimeReadyOnly = $true }
 )
 
-$hadPackage = Test-Path Env:CHAT_SEMANTIC_PROJECTION_PACKAGE
-$oldPackage = if ($hadPackage) { $env:CHAT_SEMANTIC_PROJECTION_PACKAGE } else { $null }
+$hadEntry = Test-Path Env:CHAT_SEMANTIC_PROJECTION_ENTRY
+$oldEntry = if ($hadEntry) { $env:CHAT_SEMANTIC_PROJECTION_ENTRY } else { $null }
 $hadFilesRoot = Test-Path Env:CHAT_LOCAL_FILES_ROOT
 $oldFilesRoot = if ($hadFilesRoot) { $env:CHAT_LOCAL_FILES_ROOT } else { $null }
 
 try {
-    if (-not $hadPackage) {
-        $env:CHAT_SEMANTIC_PROJECTION_PACKAGE = Get-SemanticProjectionPackagePath -RepoRoot $repoRoot
+    if (-not $hadEntry) {
+        $env:CHAT_SEMANTIC_PROJECTION_ENTRY = Get-SemanticProjectionEntryPath -RepoRoot $repoRoot
     }
     if (-not $hadFilesRoot) {
         # `serve --status` never starts the backend; this placeholder only
@@ -90,11 +90,11 @@ try {
     } | ConvertTo-Json -Depth 6
 }
 finally {
-    if ($hadPackage) {
-        $env:CHAT_SEMANTIC_PROJECTION_PACKAGE = $oldPackage
+    if ($hadEntry) {
+        $env:CHAT_SEMANTIC_PROJECTION_ENTRY = $oldEntry
     }
     else {
-        Remove-Item Env:CHAT_SEMANTIC_PROJECTION_PACKAGE -ErrorAction SilentlyContinue
+        Remove-Item Env:CHAT_SEMANTIC_PROJECTION_ENTRY -ErrorAction SilentlyContinue
     }
 
     if ($hadFilesRoot) {
