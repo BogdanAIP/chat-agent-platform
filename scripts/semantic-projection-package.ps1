@@ -25,6 +25,8 @@ function Get-SemanticProjectionPackagePath {
         [string]$manifest.bin.'chat-semantic-projection' -ne 'bin/semantic-projection.mjs' -or
         [string]$manifest.dependencies.'@modelcontextprotocol/client' -ne '2.0.0' -or
         [string]$manifest.dependencies.'@modelcontextprotocol/server' -ne '2.0.0' -or
+        [string]$manifest.dependencies.'@modelcontextprotocol/server-filesystem' -ne '2026.7.10' -or
+        [string]$manifest.dependencies.'@playwright/mcp' -ne '0.0.78' -or
         [string]$manifest.dependencies.zod -ne '4.4.3' -or
         [string]$manifest.engines.node -ne '>=20'
     ) {
