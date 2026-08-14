@@ -19,8 +19,10 @@ Research baseline: 2026-08-10. Runtime/product status synchronized 2026-08-14.
 |---|---|---|---|
 | Direct local MCP runtime | `@1mcp/agent@0.34.4` | ACCEPTED-INFRASTRUCTURE | Keep for accepted direct/reference/typed experiments. |
 | Adaptive local MCP runtime | `@1mcp/agent@0.35.0-beta.3` + hash-guarded compatibility package | CI-ACCEPTED / DIAGNOSTIC | Lifecycle mechanics pass locally/remotely. Generic Chat-facing lifecycle/schema/invocation contract is not product-accepted after real pre-MCP blocking. |
+| Windows manager ownership | shared `manager-owner.json` + public manager facade | ACCEPTED-INFRASTRUCTURE | Real target installed -> source -> installed takeover/status/stop and unowned `3050` fail-closed passed; functional head `ffcc2e407...` adds real Windows foreign-listener CI coverage. |
 | Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | CHAT-E2E-ACCEPTED | Direct read-only path passed. Synthetic combined typed ordinary-Chat read/write also passed. Scope/root/write policy remains task/profile dependent. |
 | Browser | `@playwright/mcp@0.0.78` | CHAT-E2E-ACCEPTED | Fresh-snapshot typed `browser_navigate` passed. Combined typed ordinary-Chat navigate/find/click also passed with Filesystem in one conversation. |
+| Semantic capability projection | smallest fixed-schema project compatibility facade | EXPERIMENTAL | Current Stage 24 scaling candidate. Must expose few concrete semantic typed actions, preserve consequence classes, route deterministically to approved backends and never become planner/generic gateway/renamed `tool_invoke`. |
 | Local model runtime manager | LM Studio / `llmster` | ACCEPTED-CANDIDATE / LOCAL-TEST-REQUIRED | Stage 25 first runtime-manager candidate. Benchmark headless/server, model discovery, estimate-before-load, GPU selection, JIT/TTL/auto-evict and cleanup on target Windows. Keep replaceable. |
 | Local vision model | `LiquidAI/LFM2.5-VL-3B` | ACCEPTED-CANDIDATE / LOCAL-TEST-REQUIRED | Official 2026-08-12 release. First preferred `local-vision` candidate for screen/UI, OCR/document/chart, grounding and multi-image tasks. Benchmark actual GGUF/ONNX/runtime variants on target hardware before promotion. |
 | Windows desktop fallback | `sbroenne/mcp-windows` | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED | Semantic Windows UI Automation fallback; broad screenshot/mouse/keyboard/app-launch surface must not be baseline. |
@@ -45,6 +47,8 @@ Local/remote lifecycle acceptance passes Filesystem + Playwright enable/discover
 
 Real ordinary Chat then admitted list/status/discovery but blocked lifecycle plus `tool_schema`/`tool_invoke` before MCP. Therefore adaptive is **diagnostic lifecycle infrastructure**, not the accepted generic product-facing contract.
 
+1MCP tags/presets/filtering remain useful backend-side lifecycle/selection mechanisms. They do not automatically change the frozen reviewed tool snapshot of an already-scanned ChatGPT MCP app.
+
 ## Chat typed-surface evidence
 
 A fresh typed direct Browser snapshot passed ordinary-Chat `browser_navigate`.
@@ -59,6 +63,8 @@ A combined local runtime exposed 14 Filesystem + 20 Playwright actions. The test
 - `browser_click`.
 
 Do not treat the observed 20-action truncation as an official universal limit. It is a measured Stage 24 compatibility constraint that the scalable typed publication design must accommodate.
+
+Current OpenAI documentation says ChatGPT MCP app tools use a frozen reviewed snapshot. OpenAI Tool Search addresses large tool sets in the API/Agents SDK, but it is not currently documented as available to the ordinary-Chat custom MCP app path used by this project.
 
 ## Filesystem MCP evidence
 
@@ -145,7 +151,7 @@ Use `sbroenne/mcp-windows` only as fallback where specialized APIs/MCPs do not e
 
 ## Promotion order
 
-1. Complete Stage 24 single-owner target-machine acceptance and scalable typed Chat-facing capability publication.
+1. Complete Stage 24 semantic typed capability projection and ordinary-Chat acceptance; single-owner lifecycle is already accepted.
 2. Stage 25: benchmark LM Studio/llmster and `LFM2.5-VL-3B`, then expose the accepted result through a small stable `local-vision` typed boundary.
 3. Stage 26: benchmark REAPER, Origin, FFmpeg, Blender and Windows UI candidates on real tasks.
 4. Promote successful candidates with scoped tools/lifecycle evidence.
