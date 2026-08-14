@@ -3,7 +3,7 @@ param(
     [string]$FilesRoot,
     [int]$Port = 3050,
     [ValidateRange(30, 600)]
-    [int]$ReadyTimeoutSeconds = 240
+    [int]$ReadyTimeoutSeconds = 120
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,10 +11,10 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $stablePkg = '@1mcp/agent@0.34.4'
 $startBridge = Join-Path $PSScriptRoot 'start-local-bridge.ps1'
 $stopProfiles = Join-Path $PSScriptRoot 'stop-chat-profile.ps1'
-$packageHelper = Join-Path $PSScriptRoot 'semantic-projection-package.ps1'
+$runtimeHelper = Join-Path $PSScriptRoot 'semantic-projection-runtime.ps1'
 $semanticConfig = Join-Path $repoRoot 'runtime\chat-profiles\semantic\mcp.json'
 
-. $packageHelper
+. $runtimeHelper
 
 function Resolve-SafeFilesRoot {
     param([Parameter(Mandatory)] [string]$Path)
@@ -77,23 +77,23 @@ if (-not (Test-Path -LiteralPath $semanticConfig -PathType Leaf)) {
 }
 
 $resolvedRoot = Resolve-SafeFilesRoot -Path $FilesRoot
-$packagePath = Get-SemanticProjectionPackagePath -RepoRoot $repoRoot -Ensure
+$entryPath = Get-SemanticProjectionEntryPath -RepoRoot $repoRoot -EnsureDependencies
 
 $hadFilesRoot = Test-Path Env:CHAT_LOCAL_FILES_ROOT
 $oldFilesRoot = if ($hadFilesRoot) { $env:CHAT_LOCAL_FILES_ROOT } else { $null }
-$hadPackage = Test-Path Env:CHAT_SEMANTIC_PROJECTION_PACKAGE
-$oldPackage = if ($hadPackage) { $env:CHAT_SEMANTIC_PROJECTION_PACKAGE } else { $null }
+$hadEntry = Test-Path Env:CHAT_SEMANTIC_PROJECTION_ENTRY
+$oldEntry = if ($hadEntry) { $env:CHAT_SEMANTIC_PROJECTION_ENTRY } else { $null }
 
 try {
     $env:CHAT_LOCAL_FILES_ROOT = $resolvedRoot
-    $env:CHAT_SEMANTIC_PROJECTION_PACKAGE = $packagePath
+    $env:CHAT_SEMANTIC_PROJECTION_ENTRY = $entryPath
 
     # The shared stop script is the single conflict cleanup path for all
     # already-accepted direct/adaptive Runtime Scopes.
     & $stopProfiles
 
     Write-Host "FILES_ROOT=$resolvedRoot" -ForegroundColor Yellow
-    Write-Host "SEMANTIC_PROJECTION_PACKAGE=$packagePath" -ForegroundColor DarkGray
+    Write-Host "SEMANTIC_PROJECTION_ENTRY=$entryPath" -ForegroundColor DarkGray
 
     & $startBridge `
         -Port $Port `
@@ -134,10 +134,10 @@ finally {
         Remove-Item Env:CHAT_LOCAL_FILES_ROOT -ErrorAction SilentlyContinue
     }
 
-    if ($hadPackage) {
-        $env:CHAT_SEMANTIC_PROJECTION_PACKAGE = $oldPackage
+    if ($hadEntry) {
+        $env:CHAT_SEMANTIC_PROJECTION_ENTRY = $oldEntry
     }
     else {
-        Remove-Item Env:CHAT_SEMANTIC_PROJECTION_PACKAGE -ErrorAction SilentlyContinue
+        Remove-Item Env:CHAT_SEMANTIC_PROJECTION_ENTRY -ErrorAction SilentlyContinue
     }
 }
