@@ -38,9 +38,13 @@ Do not revive an older design merely because it is still mentioned in Git histor
 
 Stage 24 no longer treats the generic adaptive `tool_list` / `tool_schema` / `tool_invoke` contract as the expected ordinary-Chat product surface. The adaptive runtime remains useful diagnostic/CI infrastructure, but the real Chat gate admitted typed backend actions and blocked the generic/lifecycle path before MCP execution.
 
-Real ordinary-Chat evidence now proves that concrete typed Filesystem and Playwright actions can work through one `Chat Local Bridge Test` app in the same conversation, including scoped reads/writes plus browser navigation/find/click. A separate experiment also showed an effective Chat-facing snapshot truncation around 20 actions in the tested app; this is measured behavior, not an official OpenAI limit.
+Real ordinary-Chat evidence proves that concrete typed Filesystem and Playwright actions can work through one `Chat Local Bridge Test` app in the same conversation, including scoped reads/writes plus browser navigation/find/click. A separate experiment showed effective Chat-facing snapshot truncation around 20 actions in the tested app; this is measured behavior, not an official OpenAI limit.
 
-The Stage 24 scaling problem is therefore: preserve concrete typed schemas and truthful action semantics while making a large local capability catalog usable without one ChatGPT app per backend or hundreds of simultaneously published tools. Do not solve this by relabeling an opaque generic dispatcher as harmless.
+Current OpenAI documentation describes ChatGPT MCP app tools as a frozen reviewed snapshot: changing the local MCP tool list does not automatically enable new tools in an already-scanned app. 1MCP tags/presets/filtering remain useful behind the Chat boundary but do not independently solve that product snapshot constraint. OpenAI Tool Search is documented for the API/Agents SDK, not for the ordinary-Chat custom MCP path used here; do not assume it is available until that exact product surface exposes and accepts it.
+
+The Stage 24 scaling target is therefore a **small stable semantic typed surface** projected onto the larger approved local capability catalog. Any project-owned projection must be the smallest compatibility boundary justified by evidence. It may deterministically map a fixed typed action to reviewed backend capability, but it must not choose user goals, plan workflows, hide mixed-risk arbitrary operations behind one schema or recreate `tool_invoke` under another name.
+
+The installed/source split-brain on fixed port `3050` is closed for the measured defect. Real target Windows acceptance passed installed -> source -> installed takeover, cross-copy Status, foreign-owner Stop/cleanup and unowned-port fail-closed behavior; functional head `ffcc2e407...` adds the real Windows foreign-listener regression and passes the full CI/profile/security suite.
 
 Direct `files-readonly` and `browser-isolated` profiles remain deterministic diagnostics/reference paths during convergence.
 
@@ -73,7 +77,8 @@ Do not hard-code the platform to LFM2.5-VL-3B or LM Studio. Model/runtime select
 - do not force-push or rewrite `main` history;
 - Codex should perform local-machine acceptance itself whenever its environment and permissions allow it, including Windows, CLI, process lifecycle, local applications, MCP backends and local integration tests;
 - do not ask the user to perform a local test that Codex can perform itself;
-- ordinary ChatGPT UI/custom-app acceptance is a separate gate: when a test specifically requires the real ordinary-Chat user path, provide one precise user test and wait for the actual result instead of spending agentic work on reproducing that UI path;
+- ordinary ChatGPT UI/custom-app acceptance is a separate gate: when a test specifically requires the real ordinary-Chat user path, provide one precise test and wait for the actual result instead of spending agentic work on reproducing that UI path;
 - never substitute a mock, local MCP client or Codex-only browser test for a claimed ordinary-Chat E2E pass;
 - after the user reports the ordinary-Chat result, record the evidence in project context and continue development;
-- when local working-tree documentation differs from remote docs, preserve the local diff before pulling/rebasing and reconcile it intentionally rather than discarding it.
+- when local working-tree documentation differs from remote docs, preserve the local diff before pulling/rebasing and reconcile it intentionally rather than discarding it;
+- preserve the current safety stash/backup until the temporary combined-surface experiment is intentionally retired; never `stash pop` it blindly over synchronized docs.
