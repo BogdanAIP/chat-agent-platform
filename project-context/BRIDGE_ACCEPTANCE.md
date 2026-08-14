@@ -154,27 +154,56 @@ Evidence conclusion:
 - the blocked composite workflow is not evidence that those local typed tools/backends are broken;
 - exact safety heuristics are external and were not isolated.
 
-## 2026-08-14 — installed/source split-brain defect diagnosed
+## 2026-08-14 — installed/source split-brain defect reproduced
 
 A target-machine diagnostic found an installed adaptive runtime under `%LOCALAPPDATA%\ChatAgentPlatform\app` still listening on `127.0.0.1:3050` while source-checkout profile status reported all known source scopes stopped. The stale installed runtime returned HTTP 200 readiness with an empty catalog and interfered with source Browser startup diagnostics.
 
 After stopping the installed copy, source `browser-isolated` startup became healthy and Playwright inspection returned all 20 local typed actions.
 
-This proves the split-brain lifecycle defect existed.
+This proves the split-brain lifecycle defect existed before the single-owner fix.
 
-## 2026-08-14 — single-owner fix remote acceptance only
+## 2026-08-14 — installed/source single-owner target acceptance passed
 
-Functional head `64fa0a27fd4d2656d938061a61c85abb72f7b6b0` adds shared manager ownership state, cross-copy delegation and fail-closed occupied-port behavior.
+The target Windows machine then ran the new shared-owner manager behavior using the real installed LocalAppData bundle and the real source checkout.
 
-On that exact head the following remote workflows passed:
+Accepted sequence:
 
-- Chat Profile Acceptance `31776737312`;
-- CI `31776737308`;
-- CodeQL Security `31776737298`;
-- Module Candidate Acceptance `31776737301`;
-- Secret History Scan `31776737292`.
+1. clean baseline: both copies stopped and `3050` free;
+2. installed `reference` start: installed controller recorded as owner, one listener on `3050`, MCP+tunnel ready;
+3. source `Status`: correctly returned the installed owner's `reference`/MCP/tunnel readiness;
+4. source `Start`: stopped the installed owner, started the source runtime and transferred `manager-owner.json` to the source controller;
+5. installed `Status`: correctly returned the source owner's readiness;
+6. installed `Start`: stopped source, started installed and transferred owner state back;
+7. source `Stop`: delegated to the installed owner, stopped it, freed `3050` and removed `manager-owner.json`.
 
-This is remote/CI acceptance only. Do not claim target-machine installed/source handoff acceptance until that exact implementation runs there.
+This accepts cross-copy start/takeover/status/stop ownership on the target machine. The dedicated foreign-owner `Toggle` path was not separately re-run as a target user action; its branch remains regression-covered in code/tests.
+
+## 2026-08-14 — unowned occupied-port fail-closed accepted
+
+A real unrelated listener was bound to `127.0.0.1:3050` with no `manager-owner.json`. Public manager `Start` returned non-zero and did not proceed into normal platform startup.
+
+The first target run exposed only a diagnostic-formatting defect: fail-closed happened, but `Get-McpPortDiagnostic` produced a PowerShell `-f` formatting error. Commit `923d2f91fa368b04eb2ed3ebe5399775958b7d9f` fixed diagnostic line construction.
+
+The corrected target run then returned the intended message beginning:
+
+```text
+Local MCP port 3050 is already occupied but no matching active manager owner is available.
+Refusing to accept another process's health endpoint.
+```
+
+PowerShell's error renderer wrapped the long message, which made the initial temporary exact-string assertion too strict; that was a harness issue, not another manager failure.
+
+Functional head `ffcc2e407c7b9a71caa9e19c07962e2182928c41` adds a real Windows CI acceptance that itself binds a foreign listener on `3050`, runs public `Start`, strips renderer ANSI/line-layout artifacts, verifies the non-zero fail-closed diagnostic and confirms no owner state was created.
+
+On that exact functional head all remote workflows passed:
+
+- Chat Profile Acceptance `31801462054`;
+- CI `31801462040`;
+- CodeQL Security `31801462047`;
+- Module Candidate Acceptance `31801462032`;
+- Secret History Scan `31801462041`.
+
+The measured stale/foreign-readiness split-brain blocker is therefore closed.
 
 ## Local vision / LM Studio status — NOT ACCEPTED YET
 
