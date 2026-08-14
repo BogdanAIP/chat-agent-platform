@@ -4,12 +4,22 @@ on:
   pull_request:
     paths:
       - "runtime/semantic-projection/**"
+      - "runtime/chat-profiles/semantic/**"
+      - "scripts/semantic-projection-package.ps1"
+      - "scripts/start-semantic-profile.ps1"
+      - "scripts/status-chat-profile.ps1"
+      - "scripts/stop-chat-profile.ps1"
       - "project-context/TYPED_CAPABILITY_PROJECTION.md"
       - ".github/workflows/semantic-projection.yml"
   push:
     branches: [main]
     paths:
       - "runtime/semantic-projection/**"
+      - "runtime/chat-profiles/semantic/**"
+      - "scripts/semantic-projection-package.ps1"
+      - "scripts/start-semantic-profile.ps1"
+      - "scripts/status-chat-profile.ps1"
+      - "scripts/stop-chat-profile.ps1"
       - "project-context/TYPED_CAPABILITY_PROJECTION.md"
       - ".github/workflows/semantic-projection.yml"
   workflow_dispatch:
@@ -24,7 +34,7 @@ concurrency:
 jobs:
   windows-semantic-projection:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -56,10 +66,19 @@ jobs:
           }
           $registrations = [regex]::Matches($source, 'registerTool\(').Count
           if ($registrations -ne 5) { throw "Semantic projection must register exactly five tools; found $registrations." }
-          foreach ($forbidden in @('tool_invoke','tool_schema','mcp_enable','browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
-            if ($source -match [regex]::Escape($forbidden)) {
+          foreach ($forbidden in @('tool_invoke','tool_schema','mcp_enable','read_text_file','write_file','browser_navigate','browser_click','browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
+            if ($source -match [regex]::Escape($forbidden) -and $forbidden -in @('tool_invoke','tool_schema','mcp_enable','browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
               throw "Semantic projection source contains forbidden generic/unsafe downstream marker '$forbidden'."
             }
+          }
+
+          $config = Get-Content 'runtime/chat-profiles/semantic/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $servers = @($config.mcpServers.PSObject.Properties.Name)
+          if ($servers.Count -ne 1 -or $servers[0] -ne 'semantic-projection') {
+            throw "Semantic profile must expose exactly one projection server; found: $($servers -join ', ')"
+          }
+          if ([string]$config.mcpServers.'semantic-projection'.command -ne 'cmd') {
+            throw 'Semantic profile must use the reviewed local package launcher.'
           }
 
       - name: Install exact projection dependencies
@@ -85,3 +104,46 @@ jobs:
           finally {
             Pop-Location
           }
+
+      - name: Run semantic profile through real 1MCP lifecycle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = Join-Path $env:RUNNER_TEMP 'semantic-profile-workspace'
+          New-Item -ItemType Directory -Force -Path $workspace | Out-Null
+          Set-Content -LiteralPath (Join-Path $workspace 'input.txt') -Value 'SEMANTIC_PROFILE_INPUT' -Encoding utf8
+
+          try {
+            .\scripts\start-semantic-profile.ps1 -FilesRoot $workspace -ReadyTimeoutSeconds 240
+
+            $statusText = .\scripts\status-chat-profile.ps1 | Out-String
+            $status = $statusText | ConvertFrom-Json
+            if ([int]$status.active_count -ne 1) { throw "Expected one active profile; got $($status.active_count)." }
+            if ([string]$status.active_profile -ne 'semantic') { throw "Expected semantic active profile; got '$($status.active_profile)'." }
+            $semanticScope = @($status.scopes | Where-Object { [string]$_.profile -eq 'semantic' })
+            if ($semanticScope.Count -ne 1) { throw 'Semantic scope is missing from status.' }
+            if (-not [bool]$semanticScope[0].running -or [string]$semanticScope[0].health_state -ne 'ready') {
+              throw "Semantic scope is not ready: $($semanticScope[0] | ConvertTo-Json -Compress)"
+            }
+
+            $inventoryText = npx.cmd -y '@1mcp/agent@0.34.4' inspect semantic-projection --url http://127.0.0.1:3050 --format json --all 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "1MCP semantic inspect failed: $inventoryText" }
+            $inventory = $inventoryText | ConvertFrom-Json
+            $actual = @($inventory.tools | ForEach-Object { [string]$_.tool } | Sort-Object)
+            $expected = @('web_interact','web_observe','web_open','workspace_read','workspace_write')
+            if (($actual -join "`n") -ne ($expected -join "`n")) {
+              throw "Semantic profile surface drifted: $($actual -join ', ')"
+            }
+
+            Write-Host 'SEMANTIC_PROFILE_ACTIVE=PASS'
+            Write-Host 'SEMANTIC_PROFILE_TOOL_COUNT=5'
+            Write-Host 'SEMANTIC_PROFILE_1MCP=PASS'
+          }
+          finally {
+            .\scripts\stop-chat-profile.ps1
+          }
+
+          $afterText = .\scripts\status-chat-profile.ps1 | Out-String
+          $after = $afterText | ConvertFrom-Json
+          if ([int]$after.active_count -ne 0) { throw "Semantic profile cleanup failed; active_count=$($after.active_count)." }
+          Write-Host 'SEMANTIC_PROFILE_CLEANUP=PASS'
