@@ -107,7 +107,9 @@ async function createBackend(kind) {
       'omit',
       '--block-service-workers',
       '--codegen',
-      'none'
+      'none',
+      '--timeout-action',
+      '15000'
     ]);
     requiredTools = REQUIRED_PLAYWRIGHT_TOOLS;
   } else {
