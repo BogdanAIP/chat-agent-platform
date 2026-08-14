@@ -30,41 +30,23 @@ Filesystem, shell, browser, application control, credentials and devices require
 
 Bootstrap/controller/tray may install, configure, start/stop, report health and coordinate accepted components. They must not become a planner, workflow engine, generic MCP gateway, registry, vault or authorization platform. Runtime secrets remain local and use DPAPI; tunnel profiles are created with the official CLI.
 
-## ADR-016 — Stable Chat-facing adaptive tool contract — PROVISIONAL
+## ADR-016 — Generic adaptive meta-tool contract is not the ordinary-Chat product surface — ACCEPTED AS A NEGATIVE DECISION
 
 ### Evidence
 
-The real 2026-08-12 profile switch showed that an existing Chat app retained its previously discovered `filesystem_*` action snapshot after the local runtime changed to the browser profile. Therefore direct backend tool lists cannot be assumed to mutate transparently for an already-connected Chat app.
+The adaptive 1MCP runtime itself passes local/remote lifecycle acceptance through exact `@1mcp/agent@0.35.0-beta.3` plus the hash-guarded compatibility package. Filesystem and Playwright can enable, appear through lazy discovery, execute a real operation, disable and clean up in one MCP session while the top-level generic surface stays fixed.
 
-Creating one Chat app/plugin snapshot for every future backend also does not scale.
+The real ordinary-Chat test then exposed the exact eight generic/lifecycle actions. Read-only list/status/discovery calls reached the bridge, but lifecycle actions plus `tool_schema`/`tool_invoke` were blocked before MCP execution.
 
-### Decision under acceptance
+The exact OpenAI admission cause was not isolated. Therefore do not claim that a specific annotation alone caused the failure.
 
-Evaluate one stable Chat-facing 1MCP Lazy Loading surface:
+### Decision
 
-```text
-tool_list
-tool_schema
-tool_invoke
-```
+Do not promote the generic adaptive `tool_list` / `tool_schema` / `tool_invoke` plus lifecycle surface as the normal ordinary-Chat product contract.
 
-with only pre-approved lifecycle controls:
+The generic dispatcher is also structurally difficult to describe truthfully at one static tool boundary because the nested operation determines the real schema and consequences. Do not relabel it read-only/non-destructive merely to bypass product review.
 
-```text
-mcp_list
-mcp_status
-mcp_enable
-mcp_disable
-mcp_reload
-```
-
-Backends are registered locally and disabled until a task activates them. Ordinary Chat must not receive generic catalog install/uninstall/update/edit/search controls.
-
-### Acceptance status
-
-Not accepted yet. The exact 1MCP `0.35.0-beta.3` upstream gaps were isolated and a hash-guarded two-file compatibility patch passes the full Filesystem + Playwright same-session lifecycle locally and remotely while the exact top-level tool allowlist stays frozen. Standalone manager/bootstrap/tunnel/no-console integration passes locally, and integrated head `19ba303...` passes the full remote CI/security suite. Promotion now requires only the real ordinary-Chat one-snapshot E2E.
-
-Do not write a project-owned universal broker merely to preserve ADR-016; if upstream 1MCP cannot satisfy the measured contract after investigation, revisit the decision with evidence.
+Keep the adaptive implementation as useful local/CI lifecycle infrastructure and a diagnostic experiment. Revisit generic dynamic invocation only if a future standard/product mechanism exposes downstream operation semantics truthfully and passes ordinary-Chat acceptance.
 
 ## ADR-017 — Task-driven capability lifecycle and authorization — PROVISIONAL
 
@@ -76,6 +58,54 @@ AVAILABLE -> ACTIVE -> AUTHORIZED
 
 The platform should not keep every backend process running. Sequential tasks should normally activate backends sequentially. Workflows that genuinely require multiple capabilities may keep multiple backends active together.
 
-Avoid an unnecessarily broad always-on local-data + open-network baseline, but do not convert that safety principle into a blanket architectural prohibition on Browser + Filesystem or other legitimate combinations.
+Real ordinary-Chat Filesystem + Browser typed use has now passed on a synthetic scoped workspace, so permanent mutual exclusion is not a product requirement.
 
-Promotion to ACCEPTED occurs with successful adaptive lifecycle/security acceptance.
+Authorization should prioritize scoped roots/resources, reversible workspaces, backups/git and consequence-based confirmation over prompting for every low-risk action. OpenAI app permission mode is an additional product control, not the only safety boundary.
+
+Promotion to ACCEPTED requires the scalable typed capability mechanism and task-driven lifecycle to pass together on the real product path.
+
+## ADR-018 — Concrete typed Chat-facing capability surface — PROVISIONAL
+
+### Evidence
+
+A freshly scanned direct Playwright surface passed ordinary-Chat `browser_navigate`.
+
+A combined local runtime exposed 14 Filesystem + 20 Playwright actions. The Chat-facing app effectively surfaced 20 actions, excluding later browser actions such as `browser_navigate`/`browser_click`.
+
+After reducing Filesystem to four typed actions, the local runtime exposed 24 total actions and a refreshed/new ordinary Chat successfully used typed `list_allowed_directories`, `read_text_file`, `write_file`, `browser_navigate`, `browser_find` and `browser_click` in one conversation.
+
+### Decision under acceptance
+
+Preserve concrete typed schemas and truthful tool semantics as the Chat-facing contract. Solve scaling by selecting/projecting a small relevant typed surface from the larger local capability catalog rather than publishing hundreds of tools or hiding all operations behind opaque generic invocation.
+
+The observed ~20-action behavior is **not** an official OpenAI limit and must not be hard-coded as a universal constant. The implementation should measure/fail safely and remain adaptable if product limits change.
+
+A project-owned capability projection/facade is allowed only if it is the smallest measured compatibility boundary and does not become a planner, workflow engine or generic replacement MCP platform.
+
+Promotion requires real ordinary-Chat acceptance across more than one backend class without one Chat app per backend or routine manual Refresh for each operation.
+
+## ADR-019 — One authoritative Windows manager owner — PROVISIONAL
+
+### Evidence
+
+The target machine exposed a stale installed adaptive runtime under `%LOCALAPPDATA%\ChatAgentPlatform\app` listening on `127.0.0.1:3050` while the source checkout reported its known profiles stopped. New source startup could therefore observe the stale runtime health endpoint.
+
+Functional head `64fa0a27...` adds shared `manager-owner.json` state, cross-copy delegation/stop behavior and fail-closed handling when the fixed MCP port is occupied without a trustworthy owner. All remote Windows/CI/security checks pass.
+
+### Decision under acceptance
+
+Installed and source manager copies are not independent platform instances. They must coordinate one authoritative owner for the fixed local MCP/tunnel runtime.
+
+Promotion to ACCEPTED requires target-machine installed/source handoff, stop/status/toggle and stale-port acceptance on the exact implementation.
+
+## ADR-020 — Local specialist inference is a capability backend, not a second brain — PROVISIONAL
+
+### Decision under acceptance
+
+Local models may be used for bounded specialist inference such as screen/image/document understanding, OCR, grounding, comparison, extraction or classification while ordinary ChatGPT remains the planner/orchestrator.
+
+Prefer a mature replaceable local model-runtime manager over embedding one inference stack into platform core. LM Studio/`llmster` is the first runtime-manager candidate because its current documented surface includes local model discovery, memory estimation before load, GPU-offload control, JIT loading, TTL and auto-eviction.
+
+`LiquidAI/LFM2.5-VL-3B`, officially released 2026-08-12, is the first preferred `local-vision` model candidate. Liquid AI publishes screen/UI, OCR/document/chart, grounding and multi-image capabilities plus GGUF/llama.cpp and ONNX support.
+
+Neither LM Studio nor LFM2.5-VL-3B is product-accepted until target Windows hardware/runtime benchmarking passes. The platform must keep runtime/model selection replaceable and hardware/evidence driven.
