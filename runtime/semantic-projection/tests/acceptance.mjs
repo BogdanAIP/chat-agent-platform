@@ -26,6 +26,13 @@ function textOf(result) {
     .join('\n');
 }
 
+function firstAccessibilityRef(result, label) {
+  const text = textOf(result);
+  const match = text.match(/\[ref=([^\]\s]+)\]/) ?? text.match(/\bref=([A-Za-z0-9_-]+)\b/);
+  assert(match, `${label} did not return an accessibility ref:\n${text}`);
+  return match[1];
+}
+
 function childEnvironment(extra) {
   const env = {};
   for (const [key, value] of Object.entries(process.env)) {
@@ -35,22 +42,18 @@ function childEnvironment(extra) {
 }
 
 async function startFixtureServer() {
-  const server = http.createServer((request, response) => {
+  const server = http.createServer((_request, response) => {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
-    if (request.url === '/done') {
-      response.end(`<!doctype html>
-        <html><body>
-          <h1>SEMANTIC_BROWSER_DONE</h1>
+    response.end(`<!doctype html>
+      <html>
+        <body>
+          <h1>Semantic Projection Test</h1>
+          <button id="continue" onclick="document.getElementById('status').textContent='SEMANTIC_BROWSER_DONE'">Continue semantic test</button>
+          <p id="status">waiting</p>
           <label for="semantic-input">Semantic input</label>
           <input id="semantic-input" aria-label="Semantic input" />
-        </body></html>`);
-      return;
-    }
-    response.end(`<!doctype html>
-      <html><body>
-        <h1>Semantic Projection Test</h1>
-        <a id="continue" href="/done">Continue semantic test</a>
-      </body></html>`);
+        </body>
+      </html>`);
   });
 
   await new Promise((resolve, reject) => {
@@ -148,19 +151,20 @@ try {
   });
   assert.equal(open.isError, undefined, textOf(open));
 
-  const findLink = await client.callTool({
+  const findButton = await client.callTool({
     name: 'web_observe',
     arguments: { operation: 'find', text: 'Continue semantic test' }
   });
-  assert.equal(findLink.isError, undefined, textOf(findLink));
-  assert(textOf(findLink).includes('Continue semantic test'), textOf(findLink));
+  assert.equal(findButton.isError, undefined, textOf(findButton));
+  assert(textOf(findButton).includes('Continue semantic test'), textOf(findButton));
+  const buttonRef = firstAccessibilityRef(findButton, 'button search');
 
   const click = await client.callTool({
     name: 'web_interact',
     arguments: {
       operation: 'click',
-      target: '#continue',
-      element: 'Continue semantic test link'
+      target: buttonRef,
+      element: 'Continue semantic test button'
     }
   });
   assert.equal(click.isError, undefined, textOf(click));
@@ -172,11 +176,18 @@ try {
   assert.equal(findDone.isError, undefined, textOf(findDone));
   assert(textOf(findDone).includes('SEMANTIC_BROWSER_DONE'), textOf(findDone));
 
+  const findInput = await client.callTool({
+    name: 'web_observe',
+    arguments: { operation: 'find', regex: 'textbox "Semantic input"' }
+  });
+  assert.equal(findInput.isError, undefined, textOf(findInput));
+  const inputRef = firstAccessibilityRef(findInput, 'input search');
+
   const type = await client.callTool({
     name: 'web_interact',
     arguments: {
       operation: 'type',
-      target: '#semantic-input',
+      target: inputRef,
       element: 'Semantic input',
       text: 'SEMANTIC_TYPED_OK'
     }
@@ -185,7 +196,7 @@ try {
 
   const snapshot = await client.callTool({
     name: 'web_observe',
-    arguments: { operation: 'snapshot', target: '#semantic-input' }
+    arguments: { operation: 'snapshot', target: inputRef }
   });
   assert.equal(snapshot.isError, undefined, textOf(snapshot));
   assert(textOf(snapshot).includes('SEMANTIC_TYPED_OK'), textOf(snapshot));
@@ -200,7 +211,7 @@ try {
     name: 'web_interact',
     arguments: {
       operation: 'click',
-      target: '#semantic-input',
+      target: inputRef,
       text: 'must-not-be-accepted-for-click'
     }
   });
