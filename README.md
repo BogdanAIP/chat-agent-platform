@@ -22,19 +22,15 @@ ordinary ChatGPT Chat
 
 Реальные ordinary-Chat тесты дали два важных результата.
 
-Во-первых, **конкретные типизированные действия работают**. Через один `Chat Local Bridge Test` уже пройдены:
-
-- scoped Filesystem read/write;
-- `browser_navigate`;
-- `browser_find`;
-- `browser_click`;
-- совместный Filesystem + Browser workflow в одном ordinary Chat.
+Во-первых, **конкретные типизированные действия работают**. Через один `Chat Local Bridge Test` уже пройдены scoped Filesystem read/write, `browser_navigate`, `browser_find`, `browser_click` и совместный Filesystem + Browser workflow в одном ordinary Chat.
 
 Во-вторых, generic adaptive поверхность `tool_list` / `tool_schema` / `tool_invoke` + lifecycle не стала принятым product contract: read-only list/status/discovery доходили до MCP, а lifecycle/schema/generic invocation блокировались до MCP. Adaptive runtime остаётся полезной диагностической/CI инфраструктурой, но не основным Chat-facing интерфейсом.
 
 Также измерено давление на размер action snapshot: при 34 локальных typed actions Chat фактически показывал 20, а после сокращения локального набора до 24 нужные более поздние Browser actions стали доступны после Refresh/new Chat. Это **наблюдаемое поведение текущей конфигурации**, а не заявленный официальный лимит OpenAI.
 
-Поэтому текущая задача Stage 24 — получить масштабируемую typed capability surface с точными схемами и честной семантикой, не создавая отдельный Chat app для каждого backend и не пряча всё за непрозрачный `tool_invoke`.
+Текущая документация OpenAI описывает MCP tools приложения ChatGPT как фиксированный reviewed snapshot: последующие изменения серверной tool surface автоматически не включаются. Поэтому 1MCP tags/presets/filtering полезны внутри локальной части, но сами не решают масштабирование already-scanned ordinary-Chat app. Tool Search существует для больших tool ecosystems в API/Agents SDK, но пока не является документированной возможностью используемого нами ordinary-Chat custom-MCP пути.
+
+Поэтому текущая задача Stage 24 — **маленькая стабильная semantic typed surface** с точными схемами и честной семантикой, которая детерминированно проецируется на большой локальный каталог. Этот projection layer не должен быть planner, workflow engine, generic gateway или переименованный `tool_invoke`.
 
 ## Принятые direct-профили
 
@@ -70,7 +66,9 @@ Direct-профили остаются диагностическими/referenc
 
 Он проверяет окружение и pinned dependencies, устанавливает проверенный официальный `openai/tunnel-client`, создаёт tunnel profile через официальный CLI, хранит runtime key через Windows DPAPI `CurrentUser`, устанавливает standalone manager под `%LOCALAPPDATA%\ChatAgentPlatform\app`, создаёт shortcut и выполняет reference smoke test.
 
-Реальный Stage 24 тест обнаружил split-brain между установленной и source-копией manager: stale installed runtime мог оставаться на `127.0.0.1:3050`. Текущий функциональный head `64fa0a27...` добавляет общий owner-state и fail-closed port handling; remote Windows/CI/security checks зелёные, target-machine acceptance этой точной правки ещё нужен.
+Реальный Stage 24 тест обнаружил split-brain между установленной и source-копией manager: stale installed runtime мог оставаться на `127.0.0.1:3050`. Этот дефект теперь закрыт. Shared `manager-owner.json` задаёт одного владельца; Status делегируется владельцу; takeover сначала останавливает предыдущую копию; незарегистрированный foreign listener на `3050` приводит к fail-closed.
+
+На target Windows пройдены installed -> source -> installed handoff, cross-copy Status, foreign-owner Stop/cleanup и occupied-port negative test. Functional head `ffcc2e407...` дополнительно запускает реальный foreign-listener regression в Windows CI и проходит весь CI/profile/security набор.
 
 Manager/tray — только lifecycle/UI слой. Он не является агентом, MCP gateway или planner.
 
@@ -109,7 +107,7 @@ ChatGPT остаётся мозгом; local-vision — глаза. Ни LM Stud
 
 ## Состояние разработки
 
-Stage 21–23 завершены. Stage 24 в работе. Точная текущая точка — [`project-context/CURRENT_STATE.md`](project-context/CURRENT_STATE.md). План — [`project-context/ROADMAP.md`](project-context/ROADMAP.md).
+Stage 21–23 завершены. Stage 24 в работе; lifecycle/single-owner часть принята, основной оставшийся вопрос — scalable semantic typed surface. Точная текущая точка — [`project-context/CURRENT_STATE.md`](project-context/CURRENT_STATE.md). План — [`project-context/ROADMAP.md`](project-context/ROADMAP.md).
 
 Не считайте README более свежим источником, чем код/tests/CI и `CURRENT_STATE.md`.
 
