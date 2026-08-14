@@ -22,28 +22,41 @@ The first E2E reference acceptance passed on 2026-08-10.
 
 ## Chat-facing capability boundary
 
-Real Stage 24 evidence established four constraints:
+Real Stage 24 evidence established five constraints:
 
 1. changing a local direct 1MCP profile does not automatically replace an already-scanned Chat action snapshot;
-2. the generic adaptive `tool_list` / `tool_schema` / `tool_invoke` + lifecycle surface works as local/CI infrastructure but was blocked before MCP for the consequential/generic ordinary-Chat calls;
-3. concrete typed Filesystem and Playwright actions do work together through one ordinary-Chat app/conversation;
-4. the tested app effectively truncated a larger action snapshot around 20 tools: 34 local tools surfaced as 20, while a reduced 24-tool local surface allowed later `browser_navigate`/`browser_click` to become callable after Refresh/new Chat.
+2. current OpenAI documentation describes ChatGPT MCP app tools as a frozen reviewed snapshot, so later server-side tool changes are not automatically enabled without Refresh/review;
+3. the generic adaptive `tool_list` / `tool_schema` / `tool_invoke` + lifecycle surface works as local/CI infrastructure but was blocked before MCP for the consequential/generic ordinary-Chat calls;
+4. concrete typed Filesystem and Playwright actions do work together through one ordinary-Chat app/conversation;
+5. the tested app effectively truncated a larger action snapshot around 20 tools: 34 local tools surfaced as 20, while a reduced 24-tool local surface allowed later `browser_navigate`/`browser_click` to become callable after Refresh/new Chat.
 
 The exact number is **observed behavior, not an official platform constant**.
+
+1MCP tags, presets and runtime filtering remain useful for backend selection/lifecycle, but they do not by themselves change a frozen ChatGPT action snapshot.
+
+OpenAI Tool Search is architecturally relevant because it supports deferred large-tool discovery in the API/Agents SDK. It is not currently documented as a capability of the ordinary-Chat custom MCP app path used by this project, so it is not a Stage 24 dependency. Re-evaluate if/when that product surface exposes it.
 
 Current scalable target:
 
 ```text
 ChatGPT
-  -> concrete typed actions with truthful schemas/semantics
-  -> capability selection/publication layer (PROVISIONAL)
+  -> small stable set of concrete semantic typed actions
+  -> capability projection onto the larger approved local catalog
   -> Secure MCP Tunnel
   -> official tunnel-client
   -> 1MCP / focused local adapters
   -> one or more task-active backends
 ```
 
-Do not solve action-count pressure by making one opaque generic dispatcher look harmless. If a project-owned capability projection/facade is required, it must remain the smallest fixed-schema boundary justified by measured platform behavior; it must not become a second planner, generic workflow engine or replacement MCP ecosystem.
+The capability projection is a compatibility boundary, not a planner. It may map a fixed semantic typed operation to one reviewed backend action or small deterministic backend sequence. It must not decide user goals, interpret arbitrary plans, hide heterogeneous risk behind one generic schema, or recreate `tool_invoke` under another name.
+
+Each exposed Chat-facing action must have:
+
+- a fixed truthful JSON schema;
+- a clear semantic operation;
+- a coherent consequence/authorization class;
+- deterministic routing to approved backend capability;
+- bounded scope and negative tests where applicable.
 
 Direct profiles remain accepted diagnostics/reference paths. Adaptive 1MCP remains useful lifecycle/CI infrastructure, but its generic Chat-facing contract is not the accepted product surface.
 
@@ -79,7 +92,7 @@ Prefer scoped resources, truthful typed actions, reversible workspaces/backups/g
 
 These profiles provide deterministic acceptance boundaries and fallback diagnostics. They are not the desired scaling mechanism for every future application integration.
 
-## Windows management path
+## Windows management path — ACCEPTED
 
 ```text
 bootstrap
@@ -101,9 +114,13 @@ Rules:
 - installed runtime/config lives under `%LOCALAPPDATA%\ChatAgentPlatform\app`;
 - secrets, tunnel profile, binary, logs and mutable state live outside the app bundle;
 - bootstrap uses the official tunnel-client CLI/profile format;
-- installed/source copies must coordinate ownership of the fixed `127.0.0.1:3050` MCP endpoint rather than acting as independent managers.
+- installed/source copies coordinate one owner of the fixed `127.0.0.1:3050` MCP endpoint rather than acting as independent managers;
+- shared owner state lives at `%LOCALAPPDATA%\ChatAgentPlatform\state\manager-owner.json`;
+- `Status` follows the recorded owner;
+- takeover stops a foreign owner before starting the new copy;
+- an occupied `3050` without trustworthy owner state fails closed instead of accepting another process's health endpoint.
 
-Functional head `64fa0a27...` implements shared manager ownership state in `%LOCALAPPDATA%\ChatAgentPlatform\state\manager-owner.json`, delegation to a foreign owner and fail-closed handling of an occupied MCP port with no trustworthy owner. Remote Windows/CI/security checks pass; target-machine installed/source handoff acceptance remains required.
+Target Windows acceptance on 2026-08-14 passed installed -> source -> installed takeover, cross-copy Status, foreign-owner Stop/cleanup and occupied-port fail-closed behavior. Functional head `ffcc2e407...` additionally runs a real Windows foreign-listener regression in CI and passes the full CI/profile/security suite.
 
 ## Local specialist inference architecture — PROVISIONAL
 
@@ -147,6 +164,7 @@ The repository owns only thin integration assets:
 - Windows lifecycle/bootstrap/tray convenience;
 - compatibility and acceptance tests;
 - project context/documentation;
+- a smallest semantic capability projection only if required by the measured Chat snapshot boundary;
 - focused typed adapters only for measured missing local-program/model boundaries.
 
 The repository does **not** own by default:
