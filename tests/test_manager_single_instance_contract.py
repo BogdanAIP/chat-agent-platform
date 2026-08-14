@@ -43,6 +43,8 @@ class ManagerSingleInstanceContractTests(unittest.TestCase):
         self.assertIn('Get-NetTCPConnection', self.command)
         self.assertIn('Refusing to accept another process', self.command)
         self.assertIn('health endpoint', self.command)
+        self.assertIn('$diagnosticLine = (', self.command)
+        self.assertIn('$lines.Add($diagnosticLine)', self.command)
 
     def test_toggle_of_foreign_owner_stops_instead_of_double_start(self):
         self.assertIn('elseif ($Action -eq "Toggle" -and $foreignOwner)', self.command)

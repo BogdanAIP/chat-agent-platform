@@ -125,12 +125,13 @@ function Get-McpPortDiagnostic {
             $lines.Add("PID=$pidValue")
         }
         else {
-            $lines.Add(
+            $diagnosticLine = (
                 "PID={0}; Name={1}; CommandLine={2}" -f `
                     $pidValue,
                     [string]$process.Name,
                     [string]$process.CommandLine
             )
+            $lines.Add($diagnosticLine)
         }
     }
 
