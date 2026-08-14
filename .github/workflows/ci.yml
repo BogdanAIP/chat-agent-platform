@@ -30,6 +30,8 @@ jobs:
             'scripts/status-local-bridge.ps1',
             'scripts/stop-local-bridge.ps1',
             'scripts/start-chat-profile.ps1',
+            'scripts/start-semantic-profile.ps1',
+            'scripts/semantic-projection-runtime.ps1',
             'scripts/status-chat-profile.ps1',
             'scripts/stop-chat-profile.ps1',
             'scripts/chat-platform-controller.ps1',
