@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.1mcp.app/schemas/v1.0.0/mcp-config.json",
+  "mcpServers": {
+    "semantic-projection": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "${CHAT_SEMANTIC_PROJECTION_PACKAGE}"
+      ],
+      "env": [
+        "CHAT_LOCAL_FILES_ROOT",
+        "CHAT_SEMANTIC_PROJECTION_PACKAGE"
+      ],
+      "tags": ["chat-profile", "semantic", "filesystem", "browser", "local", "free"],
+      "connectionTimeout": 180000,
+      "requestTimeout": 120000
+    }
+  }
+}
