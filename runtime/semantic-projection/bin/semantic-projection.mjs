@@ -395,8 +395,4 @@ server.registerTool(
   }
 );
 
-void serveStdio(() => server).catch(async error => {
-  console.error(`semantic projection failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-  await closeBackends();
-  process.exitCode = 1;
-});
+void serveStdio(() => server);
