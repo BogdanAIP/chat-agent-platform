@@ -27,19 +27,22 @@ Do not revive an older design merely because it is still mentioned in Git histor
 
 ## Product boundary
 
-- ordinary ChatGPT Chat is the intelligence/planning layer;
-- local components expose capabilities through standard MCP;
-- do not add a second planner, autonomous workflow brain or model-runtime dependency behind ChatGPT;
-- prefer official/vendor MCP, then mature OSS, then a generic local API/CLI adapter, then the smallest focused project-owned adapter for a measured gap;
+- ordinary ChatGPT Chat is the primary intelligence/planning/orchestration layer;
+- local components expose capabilities through standard MCP or the smallest focused local adapter around a strong local API/CLI;
+- do not add a second planner, autonomous workflow brain or general-purpose agent runtime behind ChatGPT;
+- specialized local inference is allowed as a replaceable capability backend when it performs bounded perception/extraction/classification work rather than taking over planning. A local vision model is an example: Chat remains the brain, the local model is an eye;
+- prefer official/vendor MCP, then mature OSS MCP, then a generic local API/CLI adapter, then the smallest focused project-owned adapter for a measured gap;
 - do not build a project-owned tunnel, generic MCP gateway, registry, vault, job system or policy platform while an accepted ecosystem component covers the boundary.
 
 ## Current direction
 
-Stage 24 is evaluating one stable Chat-facing 1MCP surface with Lazy Loading and task-driven backend lifecycle. The goal is to add future local capabilities without creating a new ChatGPT app/plugin or requiring a Refresh for every backend.
+Stage 24 no longer treats the generic adaptive `tool_list` / `tool_schema` / `tool_invoke` contract as the expected ordinary-Chat product surface. The adaptive runtime remains useful diagnostic/CI infrastructure, but the real Chat gate admitted typed backend actions and blocked the generic/lifecycle path before MCP execution.
 
-The adaptive path is **not accepted yet**. Direct `files-readonly` and `browser-isolated` profiles remain working diagnostic/reference paths until adaptive acceptance and real ordinary-Chat validation pass.
+Real ordinary-Chat evidence now proves that concrete typed Filesystem and Playwright actions can work through one `Chat Local Bridge Test` app in the same conversation, including scoped reads/writes plus browser navigation/find/click. A separate experiment also showed an effective Chat-facing snapshot truncation around 20 actions in the tested app; this is measured behavior, not an official OpenAI limit.
 
-Do not create a separate ChatGPT app/plugin for every capability as the default architecture.
+The Stage 24 scaling problem is therefore: preserve concrete typed schemas and truthful action semantics while making a large local capability catalog usable without one ChatGPT app per backend or hundreds of simultaneously published tools. Do not solve this by relabeling an opaque generic dispatcher as harmless.
+
+Direct `files-readonly` and `browser-isolated` profiles remain deterministic diagnostics/reference paths during convergence.
 
 ## Safety without capability paralysis
 
@@ -48,8 +51,18 @@ Use the model `AVAILABLE -> ACTIVE -> AUTHORIZED`:
 - a backend may be registered without running;
 - start only the backend(s) needed for the current task;
 - multiple backends may run together when the task genuinely requires it;
-- scope sensitive operations and keep dangerous administrative tools out of the Chat-facing surface;
-- avoid an always-on broad local-files + open-web baseline, but do not turn that into a blanket ban on legitimate multi-tool workflows.
+- scope local roots, credentials and destructive operations at the strongest practical boundary;
+- prefer rollback, backups, git and contained workspaces over a confirmation dialog for every low-risk action;
+- reserve explicit confirmation for genuinely consequential or hard-to-reverse effects rather than creating approval fatigue;
+- OpenAI app permissions are not the only safety layer: real testing showed that a composite workflow can be blocked by OpenAI safety even when the same typed actions pass individually under full app access.
+
+## Local specialist inference direction
+
+After Stage 24, evaluate LM Studio/`llmster` as a replaceable local model-runtime manager rather than embedding one model/runtime into platform core. The runtime should support capability/model discovery, memory estimation before load, hardware-aware variant choice, load/JIT/TTL/unload behavior and a stable typed `local-vision` boundary.
+
+`LiquidAI/LFM2.5-VL-3B` is the first preferred vision candidate because Liquid AI officially released it on 2026-08-12 with screen/UI understanding, OCR/document/chart understanding, grounding, multi-image input and day-one GGUF/llama.cpp plus ONNX support. It is a candidate, not yet product-accepted on the target Windows machine.
+
+Do not hard-code the platform to LFM2.5-VL-3B or LM Studio. Model/runtime selection remains replaceable and evidence-driven.
 
 ## Development workflow
 
@@ -62,4 +75,5 @@ Use the model `AVAILABLE -> ACTIVE -> AUTHORIZED`:
 - do not ask the user to perform a local test that Codex can perform itself;
 - ordinary ChatGPT UI/custom-app acceptance is a separate gate: when a test specifically requires the real ordinary-Chat user path, provide one precise user test and wait for the actual result instead of spending agentic work on reproducing that UI path;
 - never substitute a mock, local MCP client or Codex-only browser test for a claimed ordinary-Chat E2E pass;
-- after the user reports the ordinary-Chat result, record the evidence in project context and continue development.
+- after the user reports the ordinary-Chat result, record the evidence in project context and continue development;
+- when local working-tree documentation differs from remote docs, preserve the local diff before pulling/rebasing and reconcile it intentionally rather than discarding it.
