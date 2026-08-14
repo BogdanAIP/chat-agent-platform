@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -11,8 +12,10 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod/v4';
 
 const VERSION = '0.1.0';
-const FILESYSTEM_PACKAGE = '@modelcontextprotocol/server-filesystem@2026.7.10';
-const PLAYWRIGHT_PACKAGE = '@playwright/mcp@0.0.78';
+const require = createRequire(import.meta.url);
+const FILESYSTEM_ENTRY = require.resolve('@modelcontextprotocol/server-filesystem/dist/index.js');
+const PLAYWRIGHT_MANIFEST = require.resolve('@playwright/mcp/package.json');
+const PLAYWRIGHT_ENTRY = path.join(path.dirname(PLAYWRIGHT_MANIFEST), 'cli.js');
 const REQUIRED_FILESYSTEM_TOOLS = new Set([
   'list_allowed_directories',
   'read_text_file',
@@ -41,16 +44,10 @@ if (!workspaceStat?.isDirectory()) {
 const backendPromises = new Map();
 let shuttingDown = false;
 
-function localNpxCommand(packageName, extraArgs = []) {
-  if (process.platform === 'win32') {
-    return {
-      command: 'cmd',
-      args: ['/c', 'npx', '-y', packageName, ...extraArgs]
-    };
-  }
+function localNodeCommand(entryPoint, extraArgs = []) {
   return {
-    command: 'npx',
-    args: ['-y', packageName, ...extraArgs]
+    command: process.execPath,
+    args: [entryPoint, ...extraArgs]
   };
 }
 
@@ -95,10 +92,10 @@ async function createBackend(kind) {
   let requiredTools;
 
   if (kind === 'filesystem') {
-    spec = localNpxCommand(FILESYSTEM_PACKAGE, [workspaceRoot]);
+    spec = localNodeCommand(FILESYSTEM_ENTRY, [workspaceRoot]);
     requiredTools = REQUIRED_FILESYSTEM_TOOLS;
   } else if (kind === 'playwright') {
-    spec = localNpxCommand(PLAYWRIGHT_PACKAGE, [
+    spec = localNodeCommand(PLAYWRIGHT_ENTRY, [
       '--headless',
       '--browser',
       'chrome',
