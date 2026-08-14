@@ -261,7 +261,7 @@ function Get-ControllerStatusObjectAt {
     }
 }
 
-function Invoke-ControllerMutationAt {
+function Invoke-InternalControllerMutation {
     param(
         [Parameter(Mandatory)]
         [string]$TargetControllerPath,
@@ -340,7 +340,7 @@ function Stop-ForeignManagerIfNeeded {
         return $false
     }
 
-    Invoke-ControllerMutationAt `
+    Invoke-InternalControllerMutation `
         -TargetControllerPath $ownerController `
         -TargetAction "Stop"
 
@@ -420,7 +420,7 @@ try {
     )
 
     if ($Action -eq "Stop" -and $foreignOwner) {
-        Invoke-ControllerMutationAt `
+        Invoke-InternalControllerMutation `
             -TargetControllerPath $ownerController `
             -TargetAction "Stop"
         $exitCode = $script:LastControllerExitCode
@@ -431,7 +431,7 @@ try {
     elseif ($Action -eq "Toggle" -and $foreignOwner) {
         # A platform owned by another installed/source copy is already on.
         # Toggle therefore means stop that one, not start a second copy.
-        Invoke-ControllerMutationAt `
+        Invoke-InternalControllerMutation `
             -TargetControllerPath $ownerController `
             -TargetAction "Stop"
         $exitCode = $script:LastControllerExitCode
@@ -443,7 +443,7 @@ try {
         # Let the actual owner enforce its active-profile rule against the
         # runtime it can authoritatively observe. Settings live in shared
         # LocalAppData, so successful changes remain global.
-        Invoke-ControllerMutationAt `
+        Invoke-InternalControllerMutation `
             -TargetControllerPath $ownerController `
             -TargetAction "SetProfile"
         $exitCode = $script:LastControllerExitCode
@@ -476,7 +476,7 @@ try {
             }
         }
 
-        Invoke-ControllerMutationAt `
+        Invoke-InternalControllerMutation `
             -TargetControllerPath $ControllerPath `
             -TargetAction $Action
         $exitCode = $script:LastControllerExitCode
