@@ -491,6 +491,53 @@ function Assert-InstalledAdaptiveRuntime {
     }
 }
 
+function Assert-InstalledSemanticRuntimeSource {
+    $manifestPath = Join-Path $AppRuntimeDir "semantic-projection\package.json"
+    $entryPath = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection.mjs"
+    $semanticConfigPath = Join-Path $AppRuntimeDir "chat-profiles\semantic\mcp.json"
+
+    foreach ($required in @($manifestPath, $entryPath, $semanticConfigPath)) {
+        if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+            throw "Installed semantic runtime asset is missing: $required"
+        }
+    }
+
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $pins = [ordered]@{
+        '@modelcontextprotocol/client' = '2.0.0'
+        '@modelcontextprotocol/server' = '2.0.0'
+        '@modelcontextprotocol/server-filesystem' = '2026.7.10'
+        '@playwright/mcp' = '0.0.78'
+        'zod' = '4.4.3'
+    }
+    if (
+        [string]$manifest.name -ne "@chat-agent-platform/semantic-projection" -or
+        [string]$manifest.version -ne "0.1.0" -or
+        [string]$manifest.bin.'chat-semantic-projection' -ne "bin/semantic-projection.mjs" -or
+        [string]$manifest.engines.node -ne ">=20"
+    ) {
+        throw "Installed semantic projection manifest failed its pinned contract."
+    }
+    foreach ($name in $pins.Keys) {
+        if ([string]$manifest.dependencies.$name -ne [string]$pins[$name]) {
+            throw "Installed semantic dependency pin drifted: $name"
+        }
+    }
+
+    $semantic = Get-Content -LiteralPath $semanticConfigPath -Raw | ConvertFrom-Json
+    $servers = @($semantic.mcpServers.PSObject.Properties.Name)
+    if ($servers.Count -ne 1 -or $servers[0] -ne 'semantic-projection') {
+        throw "Installed semantic profile must expose exactly one projection server."
+    }
+    $server = $semantic.mcpServers.'semantic-projection'
+    if ([string]$server.command -ne 'node') {
+        throw "Installed semantic profile must launch the projection directly with Node."
+    }
+    if (@($server.args).Count -ne 1 -or [string]$server.args[0] -ne '${CHAT_SEMANTIC_PROJECTION_ENTRY}') {
+        throw "Installed semantic profile entrypoint contract drifted."
+    }
+}
+
 function Install-ManagerBundle {
     # The adaptive catalog is mutable while running. Stop the installed
     # manager before replacing the reviewed all-disabled catalog baseline.
@@ -501,6 +548,8 @@ function Install-ManagerBundle {
         "status-local-bridge.ps1",
         "stop-local-bridge.ps1",
         "start-chat-profile.ps1",
+        "start-semantic-profile.ps1",
+        "semantic-projection-runtime.ps1",
         "status-chat-profile.ps1",
         "stop-chat-profile.ps1",
         "chat-platform-controller.ps1",
@@ -528,8 +577,20 @@ function Install-ManagerBundle {
             Destination = Join-Path $AppRuntimeDir "chat-profiles\browser-isolated\mcp.json"
         },
         @{
+            Source = Join-Path $RepoRoot "runtime\chat-profiles\semantic\mcp.json"
+            Destination = Join-Path $AppRuntimeDir "chat-profiles\semantic\mcp.json"
+        },
+        @{
             Source = Join-Path $RepoRoot "runtime\chat-profiles\adaptive\mcp.json"
             Destination = Join-Path $AppRuntimeDir "chat-profiles\adaptive\mcp.json"
+        },
+        @{
+            Source = Join-Path $RepoRoot "runtime\semantic-projection\package.json"
+            Destination = Join-Path $AppRuntimeDir "semantic-projection\package.json"
+        },
+        @{
+            Source = Join-Path $RepoRoot "runtime\semantic-projection\bin\semantic-projection.mjs"
+            Destination = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection.mjs"
         },
         @{
             Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\package.json"
@@ -552,6 +613,7 @@ function Install-ManagerBundle {
     }
 
     Assert-InstalledAdaptiveRuntime
+    Assert-InstalledSemanticRuntimeSource
 
     foreach ($installed in @($CommandPath, $ControllerPath, $TrayPath)) {
         if (-not (Test-Path -LiteralPath $installed)) {
@@ -560,7 +622,7 @@ function Install-ManagerBundle {
     }
 
     [ordered]@{
-        schema_version = 2
+        schema_version = 3
         app_root = $AppRoot
         source_root = $RepoRoot
         installed_at = (Get-Date).ToUniversalTime().ToString("o")
@@ -569,9 +631,12 @@ function Install-ManagerBundle {
             "runtime/mcp.json",
             "runtime/chat-profiles/files-readonly/mcp.json",
             "runtime/chat-profiles/browser-isolated/mcp.json",
+            "runtime/chat-profiles/semantic/mcp.json",
             "runtime/chat-profiles/adaptive/mcp.json"
         )
         runtime_assets = @(
+            "runtime/semantic-projection/package.json",
+            "runtime/semantic-projection/bin/semantic-projection.mjs",
             "runtime/1mcp-adaptive-shim/package.json",
             "runtime/1mcp-adaptive-shim/bin/1mcp-adaptive.mjs",
             "runtime/1mcp-adaptive-shim/scripts/apply-compatibility-patch.mjs"
@@ -607,7 +672,7 @@ function Invoke-ManagerAction {
         [ValidateSet("Start", "Stop")]
         [string]$Action,
 
-        [ValidateSet("reference", "files-readonly", "browser-isolated", "adaptive")]
+        [ValidateSet("reference", "files-readonly", "browser-isolated", "semantic", "adaptive")]
         [string]$Profile
     )
 
