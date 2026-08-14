@@ -41,18 +41,23 @@ Ready-made-first candidates were recorded for REAPER, Origin, FFmpeg, Blender an
 - real app-permission behavior: `Allow read actions` produced one-time approval for isolated `write_file`; `Allow all actions` allowed typed read/navigate/write without confirmation;
 - real context-sensitive safety behavior: one large cross-capability workflow was blocked while the same typed actions passed sequentially;
 - real installed/source split-brain diagnosis on `127.0.0.1:3050`;
-- functional head `64fa0a27...` adds shared manager ownership/fail-closed port handling and passes Chat Profile Acceptance, CI, module candidates, CodeQL and Secret History Scan remotely.
+- real target-machine installed -> source -> installed ownership handoff/status/stop acceptance with exactly one runtime owner;
+- unowned occupied `3050` fails closed instead of accepting foreign readiness;
+- occupied-port diagnostic formatting fixed in `923d2f9...`;
+- functional head `ffcc2e407...` adds a real Windows foreign-listener regression and passes Chat Profile Acceptance, CI, Module Candidate Acceptance, CodeQL and Secret History Scan.
 
 ### Current convergence
 
 The generic lazy meta-tool contract is no longer the expected ordinary-Chat product surface. Keep adaptive 1MCP as useful lifecycle/CI diagnostic infrastructure.
 
-The Stage 24 product requirement is now:
+The measured Windows single-owner split-brain blocker is closed. Stage 24 now concentrates on the Chat-facing scaling boundary.
+
+The product requirement is:
 
 ```text
 ordinary ChatGPT
-  -> concrete typed actions with truthful schemas/semantics
-  -> scalable capability selection/publication
+  -> small stable set of concrete semantic typed actions
+  -> capability projection onto the larger approved local catalog
   -> Secure MCP Tunnel
   -> official tunnel-client
   -> local 1MCP / focused adapters
@@ -61,24 +66,27 @@ ordinary ChatGPT
 
 Do not create one Chat app per backend. Do not publish hundreds of unrelated tools at once. Do not solve action-count pressure by disguising all operations behind opaque `tool_invoke`.
 
-The exact typed scaling mechanism remains **PROVISIONAL**. The observed ~20-action snapshot behavior is empirical and must not be hard-coded as an official universal limit.
+Official ChatGPT MCP app behavior uses a frozen reviewed tool snapshot. 1MCP tags/presets/runtime filtering are useful behind the boundary but do not automatically update that snapshot. OpenAI Tool Search is relevant architecture for large tool ecosystems in the API/Agents SDK, but it is not a documented capability of the ordinary-Chat custom MCP path used here, so Stage 24 must not depend on it.
+
+The smallest current implementation candidate is a stable semantic capability projection/facade. It may translate one fixed typed semantic operation to an approved backend operation, but it must not choose user goals, plan workflows or expose opaque arbitrary nested invocation. Tool schemas and consequence classes must remain truthful.
 
 ### Current gates
 
-1. target-machine acceptance of the new single-owner installed/source manager behavior on the exact functional implementation;
-2. design/implement the smallest scalable typed capability publication mechanism justified by the action-snapshot evidence;
-3. prove that mechanism through real ordinary Chat with more than one backend class and without one app per backend;
-4. preserve adaptive/direct regression coverage and truthful safety semantics;
-5. synchronize final evidence/docs/PR description with the exact functional head.
+1. define the minimum stable semantic typed action vocabulary that covers current Filesystem + Browser workflows and can later accommodate local vision/professional modules without hundreds of Chat-facing actions;
+2. implement the smallest projection layer necessary to map those fixed semantic actions onto approved backend MCP/API operations;
+3. prove local multi-backend execution and negative cases while preserving task-driven backend lifecycle;
+4. prove the stable semantic surface through real ordinary Chat without one app per backend, routine per-operation Refresh or generic `tool_invoke`;
+5. preserve adaptive/direct/single-owner regressions and truthful safety semantics;
+6. synchronize final evidence/docs/PR description with the exact functional head.
 
 ### Stage 24 Definition of Done
 
 1. direct reference/files/browser regressions stay green;
 2. adaptive local/CI lifecycle remains green as diagnostic infrastructure;
 3. generic adaptive meta-tools are not falsely promoted as the accepted ordinary-Chat surface;
-4. installed/source lifecycle has one authoritative owner and cannot accept stale foreign readiness on `127.0.0.1:3050`;
+4. installed/source lifecycle has one authoritative owner and cannot accept stale foreign readiness on `127.0.0.1:3050` — **DONE**;
 5. scalable Chat-facing capability publication preserves concrete typed action schemas and truthful risk semantics;
-6. real ordinary Chat can use useful typed actions from multiple backend classes through one product app without routine per-backend app creation;
+6. real ordinary Chat can use useful typed actions from multiple backend classes through one product app without routine per-backend app creation/Refresh;
 7. exact final functional HEAD passes `ci`, `Chat Profile Acceptance`, CodeQL, Module Candidate Acceptance and Secret History Scan;
 8. only then Stage 24 is integrated into `main`.
 
