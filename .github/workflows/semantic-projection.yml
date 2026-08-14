@@ -65,7 +65,7 @@ jobs:
       - name: Install exact projection dependencies
         shell: pwsh
         run: |
-          npm install --prefix runtime/semantic-projection --ignore-scripts --no-audit --no-fund --package-lock=false
+          npm --prefix runtime/semantic-projection install --ignore-scripts --no-audit --no-fund --package-lock=false
 
       - name: Run real Filesystem and Playwright semantic acceptance
         shell: pwsh
