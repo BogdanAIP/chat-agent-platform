@@ -40,11 +40,13 @@ These profiles intentionally isolate capability classes for deterministic accept
 
 ## Measured Chat action behavior
 
-### Snapshot refresh
+### Frozen snapshot / refresh
 
 After the local runtime switched successfully from `files-readonly` to `browser-isolated`, the existing Chat app still exposed the previously scanned filesystem actions. Refresh/new Chat was required to see the Browser surface.
 
-Therefore local profile lifecycle and Chat action discovery are separate concerns.
+Current OpenAI documentation likewise describes ChatGPT MCP app tools as a frozen reviewed snapshot: later server-side tool changes are not automatically enabled. Therefore local profile lifecycle and Chat action discovery are separate concerns, and 1MCP tags/presets/runtime filtering do not by themselves make an already-scanned app acquire new typed actions.
+
+OpenAI Tool Search is relevant to large tool ecosystems in the API/Agents SDK, but it is not currently documented as available to the ordinary-Chat custom-MCP-app path used by this project. Stage 24 must not depend on it.
 
 ### Large typed surface pressure
 
@@ -115,7 +117,7 @@ Authorization should not mean a permission dialog for every low-risk step. Prefe
 
 Real Chat permission testing showed `Allow read actions` prompting once for isolated `write_file`, while `Allow all actions` allowed typed read/navigate/write without cards. OpenAI safety can still block a larger composite workflow under full access, so permission mode is not the only safety layer.
 
-## Windows lifecycle manager
+## Windows lifecycle manager — accepted for the measured split-brain defect
 
 The thin manager remains:
 
@@ -131,9 +133,21 @@ chat-platform-tray.ps1
 
 A real split-brain defect was found: the installed LocalAppData copy could leave a 1MCP runtime on `127.0.0.1:3050` while the source checkout believed its own known scopes were stopped.
 
-Functional head `64fa0a27...` adds shared `%LOCALAPPDATA%\ChatAgentPlatform\state\manager-owner.json`, cross-copy lifecycle delegation and fail-closed behavior when the fixed MCP port is occupied without trustworthy ownership. All remote Windows/profile/CI/security checks pass.
+The public manager now uses shared `%LOCALAPPDATA%\ChatAgentPlatform\state\manager-owner.json`, cross-copy lifecycle delegation and fail-closed behavior when the fixed MCP port is occupied without trustworthy ownership.
 
-Exact target-machine installed/source handoff acceptance for this fix remains a Stage 24 gate.
+Target Windows acceptance on 2026-08-14 passed:
+
+- installed start and source observation;
+- installed -> source takeover;
+- source observation from the installed copy;
+- source -> installed takeover;
+- foreign-owner Stop/cleanup;
+- exactly one `3050` listener in each running state;
+- fail-closed handling for an unrelated listener on `3050`.
+
+The occupied-port diagnostic formatting defect found by the negative test was fixed in `923d2f9...`. Functional head `ffcc2e407...` adds a real Windows CI foreign-listener test and passes CI, Chat Profile Acceptance, Module Candidate Acceptance, CodeQL and Secret History Scan.
+
+The measured installed/source split-brain blocker is closed. The foreign-owner `Toggle` branch remains regression-covered but was not separately repeated as a dedicated target-machine user action.
 
 ## Current typed scaling target — PROVISIONAL
 
@@ -141,20 +155,24 @@ The desired boundary is:
 
 ```text
 ordinary ChatGPT
-  -> small relevant set of concrete typed actions
-  -> scalable capability selection/publication
+  -> small stable set of concrete semantic typed actions
+  -> capability projection onto the larger approved local catalog
   -> tunnel / 1MCP / focused adapters
-  -> larger replaceable local capability catalog
+  -> replaceable task-active backends
 ```
+
+The projection is a compatibility boundary, not a planner. It may map a fixed semantic action to one reviewed backend operation or a small deterministic backend sequence.
 
 Requirements:
 
-- preserve exact typed schemas and truthful side-effect semantics;
+- preserve fixed truthful JSON schemas and side-effect semantics;
+- keep each Chat-facing action within a coherent consequence/authorization class;
+- route deterministically to approved backend capabilities;
 - do not create one Chat app/plugin per backend;
 - do not publish hundreds of unrelated tools simultaneously;
-- do not hide arbitrary operations behind one opaque generic dispatcher;
+- do not hide arbitrary operations behind one opaque generic dispatcher or renamed `tool_invoke`;
 - do not hard-code the observed ~20 action count as a universal constant;
-- keep the project-owned compatibility layer as small/deterministic as possible;
+- keep the project-owned projection as small/deterministic as possible;
 - keep ChatGPT, not the local layer, as the planner.
 
 ## Stage 24 acceptance criteria
@@ -162,10 +180,10 @@ Requirements:
 1. direct reference/files/browser regressions stay green;
 2. adaptive Filesystem/Playwright local/CI lifecycle remains green as diagnostic infrastructure;
 3. generic adaptive meta-tools are explicitly not promoted as the product contract;
-4. installed/source manager copies coordinate one authoritative owner and stale foreign readiness cannot satisfy startup;
-5. target-machine acceptance proves the exact single-owner implementation;
-6. the scalable Chat-facing mechanism preserves concrete typed actions and accommodates the observed snapshot constraint;
-7. real ordinary Chat proves useful multi-backend operation through one product app without per-backend app creation or opaque generic invocation;
+4. installed/source manager copies coordinate one authoritative owner and stale foreign readiness cannot satisfy startup — **DONE**;
+5. target-machine single-owner/fail-closed acceptance — **DONE**;
+6. the scalable Chat-facing projection preserves concrete typed semantics and accommodates the observed frozen-snapshot/action-pressure constraint;
+7. real ordinary Chat proves useful multi-backend operation through one product app without per-backend app creation, routine per-operation Refresh or opaque generic invocation;
 8. exact final functional HEAD passes CI, Chat Profile Acceptance, Module Candidate Acceptance, CodeQL and Secret History Scan;
 9. docs/PR evidence match that exact head;
 10. only then Stage 24 is accepted and integrated to `main`.
