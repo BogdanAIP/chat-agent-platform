@@ -11,6 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 COMMAND = ROOT / "scripts" / "chat-platform.ps1"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 class ManagerSingleInstanceContractTests(unittest.TestCase):
@@ -95,11 +96,11 @@ class ManagerSingleInstanceContractTests(unittest.TestCase):
                     check=False,
                 )
 
-                combined = re.sub(
-                    r"\s+",
-                    " ",
+                plain_output = ANSI_ESCAPE.sub(
+                    "",
                     f"{completed.stdout}\n{completed.stderr}",
-                ).strip()
+                )
+                combined = re.sub(r"\s+", " ", plain_output).strip()
 
                 self.assertNotEqual(completed.returncode, 0, combined)
                 self.assertIn(
