@@ -1,6 +1,6 @@
 # Current State
 
-Last synchronized with integrated functional head `19ba303f72c82f02c9bdffff79f5a644a3a49844` on 2026-08-13. Chat Profile Acceptance run `31681061290` and the corresponding CI/security runs passed on that exact head. Later documentation-only commits do not imply additional runtime acceptance. Always check the current PR HEAD and workflows.
+Last synchronized with functional head `64fa0a27fd4d2656d938061a61c85abb72f7b6b0` on 2026-08-14. Chat Profile Acceptance run `31776737312`, CI run `31776737308`, CodeQL run `31776737298`, Module Candidate Acceptance run `31776737301` and Secret History Scan run `31776737292` all passed on that exact head. Later documentation-only commits do not imply additional runtime acceptance. Always check the current PR HEAD and workflows.
 
 ## Accepted bridge
 
@@ -18,112 +18,77 @@ ChatGPT
 
 Ordinary Chat remains the primary intelligence surface. Codex/Work may accelerate development but are not required product runtime components.
 
-## Accepted module/direct-profile evidence
+## Accepted direct and typed ordinary-Chat evidence
 
 Stage 23 accepted on Windows through pinned `@1mcp/agent@0.34.4`:
 
-- Filesystem `2026.7.10`: scoped root, write-capable tools hidden, real read call passed;
-- Playwright MCP `0.0.78`: isolated/headless browser, navigation/content/close passed.
+- Filesystem `2026.7.10`: scoped root and real read call;
+- Playwright MCP `0.0.78`: isolated/headless browser, navigation/content/close.
 
-Stage 24 real-machine evidence already passed:
+Stage 24 real-machine evidence now includes:
 
-- standalone bootstrap and official tunnel-client verification;
-- DPAPI runtime-key storage and standalone manager bundle;
-- reference smoke with MCP + tunnel readiness;
-- tray no-console fix: no persistent Windows Terminal/npm/npx window;
-- direct `files-readonly` ordinary-Chat E2E returned the exact marker `CHAT_LOCAL_FILES_E2E_OK`;
-- local switch to `browser-isolated` produced exactly one active browser profile with MCP/tunnel readiness.
+- standalone bootstrap, official tunnel-client verification, DPAPI runtime-key storage and no-console tray behavior;
+- direct `files-readonly` ordinary-Chat E2E returned `CHAT_LOCAL_FILES_E2E_OK`;
+- fresh-snapshot direct typed Browser E2E: `browser_navigate(https://example.com)` returned `Example Domain`;
+- combined typed Filesystem + Playwright ordinary-Chat E2E in one conversation: scoped `list_allowed_directories`, `read_text_file`, `write_file`, `browser_navigate`, `browser_find`, `browser_click` all executed and the browser reached IANA `Example Domains`;
+- isolated write-permission test: app mode `Allow read actions` produced a real one-time approval card for `write_file`;
+- full-access control: typed `read_text_file`, `browser_navigate` and `write_file` each passed sequentially in one conversation without approval.
 
-## Chat action snapshot finding
+## Chat action-snapshot findings
 
-After switching locally from `files-readonly` to `browser-isolated`, the already-connected `Chat Local Bridge Test` still exposed only the earlier `filesystem_*` actions. The browser backend was locally ready, but Chat did not automatically replace the action snapshot.
+Changing the local direct profile does not automatically replace an already-scanned Chat action snapshot. Refresh/new Chat was required to see the new typed Browser surface.
 
-This invalidated the earlier target of silently switching arbitrary direct tool surfaces behind one already-scanned Chat app. Creating a separate Chat app/plugin snapshot for every future local capability is also rejected as the normal scalable UX.
+A second scaling experiment exposed 14 Filesystem + 20 Playwright tools locally (34 total). The Chat-facing app effectively surfaced 20: all 14 Filesystem plus the first 6 Playwright actions, which excluded later `browser_navigate` and `browser_click`.
 
-## Stage 24 adaptive direction — experimental
+After reducing Filesystem to 4 typed actions, local inventory was 24 total. A refreshed/new Chat then successfully called the needed Filesystem and Browser actions, including `browser_navigate` and `browser_click`.
 
-Current target:
+Conclusion: the tested app showed an **effective action-snapshot truncation around 20 actions**. This is measured product behavior, not an officially documented universal OpenAI limit. Stage 24 must not hard-code 20 as a guaranteed platform constant.
+
+## Generic adaptive contract — runtime accepted, product surface not accepted
+
+`runtime/chat-profiles/adaptive/mcp.json` still registers Filesystem + Playwright as a pre-approved disabled catalog. Direct profiles remain on `@1mcp/agent@0.34.4`; adaptive pins `@1mcp/agent@0.35.0-beta.3`, Lazy Loading ON and Async Loading OFF through the hash-guarded `runtime/1mcp-adaptive-shim` compatibility package.
+
+The runtime/lifecycle implementation is real and green locally/remotely: enable -> lazy discovery -> real invocation -> disable -> capability removal -> process cleanup works for Filesystem and Playwright.
+
+However, the real ordinary-Chat generic-surface test did **not** promote this contract. The exact eight generic/lifecycle actions were visible, and read-only list/status/discovery calls reached MCP, but lifecycle calls plus `tool_schema`/`tool_invoke` were blocked before MCP execution.
+
+Do not claim a proven single cause for that pre-MCP block. The generic dispatcher is additionally a design concern because one static Chat-facing tool descriptor cannot truthfully describe the schemas/side effects of every nested downstream operation. Keep adaptive as useful diagnostic/CI lifecycle infrastructure while the typed scaling boundary is designed.
+
+## Composite workflow safety finding
+
+With `Chat Local Bridge Test` set to `Allow all actions`, one long request combining local file read -> browser work -> local result write was blocked by OpenAI safety after the first harmless call. The relevant typed read, browser navigation and write actions then passed when requested separately in the same style of ordinary-Chat workflow.
+
+Therefore:
+
+- app permission mode is not the only OpenAI safety layer;
+- a composite safety block is not sufficient evidence that a local typed tool/backend is broken;
+- architecture should use truthful typed actions, scoped resources and reversible operations rather than depending on permission mode alone.
+
+## Windows single-owner lifecycle fix
+
+A real target-machine defect was found: an installed adaptive runtime under `%LOCALAPPDATA%\ChatAgentPlatform\app` could remain on `127.0.0.1:3050` while the source checkout reported its own known profiles stopped. A new source runtime could then read the stale runtime's health endpoint.
+
+Functional head `64fa0a27...` adds a shared `%LOCALAPPDATA%\ChatAgentPlatform\state\manager-owner.json` ownership record and public-manager coordination so installed/source copies share lifecycle ownership. A source copy starting while a foreign owner exists delegates/stops the real owner first; an occupied MCP port without a trustworthy owner fails closed rather than accepting another process's readiness.
+
+All remote Windows/CI/security checks are green on `64fa0a27...`. Exact target-machine installed/source handoff acceptance for this new owner-state fix is still required before declaring the issue closed.
+
+## Current Stage 24 architecture question
+
+The product requirement is now:
 
 ```text
 ordinary ChatGPT
-  -> one stable Chat-facing MCP action contract
+  -> concrete typed actions with truthful schemas and side effects
+  -> scalable capability publication/selection
   -> Secure MCP Tunnel
   -> official tunnel-client
-  -> one 1MCP runtime
-  -> stable Lazy Loading meta-tools
-  -> task-driven backend MCP lifecycle
+  -> local 1MCP / focused adapters
+  -> replaceable task-active backends
 ```
 
-Stable Chat-facing lazy tools:
+Do not return to one Chat app per backend. Do not promote an opaque generic `tool_invoke` solely to avoid action-count pressure.
 
-- `tool_list`;
-- `tool_schema`;
-- `tool_invoke`.
-
-Allowed lifecycle management surface for the pre-approved catalog:
-
-- `mcp_list`;
-- `mcp_status`;
-- `mcp_enable`;
-- `mcp_disable`;
-- `mcp_reload`.
-
-Do not publish arbitrary catalog-management tools such as install/uninstall/update/edit/search to ordinary Chat.
-
-### Adaptive runtime configuration
-
-`runtime/chat-profiles/adaptive/mcp.json` currently registers two disabled backends:
-
-- Filesystem MCP `@modelcontextprotocol/server-filesystem@2026.7.10`;
-- Playwright MCP `@playwright/mcp@0.0.78`.
-
-Direct profiles remain on accepted `@1mcp/agent@0.34.4`.
-Adaptive pins `@1mcp/agent@0.35.0-beta.3`, with Lazy Loading ON and Async Loading OFF, through `runtime/1mcp-adaptive-shim`. The local package verifies the pristine upstream built-file hashes before applying two narrow lifecycle fixes; it is not a project-owned gateway or fork.
-
-Adaptive is supported by the locally installed manager but remains **not the default** and is **not ordinary-Chat accepted**.
-
-## Adaptive blocker diagnosis and local resolution
-
-Functional baseline: `9799bec20ffeb92eebbba5061f32dff403bbe6f4`.
-
-Workflow results:
-
-- `ci`: PASS;
-- `CodeQL Security`: PASS;
-- `Secret History Scan`: PASS;
-- `Chat Profile Acceptance / windows-profiles`: PASS;
-- `Chat Profile Acceptance / adaptive-runtime`: FAIL.
-
-Observed adaptive sequence:
-
-1. adaptive 1MCP started and reached runtime readiness;
-2. `mcp_list` correctly returned `filesystem` and `playwright`, both `disabled`;
-3. Filesystem activation entered backend loading;
-4. the acceptance test correctly treated HTTP `503 service_unavailable` + `loading` as transitional;
-5. after the wait window, `tool_list({server: "filesystem"})` still returned no tools;
-6. failure: `read_text_file` never became visible; observed `tools: []`, `loading retries=49`.
-
-Upstream/source and local runtime evidence resolved the failure boundary:
-
-- synchronous `ServerManager.loadMcpServer` / `unloadMcpServer` did not refresh `LazyLoadingOrchestrator`;
-- disable handling read only active transport config, which filters disabled entries, so the backend could not be found and unloaded;
-- `0.35.0-beta.4` contains no relevant fix.
-
-The current local compatibility package restores declared disabled entries for lifecycle reconciliation and refreshes only the lazy backend registry after every load attempt/unload. It deliberately does not mutate or notify the frozen top-level Chat tool list.
-
-Local acceptance on 2026-08-13 passed Filesystem and Playwright sequentially in one MCP session: enable, lazy discovery, real read/navigation, disable, catalog retained as disabled, tool removal and process cleanup. The exact eight-tool Chat-facing allowlist remained unchanged across all four transitions, forbidden backend tools were absent, and accepted direct profiles still passed. Commit `3b12fc98e65017d3cd931369813e130119d8d614` then passed all remote runtime/profile/CI/security checks.
-
-The following manager integration then passed locally on the target Windows machine:
-
-- public `SetProfile adaptive` persists one scoped FilesRoot while the safe default remains `reference`;
-- interrupted persisted `disabled:false` state resets to the reviewed all-disabled catalog on the next start;
-- public status reports adaptive readiness/conflict correctly and Toggle performs cleanup;
-- bootstrap installs and verifies adaptive config plus the three-file compatibility package under `%LOCALAPPDATA%`;
-- the installed bundle works from outside the source checkout and completes the full same-session acceptance;
-- installed adaptive MCP + Secure MCP Tunnel reach readiness, and installed tray/runtime remain resident without a visible Terminal/pwsh/cmd/npm/npx window;
-- settings and runtime return to stopped state after acceptance.
-
-Integrated head `19ba303...` passed `adaptive-runtime` (job `94386367893`), `windows-profiles` (job `94386368152`), `ci`, module candidates, CodeQL and Secret History Scan. Adaptive remains opt-in until the final ordinary-Chat gate.
+The exact scalable typed mechanism remains **PROVISIONAL** and must be proven against the observed Chat snapshot behavior.
 
 ## Safety model
 
@@ -135,18 +100,33 @@ ACTIVE
 AUTHORIZED
 ```
 
-A backend can be registered without running. Start only what the task needs. Multiple backends may be active simultaneously if the workflow actually requires them. Sensitive operations should be scoped/authorized; security must not become a blanket ban on useful multi-tool workflows.
+A backend can be registered without running. Start only what the task needs. Multiple backends may be active simultaneously if the workflow actually requires them. Prefer scoped roots, reversible workspaces, backups/git and consequence-based authorization over asking the user to approve every low-risk tool call.
 
-The old direct `files-readonly` and `browser-isolated` separation remains valuable as diagnostic evidence and a conservative fallback, not as a permanent rule that Browser and Filesystem may never coexist.
+Direct `files-readonly` and `browser-isolated` separation remains valuable diagnostic evidence and fallback, not a permanent ban on Browser + Filesystem coexistence.
+
+## Planned local specialist inference
+
+After Stage 24, evaluate LM Studio/`llmster` as a replaceable local inference runtime manager, not a second planner. Required behavior includes model/capability discovery, memory estimation before load, hardware-aware variant choice, load/JIT/TTL/unload and a stable typed specialist boundary.
+
+`LiquidAI/LFM2.5-VL-3B`, officially released 2026-08-12, is the first preferred `local-vision` candidate because it targets screen/UI understanding, OCR/document/chart understanding, grounding and multi-image input and ships with GGUF/llama.cpp plus ONNX support.
+
+It is not yet accepted on the target Windows machine. Benchmark actual model variants/quantizations and runtime compatibility before promotion. ChatGPT remains the intelligence layer; the local model supplies bounded visual perception/extraction.
 
 ## Remaining Stage 24 gates
 
-1. real ordinary-Chat acceptance demonstrates that a single Chat-facing contract can use task-selected backends without creating a new plugin or requiring Refresh for every backend;
-2. only then accept Stage 24 and integrate/merge to `main`.
+1. target-machine acceptance of the single-owner installed/source lifecycle fix;
+2. implement and test the smallest scalable typed Chat-facing capability mechanism justified by the action-snapshot evidence;
+3. real ordinary Chat proves useful multi-backend behavior through that mechanism without one app per backend and without relying on opaque generic invocation;
+4. exact final functional head passes CI/security/acceptance and docs are synchronized;
+5. only then accept Stage 24 and integrate/merge to `main`.
 
 ## Work after Stage 24
 
-Stage 25 benchmarks real professional modules (REAPER, Origin, FFmpeg, Blender, Windows UI fallback) as replaceable backends behind the stable bridge. Adding one of these backends should not normally require a new ChatGPT plugin/app. Backend processes should be task-driven, not all permanently resident.
+Stage 25 should establish the local specialist inference runtime and first `local-vision` backend, beginning with LM Studio/`llmster` evaluation and LFM2.5-VL-3B benchmarking.
+
+Stage 26 should benchmark professional application backends (REAPER, Origin, FFmpeg, Blender, Windows UI fallback) through the stable bridge/capability boundary.
+
+Stage 27 should harden distribution, updates, repair, rollback and release packaging.
 
 ## Legacy preservation
 
