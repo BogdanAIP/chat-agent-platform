@@ -94,18 +94,24 @@ LM Studio/`llmster` is the first runtime-manager candidate because current offic
 - localhost HTTP serving;
 - OpenAI-compatible `/v1/chat/completions` with text and images.
 
-### Correct current Liquid AI candidate names
+### Liquid AI candidates
 
-The older documentation named `LiquidAI/LFM2.5-VL-3B`. Current official Liquid AI model listings do **not** expose that model name.
+`LiquidAI/LFM2.5-VL-3B` is an official Liquid AI release dated 2026-08-12. Direct official release evidence includes:
 
-Current LFM2.5-VL family candidates include:
+- `https://www.liquid.ai/blog/lfm2-5-vl-3b`;
+- `https://docs.liquid.ai/lfm/models/lfm25-vl-3b`;
+- `https://huggingface.co/LiquidAI/LFM2.5-VL-3B`;
+- `https://huggingface.co/spaces/LiquidAI/LFM2.5-VL-3B-WebGPU`.
 
-- `LiquidAI/LFM2.5-VL-1.6B` / GGUF;
-- `LiquidAI/LFM2.5-VL-450M` / GGUF.
+Stage 25 therefore treats:
 
-`LiquidAI/LFM2-VL-3B` exists, but it is the previous LFM2 generation.
+- `LiquidAI/LFM2.5-VL-3B` as the preferred quality candidate;
+- `LiquidAI/LFM2.5-VL-1.6B` as a middle current-generation comparison;
+- `LiquidAI/LFM2.5-VL-450M` / GGUF Q4 as the first target-machine candidate on the current laptop.
 
-Therefore Stage 25 starts with `LiquidAI/LFM2.5-VL-1.6B` as the preferred current-generation `local-vision` candidate and keeps `LFM2-VL-3B` only as a possible comparison candidate. No runtime/model is accepted until target-hardware measurement passes.
+The current target has 7.68 GB RAM and Intel Iris Xe, so test order is deliberately 450M Q4 → 1.6B Q4 → 3B only after pre-load estimate and measured free-memory checks. This order reflects hardware constraints, not model ranking.
+
+No runtime/model is accepted until target-hardware measurement passes.
 
 ## Stage 25 acceptance direction
 
@@ -114,7 +120,7 @@ Before promoting local vision:
 1. verify LM Studio/llmster installation and non-GUI lifecycle on the target Windows machine;
 2. prove model discovery and machine-readable status;
 3. estimate memory before load and record RAM/VRAM expectations;
-4. load the candidate with explicit/recorded GPU offload/context settings;
+4. load candidates only with explicit/recorded GPU offload/context settings and sufficient measured headroom;
 5. execute representative image/OCR/document/chart/UI tasks locally;
 6. measure cold load, time-to-first-token, generation speed, peak memory and unload/recovery behavior;
 7. prove clean TTL/JIT or explicit unload behavior with no stale model process/state;
