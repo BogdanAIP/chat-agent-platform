@@ -104,7 +104,7 @@
 <pre id="stage25-fixture-export" aria-hidden="true"></pre>
 <script>
   window.__stage25Fixture = {
-    viewport: { width: 1280, height: 720 },
+    viewport: { width: window.innerWidth, height: window.innerHeight },
     targets: Object.fromEntries(
       ["search-icon", "notification-dot", "row-menu-3", "send-primary", "send-disabled"].map((id) => {
         const r = document.getElementById(id).getBoundingClientRect();
