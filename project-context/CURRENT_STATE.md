@@ -1,6 +1,6 @@
 # Current State
 
-Last synchronized functional head: `aa6bc034c1ecb36af469ecf78959a243526e2af3` on 2026-08-14. On that exact functional head all six PR workflows passed: Chat Profile Acceptance `31809532439`, Semantic Projection Acceptance `31809532437`, CI `31809532435`, CodeQL Security `31809532455`, Module Candidate Acceptance `31809532466` and Secret History Scan `31809532482`. Later documentation-only commits do not imply additional runtime acceptance. Always check the current PR HEAD and workflows.
+Last synchronized functional head: `aa6bc034c1ecb36af469ecf78959a243526e2af3` on 2026-08-14. On that exact functional head all six PR workflows passed: Chat Profile Acceptance `31809532439`, Semantic Projection Acceptance `31809532437`, CI `31809532435`, CodeQL Security `31809532455`, Module Candidate Acceptance `31809532466` and Secret History Scan `31809532482`. Later commits through the current branch head are documentation-only relative to that accepted runtime. On 2026-08-16 the installed target-machine bundle carrying the same semantic runtime also passed the remaining real ordinary-Chat product gate. Always check the current PR HEAD and workflows before final integration.
 
 ## Accepted bridge
 
@@ -32,7 +32,15 @@ Stage 24 real-machine evidence includes:
 - fresh-snapshot direct typed Browser E2E: `browser_navigate(https://example.com)` returned `Example Domain`;
 - combined typed Filesystem + Playwright ordinary-Chat E2E in one conversation: scoped `list_allowed_directories`, `read_text_file`, `write_file`, `browser_navigate`, `browser_find`, `browser_click` all executed and the browser reached IANA `Example Domains`;
 - isolated write-permission test: app mode `Allow read actions` produced a real one-time approval card for `write_file`;
-- full-access control: typed `read_text_file`, `browser_navigate` and `write_file` each passed sequentially without approval.
+- full-access control: typed `read_text_file`, `browser_navigate` and `write_file` each passed sequentially without approval;
+- final semantic ordinary-Chat E2E on 2026-08-16: `workspace_read` read `input.txt` exactly as `SEMANTIC_FINAL_INPUT_20260816`; `web_open` opened `https://example.com`; `web_observe` correctly observed the actual `Learn more` link; `web_interact` clicked it; `web_observe` identified the resulting page title as `Example Domains`; `workspace_write` created `result.txt`; and a final `workspace_read` returned exactly:
+
+```text
+SEMANTIC_FINAL_INPUT_20260816
+Example Domains
+```
+
+That final session used only the five semantic actions, with no raw `filesystem_1mcp_*`, raw `playwright_1mcp_*`, generic `tool_invoke`, one-app-per-backend split or per-operation Refresh.
 
 ## Chat action-snapshot findings
 
@@ -46,6 +54,8 @@ Conclusion: the tested app showed an **effective action-snapshot truncation arou
 
 Official OpenAI documentation also confirms that ChatGPT MCP app tool definitions use a frozen reviewed snapshot and later server-side tool changes are not automatically enabled. Therefore 1MCP tags/presets/runtime filtering are useful local mechanisms but do not by themselves solve ordinary-Chat tool-surface scaling without Refresh.
 
+During the final promotion test, Refresh/Create briefly failed while local MCP and tunnel health remained ready. After the Chat app/plugin itself updated, the existing `Chat Local Bridge Test` refreshed successfully and the same unchanged local semantic runtime completed the full E2E. Do not reinterpret the earlier UI failure as a proven semantic-runtime defect.
+
 ## Generic adaptive contract — runtime accepted, product surface not promoted
 
 `runtime/chat-profiles/adaptive/mcp.json` registers Filesystem + Playwright as a pre-approved disabled catalog. Direct profiles remain on `@1mcp/agent@0.34.4`; adaptive pins `@1mcp/agent@0.35.0-beta.3`, Lazy Loading ON and Async Loading OFF through the hash-guarded `runtime/1mcp-adaptive-shim` compatibility package.
@@ -56,9 +66,9 @@ However, the real ordinary-Chat generic-surface test did **not** promote this co
 
 Do not claim a proven single cause for that pre-MCP block. Keep adaptive as useful diagnostic/CI lifecycle infrastructure, not the primary Chat-facing product contract.
 
-## Semantic typed capability projection — local/CI accepted
+## Semantic typed capability projection — product accepted
 
-Stage 24 now has a concrete five-tool semantic compatibility boundary:
+Stage 24 has a concrete five-tool semantic compatibility boundary:
 
 | Tool | Closed mapping |
 |---|---|
@@ -95,7 +105,7 @@ On functional head `aa6bc034...`, Semantic Projection Acceptance proved:
 
 Chat Profile Acceptance on the same head additionally proved the public manager understands `semantic`, persists `FilesRoot`, sees the ready Runtime Scope and can stop/reset it, while direct/adaptive regressions stay green.
 
-Therefore the semantic projection is **locally/CI accepted but not yet ordinary-Chat product-promoted**.
+The 2026-08-16 target-machine ordinary-Chat session then proved the same stable five-tool surface through the existing custom app and normal Secure MCP Tunnel path. Therefore the semantic projection is now **locally/CI accepted and ordinary-Chat product accepted**.
 
 ## Composite workflow safety finding
 
@@ -145,13 +155,13 @@ AUTHORIZED
 
 A backend can be registered without running. Start only what the task needs. Multiple backends may be active simultaneously if the workflow actually requires them. Prefer scoped roots, reversible workspaces, backups/git and consequence-based authorization over asking the user to approve every low-risk tool call.
 
-## Remaining Stage 24 gates
+## Final Stage 24 completion gates
 
-1. update the target-machine installed bundle to the accepted semantic implementation and run `semantic` through the normal public manager + Secure MCP Tunnel path;
-2. Refresh/Scan the existing `Chat Local Bridge Test` app and confirm ordinary Chat sees the exact five semantic actions;
-3. ordinary Chat completes a useful multi-backend semantic workflow without raw backend tools, generic `tool_invoke`, one app per backend or routine per-operation Refresh;
-4. synchronize final docs/PR evidence to the exact final functional head and ensure all CI/security/acceptance checks are green;
-5. only then accept Stage 24 and integrate/merge to `main`.
+All functional, local-machine and ordinary-Chat product gates are complete. Remaining work is repository integration:
+
+1. synchronize docs/PR evidence to the accepted functional head and the 2026-08-16 ordinary-Chat E2E;
+2. ensure the resulting current PR HEAD is green across CI/security/acceptance checks;
+3. then accept Stage 24 and integrate/merge to `main`.
 
 ## Work after Stage 24
 
