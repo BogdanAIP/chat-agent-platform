@@ -5,6 +5,54 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+function Invoke-Stage25Browser {
+    param(
+        [Parameter(Mandatory = $true)][string]$BrowserPath,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+    )
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $BrowserPath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    foreach ($argument in $Arguments) {
+        [void]$startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+
+    try {
+        if (-not $process.Start()) {
+            throw 'Browser process did not start.'
+        }
+
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            try { $process.Kill($true) } catch {}
+            throw "Browser process timed out after $TimeoutSeconds seconds."
+        }
+
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            Stdout = $stdout
+            Stderr = $stderr
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $fixturePath = Join-Path $repoRoot 'tests\fixtures\stage25_grounding_fixture.html'
 $casesPath = Join-Path $repoRoot 'tests\fixtures\stage25_grounding_cases.json'
@@ -31,14 +79,21 @@ foreach ($commandName in @('msedge.exe', 'chrome.exe')) {
     }
 }
 
-foreach ($candidate in @(
-    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
-    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'),
-    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
-    (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'),
-    (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe')
-)) {
-    if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+$standardCandidates = @()
+if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) {
+    $standardCandidates += Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'
+    $standardCandidates += Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'
+}
+if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+    $standardCandidates += Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'
+    $standardCandidates += Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'
+}
+if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+    $standardCandidates += Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe'
+}
+
+foreach ($candidate in $standardCandidates) {
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
         $browserCandidates.Add($candidate)
     }
 }
@@ -53,48 +108,65 @@ if (-not $browser) {
 }
 
 $fixtureUri = [System.Uri]::new($fixturePath).AbsoluteUri
-$profileRoot = Join-Path $OutputRoot 'browser-profile'
+$dumpProfileRoot = Join-Path $OutputRoot 'browser-profile-dump'
+$screenshotProfileRoot = Join-Path $OutputRoot 'browser-profile-screenshot'
 $dumpPath = Join-Path $OutputRoot 'fixture-dom.html'
 $geometryPath = Join-Path $OutputRoot 'fixture-geometry.json'
 $screenshotPath = Join-Path $OutputRoot 'fixture.png'
 $stderrPath = Join-Path $OutputRoot 'browser.stderr.log'
 
-Remove-Item -LiteralPath $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
+foreach ($profileRoot in @($dumpProfileRoot, $screenshotProfileRoot)) {
+    Remove-Item -LiteralPath $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
+}
 Remove-Item -LiteralPath $dumpPath,$geometryPath,$screenshotPath,$stderrPath -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
 
-$commonArgs = @(
-    '--headless=new',
-    '--disable-gpu',
-    '--disable-extensions',
-    '--disable-background-networking',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--hide-scrollbars',
-    '--force-device-scale-factor=1',
-    '--window-size=1280,720',
-    "--user-data-dir=$profileRoot"
-)
+function Get-CommonBrowserArguments {
+    param([Parameter(Mandatory = $true)][string]$ProfileRoot)
+
+    return @(
+        '--headless=new',
+        '--disable-gpu',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--hide-scrollbars',
+        '--force-device-scale-factor=1',
+        '--window-size=1280,720',
+        "--user-data-dir=$ProfileRoot"
+    )
+}
 
 Write-Host "`n===== STAGE 25 BROWSER FIXTURE =====" -ForegroundColor Cyan
 Write-Host "BROWSER=$browser"
 Write-Host "FIXTURE=$fixturePath"
 Write-Host "OUTPUT_ROOT=$OutputRoot"
 
-$dumpOutput = & $browser @commonArgs '--dump-dom' $fixtureUri 2> $stderrPath
-if ($LASTEXITCODE -ne 0) {
-    if (Test-Path -LiteralPath $stderrPath) {
-        Get-Content -LiteralPath $stderrPath -Tail 80
+$dumpArguments = @(
+    (Get-CommonBrowserArguments -ProfileRoot $dumpProfileRoot)
+) + @('--dump-dom', $fixtureUri)
+
+$dumpResult = Invoke-Stage25Browser `
+    -BrowserPath $browser `
+    -Arguments $dumpArguments `
+    -TimeoutSeconds 60
+
+Set-Content -LiteralPath $stderrPath -Value $dumpResult.Stderr -Encoding utf8
+
+if ($dumpResult.ExitCode -ne 0) {
+    if (-not [string]::IsNullOrWhiteSpace($dumpResult.Stderr)) {
+        Write-Host $dumpResult.Stderr
     }
-    throw "Browser --dump-dom failed with exit code $LASTEXITCODE"
+    throw "Browser --dump-dom failed with exit code $($dumpResult.ExitCode)"
 }
 
-$dumpText = ($dumpOutput -join "`n")
+$dumpText = [string]$dumpResult.Stdout
 Set-Content -LiteralPath $dumpPath -Value $dumpText -Encoding utf8
 
 $match = [regex]::Match(
     $dumpText,
-    '<pre\s+id="stage25-fixture-export"[^>]*>(.*?)</pre>',
+    '<pre[^>]*\bid="stage25-fixture-export"[^>]*>(.*?)</pre>',
     [System.Text.RegularExpressions.RegexOptions]::Singleline
 )
 if (-not $match.Success) {
@@ -171,12 +243,28 @@ foreach ($case in @($spec.cases)) {
     $verifiedCount++
 }
 
-& $browser @commonArgs '--run-all-compositor-stages-before-draw' "--screenshot=$screenshotPath" $fixtureUri 2>> $stderrPath | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    if (Test-Path -LiteralPath $stderrPath) {
-        Get-Content -LiteralPath $stderrPath -Tail 80
+$screenshotArguments = @(
+    (Get-CommonBrowserArguments -ProfileRoot $screenshotProfileRoot)
+) + @(
+    '--run-all-compositor-stages-before-draw',
+    "--screenshot=$screenshotPath",
+    $fixtureUri
+)
+
+$screenshotResult = Invoke-Stage25Browser `
+    -BrowserPath $browser `
+    -Arguments $screenshotArguments `
+    -TimeoutSeconds 60
+
+if (-not [string]::IsNullOrWhiteSpace($screenshotResult.Stderr)) {
+    Add-Content -LiteralPath $stderrPath -Value $screenshotResult.Stderr -Encoding utf8
+}
+
+if ($screenshotResult.ExitCode -ne 0) {
+    if (-not [string]::IsNullOrWhiteSpace($screenshotResult.Stderr)) {
+        Write-Host $screenshotResult.Stderr
     }
-    throw "Browser screenshot capture failed with exit code $LASTEXITCODE"
+    throw "Browser screenshot capture failed with exit code $($screenshotResult.ExitCode)"
 }
 
 if (-not (Test-Path -LiteralPath $screenshotPath -PathType Leaf)) {
