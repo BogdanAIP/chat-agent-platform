@@ -22,7 +22,9 @@ The old Rust/Python universal platform, relay/gateway and media platform core ar
 
 `@1mcp/agent@0.34.4` is the accepted direct Windows baseline from Stage 24. 1MCP is not product identity. A different/newer line or a narrower direct transport may be evaluated for measured compatibility/lifecycle requirements without making multiple gateways permanent dependencies.
 
-Stage 24 ordinary-Chat acceptance proves that 1MCP works in the accepted semantic baseline. Any later removal of 1MCP from the semantic critical path is an architecture simplification decision, not evidence that the accepted 1MCP path was broken.
+Stage 24 ordinary-Chat acceptance proves that 1MCP works in the accepted semantic baseline. Stage 24.1 later removed 1MCP from the normal semantic critical path because direct stdio proved materially simpler/faster with equivalent acceptance, not because the Stage 24 path was broken.
+
+1MCP remains replaceable internal infrastructure for diagnostics, adaptive lifecycle experiments, aggregation/inspection and future catalog work where its features add measured value.
 
 ## ADR-014 — Privileged capabilities require scoped acceptance — ACCEPTED
 
@@ -86,6 +88,8 @@ On 2026-08-16 a real ordinary-Chat session through the normal Secure MCP Tunnel 
 
 PR #66 final head `87a8701b938a128901646d096e13142700cc109a` passed the full final CI/security/acceptance suite and was squash-merged to `main` as `175d36236f80a1f99f091d4f031a1c6255f3652b`.
 
+Stage 24.1 repeated the same five-tool ordinary-Chat workflow through the direct stdio transport with the same results. Transport therefore remains an implementation detail beneath this accepted semantic contract.
+
 ### Decision
 
 Preserve concrete typed schemas and truthful tool semantics as the Chat-facing product contract. Scale by projecting a small stable semantic typed surface onto approved local capabilities rather than publishing hundreds of tools or hiding operations behind opaque generic invocation.
@@ -102,13 +106,15 @@ The target machine exposed a stale installed adaptive runtime under `%LOCALAPPDA
 
 The implementation added shared `manager-owner.json` state, cross-copy status delegation/stop/takeover behavior and fail-closed handling when the fixed MCP port is occupied without a trustworthy owner.
 
-Target Windows acceptance proved installed start, source observation, installed -> source takeover, source observation from the installed copy, source -> installed takeover and foreign-owner Stop/cleanup with exactly one `3050` listener at each running state. A separate occupied-port test proved an unrelated `3050` listener is rejected rather than accepted as platform readiness. Automated Windows CI covers the negative path.
+Target Windows acceptance proved installed start, source observation, installed -> source takeover, source observation from the installed copy, source -> installed takeover and foreign-owner Stop/cleanup with exactly one `3050` listener at each running 1MCP-backed state. A separate occupied-port test proved an unrelated `3050` listener is rejected rather than accepted as platform readiness. Automated Windows CI covers the negative path.
+
+Stage 24.1 extended the same single-owner/fail-closed scope to the direct semantic `tunnel-client` process. Direct semantic lifecycle and crash recovery proved exactly one owned process, clean stopped status after forced process death, normal-Start recovery and duplicate-free idempotent repeated Start.
 
 ### Decision
 
-Installed and source manager copies are not independent platform instances. They coordinate one authoritative owner for the accepted Stage 24 local MCP/tunnel runtime through shared LocalAppData state. Status follows the recorded owner, takeover stops the previous owner first, and an unowned occupied port fails closed.
+Installed and source manager copies are not independent platform instances. They coordinate one authoritative owner through shared LocalAppData state. Status follows the recorded owner, takeover stops the previous owner first, and an unowned shared runtime fails closed.
 
-A later direct semantic transport may reduce the semantic profile's need for port `3050`, but it must not weaken the single-owner/fail-closed guarantees for profiles that continue to use it.
+Port `3050` remains part of ownership/fail-closed detection for profiles that use 1MCP. The promoted direct `semantic` profile does not require a `3050` listener and is identified/owned through its exact tunnel-client command/health state instead.
 
 ## ADR-020 — Local specialist inference is a capability backend, not a second brain — PROVISIONAL
 
@@ -118,11 +124,11 @@ Prefer a mature replaceable local model-runtime manager over embedding one infer
 
 Neither runtime nor model is product-accepted until target Windows hardware/runtime benchmarking passes. The platform must keep runtime/model selection replaceable and evidence driven.
 
-## ADR-021 — Direct semantic stdio tunnel binding — PROVISIONAL
+## ADR-021 — Direct semantic stdio tunnel binding — ACCEPTED
 
-### Motivation
+### Baseline and candidate
 
-The accepted Stage 24 semantic request path is:
+Stage 24 accepted:
 
 ```text
 ordinary ChatGPT
@@ -133,11 +139,7 @@ ordinary ChatGPT
   -> Filesystem / Playwright MCP
 ```
 
-The semantic projection already owns the fixed five-tool Chat-facing boundary and directly manages its exact downstream MCP clients. Therefore 1MCP may be an unnecessary intermediate hop for this one product path even though it remains useful infrastructure elsewhere.
-
-### Candidate
-
-Evaluate:
+Stage 24.1 evaluated:
 
 ```text
 ordinary ChatGPT
@@ -147,22 +149,37 @@ ordinary ChatGPT
   -> Filesystem / Playwright MCP
 ```
 
-Do not remove 1MCP from the repository. Candidate B removes it only from the semantic critical path if measured acceptance proves equivalence or improvement.
+This evaluation was an architecture simplification exercise, not evidence that 1MCP failed.
 
-### Required evidence
+### Acceptance evidence
 
-Before promotion, Candidate B must pass:
+Candidate B passed all required gates:
 
-1. Windows CI through the official tunnel-client stdio main binding, including modern protocol negotiation and exact five-tool inventory;
-2. real Filesystem + Playwright calls and negative cases through that transport;
-3. target-machine startup/operation/cleanup acceptance;
-4. public-manager lifecycle/status integration without weakening accepted ownership/fail-closed behavior;
-5. real ordinary-Chat refresh showing the same exact five semantic tools;
-6. the same accepted ordinary-Chat read -> browser -> write -> independent read workflow;
-7. A/B comparison showing no material reliability/diagnostic regression.
+1. Windows CI through official tunnel-client stdio binding with modern MCP negotiation and the exact five-tool inventory;
+2. real scoped Filesystem + Playwright operations and negative cases;
+3. target-machine direct-tunnel startup/operation/cleanup;
+4. first-class public-manager lifecycle, single-owner/fail-closed handling, crash recovery and duplicate-free repeated Start;
+5. existing `Chat Local Bridge Test` refreshed to the same exact five semantic actions;
+6. real ordinary-Chat `read -> browser observe/interact -> write -> independent read` workflow;
+7. target-machine A/B lifecycle comparison.
 
-Until those gates pass, the Stage 24 1MCP semantic path remains the accepted baseline.
+Both transports completed 3/3 healthy A/B cycles. Average target-machine timings were:
 
-### Boundary
+| Metric | 1MCP baseline | Direct stdio |
+|---|---:|---:|
+| initial Start | 123685 ms | 5007 ms |
+| repeated/idempotent Start | 84119 ms | 4876 ms |
+| Stop | 23252 ms | 1043 ms |
+| port 3050 listeners while running | 1 | 0 |
 
-The direct transport experiment must not turn `semantic-projection` into a generic gateway, registry, lifecycle platform or planner. 1MCP remains available for adaptive experiments, aggregation, inspection and catalog/lifecycle cases where its feature set provides measured value.
+The direct path was approximately 24.70x faster to start, 17.25x faster on repeated Start and 22.29x faster to stop in this sample, while preserving the tested reliability/diagnostic behavior.
+
+### Decision
+
+Promote direct stdio binding as the normal public `semantic` transport.
+
+`semantic-direct` may remain temporarily as a compatibility/diagnostic alias during migration. The legacy 1MCP-backed semantic path remains internal diagnostic/reference evidence and should not be deleted solely because it is no longer the normal public route.
+
+Retain 1MCP as replaceable internal infrastructure for adaptive lifecycle experiments, aggregation/inspection, diagnostics and future catalog/lifecycle cases where its features add measured value.
+
+The direct transport does not expand the semantic projection's responsibilities. `semantic-projection` remains the deterministic fixed typed boundary and must not become a generic gateway, registry, lifecycle platform or planner.
