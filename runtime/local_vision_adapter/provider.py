@@ -19,7 +19,7 @@ from typing import Any, Callable
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
-from .mark_grid import DEFAULT_GRID_SIZE, MarkGridError, Point
+from .mark_grid import DEFAULT_GRID_SIZE, Point
 
 
 class VisionProviderError(RuntimeError):
@@ -93,6 +93,23 @@ def build_mark_grid_prompt(target: str, grid_size: int = DEFAULT_GRID_SIZE) -> s
     )
 
 
+def _find_next_json_value(text: str, start_at: int = 0) -> tuple[Any, int, int] | None:
+    """Return the earliest parseable JSON object/array and its source span."""
+
+    decoder = json.JSONDecoder()
+    for index in range(start_at, len(text)):
+        if text[index] not in "[{":
+            continue
+        try:
+            value, consumed = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, (dict, list)):
+            continue
+        return value, index, index + consumed
+    return None
+
+
 def _extract_json_value(text: str) -> Any:
     if not isinstance(text, str) or not text.strip():
         raise VisionProviderError("model response must be non-empty text")
@@ -103,29 +120,25 @@ def _extract_json_value(text: str) -> Any:
         stripped = fenced.group(1).strip()
 
     try:
-        return json.loads(stripped)
+        value = json.loads(stripped)
+        if not isinstance(value, (dict, list)):
+            raise VisionProviderError("model response JSON must be an object or array")
+        return value
     except json.JSONDecodeError:
         pass
 
-    # Tolerate a small amount of provider wrapper text for benchmark diagnostics,
-    # but still require exactly one parseable JSON object/array candidate.
-    candidates: list[str] = []
-    for opener, closer in (("{", "}"), ("[", "]")):
-        start = stripped.find(opener)
-        end = stripped.rfind(closer)
-        if start >= 0 and end > start:
-            candidates.append(stripped[start : end + 1])
+    # Diagnostic tolerance: permit wrapper prose around exactly one top-level
+    # JSON object/array. Using raw_decode from the earliest parseable opener
+    # avoids treating nested arrays inside an object as separate candidates.
+    first = _find_next_json_value(stripped)
+    if first is None:
+        raise VisionProviderError("model response does not contain a JSON object or array")
+    value, _, end = first
 
-    parsed: list[Any] = []
-    for candidate in candidates:
-        try:
-            parsed.append(json.loads(candidate))
-        except json.JSONDecodeError:
-            continue
-
-    if len(parsed) != 1:
-        raise VisionProviderError("model response does not contain one unambiguous JSON value")
-    return parsed[0]
+    second = _find_next_json_value(stripped, end)
+    if second is not None:
+        raise VisionProviderError("model response contains more than one JSON value")
+    return value
 
 
 def parse_direct_point_response(
