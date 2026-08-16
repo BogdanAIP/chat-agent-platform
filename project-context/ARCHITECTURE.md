@@ -189,18 +189,17 @@ Current official LM Studio capabilities directly match Stage 25 requirements:
 
 Prefer the narrowest stable local API/CLI integration that gives deterministic lifecycle and metrics. LM Studio remains replaceable infrastructure, not product identity. Do not expose its administrative API/CLI directly to ordinary Chat.
 
-### Model boundary and corrected candidate
+### Model boundary
 
-The previously recorded name `LiquidAI/LFM2.5-VL-3B` is not present in Liquid AI's current official LFM2.5-VL collection.
+`LiquidAI/LFM2.5-VL-3B` is an official Liquid AI release dated 2026-08-12. Direct official evidence is recorded in `LOCAL_SPECIALIST_INFERENCE.md` from the Liquid AI release blog, Liquid Docs model page, official Hugging Face model repository and WebGPU demo.
 
-Current official LFM2.5-VL choices include:
+Stage 25 separates model quality preference from hardware-safe test order:
 
-- `LiquidAI/LFM2.5-VL-1.6B` and `LiquidAI/LFM2.5-VL-1.6B-GGUF`;
-- `LiquidAI/LFM2.5-VL-450M` and `LiquidAI/LFM2.5-VL-450M-GGUF`.
+- preferred quality candidate: `LiquidAI/LFM2.5-VL-3B`;
+- middle current-generation comparison: `LiquidAI/LFM2.5-VL-1.6B`;
+- first target-machine candidate: `LiquidAI/LFM2.5-VL-450M-GGUF` Q4.
 
-`LiquidAI/LFM2-VL-3B` exists as the previous LFM2 generation and may remain a comparison candidate.
-
-The first preferred current-generation Stage 25 candidate is therefore `LiquidAI/LFM2.5-VL-1.6B`, subject to target-hardware benchmarking. Its official model card describes 32,768-token context, improved multi-image/high-resolution/OCR behavior, and native/GGUF/ONNX/MLX forms; it is recommended for general VLM, OCR and document-comprehension workloads rather than knowledge-intensive tasks.
+The target Windows laptop has 7.68 GB RAM and Intel Iris Xe integrated graphics, so benchmark order is 450M Q4 → 1.6B Q4 → 3B only after memory estimation and measured headroom. The small-first order is a resource-safety policy, not a claim that the smaller model is the preferred-quality model.
 
 ### Chat-facing vision surface
 
@@ -273,7 +272,7 @@ The repository does **not** own by default AI planner/agent runtime, public ingr
 - Filesystem: `@modelcontextprotocol/server-filesystem@2026.7.10`.
 - Browser: `@playwright/mcp@0.0.78`.
 - Active Stage 25 local inference runtime candidate: LM Studio/`llmster`.
-- Active Stage 25 first local-vision model candidate: `LiquidAI/LFM2.5-VL-1.6B`; `LiquidAI/LFM2-VL-3B` may be benchmarked as an older-generation comparison.
+- Active Stage 25 preferred-quality local-vision candidate: `LiquidAI/LFM2.5-VL-3B`; target-first current-laptop candidate: `LiquidAI/LFM2.5-VL-450M-GGUF` Q4.
 - Modules: official/vendor MCP -> mature OSS -> local API/CLI adapter -> smallest project-owned missing adapter.
 
 ## Legacy
