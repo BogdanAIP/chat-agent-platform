@@ -3,7 +3,7 @@ param(
     [ValidateSet("Install", "Start", "Stop", "Toggle", "Status", "SetProfile")]
     [string]$Action = "Status",
 
-    [ValidateSet("reference", "files-readonly", "browser-isolated", "semantic", "adaptive")]
+    [ValidateSet("reference", "files-readonly", "browser-isolated", "semantic", "semantic-direct", "adaptive")]
     [string]$Profile,
 
     [string]$FilesRoot,
@@ -14,18 +14,38 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$ControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
 $StateDir = Join-Path $LocalRoot "state"
 $OwnerFile = Join-Path $StateDir "manager-owner.json"
+$SettingsFile = Join-Path $StateDir "settings.json"
+$BaselineControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
+$SourceDirectControllerPath = Join-Path $PSScriptRoot "semantic-direct-experiment.ps1"
+$InstalledDirectControllerPath = Join-Path $LocalRoot "app\scripts\semantic-direct-experiment.ps1"
+$TunnelExe = Join-Path $LocalRoot "bin\tunnel-client.exe"
+$DirectHealthUrlFile = Join-Path $StateDir "semantic-direct-health.url"
 $McpPort = 3050
 $MutexName = "Local\ChatAgentPlatformControllerOperation"
 $MutexTimeoutMilliseconds = 30000
 $script:LastControllerExitCode = 1
 
-if (-not (Test-Path -LiteralPath $ControllerPath)) {
-    throw "Internal controller is missing: $ControllerPath"
+$SupportedProfiles = @(
+    "reference",
+    "files-readonly",
+    "browser-isolated",
+    "semantic",
+    "semantic-direct",
+    "adaptive"
+)
+$FilesRootProfiles = @(
+    "files-readonly",
+    "semantic",
+    "semantic-direct",
+    "adaptive"
+)
+
+if (-not (Test-Path -LiteralPath $BaselineControllerPath -PathType Leaf)) {
+    throw "Internal controller is missing: $BaselineControllerPath"
 }
 
 function Test-SamePath {
@@ -51,6 +71,108 @@ function Test-SamePath {
     }
 }
 
+function Initialize-ManagerStateDirectory {
+    New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+}
+
+function Get-SharedSettings {
+    Initialize-ManagerStateDirectory
+
+    if (-not (Test-Path -LiteralPath $SettingsFile -PathType Leaf)) {
+        return [pscustomobject]@{
+            profile = "reference"
+            files_root = $null
+            tunnel_profile = "local-1mcp"
+        }
+    }
+
+    try {
+        $settings = Get-Content -LiteralPath $SettingsFile -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "Shared manager settings are invalid: $($_.Exception.Message)"
+    }
+
+    if (
+        $null -eq $settings.PSObject.Properties["profile"] -or
+        $SupportedProfiles -notcontains [string]$settings.profile
+    ) {
+        throw "Shared manager settings contain an unsupported profile."
+    }
+
+    $filesRoot = if ($null -ne $settings.PSObject.Properties["files_root"]) {
+        $settings.files_root
+    }
+    else {
+        $null
+    }
+
+    $tunnelProfile = if ($null -ne $settings.PSObject.Properties["tunnel_profile"]) {
+        [string]$settings.tunnel_profile
+    }
+    else {
+        if ([string]$settings.profile -eq "semantic-direct") {
+            "direct-stdio"
+        }
+        else {
+            "local-1mcp"
+        }
+    }
+
+    return [pscustomobject]@{
+        profile = [string]$settings.profile
+        files_root = $filesRoot
+        tunnel_profile = $tunnelProfile
+    }
+}
+
+function Save-SharedSettings {
+    param(
+        [Parameter(Mandatory)]
+        $Settings
+    )
+
+    Initialize-ManagerStateDirectory
+
+    $temporary = "$SettingsFile.new"
+    $Settings |
+        ConvertTo-Json -Depth 5 |
+        Set-Content -LiteralPath $temporary -Encoding utf8
+    Move-Item -LiteralPath $temporary -Destination $SettingsFile -Force
+}
+
+function Get-RequestedProfile {
+    if (-not [string]::IsNullOrWhiteSpace($Profile)) {
+        return $Profile
+    }
+
+    return [string](Get-SharedSettings).profile
+}
+
+function Get-DirectControllerPath {
+    if (Test-Path -LiteralPath $InstalledDirectControllerPath -PathType Leaf) {
+        return [System.IO.Path]::GetFullPath($InstalledDirectControllerPath)
+    }
+
+    if (Test-Path -LiteralPath $SourceDirectControllerPath -PathType Leaf) {
+        return [System.IO.Path]::GetFullPath($SourceDirectControllerPath)
+    }
+
+    throw (
+        "semantic-direct controller is unavailable. Expected either {0} or {1}." -f `
+            $InstalledDirectControllerPath,
+            $SourceDirectControllerPath
+    )
+}
+
+$TargetProfile = Get-RequestedProfile
+$ControllerPath = if ($TargetProfile -eq "semantic-direct") {
+    Get-DirectControllerPath
+}
+else {
+    [System.IO.Path]::GetFullPath($BaselineControllerPath)
+}
+
 function Get-ManagerOwner {
     if (-not (Test-Path -LiteralPath $OwnerFile -PathType Leaf)) {
         return $null
@@ -71,12 +193,22 @@ function Get-ManagerOwner {
     }
 }
 
+function Get-OwnerControllerPathForSave {
+    if ($TargetProfile -eq "semantic-direct") {
+        if (Test-Path -LiteralPath $InstalledDirectControllerPath -PathType Leaf) {
+            return [System.IO.Path]::GetFullPath($InstalledDirectControllerPath)
+        }
+    }
+
+    return [System.IO.Path]::GetFullPath($ControllerPath)
+}
+
 function Save-ManagerOwner {
     Initialize-ManagerStateDirectory
 
     $payload = [ordered]@{
         schema_version = 1
-        controller_path = [System.IO.Path]::GetFullPath($ControllerPath)
+        controller_path = Get-OwnerControllerPathForSave
         command_path = [System.IO.Path]::GetFullPath($PSCommandPath)
         repo_root = [System.IO.Path]::GetFullPath($RepoRoot)
         started_at = (Get-Date).ToUniversalTime().ToString("o")
@@ -92,10 +224,6 @@ function Save-ManagerOwner {
 
 function Remove-ManagerOwner {
     Remove-Item -LiteralPath $OwnerFile -Force -ErrorAction SilentlyContinue
-}
-
-function Initialize-ManagerStateDirectory {
-    New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 }
 
 function Get-McpPortListeners {
@@ -138,33 +266,104 @@ function Get-McpPortDiagnostic {
     return ($lines -join " | ")
 }
 
-function Wait-McpPortFree {
+function Get-DirectTunnelProcesses {
+    if (-not (Test-Path -LiteralPath $TunnelExe -PathType Leaf)) {
+        return @()
+    }
+
+    $expectedExe = [System.IO.Path]::GetFullPath($TunnelExe)
+    $healthPattern = [regex]::Escape($DirectHealthUrlFile)
+
+    return @(
+        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+            Where-Object {
+                if ($_.Name -ne "tunnel-client.exe") {
+                    return $false
+                }
+
+                $actualExe = [string]$_.ExecutablePath
+                $commandLine = [string]$_.CommandLine
+
+                if (
+                    [string]::IsNullOrWhiteSpace($actualExe) -or
+                    [string]::IsNullOrWhiteSpace($commandLine)
+                ) {
+                    return $false
+                }
+
+                try {
+                    $actualExe = [System.IO.Path]::GetFullPath($actualExe)
+                }
+                catch {
+                    return $false
+                }
+
+                return (
+                    $actualExe -ieq $expectedExe -and
+                    $commandLine -match '(?i)--mcp\.command' -and
+                    $commandLine -match $healthPattern
+                )
+            }
+    )
+}
+
+function Get-DirectTunnelDiagnostic {
+    $lines = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($process in @(Get-DirectTunnelProcesses)) {
+        $lines.Add(
+            "PID={0}; CommandLine={1}" -f `
+                [int]$process.ProcessId,
+                [string]$process.CommandLine
+        )
+    }
+
+    return ($lines -join " | ")
+}
+
+function Test-AnySharedRuntime {
+    return (
+        @(Get-McpPortListeners).Count -gt 0 -or
+        @(Get-DirectTunnelProcesses).Count -gt 0
+    )
+}
+
+function Wait-SharedRuntimeFree {
     param(
         [ValidateRange(1, 60)]
         [int]$TimeoutSeconds = 15
     )
 
     for ($attempt = 0; $attempt -lt $TimeoutSeconds; $attempt++) {
-        if (@(Get-McpPortListeners).Count -eq 0) {
+        if (-not (Test-AnySharedRuntime)) {
             return $true
         }
         Start-Sleep -Seconds 1
     }
 
-    return (@(Get-McpPortListeners).Count -eq 0)
+    return (-not (Test-AnySharedRuntime))
 }
 
-function Assert-McpPortFree {
-    $listeners = @(Get-McpPortListeners)
-    if ($listeners.Count -eq 0) {
+function Assert-SharedRuntimeFree {
+    $portListeners = @(Get-McpPortListeners)
+    $directProcesses = @(Get-DirectTunnelProcesses)
+
+    if ($portListeners.Count -eq 0 -and $directProcesses.Count -eq 0) {
         return
     }
 
-    $detail = Get-McpPortDiagnostic
+    $details = [System.Collections.Generic.List[string]]::new()
+    if ($portListeners.Count -gt 0) {
+        $details.Add("port $McpPort: $(Get-McpPortDiagnostic)")
+    }
+    if ($directProcesses.Count -gt 0) {
+        $details.Add("semantic-direct: $(Get-DirectTunnelDiagnostic)")
+    }
+
     throw (
-        "Local MCP port $McpPort is already occupied but no matching active " +
-        "manager owner is available. Refusing to accept another process's " +
-        "health endpoint. $detail"
+        "A shared Chat Agent Platform runtime is already active but no matching " +
+        "manager owner is available. Refusing ambiguous startup. " +
+        ($details -join " | ")
     )
 }
 
@@ -289,11 +488,8 @@ function Invoke-InternalControllerMutation {
         $startInfo.ArgumentList.Add([string]$argument)
     }
 
-    # Do not invoke the mutating controller through a PowerShell pipeline.
-    # Start/Toggle may spawn long-lived 1MCP/tunnel descendants; if their
-    # inherited stdout handle belongs to an outer pipeline, EOF can be held
-    # open after the controller itself has completed. Wait on the exact child
-    # process handle instead.
+    # Mutating controllers can create persistent descendants. Waiting on the
+    # exact process handle avoids inherited stdout handles keeping a caller open.
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
 
@@ -318,10 +514,10 @@ function Get-EffectiveOwnerControllerPath {
 
     $ownerController = [string]$owner.controller_path
     if (-not (Test-Path -LiteralPath $ownerController -PathType Leaf)) {
-        if (@(Get-McpPortListeners).Count -gt 0) {
+        if (Test-AnySharedRuntime) {
             throw (
                 "Shared manager ownership points to a missing controller while " +
-                "port $McpPort is still occupied: $ownerController"
+                "a managed runtime is still active: $ownerController"
             )
         }
 
@@ -354,10 +550,11 @@ function Stop-ForeignManagerIfNeeded {
 
     Remove-ManagerOwner
 
-    if (-not (Wait-McpPortFree -TimeoutSeconds 15)) {
+    if (-not (Wait-SharedRuntimeFree -TimeoutSeconds 15)) {
         throw (
-            "The previous Chat Agent Platform manager stopped, but local MCP " +
-            "port $McpPort is still occupied. $(Get-McpPortDiagnostic)"
+            "The previous Chat Agent Platform manager stopped, but a shared " +
+            "runtime is still active. Port=$((Get-McpPortDiagnostic)); " +
+            "Direct=$((Get-DirectTunnelDiagnostic))"
         )
     }
 
@@ -369,12 +566,74 @@ function Test-CurrentManagerActive {
         $status = Get-ControllerStatusObjectAt -TargetControllerPath $ControllerPath
         return (
             [int]$status.active_count -eq 1 -and
-            [bool]$status.mcp_ready
+            [bool]$status.mcp_ready -and
+            [bool]$status.tunnel_ready
         )
     }
     catch {
         return $false
     }
+}
+
+function Assert-ProfileCanChange {
+    $ownerController = Get-EffectiveOwnerControllerPath
+
+    if (-not [string]::IsNullOrWhiteSpace($ownerController)) {
+        $state = Get-ControllerStatusObjectAt -TargetControllerPath $ownerController
+        if (
+            [bool]$state.tunnel_running -or
+            [int]$state.active_count -gt 0
+        ) {
+            throw "Stop the platform before changing its default profile."
+        }
+
+        Remove-ManagerOwner
+    }
+    elseif (Test-AnySharedRuntime) {
+        Assert-SharedRuntimeFree
+    }
+}
+
+function Set-SharedProfile {
+    if ([string]::IsNullOrWhiteSpace($Profile)) {
+        throw "-Profile is required for SetProfile."
+    }
+
+    Assert-ProfileCanChange
+
+    $settings = Get-SharedSettings
+    $resolvedRoot = $settings.files_root
+
+    if ($FilesRootProfiles -contains $Profile) {
+        if ([string]::IsNullOrWhiteSpace($FilesRoot)) {
+            throw "-FilesRoot is required for $Profile."
+        }
+
+        if (-not (Test-Path -LiteralPath $FilesRoot -PathType Container)) {
+            throw "FilesRoot must be an existing directory: $FilesRoot"
+        }
+
+        $resolvedRoot = (Resolve-Path -LiteralPath $FilesRoot).Path
+    }
+
+    $updated = [pscustomobject]@{
+        profile = $Profile
+        files_root = $resolvedRoot
+        tunnel_profile = if ($Profile -eq "semantic-direct") {
+            "direct-stdio"
+        }
+        else {
+            "local-1mcp"
+        }
+    }
+
+    Save-SharedSettings $updated
+
+    Write-Host "DEFAULT_PROFILE=$Profile"
+    if ($FilesRootProfiles -contains $Profile) {
+        Write-Host "FILES_ROOT=$resolvedRoot"
+    }
+    Write-Host "TUNNEL_BINDING=$($updated.tunnel_profile)"
 }
 
 if ($Action -eq "Status") {
@@ -402,8 +661,6 @@ try {
         $acquired = $mutex.WaitOne($MutexTimeoutMilliseconds)
     }
     catch [System.Threading.AbandonedMutexException] {
-        # The previous owner terminated without releasing the mutex. Windows
-        # grants ownership to this caller, so lifecycle recovery may continue.
         $acquired = $true
     }
 
@@ -414,93 +671,89 @@ try {
         )
     }
 
-    $ownerController = Get-EffectiveOwnerControllerPath
-    $foreignOwner = (
-        -not [string]::IsNullOrWhiteSpace($ownerController) -and
-        -not (Test-SamePath -Left $ownerController -Right $ControllerPath)
-    )
-
-    if ($Action -eq "Stop" -and $foreignOwner) {
-        Invoke-InternalControllerMutation `
-            -TargetControllerPath $ownerController `
-            -TargetAction "Stop"
-        $exitCode = $script:LastControllerExitCode
-        if ($exitCode -eq 0) {
-            Remove-ManagerOwner
-        }
-    }
-    elseif ($Action -eq "Toggle" -and $foreignOwner) {
-        # A platform owned by another installed/source copy is already on.
-        # Toggle therefore means stop that one, not start a second copy.
-        Invoke-InternalControllerMutation `
-            -TargetControllerPath $ownerController `
-            -TargetAction "Stop"
-        $exitCode = $script:LastControllerExitCode
-        if ($exitCode -eq 0) {
-            Remove-ManagerOwner
-        }
-    }
-    elseif ($Action -eq "SetProfile" -and $foreignOwner) {
-        # Let the actual owner enforce its active-profile rule against the
-        # runtime it can authoritatively observe. Settings live in shared
-        # LocalAppData, so successful changes remain global.
-        Invoke-InternalControllerMutation `
-            -TargetControllerPath $ownerController `
-            -TargetAction "SetProfile"
-        $exitCode = $script:LastControllerExitCode
+    if ($Action -eq "SetProfile") {
+        Set-SharedProfile
+        $exitCode = 0
     }
     else {
-        if ($Action -eq "Start") {
-            if ($foreignOwner) {
-                $null = Stop-ForeignManagerIfNeeded
-            }
-            else {
-                $ownerIsCurrent = (
-                    -not [string]::IsNullOrWhiteSpace($ownerController) -and
-                    (Test-SamePath -Left $ownerController -Right $ControllerPath)
-                )
+        $ownerController = Get-EffectiveOwnerControllerPath
+        $foreignOwner = (
+            -not [string]::IsNullOrWhiteSpace($ownerController) -and
+            -not (Test-SamePath -Left $ownerController -Right $ControllerPath)
+        )
 
-                if (-not $ownerIsCurrent) {
-                    Assert-McpPortFree
-                }
-                elseif (
-                    @(Get-McpPortListeners).Count -gt 0 -and
-                    -not (Test-CurrentManagerActive)
-                ) {
-                    throw (
-                        "The current manager owns shared state but does not " +
-                        "authoritatively report an active MCP runtime while " +
-                        "port $McpPort is occupied. Refusing ambiguous startup. " +
-                        "$(Get-McpPortDiagnostic)"
-                    )
-                }
+        if ($Action -eq "Stop" -and $foreignOwner) {
+            Invoke-InternalControllerMutation `
+                -TargetControllerPath $ownerController `
+                -TargetAction "Stop"
+            $exitCode = $script:LastControllerExitCode
+            if ($exitCode -eq 0) {
+                Remove-ManagerOwner
             }
         }
-
-        Invoke-InternalControllerMutation `
-            -TargetControllerPath $ControllerPath `
-            -TargetAction $Action
-        $exitCode = $script:LastControllerExitCode
-
-        if ($exitCode -eq 0) {
-            switch ($Action) {
-                "Start" {
-                    Save-ManagerOwner
+        elseif ($Action -eq "Toggle" -and $foreignOwner) {
+            Invoke-InternalControllerMutation `
+                -TargetControllerPath $ownerController `
+                -TargetAction "Stop"
+            $exitCode = $script:LastControllerExitCode
+            if ($exitCode -eq 0) {
+                Remove-ManagerOwner
+            }
+        }
+        else {
+            if ($Action -eq "Start") {
+                if ($foreignOwner) {
+                    $null = Stop-ForeignManagerIfNeeded
                 }
-                "Stop" {
-                    Remove-ManagerOwner
-                }
-                "Toggle" {
-                    $status = Get-ControllerStatusObjectAt `
-                        -TargetControllerPath $ControllerPath
-                    if (
-                        [int]$status.active_count -eq 1 -or
-                        [bool]$status.tunnel_running
+                else {
+                    $ownerIsCurrent = (
+                        -not [string]::IsNullOrWhiteSpace($ownerController) -and
+                        (Test-SamePath -Left $ownerController -Right $ControllerPath)
+                    )
+
+                    if (-not $ownerIsCurrent) {
+                        Assert-SharedRuntimeFree
+                    }
+                    elseif (
+                        (Test-AnySharedRuntime) -and
+                        -not (Test-CurrentManagerActive)
                     ) {
+                        throw (
+                            "The current manager owns shared state but does not " +
+                            "authoritatively report a ready runtime. Refusing " +
+                            "ambiguous startup. Port=$(Get-McpPortDiagnostic); " +
+                            "Direct=$(Get-DirectTunnelDiagnostic)"
+                        )
+                    }
+                }
+            }
+
+            Invoke-InternalControllerMutation `
+                -TargetControllerPath $ControllerPath `
+                -TargetAction $Action
+            $exitCode = $script:LastControllerExitCode
+
+            if ($exitCode -eq 0) {
+                switch ($Action) {
+                    "Start" {
                         Save-ManagerOwner
                     }
-                    else {
+                    "Stop" {
                         Remove-ManagerOwner
+                    }
+                    "Toggle" {
+                        $effectiveController = Get-OwnerControllerPathForSave
+                        $status = Get-ControllerStatusObjectAt `
+                            -TargetControllerPath $effectiveController
+                        if (
+                            [int]$status.active_count -eq 1 -or
+                            [bool]$status.tunnel_running
+                        ) {
+                            Save-ManagerOwner
+                        }
+                        else {
+                            Remove-ManagerOwner
+                        }
                     }
                 }
             }
