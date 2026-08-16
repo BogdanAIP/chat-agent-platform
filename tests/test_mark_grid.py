@@ -6,6 +6,7 @@ from runtime.local_vision_adapter import (
     Point,
     box_center,
     box_from_extremity_cells,
+    box_from_selected_cells,
     cell_bounds,
     cell_id_at_point,
     cell_row_col,
@@ -13,7 +14,9 @@ from runtime.local_vision_adapter import (
     map_point_from_crop,
     normalize_box,
     normalize_point,
+    plan_mark_grid_crop,
     plan_proportional_crop,
+    two_pass_mark_grid_result,
 )
 
 
@@ -36,7 +39,25 @@ class MarkGridGeometryTests(unittest.TestCase):
         self.assertEqual(cell_id_at_point(1919.9, 1079.9, 1920, 1080), 63)
         self.assertEqual(cell_id_at_point(1920, 1080, 1920, 1080), 63)
 
-    def test_extremity_cells_build_conservative_roi(self):
+    def test_selected_cells_match_reference_union_semantics(self):
+        roi = box_from_selected_cells(
+            [17, 10, 20, 35],
+            image_width=1920,
+            image_height=1080,
+        )
+
+        self.assertEqual(roi, Box(240.0, 135.0, 1200.0, 675.0))
+
+        # Duplicates are allowed because the reference runner converts the
+        # four model outputs to a set before unioning cell bounds.
+        one_cell = box_from_selected_cells(
+            [63, 63, 63, 63],
+            image_width=1280,
+            image_height=720,
+        )
+        self.assertEqual(one_cell, Box(1120.0, 630.0, 1280.0, 720.0))
+
+    def test_extremity_cells_build_strict_ordered_roi(self):
         roi = box_from_extremity_cells(
             left_cell=17,   # row 2, col 1
             top_cell=10,    # row 1, col 2
@@ -85,13 +106,23 @@ class MarkGridGeometryTests(unittest.TestCase):
                 image_height=400,
             )
 
-    def test_crop_plan_preserves_aspect_ratio_and_short_side(self):
-        roi = Box(240.0, 135.0, 1200.0, 675.0)
-        plan = plan_proportional_crop(
+    def test_mark_grid_crop_does_not_shrink_large_roi(self):
+        roi = Box(240.0, 135.0, 1200.0, 675.0)  # 960 x 540
+        plan = plan_mark_grid_crop(
             roi,
             image_width=1920,
             image_height=1080,
-            short_side=512,
+        )
+
+        self.assertEqual(plan.output_width, 960)
+        self.assertEqual(plan.output_height, 540)
+
+    def test_mark_grid_crop_upscales_small_roi_to_min_short_side(self):
+        roi = Box(1120.0, 630.0, 1280.0, 720.0)  # 160 x 90
+        plan = plan_mark_grid_crop(
+            roi,
+            image_width=1280,
+            image_height=720,
         )
 
         self.assertEqual(plan.output_height, 512)
@@ -101,6 +132,18 @@ class MarkGridGeometryTests(unittest.TestCase):
             roi.width / roi.height,
             places=3,
         )
+
+    def test_experimental_exact_short_side_policy_remains_separate(self):
+        roi = Box(240.0, 135.0, 1200.0, 675.0)  # 960 x 540
+        plan = plan_proportional_crop(
+            roi,
+            image_width=1920,
+            image_height=1080,
+            short_side=512,
+        )
+
+        self.assertEqual(plan.output_height, 512)
+        self.assertEqual(plan.output_width, 910)
 
     def test_crop_point_maps_back_to_source(self):
         roi = Box(240.0, 135.0, 1200.0, 675.0)
@@ -140,6 +183,33 @@ class MarkGridGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(mapped.y1, 100.0)
         self.assertAlmostEqual(mapped.x2, 400.0)
         self.assertAlmostEqual(mapped.y2, 200.0)
+
+    def test_two_pass_mark_grid_maps_second_pass_back_to_source(self):
+        result = two_pass_mark_grid_result(
+            first_mark_ids=[63, 63, 63, 63],
+            second_mark_ids=[27, 27, 27, 27],
+            image_width=1280,
+            image_height=720,
+        )
+
+        self.assertEqual(result.first_roi, Box(1120.0, 630.0, 1280.0, 720.0))
+        self.assertEqual(result.crop_plan.output_width, 910)
+        self.assertEqual(result.crop_plan.output_height, 512)
+        self.assertAlmostEqual(result.source_roi.x1, 1180.0)
+        self.assertAlmostEqual(result.source_roi.y1, 663.75)
+        self.assertAlmostEqual(result.source_roi.x2, 1200.0)
+        self.assertAlmostEqual(result.source_roi.y2, 675.0)
+        self.assertAlmostEqual(result.point.x, 1190.0)
+        self.assertAlmostEqual(result.point.y, 669.375)
+
+    def test_two_pass_mark_grid_requires_four_ids_per_pass(self):
+        with self.assertRaises(MarkGridError):
+            two_pass_mark_grid_result(
+                first_mark_ids=[63],
+                second_mark_ids=[27, 27, 27, 27],
+                image_width=1280,
+                image_height=720,
+            )
 
     def test_normalized_result_contract(self):
         box = Box(192.0, 108.0, 960.0, 540.0)
