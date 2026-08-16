@@ -1,0 +1,114 @@
+name: Direct Semantic Tunnel Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/semantic-projection/**"
+      - "scripts/semantic-projection-runtime.ps1"
+      - "scripts/test-direct-semantic-tunnel.ps1"
+      - ".github/workflows/direct-semantic-tunnel.yml"
+      - "project-context/DIRECT_SEMANTIC_TUNNEL.md"
+      - "project-context/DECISIONS.md"
+      - "project-context/ROADMAP.md"
+      - "project-context/START_HERE.md"
+      - "project-context/CURRENT_STATE.md"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/semantic-projection/**"
+      - "scripts/semantic-projection-runtime.ps1"
+      - "scripts/test-direct-semantic-tunnel.ps1"
+      - ".github/workflows/direct-semantic-tunnel.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: direct-semantic-tunnel-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-direct-semantic-tunnel:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+          if (-not (Test-Path -LiteralPath $chrome)) {
+            throw 'Google Chrome is required for direct semantic browser acceptance.'
+          }
+
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/test-direct-semantic-tunnel.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) {
+            throw "Direct semantic tunnel harness has PowerShell syntax errors: $($errors -join '; ')"
+          }
+
+      - name: Install exact semantic projection dependencies
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+            if ($LASTEXITCODE -ne 0) {
+              throw "npm install failed with exit code $LASTEXITCODE"
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Download verified official tunnel-client v0.0.11
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v0.0.11'
+          $asset = "tunnel-client-$tag-windows-amd64.zip"
+          $expected = 'eb912c86c6ccde90cda805cb17009507176a656725cf86c36fabe1901a12e29b'
+          $root = Join-Path $env:RUNNER_TEMP 'openai-tunnel-client'
+          $zip = Join-Path $root $asset
+          $extract = Join-Path $root 'extract'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+
+          $url = "https://github.com/openai/tunnel-client/releases/download/$tag/$asset"
+          Invoke-WebRequest -Uri $url -OutFile $zip -TimeoutSec 120
+          $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Official tunnel-client archive checksum mismatch. Expected $expected, got $actual."
+          }
+
+          Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
+          $candidates = @(Get-ChildItem -LiteralPath $extract -Filter 'tunnel-client.exe' -File -Recurse)
+          if ($candidates.Count -ne 1) {
+            throw "Expected one tunnel-client.exe, found $($candidates.Count)."
+          }
+
+          $help = @(& $candidates[0].FullName help quickstart 2>&1)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Official tunnel-client executable preflight failed: $($help -join ' ')"
+          }
+
+          "DIRECT_TUNNEL_EXE=$($candidates[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "DIRECT_TUNNEL_ARCHIVE_SHA256=$actual"
+          Write-Host 'DIRECT_TUNNEL_BINARY_VERIFIED=PASS'
+
+      - name: Run semantic projection through tunnel-client stdio main binding
+        shell: pwsh
+        run: |
+          .\scripts\test-direct-semantic-tunnel.ps1 `
+            -TunnelExe $env:DIRECT_TUNNEL_EXE `
+            -ReadyTimeoutSeconds 60
