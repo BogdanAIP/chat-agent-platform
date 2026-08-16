@@ -1,6 +1,6 @@
 # Direct Semantic Tunnel Binding — A/B Experiment
 
-Status: **PROVISIONAL; automated and target-machine acceptance pending**.
+Status: **WINDOWS CI ACCEPTED; target-machine and ordinary-Chat promotion pending**.
 
 ## Goal
 
@@ -55,33 +55,55 @@ Potential costs:
 - stdio transport has no MCP session ID, so stateful designs must not accidentally rely on HTTP session semantics;
 - the accepted Stage 24 path already works, so simplification must beat or match it on measured stability rather than architectural taste alone.
 
-## First automated gate
+## Automated Windows gate — PASSED
 
-The branch adds a real Windows acceptance path using the official `tunnel-client dev proxy` local control-plane harness with `--mcp-command` bound directly to `semantic-projection.mjs`.
+PR #70 added a real Windows acceptance path using official `tunnel-client v0.0.11` `dev proxy` with `--mcp-command` bound directly to `semantic-projection.mjs`.
 
-The acceptance must prove through the tunnel-client path:
+Direct Semantic Tunnel Acceptance run `31947227216` passed on Windows Server 2025 with the reviewed tunnel-client archive SHA256 `eb912c86c6ccde90cda805cb17009507176a656725cf86c36fabe1901a12e29b`.
+
+Observed pass markers:
+
+```text
+DIRECT_SEMANTIC_PROTOCOL_ERA=modern
+DIRECT_SEMANTIC_TOOL_COUNT=5
+DIRECT_SEMANTIC_FILESYSTEM=PASS
+DIRECT_SEMANTIC_BROWSER=PASS
+DIRECT_SEMANTIC_NEGATIVE_CASES=PASS
+DIRECT_SEMANTIC_CONNECT_MS=156
+DIRECT_SEMANTIC_TUNNEL_ACCEPTANCE=PASS
+DIRECT_SEMANTIC_STARTUP_MS=336
+DIRECT_SEMANTIC_ACCEPTANCE_MS=7640
+DIRECT_SEMANTIC_1MCP_USED=False
+DIRECT_SEMANTIC_TUNNEL=PASS
+```
+
+This proves, through the official tunnel-client path and without a 1MCP runtime:
 
 1. modern MCP era negotiation succeeds through `server/discover`;
-2. exactly five Chat-facing tools are visible;
+2. exactly five Chat-facing semantic tools are visible;
 3. raw Filesystem/Playwright and generic meta-tools do not leak;
 4. `workspace_read` and `workspace_write` execute against a scoped workspace;
 5. path traversal remains rejected;
 6. `web_open`, `web_observe` and `web_interact` execute through real Playwright;
-7. the test uses no 1MCP runtime.
+7. tunnel-client can own the semantic projection directly over stdio on Windows.
 
-Local command on a machine with the accepted official tunnel-client installed:
+The first CI attempt exposed Windows command-string quoting in the test harness. The harness was changed to match the official wrapper's shell-quoting convention and to surface tunnel stdout/stderr on startup failure. The subsequent run passed. This was a harness defect, not a semantic-runtime failure.
+
+## Target-machine command
+
+On a machine with the accepted official tunnel-client installed:
 
 ```powershell
 .\scripts\test-direct-semantic-tunnel.ps1
 ```
 
-This test uses a temporary workspace and the tunnel-client local test control plane. It does not modify the production tunnel configuration or require a control-plane API key.
+This test uses a temporary workspace and the tunnel-client local test control plane. It does not modify the production tunnel configuration, stop the accepted installed semantic profile or require a hosted control-plane API key.
 
-## Promotion gates
+## Remaining promotion gates
 
 Candidate B is not the default product path until all of the following pass:
 
-1. Windows CI direct-tunnel acceptance;
+1. **DONE:** Windows CI direct-tunnel acceptance;
 2. target-machine direct-tunnel acceptance with startup/operation timing recorded;
 3. public manager integration can start/status/stop the direct semantic path without weakening single-owner/fail-closed behavior;
 4. ordinary Chat refresh sees the same exact five semantic actions through the existing tunnel/app;
