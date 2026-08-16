@@ -9,6 +9,7 @@ on:
       - "scripts/start-chat-profile.ps1"
       - "scripts/start-semantic-profile.ps1"
       - "scripts/semantic-projection-runtime.ps1"
+      - "scripts/semantic-direct-controller.ps1"
       - "scripts/status-chat-profile.ps1"
       - "scripts/stop-chat-profile.ps1"
       - "scripts/start-local-bridge.ps1"
@@ -31,6 +32,7 @@ on:
       - "scripts/start-chat-profile.ps1"
       - "scripts/start-semantic-profile.ps1"
       - "scripts/semantic-projection-runtime.ps1"
+      - "scripts/semantic-direct-controller.ps1"
       - "scripts/status-chat-profile.ps1"
       - "scripts/stop-chat-profile.ps1"
       - "scripts/start-local-bridge.ps1"
@@ -80,6 +82,7 @@ jobs:
             'scripts/start-chat-profile.ps1',
             'scripts/start-semantic-profile.ps1',
             'scripts/semantic-projection-runtime.ps1',
+            'scripts/semantic-direct-controller.ps1',
             'scripts/status-chat-profile.ps1',
             'scripts/stop-chat-profile.ps1',
             'scripts/chat-platform-controller.ps1',
@@ -168,7 +171,7 @@ jobs:
             ./scripts/stop-chat-profile.ps1
           }
 
-      - name: Prove semantic profile is understood by the public manager
+      - name: Prove promoted semantic profile routes through the public manager
         shell: pwsh
         run: |
           $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-semantic-manager-files'
@@ -177,23 +180,29 @@ jobs:
 
           try {
             ./scripts/chat-platform.ps1 -Action SetProfile -Profile semantic -FilesRoot $filesRoot -NoNotify
-            ./scripts/start-semantic-profile.ps1 -FilesRoot $filesRoot -Port 3050 -ReadyTimeoutSeconds 120
+            if ($LASTEXITCODE -ne 0) { throw 'Public manager could not select promoted semantic profile.' }
 
             $managerStatus = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if (-not $managerStatus.mcp_ready -or [string]$managerStatus.active_profile -ne 'semantic' -or [int]$managerStatus.active_count -ne 1 -or $managerStatus.conflict) { throw 'Public manager did not recognize the ready semantic profile.' }
-            if ($managerStatus.tunnel_running -or $managerStatus.tunnel_ready) { throw 'Hosted semantic manager acceptance unexpectedly found a tunnel.' }
+            if ([bool]$managerStatus.mcp_ready -or [bool]$managerStatus.tunnel_running -or [bool]$managerStatus.tunnel_ready -or [int]$managerStatus.active_count -ne 0 -or [bool]$managerStatus.conflict) { throw 'Fresh promoted semantic route must remain stopped before hosted tunnel startup.' }
+            if (-not [string]::IsNullOrWhiteSpace([string]$managerStatus.active_profile)) { throw 'Fresh promoted semantic route unexpectedly reported an active profile.' }
+            if ([string]$managerStatus.tunnel_binding -ne 'direct-stdio') { throw 'Public semantic profile did not route to direct stdio.' }
             if ([string]$managerStatus.settings.profile -ne 'semantic') { throw 'Public manager did not persist semantic as the selected profile.' }
+            if ([string]$managerStatus.settings.tunnel_profile -ne 'direct-stdio') { throw 'Promoted semantic settings retained the legacy 1MCP tunnel marker.' }
             if ([System.IO.Path]::GetFullPath([string]$managerStatus.settings.files_root) -ne [System.IO.Path]::GetFullPath($filesRoot)) { throw 'Public manager did not persist the semantic FilesRoot.' }
 
-            ./scripts/chat-platform.ps1 -Action Toggle -NoNotify
-            $stopped = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if ([int]$stopped.active_count -ne 0 -or $stopped.tunnel_running) { throw 'Public manager toggle did not stop the semantic Runtime Scope.' }
+            $installedController = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\app\scripts\semantic-direct-controller.ps1'
+            if (-not (Test-Path -LiteralPath $installedController -PathType Leaf)) { throw 'Public semantic routing did not install the stable direct controller.' }
+            $sourceHash = (Get-FileHash -LiteralPath 'scripts/semantic-direct-controller.ps1' -Algorithm SHA256).Hash
+            $installedHash = (Get-FileHash -LiteralPath $installedController -Algorithm SHA256).Hash
+            if ($sourceHash -ne $installedHash) { throw 'Installed direct controller differs from the reviewed source.' }
 
             ./scripts/chat-platform.ps1 -Action SetProfile -Profile reference -NoNotify
+            if ($LASTEXITCODE -ne 0) { throw 'Public manager could not restore the safe reference profile.' }
             $reset = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
             if ([string]$reset.settings.profile -ne 'reference') { throw 'Public manager did not restore the safe reference default after semantic acceptance.' }
+            if ([string]$reset.settings.tunnel_profile -ne 'local-1mcp') { throw 'Reference profile did not restore its accepted 1MCP tunnel marker.' }
 
-            Write-Host 'SEMANTIC_PUBLIC_MANAGER=PASS'
+            Write-Host 'SEMANTIC_PUBLIC_MANAGER_ROUTING=PASS'
           }
           finally {
             ./scripts/stop-chat-profile.ps1
