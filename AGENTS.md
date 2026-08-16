@@ -13,6 +13,8 @@ This repository is designed to be continued safely from a fresh ChatGPT or Codex
 
 For Stage 24.1 transport history/evidence also read `project-context/DIRECT_SEMANTIC_TUNNEL.md`.
 
+For Stage 25 local specialist work also read `project-context/LOCAL_SPECIALIST_INFERENCE.md`.
+
 For module work also read `project-context/MODULE_SELECTION_POLICY.md` and `project-context/MODULE_CATALOG.md`.
 
 ## Source-of-truth order
@@ -48,9 +50,9 @@ ChatGPT -> Secure MCP Tunnel -> tunnel-client -> 1MCP -> semantic-projection
 
 Do not describe that path as broken. It worked and remains useful baseline evidence.
 
-## Stage 24.1 direction — direct semantic selected
+## Stage 24.1 — DONE
 
-Active branch: `chat/direct-semantic-tunnel`, PR #70.
+Stage 24.1 was squash-merged to `main` on 2026-08-16 as `df1d5e232b739b62e72ad81e5d82fd01be53e884` from PR #70.
 
 A/B result:
 
@@ -58,30 +60,47 @@ A/B result:
 A — Stage 24 baseline
 Tunnel -> HTTP 1MCP -> stdio semantic-projection
 
-B — selected
+B — selected normal semantic transport
 Tunnel -> stdio semantic-projection
 ```
 
 Candidate B passed Windows CI, target-machine backend/negative tests, hosted Secure MCP Tunnel, real ordinary-Chat five-tool E2E, first-class manager lifecycle, single-owner/fail-closed behavior, forced-crash recovery and duplicate-free repeated Start.
 
-Both paths then passed 3/3 lifecycle cycles on the target machine. Average timings were:
+Both paths passed 3/3 lifecycle cycles on the target machine. Average timings were:
 
 - 1MCP: Start 123685 ms, repeated Start 84119 ms, Stop 23252 ms;
 - direct stdio: Start 5007 ms, repeated Start 4876 ms, Stop 1043 ms.
 
 Direct was approximately 24.70x / 17.25x / 22.29x faster respectively in this sample and used no local port-3050 listener.
 
-Therefore normal public `semantic` is being promoted to direct stdio. `semantic-direct` remains temporarily as a compatibility/diagnostic alias. 1MCP remains replaceable internal infrastructure for adaptive lifecycle experiments, diagnostics, aggregation/inspection and future catalog work.
+Post-merge installation acceptance also passed on the target machine from `main`:
 
-## Current release gate
+```text
+STAGE24_1_PERSISTENT_INSTALL=PASS
+active_profile=semantic
+tunnel_binding=direct-stdio
+active_count=1
+conflict=false
+PORT_3050_LISTENER_COUNT=0
+```
 
-Do not merge PR #70 until:
+The normal public `semantic` profile is therefore direct stdio. `semantic-direct` remains temporarily as a compatibility/diagnostic alias. 1MCP remains replaceable internal infrastructure for adaptive lifecycle experiments, diagnostics, aggregation/inspection and future catalog work.
 
-- final CI/security/profile/semantic workflows are green on the exact promotion head;
-- the target Windows machine smokes **normal public `semantic`** and reports `active_profile=semantic`, `tunnel_binding=direct-stdio`, healthy readiness, one active scope, no conflict and zero port-3050 listeners;
-- after merge, the stable LocalAppData manager bundle is updated from `main` and final status is verified.
+## Current stage — Stage 25 local specialist inference
 
-The normal-semantic target smoke verifies final routing/packaging only. Do not make the user repeat the already-passed five-tool ordinary-Chat E2E unless exported tool definitions or the app action snapshot changes again.
+Stage 25 is active.
+
+Goal: add bounded local model-powered perception without adding a second planner/agent brain.
+
+Current verified runtime direction:
+
+- LM Studio/`llmster` is the first replaceable runtime-manager candidate;
+- LM Studio supports headless `llmster`, `lms` lifecycle/model commands, local HTTP serving, OpenAI-compatible image chat, memory estimation before load, GPU offload controls and TTL/JIT unloading;
+- the previously documented `LiquidAI/LFM2.5-VL-3B` candidate name is not present in Liquid AI's current official LFM2.5-VL collection;
+- current official LFM2.5-VL candidates are `LiquidAI/LFM2.5-VL-1.6B` and `LiquidAI/LFM2.5-VL-450M` (including GGUF variants);
+- `LiquidAI/LFM2-VL-3B` exists as the older LFM2 generation and may be benchmarked as a comparison candidate rather than mislabeled as LFM2.5.
+
+First preferred current-generation `local-vision` candidate: `LiquidAI/LFM2.5-VL-1.6B`, subject to target Windows hardware/runtime benchmarking. Do not hard-code the platform to LM Studio or Liquid AI before acceptance.
 
 ## Findings that remain active
 
@@ -103,12 +122,6 @@ Use the model `AVAILABLE -> ACTIVE -> AUTHORIZED`:
 - scope local roots, credentials and destructive operations at the strongest practical boundary;
 - prefer rollback, backups, git and contained workspaces over confirmation for every low-risk action;
 - reserve explicit confirmation for genuinely consequential or hard-to-reverse effects.
-
-## Local specialist inference direction
-
-After Stage 24.1, Stage 25 evaluates LM Studio/`llmster` as a replaceable local model-runtime manager and `LiquidAI/LFM2.5-VL-3B` as the first preferred local-vision candidate. Chat remains the planner; specialist models remain tools.
-
-Do not hard-code the platform to one model/runtime before target-machine evidence.
 
 ## Development workflow
 
