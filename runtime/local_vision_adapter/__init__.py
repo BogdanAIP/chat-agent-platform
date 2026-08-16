@@ -1,5 +1,12 @@
 """Stage 25 deterministic local-vision adapter primitives."""
 
+from .benchmark import (
+    GroundingScore,
+    box_iou,
+    point_distance,
+    point_in_box,
+    score_grounding,
+)
 from .mark_grid import (
     DEFAULT_CROP_SHORT_SIDE,
     DEFAULT_GRID_SIZE,
@@ -28,12 +35,14 @@ __all__ = [
     "DEFAULT_GRID_SIZE",
     "Box",
     "CropPlan",
+    "GroundingScore",
     "MarkGridError",
     "Point",
     "TwoPassMarkGridResult",
     "box_center",
     "box_from_extremity_cells",
     "box_from_selected_cells",
+    "box_iou",
     "cell_bounds",
     "cell_id_at_point",
     "cell_row_col",
@@ -43,5 +52,8 @@ __all__ = [
     "normalize_point",
     "plan_mark_grid_crop",
     "plan_proportional_crop",
+    "point_distance",
+    "point_in_box",
+    "score_grounding",
     "two_pass_mark_grid_result",
 ]
