@@ -20,7 +20,7 @@ Stage 24 proved the exact five-tool semantic ordinary-Chat contract through the 
 - `web_observe`;
 - `web_interact`.
 
-The accepted session read `SEMANTIC_FINAL_INPUT_20260816`, navigated from `example.com` through the real `Learn more` link to `Example Domains`, wrote a result file and independently read it back. The Stage 24 1MCP path worked and remains valid acceptance evidence.
+The Stage 24 1MCP path worked and remains valid acceptance evidence.
 
 ## Stage 24.1 — DONE
 
@@ -28,19 +28,7 @@ Stage 24.1 was squash-merged to `main` on 2026-08-16 as:
 
 `df1d5e232b739b62e72ad81e5d82fd01be53e884` — `Stage 24.1: direct semantic tunnel A/B acceptance (#70)`.
 
-Stage 24.1 compared:
-
-```text
-A — Stage 24 baseline
-Tunnel -> HTTP 1MCP -> stdio semantic-projection
-
-B — selected
-Tunnel -> stdio semantic-projection
-```
-
-Candidate B passed transport, backend, ordinary-Chat, lifecycle, ownership, crash-recovery and A/B gates. Both paths completed 3/3 healthy lifecycle cycles on the target Windows machine; direct stdio was materially faster and eliminated the normal semantic port-3050 hop.
-
-The normal product path is now:
+Selected normal product path:
 
 ```text
 ordinary ChatGPT Chat
@@ -53,7 +41,7 @@ ordinary ChatGPT Chat
       -> future focused capability adapters
 ```
 
-`semantic-direct` remains temporarily as a compatibility/diagnostic alias. 1MCP is **not removed**; it remains replaceable internal infrastructure for adaptive lifecycle experiments, diagnostics, aggregation/inspection and future catalog work where its features add measured value.
+`semantic-direct` remains temporarily as a compatibility/diagnostic alias. 1MCP is **not removed**; it remains replaceable internal infrastructure for diagnostics/aggregation/adaptive experiments where its features add measured value.
 
 Final target release acceptance also passed after merge from the stable LocalAppData installation:
 
@@ -66,8 +54,6 @@ conflict=false
 PORT_3050_LISTENER_COUNT=0
 ```
 
-The installed manager bundle matched merged `main` by SHA256 for the public manager, direct controller and semantic projection.
-
 ## Stage 25 preparation — DONE
 
 PR #71, `Docs: close Stage 24.1 and activate Stage 25 local vision`, merged on 2026-08-16 as:
@@ -78,38 +64,41 @@ That merge made Stage 25 the authoritative continuation point and preserved the 
 
 ## Current stage — Stage 25 local specialist inference / active visual grounding
 
-Stage 25 implementation is active on branch:
+Active branch:
 
 `chat/stage25-local-vision-adapter`
 
-Current implementation PR:
+Active PR:
 
-`#72 — Stage 25: active visual grounding foundation`.
+`#72 — Stage 25: active visual grounding foundation`
 
 Goal: add local model-powered perception as a bounded replaceable capability backend without creating a second planner.
 
-Current product shape remains:
+Current product shape:
 
 ```text
 ordinary ChatGPT planner
   -> small typed local-vision capability
   -> deterministic focused local adapter
+       -> semantic-first when deterministic structure exists
+       -> direct visual grounding baseline
+       -> bounded Mark-Grid refinement when needed
+       -> deterministic validation / explicit abstain
   -> replaceable local inference runtime
   -> replaceable local VLM
-  -> typed result or explicit abstain
 ```
 
 Read these Stage 25 documents together:
 
-- `LOCAL_SPECIALIST_INFERENCE.md` — runtime/model/hardware evidence and Stage 25 acceptance gates;
+- `LOCAL_SPECIALIST_INFERENCE.md` — runtime/model/hardware evidence and acceptance gates;
 - `STAGE25_TARGET_BENCHMARKS.md` — measured target-machine benchmark evidence;
-- `ACTIVE_VISUAL_GROUNDING.md` — active-perception/GUI-grounding architecture and Mark-Grid benchmark plan.
+- `ACTIVE_VISUAL_GROUNDING.md` — current active-perception/GUI-grounding architecture and benchmark plan.
 
 ## Current verified local VLM baseline
 
-The preferred 3B model is no longer only a theoretical candidate. It has successfully loaded and completed a real local multimodal request on the target Windows laptop.
+The preferred 3B model has successfully loaded and completed real local multimodal requests on the target Windows laptop.
 
-Verified runtime/model path:
+Verified path:
 
 ```text
 runtime = llama.cpp b10448 / build 10448 / commit ad1de39e0
@@ -118,6 +107,10 @@ mmproj = mmproj-LFM2.5-VL-3B-Q8_0.gguf
 CPU = 11th Gen Intel Core i5-1135G7
 RAM = 7.68 GB
 GPU = Intel Iris Xe
+main model placement = CPU
+mmproj placement = CPU for fastest measured path
+threads = 8
+ctx = 1024 for current controlled tests
 ```
 
 The exact official GGUF artifacts were downloaded and SHA256-verified before use.
@@ -128,7 +121,7 @@ A deterministic synthetic vision request correctly returned:
 TITLE=STAGE25 VISION TEST; CIRCLE=red; SQUARE=blue; CODE=A7-42
 ```
 
-The final interleaved CPU thread benchmark selected **8 threads provisionally** for the current llama.cpp path:
+The final interleaved CPU thread benchmark selected **8 threads provisionally**:
 
 - 6-thread median vision latency: `14.13 s`;
 - 8-thread median vision latency: `13.84 s`;
@@ -138,29 +131,36 @@ This is a runtime baseline, not a GUI-grounding quality score.
 
 ### Iris Xe findings
 
-`llama.cpp` detects Intel Iris Xe as `Vulkan0`, but current measured offload modes do not beat CPU-only for latency:
+`llama.cpp` detects Intel Iris Xe as `Vulkan0`, but measured offload modes do not beat CPU-only for latency:
 
 - 8 main-model layers on Vulkan were substantially slower than CPU-only;
 - mmproj-only Vulkan reduced RAM pressure but remained slower than CPU-only.
 
 Keep those as optional memory-pressure/comparison modes, not the default fast path.
 
-## Active visual grounding direction
+## Active visual grounding baseline
 
-Stage 25 now has an evidence-backed active-perception baseline from:
+Research baseline:
 
 - `How Auxiliary Reasoning Unleashes GUI Grounding in VLMs`, arXiv `2509.11548`;
 - public MIT implementation: `liweim/AuxiliaryReasoning`.
 
-The key candidate is the paper's **Mark-Grid Scaffold**: two-pass numbered `8 x 8` visual scaffolding with deterministic crop/magnify/remap between passes.
+The key candidate is **Mark-Grid Scaffold**. Verified code-level details from the public implementation:
 
-The project rule is:
+- experiment uses `num_grid=8`, `num_zone_in=1`, `with_origin_chart=True`, `enlarge=True`;
+- the model is asked for four extremity cell IDs and duplicates are allowed;
+- the reference runner then de-duplicates those IDs and unions the complete rectangles of all selected cells;
+- `enlarge=True` only upscales when the crop's shorter side is below `512 px`; it does not downscale an already-larger crop to 512.
+
+These details define the faithful benchmark baseline. Do not silently replace them with a cleaner but different algorithm.
+
+Current project rule:
 
 ```text
 semantic-first when deterministic structure exists
-  -> direct visual grounding baseline
+  -> Direct visual grounding baseline
   -> if insufficient, bounded local refinement
-  -> original two-pass Mark-Grid baseline
+  -> faithful two-pass Mark-Grid baseline
   -> deterministic validation
   -> typed grounding result OR ABSTAIN
 ```
@@ -180,44 +180,49 @@ vision_analyze(
 
 No new Chat-facing action is accepted yet.
 
-## Current implementation seed
+## Current implementation in PR #72
 
-PR #72 begins with dependency-free deterministic Mark-Grid geometry in:
+The active branch now contains:
 
-`runtime/local_vision_adapter/mark_grid.py`
+- `project-context/ACTIVE_VISUAL_GROUNDING.md`;
+- `runtime/local_vision_adapter/mark_grid.py` — deterministic row-major grid, reference union semantics, crop/enlarge policy, two-pass remap and validation;
+- `runtime/local_vision_adapter/benchmark.py` — provider-neutral point-in-target, IoU, center-error, false-click and abstention scoring;
+- `tests/test_mark_grid.py`;
+- `tests/test_grounding_benchmark.py`;
+- `tests/fixtures/stage25_grounding_fixture.html`;
+- `tests/fixtures/stage25_grounding_cases.json`.
 
-and unit coverage in:
+The first controlled browser fixture is fixed at `1280 x 720` and covers:
 
-`tests/test_mark_grid.py`.
+- labeled primary button;
+- icon-only control;
+- repeated similar row actions;
+- tiny target;
+- enabled-vs-disabled visual state;
+- deliberately absent target for abstention/false-positive measurement.
 
-The geometry layer covers:
+The fixture page exposes its DOM rectangles, while the companion metadata records expected boxes. A real browser/Playwright capture must still verify those two sources agree before any model score is accepted.
 
-- row-major grid cell IDs and bounds;
-- four-extremity-cell -> conservative ROI derivation;
-- proportional crop planning;
-- crop-local -> source-image coordinate remapping;
-- normalized point/bbox output;
-- malformed/reversed/out-of-bounds rejection.
-
-This layer deliberately contains no model selection, network access or Chat-facing tool registration.
+The public five semantic tools remain unchanged.
 
 ## Next dependency-valid Stage 25 work
 
-1. Let PR #72 CI verify the deterministic geometry/tests.
-2. Build controlled screenshot fixtures with authoritative target boxes independent of the VLM.
-3. Add a **Direct** grounding benchmark path.
-4. Reproduce the original **two-pass Mark-Grid** benchmark path before modifying the method.
-5. Measure Direct vs Mark-Grid on LFM2.5-VL-3B on the real target laptop.
-6. Only after A/B evidence, test `grid -> crop -> direct bbox` and optional OCR/UI-landmark assistance.
-7. Define adaptive escalation and abstention thresholds from measured false-click/accuracy/latency evidence.
-8. Add path/scope, malformed-result, timeout, runtime-failure and memory-pressure tests.
-9. Only then version the public semantic surface, refresh/review the Chat app and run fresh ordinary-Chat E2E acceptance.
+1. Let PR #72 CI verify the current deterministic geometry/metrics/fixtures.
+2. Browser-render the fixture and prove every metadata box against actual DOM/Playwright geometry.
+3. Add an internal provider-neutral inference request/response boundary using the already-proven local llama.cpp/LFM path.
+4. Run **Direct grounding** on the controlled fixture.
+5. Run the faithful **two-pass Mark-Grid** baseline on exactly the same cases.
+6. Compare point-in-target accuracy, false-click/abstain behavior, latency and memory on the target Windows machine.
+7. Only after Direct-vs-Mark-Grid evidence, test `grid -> crop -> direct bbox` and optional OCR/UI-landmark assistance.
+8. Define adaptive escalation and abstention thresholds from measured evidence.
+9. Add path/scope, malformed-result, timeout, runtime-failure and memory-pressure tests.
+10. Only then version the public semantic surface, refresh/review the Chat app and run fresh ordinary-Chat E2E acceptance.
 
 ## Stage 25 quality measurements
 
 Grounding acceptance must capture at least:
 
-- point-in-target accuracy;
+- point-in-target accuracy as the primary ScreenSpot-style click metric;
 - bbox IoU when applicable;
 - normalized/pixel center error;
 - false-click rate;
@@ -258,7 +263,7 @@ Before changing code:
 - inspect the active branch, PR, exact head and workflow logs;
 - read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `ROADMAP.md`, `LOCAL_SPECIALIST_INFERENCE.md`, `ACTIVE_VISUAL_GROUNDING.md`, `STAGE25_TARGET_BENCHMARKS.md` and `DEVELOPMENT_PRINCIPLES.md`;
 - preserve the five-tool semantic contract and single-owner/fail-closed regressions while deliberately versioning any future vision action surface;
-- run locally accessible acceptance directly;
-- use the user only for real ordinary-Chat UI/custom-app or other irreducible target-machine gates;
+- distinguish CI/local deterministic tests from real target-machine model acceptance;
+- use the user only for irreducible target-machine or ordinary-Chat UI gates;
 - never claim an ordinary-Chat or target-machine test unless that exact path actually ran;
 - preserve/reconcile local uncommitted work rather than discarding it.
