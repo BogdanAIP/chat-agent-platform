@@ -402,7 +402,7 @@ function Assert-SharedRuntimeFree {
 
     $details = [System.Collections.Generic.List[string]]::new()
     if ($portListeners.Count -gt 0) {
-        $details.Add("port $McpPort: $(Get-McpPortDiagnostic)")
+        $details.Add("port ${McpPort}: $(Get-McpPortDiagnostic)")
     }
     if ($directProcesses.Count -gt 0) {
         $details.Add("semantic-direct: $(Get-DirectTunnelDiagnostic)")
