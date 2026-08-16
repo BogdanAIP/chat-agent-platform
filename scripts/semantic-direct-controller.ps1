@@ -3,6 +3,9 @@ param(
     [ValidateSet('Start', 'Stop', 'Toggle', 'Status')]
     [string]$Action = 'Status',
 
+    [ValidateSet('semantic', 'semantic-direct')]
+    [string]$Profile,
+
     [string]$FilesRoot,
 
     [switch]$NoNotify
@@ -34,6 +37,33 @@ function Initialize-Directories {
     foreach ($path in @($StateDir, $LogDir)) {
         New-Item -ItemType Directory -Force -Path $path | Out-Null
     }
+}
+
+function Get-EffectiveProfileName {
+    if (-not [string]::IsNullOrWhiteSpace($Profile)) {
+        return [string]$Profile
+    }
+
+    if (Test-Path -LiteralPath $MainSettingsFile -PathType Leaf) {
+        try {
+            $settings = Get-Content -LiteralPath $MainSettingsFile -Raw | ConvertFrom-Json
+            if (
+                $null -ne $settings.PSObject.Properties['profile'] -and
+                [string]$settings.profile -in @('semantic', 'semantic-direct')
+            ) {
+                return [string]$settings.profile
+            }
+        }
+        catch {
+            # Keep the controller independently inspectable even if shared
+            # settings are temporarily unavailable or malformed.
+        }
+    }
+
+    # `semantic-direct` remains a compatibility/diagnostic alias for the
+    # Stage 24.1 implementation. The public manager promotes `semantic` by
+    # passing or persisting that profile explicitly.
+    return 'semantic-direct'
 }
 
 function Get-ConfiguredFilesRoot {
@@ -71,7 +101,7 @@ function Get-ConfiguredFilesRoot {
         }
     }
 
-    throw 'semantic-direct requires FilesRoot. Configure the semantic-direct profile first.'
+    throw 'Direct semantic transport requires FilesRoot. Configure the semantic profile first.'
 }
 
 function Resolve-TunnelId {
@@ -248,8 +278,9 @@ function Save-DirectState {
     )
 
     [ordered]@{
-        schema_version = 2
+        schema_version = 3
         pid = $ProcessId
+        profile = Get-EffectiveProfileName
         files_root = $Root
         tunnel_id = $TunnelId
         semantic_entry = $SemanticEntry
@@ -299,10 +330,12 @@ function Stop-DirectRuntime {
 
 function Start-DirectRuntime {
     Initialize-Directories
+    $profileName = Get-EffectiveProfileName
 
     if (Test-DirectReady) {
         Write-Host 'SEMANTIC_DIRECT_STATUS=ready'
         Write-Host 'SEMANTIC_DIRECT_1MCP_USED=False'
+        Write-Host "SEMANTIC_PROFILE=$profileName"
         return
     }
 
@@ -316,7 +349,7 @@ function Start-DirectRuntime {
 
     $listeners = @(Get-PortListeners)
     if ($listeners.Count -gt 0) {
-        throw "Local MCP port $McpPort is occupied. Refusing semantic-direct startup until the baseline runtime is stopped."
+        throw "Local MCP port $McpPort is occupied. Refusing direct semantic startup until the 1MCP-backed runtime is stopped."
     }
 
     if (-not (Test-Path -LiteralPath $TunnelExe -PathType Leaf)) {
@@ -408,11 +441,12 @@ function Start-DirectRuntime {
         }
 
         Stop-DirectRuntime
-        throw "semantic-direct tunnel did not become ready within 45 seconds. $stderrTail"
+        throw "Direct semantic tunnel did not become ready within 45 seconds. $stderrTail"
     }
 
     Write-Host 'SEMANTIC_DIRECT_STATUS=ready'
     Write-Host 'SEMANTIC_DIRECT_1MCP_USED=False'
+    Write-Host "SEMANTIC_PROFILE=$profileName"
     Write-Host "SEMANTIC_DIRECT_FILES_ROOT=$root"
     Write-Host "SEMANTIC_DIRECT_TUNNEL_PID=$($process.Id)"
 }
@@ -424,11 +458,18 @@ function Get-DirectStatusObject {
     $portConflict = (@(Get-PortListeners).Count -gt 0)
     $conflict = ($processes.Count -gt 1 -or $portConflict)
     $root = $null
+    $profileName = Get-EffectiveProfileName
 
     if (Test-Path -LiteralPath $DirectStateFile -PathType Leaf) {
         try {
             $state = Get-Content -LiteralPath $DirectStateFile -Raw | ConvertFrom-Json
             $root = [string]$state.files_root
+            if (
+                $null -ne $state.PSObject.Properties['profile'] -and
+                [string]$state.profile -in @('semantic', 'semantic-direct')
+            ) {
+                $profileName = [string]$state.profile
+            }
         }
         catch {
             $conflict = $true
@@ -454,13 +495,13 @@ function Get-DirectStatusObject {
         tunnel_running = $running
         tunnel_ready = ($ready -and -not $conflict)
         mcp_ready = ($ready -and -not $conflict)
-        active_profile = if ($running) { 'semantic-direct' } else { $null }
+        active_profile = if ($running) { $profileName } else { $null }
         active_count = if ($running) { 1 } else { 0 }
         conflict = $conflict
         local_root = $LocalRoot
         tunnel_binding = 'direct-stdio'
         settings = [pscustomobject]@{
-            profile = 'semantic-direct'
+            profile = $profileName
             files_root = $root
             tunnel_profile = 'direct-stdio'
         }
