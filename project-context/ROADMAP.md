@@ -32,19 +32,9 @@ web_interact
 
 Real ordinary-Chat multi-backend E2E passed through one `Chat Local Bridge Test` app.
 
-Stage 24 transport baseline was:
+## Stage 24.1 — Direct semantic tunnel A/B — DONE
 
-```text
-ordinary ChatGPT
-  -> five semantic typed actions
-  -> Secure MCP Tunnel
-  -> official tunnel-client
-  -> local 1MCP
-  -> semantic-projection
-  -> replaceable task-active backends
-```
-
-## Stage 24.1 — Direct semantic tunnel A/B — PROMOTION IN FINAL RELEASE GATE
+Squash-merged to `main` on 2026-08-16 as `df1d5e232b739b62e72ad81e5d82fd01be53e884` from PR #70.
 
 Goal: remove the unnecessary intermediate 1MCP hop from the **normal semantic request path** while retaining 1MCP as internal replaceable infrastructure where its aggregation/lifecycle features remain useful.
 
@@ -60,20 +50,19 @@ Tunnel -> stdio semantic-projection
 
 This was not a response to a proven 1MCP failure. Stage 24 proved A works. B was selected because it passed equivalent functional/reliability gates and was materially simpler/faster on the target machine.
 
-### Stage 24.1 gates
+### Stage 24.1 accepted evidence
 
-1. **DONE:** Windows direct semantic tunnel CI with modern MCP negotiation and exact five-tool inventory.
-2. **DONE:** Target Windows direct-tunnel test with real Filesystem + Playwright and negative cases.
-3. **DONE:** Existing Secure MCP Tunnel hosted direct semantic path with `DIRECT_SEMANTIC_1MCP_USED=False`.
-4. **DONE:** Existing Chat app Refresh and exact same five semantic actions.
-5. **DONE:** Real ordinary-Chat read -> browser observe/interact -> write -> independent read workflow.
-6. **DONE:** First-class public-manager direct profile, shared ownership/fail-closed handling and clean Start/Status/Stop/Start lifecycle.
-7. **DONE:** Forced tunnel-client crash recovery and duplicate-free idempotent repeated Start.
-8. **DONE:** Target A/B lifecycle comparison, 3/3 healthy cycles on both transports.
-9. **IN PROGRESS:** promote normal public `semantic` to direct stdio, run final CI and target normal-semantic profile-routing smoke.
-10. **PENDING:** merge PR #70, update the stable LocalAppData manager bundle from `main`, verify final status, then mark Stage 24.1 DONE.
-
-The final target smoke does not repeat ordinary-Chat tool semantics unless exported actions change; that E2E already passed on the same direct server surface.
+- Windows direct semantic tunnel CI with modern MCP negotiation and exact five-tool inventory;
+- target Windows direct-tunnel test with real Filesystem + Playwright and negative cases;
+- existing Secure MCP Tunnel hosted direct semantic path with `DIRECT_SEMANTIC_1MCP_USED=False`;
+- existing Chat app Refresh and exact same five semantic actions;
+- real ordinary-Chat read -> browser observe/interact -> write -> independent read workflow;
+- first-class public-manager direct profile, shared ownership/fail-closed handling and clean Start/Status/Stop/Start lifecycle;
+- forced tunnel-client crash recovery and duplicate-free idempotent repeated Start;
+- target A/B lifecycle comparison, 3/3 healthy cycles on both transports;
+- normal public `semantic` promotion smoke;
+- exact promotion-head and post-merge `main` workflows all green;
+- stable LocalAppData installation updated from `main` with matching SHA256 for public manager/direct controller/semantic projection and `STAGE24_1_PERSISTENT_INSTALL=PASS`.
 
 ### Target A/B evidence
 
@@ -87,35 +76,104 @@ The final target smoke does not repeat ordinary-Chat tool semantics unless expor
 
 Direct was approximately 24.70x faster to start, 17.25x faster on repeated Start and 22.29x faster to stop in this sample.
 
-### Promotion boundary
-
-Normal public `semantic` now targets:
+### Accepted normal semantic path
 
 ```text
 ordinary ChatGPT
   -> Secure MCP Tunnel
   -> official tunnel-client
   -> stdio semantic-projection
-  -> task-active backends
+  -> task-active backends / focused adapters
 ```
 
-`semantic-direct` remains temporarily as a compatibility/diagnostic alias. The legacy 1MCP-backed semantic implementation remains internal diagnostic/A-B evidence. Do not delete 1MCP from the project.
+`semantic-direct` remains temporarily as a compatibility/diagnostic alias. The legacy 1MCP-backed semantic implementation remains internal diagnostic/A-B evidence. 1MCP stays in the project.
 
-### Non-goals
-
-- do not turn semantic-projection into a generic gateway/registry;
-- do not add a second planner;
-- do not change the five-tool Chat-facing semantics merely to accommodate transport work.
-
-## Stage 25 — Local specialist inference runtime + `local-vision`
+## Stage 25 — Local specialist inference runtime + `local-vision` — ACTIVE
 
 Goal: add local model-powered perception without adding a second planner/agent brain.
 
-Evaluate LM Studio/`llmster` first as replaceable local inference infrastructure. Benchmark model discovery, memory estimation before load, hardware-aware variant/offload selection, JIT/load behavior, TTL/auto-evict/unload and clean process lifecycle.
+### Runtime candidate
 
-Benchmark `LiquidAI/LFM2.5-VL-3B` first for screen/UI understanding, OCR/document/chart work, grounding and representative image/frame tasks. Select actual model variant/quantization from target-machine measurement rather than assumption.
+Evaluate LM Studio/`llmster` first as replaceable local inference infrastructure.
 
-Keep the Chat-facing vision surface small and semantic, initially targeting operations such as `vision_analyze`, `vision_compare`, `vision_extract` and `vision_analyze_frames`.
+Current official LM Studio capabilities match the required lifecycle boundary:
+
+- Windows headless `llmster` without GUI dependency;
+- `lms` model discovery/load/unload/server lifecycle;
+- memory estimation before load via `lms load --estimate-only`;
+- configurable GPU offload, context length and TTL;
+- JIT loading and automatic eviction/unload;
+- local loopback HTTP server;
+- OpenAI-compatible image chat.
+
+Benchmark model discovery, resource estimation, hardware-aware load settings, JIT/explicit load behavior, TTL/auto-evict/unload, status/metrics and clean process lifecycle.
+
+### Model candidates
+
+Correct an earlier documentation error: the current official Liquid AI LFM2.5-VL collection does **not** contain `LiquidAI/LFM2.5-VL-3B`.
+
+Start current-generation evaluation with:
+
+1. `LiquidAI/LFM2.5-VL-1.6B` / GGUF — first preferred candidate;
+2. `LiquidAI/LFM2.5-VL-450M` / GGUF — lightweight comparison;
+3. `LiquidAI/LFM2-VL-3B` / GGUF — older-generation larger comparison if target hardware makes it useful.
+
+Liquid AI's official LFM2.5-VL-1.6B model card describes improved multilingual vision understanding, multi-image/high-resolution/OCR behavior, 32,768-token context and native/GGUF/ONNX/MLX forms. It is intended for general VLM/OCR/document comprehension rather than knowledge-intensive work.
+
+Select actual model/format/quantization from target-machine quality + speed + memory evidence, not parameter count or assumption.
+
+### Representative Stage 25 benchmark set
+
+Benchmark at least:
+
+- UI/screenshot understanding and element/state description;
+- OCR and document comprehension/extraction;
+- chart/graph interpretation with numeric/text labels;
+- multi-image comparison and change description;
+- representative video-frame/image sequence analysis;
+- structured extraction where a deterministic schema is useful;
+- negative/adversarial cases such as missing image, unsupported path/type, oversized inputs and malformed runtime response.
+
+Record:
+
+- cold runtime/model startup;
+- memory estimate before load;
+- measured peak RAM/VRAM;
+- time to first token;
+- generation tokens/sec;
+- end-to-end task latency;
+- unload/eviction time;
+- crash/restart/cleanup behavior;
+- quality/correctness on the representative benchmark set.
+
+### Chat-facing capability boundary
+
+Do not expose LM Studio administration or arbitrary model invocation directly to Chat.
+
+Keep the semantic local-vision surface small. Candidate capability family:
+
+```text
+vision_analyze
+vision_compare
+vision_extract
+vision_analyze_frames
+```
+
+Before adding several actions, test whether one coherent `vision_analyze` contract with a bounded task mode/schema can cover representative work without becoming a generic hidden invocation endpoint. Any final API must remain truthful, typed and reviewable.
+
+Changing exported Chat actions requires Chat app Refresh/review and a new ordinary-Chat acceptance gate.
+
+### Stage 25 gates
+
+1. **ACTIVE:** verify/install LM Studio or standalone llmster on target Windows and capture exact runtime/CLI versions.
+2. **PENDING:** prove headless daemon + local server lifecycle and machine-readable model/status discovery.
+3. **PENDING:** benchmark memory estimation vs measured RAM/VRAM for selected candidate formats/quantizations.
+4. **PENDING:** benchmark representative VLM quality, latency and throughput.
+5. **PENDING:** select runtime/model/format policy from measurements and document rollback/replacement behavior.
+6. **PENDING:** implement the smallest deterministic local-vision adapter behind the semantic boundary.
+7. **PENDING:** add negative/security/process-lifecycle acceptance and keep manager single-owner rules intact where applicable.
+8. **PENDING:** expose the reviewed small typed vision capability, Refresh the Chat app and run one real ordinary-Chat workflow.
+9. **PENDING:** only then accept ADR-020/ADR-022 and mark Stage 25 DONE.
 
 Stage 25 is product-complete only when one replaceable runtime/model path passes target Windows acceptance and ordinary Chat uses it in a real workflow.
 
