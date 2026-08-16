@@ -7,6 +7,7 @@ on:
       - "scripts/semantic-projection-runtime.ps1"
       - "scripts/test-direct-semantic-tunnel.ps1"
       - "scripts/semantic-direct-experiment.ps1"
+      - "scripts/chat-platform.ps1"
       - ".github/workflows/direct-semantic-tunnel.yml"
       - "project-context/DIRECT_SEMANTIC_TUNNEL.md"
       - "project-context/DECISIONS.md"
@@ -20,6 +21,7 @@ on:
       - "scripts/semantic-projection-runtime.ps1"
       - "scripts/test-direct-semantic-tunnel.ps1"
       - "scripts/semantic-direct-experiment.ps1"
+      - "scripts/chat-platform.ps1"
       - ".github/workflows/direct-semantic-tunnel.yml"
   workflow_dispatch:
 
@@ -51,7 +53,8 @@ jobs:
 
           foreach ($script in @(
             'scripts/test-direct-semantic-tunnel.ps1',
-            'scripts/semantic-direct-experiment.ps1'
+            'scripts/semantic-direct-experiment.ps1',
+            'scripts/chat-platform.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -80,6 +83,49 @@ jobs:
           if ([string]$status.tunnel_binding -ne 'direct-stdio') {
             throw 'semantic-direct experiment status lost the direct-stdio binding marker.'
           }
+
+          $profileRoot = Join-Path $env:RUNNER_TEMP 'semantic-direct-manager-profile'
+          New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
+
+          & .\scripts\chat-platform.ps1 `
+            -Action SetProfile `
+            -Profile semantic-direct `
+            -FilesRoot $profileRoot `
+            -NoNotify
+          if ($LASTEXITCODE -ne 0) {
+            throw "Public manager semantic-direct SetProfile failed with exit code $LASTEXITCODE."
+          }
+
+          $managerStatus = .\scripts\chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+          if (
+            [string]$managerStatus.active_profile -ne '' -or
+            [int]$managerStatus.active_count -ne 0 -or
+            [bool]$managerStatus.tunnel_running -or
+            [bool]$managerStatus.mcp_ready
+          ) {
+            throw 'Fresh first-class semantic-direct manager status must remain stopped.'
+          }
+          if ([string]$managerStatus.tunnel_binding -ne 'direct-stdio') {
+            throw 'Public manager did not route semantic-direct status to the direct controller.'
+          }
+          if ([string]$managerStatus.settings.profile -ne 'semantic-direct') {
+            throw 'Public manager semantic-direct settings marker was not preserved.'
+          }
+          if ([string]$managerStatus.settings.files_root -ne [System.IO.Path]::GetFullPath($profileRoot)) {
+            throw 'Public manager semantic-direct FilesRoot drifted.'
+          }
+
+          & .\scripts\chat-platform.ps1 -Action SetProfile -Profile reference -NoNotify
+          if ($LASTEXITCODE -ne 0) {
+            throw "Public manager reference profile restore failed with exit code $LASTEXITCODE."
+          }
+
+          $restored = Get-Content -LiteralPath (Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\state\settings.json') -Raw | ConvertFrom-Json
+          if ([string]$restored.profile -ne 'reference' -or [string]$restored.tunnel_profile -ne 'local-1mcp') {
+            throw 'Public manager failed to restore the accepted reference binding after semantic-direct routing test.'
+          }
+
+          Write-Host 'SEMANTIC_DIRECT_MANAGER_ROUTING=PASS'
 
       - name: Install exact semantic projection dependencies
         shell: pwsh
