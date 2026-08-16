@@ -20,19 +20,19 @@ Accepted Windows candidates include Filesystem MCP `2026.7.10`, Microsoft Playwr
 
 Squash-merged to `main` on 2026-08-16 as `175d36236f80a1f99f091d4f031a1c6255f3652b` from PR #66.
 
-Accepted results include:
+Accepted results include standalone Windows management, DPAPI tunnel-key storage, verified official tunnel-client, least-privilege diagnostic profiles, adaptive 1MCP diagnostic lifecycle, one authoritative manager owner, occupied-port fail-closed behavior and the exact five-tool semantic projection:
 
-- standalone Windows bootstrap/manager/tray under LocalAppData;
-- DPAPI runtime-key storage and verified official tunnel-client;
-- direct least-privilege Filesystem/Browser diagnostics;
-- adaptive 1MCP lifecycle diagnostic infrastructure;
-- one authoritative installed/source manager owner and occupied-port fail-closed behavior;
-- measured action-snapshot pressure and rejection of opaque generic `tool_invoke` as the ordinary-Chat product surface;
-- exact five-tool semantic projection: `workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`;
-- real ordinary-Chat multi-backend semantic E2E through one `Chat Local Bridge Test` app;
-- final pre-merge head `87a8701b938a128901646d096e13142700cc109a` green across Chat Profile Acceptance, Semantic Projection Acceptance, CI, CodeQL, Module Candidate Acceptance and Secret History Scan.
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+```
 
-Accepted Stage 24 transport baseline:
+Real ordinary-Chat multi-backend E2E passed through one `Chat Local Bridge Test` app.
+
+Stage 24 transport baseline was:
 
 ```text
 ordinary ChatGPT
@@ -44,45 +44,63 @@ ordinary ChatGPT
   -> replaceable task-active backends
 ```
 
-## Stage 24.1 — Direct semantic tunnel A/B — IN PROGRESS
+## Stage 24.1 — Direct semantic tunnel A/B — PROMOTION IN FINAL RELEASE GATE
 
-Goal: determine whether the normal semantic request path can remove the intermediate 1MCP hop while retaining 1MCP as internal replaceable infrastructure where its aggregation/lifecycle features are useful.
+Goal: remove the unnecessary intermediate 1MCP hop from the **normal semantic request path** while retaining 1MCP as internal replaceable infrastructure where its aggregation/lifecycle features remain useful.
 
-A/B paths:
+Evaluated paths:
 
 ```text
-A — accepted baseline
+A — Stage 24 baseline
 Tunnel -> 1MCP -> semantic-projection
 
-B — candidate
+B — selected
 Tunnel -> stdio semantic-projection
 ```
 
-Candidate B is not a response to a proven 1MCP failure. Stage 24 proved Baseline A works. This stage evaluates whether B is simpler and at least as reliable.
-
-### Implemented first gate
-
-Branch `chat/direct-semantic-tunnel` adds:
-
-- direct-tunnel semantic MCP acceptance with modern protocol negotiation;
-- Windows PowerShell harness around official `tunnel-client dev proxy --mcp-command`;
-- Windows CI that downloads and verifies official `tunnel-client v0.0.11` before exercising the direct path;
-- explicit documentation preserving 1MCP as internal infrastructure.
+This was not a response to a proven 1MCP failure. Stage 24 proved A works. B was selected because it passed equivalent functional/reliability gates and was materially simpler/faster on the target machine.
 
 ### Stage 24.1 gates
 
-1. Windows direct semantic tunnel CI passes.
-2. Target Windows direct dev-proxy test passes with startup/operation timing captured.
-3. Integrate a reversible experimental direct semantic profile into the public manager without replacing the accepted baseline.
-4. Prove start/status/stop/recovery and preserve ownership/fail-closed regressions.
-5. Refresh the existing Chat app and confirm the exact same five semantic actions through Candidate B.
-6. Repeat the accepted real ordinary-Chat workflow: read -> browser observe/interact -> write -> independent read.
-7. Compare A/B startup, first-call latency, repeated calls, restart/cleanup and diagnostics.
-8. Promote B as normal `semantic` transport only if it is equivalent or better; otherwise retain A.
+1. **DONE:** Windows direct semantic tunnel CI with modern MCP negotiation and exact five-tool inventory.
+2. **DONE:** Target Windows direct-tunnel test with real Filesystem + Playwright and negative cases.
+3. **DONE:** Existing Secure MCP Tunnel hosted direct semantic path with `DIRECT_SEMANTIC_1MCP_USED=False`.
+4. **DONE:** Existing Chat app Refresh and exact same five semantic actions.
+5. **DONE:** Real ordinary-Chat read -> browser observe/interact -> write -> independent read workflow.
+6. **DONE:** First-class public-manager direct profile, shared ownership/fail-closed handling and clean Start/Status/Stop/Start lifecycle.
+7. **DONE:** Forced tunnel-client crash recovery and duplicate-free idempotent repeated Start.
+8. **DONE:** Target A/B lifecycle comparison, 3/3 healthy cycles on both transports.
+9. **IN PROGRESS:** promote normal public `semantic` to direct stdio, run final CI and target normal-semantic smoke.
+10. **PENDING:** merge PR #70, update the stable LocalAppData manager bundle from `main`, verify final status, then mark Stage 24.1 DONE.
+
+### Target A/B evidence
+
+| Metric | 1MCP baseline | Direct stdio |
+|---|---:|---:|
+| Average initial Start | 123685 ms | 5007 ms |
+| Average repeated/idempotent Start | 84119 ms | 4876 ms |
+| Average Stop | 23252 ms | 1043 ms |
+| Running port-3050 listener | 1 | 0 |
+| Healthy lifecycle cycles | 3/3 | 3/3 |
+
+Direct was approximately 24.70x faster to start, 17.25x faster on repeated Start and 22.29x faster to stop in this sample.
+
+### Promotion boundary
+
+Normal public `semantic` now targets:
+
+```text
+ordinary ChatGPT
+  -> Secure MCP Tunnel
+  -> official tunnel-client
+  -> stdio semantic-projection
+  -> task-active backends
+```
+
+`semantic-direct` remains temporarily as a compatibility/diagnostic alias. The legacy 1MCP-backed semantic implementation remains internal diagnostic/A-B evidence. Do not delete 1MCP from the project.
 
 ### Non-goals
 
-- do not delete 1MCP from the project;
 - do not turn semantic-projection into a generic gateway/registry;
 - do not add a second planner;
 - do not change the five-tool Chat-facing semantics merely to accommodate transport work.
