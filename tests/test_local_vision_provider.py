@@ -33,6 +33,14 @@ class LocalVisionProviderTests(unittest.TestCase):
         self.assertIn("between 0 and 63", prompt)
         self.assertIn("[left_id,top_id,right_id,bottom_id]", prompt)
 
+        refinement = build_mark_grid_prompt(
+            "open Gamma actions",
+            8,
+            refinement_with_overview=True,
+        )
+        self.assertIn("two images", refinement)
+        self.assertIn("Use the second image", refinement)
+
     def test_direct_parser_accepts_plain_fenced_and_single_wrapped_json(self):
         point = parse_direct_point_response(
             '{"found":true,"point":[1128,660]}',
@@ -137,12 +145,41 @@ class LocalVisionProviderTests(unittest.TestCase):
         self.assertEqual(payload["max_tokens"], 64)
         self.assertEqual(payload["messages"][0]["content"][0]["type"], "text")
         self.assertEqual(payload["messages"][0]["content"][1]["type"], "image_url")
+        self.assertEqual(len(payload["messages"][0]["content"]), 2)
         self.assertTrue(
             payload["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/png;base64,")
         )
         self.assertEqual(result.prompt_tokens, 200)
         self.assertEqual(result.completion_tokens, 12)
         self.assertEqual(result.total_tokens, 212)
+
+    def test_loopback_client_supports_bounded_two_image_refinement(self):
+        captured = {}
+
+        def fake_transport(url, body, timeout):
+            captured["body"] = json.loads(body.decode("utf-8"))
+            return {"choices": [{"message": {"content": "[3,3,4,9]"}}]}
+
+        client = LlamaCppLoopbackClient(port=3063, transport=fake_transport)
+        first = encode_image_data_uri(b"overview")
+        second = encode_image_data_uri(b"zoom")
+        result = client.chat_with_images(
+            image_data_uris=(first, second),
+            prompt="refine target",
+            max_tokens=32,
+        )
+
+        content = captured["body"]["messages"][0]["content"]
+        self.assertEqual([part["type"] for part in content], ["text", "image_url", "image_url"])
+        self.assertEqual(content[1]["image_url"]["url"], first)
+        self.assertEqual(content[2]["image_url"]["url"], second)
+        self.assertEqual(result.content, "[3,3,4,9]")
+
+        with self.assertRaises(VisionProviderError):
+            client.chat_with_images(
+                image_data_uris=(first, second, first),
+                prompt="too many images",
+            )
 
     def test_loopback_client_rejects_non_data_image_reference(self):
         client = LlamaCppLoopbackClient(
