@@ -49,6 +49,39 @@ def encode_image_data_uri(image_bytes: bytes, mime_type: str = "image/png") -> s
     return f"data:{mime_type};base64,{encoded}"
 
 
+def direct_point_response_schema() -> dict[str, Any]:
+    """Return the bounded JSON schema used for Direct grounding generation."""
+
+    return {
+        "type": "object",
+        "properties": {
+            "found": {"type": "boolean"},
+            "point": {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 2,
+                "maxItems": 2,
+            },
+        },
+        "required": ["found"],
+        "additionalProperties": False,
+    }
+
+
+def mark_grid_response_schema(grid_size: int = DEFAULT_GRID_SIZE) -> dict[str, Any]:
+    """Return an exact-four-ID JSON schema for Mark-Grid generation."""
+
+    if isinstance(grid_size, bool) or not isinstance(grid_size, int) or grid_size < 2:
+        raise VisionProviderError("grid_size must be an integer >= 2")
+    max_id = grid_size * grid_size - 1
+    return {
+        "type": "array",
+        "items": {"type": "integer", "minimum": 0, "maximum": max_id},
+        "minItems": 4,
+        "maxItems": 4,
+    }
+
+
 def build_direct_point_prompt(target: str, image_width: int, image_height: int) -> str:
     """Build the reviewed one-pass point-grounding benchmark prompt."""
 
@@ -244,6 +277,18 @@ def _validate_image_data_uris(image_data_uris: Sequence[str]) -> tuple[str, ...]
     return values
 
 
+def _validate_response_schema(response_schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    if response_schema is None:
+        return None
+    if not isinstance(response_schema, dict) or not response_schema:
+        raise VisionProviderError("response_schema must be a non-empty JSON schema object")
+    try:
+        json.dumps(response_schema, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise VisionProviderError("response_schema must be JSON serializable") from exc
+    return response_schema
+
+
 class LlamaCppLoopbackClient:
     """Small internal client for an already-running loopback llama.cpp server."""
 
@@ -272,8 +317,10 @@ class LlamaCppLoopbackClient:
         image_data_uris: Sequence[str],
         prompt: str,
         max_tokens: int = 128,
+        response_schema: dict[str, Any] | None = None,
     ) -> VisionChatResult:
         images = _validate_image_data_uris(image_data_uris)
+        schema = _validate_response_schema(response_schema)
         if not isinstance(prompt, str) or not prompt.strip():
             raise VisionProviderError("prompt must be non-empty text")
         if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or not (1 <= max_tokens <= 1024):
@@ -285,13 +332,22 @@ class LlamaCppLoopbackClient:
             for image_uri in images
         )
 
-        payload = {
+        payload: dict[str, Any] = {
             "model": "local",
             "messages": [{"role": "user", "content": content}],
             "temperature": 0,
             "max_tokens": max_tokens,
         }
-        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        if schema is not None:
+            # llama.cpp /v1/chat/completions supports schema-constrained JSON via
+            # response_format. The schema constrains generation; the reviewed
+            # prompt still explains the intended semantics to the model.
+            payload["response_format"] = {
+                "type": "json_object",
+                "schema": schema,
+            }
+
+        body = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
         response = self._transport(self._url, body, self._timeout_seconds)
 
         try:
@@ -322,9 +378,11 @@ class LlamaCppLoopbackClient:
         image_data_uri: str,
         prompt: str,
         max_tokens: int = 128,
+        response_schema: dict[str, Any] | None = None,
     ) -> VisionChatResult:
         return self.chat_with_images(
             image_data_uris=(image_data_uri,),
             prompt=prompt,
             max_tokens=max_tokens,
+            response_schema=response_schema,
         )
