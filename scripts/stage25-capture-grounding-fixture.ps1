@@ -124,6 +124,27 @@ function Get-RenderedFixture {
     }
 }
 
+function Get-PngDimensions {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $png = [System.IO.File]::ReadAllBytes($Path)
+    if ($png.Length -lt 24) {
+        throw "PNG is too small: $Path"
+    }
+    $signature = @(137,80,78,71,13,10,26,10)
+    for ($i = 0; $i -lt $signature.Count; $i++) {
+        if ([int]$png[$i] -ne $signature[$i]) {
+            throw "Invalid PNG signature: $Path"
+        }
+    }
+
+    return [pscustomobject]@{
+        Bytes = $png.Length
+        Width = (([int]$png[16] -shl 24) -bor ([int]$png[17] -shl 16) -bor ([int]$png[18] -shl 8) -bor [int]$png[19])
+        Height = (([int]$png[20] -shl 24) -bor ([int]$png[21] -shl 16) -bor ([int]$png[22] -shl 8) -bor [int]$png[23])
+    }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $fixturePath = Join-Path $repoRoot 'tests\fixtures\stage25_grounding_fixture.html'
 $casesPath = Join-Path $repoRoot 'tests\fixtures\stage25_grounding_cases.json'
@@ -183,10 +204,11 @@ $dumpProfileRoot = Join-Path $OutputRoot 'browser-profile-dump'
 $screenshotProfileRoot = Join-Path $OutputRoot 'browser-profile-screenshot'
 $dumpPath = Join-Path $OutputRoot 'fixture-dom.html'
 $geometryPath = Join-Path $OutputRoot 'fixture-geometry.json'
+$rawScreenshotPath = Join-Path $OutputRoot 'fixture-raw.png'
 $screenshotPath = Join-Path $OutputRoot 'fixture.png'
 $stderrPath = Join-Path $OutputRoot 'browser.stderr.log'
 
-Remove-Item -LiteralPath $dumpPath,$geometryPath,$screenshotPath,$stderrPath -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $dumpPath,$geometryPath,$rawScreenshotPath,$screenshotPath,$stderrPath -Force -ErrorAction SilentlyContinue
 
 $spec = Get-Content -LiteralPath $casesPath -Raw -Encoding utf8 | ConvertFrom-Json
 $expectedWidth = [int]$spec.viewport.width
@@ -308,7 +330,7 @@ $screenshotArguments = @(
         -WindowHeight $windowHeight)
 ) + @(
     '--run-all-compositor-stages-before-draw',
-    "--screenshot=$screenshotPath",
+    "--screenshot=$rawScreenshotPath",
     $fixtureUri
 )
 
@@ -328,27 +350,72 @@ if ($screenshotResult.ExitCode -ne 0) {
     throw "Browser screenshot capture failed with exit code $($screenshotResult.ExitCode)"
 }
 
-if (-not (Test-Path -LiteralPath $screenshotPath -PathType Leaf)) {
-    throw 'Browser did not create the fixture screenshot.'
+if (-not (Test-Path -LiteralPath $rawScreenshotPath -PathType Leaf)) {
+    throw 'Browser did not create the raw fixture screenshot.'
 }
 
-$png = [System.IO.File]::ReadAllBytes($screenshotPath)
-if ($png.Length -lt 24) {
-    throw 'Fixture screenshot is too small to be a valid PNG.'
+$rawInfo = Get-PngDimensions -Path $rawScreenshotPath
+Write-Host "SCREENSHOT_RAW_SIZE=$($rawInfo.Width)x$($rawInfo.Height)"
+
+if ($rawInfo.Width -lt $expectedWidth -or $rawInfo.Height -lt $expectedHeight) {
+    throw 'Raw screenshot is smaller than the verified browser viewport.'
 }
-$pngSignature = @(137,80,78,71,13,10,26,10)
-for ($i = 0; $i -lt $pngSignature.Count; $i++) {
-    if ([int]$png[$i] -ne $pngSignature[$i]) {
-        throw 'Fixture screenshot does not have a valid PNG signature.'
+
+# On Windows new-headless Edge the CLI screenshot follows calibrated outer
+# window dimensions. The verified content viewport starts at source-image 0,0,
+# so crop the top-left viewport rectangle. Validate known fixture colors below
+# to fail closed if that origin assumption ever changes.
+Add-Type -AssemblyName System.Drawing
+$sourceBitmap = $null
+$targetBitmap = $null
+$graphics = $null
+try {
+    $sourceBitmap = [System.Drawing.Bitmap]::new($rawScreenshotPath)
+    $targetBitmap = [System.Drawing.Bitmap]::new(
+        $expectedWidth,
+        $expectedHeight,
+        [System.Drawing.Imaging.PixelFormat]::Format24bppRgb
+    )
+    $graphics = [System.Drawing.Graphics]::FromImage($targetBitmap)
+    $graphics.DrawImage(
+        $sourceBitmap,
+        [System.Drawing.Rectangle]::new(0, 0, $expectedWidth, $expectedHeight),
+        [System.Drawing.Rectangle]::new(0, 0, $expectedWidth, $expectedHeight),
+        [System.Drawing.GraphicsUnit]::Pixel
+    )
+    $targetBitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
+}
+finally {
+    if ($graphics) { $graphics.Dispose() }
+    if ($targetBitmap) { $targetBitmap.Dispose() }
+    if ($sourceBitmap) { $sourceBitmap.Dispose() }
+}
+
+$finalInfo = Get-PngDimensions -Path $screenshotPath
+if ($finalInfo.Width -ne $expectedWidth -or $finalInfo.Height -ne $expectedHeight) {
+    throw "Final screenshot dimensions are $($finalInfo.Width)x$($finalInfo.Height), expected ${expectedWidth}x${expectedHeight}."
+}
+
+# Pixel sentinels prove that DOM coordinates and cropped screenshot coordinates
+# share the same origin. They are deliberately sampled from solid-color centers.
+$verificationBitmap = [System.Drawing.Bitmap]::new($screenshotPath)
+try {
+    $alertPixel = $verificationBitmap.GetPixel(1218, 34)
+    $sendPixel = $verificationBitmap.GetPixel(1128, 660)
+
+    $alertMatch = ($alertPixel.R -gt 150 -and $alertPixel.G -lt 100 -and $alertPixel.B -lt 100)
+    $sendMatch = ($sendPixel.B -gt 150 -and $sendPixel.R -lt 100 -and $sendPixel.G -gt 60)
+
+    Write-Host "ALERT_SENTINEL_RGB=$($alertPixel.R),$($alertPixel.G),$($alertPixel.B)"
+    Write-Host "SEND_SENTINEL_RGB=$($sendPixel.R),$($sendPixel.G),$($sendPixel.B)"
+    Write-Host "SCREENSHOT_COORDINATE_ALIGNMENT=$($alertMatch -and $sendMatch)"
+
+    if (-not $alertMatch -or -not $sendMatch) {
+        throw 'Screenshot pixel sentinels do not align with verified DOM coordinates.'
     }
 }
-
-$pngWidth = ([int]$png[16] -shl 24) -bor ([int]$png[17] -shl 16) -bor ([int]$png[18] -shl 8) -bor [int]$png[19]
-$pngHeight = ([int]$png[20] -shl 24) -bor ([int]$png[21] -shl 16) -bor ([int]$png[22] -shl 8) -bor [int]$png[23]
-
-Write-Host "SCREENSHOT_RAW_SIZE=${pngWidth}x${pngHeight}"
-if ($pngWidth -ne $expectedWidth -or $pngHeight -ne $expectedHeight) {
-    throw "Screenshot dimensions are ${pngWidth}x${pngHeight}, expected ${expectedWidth}x${expectedHeight}."
+finally {
+    $verificationBitmap.Dispose()
 }
 
 $hash = (Get-FileHash -LiteralPath $screenshotPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -356,7 +423,7 @@ $hash = (Get-FileHash -LiteralPath $screenshotPath -Algorithm SHA256).Hash.ToLow
 Write-Host "`n===== FIXTURE CAPTURE RESULT =====" -ForegroundColor Green
 Write-Host "VERIFIED_TARGET_COUNT=$verifiedCount"
 Write-Host "SCREENSHOT=$screenshotPath"
-Write-Host "SCREENSHOT_BYTES=$($png.Length)"
-Write-Host "SCREENSHOT_SIZE=${pngWidth}x${pngHeight}"
+Write-Host "SCREENSHOT_BYTES=$($finalInfo.Bytes)"
+Write-Host "SCREENSHOT_SIZE=$($finalInfo.Width)x$($finalInfo.Height)"
 Write-Host "SCREENSHOT_SHA256=$hash"
 Write-Host 'STAGE25_GROUNDING_FIXTURE_BROWSER=PASS'
