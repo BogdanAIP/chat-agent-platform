@@ -13,6 +13,7 @@ $ProgressPreference = "SilentlyContinue"
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $SourceControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
+$SourceDirectControllerPath = Join-Path $PSScriptRoot "semantic-direct-controller.ps1"
 $SourceCommandPath = Join-Path $PSScriptRoot "chat-platform.ps1"
 $SourceTrayPath = Join-Path $PSScriptRoot "chat-platform-tray.ps1"
 
@@ -29,6 +30,7 @@ $InstallMetadata = Join-Path $StateDir "tunnel-client-install.json"
 $AppInstallMetadata = Join-Path $StateDir "manager-install.json"
 $CommandPath = Join-Path $AppScriptsDir "chat-platform.ps1"
 $ControllerPath = Join-Path $AppScriptsDir "chat-platform-controller.ps1"
+$DirectControllerPath = Join-Path $AppScriptsDir "semantic-direct-controller.ps1"
 $TrayPath = Join-Path $AppScriptsDir "chat-platform-tray.ps1"
 
 $McpUrl = "http://127.0.0.1:3050/mcp"
@@ -88,7 +90,12 @@ function Assert-WindowsEnvironment {
     }
     Write-Host "ONE_MCP=$OneMcpPackage"
 
-    foreach ($source in @($SourceControllerPath, $SourceCommandPath, $SourceTrayPath)) {
+    foreach ($source in @(
+        $SourceControllerPath,
+        $SourceDirectControllerPath,
+        $SourceCommandPath,
+        $SourceTrayPath
+    )) {
         if (-not (Test-Path -LiteralPath $source)) {
             throw "Manager source script is missing: $source"
         }
@@ -553,6 +560,7 @@ function Install-ManagerBundle {
         "status-chat-profile.ps1",
         "stop-chat-profile.ps1",
         "chat-platform-controller.ps1",
+        "semantic-direct-controller.ps1",
         "chat-platform.ps1",
         "chat-platform-tray.ps1"
     )
@@ -615,7 +623,7 @@ function Install-ManagerBundle {
     Assert-InstalledAdaptiveRuntime
     Assert-InstalledSemanticRuntimeSource
 
-    foreach ($installed in @($CommandPath, $ControllerPath, $TrayPath)) {
+    foreach ($installed in @($CommandPath, $ControllerPath, $DirectControllerPath, $TrayPath)) {
         if (-not (Test-Path -LiteralPath $installed)) {
             throw "Installed manager script is missing after bundle copy: $installed"
         }
@@ -672,7 +680,7 @@ function Invoke-ManagerAction {
         [ValidateSet("Start", "Stop")]
         [string]$Action,
 
-        [ValidateSet("reference", "files-readonly", "browser-isolated", "semantic", "adaptive")]
+        [ValidateSet("reference", "files-readonly", "browser-isolated", "semantic", "semantic-direct", "adaptive")]
         [string]$Profile
     )
 
