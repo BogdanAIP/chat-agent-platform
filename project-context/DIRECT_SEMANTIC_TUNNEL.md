@@ -1,6 +1,6 @@
 # Direct Semantic Tunnel Binding — A/B Experiment
 
-Status: **WINDOWS CI ACCEPTED; target-machine and ordinary-Chat promotion pending**.
+Status: **WINDOWS CI + target-machine direct tunnel ACCEPTED; hosted ordinary-Chat and manager promotion pending**.
 
 ## Goal
 
@@ -77,35 +77,42 @@ DIRECT_SEMANTIC_1MCP_USED=False
 DIRECT_SEMANTIC_TUNNEL=PASS
 ```
 
-This proves, through the official tunnel-client path and without a 1MCP runtime:
+The initial CI attempt exposed Windows command-string quoting in the test harness. The harness was changed to match the official wrapper's shell-quoting convention and to surface tunnel stdout/stderr on startup failure. The subsequent run passed. This was a harness defect, not a semantic-runtime failure.
 
-1. modern MCP era negotiation succeeds through `server/discover`;
-2. exactly five Chat-facing semantic tools are visible;
-3. raw Filesystem/Playwright and generic meta-tools do not leak;
-4. `workspace_read` and `workspace_write` execute against a scoped workspace;
-5. path traversal remains rejected;
-6. `web_open`, `web_observe` and `web_interact` execute through real Playwright;
-7. tunnel-client can own the semantic projection directly over stdio on Windows.
+The installed-tunnel auto-detection path is also regression-covered: the workflow installs the verified tunnel binary into `%LOCALAPPDATA%\ChatAgentPlatform\bin\tunnel-client.exe` and invokes the same test command used on the target machine without an explicit `-TunnelExe` argument.
 
-The first CI attempt exposed Windows command-string quoting in the test harness. The harness was changed to match the official wrapper's shell-quoting convention and to surface tunnel stdout/stderr on startup failure. The subsequent run passed. This was a harness defect, not a semantic-runtime failure.
+## Target Windows machine gate — PASSED
 
-## Target-machine command
+The real target Windows machine ran commit `28b9f07084806c120aefc2259764def0e380b075` from an isolated detached worktree while the accepted installed platform remained untouched.
 
-On a machine with the accepted official tunnel-client installed:
+Observed target-machine pass markers:
 
-```powershell
-.\scripts\test-direct-semantic-tunnel.ps1
+```text
+DIRECT_SEMANTIC_PROTOCOL_ERA=modern
+DIRECT_SEMANTIC_TOOL_COUNT=5
+DIRECT_SEMANTIC_FILESYSTEM=PASS
+DIRECT_SEMANTIC_BROWSER=PASS
+DIRECT_SEMANTIC_NEGATIVE_CASES=PASS
+DIRECT_SEMANTIC_CONNECT_MS=305
+DIRECT_SEMANTIC_TUNNEL_ACCEPTANCE=PASS
+DIRECT_SEMANTIC_TUNNEL_EXE=C:\Users\eahra\AppData\Local\ChatAgentPlatform\bin\tunnel-client.exe
+DIRECT_SEMANTIC_STARTUP_MS=372
+DIRECT_SEMANTIC_ACCEPTANCE_MS=7341
+DIRECT_SEMANTIC_1MCP_USED=False
+DIRECT_SEMANTIC_TUNNEL=PASS
 ```
 
-This test uses a temporary workspace and the tunnel-client local test control plane. It does not modify the production tunnel configuration, stop the accepted installed semantic profile or require a hosted control-plane API key.
+The temporary workspace and dev-proxy listener were cleaned up by the harness. The accepted hosted semantic profile was not reconfigured by this test.
+
+This target result proves that the already-installed official tunnel-client binary can launch and use the semantic projection directly over stdio on the actual Windows host, with the same five-tool contract and real Filesystem + Playwright operations, without 1MCP.
 
 ## Remaining promotion gates
 
 Candidate B is not the default product path until all of the following pass:
 
 1. **DONE:** Windows CI direct-tunnel acceptance;
-2. target-machine direct-tunnel acceptance with startup/operation timing recorded;
-3. public manager integration can start/status/stop the direct semantic path without weakening single-owner/fail-closed behavior;
+2. **DONE:** target-machine direct-tunnel acceptance with startup/operation timing recorded;
+3. reversible public-manager/hosted-tunnel integration can start/status/stop the direct semantic path without weakening single-owner/fail-closed behavior;
 4. ordinary Chat refresh sees the same exact five semantic actions through the existing tunnel/app;
 5. the same real multi-backend ordinary-Chat workflow passes through Candidate B;
 6. regression comparison shows no material loss in reliability or diagnostics;
