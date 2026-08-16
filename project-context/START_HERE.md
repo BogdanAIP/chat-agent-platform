@@ -24,9 +24,10 @@ ordinary ChatGPT Chat
 - active PR: **#66 — Stage 24: standalone Windows bootstrap and lifecycle manager**;
 - active development branch: `chat/stage24-local-controller`;
 - latest accepted functional head: `aa6bc034c1ecb36af469ecf78959a243526e2af3`;
-- on that exact functional head all six PR workflows passed: Chat Profile Acceptance `31809532439`, Semantic Projection Acceptance `31809532437`, CI `31809532435`, CodeQL Security `31809532455`, Module Candidate Acceptance `31809532466` and Secret History Scan `31809532482`.
+- on that exact functional head all six PR workflows passed: Chat Profile Acceptance `31809532439`, Semantic Projection Acceptance `31809532437`, CI `31809532435`, CodeQL Security `31809532455`, Module Candidate Acceptance `31809532466` and Secret History Scan `31809532482`;
+- on 2026-08-16 the installed target-machine bundle carrying that unchanged semantic runtime also passed the remaining real ordinary-Chat semantic promotion gate through the normal manager + Secure MCP Tunnel path.
 
-Later documentation-only commits do not imply additional runtime acceptance. Always re-check the current PR HEAD and workflows before editing or reporting status.
+Later documentation-only commits do not imply additional runtime acceptance. Always re-check the current PR HEAD and workflows before editing or reporting final status.
 
 ## What is already accepted
 
@@ -37,7 +38,8 @@ Later documentation-only commits do not imply additional runtime acceptance. Alw
 - one ordinary-Chat session successfully used typed Filesystem and Playwright actions together through the same `Chat Local Bridge Test` app: scoped file read/write plus browser navigate/find/click;
 - app permission mechanics were measured separately: `Allow read actions` produced a one-time approval card for isolated write; `Allow all actions` allowed sequential typed read/navigate/write without confirmation;
 - installed/source manager ownership passes target-machine handoff/status/stop acceptance and fail-closed handling for an unrelated listener on fixed port `3050`;
-- the fixed five-tool semantic projection now passes real Filesystem + Playwright acceptance, real 1MCP profile lifecycle, public-manager recognition and standalone installed-layout execution outside the source checkout.
+- the fixed five-tool semantic projection passes real Filesystem + Playwright acceptance, real 1MCP profile lifecycle, public-manager recognition and standalone installed-layout execution outside the source checkout;
+- the same five-tool semantic projection is now **ordinary-Chat product accepted**: in one real Chat session `workspace_read` returned `SEMANTIC_FINAL_INPUT_20260816`, browser semantic tools navigated from `example.com` through the observed `Learn more` link to IANA `Example Domains`, `workspace_write` created `result.txt`, and `workspace_read` verified the exact two-line result.
 
 ## What Stage 24 discovered
 
@@ -46,6 +48,8 @@ Later documentation-only commits do not imply additional runtime acceptance. Alw
 Switching the local direct profile did not automatically replace an already-scanned Chat action snapshot. A fresh scan/new Chat was required to see the changed typed surface.
 
 Current OpenAI documentation likewise describes ChatGPT MCP app tools as a frozen reviewed snapshot: later MCP tool changes are not automatically enabled. Therefore local 1MCP filtering/presets alone cannot make an already-scanned ordinary-Chat app dynamically acquire new typed tools.
+
+During the final semantic promotion on 2026-08-16, Refresh/Create initially failed in the Chat UI while the local manager, MCP and tunnel were healthy. After the Chat app/plugin itself updated, the existing `Chat Local Bridge Test` refreshed successfully and the semantic E2E passed without changing the accepted runtime. Treat that incident as transient Chat-side compatibility evidence, not as proof of a local semantic-runtime defect.
 
 ### 2. The generic adaptive meta-tool contract is not the product surface
 
@@ -63,9 +67,9 @@ After reducing Filesystem to 4 typed actions while keeping Playwright, local inv
 
 This is evidence of an **effective ~20-action snapshot truncation in the tested app configuration**, not an officially documented universal OpenAI limit. Do not hard-code 20 as a platform constant.
 
-### 4. The measured scaling mechanism is now a fixed semantic projection
+### 4. The measured scaling mechanism is the accepted fixed semantic projection
 
-Stage 24 now has a concrete deterministic compatibility boundary rather than a provisional architecture sketch:
+Stage 24 has a concrete deterministic compatibility boundary:
 
 ```text
 ordinary ChatGPT
@@ -80,7 +84,7 @@ ordinary ChatGPT
 
 The projection is not a planner, registry, workflow engine or renamed arbitrary dispatcher. Chat-facing arguments cannot select an arbitrary MCP server or arbitrary downstream tool.
 
-The five-tool surface is locally/CI accepted. The remaining product gate is real ordinary Chat through the refreshed custom app.
+The five-tool surface is locally/CI accepted **and** real ordinary-Chat accepted on the target machine.
 
 ### 5. OpenAI safety is context-sensitive beyond app permission mode
 
@@ -96,7 +100,7 @@ The public manager now coordinates installed/source copies through shared `manag
 
 ## Accepted semantic surface
 
-Exactly five semantic tools are the current product candidate:
+Exactly five semantic tools are the Stage 24 product surface:
 
 - `workspace_read` -> roots/read_text/search only;
 - `workspace_write` -> scoped text create/overwrite only;
@@ -124,7 +128,7 @@ ordinary ChatGPT
   -> replaceable task-active backends
 ```
 
-Direct profiles remain diagnostics/fallback. Adaptive remains useful lifecycle/CI infrastructure. The semantic projection is the current Stage 24 product candidate.
+Direct profiles remain diagnostics/fallback. Adaptive remains useful lifecycle/CI infrastructure. The semantic projection is the accepted Stage 24 product boundary.
 
 ## Acceptance ownership
 
@@ -134,13 +138,13 @@ Ordinary ChatGPT UI/custom-app acceptance is intentionally different. When a gat
 
 A local MCP client, mock, Codex-only browser test or narrower integration test must never be reported as an ordinary-Chat E2E pass.
 
-## Remaining Stage 24 gates
+## Final Stage 24 completion gates
 
-1. refresh/update the installed target-machine bundle to the accepted semantic functional head and start the `semantic` profile through the normal manager + Secure MCP Tunnel path;
-2. refresh/scan `Chat Local Bridge Test` and prove that ordinary Chat sees the stable five-tool semantic snapshot;
-3. ordinary Chat completes a useful multi-backend semantic workflow without raw backend tools, generic `tool_invoke`, one app per backend or routine per-operation Refresh;
-4. synchronize docs/PR evidence with the exact final functional head and confirm the final CI/security suite is green;
-5. only then mark Stage 24 complete and merge/integrate into `main`.
+The functional/runtime and real ordinary-Chat gates are complete. Remaining work is repository integration only:
+
+1. synchronize final docs/PR evidence with the exact accepted functional head and the 2026-08-16 ordinary-Chat result;
+2. confirm the resulting PR HEAD is green across the final CI/security/acceptance suite;
+3. then mark Stage 24 complete and merge/integrate into `main`.
 
 ## Local specialist inference after Stage 24
 
