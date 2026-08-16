@@ -102,20 +102,29 @@ LM Studio/`llmster` remains the first runtime-manager candidate. Current officia
 
 This makes LM Studio a strong candidate for replaceable local inference infrastructure, not product identity.
 
-### Corrected current model candidate
+### Current model candidates
 
-Earlier project docs named `LiquidAI/LFM2.5-VL-3B`. Current official Liquid AI listings do not expose that LFM2.5 model name.
+`LiquidAI/LFM2.5-VL-3B` is an official Liquid AI release from 2026-08-12. Direct official evidence is recorded in `LOCAL_SPECIALIST_INFERENCE.md`: Liquid AI release blog, Liquid Docs model page, official Hugging Face model repository and WebGPU demo.
 
-Current official LFM2.5-VL family includes:
+Stage 25 model roles are:
 
-- `LiquidAI/LFM2.5-VL-1.6B` / GGUF;
-- `LiquidAI/LFM2.5-VL-450M` / GGUF.
+- **preferred quality candidate:** `LiquidAI/LFM2.5-VL-3B`;
+- middle comparison: `LiquidAI/LFM2.5-VL-1.6B`;
+- **first target-machine runtime candidate:** `LiquidAI/LFM2.5-VL-450M-GGUF` Q4.
 
-`LiquidAI/LFM2-VL-3B` exists as the previous LFM2 generation.
+The current target laptop has:
 
-Therefore the first preferred current-generation `local-vision` candidate is now `LiquidAI/LFM2.5-VL-1.6B`. The older `LFM2-VL-3B` may be benchmarked as a comparison candidate. No model/runtime is accepted until target Windows hardware evidence exists.
+```text
+CPU=11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz
+LOGICAL_CPUS=8
+RAM_GB=7.68
+GPU=Intel(R) Iris(R) Xe Graphics
+WINDOWS_REPORTED_VRAM_GB=0.12
+```
 
-Liquid AI describes LFM2.5-VL-1.6B as a 32,768-context general-purpose VLM with improved high-resolution/multi-image/OCR behavior and publishes native, GGUF, ONNX and MLX forms. The model card recommends it for general vision-language workloads, OCR and document comprehension rather than knowledge-intensive tasks.
+Because this machine is memory-constrained and has integrated Intel graphics, local test order is intentionally 450M Q4 → 1.6B Q4 → 3B only after `estimate-only` and measured free-memory checks. This is a hardware-safe test order, not a quality ranking.
+
+No model/runtime is accepted until target Windows hardware evidence exists.
 
 ## Stage 25 acceptance work
 
