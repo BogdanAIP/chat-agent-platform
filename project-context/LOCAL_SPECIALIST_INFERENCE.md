@@ -160,6 +160,24 @@ Observed completion marker:
 STAGE25_LFM25_VL_3B_ARTIFACT_PROBE=PASS
 ```
 
+### Target GGUF file-level metadata probe — PASSED 2026-08-16
+
+The target machine queried file-level HEAD metadata before downloading. Hugging Face returned stable repository commit `3e0e828198e2abb75a957ad823f5d691c13f0f28`, exact linked sizes and 64-hex linked ETags for both selected artifacts:
+
+```text
+LFM2.5-VL-3B-Q4_K_M.gguf
+  size = 1674454240 bytes (1.559 GiB)
+  sha256 = 83c18dfba02c75769cdd63f73e37c343400e82d434ff1b14bcc1cb02fcf2f5f2
+
+mmproj-LFM2.5-VL-3B-Q8_0.gguf
+  size = 583109120 bytes (0.543 GiB)
+  sha256 = 8ba27050dc88737db66b856d3b74e0e6cf54bee35fa4d9d9808f69ee556bbd43
+```
+
+Marker: `STAGE25_GGUF_HEAD_METADATA=PASS`.
+
+The file-level metadata path is therefore sufficient to verify these fresh Xet-backed artifacts after download even though `repo_info(...?blobs=true)` did not expose `siblings[].lfs.oid` in the earlier script.
+
 ## Current candidate set
 
 Stage 25 separates preferred model quality from fallback/comparison choices:
@@ -304,4 +322,4 @@ Do not select a candidate from parameter count or throughput alone.
 
 Do not change the Chat-facing action surface first.
 
-The next target-machine step is to establish a working local runtime for the official 3B `Q4_K_M` GGUF path, record free memory and estimate/measure load cost with conservative context settings, then execute a small real vision request. LM Studio/llmster remains the preferred runtime-manager candidate; raw llama.cpp remains a useful direct compatibility/benchmark fallback because the official GGUF README targets it explicitly. Only after the GGUF path has measured evidence should Stage 25 spend time on ONNX/OpenVINO A/B or public semantic integration.
+The next target-machine step is to download the exact verified `Q4_K_M` + Q8 projector files, validate both SHA256 values and sizes against the file-level metadata above, then record free memory before any model load. After that, establish a working local runtime for this exact artifact pair with conservative context settings and execute a small real vision request. LM Studio/llmster remains the preferred runtime-manager candidate; raw llama.cpp remains a useful direct compatibility/benchmark fallback because the official GGUF README targets it explicitly. Only after the GGUF path has measured evidence should Stage 25 spend time on ONNX/OpenVINO A/B or public semantic integration.
