@@ -11,6 +11,11 @@ param(
     [switch]$NoNotify
 )
 
+# The legacy 1MCP-backed controller deliberately keeps its accepted profile
+# selector unchanged; semantic-direct is intercepted by this public manager
+# before that controller is called:
+# [ValidateSet("reference", "files-readonly", "browser-isolated", "semantic", "adaptive")]
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
