@@ -271,14 +271,14 @@ function Test-DirectReady {
 
 function Save-DirectState {
     param(
-        [Parameter(Mandatory)] [int]$Pid,
+        [Parameter(Mandatory)] [int]$ProcessId,
         [Parameter(Mandatory)] [string]$Root,
         [Parameter(Mandatory)] [string]$TunnelId,
         [Parameter(Mandatory)] [string]$SemanticEntry
     )
     [ordered]@{
         schema_version = 1
-        pid = $Pid
+        pid = $ProcessId
         files_root = $Root
         tunnel_id = $TunnelId
         semantic_entry = $SemanticEntry
@@ -430,7 +430,7 @@ function Start-DirectRuntime {
         $apiKey = $null
     }
 
-    Save-DirectState -Pid $process.Id -Root $root -TunnelId $tunnelId -SemanticEntry $semanticEntry
+    Save-DirectState -ProcessId $process.Id -Root $root -TunnelId $tunnelId -SemanticEntry $semanticEntry
 
     $ready = $false
     for ($i = 0; $i -lt 180; $i++) {
