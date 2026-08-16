@@ -71,6 +71,7 @@
   .sidebar .one { top: 28px; }
   .sidebar .two { top: 76px; }
   .sidebar .three { top: 124px; }
+  #stage25-fixture-export { display: none; }
 </style>
 </head>
 <body>
@@ -100,6 +101,7 @@
   <button id="cancel-button" class="footer-button">Cancel</button>
   <button id="send-primary" class="footer-button">Send</button>
 </div>
+<pre id="stage25-fixture-export" aria-hidden="true"></pre>
 <script>
   window.__stage25Fixture = {
     viewport: { width: 1280, height: 720 },
@@ -110,6 +112,7 @@
       })
     )
   };
+  document.getElementById("stage25-fixture-export").textContent = JSON.stringify(window.__stage25Fixture);
 </script>
 </body>
 </html>
