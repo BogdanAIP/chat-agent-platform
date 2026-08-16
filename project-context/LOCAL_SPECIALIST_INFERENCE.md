@@ -96,6 +96,47 @@ Direct official sources supplied for the release:
 
 The release blog explicitly announces `LFM2.5-VL-3B` and the official model repository exposes the weights under that exact identifier.
 
+### Target live Hugging Face probe — PASSED 2026-08-16
+
+A direct Hugging Face API probe from the target Windows machine confirmed the fresh release without relying on stale search indexing:
+
+```text
+MODEL_ID=LiquidAI/LFM2.5-VL-3B
+PIPELINE_TAG=image-text-to-text
+LIBRARY_NAME=transformers
+LAST_MODIFIED=2026-08-13
+PRIVATE=False
+GATED=False
+model.safetensors=5.818 GB
+STAGE25_LFM25_VL_3B_LIVE_PROBE=PASS
+```
+
+The official base-model README returned by the target machine explicitly links:
+
+- `LiquidAI/LFM2.5-VL-3B-GGUF` — quantized GGUF exports, described as suitable for CPU inference with reduced memory through llama.cpp;
+- `LiquidAI/LFM2.5-VL-3B-ONNX` — quantized ONNX exports for cross-platform/hardware-accelerated deployment;
+- MLX variants for Apple Silicon;
+- the official `LFM2.5-VL-3B-WebGPU` demo.
+
+The live Hugging Face search response also exposed the fresh official repositories/variants:
+
+```text
+LiquidAI/LFM2.5-VL-3B
+LiquidAI/LFM2.5-VL-3B-GGUF
+LiquidAI/LFM2.5-VL-3B-ONNX
+LiquidAI/LFM2.5-VL-3B-MLX-4bit
+LiquidAI/LFM2.5-VL-3B-MLX-5bit
+LiquidAI/LFM2.5-VL-3B-MLX-6bit
+LiquidAI/LFM2.5-VL-3B-MLX-8bit
+LiquidAI/LFM2.5-VL-3B-MLX-bf16
+```
+
+The first probe printed `MATCH_COUNT=1` while concatenating all repo IDs into one line. This is a PowerShell/JSON-shape handling bug in the probe, not evidence that Hugging Face returned one model. The follow-up must query the known GGUF and ONNX repository IDs explicitly rather than iterate that malformed aggregate object.
+
+The WebGPU Space reported `RUNNING` on Hugging Face `cpu-basic`. Do **not** interpret that as evidence that the 3B model runs server-side on a CPU-basic instance: the demo is WebGPU-oriented and inference may execute in the browser/client. It proves the demo is live, not target-laptop feasibility.
+
+The unquantized 5.818 GB safetensors checkpoint is not a sensible first runtime artifact on the 7.68 GB target. Stage 25 should inspect the official GGUF/ONNX quantized artifacts next and compare their real file/resource requirements before installing or loading a model.
+
 ## Current candidate set
 
 Stage 25 separates preferred model quality from target-hardware feasibility:
