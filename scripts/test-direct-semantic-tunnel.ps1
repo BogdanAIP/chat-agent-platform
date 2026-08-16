@@ -14,6 +14,40 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $runtimeHelper = Join-Path $PSScriptRoot 'semantic-projection-runtime.ps1'
 $directTest = Join-Path $repoRoot 'runtime\semantic-projection\tests\direct-tunnel-acceptance.mjs'
 
+function ConvertTo-McpCommandPart {
+    param([Parameter(Mandatory)] [string]$Value)
+
+    # Match the official tunnel-client wrapper convention: values containing
+    # spaces or Windows path separators are shell-quoted before being passed as
+    # one --mcp-command string. The target paths are project/runtime paths and
+    # are not expected to contain an apostrophe; reject that rare case rather
+    # than generating ambiguous command text.
+    if ($Value -match '^[A-Za-z0-9_/:=.,@%+-]+$') {
+        return $Value
+    }
+    if ($Value.Contains("'")) {
+        throw "Direct semantic MCP command path contains an unsupported apostrophe: $Value"
+    }
+    return "'$Value'"
+}
+
+function Get-ExitedProcessDiagnostic {
+    param(
+        [Parameter(Mandatory)] $Process,
+        [Parameter(Mandatory)] $StdoutTask,
+        [Parameter(Mandatory)] $StderrTask
+    )
+
+    $stdout = ($StdoutTask.GetAwaiter().GetResult() | Out-String).Trim()
+    $stderr = ($StderrTask.GetAwaiter().GetResult() | Out-String).Trim()
+    return (
+        "exit_code={0}`n--- tunnel stdout ---`n{1}`n--- tunnel stderr ---`n{2}" -f
+        $Process.ExitCode,
+        $stdout,
+        $stderr
+    )
+}
+
 if (-not (Test-Path -LiteralPath $runtimeHelper -PathType Leaf)) {
     throw "Semantic runtime helper is missing: $runtimeHelper"
 }
@@ -62,8 +96,13 @@ New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
 
 $connectionFile = Join-Path $tempRoot 'connection.json'
 $healthUrlFile = Join-Path $tempRoot 'health.url'
-$mcpCommand = '"{0}" "{1}"' -f $node, $semanticEntry
+$mcpCommand = @(
+    ConvertTo-McpCommandPart -Value $node
+    ConvertTo-McpCommandPart -Value $semanticEntry
+) -join ' '
 $process = $null
+$stdoutTask = $null
+$stderrTask = $null
 $startupWatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 try {
@@ -71,6 +110,8 @@ try {
     $startInfo.FileName = $TunnelExe
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
     $startInfo.Environment['CHAT_LOCAL_FILES_ROOT'] = $workspace
 
     foreach ($argument in @(
@@ -92,11 +133,14 @@ try {
     if (-not $process.Start()) {
         throw 'Could not start tunnel-client dev proxy.'
     }
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
 
     $deadline = (Get-Date).AddSeconds($ReadyTimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
         if ($process.HasExited) {
-            throw "tunnel-client dev proxy exited before readiness with code $($process.ExitCode)."
+            $diagnostic = Get-ExitedProcessDiagnostic -Process $process -StdoutTask $stdoutTask -StderrTask $stderrTask
+            throw "tunnel-client dev proxy exited before readiness.`n$diagnostic"
         }
         if ((Test-Path -LiteralPath $connectionFile -PathType Leaf) -and (Test-Path -LiteralPath $healthUrlFile -PathType Leaf)) {
             $healthBase = (Get-Content -LiteralPath $healthUrlFile -Raw).Trim().TrimEnd('/')
@@ -115,8 +159,12 @@ try {
         Start-Sleep -Milliseconds 250
     }
 
+    if ($process.HasExited) {
+        $diagnostic = Get-ExitedProcessDiagnostic -Process $process -StdoutTask $stdoutTask -StderrTask $stderrTask
+        throw "tunnel-client dev proxy exited during readiness.`n$diagnostic"
+    }
     if (-not (Test-Path -LiteralPath $connectionFile -PathType Leaf)) {
-        throw "Direct tunnel connection metadata was not written within $ReadyTimeoutSeconds seconds."
+        throw "Direct tunnel connection metadata was not written within $ReadyTimeoutSeconds seconds. MCP_COMMAND=$mcpCommand"
     }
     if (-not (Test-Path -LiteralPath $healthUrlFile -PathType Leaf)) {
         throw "Direct tunnel health URL was not written within $ReadyTimeoutSeconds seconds."
@@ -164,6 +212,12 @@ finally {
             if (-not $process.HasExited) {
                 $process.Kill($true)
                 $process.WaitForExit(10000) | Out-Null
+            }
+            if ($null -ne $stdoutTask -and $stdoutTask.IsCompleted) {
+                $unusedStdout = $stdoutTask.GetAwaiter().GetResult()
+            }
+            if ($null -ne $stderrTask -and $stderrTask.IsCompleted) {
+                $unusedStderr = $stderrTask.GetAwaiter().GetResult()
             }
         }
         catch {
