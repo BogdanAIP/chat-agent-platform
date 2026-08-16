@@ -10,6 +10,13 @@ import json
 from pathlib import Path
 import sys
 
+# Executing a script by path puts `scripts/` rather than the repository root on
+# sys.path. Add the repo root explicitly so the checked-out runtime package is
+# the only project code imported by this benchmark entrypoint.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from PIL import Image
 
 from runtime.local_vision_adapter.grounding_runner import (
