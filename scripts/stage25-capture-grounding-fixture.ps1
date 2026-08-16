@@ -275,8 +275,8 @@ foreach ($case in @($spec.cases)) {
     $observed = @(
         [double]$rect.x,
         [double]$rect.y,
-        [double]$rect.x + [double]$rect.width,
-        [double]$rect.y + [double]$rect.height
+        ([double]$rect.x + [double]$rect.width),
+        ([double]$rect.y + [double]$rect.height)
     )
 
     $matchBox = $true
