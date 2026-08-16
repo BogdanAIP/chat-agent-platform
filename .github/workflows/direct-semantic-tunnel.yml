@@ -7,6 +7,7 @@ on:
       - "scripts/semantic-projection-runtime.ps1"
       - "scripts/test-direct-semantic-tunnel.ps1"
       - "scripts/semantic-direct-experiment.ps1"
+      - "scripts/semantic-direct-controller.ps1"
       - "scripts/chat-platform.ps1"
       - ".github/workflows/direct-semantic-tunnel.yml"
       - "project-context/DIRECT_SEMANTIC_TUNNEL.md"
@@ -21,6 +22,7 @@ on:
       - "scripts/semantic-projection-runtime.ps1"
       - "scripts/test-direct-semantic-tunnel.ps1"
       - "scripts/semantic-direct-experiment.ps1"
+      - "scripts/semantic-direct-controller.ps1"
       - "scripts/chat-platform.ps1"
       - ".github/workflows/direct-semantic-tunnel.yml"
   workflow_dispatch:
@@ -54,6 +56,7 @@ jobs:
           foreach ($script in @(
             'scripts/test-direct-semantic-tunnel.ps1',
             'scripts/semantic-direct-experiment.ps1',
+            'scripts/semantic-direct-controller.ps1',
             'scripts/chat-platform.ps1'
           )) {
             $tokens = $null
@@ -68,12 +71,17 @@ jobs:
             }
           }
 
-          $directSource = Get-Content -LiteralPath 'scripts/semantic-direct-experiment.ps1' -Raw
-          if (
-            $directSource -match '(?im)\[int\]\s*\$Pid\b' -or
-            $directSource -match '(?i)Save-DirectState\s+-Pid\b'
-          ) {
-            throw 'semantic-direct must not bind a parameter named Pid because PowerShell automatic $PID is read-only.'
+          foreach ($directScript in @(
+            'scripts/semantic-direct-experiment.ps1',
+            'scripts/semantic-direct-controller.ps1'
+          )) {
+            $directSource = Get-Content -LiteralPath $directScript -Raw
+            if (
+              $directSource -match '(?im)\[int\]\s*\$Pid\b' -or
+              $directSource -match '(?i)Save-DirectState\s+-Pid\b'
+            ) {
+              throw "$directScript must not bind a parameter named Pid because PowerShell automatic `$PID is read-only."
+            }
           }
 
           $status = .\scripts\semantic-direct-experiment.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
@@ -82,6 +90,14 @@ jobs:
           }
           if ([string]$status.tunnel_binding -ne 'direct-stdio') {
             throw 'semantic-direct experiment status lost the direct-stdio binding marker.'
+          }
+
+          $managedStatus = .\scripts\semantic-direct-controller.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+          if ($managedStatus.tunnel_running -or $managedStatus.mcp_ready -or [int]$managedStatus.active_count -ne 0) {
+            throw 'Fresh managed semantic-direct status must be stopped.'
+          }
+          if ([string]$managedStatus.tunnel_binding -ne 'direct-stdio') {
+            throw 'Managed semantic-direct controller lost the direct-stdio binding marker.'
           }
 
           $profileRoot = Join-Path $env:RUNNER_TEMP 'semantic-direct-manager-profile'
@@ -96,6 +112,16 @@ jobs:
             throw "Public manager semantic-direct SetProfile failed with exit code $LASTEXITCODE."
           }
 
+          $installedController = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\app\scripts\semantic-direct-controller.ps1'
+          if (-not (Test-Path -LiteralPath $installedController -PathType Leaf)) {
+            throw 'Public manager did not install the managed semantic-direct controller into the stable app root.'
+          }
+          $sourceControllerHash = (Get-FileHash -LiteralPath 'scripts/semantic-direct-controller.ps1' -Algorithm SHA256).Hash
+          $installedControllerHash = (Get-FileHash -LiteralPath $installedController -Algorithm SHA256).Hash
+          if ($sourceControllerHash -ne $installedControllerHash) {
+            throw 'Installed managed semantic-direct controller hash differs from the reviewed source.'
+          }
+
           $managerStatus = .\scripts\chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
           if (
             [string]$managerStatus.active_profile -ne '' -or
@@ -106,7 +132,7 @@ jobs:
             throw 'Fresh first-class semantic-direct manager status must remain stopped.'
           }
           if ([string]$managerStatus.tunnel_binding -ne 'direct-stdio') {
-            throw 'Public manager did not route semantic-direct status to the direct controller.'
+            throw 'Public manager did not route semantic-direct status to the managed direct controller.'
           }
           if ([string]$managerStatus.settings.profile -ne 'semantic-direct') {
             throw 'Public manager semantic-direct settings marker was not preserved.'
