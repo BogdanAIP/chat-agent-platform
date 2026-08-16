@@ -65,6 +65,14 @@ jobs:
             }
           }
 
+          $directSource = Get-Content -LiteralPath 'scripts/semantic-direct-experiment.ps1' -Raw
+          if (
+            $directSource -match '(?im)\[int\]\s*\$Pid\b' -or
+            $directSource -match '(?i)Save-DirectState\s+-Pid\b'
+          ) {
+            throw 'semantic-direct must not bind a parameter named Pid because PowerShell automatic $PID is read-only.'
+          }
+
           $status = .\scripts\semantic-direct-experiment.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
           if ($status.tunnel_running -or $status.mcp_ready -or [int]$status.active_count -ne 0) {
             throw 'Fresh semantic-direct experiment status must be stopped.'
