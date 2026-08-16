@@ -187,12 +187,16 @@ The active branch now contains:
 - `project-context/ACTIVE_VISUAL_GROUNDING.md`;
 - `runtime/local_vision_adapter/mark_grid.py` — deterministic row-major grid, reference union semantics, crop/enlarge policy, two-pass remap and validation;
 - `runtime/local_vision_adapter/benchmark.py` — provider-neutral point-in-target, IoU, center-error, false-click and abstention scoring;
+- `runtime/local_vision_adapter/provider.py` — bounded reviewed Direct/Mark-Grid prompts, fail-closed result parsers, and fixed loopback llama.cpp transport;
 - `tests/test_mark_grid.py`;
 - `tests/test_grounding_benchmark.py`;
+- `tests/test_local_vision_provider.py`;
 - `tests/fixtures/stage25_grounding_fixture.html`;
-- `tests/fixtures/stage25_grounding_cases.json`.
+- `tests/fixtures/stage25_grounding_cases.json`;
+- `scripts/stage25-capture-grounding-fixture.ps1`;
+- Windows CI coverage for the browser fixture gate.
 
-The first controlled browser fixture is fixed at `1280 x 720` and covers:
+The controlled browser fixture is canonicalized to a `1280 x 720` content viewport and covers:
 
 - labeled primary button;
 - icon-only control;
@@ -201,22 +205,25 @@ The first controlled browser fixture is fixed at `1280 x 720` and covers:
 - enabled-vs-disabled visual state;
 - deliberately absent target for abstention/false-positive measurement.
 
-The fixture page exposes its DOM rectangles, while the companion metadata records expected boxes. A real browser/Playwright capture must still verify those two sources agree before any model score is accepted.
+### Browser fixture gate — PROVED
+
+Windows CI now renders the fixture with real installed Chromium/Edge, calibrates new-headless Windows outer-window dimensions to a real `1280 x 720` inner viewport, verifies every present target's actual `getBoundingClientRect()` against metadata, captures the screenshot, crops the calibrated outer capture to the content viewport, and verifies pixel sentinels so screenshot coordinates and DOM coordinates share the same origin.
+
+All five present target rectangles matched exactly in the observed run; the absent case stayed absent. This proves the deterministic fixture/capture/ground-truth machinery only. It does **not** yet prove Direct or Mark-Grid quality for LFM2.5-VL-3B.
 
 The public five semantic tools remain unchanged.
 
 ## Next dependency-valid Stage 25 work
 
-1. Let PR #72 CI verify the current deterministic geometry/metrics/fixtures.
-2. Browser-render the fixture and prove every metadata box against actual DOM/Playwright geometry.
-3. Add an internal provider-neutral inference request/response boundary using the already-proven local llama.cpp/LFM path.
-4. Run **Direct grounding** on the controlled fixture.
-5. Run the faithful **two-pass Mark-Grid** baseline on exactly the same cases.
-6. Compare point-in-target accuracy, false-click/abstain behavior, latency and memory on the target Windows machine.
-7. Only after Direct-vs-Mark-Grid evidence, test `grid -> crop -> direct bbox` and optional OCR/UI-landmark assistance.
-8. Define adaptive escalation and abstention thresholds from measured evidence.
-9. Add path/scope, malformed-result, timeout, runtime-failure and memory-pressure tests.
-10. Only then version the public semantic surface, refresh/review the Chat app and run fresh ordinary-Chat E2E acceptance.
+1. Finish/merge PR #72 only after the exact final head is green.
+2. Build the image overlay/crop renderer for the faithful Mark-Grid benchmark without exposing it as a public Chat tool.
+3. Run **Direct grounding** on the controlled fixture through the already-proven local llama.cpp/LFM2.5-VL-3B path.
+4. Run the faithful **two-pass Mark-Grid** baseline on exactly the same cases.
+5. Compare point-in-target accuracy, false-click/abstain behavior, latency and memory on the target Windows machine.
+6. Only after Direct-vs-Mark-Grid evidence, test `grid -> crop -> direct bbox` and optional OCR/UI-landmark assistance.
+7. Define adaptive escalation and abstention thresholds from measured evidence.
+8. Add remaining path/scope, timeout, runtime-failure and memory-pressure tests around the selected path.
+9. Only then version the public semantic surface, refresh/review the Chat app and run fresh ordinary-Chat E2E acceptance.
 
 ## Stage 25 quality measurements
 
