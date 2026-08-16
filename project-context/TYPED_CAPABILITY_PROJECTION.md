@@ -1,6 +1,6 @@
 # Stage 24 — Semantic Typed Capability Projection
 
-Status: **LOCAL/CI ACCEPTED; ordinary-Chat promotion pending**.
+Status: **PRODUCT ACCEPTED: local/CI + real ordinary Chat**.
 
 ## Why this boundary exists
 
@@ -28,7 +28,7 @@ ChatGPT remains the planner. 1MCP and downstream MCPs remain replaceable infrast
 
 ## Accepted Chat-facing surface
 
-Exactly five semantic tools are in the Stage 24 candidate surface:
+Exactly five semantic tools are the Stage 24 product surface:
 
 | Tool | Effect class | Closed downstream mapping |
 |---|---|---|
@@ -57,7 +57,7 @@ The official Filesystem MCP remains a second enforcement layer and receives only
 - `read_text`;
 - `search`.
 
-`workspace_write` initially supports only create/overwrite text through Filesystem `write_file`.
+`workspace_write` supports only create/overwrite text through Filesystem `write_file`.
 
 ## Browser boundary
 
@@ -112,10 +112,43 @@ The semantic acceptance proves:
 
 The installed layout contains the projection source/config and installs/verifies its exact dependencies inside the installed runtime. It does not copy checkout `node_modules`.
 
-## Remaining promotion gate
+## Real ordinary-Chat promotion evidence
 
-The projection is not yet Stage-24 product-accepted until **real ordinary Chat** proves the refreshed custom app exposes and can use the stable five-tool surface through the normal Secure MCP Tunnel path.
+On 2026-08-16 the target Windows machine ran the installed manager with:
 
-The required ordinary-Chat gate must demonstrate a useful multi-backend workflow using semantic tools such as `workspace_read` + `web_open`/`web_observe`/`web_interact` + `workspace_write`, without raw backend tools, generic `tool_invoke`, one app per backend or routine per-operation Refresh.
+```text
+ACTIVE_PROFILE=semantic
+MCP_READY=True
+TUNNEL_RUNNING=True
+TUNNEL_READY=True
+SEMANTIC_TOOL_COUNT=5
+```
 
-If that gate passes and the exact final functional head remains green with synchronized docs, Stage 24 can be accepted and merged to `main`.
+After refreshing the existing `Chat Local Bridge Test` app and opening a new ordinary Chat, the real product path completed the required sequential multi-backend workflow:
+
+1. `workspace_read` read `input.txt` and returned exactly `SEMANTIC_FINAL_INPUT_20260816`;
+2. `web_open` opened `https://example.com`;
+3. `web_observe` observed that the live page exposed `Learn more` rather than the earlier expected label;
+4. `web_interact` clicked that observed link;
+5. `web_observe` identified the resulting page title as `Example Domains`;
+6. `workspace_write` created `result.txt` containing the input value and page title;
+7. a final `workspace_read` independently verified the exact two-line file content:
+
+```text
+SEMANTIC_FINAL_INPUT_20260816
+Example Domains
+```
+
+The Chat used only the semantic surface. It did not use raw Filesystem/Playwright actions, generic `tool_invoke`, one app per backend, or a Refresh between individual operations.
+
+This satisfies the ordinary-Chat promotion requirement. The projection is therefore Stage-24 product accepted.
+
+A transient Refresh/Create failure occurred earlier the same day while the local manager, MCP and tunnel were healthy. After the Chat app/plugin updated, the existing app refreshed and the unchanged accepted runtime passed the E2E. That earlier UI failure must not be recorded as a proven defect in the semantic projection.
+
+## Remaining Stage 24 completion gate
+
+Only repository integration remains:
+
+1. keep final docs/PR evidence synchronized with the accepted functional head and the 2026-08-16 user-path result;
+2. confirm the resulting PR HEAD is green across final CI/security/acceptance checks;
+3. then merge/integrate Stage 24 into `main`.
