@@ -37,7 +37,8 @@ jobs:
             'scripts/chat-platform-controller.ps1',
             'scripts/chat-platform.ps1',
             'scripts/chat-platform-tray.ps1',
-            'scripts/bootstrap-chat-platform.ps1'
+            'scripts/bootstrap-chat-platform.ps1',
+            'scripts/stage25-capture-grounding-fixture.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -52,6 +53,12 @@ jobs:
         run: |
           python --version
           python -m unittest discover -s tests -p "test_*.py"
+
+      - name: Verify Stage 25 grounding browser fixture
+        shell: pwsh
+        run: |
+          ./scripts/stage25-capture-grounding-fixture.ps1 `
+            -OutputRoot (Join-Path $env:RUNNER_TEMP 'stage25-grounding-fixture')
 
       - name: Enforce harmless reference config
         shell: pwsh
