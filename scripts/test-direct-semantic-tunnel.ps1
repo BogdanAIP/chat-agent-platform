@@ -60,12 +60,15 @@ if ([string]::IsNullOrWhiteSpace($TunnelExe)) {
         (Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\bin\tunnel-client.exe'),
         (Join-Path $repoRoot 'runtime\openai-tunnel-client\tunnel-client.exe')
     )
-    $TunnelExe = @($candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
-    if ($TunnelExe.Count -eq 1) {
-        $TunnelExe = [string]$TunnelExe[0]
+    $detectedTunnelExe = $candidates |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
+
+    if ([string]::IsNullOrWhiteSpace([string]$detectedTunnelExe)) {
+        $TunnelExe = $null
     }
     else {
-        $TunnelExe = $null
+        $TunnelExe = [string]$detectedTunnelExe
     }
 }
 
