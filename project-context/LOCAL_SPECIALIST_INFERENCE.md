@@ -76,45 +76,35 @@ Target-specific benchmark order is therefore:
 
 1. `LiquidAI/LFM2.5-VL-450M-GGUF` Q4 first, to validate runtime/API/vision behavior with maximum memory margin;
 2. `LiquidAI/LFM2.5-VL-1.6B-GGUF` Q4 only after estimate-only and measured free-memory checks;
-3. older `LiquidAI/LFM2-VL-3B` only if the runtime estimator and observed headroom make it safe and useful.
+3. `LiquidAI/LFM2.5-VL-3B` / GGUF only if runtime estimation and observed headroom make it safe enough to benchmark.
+
+This small-to-large order is for the current laptop's memory safety. It is not a ranking of model quality.
 
 Because the target GPU is Intel Iris Xe integrated graphics, Stage 25 should not assume CUDA/NVIDIA behavior or trust Windows-reported `AdapterRAM` as usable dedicated VRAM. Benchmark CPU/automatic LM Studio placement first. In parallel research, keep ONNX Runtime + Intel OpenVINO as a replaceable runtime comparison for this hardware class because OpenVINO can target Intel CPU and integrated GPU. Do not add it to the product path unless measured evidence beats or materially complements the LM Studio path.
 
-## Model candidate correction
+## Official Liquid AI model release evidence
 
-Earlier project documents incorrectly named `LiquidAI/LFM2.5-VL-3B`.
+`LiquidAI/LFM2.5-VL-3B` is a real official Liquid AI release from 2026-08-12. The previous documentation edit that removed it was wrong because it relied on stale indexed model listings that had not yet incorporated the new release.
 
-Current official Liquid AI sources do not list that model name in the LFM2.5-VL family.
+Direct official sources supplied for the release:
 
-Primary sources:
+- Liquid AI release blog: https://www.liquid.ai/blog/lfm2-5-vl-3b
+- Liquid Docs model page: https://docs.liquid.ai/lfm/models/lfm25-vl-3b
+- Official Hugging Face model: https://huggingface.co/LiquidAI/LFM2.5-VL-3B
+- Official WebGPU demo: https://huggingface.co/spaces/LiquidAI/LFM2.5-VL-3B-WebGPU
+- Liquid AI X account: https://x.com/liquidai
 
-- LFM2.5-VL collection: https://huggingface.co/collections/LiquidAI/lfm25-vl
-- LFM2.5-VL-1.6B: https://huggingface.co/LiquidAI/LFM2.5-VL-1.6B
-- LFM2.5-VL-450M: https://huggingface.co/LiquidAI/LFM2.5-VL-450M
-- older LFM2-VL-3B: https://huggingface.co/LiquidAI/LFM2-VL-3B
+The release blog explicitly announces `LFM2.5-VL-3B` and the official model repository exposes the weights under that exact identifier.
 
-Current candidate set:
+## Current candidate set
 
-1. **Preferred current-generation quality candidate:** `LiquidAI/LFM2.5-VL-1.6B` / `LiquidAI/LFM2.5-VL-1.6B-GGUF`.
-2. **Target-first lightweight candidate:** `LiquidAI/LFM2.5-VL-450M` / GGUF.
-3. **Older larger comparison:** `LiquidAI/LFM2-VL-3B` / GGUF.
+Stage 25 separates preferred model quality from target-hardware feasibility:
 
-The older 3B model must not be mislabeled as LFM2.5.
+1. **Preferred quality candidate:** `LiquidAI/LFM2.5-VL-3B` and an official/compatible local quantization when available.
+2. **Middle current-generation comparison:** `LiquidAI/LFM2.5-VL-1.6B` / GGUF.
+3. **Target-first lightweight candidate:** `LiquidAI/LFM2.5-VL-450M` / GGUF Q4.
 
-## LFM2.5-VL-1.6B evidence
-
-Liquid AI's current model card describes:
-
-- 1.6B-class vision-language model built on the LFM2.5-1.2B base family;
-- 32,768-token context;
-- improved instruction following on visual/language tasks;
-- improved multi-image, high-resolution and OCR behavior;
-- native handling/tiling for larger images;
-- current native, GGUF, ONNX and MLX deployment forms;
-- intended use for general vision-language workloads, OCR and document comprehension;
-- explicit note that it is not intended for knowledge-intensive tasks.
-
-This is a good fit for a bounded local perception specialist, not for replacing ChatGPT reasoning.
+The final selected runtime/model/format may differ. No candidate is accepted from model naming, parameter count or marketing claims alone.
 
 ## Candidate public capability surface
 
