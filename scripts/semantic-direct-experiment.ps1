@@ -399,12 +399,12 @@ function Start-DirectRuntime {
             '--health.url-file', $HealthUrlFile
         )
 
-        $process = Start-Process \
-            -FilePath $TunnelExe \
-            -ArgumentList $arguments \
-            -WindowStyle Hidden \
-            -RedirectStandardOutput $StdoutLog \
-            -RedirectStandardError $StderrLog \
+        $process = Start-Process `
+            -FilePath $TunnelExe `
+            -ArgumentList $arguments `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput $StdoutLog `
+            -RedirectStandardError $StderrLog `
             -PassThru
     }
     finally {
