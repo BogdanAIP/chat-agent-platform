@@ -94,17 +94,17 @@ ChatGPT planner
 
 Первый runtime-manager кандидат: **LM Studio / `llmster`**. Текущая официальная документация LM Studio подтверждает headless `llmster`, `lms` lifecycle/model commands, memory estimate before load, GPU offload/context controls, TTL/JIT eviction, loopback HTTP server и OpenAI-compatible chat с изображениями.
 
-### Исправление кандидата Liquid AI
+### Кандидаты Liquid AI
 
-Предыдущая документация ошибочно называла **`LiquidAI/LFM2.5-VL-3B`**. В текущей официальной LFM2.5-VL коллекции Liquid AI такого имени нет.
+**`LiquidAI/LFM2.5-VL-3B` существует и является официальным релизом Liquid AI от 2026-08-12.** Прямые официальные источники релиза: блог Liquid AI, отдельная страница модели в Liquid Docs, официальный Hugging Face репозиторий весов и WebGPU demo space.
 
-Текущие кандидаты:
+Для Stage 25 разделяем «предпочтительный по качеству кандидат» и «первый кандидат для текущего ноутбука»:
 
-1. **`LiquidAI/LFM2.5-VL-1.6B` / GGUF** — первый preferred current-generation кандидат;
-2. `LiquidAI/LFM2.5-VL-450M` / GGUF — лёгкий вариант для сравнения;
-3. `LiquidAI/LFM2-VL-3B` / GGUF — более крупный, но предыдущего поколения LFM2.
+1. **`LiquidAI/LFM2.5-VL-3B`** — preferred quality candidate;
+2. `LiquidAI/LFM2.5-VL-1.6B` — средний current-generation вариант;
+3. **`LiquidAI/LFM2.5-VL-450M` / GGUF Q4** — первый target-machine кандидат из-за 7.68 ГБ RAM и Intel Iris Xe.
 
-`LFM2.5-VL-1.6B` официально позиционируется для general vision-language, OCR и document comprehension; модель имеет 32k context и публикуется в native/GGUF/ONNX/MLX вариантах.
+Порядок локального теста на текущем компьютере остаётся 450M Q4 → 1.6B Q4 → 3B только после `estimate-only` и проверки фактического запаса памяти. Это ограничение текущего железа, а не оценка качества модели.
 
 Ни LM Studio, ни конкретная VLM не считаются принятыми до реального target-Windows benchmark по качеству, скорости и памяти.
 
