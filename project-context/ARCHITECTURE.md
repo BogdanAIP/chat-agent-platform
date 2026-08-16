@@ -8,7 +8,7 @@ Specialized local inference is allowed as a replaceable capability backend when 
 
 ## Normal ordinary-Chat reachability path
 
-After Stage 24.1 promotion, the normal semantic path is:
+Stage 24.1 is complete. The normal semantic path is:
 
 ```text
 ordinary ChatGPT Chat
@@ -20,7 +20,7 @@ ordinary ChatGPT Chat
       -> local programs/files/devices/models
 ```
 
-The semantic projection is the stable five-tool Chat-facing compatibility boundary. Direct stdio removes 1MCP only from this normal critical path.
+The semantic projection is the stable five-tool Chat-facing compatibility boundary accepted in Stage 24. Direct stdio removes 1MCP only from the normal semantic critical path.
 
 1MCP remains replaceable internal infrastructure for adaptive lifecycle experiments, diagnostics, aggregation/inspection and future catalog/lifecycle cases where its features add measured value. Stage 24 proved the 1MCP semantic path works; Stage 24.1 selected direct stdio as a measured simplification, not a repair for a broken component.
 
@@ -34,7 +34,7 @@ Real Stage 24 evidence established five constraints:
 4. concrete typed Filesystem and Playwright actions work together through one ordinary-Chat app/conversation;
 5. the tested app showed effective action-snapshot pressure/truncation around 20 tools. That is measured behavior, not an official universal constant.
 
-Stage 24 then accepted the exact semantic surface:
+Stage 24 accepted the exact semantic surface:
 
 ```text
 workspace_read
@@ -63,7 +63,7 @@ Each exposed Chat-facing action must have a fixed truthful JSON schema, clear se
 
 Direct diagnostic profiles and adaptive 1MCP remain useful infrastructure, but their raw/generic contracts are not the normal Chat-facing scaling mechanism.
 
-## Stage 24.1 transport selection
+## Stage 24.1 transport selection — ACCEPTED
 
 The measured A/B paths were:
 
@@ -77,7 +77,7 @@ Tunnel -> stdio semantic-projection
 
 Candidate B passed Windows CI, target-machine real Filesystem/Playwright and negative cases, hosted Secure MCP Tunnel, ordinary-Chat five-tool E2E, first-class public-manager lifecycle, single-owner/fail-closed handling, forced-crash recovery and duplicate-free repeated Start.
 
-Both transports then completed 3/3 healthy lifecycle cycles on the target machine:
+Both transports completed 3/3 healthy lifecycle cycles on the target machine:
 
 | Metric | 1MCP baseline | Direct stdio |
 |---|---:|---:|
@@ -88,9 +88,9 @@ Both transports then completed 3/3 healthy lifecycle cycles on the target machin
 
 Direct stdio was approximately 24.70x faster to start, 17.25x faster on repeated Start and 22.29x faster to stop in this sample. This closed the transport A/B gate.
 
-Normal public `semantic` therefore routes through direct stdio. `semantic-direct` is retained temporarily as a compatibility/diagnostic alias during migration. The legacy 1MCP-backed semantic path may remain internally reachable for diagnostics/A-B evidence but is not the normal public route.
+Stage 24.1 was squash-merged as `df1d5e232b739b62e72ad81e5d82fd01be53e884`. The stable LocalAppData bundle was then updated from merged `main` and target acceptance passed with `STAGE24_1_PERSISTENT_INSTALL=PASS`, public `active_profile=semantic`, `tunnel_binding=direct-stdio`, one healthy active scope, no conflict and zero port-3050 listeners.
 
-Final Stage 24.1 release completion still requires green workflows on the exact promotion head, a target smoke of the normal public profile identity `semantic`, and stable LocalAppData bundle update after merge. That release smoke does not alter the already-accepted transport architecture.
+Normal public `semantic` therefore routes through direct stdio. `semantic-direct` is retained temporarily as a compatibility/diagnostic alias. The legacy 1MCP-backed semantic path may remain internally reachable for diagnostics/A-B evidence but is not the normal public route.
 
 ## Capability lifecycle model
 
@@ -103,6 +103,8 @@ Treat capability state as three independent questions:
 Default behavior should avoid running the whole catalog. Sequential activation is resource-efficient when stages are sequential, but concurrent backend activation is allowed when the real workflow requires it.
 
 This replaces the simplistic interpretation that Filesystem and Browser must never coexist. Real ordinary-Chat typed Filesystem + Browser use passed on synthetic scoped data through both the Stage 24 baseline and Stage 24.1 direct transport.
+
+Local model state follows the same separation: a model may be available on disk, not loaded; loaded only for a task; and callable only through a bounded authorized semantic operation.
 
 ## OpenAI permission/safety boundary
 
@@ -122,7 +124,7 @@ Prefer scoped resources, truthful typed actions, reversible workspaces/backups/g
 
 These provide deterministic acceptance/fallback boundaries. They are not a reason to expose one ChatGPT app per backend.
 
-## Windows management path — ACCEPTED AND EXTENDED
+## Windows management path — ACCEPTED
 
 ```text
 bootstrap
@@ -151,34 +153,102 @@ Rules:
 - takeover stops a foreign owner before starting a new one;
 - an unowned shared runtime fails closed;
 - for 1MCP-backed profiles, occupied port `3050` remains part of fail-closed ownership detection;
-- for direct semantic, the exact owned tunnel-client command/health state is the authoritative managed process boundary and port `3050` must remain unused.
+- for direct semantic, the exact owned tunnel-client command/health state is the authoritative managed process boundary and port `3050` remains unused.
 
 Stage 24.1 target acceptance proved normal lifecycle, forced-crash recovery and idempotent repeated Start for the direct semantic manager without duplicate processes.
 
-## Local specialist inference architecture — PROVISIONAL
+## Stage 25 local specialist inference architecture — ACTIVE / PROVISIONAL
 
-After Stage 24.1, add specialist local inference behind a stable capability boundary, not behind Chat as another planner.
+Stage 25 adds bounded specialist inference behind a stable capability boundary, not behind Chat as another planner.
 
-Preferred runtime-manager candidate: LM Studio/`llmster`.
-
-Target responsibilities:
+Target shape:
 
 ```text
-local capability request
-  -> model/runtime policy
-  -> LM Studio / llmster
-      -> discover local models/capabilities
-      -> estimate RAM/VRAM before load
-      -> select tested model variant / GPU offload
-      -> JIT or explicit load
-      -> TTL / auto-evict / unload
-  -> bounded specialist inference
-  -> typed result back to Chat
+ordinary ChatGPT planner
+  -> truthful typed local-vision operation
+  -> deterministic local-vision adapter
+      -> runtime policy / lifecycle
+      -> LM Studio / llmster candidate
+          -> selected local VLM
+  -> typed specialist result back to Chat
 ```
 
-LM Studio is replaceable infrastructure, not product identity. The platform must not hard-code one model or runtime.
+### Runtime boundary
 
-First preferred `local-vision` candidate: `LiquidAI/LFM2.5-VL-3B`. Candidate Chat-facing vision actions should remain few and semantic, for example `vision_analyze`, `vision_compare`, `vision_extract` and `vision_analyze_frames`. The exact API is not accepted until target-machine benchmarking proves runtime/model behavior.
+Preferred first runtime-manager candidate: LM Studio/`llmster`.
+
+Current official LM Studio capabilities directly match Stage 25 requirements:
+
+- `llmster` is a standalone headless daemon on Windows and does not require the GUI;
+- `lms` can discover, download, load, unload and inspect models and start/stop the local server;
+- `lms load --estimate-only` estimates memory before loading and accounts for context/GPU/vision settings;
+- load supports explicit GPU offload, context length and TTL;
+- JIT loading/eviction can load models on inference and auto-unload them after inactivity;
+- the local server binds to loopback by default;
+- OpenAI-compatible endpoints include `/v1/chat/completions` with text and images.
+
+Prefer the narrowest stable local API/CLI integration that gives deterministic lifecycle and metrics. LM Studio remains replaceable infrastructure, not product identity. Do not expose its administrative API/CLI directly to ordinary Chat.
+
+### Model boundary
+
+`LiquidAI/LFM2.5-VL-3B` is an official Liquid AI release dated 2026-08-12. Direct official evidence is recorded in `LOCAL_SPECIALIST_INFERENCE.md` from the Liquid AI release blog, Liquid Docs model page, official Hugging Face model repository and WebGPU demo.
+
+Stage 25 separates model quality preference from hardware-safe test order:
+
+- preferred quality candidate: `LiquidAI/LFM2.5-VL-3B`;
+- middle current-generation comparison: `LiquidAI/LFM2.5-VL-1.6B`;
+- first target-machine candidate: `LiquidAI/LFM2.5-VL-450M-GGUF` Q4.
+
+The target Windows laptop has 7.68 GB RAM and Intel Iris Xe integrated graphics, so benchmark order is 450M Q4 → 1.6B Q4 → 3B only after memory estimation and measured headroom. The small-first order is a resource-safety policy, not a claim that the smaller model is the preferred-quality model.
+
+### Chat-facing vision surface
+
+Do not publish LM Studio lifecycle/model administration as Chat tools.
+
+The product surface should remain small and semantic. Stage 25 should evaluate a capability family such as:
+
+```text
+vision_analyze
+vision_compare
+vision_extract
+vision_analyze_frames
+```
+
+The first public addition must be justified by real task coverage and action-snapshot pressure. Prefer one coherent semantic operation that can express the accepted representative tasks over several thin vendor-shaped commands. Any exported action change requires a fresh Chat app Refresh/review and ordinary-Chat acceptance.
+
+### Runtime/model policy
+
+The platform may deterministically:
+
+- list installed candidate models/capabilities;
+- estimate memory before load;
+- select only among locally reviewed model variants according to explicit benchmarked policy;
+- set recorded context/GPU-offload/TTL options;
+- load on demand or use accepted JIT behavior;
+- unload/evict after inactivity;
+- expose health, loaded model identity and resource metrics.
+
+It must not delegate user-goal planning to the local model, dynamically choose arbitrary downloaded models from the internet, or silently replace the planner.
+
+### Stage 25 acceptance dimensions
+
+Acceptance must measure both quality and operations on the target Windows machine:
+
+- model/runtime cold startup and load time;
+- time to first token and generation throughput;
+- peak RAM/VRAM and memory estimate accuracy;
+- UI/screenshot understanding;
+- OCR/document extraction;
+- chart/graph interpretation;
+- multi-image comparison;
+- representative frame/image tasks;
+- structured result reliability where applicable;
+- TTL/JIT/explicit unload behavior;
+- crash/restart/cleanup with no stale model/process ownership;
+- deterministic negative cases and scoped local file/image access;
+- one real ordinary-Chat E2E through the final typed local-vision capability.
+
+No runtime or model is product-accepted before these gates pass.
 
 ## Ownership
 
@@ -201,8 +271,8 @@ The repository does **not** own by default AI planner/agent runtime, public ingr
 - Adaptive diagnostic 1MCP line: exact `@1mcp/agent@0.35.0-beta.3` plus the hash-guarded compatibility package until accepted upstream behavior replaces it.
 - Filesystem: `@modelcontextprotocol/server-filesystem@2026.7.10`.
 - Browser: `@playwright/mcp@0.0.78`.
-- Planned local inference runtime candidate: LM Studio/`llmster`.
-- Planned first local vision model candidate: `LiquidAI/LFM2.5-VL-3B`.
+- Active Stage 25 local inference runtime candidate: LM Studio/`llmster`.
+- Active Stage 25 preferred-quality local-vision candidate: `LiquidAI/LFM2.5-VL-3B`; target-first current-laptop candidate: `LiquidAI/LFM2.5-VL-450M-GGUF` Q4.
 - Modules: official/vendor MCP -> mature OSS -> local API/CLI adapter -> smallest project-owned missing adapter.
 
 ## Legacy

@@ -120,11 +120,19 @@ Port `3050` remains part of ownership/fail-closed detection for profiles that us
 
 Local models may be used for bounded specialist inference such as screen/image/document understanding, OCR, grounding, comparison, extraction or classification while ordinary ChatGPT remains the planner/orchestrator.
 
-Prefer a mature replaceable local model-runtime manager over embedding one inference stack into platform core. LM Studio/`llmster` is the first runtime-manager candidate. `LiquidAI/LFM2.5-VL-3B` is the first preferred `local-vision` model candidate.
+Prefer a mature replaceable local model-runtime manager over embedding one inference stack into platform core. LM Studio/`llmster` is the first runtime-manager candidate because current official LM Studio tooling provides headless Windows operation, model discovery/load/unload, memory estimation before load, GPU-offload/context controls, TTL/JIT eviction and OpenAI-compatible image chat.
+
+`LiquidAI/LFM2.5-VL-3B` is an official Liquid AI model released on 2026-08-12. Direct official release evidence is recorded from Liquid AI's release blog and model documentation plus the official Hugging Face model repository and WebGPU demo.
+
+Stage 25 distinguishes model quality preference from current-hardware test order:
+
+- preferred quality candidate: `LiquidAI/LFM2.5-VL-3B`;
+- middle current-generation comparison: `LiquidAI/LFM2.5-VL-1.6B`;
+- first target-laptop runtime candidate: `LiquidAI/LFM2.5-VL-450M-GGUF` Q4 because the machine has 7.68 GB RAM and Intel Iris Xe.
 
 Neither runtime nor model is product-accepted until target Windows hardware/runtime benchmarking passes. The platform must keep runtime/model selection replaceable and evidence driven.
 
-## ADR-021 — Direct semantic stdio tunnel binding — ACCEPTED
+## ADR-021 — Direct semantic stdio tunnel binding — ACCEPTED AND RELEASE-COMPLETE
 
 ### Baseline and candidate
 
@@ -161,7 +169,10 @@ Candidate B passed all architecture/acceptance gates:
 4. first-class public-manager lifecycle, single-owner/fail-closed handling, crash recovery and duplicate-free repeated Start;
 5. existing `Chat Local Bridge Test` refreshed to the same exact five semantic actions;
 6. real ordinary-Chat `read -> browser observe/interact -> write -> independent read` workflow;
-7. target-machine A/B lifecycle comparison.
+7. target-machine A/B lifecycle comparison;
+8. normal public `semantic` promotion smoke;
+9. all exact promotion-head and post-merge `main` workflows green;
+10. stable LocalAppData installation updated from merged `main` with SHA256 equality for manager/direct-controller/semantic-projection and `STAGE24_1_PERSISTENT_INSTALL=PASS`.
 
 Both transports completed 3/3 healthy A/B cycles. Average target-machine timings were:
 
@@ -176,12 +187,34 @@ The direct path was approximately 24.70x faster to start, 17.25x faster on repea
 
 ### Decision
 
-Promote direct stdio binding as the normal public `semantic` transport.
+Direct stdio binding is the normal public `semantic` transport.
 
-`semantic-direct` may remain temporarily as a compatibility/diagnostic alias during migration. The legacy 1MCP-backed semantic path remains internal diagnostic/reference evidence and should not be deleted solely because it is no longer the normal public route.
+Stage 24.1 was squash-merged to `main` as `df1d5e232b739b62e72ad81e5d82fd01be53e884` and its stable installed bundle passed final target acceptance.
+
+`semantic-direct` may remain temporarily as a compatibility/diagnostic alias during cleanup. The legacy 1MCP-backed semantic path remains internal diagnostic/reference evidence and should not be deleted solely because it is no longer the normal public route.
 
 Retain 1MCP as replaceable internal infrastructure for adaptive lifecycle experiments, aggregation/inspection, diagnostics and future catalog/lifecycle cases where its features add measured value.
 
 The direct transport does not expand the semantic projection's responsibilities. `semantic-projection` remains the deterministic fixed typed boundary and must not become a generic gateway, registry, lifecycle platform or planner.
 
-The ADR is accepted from the completed architecture/equivalence gates. PR #70 still requires final promotion-head CI, a target smoke of the public profile name `semantic`, and stable LocalAppData bundle update after merge before Stage 24.1 is marked release-complete.
+## ADR-022 — Stage 25 local-vision integration uses a replaceable runtime/model boundary — PROVISIONAL
+
+### Decision direction
+
+Do not couple the public Chat-facing contract to LM Studio commands, a Liquid AI model identifier, or one inference format.
+
+Use a focused deterministic local-vision adapter with a small semantic operation surface. The adapter owns runtime/model compatibility and lifecycle mechanics; Chat owns user-goal reasoning.
+
+The adapter may use reviewed policy to estimate memory, load an accepted local model, set benchmarked context/GPU/TTL options, execute bounded multimodal inference and unload/evict the model. It must not become a planner or dynamically download/choose arbitrary internet models during a user call.
+
+### Acceptance gate
+
+ADR-022 becomes accepted only after a target Windows runtime/model path passes:
+
+- headless lifecycle and machine-readable status;
+- pre-load memory estimate and measured peak RAM/VRAM;
+- representative UI/screenshot, OCR/document, chart/graph, comparison and frame/image quality tests;
+- cold-load, TTFT, throughput and unload/recovery measurements;
+- deterministic negative cases;
+- a small reviewed typed Chat-facing vision capability;
+- one real ordinary-Chat E2E through that capability.
