@@ -110,15 +110,15 @@ Benchmark model discovery, resource estimation, hardware-aware load settings, JI
 
 ### Model candidates
 
-Correct an earlier documentation error: the current official Liquid AI LFM2.5-VL collection does **not** contain `LiquidAI/LFM2.5-VL-3B`.
+`LiquidAI/LFM2.5-VL-3B` is an official Liquid AI release from 2026-08-12. The project records direct official evidence from the Liquid AI release blog, Liquid Docs model page, official Hugging Face weights and WebGPU demo.
 
-Start current-generation evaluation with:
+Stage 25 separates preferred quality from hardware-safe test order:
 
-1. `LiquidAI/LFM2.5-VL-1.6B` / GGUF — first preferred candidate;
-2. `LiquidAI/LFM2.5-VL-450M` / GGUF — lightweight comparison;
-3. `LiquidAI/LFM2-VL-3B` / GGUF — older-generation larger comparison if target hardware makes it useful.
+1. **`LiquidAI/LFM2.5-VL-3B`** — preferred quality candidate;
+2. `LiquidAI/LFM2.5-VL-1.6B` — middle current-generation comparison;
+3. **`LiquidAI/LFM2.5-VL-450M-GGUF` Q4** — first target-machine runtime candidate on the current laptop.
 
-Liquid AI's official LFM2.5-VL-1.6B model card describes improved multilingual vision understanding, multi-image/high-resolution/OCR behavior, 32,768-token context and native/GGUF/ONNX/MLX forms. It is intended for general VLM/OCR/document comprehension rather than knowledge-intensive work.
+The current target has i5-1135G7, 7.68 GB RAM and Intel Iris Xe. Therefore local test order remains 450M Q4 → 1.6B Q4 → 3B only after pre-load estimate and observed free-memory checks. This is a resource-safety order, not a quality ranking.
 
 Select actual model/format/quantization from target-machine quality + speed + memory evidence, not parameter count or assumption.
 
