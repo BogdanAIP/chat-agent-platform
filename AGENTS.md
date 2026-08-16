@@ -81,6 +81,8 @@ Do not merge PR #70 until:
 - the target Windows machine smokes **normal public `semantic`** and reports `active_profile=semantic`, `tunnel_binding=direct-stdio`, healthy readiness, one active scope, no conflict and zero port-3050 listeners;
 - after merge, the stable LocalAppData manager bundle is updated from `main` and final status is verified.
 
+The normal-semantic target smoke verifies final routing/packaging only. Do not make the user repeat the already-passed five-tool ordinary-Chat E2E unless exported tool definitions or the app action snapshot changes again.
+
 ## Findings that remain active
 
 - concrete typed actions are the accepted Chat-facing contract;
