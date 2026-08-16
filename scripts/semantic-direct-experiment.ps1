@@ -183,6 +183,17 @@ function ConvertTo-McpCommandPart {
     return "'$Value'"
 }
 
+function Quote-ProcessArgument {
+    param([Parameter(Mandatory)] [string]$Value)
+    if ($Value.Contains('"')) {
+        throw "Direct semantic process argument contains an unsupported double quote: $Value"
+    }
+    if ($Value -notmatch '\s') {
+        return $Value
+    }
+    return '"' + $Value + '"'
+}
+
 function Get-SemanticEntry {
     if (-not (Test-Path -LiteralPath $SemanticRuntimeHelper -PathType Leaf)) {
         throw "Installed semantic runtime helper is missing: $SemanticRuntimeHelper"
@@ -391,17 +402,21 @@ function Start-DirectRuntime {
         $env:CONTROL_PLANE_API_KEY = $apiKey
         $env:CHAT_LOCAL_FILES_ROOT = $root
 
-        $arguments = @(
+        $argumentLine = @(
             'run',
-            '--control-plane.tunnel-id', $tunnelId,
-            '--mcp.command', $mcpCommand,
-            '--health.listen-addr', '127.0.0.1:0',
-            '--health.url-file', $HealthUrlFile
-        )
+            '--control-plane.tunnel-id',
+            $tunnelId,
+            '--mcp.command',
+            (Quote-ProcessArgument -Value $mcpCommand),
+            '--health.listen-addr',
+            '127.0.0.1:0',
+            '--health.url-file',
+            (Quote-ProcessArgument -Value $HealthUrlFile)
+        ) -join ' '
 
         $process = Start-Process `
             -FilePath $TunnelExe `
-            -ArgumentList $arguments `
+            -ArgumentList $argumentLine `
             -WindowStyle Hidden `
             -RedirectStandardOutput $StdoutLog `
             -RedirectStandardError $StderrLog `
