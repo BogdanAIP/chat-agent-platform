@@ -1,0 +1,146 @@
+import json
+import unittest
+
+from runtime.local_vision_adapter.mark_grid import Point
+from runtime.local_vision_adapter.provider import (
+    LlamaCppLoopbackClient,
+    VisionProviderError,
+    build_direct_point_prompt,
+    build_mark_grid_prompt,
+    encode_image_data_uri,
+    parse_direct_point_response,
+    parse_mark_grid_response,
+)
+
+
+class LocalVisionProviderTests(unittest.TestCase):
+    def test_image_data_uri_is_local_and_bounded_to_known_mime_types(self):
+        uri = encode_image_data_uri(b"png-bytes", "image/png")
+        self.assertTrue(uri.startswith("data:image/png;base64,"))
+
+        with self.assertRaises(VisionProviderError):
+            encode_image_data_uri(b"x", "application/octet-stream")
+
+    def test_direct_prompt_has_explicit_abstain_contract(self):
+        prompt = build_direct_point_prompt("click Send", 1280, 720)
+        self.assertIn('"found":false', prompt)
+        self.assertIn("1280", prompt)
+        self.assertIn("720", prompt)
+
+    def test_mark_grid_prompt_matches_four_id_contract(self):
+        prompt = build_mark_grid_prompt("open Gamma actions", 8)
+        self.assertIn("exactly 4 grid IDs", prompt)
+        self.assertIn("between 0 and 63", prompt)
+        self.assertIn("[left_id,top_id,right_id,bottom_id]", prompt)
+
+    def test_direct_parser_accepts_plain_and_fenced_json(self):
+        point = parse_direct_point_response(
+            '{"found":true,"point":[1128,660]}',
+            image_width=1280,
+            image_height=720,
+        )
+        self.assertEqual(point, Point(1128.0, 660.0))
+
+        fenced = parse_direct_point_response(
+            '```json\n{"found":false}\n```',
+            image_width=1280,
+            image_height=720,
+        )
+        self.assertIsNone(fenced)
+
+    def test_direct_parser_rejects_guessed_out_of_bounds_point(self):
+        with self.assertRaises(VisionProviderError):
+            parse_direct_point_response(
+                '{"found":true,"point":[2000,100]}',
+                image_width=1280,
+                image_height=720,
+            )
+
+    def test_direct_parser_rejects_ambiguous_or_malformed_output(self):
+        with self.assertRaises(VisionProviderError):
+            parse_direct_point_response(
+                "I think it is around 100,100",
+                image_width=1280,
+                image_height=720,
+            )
+
+        with self.assertRaises(VisionProviderError):
+            parse_direct_point_response(
+                '{"found":false,"point":[100,100]}',
+                image_width=1280,
+                image_height=720,
+            )
+
+    def test_mark_grid_parser_preserves_duplicates(self):
+        result = parse_mark_grid_response("```json\n[63,63,63,63]\n```", 8)
+        self.assertEqual(result, (63, 63, 63, 63))
+
+        with self.assertRaises(VisionProviderError):
+            parse_mark_grid_response("[1,2,3]", 8)
+
+        with self.assertRaises(VisionProviderError):
+            parse_mark_grid_response("[1,2,3,64]", 8)
+
+    def test_loopback_client_cannot_be_configured_to_remote_host(self):
+        client = LlamaCppLoopbackClient(port=3063)
+        self.assertEqual(client.url, "http://127.0.0.1:3063/v1/chat/completions")
+
+        with self.assertRaises(VisionProviderError):
+            LlamaCppLoopbackClient(port=0)
+
+    def test_loopback_client_builds_reviewed_payload_and_parses_usage(self):
+        captured = {}
+
+        def fake_transport(url, body, timeout):
+            captured["url"] = url
+            captured["body"] = json.loads(body.decode("utf-8"))
+            captured["timeout"] = timeout
+            return {
+                "choices": [{"message": {"content": '{"found":true,"point":[1128,660]}'}}],
+                "usage": {
+                    "prompt_tokens": 200,
+                    "completion_tokens": 12,
+                    "total_tokens": 212,
+                },
+            }
+
+        client = LlamaCppLoopbackClient(
+            port=3063,
+            timeout_seconds=123,
+            transport=fake_transport,
+        )
+        result = client.chat_with_image(
+            image_data_uri=encode_image_data_uri(b"fake-image"),
+            prompt="ground target",
+            max_tokens=64,
+        )
+
+        self.assertEqual(captured["url"], "http://127.0.0.1:3063/v1/chat/completions")
+        self.assertEqual(captured["timeout"], 123.0)
+        payload = captured["body"]
+        self.assertEqual(payload["model"], "local")
+        self.assertEqual(payload["temperature"], 0)
+        self.assertEqual(payload["max_tokens"], 64)
+        self.assertEqual(payload["messages"][0]["content"][0]["type"], "text")
+        self.assertEqual(payload["messages"][0]["content"][1]["type"], "image_url")
+        self.assertTrue(
+            payload["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/png;base64,")
+        )
+        self.assertEqual(result.prompt_tokens, 200)
+        self.assertEqual(result.completion_tokens, 12)
+        self.assertEqual(result.total_tokens, 212)
+
+    def test_loopback_client_rejects_non_data_image_reference(self):
+        client = LlamaCppLoopbackClient(
+            port=3063,
+            transport=lambda *_: {},
+        )
+        with self.assertRaises(VisionProviderError):
+            client.chat_with_image(
+                image_data_uri="https://example.com/image.png",
+                prompt="ground target",
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
