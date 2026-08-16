@@ -306,7 +306,11 @@ function Start-DirectRuntime {
         return
     }
 
-    if (@(Get-DirectTunnelProcesses).Count -gt 0) {
+    if (
+        @(Get-DirectTunnelProcesses).Count -gt 0 -or
+        (Test-Path -LiteralPath $DirectStateFile -PathType Leaf) -or
+        (Test-Path -LiteralPath $HealthUrlFile -PathType Leaf)
+    ) {
         Stop-DirectRuntime
     }
 
