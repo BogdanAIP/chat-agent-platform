@@ -1,7 +1,13 @@
 param(
     [string]$OutputRoot,
     [int]$Port = 3066,
-    [int]$ContextSize = 1024
+    [int]$ContextSize = 1024,
+    [ValidateSet('direct', 'mark-grid', 'both')][string]$Method = 'both',
+    [string[]]$CaseId = @(),
+    [int]$RequestTimeoutSeconds = 120,
+    [double]$MinStartRamGB = 1.50,
+    [double]$MinRunRamGB = 0.50,
+    [double]$MinRunVirtualGB = 1.50
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,8 +29,31 @@ $OutputRoot = (Resolve-Path -LiteralPath $OutputRoot).Path
 
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'Port must be between 1 and 65535.' }
 if ($ContextSize -lt 512 -or $ContextSize -gt 8192) { throw 'ContextSize must be between 512 and 8192.' }
+if ($RequestTimeoutSeconds -lt 30 -or $RequestTimeoutSeconds -gt 300) { throw 'RequestTimeoutSeconds must be between 30 and 300.' }
+if ($MinStartRamGB -lt 0.5 -or $MinStartRamGB -gt 8.0) { throw 'MinStartRamGB must be between 0.5 and 8.0.' }
+if ($MinRunRamGB -lt 0.25 -or $MinRunRamGB -gt $MinStartRamGB) { throw 'MinRunRamGB must be between 0.25 and MinStartRamGB.' }
+if ($MinRunVirtualGB -lt 1.0 -or $MinRunVirtualGB -gt 8.0) { throw 'MinRunVirtualGB must be between 1.0 and 8.0.' }
+if (($Method -eq 'mark-grid' -or $Method -eq 'both') -and $ContextSize -lt 3072) {
+    throw 'Mark-Grid requires ContextSize >= 3072: the first target run measured second-pass prompts up to 2463 tokens.'
+}
 if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
     throw "Port $Port is already in use."
+}
+
+$preOs = Get-CimInstance Win32_OperatingSystem
+$preRamGB = ($preOs.FreePhysicalMemory * 1KB) / 1GB
+$preVirtualGB = ($preOs.FreeVirtualMemory * 1KB) / 1GB
+Write-Host "`n===== PRE-RUN MEMORY =====" -ForegroundColor Cyan
+Write-Host "RAM_FREE_GB=$([math]::Round($preRamGB,2))"
+Write-Host "VIRTUAL_FREE_GB=$([math]::Round($preVirtualGB,2))"
+Write-Host "MIN_START_RAM_GB=$MinStartRamGB"
+Write-Host "MIN_RUN_RAM_GB=$MinRunRamGB"
+Write-Host "MIN_RUN_VIRTUAL_GB=$MinRunVirtualGB"
+if ($preRamGB -lt $MinStartRamGB) {
+    throw "Not enough physical RAM to start safely: $([math]::Round($preRamGB,2)) GB free."
+}
+if ($preVirtualGB -lt 3.0) {
+    throw "Not enough virtual memory to start safely: $([math]::Round($preVirtualGB,2)) GB free."
 }
 
 foreach ($path in @($modelPath, $mmprojPath)) {
@@ -138,6 +167,8 @@ try {
     Write-Host "SERVER_READY=True"
     Write-Host "LOAD_SECONDS=$loadSeconds"
     Write-Host "CONTEXT_SIZE=$ContextSize"
+    Write-Host "METHOD=$Method"
+    Write-Host "CASE_IDS=$($CaseId -join ',')"
     Write-Host 'THREADS=8'
     Write-Host 'MAIN_MODEL_DEVICE=CPU'
     Write-Host 'MMPROJ_DEVICE=CPU'
@@ -150,20 +181,30 @@ try {
     $psi.RedirectStandardError = $true
     $psi.WorkingDirectory = $repoRoot
 
+    $clientArgs = [System.Collections.Generic.List[string]]::new()
     foreach ($argument in @(
         (Join-Path $repoRoot 'scripts\stage25-grounding-benchmark.py'),
         '--image', $screenshotPath,
         '--cases', $casesPath,
         '--port', "$Port",
-        '--method', 'both',
+        '--method', $Method,
         '--output', $resultPath,
         '--artifacts', $artifactDir,
-        '--timeout-seconds', '300'
+        '--timeout-seconds', "$RequestTimeoutSeconds"
     )) {
+        $clientArgs.Add([string]$argument)
+    }
+    foreach ($case in $CaseId) {
+        if (-not [string]::IsNullOrWhiteSpace($case)) {
+            $clientArgs.Add('--case-id')
+            $clientArgs.Add($case.Trim())
+        }
+    }
+    foreach ($argument in $clientArgs) {
         [void]$psi.ArgumentList.Add($argument)
     }
 
-    Write-Host "`n===== RUN DIRECT VS MARK-GRID =====" -ForegroundColor Cyan
+    Write-Host "`n===== RUN STAGED GROUNDING PROBE =====" -ForegroundColor Cyan
     $benchmarkStart = Get-Date
     $clientProc = [System.Diagnostics.Process]::Start($psi)
 
@@ -173,6 +214,7 @@ try {
     $maxWorkingMB = 0.0
     $maxPrivateMB = 0.0
     $safetyStop = $false
+    $lastProgress = ''
 
     while (-not $clientProc.HasExited) {
         Start-Sleep -Milliseconds 500
@@ -193,7 +235,26 @@ try {
         if ($virtualGB -lt $minVirtualGB) { $minVirtualGB = $virtualGB }
         if ($pageMB -gt $maxPageMB) { $maxPageMB = $pageMB }
 
-        if ($ramGB -lt 0.12 -or $virtualGB -lt 1.0) {
+        if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
+            try {
+                $partial = Get-Content -LiteralPath $resultPath -Raw -Encoding utf8 | ConvertFrom-Json
+                $progressParts = @()
+                foreach ($name in @('direct', 'mark-grid')) {
+                    $property = $partial.methods.PSObject.Properties[$name]
+                    if ($null -ne $property) {
+                        $count = @($property.Value.cases).Count
+                        $progressParts += "$name=$count"
+                    }
+                }
+                $progress = $progressParts -join ';'
+                if ($progress -and $progress -ne $lastProgress) {
+                    Write-Host "PROGRESS=$progress"
+                    $lastProgress = $progress
+                }
+            } catch {}
+        }
+
+        if ($ramGB -lt $MinRunRamGB -or $virtualGB -lt $MinRunVirtualGB) {
             $safetyStop = $true
             try { $clientProc.Kill($true) } catch {}
             break
@@ -224,19 +285,35 @@ try {
     Write-Host "MAX_SERVER_PRIVATE_MB=$([math]::Round($maxPrivateMB,1))"
     Write-Host "CLIENT_EXIT_CODE=$($clientProc.ExitCode)"
 
-    if ($safetyStop) { throw 'Benchmark stopped by memory safety limit.' }
+    $results = $null
+    if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
+        try {
+            $results = Get-Content -LiteralPath $resultPath -Raw -Encoding utf8 | ConvertFrom-Json
+        } catch {
+            Write-Host 'PARTIAL_RESULT_READABLE=False'
+        }
+    }
+
+    if ($null -ne $results) {
+        Write-Host "`n===== AVAILABLE CHECKPOINT SUMMARY =====" -ForegroundColor Green
+        foreach ($name in @('direct', 'mark-grid')) {
+            $property = $results.methods.PSObject.Properties[$name]
+            if ($null -ne $property -and $null -ne $property.Value.summary) {
+                Write-Host "METHOD=$name"
+                $property.Value.summary | ConvertTo-Json -Depth 6
+            }
+        }
+        Write-Host "CHECKPOINT_COMPLETED=$($results.completed)"
+        Write-Host "RESULT_JSON=$resultPath"
+    }
+
+    if ($safetyStop) { throw 'Grounding probe stopped by the conservative memory safety limit.' }
     if ($clientProc.ExitCode -ne 0) { throw 'Grounding benchmark client failed.' }
-    if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) { throw 'Benchmark result JSON is missing.' }
+    if ($null -eq $results) { throw 'Benchmark result JSON is missing or unreadable.' }
+    if (-not [bool]$results.completed) { throw 'Benchmark client exited without a completed checkpoint.' }
 
-    $results = Get-Content -LiteralPath $resultPath -Raw -Encoding utf8 | ConvertFrom-Json
-    Write-Host "`n===== DIRECT SUMMARY =====" -ForegroundColor Green
-    $results.methods.direct.summary | ConvertTo-Json -Depth 6
-    Write-Host "`n===== MARK-GRID SUMMARY =====" -ForegroundColor Green
-    $results.methods.'mark-grid'.summary | ConvertTo-Json -Depth 6
-
-    Write-Host "`n===== STAGE 25 TARGET GROUNDING BENCHMARK =====" -ForegroundColor Green
-    Write-Host "RESULT_JSON=$resultPath"
-    Write-Host 'STAGE25_LFM25_VL_3B_DIRECT_VS_MARK_GRID=PASS'
+    Write-Host "`n===== STAGE 25 TARGET GROUNDING PROBE =====" -ForegroundColor Green
+    Write-Host 'STAGE25_LFM25_VL_3B_GROUNDING_RUN=PASS'
 }
 finally {
     Write-Host "`n===== CLEANUP =====" -ForegroundColor Cyan
