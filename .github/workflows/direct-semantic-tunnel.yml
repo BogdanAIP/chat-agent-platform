@@ -15,6 +15,8 @@ on:
       - "project-context/ROADMAP.md"
       - "project-context/START_HERE.md"
       - "project-context/CURRENT_STATE.md"
+      - "project-context/ARCHITECTURE.md"
+      - "AGENTS.md"
   push:
     branches: [main]
     paths:
@@ -94,15 +96,16 @@ jobs:
 
           $managedStatus = .\scripts\semantic-direct-controller.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
           if ($managedStatus.tunnel_running -or $managedStatus.mcp_ready -or [int]$managedStatus.active_count -ne 0) {
-            throw 'Fresh managed semantic-direct status must be stopped.'
+            throw 'Fresh managed direct semantic status must be stopped.'
           }
           if ([string]$managedStatus.tunnel_binding -ne 'direct-stdio') {
-            throw 'Managed semantic-direct controller lost the direct-stdio binding marker.'
+            throw 'Managed direct semantic controller lost the direct-stdio binding marker.'
           }
 
           $profileRoot = Join-Path $env:RUNNER_TEMP 'semantic-direct-manager-profile'
           New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
 
+          # Compatibility alias remains reversible during migration.
           & .\scripts\chat-platform.ps1 `
             -Action SetProfile `
             -Profile semantic-direct `
@@ -114,12 +117,12 @@ jobs:
 
           $installedController = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\app\scripts\semantic-direct-controller.ps1'
           if (-not (Test-Path -LiteralPath $installedController -PathType Leaf)) {
-            throw 'Public manager did not install the managed semantic-direct controller into the stable app root.'
+            throw 'Public manager did not install the managed direct semantic controller into the stable app root.'
           }
           $sourceControllerHash = (Get-FileHash -LiteralPath 'scripts/semantic-direct-controller.ps1' -Algorithm SHA256).Hash
           $installedControllerHash = (Get-FileHash -LiteralPath $installedController -Algorithm SHA256).Hash
           if ($sourceControllerHash -ne $installedControllerHash) {
-            throw 'Installed managed semantic-direct controller hash differs from the reviewed source.'
+            throw 'Installed managed direct semantic controller hash differs from the reviewed source.'
           }
 
           $managerStatus = .\scripts\chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
@@ -129,16 +132,45 @@ jobs:
             [bool]$managerStatus.tunnel_running -or
             [bool]$managerStatus.mcp_ready
           ) {
-            throw 'Fresh first-class semantic-direct manager status must remain stopped.'
+            throw 'Fresh semantic-direct alias status must remain stopped.'
           }
           if ([string]$managerStatus.tunnel_binding -ne 'direct-stdio') {
-            throw 'Public manager did not route semantic-direct status to the managed direct controller.'
+            throw 'Public manager did not route semantic-direct to the direct controller.'
           }
           if ([string]$managerStatus.settings.profile -ne 'semantic-direct') {
             throw 'Public manager semantic-direct settings marker was not preserved.'
           }
-          if ([string]$managerStatus.settings.files_root -ne [System.IO.Path]::GetFullPath($profileRoot)) {
-            throw 'Public manager semantic-direct FilesRoot drifted.'
+
+          # Promotion contract: normal semantic is now direct stdio too.
+          & .\scripts\chat-platform.ps1 `
+            -Action SetProfile `
+            -Profile semantic `
+            -FilesRoot $profileRoot `
+            -NoNotify
+          if ($LASTEXITCODE -ne 0) {
+            throw "Public manager promoted semantic SetProfile failed with exit code $LASTEXITCODE."
+          }
+
+          $promotedStatus = .\scripts\chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+          if (
+            [string]$promotedStatus.active_profile -ne '' -or
+            [int]$promotedStatus.active_count -ne 0 -or
+            [bool]$promotedStatus.tunnel_running -or
+            [bool]$promotedStatus.mcp_ready
+          ) {
+            throw 'Fresh promoted semantic manager status must remain stopped.'
+          }
+          if ([string]$promotedStatus.tunnel_binding -ne 'direct-stdio') {
+            throw 'Normal semantic profile is not routed through direct stdio.'
+          }
+          if ([string]$promotedStatus.settings.profile -ne 'semantic') {
+            throw 'Normal semantic profile identity was not preserved after promotion.'
+          }
+          if ([string]$promotedStatus.settings.tunnel_profile -ne 'direct-stdio') {
+            throw 'Normal semantic settings still claim the legacy 1MCP transport.'
+          }
+          if ([string]$promotedStatus.settings.files_root -ne [System.IO.Path]::GetFullPath($profileRoot)) {
+            throw 'Promoted semantic FilesRoot drifted.'
           }
 
           & .\scripts\chat-platform.ps1 -Action SetProfile -Profile reference -NoNotify
@@ -148,10 +180,11 @@ jobs:
 
           $restored = Get-Content -LiteralPath (Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\state\settings.json') -Raw | ConvertFrom-Json
           if ([string]$restored.profile -ne 'reference' -or [string]$restored.tunnel_profile -ne 'local-1mcp') {
-            throw 'Public manager failed to restore the accepted reference binding after semantic-direct routing test.'
+            throw 'Public manager failed to restore the reference binding after promoted semantic routing test.'
           }
 
           Write-Host 'SEMANTIC_DIRECT_MANAGER_ROUTING=PASS'
+          Write-Host 'SEMANTIC_PROMOTED_DIRECT_ROUTING=PASS'
 
       - name: Install exact semantic projection dependencies
         shell: pwsh
