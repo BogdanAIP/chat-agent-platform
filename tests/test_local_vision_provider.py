@@ -33,7 +33,7 @@ class LocalVisionProviderTests(unittest.TestCase):
         self.assertIn("between 0 and 63", prompt)
         self.assertIn("[left_id,top_id,right_id,bottom_id]", prompt)
 
-    def test_direct_parser_accepts_plain_and_fenced_json(self):
+    def test_direct_parser_accepts_plain_fenced_and_single_wrapped_json(self):
         point = parse_direct_point_response(
             '{"found":true,"point":[1128,660]}',
             image_width=1280,
@@ -47,6 +47,13 @@ class LocalVisionProviderTests(unittest.TestCase):
             image_height=720,
         )
         self.assertIsNone(fenced)
+
+        wrapped = parse_direct_point_response(
+            'Result: {"found":true,"point":[1128,660]}',
+            image_width=1280,
+            image_height=720,
+        )
+        self.assertEqual(wrapped, Point(1128.0, 660.0))
 
     def test_direct_parser_rejects_guessed_out_of_bounds_point(self):
         with self.assertRaises(VisionProviderError):
@@ -67,6 +74,13 @@ class LocalVisionProviderTests(unittest.TestCase):
         with self.assertRaises(VisionProviderError):
             parse_direct_point_response(
                 '{"found":false,"point":[100,100]}',
+                image_width=1280,
+                image_height=720,
+            )
+
+        with self.assertRaises(VisionProviderError):
+            parse_direct_point_response(
+                'first {"found":false} second {"found":true,"point":[100,100]}',
                 image_width=1280,
                 image_height=720,
             )
