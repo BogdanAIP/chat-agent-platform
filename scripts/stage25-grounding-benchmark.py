@@ -7,6 +7,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -36,6 +37,18 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def write_checkpoint(path: Path, payload: dict) -> None:
+    """Atomically persist completed cases so a safety stop does not erase evidence."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(path.name + ".tmp")
+    temp_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    os.replace(temp_path, path)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", required=True, type=Path)
@@ -46,9 +59,15 @@ def parse_args() -> argparse.Namespace:
         choices=("direct", "mark-grid", "both"),
         default="both",
     )
+    parser.add_argument(
+        "--case-id",
+        action="append",
+        default=[],
+        help="Run only the named fixture case. Repeat to select multiple cases.",
+    )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--artifacts", type=Path)
-    parser.add_argument("--timeout-seconds", type=float, default=300.0)
+    parser.add_argument("--timeout-seconds", type=float, default=120.0)
     return parser.parse_args()
 
 
@@ -60,6 +79,14 @@ def main() -> int:
         raise SystemExit(f"cases not found: {args.cases}")
 
     cases = load_fixture_cases(args.cases)
+    if args.case_id:
+        requested = set(args.case_id)
+        known = {str(case["id"]) for case in cases}
+        unknown = sorted(requested - known)
+        if unknown:
+            raise SystemExit(f"unknown case id(s): {', '.join(unknown)}")
+        cases = [case for case in cases if str(case["id"]) in requested]
+
     client = LlamaCppLoopbackClient(
         port=args.port,
         timeout_seconds=args.timeout_seconds,
@@ -73,8 +100,9 @@ def main() -> int:
     )
 
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "completed": False,
         "image": {
             "path": str(args.image.resolve()),
             "width": source.width,
@@ -82,12 +110,17 @@ def main() -> int:
             "sha256": sha256_file(args.image),
         },
         "cases_path": str(args.cases.resolve()),
+        "selected_case_ids": [str(case["id"]) for case in cases],
         "server_url": client.url,
         "methods": {},
     }
+    write_checkpoint(args.output, payload)
 
     for method in selected_methods:
         rows = []
+        payload["methods"][method] = {"summary": None, "cases": rows}
+        write_checkpoint(args.output, payload)
+
         for index, case in enumerate(cases, start=1):
             print(
                 f"[{method}] {index}/{len(cases)} {case['id']}: {case['instruction']}",
@@ -107,6 +140,12 @@ def main() -> int:
                     artifact_dir=args.artifacts,
                 )
             rows.append(row)
+            payload["methods"][method] = {
+                "summary": summarize_results(rows),
+                "cases": rows,
+            }
+            write_checkpoint(args.output, payload)
+
             point_hit = row["score"]["point_hit"]
             false_click = row["score"]["false_click"]
             abstained = row["score"]["abstained"]
@@ -117,16 +156,8 @@ def main() -> int:
                 flush=True,
             )
 
-        payload["methods"][method] = {
-            "summary": summarize_results(rows),
-            "cases": rows,
-        }
-
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    payload["completed"] = True
+    write_checkpoint(args.output, payload)
 
     print("\n===== STAGE 25 GROUNDING BENCHMARK SUMMARY =====")
     for method, value in payload["methods"].items():
