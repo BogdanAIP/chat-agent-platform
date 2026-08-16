@@ -1,6 +1,13 @@
 # Direct Semantic Tunnel Binding — Stage 24.1
 
-Status: **ACCEPTED FOR PROMOTION; final release smoke pending**.
+Status: **DONE / RELEASE-COMPLETE**.
+
+Stage 24.1 was squash-merged to `main` on 2026-08-16 as:
+
+```text
+df1d5e232b739b62e72ad81e5d82fd01be53e884
+Stage 24.1: direct semantic tunnel A/B acceptance (#70)
+```
 
 ## Decision
 
@@ -14,6 +21,7 @@ ordinary ChatGPT
   -> stdio semantic-projection
       -> Filesystem MCP
       -> Playwright MCP
+      -> future focused adapters
 ```
 
 The accepted Stage 24 baseline remains valid historical evidence:
@@ -28,7 +36,7 @@ Tunnel -> HTTP 1MCP -> stdio semantic-projection
 
 ## Stable Chat-facing contract
 
-Transport promotion does not change the ordinary-Chat semantic surface:
+Transport promotion did not change the ordinary-Chat semantic surface:
 
 - `workspace_read`;
 - `workspace_write`;
@@ -173,18 +181,50 @@ Both paths completed 3/3 healthy lifecycle cycles on the same target Windows mac
 
 The direct path had already passed modern protocol negotiation, exact five-tool inventory, real Filesystem + Playwright operations, negative cases, hosted ordinary-Chat E2E, first-class lifecycle, fail-closed ownership and crash recovery. The A/B run therefore closed the final reliability/diagnostic promotion gate.
 
-## Promotion implementation
+## Promotion implementation — PASSED
 
-The public manager now routes normal `semantic` through the direct stdio controller. `semantic-direct` remains temporarily as a compatibility/diagnostic alias during migration. Existing Stage 24 settings with `profile=semantic` and a stale `tunnel_profile=local-1mcp` are interpreted as promoted direct semantic settings rather than forcing the old route.
+The public manager routes normal `semantic` through the direct stdio controller. `semantic-direct` remains temporarily as a compatibility/diagnostic alias. Existing Stage 24 settings with `profile=semantic` and a stale `tunnel_profile=local-1mcp` are interpreted as promoted direct semantic settings rather than forcing the old route.
 
-The legacy 1MCP-backed semantic implementation remains available internally for diagnostics/A-B evidence and must not be deleted merely because it is no longer the normal public semantic transport.
+Final exact promotion-head CI was fully green. The target Windows machine then passed the normal public `semantic` smoke:
 
-## Remaining release gate
+```text
+DEFAULT_PROFILE=semantic
+TUNNEL_BINDING=direct-stdio
+SEMANTIC_PROFILE=semantic
+active_profile=semantic
+active_count=1
+conflict=false
+DIRECT_PROCESS_COUNT=1
+PORT_3050_LISTENER_COUNT=0
+NORMAL_SEMANTIC_DIRECT_PROMOTION=PASS
+```
 
-Before merging Stage 24.1:
+## Post-merge stable installation — PASSED
 
-1. final CI/security/profile/semantic workflows must pass on the exact promotion head;
-2. the target Windows machine must smoke the **normal public `semantic` profile** and show `active_profile=semantic`, `tunnel_binding=direct-stdio`, healthy readiness and zero `3050` listeners;
-3. after merge, install/update the stable LocalAppData manager bundle from `main` and verify final status.
+After PR #70 merged, post-merge `main` workflows were fully green. The target machine updated the stable LocalAppData manager bundle from merged `main`.
 
-The target smoke is a profile-routing/release check only. The already-passed five-tool ordinary-Chat E2E does not need to be repeated unless exported tool definitions or the Chat app action snapshot changes again.
+SHA256 equality was verified for:
+
+- installed `chat-platform.ps1`;
+- installed `semantic-direct-controller.ps1`;
+- installed `runtime/semantic-projection/bin/semantic-projection.mjs`.
+
+Final persistent status:
+
+```text
+STAGE24_1_PERSISTENT_INSTALL=PASS
+active_profile=semantic
+tunnel_binding=direct-stdio
+tunnel_running=true
+tunnel_ready=true
+mcp_ready=true
+active_count=1
+conflict=false
+PORT_3050_LISTENER_COUNT=0
+```
+
+The authoritative owner is the stable installed controller, not a temporary worktree copy.
+
+## After Stage 24.1
+
+Stage 25 is active. Continue with `project-context/LOCAL_SPECIALIST_INFERENCE.md` for the local VLM/runtime plan.
