@@ -11,9 +11,11 @@ param(
     [switch]$NoNotify
 )
 
-# The legacy 1MCP-backed controller deliberately keeps its accepted profile
-# selector unchanged; semantic-direct is intercepted by this public manager
-# before that controller is called:
+# The legacy 1MCP-backed controller deliberately keeps its accepted internal
+# profile selector unchanged. The public `semantic` profile is promoted here
+# to the direct stdio controller; `semantic-direct` remains a compatibility
+# alias during migration. The legacy controller can still exercise its own
+# semantic profile internally for diagnostics/A-B work:
 # [ValidateSet("reference", "files-readonly", "browser-isolated", "semantic", "adaptive")]
 
 Set-StrictMode -Version Latest
@@ -47,6 +49,10 @@ $FilesRootProfiles = @(
     "semantic",
     "semantic-direct",
     "adaptive"
+)
+$DirectSemanticProfiles = @(
+    "semantic",
+    "semantic-direct"
 )
 
 if (-not (Test-Path -LiteralPath $BaselineControllerPath -PathType Leaf)) {
@@ -105,6 +111,7 @@ function Get-SharedSettings {
         throw "Shared manager settings contain an unsupported profile."
     }
 
+    $profileName = [string]$settings.profile
     $filesRoot = if ($null -ne $settings.PSObject.Properties["files_root"]) {
         $settings.files_root
     }
@@ -112,20 +119,21 @@ function Get-SharedSettings {
         $null
     }
 
-    $tunnelProfile = if ($null -ne $settings.PSObject.Properties["tunnel_profile"]) {
+    # Promotion migration is profile-authoritative. An existing Stage 24
+    # settings file may still say local-1mcp for semantic; do not let that
+    # stale transport marker override the promoted semantic route.
+    $tunnelProfile = if ($profileName -in $DirectSemanticProfiles) {
+        "direct-stdio"
+    }
+    elseif ($null -ne $settings.PSObject.Properties["tunnel_profile"]) {
         [string]$settings.tunnel_profile
     }
     else {
-        if ([string]$settings.profile -eq "semantic-direct") {
-            "direct-stdio"
-        }
-        else {
-            "local-1mcp"
-        }
+        "local-1mcp"
     }
 
     return [pscustomobject]@{
-        profile = [string]$settings.profile
+        profile = $profileName
         files_root = $filesRoot
         tunnel_profile = $tunnelProfile
     }
@@ -179,7 +187,7 @@ function Install-DirectControllerIfNeeded {
     $copyHash = (Get-FileHash -LiteralPath $temporary -Algorithm SHA256).Hash
     if ($copyHash -ne $sourceHash) {
         Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
-        throw 'semantic-direct controller installation verification failed.'
+        throw 'semantic direct controller installation verification failed.'
     }
 
     Move-Item -LiteralPath $temporary -Destination $InstalledDirectControllerPath -Force
@@ -200,7 +208,7 @@ function Get-DirectControllerPath {
     }
 
     throw (
-        "semantic-direct controller is unavailable. Expected either {0} or {1}." -f `
+        "Direct semantic controller is unavailable. Expected either {0} or {1}." -f `
             $InstalledDirectControllerPath,
             $SourceDirectControllerPath
     )
@@ -210,7 +218,7 @@ $TargetProfile = Get-RequestedProfile
 $ControllerPath = if ($Action -eq "Install") {
     [System.IO.Path]::GetFullPath($BaselineControllerPath)
 }
-elseif ($TargetProfile -eq "semantic-direct") {
+elseif ($TargetProfile -in $DirectSemanticProfiles) {
     Get-DirectControllerPath
 }
 else {
@@ -247,7 +255,7 @@ function Get-ManagerOwner {
 }
 
 function Get-OwnerControllerPathForSave {
-    if ($TargetProfile -eq "semantic-direct") {
+    if ($TargetProfile -in $DirectSemanticProfiles) {
         if (Test-Path -LiteralPath $InstalledDirectControllerPath -PathType Leaf) {
             return [System.IO.Path]::GetFullPath($InstalledDirectControllerPath)
         }
@@ -441,16 +449,7 @@ function Get-ControllerArguments {
         $arguments.Add([string]$value)
     }
 
-    $passProfile = -not [string]::IsNullOrWhiteSpace($Profile)
-    if (
-        $passProfile -and
-        [string]$Profile -eq "semantic-direct" -and
-        (Test-DirectControllerPath -Path $TargetControllerPath)
-    ) {
-        $passProfile = $false
-    }
-
-    if ($passProfile) {
+    if (-not [string]::IsNullOrWhiteSpace($Profile)) {
         $arguments.Add("-Profile")
         $arguments.Add($Profile)
     }
@@ -679,7 +678,7 @@ function Set-SharedProfile {
     $updated = [pscustomobject]@{
         profile = $Profile
         files_root = $resolvedRoot
-        tunnel_profile = if ($Profile -eq "semantic-direct") {
+        tunnel_profile = if ($Profile -in $DirectSemanticProfiles) {
             "direct-stdio"
         }
         else {
