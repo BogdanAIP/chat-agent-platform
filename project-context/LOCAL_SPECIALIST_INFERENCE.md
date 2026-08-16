@@ -70,15 +70,7 @@ GPU_DRIVER=31.0.101.5186
 
 No LM Studio/llmster installation was found in the checked standard locations, `lms` was not resolved, and no NVIDIA runtime was observed.
 
-This target is below LM Studio's current recommended Windows baseline of 16 GB RAM and 4 GB dedicated VRAM. That is a benchmark constraint, not an automatic rejection: the first acceptance sequence must use small GGUF variants, modest context/image settings, memory estimation before every larger load, and measured process/RAM behavior.
-
-Target-specific benchmark order is therefore:
-
-1. `LiquidAI/LFM2.5-VL-450M-GGUF` Q4 first, to validate runtime/API/vision behavior with maximum memory margin;
-2. `LiquidAI/LFM2.5-VL-1.6B-GGUF` Q4 only after estimate-only and measured free-memory checks;
-3. `LiquidAI/LFM2.5-VL-3B` / compatible local quantization only if runtime estimation and observed headroom make it safe enough to benchmark.
-
-This small-to-large order is for the current laptop's memory safety. It is not a ranking of model quality.
+This target is below LM Studio's current recommended Windows baseline of 16 GB RAM and 4 GB dedicated VRAM. That is a benchmark constraint, not an automatic rejection: use modest context/image settings, pre-load estimation where available, and measured process/RAM behavior.
 
 Because the target GPU is Intel Iris Xe integrated graphics, Stage 25 should not assume CUDA/NVIDIA behavior or trust Windows-reported `AdapterRAM` as usable dedicated VRAM. Benchmark CPU/automatic LM Studio placement first. In parallel research, keep ONNX Runtime + Intel OpenVINO as a replaceable runtime comparison for this hardware class because OpenVINO can target Intel CPU and integrated GPU. Do not add it to the product path unless measured evidence beats or materially complements the LM Studio path.
 
@@ -131,19 +123,51 @@ LiquidAI/LFM2.5-VL-3B-MLX-8bit
 LiquidAI/LFM2.5-VL-3B-MLX-bf16
 ```
 
-The first probe printed `MATCH_COUNT=1` while concatenating all repo IDs into one line. This is a PowerShell/JSON-shape handling bug in the probe, not evidence that Hugging Face returned one model. The follow-up must query the known GGUF and ONNX repository IDs explicitly rather than iterate that malformed aggregate object.
+The first probe printed `MATCH_COUNT=1` while concatenating all repo IDs into one line. This is a PowerShell/JSON-shape handling bug in the probe, not evidence that Hugging Face returned one model. The follow-up queried the known GGUF and ONNX repository IDs explicitly.
 
 The WebGPU Space reported `RUNNING` on Hugging Face `cpu-basic`. Do **not** interpret that as evidence that the 3B model runs server-side on a CPU-basic instance: the demo is WebGPU-oriented and inference may execute in the browser/client. It proves the demo is live, not target-laptop feasibility.
 
-The unquantized 5.818 GB safetensors checkpoint is not a sensible first runtime artifact on the 7.68 GB target. Stage 25 should inspect the official GGUF/ONNX quantized artifacts next and compare their real file/resource requirements before installing or loading a model.
+The unquantized 5.818 GB safetensors checkpoint is not a sensible first runtime artifact on the 7.68 GB target.
+
+### Target live GGUF / ONNX artifact probe — PASSED 2026-08-16
+
+The target machine then queried the official fresh GGUF and ONNX repositories directly.
+
+Official GGUF artifacts reported:
+
+| Artifact | File size |
+|---|---:|
+| `LFM2.5-VL-3B-Q4_0.gguf` | 1.484 GB |
+| `LFM2.5-VL-3B-Q4_K_M.gguf` | 1.559 GB |
+| `LFM2.5-VL-3B-Q5_K_M.gguf` | 1.807 GB |
+| `LFM2.5-VL-3B-Q6_K.gguf` | 2.069 GB |
+| `LFM2.5-VL-3B-Q8_0.gguf` | 2.677 GB |
+| `mmproj-LFM2.5-VL-3B-Q8_0.gguf` | 556.1 MB |
+| F16/BF16 main model | 5.032 GB |
+| F16/BF16 projector | about 815 MB |
+
+The official GGUF README identifies `llama.cpp` as the example runtime.
+
+For the target laptop, a plausible first quality-oriented GGUF package is therefore `Q4_K_M` + the Q8 multimodal projector: about **2.10 GiB of model files on disk**. `Q4_0` + Q8 projector is about **2.03 GiB**. These are file-footprint figures only; they are not runtime-RAM estimates. Runtime acceptance still has to measure free memory, actual process peak, context/image working memory, load time and inference latency.
+
+This evidence materially improves the feasibility outlook for testing the preferred 3B model on the 7.68 GB machine. Stage 25 no longer requires downloading 450M first merely to prove that a VLM can load. The preferred next test is the official 3B `Q4_K_M` path with conservative context and an explicit free-memory/resource check. Keep 450M and 1.6B as fallback/comparison candidates if 3B runtime memory or latency is unacceptable.
+
+The ONNX repository is also real and includes Q4/Q8/FP16 decoder and vision-encoder variants plus token embeddings. However the first artifact-probe filter did not list every external-data shard for decoder files, so the printed decoder `onnx_data` sizes are incomplete and must **not** be summed as a total ONNX package size. Before an ONNX/OpenVINO A/B decision, run a corrected all-sibling/shard probe or use repository metadata that includes all external-data parts.
+
+Observed completion marker:
+
+```text
+STAGE25_LFM25_VL_3B_ARTIFACT_PROBE=PASS
+```
 
 ## Current candidate set
 
-Stage 25 separates preferred model quality from target-hardware feasibility:
+Stage 25 separates preferred model quality from fallback/comparison choices:
 
-1. **Preferred quality candidate:** `LiquidAI/LFM2.5-VL-3B` and an official/compatible local quantization when available.
+1. **Preferred quality and now first feasibility candidate:** `LiquidAI/LFM2.5-VL-3B-GGUF` `Q4_K_M` + Q8 multimodal projector, subject to measured runtime memory/latency.
 2. **Middle current-generation comparison:** `LiquidAI/LFM2.5-VL-1.6B` / GGUF.
-3. **Target-first lightweight candidate:** `LiquidAI/LFM2.5-VL-450M` / GGUF Q4.
+3. **Lightweight fallback/comparison:** `LiquidAI/LFM2.5-VL-450M` / GGUF Q4.
+4. **Runtime-format A/B candidate:** official `LiquidAI/LFM2.5-VL-3B-ONNX`, after complete shard/resource accounting.
 
 The final selected runtime/model/format may differ. No candidate is accepted from model naming, parameter count or marketing claims alone.
 
@@ -248,8 +272,8 @@ For each runtime/model/format configuration record:
 - exact model identifier and artifact/quantization;
 - context length and image-token/tiling settings where applicable;
 - GPU offload setting;
-- `--estimate-only` memory estimate;
-- observed idle RAM/VRAM;
+- `--estimate-only` memory estimate where the runtime supports it;
+- observed idle/free RAM before load;
 - observed peak RAM/VRAM during load and inference;
 - cold daemon/server startup;
 - cold model load time;
@@ -264,10 +288,10 @@ Do not select a candidate from parameter count or throughput alone.
 
 ## Stage 25 acceptance gates
 
-1. Verify/install LM Studio or standalone llmster on target Windows and record exact versions.
+1. Verify/install the first candidate runtime on target Windows and record exact versions.
 2. Prove headless daemon/server start/status/stop without GUI dependency.
 3. Prove machine-readable local model discovery and loaded-model status.
-4. Run memory estimates before candidate load and compare with measured RAM/VRAM.
+4. Run pre-load resource estimation where supported and compare with measured RAM/VRAM/process working set.
 5. Benchmark the candidate model set on representative visual tasks.
 6. Select runtime/model/format/load policy from measured quality + latency + memory evidence.
 7. Implement the smallest deterministic vendor-neutral local-vision adapter.
@@ -280,4 +304,4 @@ Do not select a candidate from parameter count or throughput alone.
 
 Do not change the Chat-facing action surface first.
 
-Start with target-machine runtime reconnaissance and a local benchmark harness that talks directly to the loopback runtime. Only after runtime/model evidence exists should the project add the focused semantic adapter and update the Chat app schema.
+The next target-machine step is to establish a working local runtime for the official 3B `Q4_K_M` GGUF path, record free memory and estimate/measure load cost with conservative context settings, then execute a small real vision request. LM Studio/llmster remains the preferred runtime-manager candidate; raw llama.cpp remains a useful direct compatibility/benchmark fallback because the official GGUF README targets it explicitly. Only after the GGUF path has measured evidence should Stage 25 spend time on ONNX/OpenVINO A/B or public semantic integration.
