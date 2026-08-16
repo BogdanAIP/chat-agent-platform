@@ -85,6 +85,8 @@ Do not merge PR #70 until:
 2. the target Windows machine runs the normal public `semantic` profile and confirms `active_profile=semantic`, `tunnel_binding=direct-stdio`, healthy readiness, one active scope and zero listeners on port 3050;
 3. after merge, the stable LocalAppData manager bundle is updated from `main` and its final status is verified.
 
+The target smoke is a final profile-routing/release check. The already-passed ordinary-Chat five-tool E2E does not need to be repeated unless exported tool definitions or the Chat app action snapshot changes again.
+
 ## Important findings to preserve
 
 - Chat action snapshots are frozen until reviewed/refreshed; server-side tool changes do not silently replace an already-scanned snapshot.
