@@ -20,8 +20,8 @@ $StateDir = Join-Path $LocalRoot "state"
 $OwnerFile = Join-Path $StateDir "manager-owner.json"
 $SettingsFile = Join-Path $StateDir "settings.json"
 $BaselineControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
-$SourceDirectControllerPath = Join-Path $PSScriptRoot "semantic-direct-experiment.ps1"
-$InstalledDirectControllerPath = Join-Path $LocalRoot "app\scripts\semantic-direct-experiment.ps1"
+$SourceDirectControllerPath = Join-Path $PSScriptRoot "semantic-direct-controller.ps1"
+$InstalledDirectControllerPath = Join-Path $LocalRoot "app\scripts\semantic-direct-controller.ps1"
 $TunnelExe = Join-Path $LocalRoot "bin\tunnel-client.exe"
 $DirectHealthUrlFile = Join-Path $StateDir "semantic-direct-health.url"
 $McpPort = 3050
@@ -149,7 +149,43 @@ function Get-RequestedProfile {
     return [string](Get-SharedSettings).profile
 }
 
+function Install-DirectControllerIfNeeded {
+    if (-not (Test-Path -LiteralPath $SourceDirectControllerPath -PathType Leaf)) {
+        return $false
+    }
+
+    if (Test-SamePath -Left $SourceDirectControllerPath -Right $InstalledDirectControllerPath) {
+        return $false
+    }
+
+    $installedDir = Split-Path -Parent $InstalledDirectControllerPath
+    New-Item -ItemType Directory -Force -Path $installedDir | Out-Null
+
+    $sourceHash = (Get-FileHash -LiteralPath $SourceDirectControllerPath -Algorithm SHA256).Hash
+    if (Test-Path -LiteralPath $InstalledDirectControllerPath -PathType Leaf) {
+        $installedHash = (Get-FileHash -LiteralPath $InstalledDirectControllerPath -Algorithm SHA256).Hash
+        if ($installedHash -eq $sourceHash) {
+            return $false
+        }
+    }
+
+    $temporary = "$InstalledDirectControllerPath.new"
+    Copy-Item -LiteralPath $SourceDirectControllerPath -Destination $temporary -Force
+    $copyHash = (Get-FileHash -LiteralPath $temporary -Algorithm SHA256).Hash
+    if ($copyHash -ne $sourceHash) {
+        Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+        throw 'semantic-direct controller installation verification failed.'
+    }
+
+    Move-Item -LiteralPath $temporary -Destination $InstalledDirectControllerPath -Force
+    return $true
+}
+
 function Get-DirectControllerPath {
+    if (Test-Path -LiteralPath $SourceDirectControllerPath -PathType Leaf) {
+        $null = Install-DirectControllerIfNeeded
+    }
+
     if (Test-Path -LiteralPath $InstalledDirectControllerPath -PathType Leaf) {
         return [System.IO.Path]::GetFullPath($InstalledDirectControllerPath)
     }
@@ -406,8 +442,6 @@ function Get-ControllerArguments {
         [string]$Profile -eq "semantic-direct" -and
         (Test-DirectControllerPath -Path $TargetControllerPath)
     ) {
-        # semantic-direct is the public routing name; the direct controller is
-        # a single-purpose lifecycle endpoint and does not need that selector.
         $passProfile = $false
     }
 
@@ -511,8 +545,6 @@ function Invoke-InternalControllerMutation {
         $startInfo.ArgumentList.Add([string]$argument)
     }
 
-    # Mutating controllers can create persistent descendants. Waiting on the
-    # exact process handle avoids inherited stdout handles keeping a caller open.
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
 
