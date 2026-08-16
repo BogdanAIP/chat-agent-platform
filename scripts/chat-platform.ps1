@@ -166,11 +166,23 @@ function Get-DirectControllerPath {
 }
 
 $TargetProfile = Get-RequestedProfile
-$ControllerPath = if ($TargetProfile -eq "semantic-direct") {
+$ControllerPath = if ($Action -eq "Install") {
+    [System.IO.Path]::GetFullPath($BaselineControllerPath)
+}
+elseif ($TargetProfile -eq "semantic-direct") {
     Get-DirectControllerPath
 }
 else {
     [System.IO.Path]::GetFullPath($BaselineControllerPath)
+}
+
+function Test-DirectControllerPath {
+    param([Parameter(Mandatory)] [string]$Path)
+
+    return (
+        (Test-SamePath -Left $Path -Right $SourceDirectControllerPath) -or
+        (Test-SamePath -Left $Path -Right $InstalledDirectControllerPath)
+    )
 }
 
 function Get-ManagerOwner {
@@ -388,7 +400,18 @@ function Get-ControllerArguments {
         $arguments.Add([string]$value)
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($Profile)) {
+    $passProfile = -not [string]::IsNullOrWhiteSpace($Profile)
+    if (
+        $passProfile -and
+        [string]$Profile -eq "semantic-direct" -and
+        (Test-DirectControllerPath -Path $TargetControllerPath)
+    ) {
+        # semantic-direct is the public routing name; the direct controller is
+        # a single-purpose lifecycle endpoint and does not need that selector.
+        $passProfile = $false
+    }
+
+    if ($passProfile) {
         $arguments.Add("-Profile")
         $arguments.Add($Profile)
     }
