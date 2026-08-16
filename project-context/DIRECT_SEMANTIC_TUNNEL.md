@@ -1,67 +1,54 @@
-# Direct Semantic Tunnel Binding — A/B Experiment
+# Direct Semantic Tunnel Binding — Stage 24.1
 
-Status: **WINDOWS CI + target-machine direct tunnel ACCEPTED; hosted ordinary-Chat and manager promotion pending**.
+Status: **ACCEPTED FOR PROMOTION**.
 
-## Goal
+## Decision
 
-Evaluate whether the accepted five-tool semantic projection should sit directly behind the official OpenAI `tunnel-client` stdio MCP binding instead of requiring 1MCP in the ordinary-Chat semantic request path.
-
-This is an architecture simplification experiment, not a claim that 1MCP is broken. Stage 24 ordinary-Chat acceptance passed through 1MCP and remains the product baseline until the direct path proves at least equivalent behavior.
-
-## Baseline A — accepted Stage 24 path
+Stage 24.1 selected the direct stdio semantic transport as the normal public `semantic` path:
 
 ```text
 ordinary ChatGPT
   -> Chat Local Bridge Test
   -> OpenAI Secure MCP Tunnel
   -> official tunnel-client
-  -> local 1MCP
-  -> semantic-projection
+  -> stdio semantic-projection
       -> Filesystem MCP
       -> Playwright MCP
 ```
 
-This path is product accepted and must remain available during the experiment.
-
-## Candidate B — direct semantic stdio path
+The accepted Stage 24 baseline remains valid historical evidence:
 
 ```text
-ordinary ChatGPT
-  -> Chat Local Bridge Test
-  -> OpenAI Secure MCP Tunnel
-  -> official tunnel-client
-  -> stdio main MCP binding
-  -> semantic-projection
-      -> Filesystem MCP
-      -> Playwright MCP
+Tunnel -> HTTP 1MCP -> stdio semantic-projection
 ```
 
-The candidate removes one runtime/process/protocol hop only from the semantic Chat-facing path. It does **not** remove 1MCP from the repository.
+1MCP was not found broken. The direct path won because it preserved the same five-tool behavior and reliability gates while removing an unnecessary hop from this specific critical path.
 
-## Why this is worth measuring
+1MCP remains replaceable internal infrastructure for adaptive lifecycle experiments, aggregation/inspection, diagnostics and future catalog work where its features add measured value.
 
-Potential advantages:
+## Stable Chat-facing contract
 
-- fewer runtime hops in the critical semantic path;
-- no semantic dependency on the fixed local 1MCP HTTP listener when the direct path is eventually promoted;
-- simpler failure attribution between Chat/tunnel/projection/backends;
-- fewer long-lived processes for the normal semantic profile;
-- direct protocol negotiation between `tunnel-client` and the project-owned semantic compatibility boundary.
+Transport promotion does not change the ordinary-Chat semantic surface:
 
-Potential costs:
+- `workspace_read`;
+- `workspace_write`;
+- `web_open`;
+- `web_observe`;
+- `web_interact`.
 
-- public manager lifecycle/status/ownership logic must understand a tunnel-owned stdio MCP child before promotion;
-- 1MCP aggregation, presets, lazy lifecycle and inspection remain useful for diagnostics/adaptive experiments and future larger catalogs;
-- stdio transport has no MCP session ID, so stateful designs must not accidentally rely on HTTP session semantics;
-- the accepted Stage 24 path already works, so simplification must beat or match it on measured stability rather than architectural taste alone.
+`semantic-projection` remains a small deterministic compatibility boundary. It is not a planner, registry, generic gateway or renamed `tool_invoke`.
 
-## Automated Windows gate — PASSED
+## Automated Windows direct gate — PASSED
 
-PR #70 added a real Windows acceptance path using official `tunnel-client v0.0.11` `dev proxy` with `--mcp-command` bound directly to `semantic-projection.mjs`.
+PR #70 added a Windows acceptance path using official `tunnel-client v0.0.11` `dev proxy` with `--mcp-command` bound directly to `semantic-projection.mjs`.
 
-Direct Semantic Tunnel Acceptance run `31947227216` passed on Windows Server 2025 with the reviewed tunnel-client archive SHA256 `eb912c86c6ccde90cda805cb17009507176a656725cf86c36fabe1901a12e29b`.
+The reviewed tunnel-client Windows archive SHA256 is:
 
-Observed pass markers:
+```text
+eb912c86c6ccde90cda805cb17009507176a656725cf86c36fabe1901a12e29b
+```
+
+Observed successful markers included:
 
 ```text
 DIRECT_SEMANTIC_PROTOCOL_ERA=modern
@@ -77,15 +64,11 @@ DIRECT_SEMANTIC_1MCP_USED=False
 DIRECT_SEMANTIC_TUNNEL=PASS
 ```
 
-The initial CI attempt exposed Windows command-string quoting in the test harness. The harness was changed to match the official wrapper's shell-quoting convention and to surface tunnel stdout/stderr on startup failure. The subsequent run passed. This was a harness defect, not a semantic-runtime failure.
+The initial CI attempt exposed Windows command-string quoting in the test harness. The harness was corrected to match the official wrapper's shell-quoting convention and the subsequent run passed. This was a harness defect, not a semantic-runtime failure.
 
-The installed-tunnel auto-detection path is also regression-covered: the workflow installs the verified tunnel binary into `%LOCALAPPDATA%\ChatAgentPlatform\bin\tunnel-client.exe` and invokes the same test command used on the target machine without an explicit `-TunnelExe` argument.
+## Target Windows direct gate — PASSED
 
-## Target Windows machine gate — PASSED
-
-The real target Windows machine ran commit `28b9f07084806c120aefc2259764def0e380b075` from an isolated detached worktree while the accepted installed platform remained untouched.
-
-Observed target-machine pass markers:
+The real target Windows machine used the already-installed official tunnel-client and passed:
 
 ```text
 DIRECT_SEMANTIC_PROTOCOL_ERA=modern
@@ -95,36 +78,111 @@ DIRECT_SEMANTIC_BROWSER=PASS
 DIRECT_SEMANTIC_NEGATIVE_CASES=PASS
 DIRECT_SEMANTIC_CONNECT_MS=305
 DIRECT_SEMANTIC_TUNNEL_ACCEPTANCE=PASS
-DIRECT_SEMANTIC_TUNNEL_EXE=C:\Users\eahra\AppData\Local\ChatAgentPlatform\bin\tunnel-client.exe
 DIRECT_SEMANTIC_STARTUP_MS=372
 DIRECT_SEMANTIC_ACCEPTANCE_MS=7341
 DIRECT_SEMANTIC_1MCP_USED=False
 DIRECT_SEMANTIC_TUNNEL=PASS
 ```
 
-The temporary workspace and dev-proxy listener were cleaned up by the harness. The accepted hosted semantic profile was not reconfigured by this test.
+The hosted candidate then used the existing Secure MCP Tunnel with:
 
-This target result proves that the already-installed official tunnel-client binary can launch and use the semantic projection directly over stdio on the actual Windows host, with the same five-tool contract and real Filesystem + Playwright operations, without 1MCP.
+```text
+SEMANTIC_DIRECT_STATUS=ready
+SEMANTIC_DIRECT_1MCP_USED=False
+active_profile=semantic-direct
+tunnel_binding=direct-stdio
+conflict=false
+PORT_3050_LISTENER_COUNT=0
+```
 
-## Remaining promotion gates
+## Ordinary-Chat E2E — PASSED
 
-Candidate B is not the default product path until all of the following pass:
+The existing `Chat Local Bridge Test` app needed one Refresh because its frozen action snapshot still contained old 1MCP-qualified internal action IDs. After Refresh, ordinary Chat successfully executed all five semantic actions through the direct path:
 
-1. **DONE:** Windows CI direct-tunnel acceptance;
-2. **DONE:** target-machine direct-tunnel acceptance with startup/operation timing recorded;
-3. reversible public-manager/hosted-tunnel integration can start/status/stop the direct semantic path without weakening single-owner/fail-closed behavior;
-4. ordinary Chat refresh sees the same exact five semantic actions through the existing tunnel/app;
-5. the same real multi-backend ordinary-Chat workflow passes through Candidate B;
-6. regression comparison shows no material loss in reliability or diagnostics;
-7. only then rename/promote direct binding as the normal `semantic` path.
+```text
+workspace_read(input.txt)
+=> SEMANTIC_FINAL_INPUT_20260816
 
-## 1MCP after possible promotion
+web_open(example.com)
+web_observe
+web_interact(Learn more)
+web_observe
+=> Example Domains
 
-If Candidate B wins, keep 1MCP as replaceable internal infrastructure for:
+workspace_write(result-direct.txt)
+workspace_read(result-direct.txt)
+=> SEMANTIC_FINAL_INPUT_20260816
+   Example Domains
+```
 
-- direct diagnostic/reference profiles where useful;
-- adaptive lifecycle experiments;
-- local catalog aggregation and inspection;
-- future backend lifecycle/catalog work that benefits from 1MCP features.
+No raw Filesystem/Playwright actions or generic invocation tool was used.
 
-Do not turn `semantic-projection` into a project-owned generic MCP gateway to replace 1MCP. The projection remains a small fixed typed compatibility boundary.
+## First-class manager lifecycle — PASSED
+
+The public manager gained a reversible managed direct semantic profile and passed on the target machine:
+
+```text
+Start -> Status -> Stop -> Status -> Start
+```
+
+with one authoritative owner at:
+
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\app\scripts\semantic-direct-controller.ps1
+```
+
+Healthy state remained:
+
+```text
+tunnel_running=true
+tunnel_ready=true
+mcp_ready=true
+active_count=1
+conflict=false
+tunnel_binding=direct-stdio
+PORT_3050_LISTENER_COUNT=0
+```
+
+## Crash recovery and idempotence — PASSED
+
+The owned direct `tunnel-client` was forcibly terminated on the target machine. Status correctly became stopped. A normal public-manager `Start` created exactly one replacement process with a new PID. A second `Start` reused that process rather than creating a duplicate.
+
+Observed markers:
+
+```text
+DIRECT_PROCESS_COUNT_BEFORE=1
+OLD_TUNNEL_ALIVE_AFTER_KILL=False
+DIRECT_PROCESS_COUNT_AFTER=1
+PID_CHANGED=True
+PORT_3050_LISTENER_COUNT=0
+DIRECT_PROCESS_COUNT_AFTER_SECOND_START=1
+SECOND_START_REUSED_PROCESS=True
+```
+
+## Target A/B lifecycle comparison — PASSED
+
+Both paths completed 3/3 healthy lifecycle cycles on the same target Windows machine.
+
+| Metric | Stage 24 `semantic` via 1MCP | Direct stdio | Direct improvement |
+|---|---:|---:|---:|
+| Average initial Start | 123685 ms | 5007 ms | ~24.70x faster |
+| Average repeated/idempotent Start | 84119 ms | 4876 ms | ~17.25x faster |
+| Average Stop | 23252 ms | 1043 ms | ~22.29x faster |
+| Local port 3050 listeners while running | 1 | 0 | fixed semantic HTTP hop removed |
+| Successful cycles | 3/3 | 3/3 | no loss in this sample |
+
+The direct path had already passed modern protocol negotiation, exact five-tool inventory, real Filesystem + Playwright operations, negative cases, hosted ordinary-Chat E2E, first-class lifecycle, fail-closed ownership and crash recovery. The A/B run therefore closed the final reliability/diagnostic promotion gate.
+
+## Promotion implementation
+
+The public manager now routes normal `semantic` through the direct stdio controller. `semantic-direct` remains temporarily as a compatibility/diagnostic alias during migration. Existing Stage 24 settings with `profile=semantic` and a stale `tunnel_profile=local-1mcp` are interpreted as promoted direct semantic settings rather than forcing the old route.
+
+The legacy 1MCP-backed semantic implementation remains available internally for diagnostics/A-B evidence and must not be deleted merely because it is no longer the normal public semantic transport.
+
+## Remaining release gate
+
+Before merging Stage 24.1:
+
+1. final CI/security/profile/semantic workflows must pass on the exact promotion head;
+2. the target Windows machine must smoke the **normal public `semantic` profile** and show `active_profile=semantic`, `tunnel_binding=direct-stdio`, healthy readiness and zero `3050` listeners;
+3. after merge, install/update the stable LocalAppData manager bundle from `main` and verify final status.
