@@ -59,13 +59,7 @@ ChatGPT
 
 The capability projection is a compatibility boundary, not a planner. It may map a fixed semantic typed operation to one reviewed backend action or small deterministic backend sequence. It must not decide user goals, interpret arbitrary plans, hide heterogeneous risk behind one generic schema, or recreate `tool_invoke` under another name.
 
-Each exposed Chat-facing action must have:
-
-- a fixed truthful JSON schema;
-- a clear semantic operation;
-- a coherent consequence/authorization class;
-- deterministic routing to approved backend capability;
-- bounded scope and negative tests where applicable.
+Each exposed Chat-facing action must have a fixed truthful JSON schema, clear semantic operation, coherent consequence/authorization class, deterministic routing to approved backend capability, bounded scope and applicable negative tests.
 
 Direct diagnostic profiles and adaptive 1MCP remain useful infrastructure, but their raw/generic contracts are not the normal Chat-facing scaling mechanism.
 
@@ -95,6 +89,8 @@ Both transports then completed 3/3 healthy lifecycle cycles on the target machin
 Direct stdio was approximately 24.70x faster to start, 17.25x faster on repeated Start and 22.29x faster to stop in this sample. This closed the transport A/B gate.
 
 Normal public `semantic` therefore routes through direct stdio. `semantic-direct` is retained temporarily as a compatibility/diagnostic alias during migration. The legacy 1MCP-backed semantic path may remain internally reachable for diagnostics/A-B evidence but is not the normal public route.
+
+Final Stage 24.1 release completion still requires green workflows on the exact promotion head, a target smoke of the normal public profile identity `semantic`, and stable LocalAppData bundle update after merge. That release smoke does not alter the already-accepted transport architecture.
 
 ## Capability lifecycle model
 
@@ -195,14 +191,7 @@ The repository owns only thin integration assets:
 - the smallest deterministic semantic capability projection required by the measured Chat boundary;
 - focused typed adapters only for measured missing local-program/model boundaries.
 
-The repository does **not** own by default:
-
-- AI planner/agent runtime;
-- public ingress/NAT/TLS;
-- generic MCP gateway/aggregator implementation;
-- generic registry/vault/job/policy/workflow platform;
-- media/mastering logic as platform core;
-- a bespoke general-purpose model runtime when a mature local runtime manager can satisfy the requirement.
+The repository does **not** own by default AI planner/agent runtime, public ingress/NAT/TLS, generic MCP gateway/aggregator implementation, generic registry/vault/job/policy/workflow platform, media/mastering logic as platform core, or a bespoke general-purpose model runtime when a mature local runtime manager can satisfy the requirement.
 
 ## Component choices
 
