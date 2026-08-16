@@ -92,15 +92,15 @@ Stage 25 is active.
 
 Goal: add bounded local model-powered perception without adding a second planner/agent brain.
 
-Current verified runtime direction:
+Current verified runtime/model direction:
 
 - LM Studio/`llmster` is the first replaceable runtime-manager candidate;
 - LM Studio supports headless `llmster`, `lms` lifecycle/model commands, local HTTP serving, OpenAI-compatible image chat, memory estimation before load, GPU offload controls and TTL/JIT unloading;
-- the previously documented `LiquidAI/LFM2.5-VL-3B` candidate name is not present in Liquid AI's current official LFM2.5-VL collection;
-- current official LFM2.5-VL candidates are `LiquidAI/LFM2.5-VL-1.6B` and `LiquidAI/LFM2.5-VL-450M` (including GGUF variants);
-- `LiquidAI/LFM2-VL-3B` exists as the older LFM2 generation and may be benchmarked as a comparison candidate rather than mislabeled as LFM2.5.
+- `LiquidAI/LFM2.5-VL-3B` is an official Liquid AI model released on 2026-08-12; official Liquid AI blog/docs, Hugging Face model weights and a WebGPU demo were provided as direct release evidence;
+- `LiquidAI/LFM2.5-VL-1.6B` and `LiquidAI/LFM2.5-VL-450M` remain useful smaller comparison candidates;
+- the target laptop has only 7.68 GB RAM and Intel Iris Xe, so target-first benchmarking still starts with the 450M Q4 variant, then 1.6B Q4, and only then the 3B candidate if memory estimation and observed headroom permit it.
 
-First preferred current-generation `local-vision` candidate: `LiquidAI/LFM2.5-VL-1.6B`, subject to target Windows hardware/runtime benchmarking. Do not hard-code the platform to LM Studio or Liquid AI before acceptance.
+Preferred quality candidate: `LiquidAI/LFM2.5-VL-3B`. Target-first runtime candidate on the current laptop: `LiquidAI/LFM2.5-VL-450M-GGUF` Q4. Do not hard-code the platform to LM Studio or Liquid AI before acceptance.
 
 ## Findings that remain active
 
