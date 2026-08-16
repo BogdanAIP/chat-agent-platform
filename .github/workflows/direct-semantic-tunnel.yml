@@ -102,13 +102,21 @@ jobs:
             throw "Official tunnel-client executable preflight failed: $($help -join ' ')"
           }
 
-          "DIRECT_TUNNEL_EXE=$($candidates[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $installedBin = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\bin'
+          New-Item -ItemType Directory -Force -Path $installedBin | Out-Null
+          $installedTunnel = Join-Path $installedBin 'tunnel-client.exe'
+          Copy-Item -LiteralPath $candidates[0].FullName -Destination $installedTunnel -Force
+          $installedHash = (Get-FileHash -LiteralPath $installedTunnel -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($installedHash -ne (Get-FileHash -LiteralPath $candidates[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()) {
+            throw 'Installed tunnel-client copy verification failed.'
+          }
+
           Write-Host "DIRECT_TUNNEL_ARCHIVE_SHA256=$actual"
+          Write-Host "DIRECT_TUNNEL_INSTALLED=$installedTunnel"
           Write-Host 'DIRECT_TUNNEL_BINARY_VERIFIED=PASS'
 
-      - name: Run semantic projection through tunnel-client stdio main binding
+      - name: Run semantic projection through auto-detected installed tunnel-client
         shell: pwsh
         run: |
           .\scripts\test-direct-semantic-tunnel.ps1 `
-            -TunnelExe $env:DIRECT_TUNNEL_EXE `
             -ReadyTimeoutSeconds 60
