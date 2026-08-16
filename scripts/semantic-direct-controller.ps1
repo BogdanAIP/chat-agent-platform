@@ -431,6 +431,21 @@ function Get-DirectStatusObject {
         }
     }
 
+    if (
+        [string]::IsNullOrWhiteSpace($root) -and
+        (Test-Path -LiteralPath $MainSettingsFile -PathType Leaf)
+    ) {
+        try {
+            $settings = Get-Content -LiteralPath $MainSettingsFile -Raw | ConvertFrom-Json
+            if ($null -ne $settings.PSObject.Properties['files_root']) {
+                $root = [string]$settings.files_root
+            }
+        }
+        catch {
+            $conflict = $true
+        }
+    }
+
     return [pscustomobject]@{
         tunnel_running = $running
         tunnel_ready = ($ready -and -not $conflict)
