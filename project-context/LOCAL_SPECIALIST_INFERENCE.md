@@ -76,7 +76,7 @@ Target-specific benchmark order is therefore:
 
 1. `LiquidAI/LFM2.5-VL-450M-GGUF` Q4 first, to validate runtime/API/vision behavior with maximum memory margin;
 2. `LiquidAI/LFM2.5-VL-1.6B-GGUF` Q4 only after estimate-only and measured free-memory checks;
-3. `LiquidAI/LFM2.5-VL-3B` / GGUF only if runtime estimation and observed headroom make it safe enough to benchmark.
+3. `LiquidAI/LFM2.5-VL-3B` / compatible local quantization only if runtime estimation and observed headroom make it safe enough to benchmark.
 
 This small-to-large order is for the current laptop's memory safety. It is not a ranking of model quality.
 
