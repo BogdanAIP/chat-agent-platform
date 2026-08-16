@@ -70,8 +70,10 @@ This was not a response to a proven 1MCP failure. Stage 24 proved A works. B was
 6. **DONE:** First-class public-manager direct profile, shared ownership/fail-closed handling and clean Start/Status/Stop/Start lifecycle.
 7. **DONE:** Forced tunnel-client crash recovery and duplicate-free idempotent repeated Start.
 8. **DONE:** Target A/B lifecycle comparison, 3/3 healthy cycles on both transports.
-9. **IN PROGRESS:** promote normal public `semantic` to direct stdio, run final CI and target normal-semantic smoke.
+9. **IN PROGRESS:** promote normal public `semantic` to direct stdio, run final CI and target normal-semantic profile-routing smoke.
 10. **PENDING:** merge PR #70, update the stable LocalAppData manager bundle from `main`, verify final status, then mark Stage 24.1 DONE.
+
+The final target smoke does not repeat ordinary-Chat tool semantics unless exported actions change; that E2E already passed on the same direct server surface.
 
 ### Target A/B evidence
 
