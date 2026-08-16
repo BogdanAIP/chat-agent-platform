@@ -122,9 +122,13 @@ Local models may be used for bounded specialist inference such as screen/image/d
 
 Prefer a mature replaceable local model-runtime manager over embedding one inference stack into platform core. LM Studio/`llmster` is the first runtime-manager candidate because current official LM Studio tooling provides headless Windows operation, model discovery/load/unload, memory estimation before load, GPU-offload/context controls, TTL/JIT eviction and OpenAI-compatible image chat.
 
-The previously recorded model name `LiquidAI/LFM2.5-VL-3B` is corrected: Liquid AI's current official LFM2.5-VL collection exposes `LFM2.5-VL-1.6B` and `LFM2.5-VL-450M` families, while `LiquidAI/LFM2-VL-3B` belongs to the older LFM2 generation.
+`LiquidAI/LFM2.5-VL-3B` is an official Liquid AI model released on 2026-08-12. Direct official release evidence is recorded from Liquid AI's release blog and model documentation plus the official Hugging Face model repository and WebGPU demo.
 
-`LiquidAI/LFM2.5-VL-1.6B` is therefore the first preferred current-generation `local-vision` candidate. `LiquidAI/LFM2-VL-3B` may be benchmarked as an older-generation comparison candidate.
+Stage 25 distinguishes model quality preference from current-hardware test order:
+
+- preferred quality candidate: `LiquidAI/LFM2.5-VL-3B`;
+- middle current-generation comparison: `LiquidAI/LFM2.5-VL-1.6B`;
+- first target-laptop runtime candidate: `LiquidAI/LFM2.5-VL-450M-GGUF` Q4 because the machine has 7.68 GB RAM and Intel Iris Xe.
 
 Neither runtime nor model is product-accepted until target Windows hardware/runtime benchmarking passes. The platform must keep runtime/model selection replaceable and evidence driven.
 
