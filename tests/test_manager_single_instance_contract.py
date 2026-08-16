@@ -113,7 +113,11 @@ class ManagerSingleInstanceContractTests(unittest.TestCase):
                     "A shared Chat Agent Platform runtime is already active",
                     combined,
                 )
-                self.assertIn("Refusing ambiguous startup", combined)
+                # PowerShell may insert a formatting gutter (`|`) between
+                # wrapped error lines, so assert the two semantic fragments
+                # rather than one presentation-dependent sentence.
+                self.assertIn("Refusing", combined)
+                self.assertIn("ambiguous startup", combined)
                 self.assertIn("port 3050", combined)
                 self.assertIn("python.exe", combined)
                 self.assertNotIn("Error formatting a string", combined)
