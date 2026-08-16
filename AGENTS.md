@@ -11,7 +11,7 @@ This repository is designed to be continued safely from a fresh ChatGPT or Codex
 5. `project-context/ROADMAP.md`
 6. `project-context/DEVELOPMENT_PRINCIPLES.md`
 
-For the active transport experiment also read `project-context/DIRECT_SEMANTIC_TUNNEL.md`.
+For Stage 24.1 transport history/evidence also read `project-context/DIRECT_SEMANTIC_TUNNEL.md`.
 
 For module work also read `project-context/MODULE_SELECTION_POLICY.md` and `project-context/MODULE_CATALOG.md`.
 
@@ -36,56 +36,60 @@ Do not revive an older design merely because it remains in Git history.
 - prefer official/vendor MCP, then mature OSS MCP, then a generic local API/CLI adapter, then the smallest project-owned adapter for a measured gap;
 - do not build a project-owned tunnel, generic MCP gateway, registry, vault, job system or policy platform while an accepted ecosystem component covers the boundary.
 
-## Accepted Stage 24 baseline
+## Stage 24 baseline — accepted historical evidence
 
 Stage 24 was squash-merged to `main` on 2026-08-16 as `175d36236f80a1f99f091d4f031a1c6255f3652b` from PR #66.
 
-The accepted ordinary-Chat path is:
+It proved the exact five semantic tools (`workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`) through:
 
 ```text
-ChatGPT
-  -> Chat Local Bridge Test
-  -> OpenAI Secure MCP Tunnel
-  -> official tunnel-client
-  -> 1MCP
-  -> five-tool semantic projection
-  -> scoped Filesystem / isolated Playwright backends
+ChatGPT -> Secure MCP Tunnel -> tunnel-client -> 1MCP -> semantic-projection
 ```
 
-Real ordinary-Chat acceptance proved the exact five semantic tools (`workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`) in one multi-backend workflow. The final pre-merge head passed the complete CI/security/acceptance suite.
+Do not describe that path as broken. It worked and remains useful baseline evidence.
 
-Do not reopen Stage 24 or describe its 1MCP path as broken merely because a simpler candidate is now being tested.
+## Stage 24.1 direction — direct semantic selected
 
-## Active direction — Stage 24.1
+Active branch: `chat/direct-semantic-tunnel`, PR #70.
 
-Active branch: `chat/direct-semantic-tunnel`.
-
-A/B test:
+A/B result:
 
 ```text
-A — accepted
-Tunnel -> 1MCP -> semantic-projection
+A — Stage 24 baseline
+Tunnel -> HTTP 1MCP -> stdio semantic-projection
 
-B — provisional
+B — selected
 Tunnel -> stdio semantic-projection
 ```
 
-Candidate B removes 1MCP only from the semantic critical path if measured evidence proves equivalence or improvement. 1MCP remains replaceable internal infrastructure for diagnostics, adaptive lifecycle experiments, aggregation/inspection and future catalog work where it adds value.
+Candidate B passed Windows CI, target-machine backend/negative tests, hosted Secure MCP Tunnel, real ordinary-Chat five-tool E2E, first-class manager lifecycle, single-owner/fail-closed behavior, forced-crash recovery and duplicate-free repeated Start.
 
-The first gate uses official `tunnel-client dev proxy --mcp-command` plus a real modern-protocol MCP client to exercise the five semantic actions without touching the production tunnel profile. Read `project-context/DIRECT_SEMANTIC_TUNNEL.md` for gates.
+Both paths then passed 3/3 lifecycle cycles on the target machine. Average timings were:
 
-Do not switch the accepted installed `semantic` profile to Candidate B until Windows CI, target-machine acceptance, reversible manager integration and real ordinary-Chat A/B all pass.
+- 1MCP: Start 123685 ms, repeated Start 84119 ms, Stop 23252 ms;
+- direct stdio: Start 5007 ms, repeated Start 4876 ms, Stop 1043 ms.
 
-## Stage 24 findings that remain active
+Direct was approximately 24.70x / 17.25x / 22.29x faster respectively in this sample and used no local port-3050 listener.
+
+Therefore normal public `semantic` is being promoted to direct stdio. `semantic-direct` remains temporarily as a compatibility/diagnostic alias. 1MCP remains replaceable internal infrastructure for adaptive lifecycle experiments, diagnostics, aggregation/inspection and future catalog work.
+
+## Current release gate
+
+Do not merge PR #70 until:
+
+- final CI/security/profile/semantic workflows are green on the exact promotion head;
+- the target Windows machine smokes **normal public `semantic`** and reports `active_profile=semantic`, `tunnel_binding=direct-stdio`, healthy readiness, one active scope, no conflict and zero port-3050 listeners;
+- after merge, the stable LocalAppData manager bundle is updated from `main` and final status is verified.
+
+## Findings that remain active
 
 - concrete typed actions are the accepted Chat-facing contract;
 - generic adaptive `tool_list` / `tool_schema` / `tool_invoke` is diagnostic infrastructure, not product surface;
 - frozen Chat action snapshots require Refresh/review when tool definitions change;
-- effective snapshot truncation around 20 actions was observed in the tested app, but this is not an official universal limit;
+- effective snapshot pressure/truncation around 20 actions was observed in the tested app, but is not an official universal limit;
 - OpenAI app permission mode is not the only safety layer;
 - the semantic projection must remain a small deterministic compatibility boundary and must not grow into a generic gateway/planner;
-- direct `files-readonly` and `browser-isolated` paths remain deterministic diagnostics;
-- installed/source single-owner and fail-closed regressions must remain green for profiles that use fixed port `3050`.
+- installed/source single-owner and fail-closed regressions must remain green for both direct and 1MCP-backed managed transports.
 
 ## Safety without capability paralysis
 
@@ -95,12 +99,12 @@ Use the model `AVAILABLE -> ACTIVE -> AUTHORIZED`:
 - start only what the task needs;
 - multiple backends may run together when the workflow genuinely requires it;
 - scope local roots, credentials and destructive operations at the strongest practical boundary;
-- prefer rollback, backups, git and contained workspaces over a confirmation dialog for every low-risk action;
+- prefer rollback, backups, git and contained workspaces over confirmation for every low-risk action;
 - reserve explicit confirmation for genuinely consequential or hard-to-reverse effects.
 
 ## Local specialist inference direction
 
-After the transport experiment, Stage 25 evaluates LM Studio/`llmster` as a replaceable local model-runtime manager and `LiquidAI/LFM2.5-VL-3B` as the first preferred local-vision candidate. Chat remains the planner; specialist models remain tools.
+After Stage 24.1, Stage 25 evaluates LM Studio/`llmster` as a replaceable local model-runtime manager and `LiquidAI/LFM2.5-VL-3B` as the first preferred local-vision candidate. Chat remains the planner; specialist models remain tools.
 
 Do not hard-code the platform to one model/runtime before target-machine evidence.
 
@@ -111,8 +115,8 @@ Do not hard-code the platform to one model/runtime before target-machine evidenc
 - parallelize only independent work;
 - `main` is the integration line for accepted stages, not a scratch branch;
 - do not force-push or rewrite `main` history;
-- perform locally accessible Windows/CLI/process/MCP acceptance directly when the environment permits;
+- perform locally accessible acceptance directly when the environment permits;
 - use the user only for the real ordinary-Chat UI/custom-app gate or another irreducible target-machine action;
 - never substitute a mock/local MCP client for a claimed ordinary-Chat E2E;
-- preserve accepted baseline behavior during A/B work;
+- preserve accepted historical evidence while simplifying the active architecture;
 - when local working-tree changes differ from remote, preserve/reconcile them intentionally rather than discarding them.
