@@ -4,6 +4,7 @@ param(
     [int]$ContextSize = 1024,
     [ValidateSet('direct', 'mark-grid', 'both')][string]$Method = 'both',
     [string[]]$CaseId = @(),
+    [ValidateSet('lfm25-vl-3b-q4km', 'lfm25-vl-1.6b-q4km')][string]$ModelProfile = 'lfm25-vl-3b-q4km',
     [int]$RequestTimeoutSeconds = 120,
     [double]$MinStartRamGB = 1.50,
     [double]$MinRunRamGB = 0.50,
@@ -14,11 +15,38 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$modelDir = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\stage25\models\LFM2.5-VL-3B-GGUF'
-$modelPath = Join-Path $modelDir 'LFM2.5-VL-3B-Q4_K_M.gguf'
-$mmprojPath = Join-Path $modelDir 'mmproj-LFM2.5-VL-3B-Q8_0.gguf'
-$expectedModelSha = '83c18dfba02c75769cdd63f73e37c343400e82d434ff1b14bcc1cb02fcf2f5f2'
-$expectedMmprojSha = '8ba27050dc88737db66b856d3b74e0e6cf54bee35fa4d9d9808f69ee556bbd43'
+$modelRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\stage25\models'
+
+$modelProfiles = @{
+    'lfm25-vl-3b-q4km' = @{
+        Directory = 'LFM2.5-VL-3B-GGUF'
+        ModelFile = 'LFM2.5-VL-3B-Q4_K_M.gguf'
+        MmprojFile = 'mmproj-LFM2.5-VL-3B-Q8_0.gguf'
+        ModelSha256 = '83c18dfba02c75769cdd63f73e37c343400e82d434ff1b14bcc1cb02fcf2f5f2'
+        MmprojSha256 = '8ba27050dc88737db66b856d3b74e0e6cf54bee35fa4d9d9808f69ee556bbd43'
+        ModelBytes = [int64]1674454240
+        MmprojBytes = [int64]583109120
+    }
+    'lfm25-vl-1.6b-q4km' = @{
+        Directory = 'LFM2.5-VL-1.6B-GGUF'
+        ModelFile = 'LFM2.5-VL-1.6B-Q4_K_M.gguf'
+        MmprojFile = 'mmproj-LFM2.5-VL-1.6b-Q8_0.gguf'
+        ModelSha256 = 'aefc3c97c9eb30d9c0dd6af4c38250f5f5106b57c8cf92de7914c7d0a9c94da2'
+        MmprojSha256 = '2ce89e610c56f3198ece2b86cf61743a08b9307279c89125eb2412ebb908689d'
+        ModelBytes = [int64]730896256
+        MmprojBytes = [int64]583109888
+    }
+}
+
+$modelSpec = $modelProfiles[$ModelProfile]
+if ($null -eq $modelSpec) { throw "Unknown ModelProfile '$ModelProfile'." }
+$modelDir = Join-Path $modelRoot $modelSpec.Directory
+$modelPath = Join-Path $modelDir $modelSpec.ModelFile
+$mmprojPath = Join-Path $modelDir $modelSpec.MmprojFile
+$expectedModelSha = $modelSpec.ModelSha256
+$expectedMmprojSha = $modelSpec.MmprojSha256
+$expectedModelBytes = [int64]$modelSpec.ModelBytes
+$expectedMmprojBytes = [int64]$modelSpec.MmprojBytes
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -44,6 +72,7 @@ $preOs = Get-CimInstance Win32_OperatingSystem
 $preRamGB = ($preOs.FreePhysicalMemory * 1KB) / 1GB
 $preVirtualGB = ($preOs.FreeVirtualMemory * 1KB) / 1GB
 Write-Host "`n===== PRE-RUN MEMORY =====" -ForegroundColor Cyan
+Write-Host "MODEL_PROFILE=$ModelProfile"
 Write-Host "RAM_FREE_GB=$([math]::Round($preRamGB,2))"
 Write-Host "VIRTUAL_FREE_GB=$([math]::Round($preVirtualGB,2))"
 Write-Host "MIN_START_RAM_GB=$MinStartRamGB"
@@ -63,10 +92,18 @@ foreach ($path in @($modelPath, $mmprojPath)) {
 }
 
 Write-Host "`n===== VERIFY MODEL ARTIFACTS =====" -ForegroundColor Cyan
+$modelItem = Get-Item -LiteralPath $modelPath
+$mmprojItem = Get-Item -LiteralPath $mmprojPath
 $modelSha = (Get-FileHash -LiteralPath $modelPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $mmprojSha = (Get-FileHash -LiteralPath $mmprojPath -Algorithm SHA256).Hash.ToLowerInvariant()
+Write-Host "MODEL_FILE=$($modelItem.Name)"
+Write-Host "MODEL_BYTES=$($modelItem.Length)"
 Write-Host "MODEL_SHA256=$modelSha"
+Write-Host "MMPROJ_FILE=$($mmprojItem.Name)"
+Write-Host "MMPROJ_BYTES=$($mmprojItem.Length)"
 Write-Host "MMPROJ_SHA256=$mmprojSha"
+if ($modelItem.Length -ne $expectedModelBytes) { throw 'Main model byte-size mismatch.' }
+if ($mmprojItem.Length -ne $expectedMmprojBytes) { throw 'mmproj byte-size mismatch.' }
 if ($modelSha -ne $expectedModelSha) { throw 'Main model SHA256 mismatch.' }
 if ($mmprojSha -ne $expectedMmprojSha) { throw 'mmproj SHA256 mismatch.' }
 Write-Host 'MODEL_ARTIFACTS_VERIFIED=True'
@@ -165,6 +202,7 @@ try {
 
     $loadSeconds = [math]::Round(((Get-Date) - $loadStart).TotalSeconds, 2)
     Write-Host "SERVER_READY=True"
+    Write-Host "MODEL_PROFILE=$ModelProfile"
     Write-Host "LOAD_SECONDS=$loadSeconds"
     Write-Host "CONTEXT_SIZE=$ContextSize"
     Write-Host "METHOD=$Method"
@@ -276,6 +314,7 @@ try {
     }
 
     Write-Host "`n===== RESOURCE RESULT =====" -ForegroundColor Cyan
+    Write-Host "MODEL_PROFILE=$ModelProfile"
     Write-Host "SAFETY_STOP=$safetyStop"
     Write-Host "BENCHMARK_SECONDS=$benchmarkSeconds"
     Write-Host "MIN_RAM_FREE_GB=$([math]::Round($minRamGB,2))"
@@ -313,7 +352,14 @@ try {
     if (-not [bool]$results.completed) { throw 'Benchmark client exited without a completed checkpoint.' }
 
     Write-Host "`n===== STAGE 25 TARGET GROUNDING PROBE =====" -ForegroundColor Green
-    Write-Host 'STAGE25_LFM25_VL_3B_GROUNDING_RUN=PASS'
+    Write-Host 'STAGE25_GROUNDING_RUN=PASS'
+    Write-Host "STAGE25_MODEL_PROFILE=$ModelProfile"
+    if ($ModelProfile -eq 'lfm25-vl-3b-q4km') {
+        Write-Host 'STAGE25_LFM25_VL_3B_GROUNDING_RUN=PASS'
+    }
+    if ($ModelProfile -eq 'lfm25-vl-1.6b-q4km') {
+        Write-Host 'STAGE25_LFM25_VL_1_6B_GROUNDING_RUN=PASS'
+    }
 }
 finally {
     Write-Host "`n===== CLEANUP =====" -ForegroundColor Cyan
