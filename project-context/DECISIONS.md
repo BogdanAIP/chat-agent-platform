@@ -20,7 +20,11 @@ The old Rust/Python universal platform, relay/gateway and media platform core ar
 
 ## ADR-013 — 1MCP is replaceable infrastructure — ACCEPTED
 
-`@1mcp/agent@0.34.4` is the accepted direct Windows baseline. 1MCP is not product identity. A different/newer line may be evaluated for measured compatibility/lifecycle requirements without making multiple gateways permanent dependencies.
+`@1mcp/agent@0.34.4` is the accepted direct Windows baseline from Stage 24. 1MCP is not product identity. A different/newer line or a narrower direct transport may be evaluated for measured compatibility/lifecycle requirements without making multiple gateways permanent dependencies.
+
+Stage 24 ordinary-Chat acceptance proves that 1MCP works in the accepted semantic baseline. Stage 24.1 later removed 1MCP from the normal semantic critical path because direct stdio proved materially simpler/faster with equivalent acceptance, not because the Stage 24 path was broken.
+
+1MCP remains replaceable internal infrastructure for diagnostics, adaptive lifecycle experiments, aggregation/inspection and future catalog work where its features add measured value.
 
 ## ADR-014 — Privileged capabilities require scoped acceptance — ACCEPTED
 
@@ -34,17 +38,15 @@ Bootstrap/controller/tray may install, configure, start/stop, report health and 
 
 ### Evidence
 
-The adaptive 1MCP runtime itself passes local/remote lifecycle acceptance through exact `@1mcp/agent@0.35.0-beta.3` plus the hash-guarded compatibility package. Filesystem and Playwright can enable, appear through lazy discovery, execute a real operation, disable and clean up in one MCP session while the top-level generic surface stays fixed.
+The adaptive 1MCP runtime passes local/remote lifecycle acceptance through exact `@1mcp/agent@0.35.0-beta.3` plus the hash-guarded compatibility package. Filesystem and Playwright can enable, appear through lazy discovery, execute a real operation, disable and clean up in one MCP session while the top-level generic surface stays fixed.
 
-The real ordinary-Chat test then exposed the exact eight generic/lifecycle actions. Read-only list/status/discovery calls reached the bridge, but lifecycle actions plus `tool_schema`/`tool_invoke` were blocked before MCP execution.
+The real ordinary-Chat test exposed the exact eight generic/lifecycle actions. Read-only list/status/discovery calls reached the bridge, but lifecycle actions plus `tool_schema`/`tool_invoke` were blocked before MCP execution.
 
 The exact OpenAI admission cause was not isolated. Therefore do not claim that a specific annotation alone caused the failure.
 
 ### Decision
 
 Do not promote the generic adaptive `tool_list` / `tool_schema` / `tool_invoke` plus lifecycle surface as the normal ordinary-Chat product contract.
-
-The generic dispatcher is also structurally difficult to describe truthfully at one static tool boundary because the nested operation determines the real schema and consequences. Do not relabel it read-only/non-destructive merely to bypass product review.
 
 Keep the adaptive implementation as useful local/CI lifecycle infrastructure and a diagnostic experiment. Revisit generic dynamic invocation only if a future standard/product mechanism exposes downstream operation semantics truthfully and passes ordinary-Chat acceptance.
 
@@ -58,13 +60,13 @@ AVAILABLE -> ACTIVE -> AUTHORIZED
 
 The platform should not keep every backend process running. Sequential tasks should normally activate backends sequentially. Workflows that genuinely require multiple capabilities may keep multiple backends active together.
 
-Real ordinary-Chat Filesystem + Browser typed use has now passed on a synthetic scoped workspace, so permanent mutual exclusion is not a product requirement.
+Real ordinary-Chat Filesystem + Browser typed use has passed on a synthetic scoped workspace, so permanent mutual exclusion is not a product requirement.
 
 Authorization should prioritize scoped roots/resources, reversible workspaces, backups/git and consequence-based confirmation over prompting for every low-risk action. OpenAI app permission mode is an additional product control, not the only safety boundary.
 
-Promotion to ACCEPTED requires the scalable typed capability mechanism and task-driven lifecycle to pass together on the real product path.
+This lifecycle model remains provisional for broader future catalogs even though the Stage 24 semantic path itself passed product acceptance.
 
-## ADR-018 — Concrete typed Chat-facing capability surface — PROVISIONAL
+## ADR-018 — Concrete typed semantic Chat-facing capability surface — ACCEPTED
 
 ### Evidence
 
@@ -72,46 +74,114 @@ A freshly scanned direct Playwright surface passed ordinary-Chat `browser_naviga
 
 A combined local runtime exposed 14 Filesystem + 20 Playwright actions. The Chat-facing app effectively surfaced 20 actions, excluding later browser actions such as `browser_navigate`/`browser_click`.
 
-After reducing Filesystem to four typed actions, the local runtime exposed 24 total actions and a refreshed/new ordinary Chat successfully used typed `list_allowed_directories`, `read_text_file`, `write_file`, `browser_navigate`, `browser_find` and `browser_click` in one conversation.
+After reducing Filesystem to four typed actions, the local runtime exposed 24 total actions and a refreshed/new ordinary Chat successfully used typed file and browser actions in one conversation.
 
-Official OpenAI documentation says ChatGPT MCP apps use a frozen reviewed tool snapshot; later MCP tool-definition changes are not automatically enabled. 1MCP tags/presets/filtering can narrow local runtime exposure but do not independently make an already-scanned ordinary-Chat app dynamically acquire new typed actions. OpenAI Tool Search solves large tool surfaces in the API/Agents SDK, but it is not currently documented as available to this ordinary-Chat custom-MCP-app path.
+Stage 24 then implemented a fixed five-tool semantic projection:
 
-### Decision under acceptance
+- `workspace_read`;
+- `workspace_write`;
+- `web_open`;
+- `web_observe`;
+- `web_interact`.
 
-Preserve concrete typed schemas and truthful tool semantics as the Chat-facing contract. Solve scaling by projecting a small stable semantic typed surface onto the larger approved local capability catalog rather than publishing hundreds of tools or hiding all operations behind opaque generic invocation.
+On 2026-08-16 a real ordinary-Chat session through the normal Secure MCP Tunnel path used those semantic actions to read `SEMANTIC_FINAL_INPUT_20260816`, navigate from `example.com` through the actual observed `Learn more` link to `Example Domains`, write `result.txt`, and independently read back the exact two-line result. No raw backend tools or generic `tool_invoke` were used.
 
-The observed ~20-action behavior is **not** an official OpenAI limit and must not be hard-coded as a universal constant. The implementation should measure/fail safely and remain adaptable if product limits change.
+PR #66 final head `87a8701b938a128901646d096e13142700cc109a` passed the full final CI/security/acceptance suite and was squash-merged to `main` as `175d36236f80a1f99f091d4f031a1c6255f3652b`.
 
-A project-owned capability projection/facade is allowed only if it is the smallest measured compatibility boundary and does not become a planner, workflow engine or generic replacement MCP platform. Each exposed operation must have a truthful fixed schema and consequence class; do not recreate `tool_invoke` under another name.
+Stage 24.1 repeated the same five-tool ordinary-Chat workflow through the direct stdio transport with the same results. Transport therefore remains an implementation detail beneath this accepted semantic contract.
 
-Promotion requires real ordinary-Chat acceptance across more than one backend class without one Chat app per backend or routine manual Refresh for each operation.
+### Decision
+
+Preserve concrete typed schemas and truthful tool semantics as the Chat-facing product contract. Scale by projecting a small stable semantic typed surface onto approved local capabilities rather than publishing hundreds of tools or hiding operations behind opaque generic invocation.
+
+The observed ~20-action behavior is measured evidence, **not** an official universal limit and must not be hard-coded as one.
+
+The project-owned semantic projection is allowed because it is a small deterministic compatibility boundary. It must not choose user goals, plan workflows, hide heterogeneous risk behind a generic schema or become a project-owned general MCP gateway.
 
 ## ADR-019 — One authoritative Windows manager owner — ACCEPTED
 
 ### Evidence
 
-The target machine exposed a stale installed adaptive runtime under `%LOCALAPPDATA%\ChatAgentPlatform\app` listening on `127.0.0.1:3050` while the source checkout reported its known profiles stopped. New source startup could therefore observe the stale runtime health endpoint.
+The target machine exposed a stale installed adaptive runtime under `%LOCALAPPDATA%\ChatAgentPlatform\app` listening on `127.0.0.1:3050` while the source checkout reported its known profiles stopped. New source startup could therefore observe stale runtime health.
 
-The implementation adds shared `manager-owner.json` state, cross-copy status delegation/stop/takeover behavior and fail-closed handling when the fixed MCP port is occupied without a trustworthy owner.
+The implementation added shared `manager-owner.json` state, cross-copy status delegation/stop/takeover behavior and fail-closed handling when the fixed MCP port is occupied without a trustworthy owner.
 
-Target Windows acceptance on 2026-08-14 proved installed start, source observation, installed -> source takeover, source observation from the installed copy, source -> installed takeover and foreign-owner Stop/cleanup with exactly one `3050` listener at each running state. A separate occupied-port test proved an unrelated `3050` listener is rejected rather than accepted as platform readiness.
+Target Windows acceptance proved installed start, source observation, installed -> source takeover, source observation from the installed copy, source -> installed takeover and foreign-owner Stop/cleanup with exactly one `3050` listener at each running 1MCP-backed state. A separate occupied-port test proved an unrelated `3050` listener is rejected rather than accepted as platform readiness. Automated Windows CI covers the negative path.
 
-Commit `923d2f9...` fixed the diagnostic string exposed by that negative test. Functional head `ffcc2e407...` then added a real Windows CI test that binds a foreign listener and verifies the public manager's non-zero fail-closed path. All CI/profile/security workflows pass on that exact functional head.
+Stage 24.1 extended the same single-owner/fail-closed scope to the direct semantic `tunnel-client` process. Direct semantic lifecycle and crash recovery proved exactly one owned process, clean stopped status after forced process death, normal-Start recovery and duplicate-free idempotent repeated Start.
 
 ### Decision
 
-Installed and source manager copies are not independent platform instances. They coordinate one authoritative owner for the fixed local MCP/tunnel runtime through shared LocalAppData state. Status follows the recorded owner, takeover stops the previous owner first, and an unowned occupied port fails closed.
+Installed and source manager copies are not independent platform instances. They coordinate one authoritative owner through shared LocalAppData state. Status follows the recorded owner, takeover stops the previous owner first, and an unowned shared runtime fails closed.
 
-The foreign-owner `Toggle` branch remains regression-covered but was not separately repeated as a dedicated target-machine user action. That does not reopen the measured split-brain defect; if Toggle behavior changes later, test that specific path before claiming a new Toggle implementation accepted.
+Port `3050` remains part of ownership/fail-closed detection for profiles that use 1MCP. The promoted direct `semantic` profile does not require a `3050` listener and is identified/owned through its exact tunnel-client command/health state instead.
 
 ## ADR-020 — Local specialist inference is a capability backend, not a second brain — PROVISIONAL
 
-### Decision under acceptance
-
 Local models may be used for bounded specialist inference such as screen/image/document understanding, OCR, grounding, comparison, extraction or classification while ordinary ChatGPT remains the planner/orchestrator.
 
-Prefer a mature replaceable local model-runtime manager over embedding one inference stack into platform core. LM Studio/`llmster` is the first runtime-manager candidate because its current documented surface includes local model discovery, memory estimation before load, GPU-offload control, JIT loading, TTL and auto-eviction.
+Prefer a mature replaceable local model-runtime manager over embedding one inference stack into platform core. LM Studio/`llmster` is the first runtime-manager candidate. `LiquidAI/LFM2.5-VL-3B` is the first preferred `local-vision` model candidate.
 
-`LiquidAI/LFM2.5-VL-3B`, officially released 2026-08-12, is the first preferred `local-vision` model candidate. Liquid AI publishes screen/UI, OCR/document/chart, grounding and multi-image capabilities plus GGUF/llama.cpp and ONNX support.
+Neither runtime nor model is product-accepted until target Windows hardware/runtime benchmarking passes. The platform must keep runtime/model selection replaceable and evidence driven.
 
-Neither LM Studio nor LFM2.5-VL-3B is product-accepted until target Windows hardware/runtime benchmarking passes. The platform must keep runtime/model selection replaceable and hardware/evidence driven.
+## ADR-021 — Direct semantic stdio tunnel binding — ACCEPTED
+
+### Baseline and candidate
+
+Stage 24 accepted:
+
+```text
+ordinary ChatGPT
+  -> Secure MCP Tunnel
+  -> official tunnel-client
+  -> HTTP 1MCP
+  -> stdio semantic-projection
+  -> Filesystem / Playwright MCP
+```
+
+Stage 24.1 evaluated:
+
+```text
+ordinary ChatGPT
+  -> Secure MCP Tunnel
+  -> official tunnel-client
+  -> stdio semantic-projection
+  -> Filesystem / Playwright MCP
+```
+
+This evaluation was an architecture simplification exercise, not evidence that 1MCP failed.
+
+### Acceptance evidence
+
+Candidate B passed all architecture/acceptance gates:
+
+1. Windows CI through official tunnel-client stdio binding with modern MCP negotiation and the exact five-tool inventory;
+2. real scoped Filesystem + Playwright operations and negative cases;
+3. target-machine direct-tunnel startup/operation/cleanup;
+4. first-class public-manager lifecycle, single-owner/fail-closed handling, crash recovery and duplicate-free repeated Start;
+5. existing `Chat Local Bridge Test` refreshed to the same exact five semantic actions;
+6. real ordinary-Chat `read -> browser observe/interact -> write -> independent read` workflow;
+7. target-machine A/B lifecycle comparison.
+
+Both transports completed 3/3 healthy A/B cycles. Average target-machine timings were:
+
+| Metric | 1MCP baseline | Direct stdio |
+|---|---:|---:|
+| initial Start | 123685 ms | 5007 ms |
+| repeated/idempotent Start | 84119 ms | 4876 ms |
+| Stop | 23252 ms | 1043 ms |
+| port 3050 listeners while running | 1 | 0 |
+
+The direct path was approximately 24.70x faster to start, 17.25x faster on repeated Start and 22.29x faster to stop in this sample, while preserving the tested reliability/diagnostic behavior.
+
+### Decision
+
+Promote direct stdio binding as the normal public `semantic` transport.
+
+`semantic-direct` may remain temporarily as a compatibility/diagnostic alias during migration. The legacy 1MCP-backed semantic path remains internal diagnostic/reference evidence and should not be deleted solely because it is no longer the normal public route.
+
+Retain 1MCP as replaceable internal infrastructure for adaptive lifecycle experiments, aggregation/inspection, diagnostics and future catalog/lifecycle cases where its features add measured value.
+
+The direct transport does not expand the semantic projection's responsibilities. `semantic-projection` remains the deterministic fixed typed boundary and must not become a generic gateway, registry, lifecycle platform or planner.
+
+The ADR is accepted from the completed architecture/equivalence gates. PR #70 still requires final promotion-head CI, a target smoke of the public profile name `semantic`, and stable LocalAppData bundle update after merge before Stage 24.1 is marked release-complete.

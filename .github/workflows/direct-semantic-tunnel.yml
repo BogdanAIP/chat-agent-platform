@@ -1,0 +1,250 @@
+name: Direct Semantic Tunnel Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/semantic-projection/**"
+      - "scripts/semantic-projection-runtime.ps1"
+      - "scripts/test-direct-semantic-tunnel.ps1"
+      - "scripts/semantic-direct-experiment.ps1"
+      - "scripts/semantic-direct-controller.ps1"
+      - "scripts/chat-platform.ps1"
+      - ".github/workflows/direct-semantic-tunnel.yml"
+      - "project-context/DIRECT_SEMANTIC_TUNNEL.md"
+      - "project-context/DECISIONS.md"
+      - "project-context/ROADMAP.md"
+      - "project-context/START_HERE.md"
+      - "project-context/CURRENT_STATE.md"
+      - "project-context/ARCHITECTURE.md"
+      - "AGENTS.md"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/semantic-projection/**"
+      - "scripts/semantic-projection-runtime.ps1"
+      - "scripts/test-direct-semantic-tunnel.ps1"
+      - "scripts/semantic-direct-experiment.ps1"
+      - "scripts/semantic-direct-controller.ps1"
+      - "scripts/chat-platform.ps1"
+      - ".github/workflows/direct-semantic-tunnel.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: direct-semantic-tunnel-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-direct-semantic-tunnel:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment and PowerShell contracts
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+          if (-not (Test-Path -LiteralPath $chrome)) {
+            throw 'Google Chrome is required for direct semantic browser acceptance.'
+          }
+
+          foreach ($script in @(
+            'scripts/test-direct-semantic-tunnel.ps1',
+            'scripts/semantic-direct-experiment.ps1',
+            'scripts/semantic-direct-controller.ps1',
+            'scripts/chat-platform.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $script),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) {
+              throw "$script has PowerShell syntax errors: $($errors -join '; ')"
+            }
+          }
+
+          foreach ($directScript in @(
+            'scripts/semantic-direct-experiment.ps1',
+            'scripts/semantic-direct-controller.ps1'
+          )) {
+            $directSource = Get-Content -LiteralPath $directScript -Raw
+            if (
+              $directSource -match '(?im)\[int\]\s*\$Pid\b' -or
+              $directSource -match '(?i)Save-DirectState\s+-Pid\b'
+            ) {
+              throw "$directScript must not bind a parameter named Pid because PowerShell automatic `$PID is read-only."
+            }
+          }
+
+          $status = .\scripts\semantic-direct-experiment.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+          if ($status.tunnel_running -or $status.mcp_ready -or [int]$status.active_count -ne 0) {
+            throw 'Fresh semantic-direct experiment status must be stopped.'
+          }
+          if ([string]$status.tunnel_binding -ne 'direct-stdio') {
+            throw 'semantic-direct experiment status lost the direct-stdio binding marker.'
+          }
+
+          $managedStatus = .\scripts\semantic-direct-controller.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+          if ($managedStatus.tunnel_running -or $managedStatus.mcp_ready -or [int]$managedStatus.active_count -ne 0) {
+            throw 'Fresh managed direct semantic status must be stopped.'
+          }
+          if ([string]$managedStatus.tunnel_binding -ne 'direct-stdio') {
+            throw 'Managed direct semantic controller lost the direct-stdio binding marker.'
+          }
+
+          $profileRoot = Join-Path $env:RUNNER_TEMP 'semantic-direct-manager-profile'
+          New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
+
+          # Compatibility alias remains reversible during migration.
+          & .\scripts\chat-platform.ps1 `
+            -Action SetProfile `
+            -Profile semantic-direct `
+            -FilesRoot $profileRoot `
+            -NoNotify
+          if ($LASTEXITCODE -ne 0) {
+            throw "Public manager semantic-direct SetProfile failed with exit code $LASTEXITCODE."
+          }
+
+          $installedController = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\app\scripts\semantic-direct-controller.ps1'
+          if (-not (Test-Path -LiteralPath $installedController -PathType Leaf)) {
+            throw 'Public manager did not install the managed direct semantic controller into the stable app root.'
+          }
+          $sourceControllerHash = (Get-FileHash -LiteralPath 'scripts/semantic-direct-controller.ps1' -Algorithm SHA256).Hash
+          $installedControllerHash = (Get-FileHash -LiteralPath $installedController -Algorithm SHA256).Hash
+          if ($sourceControllerHash -ne $installedControllerHash) {
+            throw 'Installed managed direct semantic controller hash differs from the reviewed source.'
+          }
+
+          $managerStatus = .\scripts\chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+          if (
+            [string]$managerStatus.active_profile -ne '' -or
+            [int]$managerStatus.active_count -ne 0 -or
+            [bool]$managerStatus.tunnel_running -or
+            [bool]$managerStatus.mcp_ready
+          ) {
+            throw 'Fresh semantic-direct alias status must remain stopped.'
+          }
+          if ([string]$managerStatus.tunnel_binding -ne 'direct-stdio') {
+            throw 'Public manager did not route semantic-direct to the direct controller.'
+          }
+          if ([string]$managerStatus.settings.profile -ne 'semantic-direct') {
+            throw 'Public manager semantic-direct settings marker was not preserved.'
+          }
+
+          # Promotion contract: normal semantic is now direct stdio too.
+          & .\scripts\chat-platform.ps1 `
+            -Action SetProfile `
+            -Profile semantic `
+            -FilesRoot $profileRoot `
+            -NoNotify
+          if ($LASTEXITCODE -ne 0) {
+            throw "Public manager promoted semantic SetProfile failed with exit code $LASTEXITCODE."
+          }
+
+          $promotedStatus = .\scripts\chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+          if (
+            [string]$promotedStatus.active_profile -ne '' -or
+            [int]$promotedStatus.active_count -ne 0 -or
+            [bool]$promotedStatus.tunnel_running -or
+            [bool]$promotedStatus.mcp_ready
+          ) {
+            throw 'Fresh promoted semantic manager status must remain stopped.'
+          }
+          if ([string]$promotedStatus.tunnel_binding -ne 'direct-stdio') {
+            throw 'Normal semantic profile is not routed through direct stdio.'
+          }
+          if ([string]$promotedStatus.settings.profile -ne 'semantic') {
+            throw 'Normal semantic profile identity was not preserved after promotion.'
+          }
+          if ([string]$promotedStatus.settings.tunnel_profile -ne 'direct-stdio') {
+            throw 'Normal semantic settings still claim the legacy 1MCP transport.'
+          }
+          if ([string]$promotedStatus.settings.files_root -ne [System.IO.Path]::GetFullPath($profileRoot)) {
+            throw 'Promoted semantic FilesRoot drifted.'
+          }
+
+          & .\scripts\chat-platform.ps1 -Action SetProfile -Profile reference -NoNotify
+          if ($LASTEXITCODE -ne 0) {
+            throw "Public manager reference profile restore failed with exit code $LASTEXITCODE."
+          }
+
+          $restored = Get-Content -LiteralPath (Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\state\settings.json') -Raw | ConvertFrom-Json
+          if ([string]$restored.profile -ne 'reference' -or [string]$restored.tunnel_profile -ne 'local-1mcp') {
+            throw 'Public manager failed to restore the reference binding after promoted semantic routing test.'
+          }
+
+          Write-Host 'SEMANTIC_DIRECT_MANAGER_ROUTING=PASS'
+          Write-Host 'SEMANTIC_PROMOTED_DIRECT_ROUTING=PASS'
+
+      - name: Install exact semantic projection dependencies
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+            if ($LASTEXITCODE -ne 0) {
+              throw "npm install failed with exit code $LASTEXITCODE"
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Download verified official tunnel-client v0.0.11
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v0.0.11'
+          $asset = "tunnel-client-$tag-windows-amd64.zip"
+          $expected = 'eb912c86c6ccde90cda805cb17009507176a656725cf86c36fabe1901a12e29b'
+          $root = Join-Path $env:RUNNER_TEMP 'openai-tunnel-client'
+          $zip = Join-Path $root $asset
+          $extract = Join-Path $root 'extract'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+
+          $url = "https://github.com/openai/tunnel-client/releases/download/$tag/$asset"
+          Invoke-WebRequest -Uri $url -OutFile $zip -TimeoutSec 120
+          $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Official tunnel-client archive checksum mismatch. Expected $expected, got $actual."
+          }
+
+          Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
+          $candidates = @(Get-ChildItem -LiteralPath $extract -Filter 'tunnel-client.exe' -File -Recurse)
+          if ($candidates.Count -ne 1) {
+            throw "Expected one tunnel-client.exe, found $($candidates.Count)."
+          }
+
+          $help = @(& $candidates[0].FullName help quickstart 2>&1)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Official tunnel-client executable preflight failed: $($help -join ' ')"
+          }
+
+          $installedBin = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\bin'
+          New-Item -ItemType Directory -Force -Path $installedBin | Out-Null
+          $installedTunnel = Join-Path $installedBin 'tunnel-client.exe'
+          Copy-Item -LiteralPath $candidates[0].FullName -Destination $installedTunnel -Force
+          $installedHash = (Get-FileHash -LiteralPath $installedTunnel -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($installedHash -ne (Get-FileHash -LiteralPath $candidates[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()) {
+            throw 'Installed tunnel-client copy verification failed.'
+          }
+
+          Write-Host "DIRECT_TUNNEL_ARCHIVE_SHA256=$actual"
+          Write-Host "DIRECT_TUNNEL_INSTALLED=$installedTunnel"
+          Write-Host 'DIRECT_TUNNEL_BINARY_VERIFIED=PASS'
+
+      - name: Run semantic projection through auto-detected installed tunnel-client
+        shell: pwsh
+        run: |
+          .\scripts\test-direct-semantic-tunnel.ps1 `
+            -ReadyTimeoutSeconds 60

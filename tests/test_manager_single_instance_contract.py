@@ -43,13 +43,19 @@ class ManagerSingleInstanceContractTests(unittest.TestCase):
         self.assertIn('function Stop-ForeignManagerIfNeeded', self.command)
         self.assertIn('$null = Stop-ForeignManagerIfNeeded', self.command)
         self.assertIn('-TargetAction "Stop"', self.command)
-        self.assertIn('Wait-McpPortFree -TimeoutSeconds 15', self.command)
+        self.assertIn('Wait-SharedRuntimeFree -TimeoutSeconds 15', self.command)
+        self.assertIn('Get-McpPortDiagnostic', self.command)
+        self.assertIn('Get-DirectTunnelDiagnostic', self.command)
 
-    def test_unowned_port_is_fail_closed(self):
-        self.assertIn('function Assert-McpPortFree', self.command)
+    def test_unowned_runtime_is_fail_closed(self):
+        self.assertIn('function Assert-SharedRuntimeFree', self.command)
         self.assertIn('Get-NetTCPConnection', self.command)
-        self.assertIn('Refusing to accept another process', self.command)
-        self.assertIn('health endpoint', self.command)
+        self.assertIn('Get-DirectTunnelProcesses', self.command)
+        self.assertIn(
+            'A shared Chat Agent Platform runtime is already active',
+            self.command,
+        )
+        self.assertIn('Refusing ambiguous startup', self.command)
         self.assertIn('$diagnosticLine = (', self.command)
         self.assertIn('$lines.Add($diagnosticLine)', self.command)
 
@@ -104,11 +110,16 @@ class ManagerSingleInstanceContractTests(unittest.TestCase):
 
                 self.assertNotEqual(completed.returncode, 0, combined)
                 self.assertIn(
-                    "Local MCP port 3050 is already occupied",
+                    "A shared Chat Agent Platform runtime is already active",
                     combined,
                 )
-                self.assertIn("Refusing to accept", combined)
-                self.assertIn("another process's health endpoint", combined)
+                # PowerShell may insert a formatting gutter (`|`) between
+                # wrapped error lines, so assert the two semantic fragments
+                # rather than one presentation-dependent sentence.
+                self.assertIn("Refusing", combined)
+                self.assertIn("ambiguous startup", combined)
+                self.assertIn("port 3050", combined)
+                self.assertIn("python.exe", combined)
                 self.assertNotIn("Error formatting a string", combined)
 
                 owner_file = (
@@ -124,17 +135,35 @@ class ManagerSingleInstanceContractTests(unittest.TestCase):
 
     def test_toggle_of_foreign_owner_stops_instead_of_double_start(self):
         self.assertIn('elseif ($Action -eq "Toggle" -and $foreignOwner)', self.command)
-        self.assertIn(
-            'Toggle therefore means stop that one, not start a second copy.',
+        self.assertRegex(
             self.command,
+            re.compile(
+                r'elseif \(\$Action -eq "Toggle" -and \$foreignOwner\).*?'
+                r'Invoke-InternalControllerMutation.*?'
+                r'-TargetAction "Stop"',
+                re.S,
+            ),
         )
 
-    def test_set_profile_uses_authoritative_owner_runtime(self):
-        self.assertIn('elseif ($Action -eq "SetProfile" -and $foreignOwner)', self.command)
+    def test_set_profile_checks_authoritative_owner_runtime(self):
+        self.assertIn('function Assert-ProfileCanChange', self.command)
         self.assertIn(
-            'Let the actual owner enforce its active-profile rule',
+            'Get-ControllerStatusObjectAt -TargetControllerPath $ownerController',
             self.command,
         )
+        self.assertIn(
+            'Stop the platform before changing its default profile.',
+            self.command,
+        )
+        self.assertIn('Set-SharedProfile', self.command)
+
+    def test_direct_runtime_is_part_of_single_owner_fail_closed_scope(self):
+        self.assertIn('function Get-DirectTunnelProcesses', self.command)
+        self.assertIn('function Test-AnySharedRuntime', self.command)
+        self.assertIn('@(Get-McpPortListeners).Count -gt 0', self.command)
+        self.assertIn('@(Get-DirectTunnelProcesses).Count -gt 0', self.command)
+        self.assertIn('semantic-direct', self.command)
+        self.assertIn('direct-stdio', self.command)
 
     def test_bootstrap_propagates_public_manager_into_installed_bundle(self):
         self.assertIn('"chat-platform.ps1"', self.bootstrap)
