@@ -1,6 +1,6 @@
 # Stage 25 — Active Visual Grounding
 
-Status: **DESIGN ACCEPTED FOR BENCHMARK / NOT YET CHAT-FACING**
+Status: **IMPLEMENTATION / BENCHMARK FOUNDATION ACTIVE / NOT YET CHAT-FACING**
 
 Date: 2026-08-16.
 
@@ -29,7 +29,11 @@ Primary research source:
 
 The paper identifies a useful failure mode for general VLMs: a model may understand where a GUI target is while still performing poorly when asked to emit explicit pixel coordinates. The proposed auxiliary-reasoning methods add deterministic spatial cues to the image rather than fine-tuning the model.
 
-The strongest reported method is **Mark-Grid Scaffold**. The reference implementation uses a numbered `8 x 8` row-major grid, asks the model for the cells containing the target's leftmost, topmost, rightmost and bottommost extents, derives a coarse bounding box, crops/magnifies that region, overlays the same `8 x 8` grid again, and repeats the extremity prediction before converting the second-pass result back to source-image coordinates.
+The strongest reported method is **Mark-Grid Scaffold**. The published runner configuration for this method explicitly uses `num_grid=8`, `num_zone_in=1`, `with_origin_chart=True` and `enlarge=True`. It therefore performs two `8 x 8` passes: first on the overview, then on the selected crop.
+
+The model prompt asks for exactly four IDs corresponding to the target's leftmost, topmost, rightmost and bottommost cells. A useful implementation detail from the public code is that those four IDs are then de-duplicated (`set(pred)`) and the runner takes the union of the complete rectangles of every selected cell. Stage 25 should preserve this **union-of-selected-cells** behavior in the faithful baseline rather than silently substituting stricter axis-only math.
+
+Another important code-level detail is `enlarge=True`: the reference renderer preserves aspect ratio and only enlarges a selected crop when its shorter side is **below 512 px**. It does **not** shrink an already-larger crop to 512 px. The project keeps any exact-512/downscale policy as a separate experimental variant so benchmark B remains traceable to the reference implementation.
 
 Reported ScreenSpot-v2 examples from the paper include:
 
@@ -66,7 +70,7 @@ ordinary ChatGPT
        -> if sufficient: return
        -> otherwise Mark-Grid pass 1
        -> deterministic coarse crop
-       -> resize crop while preserving aspect ratio
+       -> reference-compatible enlarge-if-needed
        -> Mark-Grid pass 2
        -> deterministic source-coordinate remap
        -> validation
@@ -113,16 +117,18 @@ Use as the fast baseline and as the first attempt for `precision=adaptive`.
 
 ### B. Original Mark-Grid
 
-Reproduce the paper's two-pass `8 x 8` scaffold as faithfully as practical:
+Reproduce the public implementation's two-pass `8 x 8` scaffold as faithfully as practical:
 
-1. overlay the full image with numbered cells;
-2. predict four extremity cell IDs;
-3. derive a coarse ROI;
-4. crop from the **original-resolution** image;
-5. resize proportionally with `512 px` on the shorter side, unless target-model evidence requires a different reviewed input limit;
+1. overlay the full image with numbered row-major cells `0..63`;
+2. ask for exactly four extremity cell IDs, allowing duplicates;
+3. de-duplicate the returned IDs and union every selected cell rectangle into the coarse ROI;
+4. crop from the source image;
+5. if the crop's shorter side is below `512 px`, enlarge proportionally until it reaches the minimum; otherwise keep the crop at its existing size;
 6. overlay a fresh `8 x 8` grid;
-7. predict four extremity cells again;
-8. compute the final point/bounding box and map it back to source-image coordinates.
+7. ask for four extremity IDs again and union their selected cells;
+8. map the second-pass region back to source-image coordinates and use its center as the ScreenSpot-style click point.
+
+Rendering compatibility tests should separately cover the reference implementation's integer/`ceil` grid behavior. Geometry tests must not depend on a model, Pillow, OpenCV or network access.
 
 This is the evidence-backed baseline and should be implemented before modifying the algorithm.
 
@@ -183,11 +189,10 @@ Separate image/geometry mechanics from inference:
 local vision adapter
   -> scaffold/geometry engine
        -> grid cell IDs and bounds
-       -> coarse bbox derivation
-       -> crop planning
-       -> resize mapping
+       -> reference union-of-selected-cells ROI
+       -> crop/enlarge planning
        -> local-to-source coordinate remap
-       -> validation
+       -> benchmark scoring and validation
   -> provider-neutral inference boundary
        -> llama.cpp + LFM2.5-VL-3B today
        -> replaceable runtime/model later
@@ -200,6 +205,8 @@ The scaffold engine must be deterministic and independently testable. Do not cop
 Before public semantic integration, build a controlled benchmark where ground truth is known independently of the VLM.
 
 For browser fixtures, Playwright can provide authoritative `boundingBox()` values while the VLM receives only screenshot pixels plus the natural-language target.
+
+The first deterministic fixture is now tracked under `tests/fixtures/stage25_grounding_fixture.html` with a `1280 x 720` viewport and companion metadata `tests/fixtures/stage25_grounding_cases.json`. It includes labeled, icon-only, repeated-control, tiny-target, visual-state and deliberately absent-target cases. Browser capture still has to verify the metadata against real `getBoundingClientRect()` / Playwright `boundingBox()` values before any model score is accepted.
 
 Benchmark at least:
 
@@ -224,7 +231,7 @@ D  Candidate/OCR-assisted refinement (only after A/B/C)
 
 Required metrics:
 
-- point-in-target accuracy;
+- point-in-target accuracy as the primary ScreenSpot-style click metric;
 - bounding-box overlap / IoU when a bbox is returned;
 - pixel/normalized center error;
 - false-click rate;
@@ -234,6 +241,8 @@ Required metrics:
 - process working set / free-memory floor;
 - malformed-response rate;
 - method-specific failure notes.
+
+Provider-neutral scoring helpers now live in `runtime/local_vision_adapter/benchmark.py`; they deliberately distinguish an absent target with correct abstention from an absent target with a false positive.
 
 Do not select a grounding method from published Gemini/Gemma results alone.
 
@@ -255,17 +264,26 @@ The final 6-vs-8 interleaved thread benchmark selected 8 threads provisionally: 
 
 The earlier Vulkan tests showed that 8 main-model layers on Intel Iris Xe were slower than CPU-only, while mmproj-only Vulkan reduced RAM pressure but remained slower than the CPU reference. Keep those as optional memory-pressure modes, not the default grounding path.
 
-## Implementation order
+## Implementation state and order
 
-1. Add deterministic Mark-Grid geometry primitives and unit tests with no model/runtime dependency.
-2. Build controlled screenshot fixtures with authoritative ground-truth boxes.
-3. Add an internal provider-neutral inference call using the already-proven local llama.cpp/LFM path.
-4. Reproduce **Direct** and the original **two-pass Mark-Grid** baseline first.
-5. Measure LFM2.5-VL-3B on A vs B before adding algorithm variants.
-6. Only then test C and any OCR/UI-landmark extension.
-7. Define the final adaptive escalation/abstain policy from measured evidence.
-8. Add local-path/scope, malformed-result, timeout, runtime-failure and memory-pressure tests.
-9. Only after those gates, add the reviewed `vision_analyze` semantic operation and run a fresh ordinary-Chat end-to-end acceptance.
+Completed foundation work on `chat/stage25-local-vision-adapter`:
+
+1. deterministic Mark-Grid grid/crop/remap primitives with independent unit tests;
+2. reference-aligned union-of-selected-cells semantics and two-pass geometry contract;
+3. explicit reference `enlarge=True` crop policy, separated from exact-short-side experimental resizing;
+4. provider-neutral grounding metrics;
+5. first controlled GUI fixture + authoritative metadata contract.
+
+Next dependency-valid work:
+
+1. browser-render the fixture and prove metadata boxes against Playwright/DOM geometry;
+2. add the internal provider-neutral inference request/response boundary using the already-proven local llama.cpp/LFM path;
+3. reproduce **Direct** and the original **two-pass Mark-Grid** on the fixture first;
+4. measure LFM2.5-VL-3B A vs B on the target Windows laptop;
+5. only then test C and any OCR/UI-landmark extension;
+6. define the final adaptive escalation/abstain policy from measured evidence;
+7. add local-path/scope, malformed-result, timeout, runtime-failure and memory-pressure tests;
+8. only after those gates, add the reviewed `vision_analyze` semantic operation and run a fresh ordinary-Chat end-to-end acceptance.
 
 ## Acceptance rule
 
