@@ -6,35 +6,13 @@ Use this file as the first context document in a new ChatGPT or Codex session.
 
 `chat-agent-platform` is a thin bridge from ordinary ChatGPT Chat to local Windows capabilities through standard MCP. ChatGPT remains the planner/intelligence. The repository owns integration, lifecycle, deterministic compatibility adapters, configuration and acceptance logic, not a second AI agent platform.
 
-## Accepted Stage 24 baseline
+## Stage 24 baseline — DONE
 
-Stage 24 is **DONE** and was squash-merged to `main` on 2026-08-16 as:
+Stage 24 was squash-merged to `main` on 2026-08-16 as:
 
 `175d36236f80a1f99f091d4f031a1c6255f3652b` — `Stage 24: standalone Windows bootstrap and lifecycle manager (#66)`.
 
-The final PR head before merge was `87a8701b938a128901646d096e13142700cc109a`. All six final workflows passed on that exact head:
-
-- Chat Profile Acceptance `31946162031`;
-- Semantic Projection Acceptance `31946162063`;
-- CI `31946162008`;
-- CodeQL Security `31946162010`;
-- Module Candidate Acceptance `31946162087`;
-- Secret History Scan `31946162104`.
-
-The accepted product path is:
-
-```text
-ordinary ChatGPT Chat
-  -> Chat Local Bridge Test
-  -> OpenAI Secure MCP Tunnel
-  -> official openai/tunnel-client on Windows
-  -> local 1MCP
-  -> five-tool semantic projection
-      -> Filesystem MCP
-      -> Playwright MCP
-```
-
-Real ordinary-Chat acceptance on 2026-08-16 proved the exact semantic surface:
+Stage 24 proved the exact five-tool semantic ordinary-Chat contract through the then-normal 1MCP transport:
 
 - `workspace_read`;
 - `workspace_write`;
@@ -42,76 +20,101 @@ Real ordinary-Chat acceptance on 2026-08-16 proved the exact semantic surface:
 - `web_observe`;
 - `web_interact`.
 
-The accepted session read `SEMANTIC_FINAL_INPUT_20260816`, navigated through the actual `Learn more` link from `example.com` to IANA `Example Domains`, wrote `result.txt`, and independently read back exactly:
+The accepted session read `SEMANTIC_FINAL_INPUT_20260816`, navigated from `example.com` through the real `Learn more` link to `Example Domains`, wrote a result file and independently read it back. The Stage 24 1MCP path worked and remains valid acceptance evidence.
+
+## Stage 24.1 — direct semantic transport selected
+
+Active branch: `chat/direct-semantic-tunnel`, PR #70.
+
+Stage 24.1 compared:
 
 ```text
-SEMANTIC_FINAL_INPUT_20260816
-Example Domains
+A — Stage 24 baseline
+Tunnel -> HTTP 1MCP -> stdio semantic-projection
+
+B — selected
+Tunnel -> stdio semantic-projection
 ```
 
-No raw Filesystem/Playwright tools, generic `tool_invoke`, one-app-per-backend split or per-operation Refresh was used.
+Candidate B passed all transport, backend, ordinary-Chat, lifecycle, ownership, crash-recovery and A/B gates. The normal public `semantic` profile is therefore being promoted to direct stdio.
 
-## Active work — direct semantic tunnel A/B
-
-Active branch: `chat/direct-semantic-tunnel`.
-
-Current work is a **post-Stage-24 transport simplification experiment**, not a replacement already accepted in production.
-
-Baseline A remains the accepted path:
+The intended normal product path after Stage 24.1 is:
 
 ```text
-tunnel-client -> HTTP 1MCP -> stdio semantic-projection
+ordinary ChatGPT Chat
+  -> Chat Local Bridge Test
+  -> OpenAI Secure MCP Tunnel
+  -> official openai/tunnel-client on Windows
+  -> five-tool semantic projection over stdio
+      -> Filesystem MCP
+      -> Playwright MCP
 ```
 
-Candidate B is:
+`semantic-direct` remains temporarily as a compatibility/diagnostic alias during migration.
 
-```text
-tunnel-client -> stdio semantic-projection
-```
+1MCP is **not removed**. It remains replaceable internal infrastructure for adaptive lifecycle experiments, diagnostics, aggregation/inspection and future catalog work where its features add measured value.
 
-Candidate B removes 1MCP only from the ordinary-Chat semantic request path. It does not remove 1MCP from the repository. 1MCP remains replaceable infrastructure for direct diagnostics, adaptive lifecycle experiments, aggregation/inspection and future catalog work where its features are useful.
+## Why the direct path won
 
-The branch now contains:
+The target Windows A/B comparison completed 3/3 healthy cycles on both transports.
 
-- `runtime/semantic-projection/tests/direct-tunnel-acceptance.mjs`;
-- `scripts/test-direct-semantic-tunnel.ps1`;
-- `.github/workflows/direct-semantic-tunnel.yml`;
-- `project-context/DIRECT_SEMANTIC_TUNNEL.md`.
+| Metric | 1MCP baseline | Direct stdio |
+|---|---:|---:|
+| Average initial Start | 123685 ms | 5007 ms |
+| Average repeated/idempotent Start | 84119 ms | 4876 ms |
+| Average Stop | 23252 ms | 1043 ms |
+| Port 3050 listeners | 1 | 0 |
 
-The automated candidate uses the official `tunnel-client dev proxy` local test control plane and binds its main MCP channel directly to `semantic-projection.mjs` through stdio. It must prove modern protocol negotiation, the same exact five tools, real Filesystem + Playwright behavior, negative cases and `DIRECT_SEMANTIC_1MCP_USED=False`.
+Direct was about 24.70x faster to start, 17.25x faster on repeated Start and 22.29x faster to stop in this sample. It also passed the same five-tool ordinary-Chat workflow, first-class manager lifecycle, fail-closed ownership and forced-crash recovery.
 
-Do not change the installed production `semantic` profile to Candidate B until the direct CI/local acceptance and real ordinary-Chat A/B gates pass.
+## Current implementation boundary
 
-## Important Stage 24 findings to preserve
+On the active branch:
 
-- Chat action snapshots are frozen until reviewed/refreshed; local filtering does not silently replace an already-scanned app snapshot.
-- Concrete typed Filesystem + Playwright actions work in one ordinary-Chat conversation.
-- A large tested action inventory showed effective snapshot truncation around 20 actions; this is measured behavior, not an official universal limit.
-- The generic adaptive `tool_list` / `tool_schema` / `tool_invoke` surface is not the accepted ordinary-Chat product contract.
-- OpenAI safety is context-sensitive beyond app permission mode; a long composite prompt can be blocked while the same typed calls pass sequentially.
-- Installed/source manager ownership and fail-closed handling for the fixed `3050` listener are accepted for the Stage 24 baseline.
+- public `semantic` routes to the direct stdio semantic controller;
+- public `semantic-direct` is a temporary compatibility alias to the same transport;
+- normal `semantic` keeps its profile identity (`active_profile=semantic`) while reporting `tunnel_binding=direct-stdio`;
+- old Stage 24 `semantic` settings that still say `local-1mcp` are migration-normalized to direct stdio;
+- the legacy internal 1MCP semantic path remains available for diagnostics/A-B evidence but is no longer the normal public route.
+
+## Remaining Stage 24.1 release gate
+
+Do not merge PR #70 until:
+
+1. all final workflows are green on the exact promotion head;
+2. the target Windows machine runs the normal public `semantic` profile and confirms `active_profile=semantic`, `tunnel_binding=direct-stdio`, healthy readiness, one active scope and zero listeners on port 3050;
+3. after merge, the stable LocalAppData manager bundle is updated from `main` and its final status is verified.
+
+## Important findings to preserve
+
+- Chat action snapshots are frozen until reviewed/refreshed; server-side tool changes do not silently replace an already-scanned snapshot.
+- Concrete typed Filesystem + Playwright actions work together in one ordinary-Chat conversation.
+- A larger tested action inventory showed effective snapshot pressure/truncation around 20 actions; this is measured behavior, not an official universal limit.
+- The generic adaptive `tool_list` / `tool_schema` / `tool_invoke` surface is not the ordinary-Chat product contract.
+- OpenAI safety is context-sensitive beyond app permission mode.
+- The semantic projection must remain a small deterministic typed compatibility boundary, not a planner or generic gateway.
+- Installed/source manager ownership and fail-closed handling apply to both 1MCP-backed and direct semantic managed runtimes.
 
 ## Product boundary
 
 - ordinary ChatGPT remains the intelligence/planning layer;
-- the semantic projection remains a small deterministic typed compatibility boundary, not a planner or generic gateway;
-- do not recreate `tool_invoke` under another name;
+- local specialist models may be bounded capability backends but never the second planner;
 - prefer official/vendor or mature OSS components before project-owned infrastructure;
-- preserve the accepted Stage 24 baseline while Candidate B is experimental;
-- do not remove 1MCP merely because Candidate B exists; promote the simpler path only after measured equivalence or improvement.
+- do not recreate a project-owned generic MCP gateway, registry, vault, job system or workflow brain;
+- keep 1MCP only where its measured capabilities are useful rather than forcing it into every request path.
 
-## After the transport experiment
+## After Stage 24.1
 
-Stage 25 will evaluate local specialist inference without creating a second planner. LM Studio/`llmster` remains the first replaceable runtime-manager candidate and `LiquidAI/LFM2.5-VL-3B` the first preferred `local-vision` model candidate, subject to real target-hardware benchmarking.
+Stage 25 evaluates local specialist inference without creating a second planner. LM Studio/`llmster` remains the first replaceable runtime-manager candidate and `LiquidAI/LFM2.5-VL-3B` the first preferred `local-vision` model candidate, subject to target-machine benchmarking.
 
 ## How to continue safely
 
 Before changing code:
 
-- inspect the active branch, recent commits, open PR and current workflow logs;
-- read `AGENTS.md`, this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `ROADMAP.md` and `DEVELOPMENT_PRINCIPLES.md`;
-- distinguish accepted Stage 24 evidence from the provisional direct-tunnel candidate;
-- preserve accepted direct/adaptive/single-owner regressions;
-- run locally accessible acceptance yourself;
-- use the user only for the real ordinary-Chat UI/custom-app gate or another irreducible target-machine action;
-- never report Candidate B as accepted before the actual gates pass.
+- inspect the active branch, PR, exact head and workflow logs;
+- read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `ROADMAP.md` and `DEVELOPMENT_PRINCIPLES.md`;
+- preserve the five-tool semantic contract and single-owner/fail-closed regressions;
+- run locally accessible acceptance directly;
+- use the user only for real ordinary-Chat UI/custom-app or other irreducible target-machine gates;
+- never claim an ordinary-Chat or target-machine test unless that exact path actually ran;
+- preserve/reconcile local uncommitted work rather than discarding it.
