@@ -118,6 +118,8 @@ The legacy 1MCP-backed controller still contains its internal semantic implement
 3. after merge, update the stable `%LOCALAPPDATA%\ChatAgentPlatform\app` bundle from `main` and verify final status;
 4. then close Stage 24.1 and continue Stage 25.
 
+The final target smoke is specifically a profile-routing/release test. It does not need to repeat the already-passed five-tool ordinary-Chat E2E unless the five exported tool definitions or Secure MCP app snapshot changes again.
+
 ## Stage 24 findings that remain active
 
 - Chat action snapshots are frozen until reviewed/refreshed;
