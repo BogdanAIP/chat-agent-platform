@@ -153,7 +153,7 @@ This evaluation was an architecture simplification exercise, not evidence that 1
 
 ### Acceptance evidence
 
-Candidate B passed all required gates:
+Candidate B passed all architecture/acceptance gates:
 
 1. Windows CI through official tunnel-client stdio binding with modern MCP negotiation and the exact five-tool inventory;
 2. real scoped Filesystem + Playwright operations and negative cases;
@@ -183,3 +183,5 @@ Promote direct stdio binding as the normal public `semantic` transport.
 Retain 1MCP as replaceable internal infrastructure for adaptive lifecycle experiments, aggregation/inspection, diagnostics and future catalog/lifecycle cases where its features add measured value.
 
 The direct transport does not expand the semantic projection's responsibilities. `semantic-projection` remains the deterministic fixed typed boundary and must not become a generic gateway, registry, lifecycle platform or planner.
+
+The ADR is accepted from the completed architecture/equivalence gates. PR #70 still requires final promotion-head CI, a target smoke of the public profile name `semantic`, and stable LocalAppData bundle update after merge before Stage 24.1 is marked release-complete.
