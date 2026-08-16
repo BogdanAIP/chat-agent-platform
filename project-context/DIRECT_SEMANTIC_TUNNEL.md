@@ -1,6 +1,6 @@
 # Direct Semantic Tunnel Binding — Stage 24.1
 
-Status: **ACCEPTED FOR PROMOTION**.
+Status: **ACCEPTED FOR PROMOTION; final release smoke pending**.
 
 ## Decision
 
@@ -186,3 +186,5 @@ Before merging Stage 24.1:
 1. final CI/security/profile/semantic workflows must pass on the exact promotion head;
 2. the target Windows machine must smoke the **normal public `semantic` profile** and show `active_profile=semantic`, `tunnel_binding=direct-stdio`, healthy readiness and zero `3050` listeners;
 3. after merge, install/update the stable LocalAppData manager bundle from `main` and verify final status.
+
+The target smoke is a profile-routing/release check only. The already-passed five-tool ordinary-Chat E2E does not need to be repeated unless exported tool definitions or the Chat app action snapshot changes again.
