@@ -7,8 +7,10 @@ from .mark_grid import (
     CropPlan,
     MarkGridError,
     Point,
+    TwoPassMarkGridResult,
     box_center,
     box_from_extremity_cells,
+    box_from_selected_cells,
     cell_bounds,
     cell_id_at_point,
     cell_row_col,
@@ -16,7 +18,9 @@ from .mark_grid import (
     map_point_from_crop,
     normalize_box,
     normalize_point,
+    plan_mark_grid_crop,
     plan_proportional_crop,
+    two_pass_mark_grid_result,
 )
 
 __all__ = [
@@ -26,8 +30,10 @@ __all__ = [
     "CropPlan",
     "MarkGridError",
     "Point",
+    "TwoPassMarkGridResult",
     "box_center",
     "box_from_extremity_cells",
+    "box_from_selected_cells",
     "cell_bounds",
     "cell_id_at_point",
     "cell_row_col",
@@ -35,5 +41,7 @@ __all__ = [
     "map_point_from_crop",
     "normalize_box",
     "normalize_point",
+    "plan_mark_grid_crop",
     "plan_proportional_crop",
+    "two_pass_mark_grid_result",
 ]
