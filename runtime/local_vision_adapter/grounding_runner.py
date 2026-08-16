@@ -23,7 +23,9 @@ from .provider import (
     VisionProviderError,
     build_direct_point_prompt,
     build_mark_grid_prompt,
+    direct_point_response_schema,
     encode_image_data_uri,
+    mark_grid_response_schema,
     parse_direct_point_response,
     parse_mark_grid_response,
 )
@@ -79,7 +81,8 @@ def run_direct_case(
         response = client.chat_with_image(
             image_data_uri=_image_data_uri(source),
             prompt=prompt,
-            max_tokens=96,
+            max_tokens=32,
+            response_schema=direct_point_response_schema(),
         )
         raw_content = response.content
         usage = {
@@ -140,7 +143,8 @@ def run_mark_grid_case(
         first = client.chat_with_image(
             image_data_uri=_image_data_uri(first_grid.image),
             prompt=build_mark_grid_prompt(str(case["instruction"]), 8),
-            max_tokens=64,
+            max_tokens=32,
+            response_schema=mark_grid_response_schema(8),
         )
         first_response = first.content
         usage["pass1"] = {
@@ -177,7 +181,8 @@ def run_mark_grid_case(
                 8,
                 refinement_with_overview=True,
             ),
-            max_tokens=64,
+            max_tokens=32,
+            response_schema=mark_grid_response_schema(8),
         )
         second_response = second.content
         usage["pass2"] = {
