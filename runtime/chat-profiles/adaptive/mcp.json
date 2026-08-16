@@ -1,0 +1,56 @@
+{
+  "$schema": "https://docs.1mcp.app/schemas/v1.0.0/mcp-config.json",
+  "mcpServers": {
+    "filesystem": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem@2026.7.10",
+        "${CHAT_LOCAL_FILES_ROOT}"
+      ],
+      "env": [
+        "CHAT_LOCAL_FILES_ROOT"
+      ],
+      "tags": ["adaptive", "files", "read-only", "local", "free"],
+      "disabled": true,
+      "disabledTools": [
+        "create_directory",
+        "write_file",
+        "edit_file",
+        "move_file"
+      ],
+      "connectionTimeout": 120000,
+      "requestTimeout": 30000
+    },
+    "playwright": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@playwright/mcp@0.0.78",
+        "--headless",
+        "--browser",
+        "chrome",
+        "--isolated",
+        "--image-responses",
+        "omit",
+        "--block-service-workers",
+        "--codegen",
+        "none"
+      ],
+      "tags": ["adaptive", "browser", "isolated", "local-runtime", "free"],
+      "disabled": true,
+      "disabledTools": [
+        "browser_run_code_unsafe",
+        "browser_evaluate",
+        "browser_file_upload",
+        "browser_network_request"
+      ],
+      "connectionTimeout": 120000,
+      "requestTimeout": 60000
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@chat-agent-platform/1mcp-adaptive-shim",
+  "version": "0.1.0",
+  "description": "Hash-guarded lifecycle compatibility shim for the pinned Stage 24 1MCP runtime",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "1mcp-adaptive": "bin/1mcp-adaptive.mjs"
+  },
+  "files": [
+    "bin/1mcp-adaptive.mjs",
+    "scripts/apply-compatibility-patch.mjs"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/apply-compatibility-patch.mjs"
+  },
+  "dependencies": {
+    "@1mcp/agent": "0.35.0-beta.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,28 +1,33 @@
 # Module Catalog
 
-Research baseline: 2026-08-10. Runtime status synchronized 2026-08-13.
+Research baseline: 2026-08-10. Runtime/product status synchronized 2026-08-14.
 
 ## Status meanings
 
 - **ACCEPTED-INFRASTRUCTURE** — accepted real bridge/runtime path.
-- **CI-ACCEPTED** — real Windows module acceptance passed harmless operations.
-- **CHAT-E2E-ACCEPTED** — ordinary Chat through the real tunnel completed the target harmless operation.
+- **CI-ACCEPTED** — real Windows/module acceptance passed applicable harmless operations.
+- **CHAT-E2E-ACCEPTED** — ordinary Chat through the real tunnel completed the target operation.
 - **ACCEPTED-CANDIDATE** — evidence is strong enough to proceed to focused audit/real workflow benchmarking, but the module is not product-promoted yet.
 - **EXPERIMENTAL** — active engineering candidate; do not describe as accepted/default.
-- **LOCAL-TEST-REQUIRED** — promising but requires the real installed application/workflow.
+- **DIAGNOSTIC** — useful for testing/runtime evidence but not the promoted product-facing contract.
+- **LOCAL-TEST-REQUIRED** — promising but requires the real installed application/model/workflow.
 - **SECURITY-REVIEW-REQUIRED** — useful but broad/high-consequence surface needs reduction/scoping.
 - **SUPPLY-PIN-REQUIRED** — choose an immutable install artifact/version before promotion.
 - **THIN-ADAPTER-FALLBACK** — custom focused adapter allowed only after a measured gap.
 
 | Capability | Candidate | Status | Current decision |
 |---|---|---|---|
-| Direct local MCP runtime | `@1mcp/agent@0.34.4` | ACCEPTED-INFRASTRUCTURE | Keep for accepted direct/reference profiles while adaptive is evaluated. |
-| Adaptive local MCP runtime | `@1mcp/agent@0.35.0-beta.3` | EXPERIMENTAL | Lazy Loading ON, Async OFF, limited lifecycle tools. Catalog discovery works, but enabled Filesystem remains unavailable to lazy discovery in latest CI; not promoted. |
-| Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | CHAT-E2E-ACCEPTED (direct) | Scoped read-only direct profile passed real ordinary-Chat marker read. Adaptive lifecycle/discovery still blocked. |
-| Browser | `@playwright/mcp@0.0.78` | CI-ACCEPTED (direct) | Isolated/headless direct profile passed Windows navigation/close. Local browser profile readiness passed; ordinary-Chat browser call was blocked by stale Chat action snapshot, not local Playwright readiness. |
+| Direct local MCP runtime | `@1mcp/agent@0.34.4` | ACCEPTED-INFRASTRUCTURE | Keep for accepted direct/reference/typed experiments. |
+| Adaptive local MCP runtime | `@1mcp/agent@0.35.0-beta.3` + hash-guarded compatibility package | CI-ACCEPTED / DIAGNOSTIC | Lifecycle mechanics pass locally/remotely. Generic Chat-facing lifecycle/schema/invocation contract is not product-accepted after real pre-MCP blocking. |
+| Windows manager ownership | shared `manager-owner.json` + public manager facade | ACCEPTED-INFRASTRUCTURE | Real target installed -> source -> installed takeover/status/stop and unowned `3050` fail-closed passed; functional head `ffcc2e407...` adds real Windows foreign-listener CI coverage. |
+| Files | `@modelcontextprotocol/server-filesystem@2026.7.10` | CHAT-E2E-ACCEPTED | Direct read-only path passed. Synthetic combined typed ordinary-Chat read/write also passed. Scope/root/write policy remains task/profile dependent. |
+| Browser | `@playwright/mcp@0.0.78` | CHAT-E2E-ACCEPTED | Fresh-snapshot typed `browser_navigate` passed. Combined typed ordinary-Chat navigate/find/click also passed with Filesystem in one conversation. |
+| Semantic capability projection | smallest fixed-schema project compatibility facade | EXPERIMENTAL | Current Stage 24 scaling candidate. Must expose few concrete semantic typed actions, preserve consequence classes, route deterministically to approved backends and never become planner/generic gateway/renamed `tool_invoke`. |
+| Local model runtime manager | LM Studio / `llmster` | ACCEPTED-CANDIDATE / LOCAL-TEST-REQUIRED | Stage 25 first runtime-manager candidate. Benchmark headless/server, model discovery, estimate-before-load, GPU selection, JIT/TTL/auto-evict and cleanup on target Windows. Keep replaceable. |
+| Local vision model | `LiquidAI/LFM2.5-VL-3B` | ACCEPTED-CANDIDATE / LOCAL-TEST-REQUIRED | Official 2026-08-12 release. First preferred `local-vision` candidate for screen/UI, OCR/document/chart, grounding and multi-image tasks. Benchmark actual GGUF/ONNX/runtime variants on target hardware before promotion. |
 | Windows desktop fallback | `sbroenne/mcp-windows` | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED | Semantic Windows UI Automation fallback; broad screenshot/mouse/keyboard/app-launch surface must not be baseline. |
 | REAPER | `TwelveTake-Studios/reaper-mcp` | LOCAL-TEST-REQUIRED / SUPPLY-PIN-REQUIRED | Choose immutable published/release artifact and benchmark a real REAPER workflow. |
-| OriginPro | `youngminsw/Origin-Pro-MCP` | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED / SUPPLY-PIN-REQUIRED | Source and PyPI versions differ; pin one artifact and benchmark installed Origin. |
+| OriginPro | `youngminsw/Origin-Pro-MCP` | LOCAL-TEST-REQUIRED / SECURITY-REVIEW-REQUIRED / SUPPLY-PIN-REQUIRED | Source and PyPI versions differed in Stage 23 research; pin one artifact and benchmark installed Origin. |
 | Origin fallback | official OriginLab `originpro` API | THIN-ADAPTER-FALLBACK | Use only for measured gap in ready-made Origin MCP. |
 | FFmpeg/media | `kevinwatt/ffmpeg-mcp-lite==0.2.2` | ACCEPTED-CANDIDATE | Audit path/overwrite behavior and benchmark representative local media tasks. |
 | FFmpeg fallback | native FFmpeg CLI behind focused allowlisted adapter | THIN-ADAPTER-FALLBACK | Only if ready-made MCP fails measured requirements; never expose arbitrary shell as media API. |
@@ -34,50 +39,103 @@ Research baseline: 2026-08-10. Runtime status synchronized 2026-08-13.
 
 Repository: `1mcp-app/agent`, Apache-2.0.
 
-Accepted direct baseline `0.34.4` already passed ordinary Chat -> Secure MCP Tunnel -> 1MCP E2E.
+Accepted direct baseline `0.34.4` passed ordinary Chat -> Secure MCP Tunnel -> 1MCP E2E and remains the direct/reference/typed-experiment baseline.
 
-Stage 24 adaptive experiment pins `0.35.0-beta.3` and uses:
+Adaptive pins `0.35.0-beta.3` with Lazy Loading ON and Async Loading OFF through `runtime/1mcp-adaptive-shim`. The compatibility package fixes two measured upstream lifecycle gaps: lazy-registry refresh after synchronous backend lifecycle and disabled-entry reconciliation during unload.
 
-- Lazy Loading meta-tools;
-- Async Loading disabled for the experiment;
-- internal management execution enabled but Chat-facing publication limited to list/status/enable/disable/reload;
-- Filesystem and Playwright registered `disabled: true`.
+Local/remote lifecycle acceptance passes Filesystem + Playwright enable/discover/invoke/disable/cleanup with the exact frozen generic surface.
 
-Latest adaptive functional CI evidence (`9799bec...`):
+Real ordinary Chat then admitted list/status/discovery but blocked lifecycle plus `tool_schema`/`tool_invoke` before MCP. Therefore adaptive is **diagnostic lifecycle infrastructure**, not the accepted generic product-facing contract.
 
-- `mcp_list` returned both disabled backends correctly;
-- enable path entered Filesystem loading;
-- transient 503/loading responses were retried;
-- lazy `tool_list` remained empty and `read_text_file` did not appear before timeout (`loading retries=49`).
+1MCP tags/presets/filtering remain useful backend-side lifecycle/selection mechanisms. They do not automatically change the frozen reviewed tool snapshot of an already-scanned ChatGPT MCP app.
 
-This is the current blocker. Do not replace it with a custom gateway before investigating upstream loading/lifecycle/capability refresh semantics.
+## Chat typed-surface evidence
+
+A fresh typed direct Browser snapshot passed ordinary-Chat `browser_navigate`.
+
+A combined local runtime exposed 14 Filesystem + 20 Playwright actions. The tested Chat app effectively surfaced 20 actions, leaving later browser actions unavailable. Reducing Filesystem to four typed actions produced a 24-tool local inventory; after Refresh/new Chat the ordinary-Chat app successfully used:
+
+- `list_allowed_directories`;
+- `read_text_file`;
+- `write_file`;
+- `browser_navigate`;
+- `browser_find`;
+- `browser_click`.
+
+Do not treat the observed 20-action truncation as an official universal limit. It is a measured Stage 24 compatibility constraint that the scalable typed publication design must accommodate.
+
+Current OpenAI documentation says ChatGPT MCP app tools use a frozen reviewed snapshot. OpenAI Tool Search addresses large tool sets in the API/Agents SDK, but it is not currently documented as available to the ordinary-Chat custom MCP app path used by this project.
 
 ## Filesystem MCP evidence
 
 - package: `@modelcontextprotocol/server-filesystem@2026.7.10`;
 - explicit allowed root;
-- direct profile disables create/write/edit/move;
+- direct `files-readonly` profile disables create/write/edit/move;
 - Windows discovery/read acceptance passed;
-- real ordinary-Chat `files-readonly` E2E returned `CHAT_LOCAL_FILES_E2E_OK`.
+- real ordinary-Chat direct read returned `CHAT_LOCAL_FILES_E2E_OK`;
+- synthetic combined typed ordinary-Chat read/write passed in `chat-final-system-e2e`.
 
 ## Playwright MCP evidence
 
 - package: `@playwright/mcp@0.0.78`;
 - isolated/headless Chrome;
-- service workers/codegen and dangerous evaluate/file-upload/direct-network tools disabled in the accepted profile;
+- service workers/codegen and unsafe code/evaluate/file-upload/direct-network tools disabled in the accepted direct config;
 - Windows direct navigation/content/close acceptance passed;
-- local `browser-isolated` + tunnel readiness passed;
-- ordinary-Chat browser E2E via the existing app was not completed because Chat retained the old filesystem action snapshot.
+- fresh ordinary-Chat typed `browser_navigate` passed;
+- combined ordinary-Chat typed `browser_navigate` -> `browser_find` -> `browser_click` reached IANA `Example Domains`.
+
+## LM Studio / llmster candidate evidence
+
+Official LM Studio documentation currently provides the capabilities needed for the Stage 25 runtime-manager experiment:
+
+- `lms server start/stop`;
+- local model listing (`lms ls`) and loaded-model inspection (`lms ps`);
+- model load/unload;
+- GPU-offload and context-length controls;
+- `lms load --estimate-only` resource estimation before loading, including vision-aware estimation;
+- JIT loading;
+- idle TTL;
+- auto-eviction of JIT-loaded models.
+
+This is research/candidate evidence only. Target Windows acceptance must verify exact installed LM Studio/llmster version and behavior.
+
+Official docs:
+
+- https://lmstudio.ai/docs/cli
+- https://lmstudio.ai/docs/cli/local-models/load
+- https://lmstudio.ai/docs/developer/core/ttl-and-auto-evict
+
+## LFM2.5-VL-3B candidate evidence
+
+Liquid AI officially released `LFM2.5-VL-3B` on 2026-08-12. Official material describes:
+
+- 3.1B-class vision-language model;
+- screen/UI understanding;
+- OCR/document/chart understanding;
+- grounding;
+- multi-image input;
+- function-calling/tool-use improvements;
+- day-one GGUF/llama.cpp and ONNX support;
+- browser WebGPU demo.
+
+The model is a preferred first benchmark candidate, not yet an accepted dependency. Do not hard-code its quantization/runtime before target-hardware measurements.
+
+Official sources:
+
+- https://www.liquid.ai/blog/lfm2-5-vl-3b
+- https://docs.liquid.ai/lfm/models/lfm25-vl-3b
+- https://huggingface.co/LiquidAI/LFM2.5-VL-3B
+- https://huggingface.co/spaces/LiquidAI/LFM2.5-VL-3B-WebGPU
 
 ## Professional application candidates
 
 ### REAPER
 
-`TwelveTake-Studios/reaper-mcp` is the current ready-made-first candidate. GitHub release `v1.6.4` existed in the Stage 23 research while package-channel evidence was older; choose one immutable artifact before testing. Benchmark real editing/routing/FX/render workflows, not a synthetic ping.
+`TwelveTake-Studios/reaper-mcp` is the current ready-made-first candidate. Choose one immutable artifact before testing. Benchmark real editing/routing/FX/render workflows, not a synthetic ping.
 
 ### OriginPro
 
-`youngminsw/Origin-Pro-MCP` remains the primary candidate; source and PyPI versions observed during Stage 23 differed. Pin a specific artifact/commit and test the installed Origin. Official OriginLab `originpro` is the fallback foundation only if the ready-made MCP has a measured gap.
+`youngminsw/Origin-Pro-MCP` remains the primary candidate. Pin a specific artifact/commit and test the installed Origin. Official OriginLab `originpro` is the fallback foundation only if the ready-made MCP has a measured gap.
 
 ### FFmpeg
 
@@ -93,8 +151,8 @@ Use `sbroenne/mcp-windows` only as fallback where specialized APIs/MCPs do not e
 
 ## Promotion order
 
-1. Finish Stage 24 adaptive lifecycle/discovery acceptance with Filesystem + Playwright.
-2. Integrate accepted adaptive behavior into the standalone manager and prove the one-snapshot ordinary-Chat workflow.
-3. Benchmark REAPER, Origin, FFmpeg, Blender and Windows UI candidates on real tasks.
-4. Promote successful candidates into the pre-approved local backend catalog with scoped tools/lifecycle evidence.
-5. Adding a promoted backend should normally **not** require a new ChatGPT plugin/app or permanent process.
+1. Complete Stage 24 semantic typed capability projection and ordinary-Chat acceptance; single-owner lifecycle is already accepted.
+2. Stage 25: benchmark LM Studio/llmster and `LFM2.5-VL-3B`, then expose the accepted result through a small stable `local-vision` typed boundary.
+3. Stage 26: benchmark REAPER, Origin, FFmpeg, Blender and Windows UI candidates on real tasks.
+4. Promote successful candidates with scoped tools/lifecycle evidence.
+5. Adding a promoted backend/model should normally **not** require a new ChatGPT app/plugin, permanent process or hard-coded model runtime.

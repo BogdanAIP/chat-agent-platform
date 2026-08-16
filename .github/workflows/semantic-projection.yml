@@ -1,0 +1,254 @@
+name: Semantic Projection Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/semantic-projection/**"
+      - "runtime/chat-profiles/semantic/**"
+      - "scripts/semantic-projection-runtime.ps1"
+      - "scripts/start-semantic-profile.ps1"
+      - "scripts/status-chat-profile.ps1"
+      - "scripts/stop-chat-profile.ps1"
+      - "scripts/chat-platform-controller.ps1"
+      - "scripts/chat-platform.ps1"
+      - "scripts/bootstrap-chat-platform.ps1"
+      - "project-context/TYPED_CAPABILITY_PROJECTION.md"
+      - ".github/workflows/semantic-projection.yml"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/semantic-projection/**"
+      - "runtime/chat-profiles/semantic/**"
+      - "scripts/semantic-projection-runtime.ps1"
+      - "scripts/start-semantic-profile.ps1"
+      - "scripts/status-chat-profile.ps1"
+      - "scripts/stop-chat-profile.ps1"
+      - "scripts/chat-platform-controller.ps1"
+      - "scripts/chat-platform.ps1"
+      - "scripts/bootstrap-chat-platform.ps1"
+      - "project-context/TYPED_CAPABILITY_PROJECTION.md"
+      - ".github/workflows/semantic-projection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: semantic-projection-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-semantic-projection:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+          if (-not (Test-Path -LiteralPath $chrome)) {
+            throw 'Google Chrome is required for semantic projection browser acceptance.'
+          }
+
+      - name: Enforce fixed semantic projection contract
+        shell: pwsh
+        run: |
+          $manifest = Get-Content 'runtime/semantic-projection/package.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $pins = [ordered]@{
+            '@modelcontextprotocol/server' = '2.0.0'
+            '@modelcontextprotocol/client' = '2.0.0'
+            '@modelcontextprotocol/server-filesystem' = '2026.7.10'
+            '@playwright/mcp' = '0.0.78'
+            'zod' = '4.4.3'
+          }
+          foreach ($name in $pins.Keys) {
+            if ([string]$manifest.dependencies.$name -ne [string]$pins[$name]) {
+              throw "Semantic projection dependency pin drifted: $name"
+            }
+          }
+
+          $source = Get-Content 'runtime/semantic-projection/bin/semantic-projection.mjs' -Raw -Encoding utf8
+          foreach ($name in @('workspace_read','workspace_write','web_open','web_observe','web_interact')) {
+            if ($source -notmatch "registerTool\(\s*'$([regex]::Escape($name))'") {
+              throw "Semantic projection is missing fixed tool '$name'."
+            }
+          }
+          $registrations = [regex]::Matches($source, 'registerTool\(').Count
+          if ($registrations -ne 5) { throw "Semantic projection must register exactly five tools; found $registrations." }
+          foreach ($forbidden in @('tool_invoke','tool_schema','mcp_enable','browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
+            if ($source -match [regex]::Escape($forbidden)) {
+              throw "Semantic projection source contains forbidden generic/unsafe downstream marker '$forbidden'."
+            }
+          }
+          if ($source -match "command:\s*'npx'" -or $source -match "command:\s*'cmd'.*npx") {
+            throw 'Semantic projection must not perform downstream npm installs at tool-call time.'
+          }
+
+          $config = Get-Content 'runtime/chat-profiles/semantic/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $servers = @($config.mcpServers.PSObject.Properties.Name)
+          if ($servers.Count -ne 1 -or $servers[0] -ne 'semantic-projection') {
+            throw "Semantic profile must expose exactly one projection server; found: $($servers -join ', ')"
+          }
+          $semantic = $config.mcpServers.'semantic-projection'
+          if ([string]$semantic.command -ne 'node') {
+            throw 'Semantic profile must launch the prepared projection directly with Node.'
+          }
+          if (@($semantic.args).Count -ne 1 -or [string]$semantic.args[0] -ne '${CHAT_SEMANTIC_PROJECTION_ENTRY}') {
+            throw 'Semantic profile entrypoint contract drifted.'
+          }
+
+      - name: Install exact projection dependencies
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+            if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Run real Filesystem and Playwright semantic acceptance
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm run acceptance
+            if ($LASTEXITCODE -ne 0) { throw "Semantic projection acceptance failed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Run semantic profile through real 1MCP lifecycle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = Join-Path $env:RUNNER_TEMP 'semantic-profile-workspace'
+          New-Item -ItemType Directory -Force -Path $workspace | Out-Null
+          Set-Content -LiteralPath (Join-Path $workspace 'input.txt') -Value 'SEMANTIC_PROFILE_INPUT' -Encoding utf8
+
+          try {
+            .\scripts\start-semantic-profile.ps1 -FilesRoot $workspace -ReadyTimeoutSeconds 120
+
+            $statusText = .\scripts\status-chat-profile.ps1 | Out-String
+            $status = $statusText | ConvertFrom-Json
+            if ([int]$status.active_count -ne 1) { throw "Expected one active profile; got $($status.active_count)." }
+            if ([string]$status.active_profile -ne 'semantic') { throw "Expected semantic active profile; got '$($status.active_profile)'." }
+            $semanticScope = @($status.scopes | Where-Object { [string]$_.profile -eq 'semantic' })
+            if ($semanticScope.Count -ne 1) { throw 'Semantic scope is missing from status.' }
+            if (-not [bool]$semanticScope[0].running -or [string]$semanticScope[0].health_state -ne 'ready') {
+              throw "Semantic scope is not ready: $($semanticScope[0] | ConvertTo-Json -Compress)"
+            }
+
+            $inventoryText = npx.cmd -y '@1mcp/agent@0.34.4' inspect semantic-projection --url http://127.0.0.1:3050 --format json --all 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "1MCP semantic inspect failed: $inventoryText" }
+            $inventory = $inventoryText | ConvertFrom-Json
+            $actual = @($inventory.tools | ForEach-Object { [string]$_.tool } | Sort-Object)
+            $expected = @('web_interact','web_observe','web_open','workspace_read','workspace_write')
+            if (($actual -join "`n") -ne ($expected -join "`n")) {
+              throw "Semantic profile surface drifted: $($actual -join ', ')"
+            }
+
+            Write-Host 'SEMANTIC_PROFILE_ACTIVE=PASS'
+            Write-Host 'SEMANTIC_PROFILE_TOOL_COUNT=5'
+            Write-Host 'SEMANTIC_PROFILE_1MCP=PASS'
+          }
+          finally {
+            .\scripts\stop-chat-profile.ps1
+          }
+
+          $afterText = .\scripts\status-chat-profile.ps1 | Out-String
+          $after = $afterText | ConvertFrom-Json
+          if ([int]$after.active_count -ne 0) { throw "Semantic profile cleanup failed; active_count=$($after.active_count)." }
+          Write-Host 'SEMANTIC_PROFILE_CLEANUP=PASS'
+
+      - name: Prove semantic runtime from standalone installed layout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installedRoot = Join-Path $env:RUNNER_TEMP 'semantic-installed-app'
+          $installedScripts = Join-Path $installedRoot 'scripts'
+          $installedRuntime = Join-Path $installedRoot 'runtime'
+          Remove-Item -LiteralPath $installedRoot -Recurse -Force -ErrorAction SilentlyContinue
+
+          $scriptNames = @(
+            'start-local-bridge.ps1',
+            'status-local-bridge.ps1',
+            'stop-local-bridge.ps1',
+            'start-chat-profile.ps1',
+            'start-semantic-profile.ps1',
+            'semantic-projection-runtime.ps1',
+            'status-chat-profile.ps1',
+            'stop-chat-profile.ps1'
+          )
+          foreach ($name in $scriptNames) {
+            $destination = Join-Path $installedScripts $name
+            New-Item -ItemType Directory -Force -Path (Split-Path $destination -Parent) | Out-Null
+            Copy-Item -LiteralPath (Join-Path $PWD "scripts/$name") -Destination $destination -Force
+          }
+
+          $runtimeFiles = @(
+            'runtime/mcp.json',
+            'runtime/chat-profiles/files-readonly/mcp.json',
+            'runtime/chat-profiles/browser-isolated/mcp.json',
+            'runtime/chat-profiles/semantic/mcp.json',
+            'runtime/chat-profiles/adaptive/mcp.json',
+            'runtime/semantic-projection/package.json',
+            'runtime/semantic-projection/bin/semantic-projection.mjs'
+          )
+          foreach ($relative in $runtimeFiles) {
+            $suffix = $relative.Substring('runtime/'.Length).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+            $destination = Join-Path $installedRuntime $suffix
+            New-Item -ItemType Directory -Force -Path (Split-Path $destination -Parent) | Out-Null
+            Copy-Item -LiteralPath (Join-Path $PWD $relative) -Destination $destination -Force
+          }
+
+          Push-Location (Join-Path $installedRuntime 'semantic-projection')
+          try {
+            npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+            if ($LASTEXITCODE -ne 0) { throw "Installed-layout semantic npm install failed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+          $workspace = Join-Path $env:RUNNER_TEMP 'semantic-installed-workspace'
+          New-Item -ItemType Directory -Force -Path $workspace | Out-Null
+          Set-Content -LiteralPath (Join-Path $workspace 'input.txt') -Value 'SEMANTIC_INSTALLED_INPUT' -Encoding utf8
+
+          try {
+            & (Join-Path $installedScripts 'start-semantic-profile.ps1') -FilesRoot $workspace -Port 3068 -ReadyTimeoutSeconds 120
+            $status = & (Join-Path $installedScripts 'status-chat-profile.ps1') -Port 3068 | Out-String | ConvertFrom-Json
+            if ([int]$status.active_count -ne 1 -or [string]$status.active_profile -ne 'semantic' -or $status.conflict) {
+              throw "Standalone installed layout did not start semantic cleanly: $($status | ConvertTo-Json -Compress)"
+            }
+            $semanticScope = @($status.scopes | Where-Object { [string]$_.profile -eq 'semantic' })
+            if ($semanticScope.Count -ne 1 -or [string]$semanticScope[0].health_state -ne 'ready') {
+              throw 'Standalone installed semantic health is not ready.'
+            }
+
+            $inventoryText = npx.cmd -y '@1mcp/agent@0.34.4' inspect semantic-projection --url http://127.0.0.1:3068 --format json --all 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "Installed-layout semantic inspect failed: $inventoryText" }
+            $inventory = $inventoryText | ConvertFrom-Json
+            $actual = @($inventory.tools | ForEach-Object { [string]$_.tool } | Sort-Object)
+            $expected = @('web_interact','web_observe','web_open','workspace_read','workspace_write')
+            if (($actual -join "`n") -ne ($expected -join "`n")) { throw "Installed-layout semantic surface drifted: $($actual -join ', ')" }
+
+            Write-Host 'SEMANTIC_INSTALLED_LAYOUT=PASS'
+            Write-Host 'SEMANTIC_INSTALLED_TOOL_COUNT=5'
+          }
+          finally {
+            & (Join-Path $installedScripts 'stop-chat-profile.ps1')
+          }
+
+          $after = & (Join-Path $installedScripts 'status-chat-profile.ps1') -Port 3068 | Out-String | ConvertFrom-Json
+          if ([int]$after.active_count -ne 0) { throw "Standalone installed semantic cleanup failed; active_count=$($after.active_count)." }
+          Write-Host 'SEMANTIC_INSTALLED_CLEANUP=PASS'

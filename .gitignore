@@ -3,6 +3,16 @@
 .env.*
 !.env.example
 runtime/logs/
+runtime/**/logs/
+runtime/**/admin/
+runtime/**/.playwright-mcp/
+runtime/**/runtime-identity.json
+runtime/**/runtime.owner/
 runtime/state/
 runtime/secrets/
+runtime/**/server.pid
+runtime/**/presets.json
+runtime/**/sessions/
 .tunnel-client/
+__pycache__/
+*.py[cod]
