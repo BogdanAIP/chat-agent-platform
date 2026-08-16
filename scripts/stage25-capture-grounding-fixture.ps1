@@ -39,17 +39,88 @@ function Invoke-Stage25Browser {
             throw "Browser process timed out after $TimeoutSeconds seconds."
         }
 
-        $stdout = $stdoutTask.GetAwaiter().GetResult()
-        $stderr = $stderrTask.GetAwaiter().GetResult()
-
         return [pscustomobject]@{
             ExitCode = $process.ExitCode
-            Stdout = $stdout
-            Stderr = $stderr
+            Stdout = $stdoutTask.GetAwaiter().GetResult()
+            Stderr = $stderrTask.GetAwaiter().GetResult()
         }
     }
     finally {
         $process.Dispose()
+    }
+}
+
+function Get-CommonBrowserArguments {
+    param(
+        [Parameter(Mandatory = $true)][string]$ProfileRoot,
+        [Parameter(Mandatory = $true)][int]$WindowWidth,
+        [Parameter(Mandatory = $true)][int]$WindowHeight
+    )
+
+    return @(
+        '--headless=new',
+        '--disable-gpu',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--hide-scrollbars',
+        '--force-device-scale-factor=1',
+        "--window-size=$WindowWidth,$WindowHeight",
+        "--user-data-dir=$ProfileRoot"
+    )
+}
+
+function Get-RenderedFixture {
+    param(
+        [Parameter(Mandatory = $true)][string]$BrowserPath,
+        [Parameter(Mandatory = $true)][string]$FixtureUri,
+        [Parameter(Mandatory = $true)][string]$ProfileRoot,
+        [Parameter(Mandatory = $true)][int]$WindowWidth,
+        [Parameter(Mandatory = $true)][int]$WindowHeight
+    )
+
+    Remove-Item -LiteralPath $ProfileRoot -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $ProfileRoot | Out-Null
+
+    $arguments = @(
+        (Get-CommonBrowserArguments `
+            -ProfileRoot $ProfileRoot `
+            -WindowWidth $WindowWidth `
+            -WindowHeight $WindowHeight)
+    ) + @('--dump-dom', $FixtureUri)
+
+    $result = Invoke-Stage25Browser `
+        -BrowserPath $BrowserPath `
+        -Arguments $arguments `
+        -TimeoutSeconds 60
+
+    if ($result.ExitCode -ne 0) {
+        if (-not [string]::IsNullOrWhiteSpace($result.Stderr)) {
+            Write-Host $result.Stderr
+        }
+        throw "Browser --dump-dom failed with exit code $($result.ExitCode)"
+    }
+
+    $dumpText = [string]$result.Stdout
+    $match = [regex]::Match(
+        $dumpText,
+        '<pre[^>]*\bid="stage25-fixture-export"[^>]*>(.*?)</pre>',
+        [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    if (-not $match.Success) {
+        throw 'Rendered fixture geometry export was not found in browser DOM output.'
+    }
+
+    $geometryJson = [System.Net.WebUtility]::HtmlDecode($match.Groups[1].Value).Trim()
+    $actual = $geometryJson | ConvertFrom-Json
+
+    return [pscustomobject]@{
+        DumpText = $dumpText
+        Actual = $actual
+        Stderr = [string]$result.Stderr
+        WindowWidth = $WindowWidth
+        WindowHeight = $WindowHeight
     }
 }
 
@@ -115,83 +186,67 @@ $geometryPath = Join-Path $OutputRoot 'fixture-geometry.json'
 $screenshotPath = Join-Path $OutputRoot 'fixture.png'
 $stderrPath = Join-Path $OutputRoot 'browser.stderr.log'
 
-foreach ($profileRoot in @($dumpProfileRoot, $screenshotProfileRoot)) {
-    Remove-Item -LiteralPath $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
-}
 Remove-Item -LiteralPath $dumpPath,$geometryPath,$screenshotPath,$stderrPath -Force -ErrorAction SilentlyContinue
 
-function Get-CommonBrowserArguments {
-    param([Parameter(Mandatory = $true)][string]$ProfileRoot)
-
-    return @(
-        '--headless=new',
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-background-networking',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--hide-scrollbars',
-        '--force-device-scale-factor=1',
-        '--window-size=1280,720',
-        "--user-data-dir=$ProfileRoot"
-    )
-}
+$spec = Get-Content -LiteralPath $casesPath -Raw -Encoding utf8 | ConvertFrom-Json
+$expectedWidth = [int]$spec.viewport.width
+$expectedHeight = [int]$spec.viewport.height
 
 Write-Host "`n===== STAGE 25 BROWSER FIXTURE =====" -ForegroundColor Cyan
 Write-Host "BROWSER=$browser"
 Write-Host "FIXTURE=$fixturePath"
 Write-Host "OUTPUT_ROOT=$OutputRoot"
 
-$dumpArguments = @(
-    (Get-CommonBrowserArguments -ProfileRoot $dumpProfileRoot)
-) + @('--dump-dom', $fixtureUri)
-
-$dumpResult = Invoke-Stage25Browser `
+# Chromium on Windows may interpret --window-size as outer-window dimensions,
+# even in new headless mode. Probe once, measure the decoration delta, then
+# calibrate so window.innerWidth/innerHeight match the benchmark viewport.
+$windowWidth = $expectedWidth
+$windowHeight = $expectedHeight
+$rendered = Get-RenderedFixture `
     -BrowserPath $browser `
-    -Arguments $dumpArguments `
-    -TimeoutSeconds 60
+    -FixtureUri $fixtureUri `
+    -ProfileRoot $dumpProfileRoot `
+    -WindowWidth $windowWidth `
+    -WindowHeight $windowHeight
 
-Set-Content -LiteralPath $stderrPath -Value $dumpResult.Stderr -Encoding utf8
+$actualWidth = [int]$rendered.Actual.viewport.width
+$actualHeight = [int]$rendered.Actual.viewport.height
+Write-Host "VIEWPORT_PROBE=${actualWidth}x${actualHeight}"
 
-if ($dumpResult.ExitCode -ne 0) {
-    if (-not [string]::IsNullOrWhiteSpace($dumpResult.Stderr)) {
-        Write-Host $dumpResult.Stderr
+if ($actualWidth -ne $expectedWidth -or $actualHeight -ne $expectedHeight) {
+    $widthDelta = $windowWidth - $actualWidth
+    $heightDelta = $windowHeight - $actualHeight
+    $windowWidth = $expectedWidth + $widthDelta
+    $windowHeight = $expectedHeight + $heightDelta
+
+    if ($windowWidth -le 0 -or $windowHeight -le 0 -or
+        $windowWidth -gt 4096 -or $windowHeight -gt 4096) {
+        throw "Unsafe calibrated Chromium window size ${windowWidth}x${windowHeight}."
     }
-    throw "Browser --dump-dom failed with exit code $($dumpResult.ExitCode)"
+
+    Write-Host "VIEWPORT_CALIBRATED_WINDOW=${windowWidth}x${windowHeight}"
+    $rendered = Get-RenderedFixture `
+        -BrowserPath $browser `
+        -FixtureUri $fixtureUri `
+        -ProfileRoot $dumpProfileRoot `
+        -WindowWidth $windowWidth `
+        -WindowHeight $windowHeight
+
+    $actualWidth = [int]$rendered.Actual.viewport.width
+    $actualHeight = [int]$rendered.Actual.viewport.height
 }
-
-$dumpText = [string]$dumpResult.Stdout
-Set-Content -LiteralPath $dumpPath -Value $dumpText -Encoding utf8
-
-$match = [regex]::Match(
-    $dumpText,
-    '<pre[^>]*\bid="stage25-fixture-export"[^>]*>(.*?)</pre>',
-    [System.Text.RegularExpressions.RegexOptions]::Singleline
-)
-if (-not $match.Success) {
-    throw 'Rendered fixture geometry export was not found in browser DOM output.'
-}
-
-$geometryJson = [System.Net.WebUtility]::HtmlDecode($match.Groups[1].Value).Trim()
-$actual = $geometryJson | ConvertFrom-Json
-$spec = Get-Content -LiteralPath $casesPath -Raw -Encoding utf8 | ConvertFrom-Json
-
-$actual | ConvertTo-Json -Depth 8 |
-    Set-Content -LiteralPath $geometryPath -Encoding utf8
-
-$expectedWidth = [double]$spec.viewport.width
-$expectedHeight = [double]$spec.viewport.height
-$actualWidth = [double]$actual.viewport.width
-$actualHeight = [double]$actual.viewport.height
 
 Write-Host "VIEWPORT_EXPECTED=${expectedWidth}x${expectedHeight}"
 Write-Host "VIEWPORT_ACTUAL=${actualWidth}x${actualHeight}"
 
-if ([math]::Abs($actualWidth - $expectedWidth) -gt 0.01 -or
-    [math]::Abs($actualHeight - $expectedHeight) -gt 0.01) {
-    throw 'Rendered browser viewport does not match fixture metadata.'
+if ($actualWidth -ne $expectedWidth -or $actualHeight -ne $expectedHeight) {
+    throw 'Rendered browser viewport does not match fixture metadata after calibration.'
 }
+
+Set-Content -LiteralPath $dumpPath -Value $rendered.DumpText -Encoding utf8
+$rendered.Actual | ConvertTo-Json -Depth 8 |
+    Set-Content -LiteralPath $geometryPath -Encoding utf8
+Set-Content -LiteralPath $stderrPath -Value $rendered.Stderr -Encoding utf8
 
 $tolerance = 0.01
 $verifiedCount = 0
@@ -206,7 +261,7 @@ foreach ($case in @($spec.cases)) {
     }
 
     $targetId = [string]$case.target_id
-    $property = $actual.targets.PSObject.Properties[$targetId]
+    $property = $rendered.Actual.targets.PSObject.Properties[$targetId]
     if ($null -eq $property) {
         throw "Rendered browser output is missing target '$targetId'."
     }
@@ -243,8 +298,14 @@ foreach ($case in @($spec.cases)) {
     $verifiedCount++
 }
 
+Remove-Item -LiteralPath $screenshotProfileRoot -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $screenshotProfileRoot | Out-Null
+
 $screenshotArguments = @(
-    (Get-CommonBrowserArguments -ProfileRoot $screenshotProfileRoot)
+    (Get-CommonBrowserArguments `
+        -ProfileRoot $screenshotProfileRoot `
+        -WindowWidth $windowWidth `
+        -WindowHeight $windowHeight)
 ) + @(
     '--run-all-compositor-stages-before-draw',
     "--screenshot=$screenshotPath",
@@ -285,7 +346,8 @@ for ($i = 0; $i -lt $pngSignature.Count; $i++) {
 $pngWidth = ([int]$png[16] -shl 24) -bor ([int]$png[17] -shl 16) -bor ([int]$png[18] -shl 8) -bor [int]$png[19]
 $pngHeight = ([int]$png[20] -shl 24) -bor ([int]$png[21] -shl 16) -bor ([int]$png[22] -shl 8) -bor [int]$png[23]
 
-if ($pngWidth -ne [int]$expectedWidth -or $pngHeight -ne [int]$expectedHeight) {
+Write-Host "SCREENSHOT_RAW_SIZE=${pngWidth}x${pngHeight}"
+if ($pngWidth -ne $expectedWidth -or $pngHeight -ne $expectedHeight) {
     throw "Screenshot dimensions are ${pngWidth}x${pngHeight}, expected ${expectedWidth}x${expectedHeight}."
 }
 
