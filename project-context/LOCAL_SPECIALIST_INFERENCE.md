@@ -55,6 +55,31 @@ Prefer a local loopback API or stable machine-readable CLI boundary. Do not expo
 
 The adapter may use LM Studio lifecycle/model-management functionality deterministically, but the public semantic contract must remain vendor-neutral.
 
+## Target Windows hardware reconnaissance — 2026-08-16
+
+The first real target-machine reconnaissance reported:
+
+```text
+CPU=11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz
+LOGICAL_CPUS=8
+RAM_GB=7.68
+GPU=Intel(R) Iris(R) Xe Graphics
+WINDOWS_REPORTED_VRAM_GB=0.12
+GPU_DRIVER=31.0.101.5186
+```
+
+No LM Studio/llmster installation was found in the checked standard locations, `lms` was not resolved, and no NVIDIA runtime was observed.
+
+This target is below LM Studio's current recommended Windows baseline of 16 GB RAM and 4 GB dedicated VRAM. That is a benchmark constraint, not an automatic rejection: the first acceptance sequence must use small GGUF variants, modest context/image settings, memory estimation before every larger load, and measured process/RAM behavior.
+
+Target-specific benchmark order is therefore:
+
+1. `LiquidAI/LFM2.5-VL-450M-GGUF` Q4 first, to validate runtime/API/vision behavior with maximum memory margin;
+2. `LiquidAI/LFM2.5-VL-1.6B-GGUF` Q4 only after estimate-only and measured free-memory checks;
+3. older `LiquidAI/LFM2-VL-3B` only if the runtime estimator and observed headroom make it safe and useful.
+
+Because the target GPU is Intel Iris Xe integrated graphics, Stage 25 should not assume CUDA/NVIDIA behavior or trust Windows-reported `AdapterRAM` as usable dedicated VRAM. Benchmark CPU/automatic LM Studio placement first. In parallel research, keep ONNX Runtime + Intel OpenVINO as a replaceable runtime comparison for this hardware class because OpenVINO can target Intel CPU and integrated GPU. Do not add it to the product path unless measured evidence beats or materially complements the LM Studio path.
+
 ## Model candidate correction
 
 Earlier project documents incorrectly named `LiquidAI/LFM2.5-VL-3B`.
@@ -70,8 +95,8 @@ Primary sources:
 
 Current candidate set:
 
-1. **Preferred current-generation:** `LiquidAI/LFM2.5-VL-1.6B` / `LiquidAI/LFM2.5-VL-1.6B-GGUF`.
-2. **Lightweight comparison:** `LiquidAI/LFM2.5-VL-450M` / GGUF.
+1. **Preferred current-generation quality candidate:** `LiquidAI/LFM2.5-VL-1.6B` / `LiquidAI/LFM2.5-VL-1.6B-GGUF`.
+2. **Target-first lightweight candidate:** `LiquidAI/LFM2.5-VL-450M` / GGUF.
 3. **Older larger comparison:** `LiquidAI/LFM2-VL-3B` / GGUF.
 
 The older 3B model must not be mislabeled as LFM2.5.
