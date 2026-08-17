@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, '..', '..', '..');
 const CONTROLLER_PATH = path.join(REPO_ROOT, 'scripts', 'local-vision-runtime.ps1');
+const LISTENER_GUARD_PATH = path.join(REPO_ROOT, 'scripts', 'verify-local-vision-listener.ps1');
 const GROUNDER_CLI_PATH = path.join(REPO_ROOT, 'scripts', 'production-visual-grounder.py');
 const REVIEWED_PROFILE = 'lfm25-vl-450m-f16';
 const REVIEWED_PORT = 3068;
@@ -159,10 +160,28 @@ function validateRuntimeStatus(status) {
   if (status.port !== REVIEWED_PORT) {
     throw new Error(`vision runtime port mismatch: ${String(status.port)}`);
   }
+  if (!Number.isInteger(status.pid) || status.pid < 1) {
+    throw new Error(`vision runtime pid is invalid: ${String(status.pid)}`);
+  }
   if (status.conflict === true || status.running !== true || status.ready !== true || status.state !== 'ready') {
     throw new Error(`vision runtime is not ready and exclusively owned: ${String(status.state)}`);
   }
   return status;
+}
+
+function validateListenerGuard(payload, status) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.schema_version !== 1) {
+    throw new Error('vision runtime listener guard returned malformed JSON contract');
+  }
+  if (
+    payload.owned !== true ||
+    payload.pid !== status.pid ||
+    payload.host !== '127.0.0.1' ||
+    payload.port !== REVIEWED_PORT
+  ) {
+    throw new Error('vision runtime listener guard did not prove the reviewed owned listener');
+  }
+  return payload;
 }
 
 function normalizeGrounderPayload(payload) {
@@ -235,6 +254,49 @@ export class RuntimeBackedVisualGrounder {
     return parseSingleJson(result.stdout, `vision runtime ${action}`);
   }
 
+  async #assertOwnedListener(status) {
+    const result = await this.#runProcess(
+      'pwsh.exe',
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        LISTENER_GUARD_PATH,
+        '-ExpectedPid',
+        String(status.pid),
+        '-Port',
+        String(REVIEWED_PORT)
+      ],
+      {
+        timeoutMs: 10_000,
+        settleOnExit: true,
+        exitDrainMs: 100
+      }
+    );
+    if (result.code !== 0) {
+      throw new Error(`vision-runtime-listener-ownership-failed:${boundedProcessDiagnostic(result)}`);
+    }
+    return validateListenerGuard(
+      parseSingleJson(result.stdout, 'vision runtime listener guard'),
+      status
+    );
+  }
+
+  async #ownedReadyRuntime(action) {
+    const status = validateRuntimeStatus(await this.#runtime(action));
+    try {
+      await this.#assertOwnedListener(status);
+      return status;
+    } catch (error) {
+      try {
+        await this.#runtime('Stop');
+      } catch {}
+      throw error;
+    }
+  }
+
   async ground({ imageBytes, mimeType, width, height, coordinateSpace, instruction, kind, targetText = null }) {
     if (!Buffer.isBuffer(imageBytes) || imageBytes.length < 1 || imageBytes.length > MAX_INPUT_PNG_BYTES) {
       throw new Error('runtime-backed grounder requires bounded PNG bytes');
@@ -255,7 +317,7 @@ export class RuntimeBackedVisualGrounder {
       throw new Error('targetText must be text or null');
     }
 
-    const started = validateRuntimeStatus(await this.#runtime('Start'));
+    const started = await this.#ownedReadyRuntime('Start');
     const request = JSON.stringify({
       schema_version: 1,
       image_base64: imageBytes.toString('base64'),
@@ -284,14 +346,13 @@ export class RuntimeBackedVisualGrounder {
       return normalizeGrounderPayload(payload);
     } finally {
       try {
-        const touched = await this.#runtime('Touch');
-        validateRuntimeStatus(touched);
+        await this.#ownedReadyRuntime('Touch');
       } catch (error) {
         touchError = error;
       }
       // A successful grounding result is not silently downgraded after it has
-      // been computed, but Touch failure is fatal before this method resolves
-      // because the finally block completes before the return is observed.
+      // been computed, but Touch/listener ownership failure is fatal before this
+      // method resolves because the finally block completes before the return is observed.
       if (touchError) throw touchError;
       if (started.port !== REVIEWED_PORT) {
         throw new Error('vision runtime port changed during grounding');
@@ -304,6 +365,7 @@ export function productionRunnerPathsForTest() {
   return {
     repoRoot: REPO_ROOT,
     controllerPath: CONTROLLER_PATH,
+    listenerGuardPath: LISTENER_GUARD_PATH,
     grounderCliPath: GROUNDER_CLI_PATH,
     reviewedProfile: REVIEWED_PROFILE,
     reviewedPort: REVIEWED_PORT
