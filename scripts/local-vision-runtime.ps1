@@ -388,8 +388,10 @@ function Get-ProcessIdentity {
 
     try {
         $executable = [IO.Path]::GetFullPath($executable)
-        $startTime = (Get-Process -Id $ProcessId -ErrorAction Stop).
-            StartTime.ToUniversalTime().ToString('o')
+        $startTimeUtcTicks = [int64](
+            (Get-Process -Id $ProcessId -ErrorAction Stop).
+                StartTime.ToUniversalTime().Ticks
+        )
     }
     catch {
         return $null
@@ -398,14 +400,17 @@ function Get-ProcessIdentity {
     return [pscustomobject]@{
         executable = $executable
         command_line_sha256 = Get-StringSha256 -Value $commandLine
-        process_start_time_utc = $startTime
+        process_start_time_utc_ticks = $startTimeUtcTicks
     }
 }
 
 function Test-OwnedServerProcess {
     param([Parameter(Mandatory)]$State)
 
-    if ($null -eq $State.PSObject.Properties['process_command_sha256']) {
+    if (
+        $null -eq $State.PSObject.Properties['process_command_sha256'] -or
+        $null -eq $State.PSObject.Properties['process_start_time_utc_ticks']
+    ) {
         return $false
     }
 
@@ -417,7 +422,7 @@ function Test-OwnedServerProcess {
     return (
         [string]$identity.executable -ieq [IO.Path]::GetFullPath([string]$State.runtime_executable) -and
         [string]$identity.command_line_sha256 -eq [string]$State.process_command_sha256 -and
-        [string]$identity.process_start_time_utc -eq [string]$State.process_start_time_utc
+        [int64]$identity.process_start_time_utc_ticks -eq [int64]$State.process_start_time_utc_ticks
     )
 }
 
@@ -738,7 +743,7 @@ function Start-Runtime {
         owner = 'chat-agent-platform-vision-runtime'
         profile = [string]$Config.profile
         pid = [int]$process.Id
-        process_start_time_utc = [string]$identity.process_start_time_utc
+        process_start_time_utc_ticks = [int64]$identity.process_start_time_utc_ticks
         process_command_sha256 = [string]$identity.command_line_sha256
         runtime_executable = [string]$identity.executable
         runtime_requested_executable = $resolvedRuntime
