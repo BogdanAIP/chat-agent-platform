@@ -1,0 +1,89 @@
+name: Stage 25.1 Vision Bridge Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/semantic-projection/lib/visual-grounding-bridge.mjs"
+      - "runtime/semantic-projection/tests/vision-bridge-acceptance.mjs"
+      - "runtime/semantic-projection/package.json"
+      - "project-context/STAGE25_1_VISION_INTEGRATION.md"
+      - ".github/workflows/stage25-1-vision-bridge.yml"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/semantic-projection/lib/visual-grounding-bridge.mjs"
+      - "runtime/semantic-projection/tests/vision-bridge-acceptance.mjs"
+      - "runtime/semantic-projection/package.json"
+      - "project-context/STAGE25_1_VISION_INTEGRATION.md"
+      - ".github/workflows/stage25-1-vision-bridge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage25-1-vision-bridge-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  same-session-vision-bridge:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Verify environment and pinned Playwright MCP
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+          if (-not (Test-Path -LiteralPath $chrome -PathType Leaf)) {
+            throw 'Google Chrome is required for Stage 25.1 same-session vision bridge acceptance.'
+          }
+          $manifest = Get-Content 'runtime/semantic-projection/package.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([string]$manifest.dependencies.'@playwright/mcp' -ne '0.0.78') {
+            throw 'Stage 25.1 bridge acceptance requires the reviewed @playwright/mcp 0.0.78 pin.'
+          }
+
+      - name: Install exact semantic projection dependencies
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+            if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Prove same-session capture freshness and coordinate action
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            node tests/vision-bridge-acceptance.mjs
+            if ($LASTEXITCODE -ne 0) {
+              throw "Stage 25.1 vision bridge acceptance failed with exit code $LASTEXITCODE"
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Preserve exact five-tool public semantic surface
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm run acceptance
+            if ($LASTEXITCODE -ne 0) {
+              throw "Existing semantic projection acceptance failed with exit code $LASTEXITCODE"
+            }
+          }
+          finally {
+            Pop-Location
+          }
