@@ -26,26 +26,15 @@ const PLAYWRIGHT_DEFENSE_BLOCKED_ORIGINS = [
   'https://metadata.google.internal:*'
 ].join(';');
 const REQUIRED_FILESYSTEM_TOOLS = new Set([
-  'list_allowed_directories',
-  'read_text_file',
-  'search_files',
-  'write_file'
+  'list_allowed_directories', 'read_text_file', 'search_files', 'write_file'
 ]);
 const REQUIRED_PLAYWRIGHT_TOOLS = new Set([
-  'browser_navigate',
-  'browser_find',
-  'browser_snapshot',
-  'browser_click',
-  'browser_type',
-  'browser_take_screenshot',
-  'browser_mouse_click_xy'
+  'browser_navigate', 'browser_find', 'browser_snapshot', 'browser_click', 'browser_type',
+  'browser_take_screenshot', 'browser_mouse_click_xy'
 ]);
 
 const workspaceRootInput = process.env.CHAT_LOCAL_FILES_ROOT;
-if (!workspaceRootInput) {
-  throw new Error('CHAT_LOCAL_FILES_ROOT is required for semantic projection.');
-}
-
+if (!workspaceRootInput) throw new Error('CHAT_LOCAL_FILES_ROOT is required for semantic projection.');
 const workspaceRoot = path.resolve(workspaceRootInput);
 const workspaceStat = fs.statSync(workspaceRoot, { throwIfNoEntry: false });
 if (!workspaceStat?.isDirectory()) {
@@ -58,24 +47,16 @@ let semanticVisionClient = null;
 let shuttingDown = false;
 
 function localNodeCommand(entryPoint, extraArgs = []) {
-  return {
-    command: process.execPath,
-    args: [entryPoint, ...extraArgs]
-  };
+  return { command: process.execPath, args: [entryPoint, ...extraArgs] };
 }
 
 function resolveWorkspacePath(relativePath) {
   if (typeof relativePath !== 'string' || relativePath.length === 0) {
     throw new Error('A non-empty relative workspace path is required.');
   }
-  if (
-    path.isAbsolute(relativePath) ||
-    path.win32.isAbsolute(relativePath) ||
-    path.posix.isAbsolute(relativePath)
-  ) {
+  if (path.isAbsolute(relativePath) || path.win32.isAbsolute(relativePath) || path.posix.isAbsolute(relativePath)) {
     throw new Error('Absolute paths are not accepted; use a path relative to the configured workspace root.');
   }
-
   const resolved = path.resolve(workspaceRoot, relativePath);
   const relative = path.relative(workspaceRoot, resolved);
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
@@ -87,17 +68,12 @@ function resolveWorkspacePath(relativePath) {
 function normalizeBackendResult(result) {
   const normalized = { content: Array.isArray(result?.content) ? result.content : [] };
   if (result?.isError) normalized.isError = true;
-  if (result?.structuredContent !== undefined) {
-    normalized.structuredContent = result.structuredContent;
-  }
+  if (result?.structuredContent !== undefined) normalized.structuredContent = result.structuredContent;
   return normalized;
 }
 
 function toolError(message) {
-  return {
-    content: [{ type: 'text', text: message }],
-    isError: true
-  };
+  return { content: [{ type: 'text', text: message }], isError: true };
 }
 
 function visualOutcomeResult(outcome) {
@@ -106,23 +82,21 @@ function visualOutcomeResult(outcome) {
   }
   if (outcome?.status === 'acted' && outcome.source === 'vision') {
     return {
-      content: [{
-        type: 'text',
-        text: 'web_interact click completed through the reviewed same-session visual fallback after a proven semantic miss.'
-      }]
+      content: [{ type: 'text', text: 'web_interact click completed through the reviewed same-session visual fallback after a proven semantic miss.' }]
     };
   }
-  const reason = typeof outcome?.reason === 'string' && outcome.reason
-    ? outcome.reason
-    : 'unknown-escalation-result';
-  return toolError(`web_interact performed no action: ${reason}`);
+  const reason = typeof outcome?.reason === 'string' && outcome.reason ? outcome.reason : 'unknown-escalation-result';
+  if (outcome?.status === 'abstain') {
+    return {
+      content: [{ type: 'text', text: `web_interact abstained with no action: ${reason}` }]
+    };
+  }
+  return toolError(`web_interact performed no action because of an error: ${reason}`);
 }
 
 function normalizeNavigationHostname(hostname) {
   let normalized = String(hostname ?? '').trim().toLowerCase();
-  if (normalized.startsWith('[') && normalized.endsWith(']')) {
-    normalized = normalized.slice(1, -1);
-  }
+  if (normalized.startsWith('[') && normalized.endsWith(']')) normalized = normalized.slice(1, -1);
   while (normalized.endsWith('.')) normalized = normalized.slice(0, -1);
   return normalized;
 }
@@ -130,24 +104,16 @@ function normalizeNavigationHostname(hostname) {
 function classifyDirectNavigationHost(hostname) {
   const host = normalizeNavigationHostname(hostname);
   if (!host) return { allowed: false, scope: 'empty-host' };
-
-  if (host === 'localhost' || host.endsWith('.localhost')) {
-    return { allowed: true, scope: 'loopback' };
-  }
-  if (host === 'metadata.google.internal') {
-    return { allowed: false, scope: 'metadata-hostname' };
-  }
+  if (host === 'localhost' || host.endsWith('.localhost')) return { allowed: true, scope: 'loopback' };
+  if (host === 'metadata.google.internal') return { allowed: false, scope: 'metadata-hostname' };
 
   const ipVersion = net.isIP(host);
   if (ipVersion === 4) {
     const octets = host.split('.').map(value => Number.parseInt(value, 10));
     const [a, b, c] = octets;
-
     if (a === 127) return { allowed: true, scope: 'loopback' };
-
     const blocked =
-      a === 0 ||
-      a === 10 ||
+      a === 0 || a === 10 ||
       (a === 100 && b >= 64 && b <= 127) ||
       (a === 169 && b === 254) ||
       (a === 172 && b >= 16 && b <= 31) ||
@@ -157,94 +123,54 @@ function classifyDirectNavigationHost(hostname) {
       (a === 192 && b === 168) ||
       (a === 198 && (b === 18 || b === 19)) ||
       (a === 198 && b === 51 && c === 100) ||
-      (a === 203 && b === 0 && c === 113) ||
-      a >= 224;
-
+      (a === 203 && b === 0 && c === 113) || a >= 224;
     return blocked
       ? { allowed: false, scope: a === 169 && b === 254 ? 'link-local-or-metadata-ip' : 'non-public-ip' }
       : { allowed: true, scope: 'public-ip' };
   }
-
   if (ipVersion === 6) {
     if (host === '::1') return { allowed: true, scope: 'loopback' };
-
-    const blocked =
-      host === '::' ||
-      host.startsWith('::ffff:') ||
-      /^f[cd]/.test(host) ||
-      /^fe[89ab]/.test(host) ||
-      /^ff/.test(host) ||
-      /^2001:db8(?::|$)/.test(host);
-
-    return blocked
-      ? { allowed: false, scope: 'non-public-ip' }
-      : { allowed: true, scope: 'public-ip' };
+    const blocked = host === '::' || host.startsWith('::ffff:') || /^f[cd]/.test(host) || /^fe[89ab]/.test(host) || /^ff/.test(host) || /^2001:db8(?::|$)/.test(host);
+    return blocked ? { allowed: false, scope: 'non-public-ip' } : { allowed: true, scope: 'public-ip' };
   }
-
   return { allowed: true, scope: 'hostname' };
 }
 
 async function createBackend(kind) {
   let spec;
   let requiredTools;
-
   if (kind === 'filesystem') {
     spec = localNodeCommand(FILESYSTEM_ENTRY, [workspaceRoot]);
     requiredTools = REQUIRED_FILESYSTEM_TOOLS;
   } else if (kind === 'playwright') {
     spec = localNodeCommand(PLAYWRIGHT_ENTRY, [
-      '--headless',
-      '--browser',
-      'chrome',
-      '--isolated',
-      '--image-responses',
-      'allow',
-      '--blocked-origins',
-      PLAYWRIGHT_DEFENSE_BLOCKED_ORIGINS,
-      '--block-service-workers',
-      '--codegen',
-      'none',
-      '--caps',
-      'vision',
-      '--timeout-action',
-      '15000'
+      '--headless', '--browser', 'chrome', '--isolated', '--image-responses', 'allow',
+      '--blocked-origins', PLAYWRIGHT_DEFENSE_BLOCKED_ORIGINS,
+      '--block-service-workers', '--codegen', 'none', '--caps', 'vision', '--timeout-action', '15000'
     ]);
     requiredTools = REQUIRED_PLAYWRIGHT_TOOLS;
   } else {
     throw new Error(`Unknown backend kind: ${kind}`);
   }
 
-  const client = new Client({
-    name: `chat-semantic-projection-${kind}`,
-    version: VERSION
-  });
+  const client = new Client({ name: `chat-semantic-projection-${kind}`, version: VERSION });
   const transport = new StdioClientTransport(spec);
-
   try {
     await client.connect(transport);
     const inventory = await client.listTools();
     const names = new Set(inventory.tools.map(tool => tool.name));
     const missing = [...requiredTools].filter(name => !names.has(name));
-    if (missing.length > 0) {
-      throw new Error(`${kind} backend is missing required tools: ${missing.join(', ')}`);
-    }
+    if (missing.length > 0) throw new Error(`${kind} backend is missing required tools: ${missing.join(', ')}`);
     return { client, transport };
   } catch (error) {
-    try {
-      await client.close();
-    } catch {
-      // Preserve the original connection/inventory error.
-    }
+    try { await client.close(); } catch {}
     throw error;
   }
 }
 
 async function getBackend(kind) {
   if (!backendPromises.has(kind)) {
-    const pending = createBackend(kind).catch(error => {
-      backendPromises.delete(kind);
-      throw error;
-    });
+    const pending = createBackend(kind).catch(error => { backendPromises.delete(kind); throw error; });
     backendPromises.set(kind, pending);
   }
   return backendPromises.get(kind);
@@ -252,12 +178,9 @@ async function getBackend(kind) {
 
 async function callBackend(kind, toolName, args) {
   const required = kind === 'filesystem' ? REQUIRED_FILESYSTEM_TOOLS : REQUIRED_PLAYWRIGHT_TOOLS;
-  if (!required.has(toolName)) {
-    throw new Error(`Projection refused non-allowlisted downstream tool: ${kind}.${toolName}`);
-  }
+  if (!required.has(toolName)) throw new Error(`Projection refused non-allowlisted downstream tool: ${kind}.${toolName}`);
   const { client } = await getBackend(kind);
-  const result = await client.callTool({ name: toolName, arguments: args });
-  return normalizeBackendResult(result);
+  return normalizeBackendResult(await client.callTool({ name: toolName, arguments: args }));
 }
 
 async function getSemanticVisionRouter() {
@@ -278,11 +201,7 @@ async function closeBackends() {
   backendPromises.clear();
   const settled = await Promise.allSettled(pending);
   const closes = [];
-  for (const entry of settled) {
-    if (entry.status === 'fulfilled') {
-      closes.push(entry.value.client.close());
-    }
-  }
+  for (const entry of settled) if (entry.status === 'fulfilled') closes.push(entry.value.client.close());
   await Promise.allSettled(closes);
 }
 
@@ -298,248 +217,132 @@ process.on('SIGTERM', () => void shutdown(0));
 process.stdin.on('end', () => void closeBackends());
 process.stdin.on('close', () => void closeBackends());
 
-const relativePathSchema = z
-  .string()
-  .min(1)
-  .max(2048)
-  .describe('Path relative to the configured workspace root. Absolute paths and parent traversal are rejected.');
+const relativePathSchema = z.string().min(1).max(2048).describe('Path relative to the configured workspace root. Absolute paths and parent traversal are rejected.');
 
-const visualFallbackSchema = z
-  .object({
-    instruction: z.string().min(1).max(4096).describe('Concrete visual instruction for one text-labeled control.'),
-    targetText: z.string().min(1).max(2048).describe('Visible text expected on the control.'),
-    semanticName: z
-      .string()
-      .min(1)
-      .max(1024)
-      .optional()
-      .describe('Exact accessible name to preflight before vision. Defaults to targetText.')
-  })
-  .strict();
+const visualFallbackSchema = z.object({
+  instruction: z.string().min(1).max(4096).describe('Concrete visual instruction for one text-labeled control.'),
+  targetText: z.string().min(1).max(2048).describe('Visible text used for both exact accessibility preflight and reviewed visual grounding.'),
+  semanticName: z.string().min(1).max(1024).optional().describe('Compatibility alias only. If supplied, it must normalize exactly to targetText and cannot force a different semantic preflight.')
+}).strict();
 
 const server = new McpServer(
   { name: 'chat-semantic-projection', version: VERSION },
   {
     instructions:
-      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use an isolated headless Playwright session. For click only, a reviewed text-labeled visual fallback may run internally after a fresh accessibility snapshot proves zero exact semantic candidates; ambiguity and semantic action errors fail closed without vision.'
+      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use an isolated headless Playwright session. For click only, a reviewed text-labeled visual fallback may run internally after a fresh accessibility snapshot proves zero exact targetText candidates. One exact candidate is clicked semantically; a unique enabled button may also be selected when all same-name alternatives are disabled. Unresolved ambiguity and semantic action errors fail closed without vision.'
   }
 );
 
-server.registerTool(
-  'workspace_read',
-  {
-    title: 'Read Workspace',
-    description:
-      'Read-only workspace operations. operation=roots lists allowed roots; read_text reads one text file; search finds matching paths under a workspace subdirectory. No arbitrary backend/tool selection is available.',
-    inputSchema: z
-      .object({
-        operation: z.enum(['roots', 'read_text', 'search']),
-        path: relativePathSchema.optional(),
-        head: z.number().int().positive().max(100000).optional(),
-        tail: z.number().int().positive().max(100000).optional(),
-        pattern: z.string().min(1).max(512).optional(),
-        excludePatterns: z.array(z.string().max(512)).max(64).optional()
-      })
-      .strict(),
-    annotations: {
-      readOnlyHint: true,
-      idempotentHint: true,
-      openWorldHint: false
+server.registerTool('workspace_read', {
+  title: 'Read Workspace',
+  description: 'Read-only workspace operations. operation=roots lists allowed roots; read_text reads one text file; search finds matching paths under a workspace subdirectory. No arbitrary backend/tool selection is available.',
+  inputSchema: z.object({
+    operation: z.enum(['roots', 'read_text', 'search']), path: relativePathSchema.optional(),
+    head: z.number().int().positive().max(100000).optional(), tail: z.number().int().positive().max(100000).optional(),
+    pattern: z.string().min(1).max(512).optional(), excludePatterns: z.array(z.string().max(512)).max(64).optional()
+  }).strict(),
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false }
+}, async args => {
+  try {
+    if (args.operation === 'roots') return await callBackend('filesystem', 'list_allowed_directories', {});
+    if (args.operation === 'read_text') {
+      if (!args.path) return toolError('workspace_read read_text requires path.');
+      if (args.head && args.tail) return toolError('Use head or tail, not both.');
+      const downstream = { path: resolveWorkspacePath(args.path) };
+      if (args.head !== undefined) downstream.head = args.head;
+      if (args.tail !== undefined) downstream.tail = args.tail;
+      return await callBackend('filesystem', 'read_text_file', downstream);
     }
-  },
-  async args => {
-    try {
-      if (args.operation === 'roots') {
-        return await callBackend('filesystem', 'list_allowed_directories', {});
-      }
-      if (args.operation === 'read_text') {
-        if (!args.path) return toolError('workspace_read read_text requires path.');
-        if (args.head && args.tail) return toolError('Use head or tail, not both.');
-        const downstream = { path: resolveWorkspacePath(args.path) };
-        if (args.head !== undefined) downstream.head = args.head;
-        if (args.tail !== undefined) downstream.tail = args.tail;
-        return await callBackend('filesystem', 'read_text_file', downstream);
-      }
-      if (!args.pattern) return toolError('workspace_read search requires pattern.');
-      const searchPath = resolveWorkspacePath(args.path ?? '.');
-      const downstream = { path: searchPath, pattern: args.pattern };
-      if (args.excludePatterns !== undefined) downstream.excludePatterns = args.excludePatterns;
-      return await callBackend('filesystem', 'search_files', downstream);
-    } catch (error) {
-      return toolError(`workspace_read failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-);
+    if (!args.pattern) return toolError('workspace_read search requires pattern.');
+    const downstream = { path: resolveWorkspacePath(args.path ?? '.'), pattern: args.pattern };
+    if (args.excludePatterns !== undefined) downstream.excludePatterns = args.excludePatterns;
+    return await callBackend('filesystem', 'search_files', downstream);
+  } catch (error) { return toolError(`workspace_read failed: ${error instanceof Error ? error.message : String(error)}`); }
+});
 
-server.registerTool(
-  'workspace_write',
-  {
-    title: 'Write Workspace Text',
-    description:
-      'Create or overwrite one UTF-8 text file inside the configured workspace root. The path must be relative; arbitrary filesystem tools are not available.',
-    inputSchema: z
-      .object({
-        path: relativePathSchema,
-        content: z.string().max(4_000_000)
-      })
-      .strict(),
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: true,
-      idempotentHint: true,
-      openWorldHint: false
-    }
-  },
-  async ({ path: relativePath, content }) => {
-    try {
-      return await callBackend('filesystem', 'write_file', {
-        path: resolveWorkspacePath(relativePath),
-        content
-      });
-    } catch (error) {
-      return toolError(`workspace_write failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-);
+server.registerTool('workspace_write', {
+  title: 'Write Workspace Text',
+  description: 'Create or overwrite one UTF-8 text file inside the configured workspace root. The path must be relative; arbitrary filesystem tools are not available.',
+  inputSchema: z.object({ path: relativePathSchema, content: z.string().max(4_000_000) }).strict(),
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
+}, async ({ path: relativePath, content }) => {
+  try { return await callBackend('filesystem', 'write_file', { path: resolveWorkspacePath(relativePath), content }); }
+  catch (error) { return toolError(`workspace_write failed: ${error instanceof Error ? error.message : String(error)}`); }
+});
 
-server.registerTool(
-  'web_open',
-  {
-    title: 'Open Web Page',
-    description:
-      'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows.',
-    inputSchema: z.object({ url: z.string().url().max(4096) }).strict(),
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-      openWorldHint: true
+server.registerTool('web_open', {
+  title: 'Open Web Page',
+  description: 'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows.',
+  inputSchema: z.object({ url: z.string().url().max(4096) }).strict(),
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+}, async ({ url }) => {
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return toolError('web_open accepts only HTTP or HTTPS URLs.');
+    if (parsed.username || parsed.password) return toolError('web_open rejects URLs containing embedded credentials.');
+    const networkPolicy = classifyDirectNavigationHost(parsed.hostname);
+    if (!networkPolicy.allowed) {
+      return toolError(`web_open rejects direct ${networkPolicy.scope} destinations by default: ${parsed.hostname}. Loopback remains allowed; broader private-network access requires a separately reviewed capability.`);
     }
-  },
-  async ({ url }) => {
-    try {
-      const parsed = new URL(url);
-      if (!['http:', 'https:'].includes(parsed.protocol)) {
-        return toolError('web_open accepts only HTTP or HTTPS URLs.');
-      }
-      if (parsed.username || parsed.password) {
-        return toolError('web_open rejects URLs containing embedded credentials.');
-      }
-      const networkPolicy = classifyDirectNavigationHost(parsed.hostname);
-      if (!networkPolicy.allowed) {
-        return toolError(
-          `web_open rejects direct ${networkPolicy.scope} destinations by default: ${parsed.hostname}. ` +
-          'Loopback remains allowed; broader private-network access requires a separately reviewed capability.'
-        );
-      }
-      return await callBackend('playwright', 'browser_navigate', { url: parsed.href });
-    } catch (error) {
-      return toolError(`web_open failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-);
+    return await callBackend('playwright', 'browser_navigate', { url: parsed.href });
+  } catch (error) { return toolError(`web_open failed: ${error instanceof Error ? error.message : String(error)}`); }
+});
 
-server.registerTool(
-  'web_observe',
-  {
-    title: 'Observe Web Page',
-    description:
-      'Read-only browser observation. operation=find searches the current accessibility snapshot by plain text or regex. operation=snapshot captures the current accessibility snapshot, optionally for one target. Screenshots remain internal to the reviewed click fallback and are never exposed as a public observation operation.',
-    inputSchema: z
-      .object({
-        operation: z.enum(['find', 'snapshot']),
-        text: z.string().min(1).max(2048).optional(),
-        regex: z.string().min(1).max(2048).optional(),
-        target: z.string().min(1).max(4096).optional()
-      })
-      .strict(),
-    annotations: {
-      readOnlyHint: true,
-      idempotentHint: true,
-      openWorldHint: true
+server.registerTool('web_observe', {
+  title: 'Observe Web Page',
+  description: 'Read-only browser observation. operation=find searches the current accessibility snapshot by plain text or regex. operation=snapshot captures the current accessibility snapshot, optionally for one target. Screenshots remain internal to the reviewed click fallback and are never exposed as a public observation operation.',
+  inputSchema: z.object({
+    operation: z.enum(['find', 'snapshot']), text: z.string().min(1).max(2048).optional(),
+    regex: z.string().min(1).max(2048).optional(), target: z.string().min(1).max(4096).optional()
+  }).strict(),
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true }
+}, async args => {
+  try {
+    if (args.operation === 'find') {
+      if (Boolean(args.text) === Boolean(args.regex)) return toolError('web_observe find requires exactly one of text or regex.');
+      return await callBackend('playwright', 'browser_find', args.text ? { text: args.text } : { regex: args.regex });
     }
-  },
-  async args => {
-    try {
-      if (args.operation === 'find') {
-        if (Boolean(args.text) === Boolean(args.regex)) {
-          return toolError('web_observe find requires exactly one of text or regex.');
-        }
-        return await callBackend('playwright', 'browser_find', args.text ? { text: args.text } : { regex: args.regex });
-      }
-      const downstream = {};
-      if (args.target !== undefined) downstream.target = args.target;
-      return await callBackend('playwright', 'browser_snapshot', downstream);
-    } catch (error) {
-      return toolError(`web_observe failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-);
+    const downstream = {};
+    if (args.target !== undefined) downstream.target = args.target;
+    return await callBackend('playwright', 'browser_snapshot', downstream);
+  } catch (error) { return toolError(`web_observe failed: ${error instanceof Error ? error.message : String(error)}`); }
+});
 
-server.registerTool(
-  'web_interact',
-  {
-    title: 'Interact With Web Page',
-    description:
-      'Interact with the isolated browser using a closed operation set: click one target or type text into one target. click may optionally include visualFallback for one text-labeled control. The server always performs a fresh accessibility preflight first: one exact candidate is clicked semantically; multiple candidates fail closed; only zero exact candidates may invoke the internal reviewed same-session visual grounder. No icon-only/ambiguous automatic visual promotion, arbitrary Playwright/JavaScript, file upload, direct network inspection or backend/tool selection is available.',
-    inputSchema: z
-      .object({
-        operation: z.enum(['click', 'type']),
-        target: z.string().min(1).max(4096).optional(),
-        element: z.string().min(1).max(1024).optional(),
-        doubleClick: z.boolean().optional(),
-        text: z.string().max(200000).optional(),
-        submit: z.boolean().optional(),
-        slowly: z.boolean().optional(),
-        visualFallback: visualFallbackSchema.optional()
-      })
-      .strict(),
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: true,
-      idempotentHint: false,
-      openWorldHint: true
-    }
-  },
-  async args => {
-    try {
-      if (args.operation === 'click') {
-        if (args.text !== undefined || args.submit !== undefined || args.slowly !== undefined) {
-          return toolError('web_interact click does not accept type-only arguments.');
-        }
-        if (args.visualFallback !== undefined) {
-          if (args.doubleClick !== undefined) {
-            return toolError('web_interact visualFallback supports only one left single click; doubleClick is not accepted.');
-          }
-          const router = await getSemanticVisionRouter();
-          return visualOutcomeResult(await router.click({
-            target: args.target ?? null,
-            element: args.element ?? null,
-            visualFallback: args.visualFallback
-          }));
-        }
-        if (!args.target) return toolError('web_interact click requires target unless visualFallback is provided.');
-        const downstream = { target: args.target };
-        if (args.element !== undefined) downstream.element = args.element;
-        if (args.doubleClick !== undefined) downstream.doubleClick = args.doubleClick;
-        return await callBackend('playwright', 'browser_click', downstream);
-      }
-
+server.registerTool('web_interact', {
+  title: 'Interact With Web Page',
+  description: 'Interact with the isolated browser using a closed operation set: click one target or type text into one target. click may optionally include visualFallback for one text-labeled control. The server performs a fresh accessibility preflight: one exact targetText candidate is clicked semantically; duplicate same-name buttons resolve semantically only when exactly one is enabled; unresolved ambiguity fails closed; only zero exact candidates may invoke the reviewed same-session visual grounder. Semantic click errors never escalate to vision. No icon-only automatic visual promotion, arbitrary JavaScript, file upload, direct network inspection or backend/tool selection is available.',
+  inputSchema: z.object({
+    operation: z.enum(['click', 'type']), target: z.string().min(1).max(4096).optional(),
+    element: z.string().min(1).max(1024).optional(), doubleClick: z.boolean().optional(),
+    text: z.string().max(200000).optional(), submit: z.boolean().optional(), slowly: z.boolean().optional(),
+    visualFallback: visualFallbackSchema.optional()
+  }).strict(),
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
+}, async args => {
+  try {
+    if (args.operation === 'click') {
+      if (args.text !== undefined || args.submit !== undefined || args.slowly !== undefined) return toolError('web_interact click does not accept type-only arguments.');
       if (args.visualFallback !== undefined) {
-        return toolError('web_interact type does not accept visualFallback.');
+        if (args.doubleClick !== undefined) return toolError('web_interact visualFallback supports only one left single click; doubleClick is not accepted.');
+        const router = await getSemanticVisionRouter();
+        return visualOutcomeResult(await router.click({ target: args.target ?? null, element: args.element ?? null, visualFallback: args.visualFallback }));
       }
-      if (!args.target) return toolError('web_interact type requires target.');
-      if (args.text === undefined) return toolError('web_interact type requires text.');
-      if (args.doubleClick !== undefined) return toolError('web_interact type does not accept doubleClick.');
-      const downstream = { target: args.target, text: args.text };
+      if (!args.target) return toolError('web_interact click requires target unless visualFallback is provided.');
+      const downstream = { target: args.target };
       if (args.element !== undefined) downstream.element = args.element;
-      if (args.submit !== undefined) downstream.submit = args.submit;
-      if (args.slowly !== undefined) downstream.slowly = args.slowly;
-      return await callBackend('playwright', 'browser_type', downstream);
-    } catch (error) {
-      return toolError(`web_interact failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (args.doubleClick !== undefined) downstream.doubleClick = args.doubleClick;
+      return await callBackend('playwright', 'browser_click', downstream);
     }
-  }
-);
+    if (args.visualFallback !== undefined) return toolError('web_interact type does not accept visualFallback.');
+    if (!args.target) return toolError('web_interact type requires target.');
+    if (args.text === undefined) return toolError('web_interact type requires text.');
+    if (args.doubleClick !== undefined) return toolError('web_interact type does not accept doubleClick.');
+    const downstream = { target: args.target, text: args.text };
+    if (args.element !== undefined) downstream.element = args.element;
+    if (args.submit !== undefined) downstream.submit = args.submit;
+    if (args.slowly !== undefined) downstream.slowly = args.slowly;
+    return await callBackend('playwright', 'browser_type', downstream);
+  } catch (error) { return toolError(`web_interact failed: ${error instanceof Error ? error.message : String(error)}`); }
+});
 
 void serveStdio(() => server);
