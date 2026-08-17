@@ -148,6 +148,21 @@ try {
   });
   assert.equal(absoluteWrite.isError, true, 'absolute workspace path must be rejected by projection');
 
+  for (const blockedUrl of [
+    'http://10.0.0.1/',
+    'http://192.168.1.1/',
+    'http://169.254.169.254/latest/meta-data/',
+    'http://metadata.google.internal/',
+    'http://[fd00::1]/'
+  ]) {
+    const blocked = await client.callTool({
+      name: 'web_open',
+      arguments: { url: blockedUrl }
+    });
+    assert.equal(blocked.isError, true, `direct non-public destination must be rejected: ${blockedUrl}`);
+    assert(textOf(blocked).includes('web_open rejects direct'), textOf(blocked));
+  }
+
   const open = await client.callTool({
     name: 'web_open',
     arguments: { url: `${fixture.baseUrl}/` }
@@ -223,6 +238,7 @@ try {
   console.log('SEMANTIC_PROJECTION_TOOL_COUNT=5');
   console.log('SEMANTIC_PROJECTION_FILESYSTEM=PASS');
   console.log('SEMANTIC_PROJECTION_BROWSER=PASS');
+  console.log('SEMANTIC_PROJECTION_NETWORK_POLICY=PASS');
   console.log('SEMANTIC_PROJECTION_NEGATIVE_CASES=PASS');
   console.log('SEMANTIC_PROJECTION_ACCEPTANCE=PASS');
 } finally {

@@ -1,0 +1,73 @@
+name: Semantic Dependency Reproducibility
+
+on:
+  pull_request:
+    paths:
+      - "runtime/semantic-projection/package.json"
+      - "runtime/semantic-projection/package-lock.json"
+      - "runtime/semantic-projection/bin/semantic-projection-launcher.mjs"
+      - "scripts/semantic-projection-runtime.ps1"
+      - ".github/workflows/semantic-dependencies.yml"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/semantic-projection/package.json"
+      - "runtime/semantic-projection/package-lock.json"
+      - "runtime/semantic-projection/bin/semantic-projection-launcher.mjs"
+      - "scripts/semantic-projection-runtime.ps1"
+      - ".github/workflows/semantic-dependencies.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: semantic-dependencies-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  locked-install-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Prove lockfile matches manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content 'runtime/semantic-projection/package.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $lock = Get-Content 'runtime/semantic-projection/package-lock.json' -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+          if ([int]$lock['lockfileVersion'] -ne 3) { throw 'Expected lockfileVersion 3.' }
+          $rootPackage = $lock['packages']['']
+          foreach ($property in $manifest.dependencies.PSObject.Properties) {
+            $locked = [string]$rootPackage['dependencies'][$property.Name]
+            if ($locked -ne [string]$property.Value) {
+              throw "Root dependency mismatch for $($property.Name): manifest=$($property.Value) lock=$locked"
+            }
+          }
+          Write-Host 'SEMANTIC_LOCK_MANIFEST_MATCH=PASS'
+
+      - name: Prove product runtime performs locked npm ci
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item -LiteralPath 'runtime/semantic-projection/node_modules' -Recurse -Force -ErrorAction SilentlyContinue
+          . .\scripts\semantic-projection-runtime.ps1
+          $entry = Get-SemanticProjectionEntryPath -RepoRoot $PWD.Path -EnsureDependencies
+          $expected = [System.IO.Path]::GetFullPath((Join-Path $PWD 'runtime\semantic-projection\bin\semantic-projection-launcher.mjs'))
+          if ([System.IO.Path]::GetFullPath($entry) -ne $expected) {
+            throw "Unexpected semantic entry after locked install: $entry"
+          }
+          node $entry --verify-credential-scrub
+          if ($LASTEXITCODE -ne 0) { throw 'Secure semantic launcher verification failed after locked install.' }
+          Write-Host 'SEMANTIC_RUNTIME_NPM_CI=PASS'
+
+      - name: Prove npm ci does not mutate dependency contract
+        shell: pwsh
+        run: |
+          git diff --exit-code -- runtime/semantic-projection/package.json runtime/semantic-projection/package-lock.json
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci mutated package.json or package-lock.json.' }
+          Write-Host 'SEMANTIC_LOCK_IMMUTABLE=PASS'

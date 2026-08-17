@@ -1,0 +1,72 @@
+name: Stage 25.1 Vision Runtime Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "config/local-vision-runtime.json"
+      - "scripts/local-vision-runtime.ps1"
+      - "scripts/local-vision-runtime-watchdog.ps1"
+      - "scripts/test-local-vision-runtime.ps1"
+      - "tests/fixtures/fake_llama_server.py"
+      - "tests/test_local_vision_runtime_assets.py"
+      - "project-context/STAGE25_1_VISION_INTEGRATION.md"
+      - "project-context/CURRENT_STATE.md"
+      - ".github/workflows/stage25-1-vision-runtime.yml"
+  push:
+    branches: [main]
+    paths:
+      - "config/local-vision-runtime.json"
+      - "scripts/local-vision-runtime.ps1"
+      - "scripts/local-vision-runtime-watchdog.ps1"
+      - "scripts/test-local-vision-runtime.ps1"
+      - "tests/fixtures/fake_llama_server.py"
+      - "tests/test_local_vision_runtime_assets.py"
+      - ".github/workflows/stage25-1-vision-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage25-1-vision-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-vision-runtime:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Parse lifecycle scripts
+        shell: pwsh
+        run: |
+          foreach ($script in @(
+            'scripts/local-vision-runtime.ps1',
+            'scripts/local-vision-runtime-watchdog.ps1',
+            'scripts/test-local-vision-runtime.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $script), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) {
+              throw "$script has PowerShell syntax errors: $($errors -join '; ')"
+            }
+          }
+
+      - name: Run runtime asset contracts
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_local_vision_runtime_assets
+
+      - name: Prove owned lifecycle with fake loopback runtime
+        shell: pwsh
+        run: |
+          .\scripts\test-local-vision-runtime.ps1
+          if ($LASTEXITCODE -ne 0) {
+            throw "Vision runtime synthetic acceptance failed with exit code $LASTEXITCODE"
+          }

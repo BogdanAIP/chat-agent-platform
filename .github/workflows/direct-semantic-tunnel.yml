@@ -186,14 +186,14 @@ jobs:
           Write-Host 'SEMANTIC_DIRECT_MANAGER_ROUTING=PASS'
           Write-Host 'SEMANTIC_PROMOTED_DIRECT_ROUTING=PASS'
 
-      - name: Install exact semantic projection dependencies
+      - name: Install locked semantic projection dependencies
         shell: pwsh
         run: |
           Push-Location 'runtime/semantic-projection'
           try {
-            npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+            npm ci --ignore-scripts --no-audit --no-fund
             if ($LASTEXITCODE -ne 0) {
-              throw "npm install failed with exit code $LASTEXITCODE"
+              throw "npm ci failed with exit code $LASTEXITCODE"
             }
           }
           finally {

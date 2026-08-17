@@ -10,12 +10,62 @@ function Get-SemanticProjectionEntryPath {
 
     $projectionRoot = Join-Path $RepoRoot 'runtime\semantic-projection'
     $manifestPath = Join-Path $projectionRoot 'package.json'
-    $entryPath = Join-Path $projectionRoot 'bin\semantic-projection.mjs'
+    $lockPath = Join-Path $projectionRoot 'package-lock.json'
+    $corePath = Join-Path $projectionRoot 'bin\semantic-projection.mjs'
+    $launcherPath = Join-Path $projectionRoot 'bin\semantic-projection-launcher.mjs'
+    $lockMarkerPath = Join-Path $projectionRoot 'node_modules\.chat-agent-platform-lock.sha256'
 
-    foreach ($required in @($manifestPath, $entryPath)) {
+    foreach ($required in @($manifestPath, $corePath)) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
             throw "Semantic projection source is missing: $required"
         }
+    }
+
+    # Standalone installed-layout tests historically copied only the core entry.
+    # Recreate the reviewed launcher if that old copy list omitted it. Normal
+    # source/bootstrap layouts already contain the checked-in launcher.
+    if (-not (Test-Path -LiteralPath $launcherPath -PathType Leaf)) {
+        $launcherTemplate = @'
+#!/usr/bin/env node
+
+const tunnelOnlyCredentialKeys = [
+  'CONTROL_PLANE_API_KEY',
+  'OPENAI_API_KEY'
+];
+
+for (const key of tunnelOnlyCredentialKeys) {
+  delete process.env[key];
+}
+
+if (process.argv.includes('--verify-credential-scrub')) {
+  for (const key of tunnelOnlyCredentialKeys) {
+    if (Object.prototype.hasOwnProperty.call(process.env, key)) {
+      console.error(`semantic launcher failed to scrub ${key}`);
+      process.exit(1);
+    }
+  }
+  console.log('SEMANTIC_TUNNEL_CREDENTIAL_SCRUB=PASS');
+  process.exit(0);
+}
+
+await import('./semantic-projection.mjs');
+'@
+        Set-Content -LiteralPath $launcherPath -Value $launcherTemplate -Encoding utf8 -NoNewline
+    }
+
+    $launcherSource = Get-Content -LiteralPath $launcherPath -Raw
+    $controlDelete = $launcherSource.IndexOf("delete process.env[key]", [StringComparison]::Ordinal)
+    $controlName = $launcherSource.IndexOf("'CONTROL_PLANE_API_KEY'", [StringComparison]::Ordinal)
+    $openAiName = $launcherSource.IndexOf("'OPENAI_API_KEY'", [StringComparison]::Ordinal)
+    $coreImport = $launcherSource.IndexOf("await import('./semantic-projection.mjs')", [StringComparison]::Ordinal)
+    if (
+        $controlDelete -lt 0 -or
+        $controlName -lt 0 -or
+        $openAiName -lt 0 -or
+        $coreImport -lt 0 -or
+        $controlDelete -gt $coreImport
+    ) {
+        throw 'Semantic projection credential-scrub launcher failed its runtime contract.'
     }
 
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
@@ -30,7 +80,7 @@ function Get-SemanticProjectionEntryPath {
     if (
         [string]$manifest.name -ne '@chat-agent-platform/semantic-projection' -or
         [string]$manifest.version -ne '0.1.0' -or
-        [string]$manifest.bin.'chat-semantic-projection' -ne 'bin/semantic-projection.mjs' -or
+        [string]$manifest.bin.'chat-semantic-projection' -ne 'bin/semantic-projection-launcher.mjs' -or
         [string]$manifest.engines.node -ne '>=20'
     ) {
         throw 'Semantic projection manifest failed its runtime contract.'
@@ -43,12 +93,31 @@ function Get-SemanticProjectionEntryPath {
     }
 
     $packageFiles = @($manifest.files | ForEach-Object { [string]$_ })
-    if ($packageFiles.Count -ne 1 -or $packageFiles[0] -ne 'bin/semantic-projection.mjs') {
+    $expectedFiles = @('bin/semantic-projection-launcher.mjs', 'bin/semantic-projection.mjs')
+    if (
+        $packageFiles.Count -ne $expectedFiles.Count -or
+        (($packageFiles | Sort-Object) -join "`n") -ne (($expectedFiles | Sort-Object) -join "`n")
+    ) {
         throw 'Semantic projection package file allowlist drifted.'
     }
 
+    $lockSha256 = $null
+    if (Test-Path -LiteralPath $lockPath -PathType Leaf) {
+        $lock = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json -AsHashtable
+        if ([int]$lock['lockfileVersion'] -ne 3) {
+            throw 'Semantic projection package-lock must use lockfileVersion 3.'
+        }
+        $rootPackage = $lock['packages']['']
+        foreach ($dependencyName in $expectedDependencies.Keys) {
+            if ([string]$rootPackage['dependencies'][$dependencyName] -ne [string]$expectedDependencies[$dependencyName]) {
+                throw "Semantic projection lockfile root dependency drifted: $dependencyName"
+            }
+        }
+        $lockSha256 = (Get-FileHash -LiteralPath $lockPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+
     if (-not $EnsureDependencies) {
-        return [System.IO.Path]::GetFullPath($entryPath)
+        return [System.IO.Path]::GetFullPath($launcherPath)
     }
 
     $nodeName = if ($IsWindows) { 'node.exe' } else { 'node' }
@@ -78,33 +147,53 @@ function Get-SemanticProjectionEntryPath {
             }
         }
 
+        if ($null -ne $lockSha256) {
+            if (-not (Test-Path -LiteralPath $lockMarkerPath -PathType Leaf)) {
+                return $false
+            }
+            try {
+                $appliedLockSha256 = (Get-Content -LiteralPath $lockMarkerPath -Raw -Encoding utf8).Trim().ToLowerInvariant()
+            }
+            catch {
+                return $false
+            }
+            if ($appliedLockSha256 -ne $lockSha256) {
+                return $false
+            }
+        }
+
         return $true
     }
 
     if (-not (Test-DependenciesReady)) {
+        if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+            throw 'Semantic projection dependencies are absent and package-lock.json is missing; refusing unlocked installation.'
+        }
+
         Push-Location $projectionRoot
         try {
             $installOutput = @(
-                & $npm install `
+                & $npm ci `
                     --ignore-scripts `
                     --no-audit `
                     --no-fund `
-                    --package-lock=false `
                     2>&1
             )
 
             if ($LASTEXITCODE -ne 0) {
-                throw "Could not install semantic projection dependencies.`n$($installOutput -join "`n")"
+                throw "Could not install locked semantic projection dependencies with npm ci.`n$($installOutput -join "`n")"
             }
         }
         finally {
             Pop-Location
         }
+
+        Set-Content -LiteralPath $lockMarkerPath -Value $lockSha256 -Encoding utf8 -NoNewline
     }
 
     if (-not (Test-DependenciesReady)) {
-        throw 'Semantic projection dependencies failed exact-version verification after install.'
+        throw 'Semantic projection dependencies failed exact-version and lock-hash verification after install.'
     }
 
-    return [System.IO.Path]::GetFullPath($entryPath)
+    return [System.IO.Path]::GetFullPath($launcherPath)
 }

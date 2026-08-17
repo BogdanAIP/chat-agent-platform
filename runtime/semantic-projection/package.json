@@ -5,14 +5,16 @@
   "private": true,
   "type": "module",
   "bin": {
-    "chat-semantic-projection": "bin/semantic-projection.mjs"
+    "chat-semantic-projection": "bin/semantic-projection-launcher.mjs"
   },
   "files": [
+    "bin/semantic-projection-launcher.mjs",
     "bin/semantic-projection.mjs"
   ],
   "scripts": {
     "acceptance": "node tests/acceptance.mjs",
-    "acceptance:direct-tunnel": "node tests/direct-tunnel-acceptance.mjs"
+    "acceptance:direct-tunnel": "node tests/direct-tunnel-acceptance.mjs",
+    "acceptance:credential-scrub": "node tests/credential-scrub.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2.0.0",

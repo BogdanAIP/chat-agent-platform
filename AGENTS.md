@@ -7,131 +7,127 @@ This repository is designed to be continued safely from a fresh ChatGPT or Codex
 1. `project-context/START_HERE.md`
 2. `project-context/CURRENT_STATE.md`
 3. `project-context/ARCHITECTURE.md`
-4. `project-context/DECISIONS.md`
-5. `project-context/ROADMAP.md`
-6. `project-context/DEVELOPMENT_PRINCIPLES.md`
+4. `project-context/STAGE25_1_VISION_INTEGRATION.md`
+5. `project-context/DECISIONS.md`
+6. `project-context/ROADMAP.md`
+7. `project-context/DEVELOPMENT_PRINCIPLES.md`
 
-For Stage 24.1 transport history/evidence also read `project-context/DIRECT_SEMANTIC_TUNNEL.md`.
-
-For Stage 25 local specialist work also read `project-context/LOCAL_SPECIALIST_INFERENCE.md`.
-
-For module work also read `project-context/MODULE_SELECTION_POLICY.md` and `project-context/MODULE_CATALOG.md`.
+Historical Stage 24.1 transport evidence is in `project-context/DIRECT_SEMANTIC_TUNNEL.md`. Historical/pre-acceptance Stage 25 runtime/model research remains in `LOCAL_SPECIALIST_INFERENCE.md`, `ACTIVE_VISUAL_GROUNDING.md`, `STAGE25_TARGET_BENCHMARKS.md` and dated handoffs. Those files do not override current accepted #73/#74 evidence.
 
 ## Source-of-truth order
 
-When documents disagree, use this order:
+When documents disagree:
 
-1. current code, tests and current CI/log evidence;
+1. current code, tests and exact current CI/target evidence;
 2. `START_HERE.md` and `CURRENT_STATE.md`;
-3. accepted ADRs in `DECISIONS.md` and `ARCHITECTURE.md`;
-4. `ROADMAP.md`;
-5. `README.md` and historical PR text.
+3. `ARCHITECTURE.md` and accepted ADRs;
+4. `STAGE25_1_VISION_INTEGRATION.md` for active browser/vision integration;
+5. `ROADMAP.md`;
+6. historical research/handoff documents and README.
 
 Do not revive an older design merely because it remains in Git history.
 
 ## Product boundary
 
-- ordinary ChatGPT Chat is the primary intelligence/planning/orchestration layer;
-- local components expose capabilities through standard MCP or the smallest focused local adapter around a strong local API/CLI;
-- do not add a second planner, autonomous workflow brain or general-purpose agent runtime behind ChatGPT;
-- specialized local inference is allowed only as a replaceable bounded capability backend;
-- prefer official/vendor MCP, then mature OSS MCP, then a generic local API/CLI adapter, then the smallest project-owned adapter for a measured gap;
-- do not build a project-owned tunnel, generic MCP gateway, registry, vault, job system or policy platform while an accepted ecosystem component covers the boundary.
+- ordinary ChatGPT Chat is the primary and only planning/intelligence layer;
+- local components expose deterministic capabilities or bounded specialist perception;
+- never add a second planner, autonomous workflow brain, generic local agent runtime, or hidden `tool_invoke` equivalent behind ChatGPT;
+- prefer official/vendor MCP, then mature OSS MCP, then a generic local API/CLI adapter, then the smallest focused project-owned adapter for a measured gap;
+- do not build a project-owned tunnel, generic MCP gateway, registry, vault, job system or policy platform while accepted ecosystem components cover those boundaries.
 
-## Stage 24 baseline — accepted historical evidence
+## Accepted semantic foundation
 
-Stage 24 was squash-merged to `main` on 2026-08-16 as `175d36236f80a1f99f091d4f031a1c6255f3652b` from PR #66.
-
-It proved the exact five semantic tools (`workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`) through:
+Public semantic tools remain exactly:
 
 ```text
-ChatGPT -> Secure MCP Tunnel -> tunnel-client -> 1MCP -> semantic-projection
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
 ```
 
-Do not describe that path as broken. It worked and remains useful baseline evidence.
-
-## Stage 24.1 — DONE
-
-Stage 24.1 was squash-merged to `main` on 2026-08-16 as `df1d5e232b739b62e72ad81e5d82fd01be53e884` from PR #70.
-
-A/B result:
+Normal path:
 
 ```text
-A — Stage 24 baseline
-Tunnel -> HTTP 1MCP -> stdio semantic-projection
-
-B — selected normal semantic transport
-Tunnel -> stdio semantic-projection
+ordinary ChatGPT
+  -> Secure MCP Tunnel
+  -> official tunnel-client
+  -> direct stdio secure semantic launcher
+  -> semantic-projection
+  -> focused backends/adapters
 ```
 
-Candidate B passed Windows CI, target-machine backend/negative tests, hosted Secure MCP Tunnel, real ordinary-Chat five-tool E2E, first-class manager lifecycle, single-owner/fail-closed behavior, forced-crash recovery and duplicate-free repeated Start.
+1MCP remains internal replaceable diagnostic/adaptive/aggregation infrastructure.
 
-Both paths passed 3/3 lifecycle cycles on the target machine. Average timings were:
+## Stage 25 accepted grounding evidence
 
-- 1MCP: Start 123685 ms, repeated Start 84119 ms, Stop 23252 ms;
-- direct stdio: Start 5007 ms, repeated Start 4876 ms, Stop 1043 ms.
+PR #73 merged to `main` as `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
 
-Direct was approximately 24.70x / 17.25x / 22.29x faster respectively in this sample and used no local port-3050 listener.
-
-Post-merge installation acceptance also passed on the target machine from `main`:
+Accepted target-laptop baseline:
 
 ```text
-STAGE24_1_PERSISTENT_INSTALL=PASS
-active_profile=semantic
-tunnel_binding=direct-stdio
-active_count=1
-conflict=false
-PORT_3050_LISTENER_COUNT=0
+llama.cpp b10448 / commit ad1de39e0
+LFM2.5-VL-450M F16 + F16 mmproj
+CPU 8 threads
+ctx 2048
 ```
 
-The normal public `semantic` profile is therefore direct stdio. `semantic-direct` remains temporarily as a compatibility/diagnostic alias. 1MCP remains replaceable internal infrastructure for adaptive lifecycle experiments, diagnostics, aggregation/inspection and future catalog work.
+Target result with Chrome running: Search/Send/state HIT; Gamma/tiny safe ABSTAIN; absent Export CSV correct ABSTAIN; 0 false clicks; 0 provider/context errors; 3/5 present-target HIT.
 
-## Current stage — Stage 25 local specialist inference
+Do not describe LM Studio/llmster or 450M Q4 as the accepted baseline.
 
-Stage 25 is active.
+## Current Stage 25.1 state
 
-Goal: add bounded local model-powered perception without adding a second planner/agent brain.
+Active branch: `chat/stage25-1-vision-integration-foundation`, draft PR #74.
 
-Current verified runtime/model direction:
+Already proved/implemented:
 
-- LM Studio/`llmster` is the first replaceable runtime-manager candidate;
-- LM Studio supports headless `llmster`, `lms` lifecycle/model commands, local HTTP serving, OpenAI-compatible image chat, memory estimation before load, GPU offload controls and TTL/JIT unloading;
-- `LiquidAI/LFM2.5-VL-3B` is an official Liquid AI model released on 2026-08-12; official Liquid AI blog/docs, Hugging Face model weights and a WebGPU demo were provided as direct release evidence;
-- `LiquidAI/LFM2.5-VL-1.6B` and `LiquidAI/LFM2.5-VL-450M` remain useful smaller comparison candidates;
-- the target laptop has only 7.68 GB RAM and Intel Iris Xe, so target-first benchmarking still starts with the 450M Q4 variant, then 1.6B Q4, and only then the 3B candidate if memory estimation and observed headroom permit it.
+- same Playwright session CSS capture -> one-shot visual token -> exact fresh re-capture -> coordinate action/ABSTAIN;
+- stale layout/scroll/overlay/navigation and replay fail closed;
+- focused llama.cpp lifecycle/resource owner with strict process/artifact identity;
+- class-aware production authorization; repeated-row/tiny remain forced ABSTAIN;
+- Windows junction containment;
+- explicit scrub-before-core-load for inherited tunnel credentials;
+- committed semantic npm lockfile + product/acceptance `npm ci`;
+- direct private/link-local/metadata literal IP blocking while loopback remains allowed;
+- CodeQL Actions + JS/TS + Python and broader Dependabot;
+- model-neutral Python production-grounder boundary, unit-proved and non-authorizing on parse/invalid/repeated/absent cases.
 
-Preferred quality candidate: `LiquidAI/LFM2.5-VL-3B`. Target-first runtime candidate on the current laptop: `LiquidAI/LFM2.5-VL-450M-GGUF` Q4. Do not hard-code the platform to LM Studio or Liquid AI before acceptance.
+Still **not** accepted:
 
-## Findings that remain active
+- real F16 same-session end-to-end action path;
+- automatic semantic miss/ambiguity -> vision escalation in ordinary Chat;
+- repeated-row or tiny-target production clicks;
+- claim of a full DNS/redirect browser network sandbox;
+- stable product release.
 
-- concrete typed actions are the accepted Chat-facing contract;
-- generic adaptive `tool_list` / `tool_schema` / `tool_invoke` is diagnostic infrastructure, not product surface;
-- frozen Chat action snapshots require Refresh/review when tool definitions change;
-- effective snapshot pressure/truncation around 20 actions was observed in the tested app, but is not an official universal limit;
-- OpenAI app permission mode is not the only safety layer;
-- the semantic projection must remain a small deterministic compatibility boundary and must not grow into a generic gateway/planner;
-- installed/source single-owner and fail-closed regressions must remain green for both direct and 1MCP-backed managed transports.
+Required integration invariant:
 
-## Safety without capability paralysis
+```text
+same Playwright page/session
+  -> semantic grounding first
+  -> if unavailable/ambiguous: CSS capture
+  -> reviewed local runtime + production visual grounder
+  -> deterministic authorization
+  -> freshness proof
+  -> action in same page/session OR ABSTAIN
+```
 
-Use the model `AVAILABLE -> ACTIVE -> AUTHORIZED`:
-
-- a backend may be registered without running;
-- start only what the task needs;
-- multiple backends may run together when the workflow genuinely requires it;
-- scope local roots, credentials and destructive operations at the strongest practical boundary;
-- prefer rollback, backups, git and contained workspaces over confirmation for every low-risk action;
-- reserve explicit confirmation for genuinely consequential or hard-to-reverse effects.
+If capture/action identity, coordinate space, browser state or freshness is uncertain, fail closed and do not mutate the page.
 
 ## Development workflow
 
 - inspect actual repository/PR/CI state before editing;
-- use stage branches and isolated worktrees for parallel agents;
-- parallelize only independent work;
-- `main` is the integration line for accepted stages, not a scratch branch;
-- do not force-push or rewrite `main` history;
-- perform locally accessible acceptance directly when the environment permits;
-- use the user only for the real ordinary-Chat UI/custom-app gate or another irreducible target-machine action;
-- never substitute a mock/local MCP client for a claimed ordinary-Chat E2E;
-- preserve accepted historical evidence while simplifying the active architecture;
-- when local working-tree changes differ from remote, preserve/reconcile them intentionally rather than discarding them.
+- create stage branches from exact current `main`;
+- keep `main` as integration line, not scratch;
+- do not force-push/rewrite `main`;
+- update authoritative documentation whenever accepted architecture/runtime/security evidence changes;
+- distinguish deterministic CI from real target-machine and ordinary-Chat acceptance;
+- use the user only for irreducible target-machine or Chat UI gates;
+- never claim a target/ordinary-Chat result unless that exact path ran;
+- preserve/reconcile local uncommitted work rather than discarding it;
+- do not weaken fail-closed behavior merely to increase benchmark hit rate;
+- never reintroduce unlocked semantic npm install when dependencies are absent;
+- do not expose tunnel-only credentials to semantic core/downstream children;
+- do not describe Playwright origin filters as a complete network security boundary.

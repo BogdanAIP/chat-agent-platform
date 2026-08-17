@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "profile": "lfm25-vl-450m-f16",
+  "runtime": {
+    "command": "llama-server",
+    "required_version_markers": [
+      "build 10448",
+      "ad1de39e0"
+    ],
+    "host": "127.0.0.1",
+    "port": 3068,
+    "ready_timeout_seconds": 90
+  },
+  "artifacts": {
+    "directory": "LFM2.5-VL-450M-GGUF",
+    "model": {
+      "file": "LFM2.5-VL-450M-F16.gguf",
+      "bytes": 711486624,
+      "sha256": "f7d130500beadcbe66b78fb7b1222142ccdf4edcb2596026a7ee30b4bafe6989"
+    },
+    "mmproj": {
+      "file": "mmproj-LFM2.5-VL-450m-F16.gguf",
+      "bytes": 189126080,
+      "sha256": "51b458cfdbc736982145a35f798ce37611af0aab639e58b33473ba0c7815fd99"
+    }
+  },
+  "memory": {
+    "min_start_physical_gb": 1.35,
+    "min_start_virtual_gb": 3.0,
+    "min_run_physical_gb": 0.5,
+    "min_run_virtual_gb": 1.5
+  },
+  "idle_ttl_seconds": 180,
+  "watchdog_interval_seconds": 15,
+  "server_args": [
+    "--device", "none",
+    "--gpu-layers", "0",
+    "--no-mmproj-offload",
+    "--no-op-offload",
+    "--threads", "8",
+    "--threads-batch", "8",
+    "--fit", "off",
+    "--ctx-size", "2048",
+    "--batch-size", "128",
+    "--ubatch-size", "64",
+    "--cache-type-k", "q8_0",
+    "--cache-type-v", "q8_0",
+    "--image-min-tokens", "64",
+    "--image-max-tokens", "256",
+    "--parallel", "1",
+    "--no-ui",
+    "--offline"
+  ]
+}

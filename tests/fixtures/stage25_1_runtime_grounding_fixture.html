@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stage 25.1 Runtime Grounding Fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    width: 1280px;
+    height: 720px;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    background: #f3f5f7;
+    color: #20242a;
+  }
+  .frame { position: relative; width: 1280px; height: 720px; }
+  .topbar {
+    position: absolute; left: 0; top: 0; width: 1280px; height: 80px;
+    background: white; border-bottom: 1px solid #d8dde3;
+  }
+  .sidebar {
+    position: absolute; left: 0; top: 80px; width: 220px; height: 640px;
+    background: #202a36; color: white;
+  }
+  .content {
+    position: absolute; left: 244px; top: 104px; width: 1012px; height: 496px;
+    background: white; border: 1px solid #d8dde3; border-radius: 8px;
+  }
+  .label { position: absolute; font-size: 14px; }
+  .search-icon {
+    position: absolute; left: 32px; top: 24px; width: 32px; height: 32px;
+    border: 1px solid #8b95a1; border-radius: 6px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .alerts { position: absolute; left: 1100px; top: 24px; width: 100px; height: 32px; }
+  .notification-dot {
+    position: absolute; left: 1212px; top: 28px; width: 12px; height: 12px;
+    border-radius: 50%; background: #d73030;
+  }
+  .table-row {
+    position: absolute; left: 276px; width: 920px; height: 48px;
+    border-bottom: 1px solid #e4e8ec;
+  }
+  .row-1 { top: 192px; }
+  .row-2 { top: 240px; }
+  .row-3 { top: 288px; }
+  .row-menu {
+    position: absolute; width: 28px; height: 28px; right: 8px; top: 10px;
+    border: 1px solid #a8b0b9; border-radius: 5px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; line-height: 1;
+  }
+  #row-menu-3 { left: 1180px; top: 298px; right: auto; }
+  .footer-button {
+    position: absolute; top: 636px; height: 48px; border-radius: 7px;
+    font-size: 16px; font-weight: 600;
+  }
+  #cancel-button {
+    left: 888px; width: 144px; border: 1px solid #8b95a1; background: white;
+  }
+  #send-primary {
+    left: 1056px; width: 144px; border: 1px solid #1467d8; background: #1d73e8; color: white;
+  }
+  #send-disabled {
+    position: absolute; left: 260px; top: 632px; width: 122px; height: 40px;
+    border: 1px solid #c6ccd3; border-radius: 7px; background: #eceff2; color: #929aa4;
+  }
+  .sidebar .item { position: absolute; left: 24px; width: 172px; height: 36px; }
+  .sidebar .one { top: 28px; }
+  .sidebar .two { top: 76px; }
+  .sidebar .three { top: 124px; }
+  #stage25-fixture-export { display: none; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <header class="topbar">
+    <button id="search-icon" class="search-icon" aria-label="Search">⌕</button>
+    <div class="alerts">Alerts</div>
+    <div id="notification-dot" class="notification-dot" aria-label="Unread alert"></div>
+  </header>
+
+  <aside class="sidebar">
+    <div class="item one">Overview</div>
+    <div class="item two">Projects</div>
+    <div class="item three">Reports</div>
+  </aside>
+
+  <main class="content">
+    <div class="label" style="left:32px;top:28px;font-size:22px;font-weight:700;">Deployments</div>
+  </main>
+
+  <div class="table-row row-1">Alpha deployment <button class="row-menu" aria-label="Actions for Alpha">⋮</button></div>
+  <div class="table-row row-2">Beta deployment <button class="row-menu" aria-label="Actions for Beta">⋮</button></div>
+  <div class="table-row row-3">Gamma deployment</div>
+  <button id="row-menu-3" class="row-menu" aria-label="Actions for Gamma">⋮</button>
+
+  <button id="send-disabled" disabled>Send</button>
+  <button id="cancel-button" class="footer-button">Cancel</button>
+  <button id="send-primary" class="footer-button">Send</button>
+</div>
+<pre id="stage25-fixture-export" aria-hidden="true"></pre>
+<script>
+  window.__stage25Fixture = {
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    targets: Object.fromEntries(
+      ["search-icon", "notification-dot", "row-menu-3", "send-primary", "send-disabled"].map((id) => {
+        const r = document.getElementById(id).getBoundingClientRect();
+        return [id, { x: r.x, y: r.y, width: r.width, height: r.height }];
+      })
+    )
+  };
+  document.getElementById("stage25-fixture-export").textContent = JSON.stringify(window.__stage25Fixture);
+
+  // Stage 25.1 click telemetry changes accessibility metadata only after a click;
+  // it does not alter the pre-click pixels used by the accepted Stage 25 fixture.
+  for (const id of ["search-icon", "notification-dot", "row-menu-3", "send-primary", "cancel-button"]) {
+    document.getElementById(id).addEventListener("click", () => {
+      document.getElementById(id).setAttribute("aria-label", `CLICKED:${id}`);
+    });
+  }
+  for (const button of document.querySelectorAll('.table-row .row-menu')) {
+    button.addEventListener('click', () => button.setAttribute('aria-label', 'CLICKED:other-row-menu'));
+  }
+</script>
+</body>
+</html>

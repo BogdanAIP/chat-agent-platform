@@ -500,10 +500,12 @@ function Assert-InstalledAdaptiveRuntime {
 
 function Assert-InstalledSemanticRuntimeSource {
     $manifestPath = Join-Path $AppRuntimeDir "semantic-projection\package.json"
+    $lockPath = Join-Path $AppRuntimeDir "semantic-projection\package-lock.json"
+    $launcherPath = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection-launcher.mjs"
     $entryPath = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection.mjs"
     $semanticConfigPath = Join-Path $AppRuntimeDir "chat-profiles\semantic\mcp.json"
 
-    foreach ($required in @($manifestPath, $entryPath, $semanticConfigPath)) {
+    foreach ($required in @($manifestPath, $lockPath, $launcherPath, $entryPath, $semanticConfigPath)) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
             throw "Installed semantic runtime asset is missing: $required"
         }
@@ -520,7 +522,7 @@ function Assert-InstalledSemanticRuntimeSource {
     if (
         [string]$manifest.name -ne "@chat-agent-platform/semantic-projection" -or
         [string]$manifest.version -ne "0.1.0" -or
-        [string]$manifest.bin.'chat-semantic-projection' -ne "bin/semantic-projection.mjs" -or
+        [string]$manifest.bin.'chat-semantic-projection' -ne "bin/semantic-projection-launcher.mjs" -or
         [string]$manifest.engines.node -ne ">=20"
     ) {
         throw "Installed semantic projection manifest failed its pinned contract."
@@ -529,6 +531,43 @@ function Assert-InstalledSemanticRuntimeSource {
         if ([string]$manifest.dependencies.$name -ne [string]$pins[$name]) {
             throw "Installed semantic dependency pin drifted: $name"
         }
+    }
+
+    $expectedPackageFiles = @(
+        "bin/semantic-projection-launcher.mjs",
+        "bin/semantic-projection.mjs"
+    )
+    if (
+        (@($manifest.files) -join "`n") -ne
+        ($expectedPackageFiles -join "`n")
+    ) {
+        throw "Installed semantic package file allowlist drifted."
+    }
+
+    $lock = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json -AsHashtable
+    if ([int]$lock['lockfileVersion'] -ne 3) {
+        throw "Installed semantic package-lock must use lockfileVersion 3."
+    }
+    $rootPackage = $lock['packages']['']
+    foreach ($name in $pins.Keys) {
+        if ([string]$rootPackage['dependencies'][$name] -ne [string]$pins[$name]) {
+            throw "Installed semantic lockfile dependency pin drifted: $name"
+        }
+    }
+
+    $launcherSource = Get-Content -LiteralPath $launcherPath -Raw
+    $deleteIndex = $launcherSource.IndexOf("delete process.env[key]", [StringComparison]::Ordinal)
+    $controlIndex = $launcherSource.IndexOf("'CONTROL_PLANE_API_KEY'", [StringComparison]::Ordinal)
+    $openAiIndex = $launcherSource.IndexOf("'OPENAI_API_KEY'", [StringComparison]::Ordinal)
+    $importIndex = $launcherSource.IndexOf("await import('./semantic-projection.mjs')", [StringComparison]::Ordinal)
+    if (
+        $deleteIndex -lt 0 -or
+        $controlIndex -lt 0 -or
+        $openAiIndex -lt 0 -or
+        $importIndex -lt 0 -or
+        $deleteIndex -gt $importIndex
+    ) {
+        throw "Installed semantic credential-scrub launcher failed its runtime contract."
     }
 
     $semantic = Get-Content -LiteralPath $semanticConfigPath -Raw | ConvertFrom-Json
@@ -597,6 +636,14 @@ function Install-ManagerBundle {
             Destination = Join-Path $AppRuntimeDir "semantic-projection\package.json"
         },
         @{
+            Source = Join-Path $RepoRoot "runtime\semantic-projection\package-lock.json"
+            Destination = Join-Path $AppRuntimeDir "semantic-projection\package-lock.json"
+        },
+        @{
+            Source = Join-Path $RepoRoot "runtime\semantic-projection\bin\semantic-projection-launcher.mjs"
+            Destination = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection-launcher.mjs"
+        },
+        @{
             Source = Join-Path $RepoRoot "runtime\semantic-projection\bin\semantic-projection.mjs"
             Destination = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection.mjs"
         },
@@ -644,6 +691,8 @@ function Install-ManagerBundle {
         )
         runtime_assets = @(
             "runtime/semantic-projection/package.json",
+            "runtime/semantic-projection/package-lock.json",
+            "runtime/semantic-projection/bin/semantic-projection-launcher.mjs",
             "runtime/semantic-projection/bin/semantic-projection.mjs",
             "runtime/1mcp-adaptive-shim/package.json",
             "runtime/1mcp-adaptive-shim/bin/1mcp-adaptive.mjs",
