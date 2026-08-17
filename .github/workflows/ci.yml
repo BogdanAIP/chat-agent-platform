@@ -38,7 +38,8 @@ jobs:
             'scripts/chat-platform.ps1',
             'scripts/chat-platform-tray.ps1',
             'scripts/bootstrap-chat-platform.ps1',
-            'scripts/stage25-capture-grounding-fixture.ps1'
+            'scripts/stage25-capture-grounding-fixture.ps1',
+            'scripts/stage25-run-grounding-benchmark.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -48,11 +49,17 @@ jobs:
             if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
           }
 
-      - name: Run Python controller contract tests
+      - name: Install Stage 25 vision test dependency
         shell: pwsh
         run: |
           python --version
+          python -m pip install --disable-pip-version-check --no-input -r requirements-stage25-vision.txt
+
+      - name: Run Python controller and vision contract tests
+        shell: pwsh
+        run: |
           python -m unittest discover -s tests -p "test_*.py"
+          python ./scripts/stage25-grounding-benchmark.py --help | Out-Null
 
       - name: Verify Stage 25 grounding browser fixture
         shell: pwsh

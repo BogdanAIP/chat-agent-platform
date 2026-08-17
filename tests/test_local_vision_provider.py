@@ -7,7 +7,9 @@ from runtime.local_vision_adapter.provider import (
     VisionProviderError,
     build_direct_point_prompt,
     build_mark_grid_prompt,
+    direct_point_response_schema,
     encode_image_data_uri,
+    mark_grid_response_schema,
     parse_direct_point_response,
     parse_mark_grid_response,
 )
@@ -21,6 +23,20 @@ class LocalVisionProviderTests(unittest.TestCase):
         with self.assertRaises(VisionProviderError):
             encode_image_data_uri(b"x", "application/octet-stream")
 
+    def test_response_schemas_are_bounded(self):
+        direct = direct_point_response_schema()
+        self.assertEqual(direct["type"], "object")
+        self.assertFalse(direct["additionalProperties"])
+        self.assertEqual(direct["properties"]["point"]["minItems"], 2)
+        self.assertEqual(direct["properties"]["point"]["maxItems"], 2)
+
+        grid = mark_grid_response_schema(8)
+        self.assertEqual(grid["type"], "array")
+        self.assertEqual(grid["minItems"], 4)
+        self.assertEqual(grid["maxItems"], 4)
+        self.assertEqual(grid["items"]["minimum"], 0)
+        self.assertEqual(grid["items"]["maximum"], 63)
+
     def test_direct_prompt_has_explicit_abstain_contract(self):
         prompt = build_direct_point_prompt("click Send", 1280, 720)
         self.assertIn('"found":false', prompt)
@@ -32,6 +48,14 @@ class LocalVisionProviderTests(unittest.TestCase):
         self.assertIn("exactly 4 grid IDs", prompt)
         self.assertIn("between 0 and 63", prompt)
         self.assertIn("[left_id,top_id,right_id,bottom_id]", prompt)
+
+        refinement = build_mark_grid_prompt(
+            "open Gamma actions",
+            8,
+            refinement_with_overview=True,
+        )
+        self.assertIn("two images", refinement)
+        self.assertIn("Use the second image", refinement)
 
     def test_direct_parser_accepts_plain_fenced_and_single_wrapped_json(self):
         point = parse_direct_point_response(
@@ -123,10 +147,12 @@ class LocalVisionProviderTests(unittest.TestCase):
             timeout_seconds=123,
             transport=fake_transport,
         )
+        schema = direct_point_response_schema()
         result = client.chat_with_image(
             image_data_uri=encode_image_data_uri(b"fake-image"),
             prompt="ground target",
             max_tokens=64,
+            response_schema=schema,
         )
 
         self.assertEqual(captured["url"], "http://127.0.0.1:3063/v1/chat/completions")
@@ -135,8 +161,11 @@ class LocalVisionProviderTests(unittest.TestCase):
         self.assertEqual(payload["model"], "local")
         self.assertEqual(payload["temperature"], 0)
         self.assertEqual(payload["max_tokens"], 64)
+        self.assertEqual(payload["response_format"]["type"], "json_object")
+        self.assertEqual(payload["response_format"]["schema"], schema)
         self.assertEqual(payload["messages"][0]["content"][0]["type"], "text")
         self.assertEqual(payload["messages"][0]["content"][1]["type"], "image_url")
+        self.assertEqual(len(payload["messages"][0]["content"]), 2)
         self.assertTrue(
             payload["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/png;base64,")
         )
@@ -144,7 +173,39 @@ class LocalVisionProviderTests(unittest.TestCase):
         self.assertEqual(result.completion_tokens, 12)
         self.assertEqual(result.total_tokens, 212)
 
-    def test_loopback_client_rejects_non_data_image_reference(self):
+    def test_loopback_client_supports_bounded_two_image_refinement(self):
+        captured = {}
+
+        def fake_transport(url, body, timeout):
+            captured["body"] = json.loads(body.decode("utf-8"))
+            return {"choices": [{"message": {"content": "[3,3,4,9]"}}]}
+
+        client = LlamaCppLoopbackClient(port=3063, transport=fake_transport)
+        first = encode_image_data_uri(b"overview")
+        second = encode_image_data_uri(b"zoom")
+        schema = mark_grid_response_schema(8)
+        result = client.chat_with_images(
+            image_data_uris=(first, second),
+            prompt="refine target",
+            max_tokens=32,
+            response_schema=schema,
+        )
+
+        payload = captured["body"]
+        content = payload["messages"][0]["content"]
+        self.assertEqual([part["type"] for part in content], ["text", "image_url", "image_url"])
+        self.assertEqual(content[1]["image_url"]["url"], first)
+        self.assertEqual(content[2]["image_url"]["url"], second)
+        self.assertEqual(payload["response_format"]["schema"], schema)
+        self.assertEqual(result.content, "[3,3,4,9]")
+
+        with self.assertRaises(VisionProviderError):
+            client.chat_with_images(
+                image_data_uris=(first, second, first),
+                prompt="too many images",
+            )
+
+    def test_loopback_client_rejects_invalid_schema_and_non_data_image_reference(self):
         client = LlamaCppLoopbackClient(
             port=3063,
             transport=lambda *_: {},
@@ -153,6 +214,12 @@ class LocalVisionProviderTests(unittest.TestCase):
             client.chat_with_image(
                 image_data_uri="https://example.com/image.png",
                 prompt="ground target",
+            )
+        with self.assertRaises(VisionProviderError):
+            client.chat_with_image(
+                image_data_uri=encode_image_data_uri(b"x"),
+                prompt="ground target",
+                response_schema={},
             )
 
 

@@ -39,6 +39,13 @@ from .provider import (
     parse_direct_point_response,
     parse_mark_grid_response,
 )
+from .renderer import (
+    RenderedMarkGrid,
+    crop_source_image,
+    render_mark_grid,
+    render_mark_grid_file,
+    selected_cells_box,
+)
 
 __all__ = [
     "DEFAULT_CROP_SHORT_SIDE",
@@ -49,6 +56,7 @@ __all__ = [
     "LlamaCppLoopbackClient",
     "MarkGridError",
     "Point",
+    "RenderedMarkGrid",
     "TwoPassMarkGridResult",
     "VisionChatResult",
     "VisionProviderError",
@@ -61,6 +69,7 @@ __all__ = [
     "cell_bounds",
     "cell_id_at_point",
     "cell_row_col",
+    "crop_source_image",
     "encode_image_data_uri",
     "map_box_from_crop",
     "map_point_from_crop",
@@ -72,6 +81,9 @@ __all__ = [
     "plan_proportional_crop",
     "point_distance",
     "point_in_box",
+    "render_mark_grid",
+    "render_mark_grid_file",
     "score_grounding",
+    "selected_cells_box",
     "two_pass_mark_grid_result",
 ]

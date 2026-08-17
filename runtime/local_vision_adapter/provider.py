@@ -15,7 +15,7 @@ from dataclasses import dataclass
 import json
 import math
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
@@ -49,6 +49,39 @@ def encode_image_data_uri(image_bytes: bytes, mime_type: str = "image/png") -> s
     return f"data:{mime_type};base64,{encoded}"
 
 
+def direct_point_response_schema() -> dict[str, Any]:
+    """Return the bounded JSON schema used for Direct grounding generation."""
+
+    return {
+        "type": "object",
+        "properties": {
+            "found": {"type": "boolean"},
+            "point": {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 2,
+                "maxItems": 2,
+            },
+        },
+        "required": ["found"],
+        "additionalProperties": False,
+    }
+
+
+def mark_grid_response_schema(grid_size: int = DEFAULT_GRID_SIZE) -> dict[str, Any]:
+    """Return an exact-four-ID JSON schema for Mark-Grid generation."""
+
+    if isinstance(grid_size, bool) or not isinstance(grid_size, int) or grid_size < 2:
+        raise VisionProviderError("grid_size must be an integer >= 2")
+    max_id = grid_size * grid_size - 1
+    return {
+        "type": "array",
+        "items": {"type": "integer", "minimum": 0, "maximum": max_id},
+        "minItems": 4,
+        "maxItems": 4,
+    }
+
+
 def build_direct_point_prompt(target: str, image_width: int, image_height: int) -> str:
     """Build the reviewed one-pass point-grounding benchmark prompt."""
 
@@ -72,8 +105,18 @@ def build_direct_point_prompt(target: str, image_width: int, image_height: int) 
     )
 
 
-def build_mark_grid_prompt(target: str, grid_size: int = DEFAULT_GRID_SIZE) -> str:
-    """Build the faithful Mark-Grid four-ID benchmark prompt."""
+def build_mark_grid_prompt(
+    target: str,
+    grid_size: int = DEFAULT_GRID_SIZE,
+    *,
+    refinement_with_overview: bool = False,
+) -> str:
+    """Build the faithful Mark-Grid four-ID benchmark prompt.
+
+    The second reference pass supplies two images: an overview with the coarse
+    region boxed in red, followed by the zoomed grid crop. The optional suffix
+    records that ordering without exposing a generic multi-image prompt surface.
+    """
 
     target = target.strip() if isinstance(target, str) else ""
     if not target:
@@ -82,8 +125,16 @@ def build_mark_grid_prompt(target: str, grid_size: int = DEFAULT_GRID_SIZE) -> s
         raise VisionProviderError("grid_size must be an integer >= 2")
     max_id = grid_size * grid_size - 1
 
+    prefix = ""
+    if refinement_with_overview:
+        prefix = (
+            "You will see two images: first an overview with a red box showing the relevant area, "
+            "then a zoomed-in view of that area with the labeled grid. Use the second image for the grid IDs.\n"
+        )
+
     return (
-        f"A UI image is overlaid with a labeled {grid_size} x {grid_size} grid in red, "
+        prefix
+        + f"A UI image is overlaid with a labeled {grid_size} x {grid_size} grid in red, "
         "with each cell ID shown at its center. Determine which grid cells contain the UI element "
         f"needed to complete this instruction: {target}.\n"
         "List exactly 4 grid IDs corresponding to the leftmost, topmost, rightmost and bottommost "
@@ -94,8 +145,6 @@ def build_mark_grid_prompt(target: str, grid_size: int = DEFAULT_GRID_SIZE) -> s
 
 
 def _find_next_json_value(text: str, start_at: int = 0) -> tuple[Any, int, int] | None:
-    """Return the earliest parseable JSON object/array and its source span."""
-
     decoder = json.JSONDecoder()
     for index in range(start_at, len(text)):
         if text[index] not in "[{":
@@ -104,9 +153,8 @@ def _find_next_json_value(text: str, start_at: int = 0) -> tuple[Any, int, int] 
             value, consumed = decoder.raw_decode(text[index:])
         except json.JSONDecodeError:
             continue
-        if not isinstance(value, (dict, list)):
-            continue
-        return value, index, index + consumed
+        if isinstance(value, (dict, list)):
+            return value, index, index + consumed
     return None
 
 
@@ -127,16 +175,11 @@ def _extract_json_value(text: str) -> Any:
     except json.JSONDecodeError:
         pass
 
-    # Diagnostic tolerance: permit wrapper prose around exactly one top-level
-    # JSON object/array. Using raw_decode from the earliest parseable opener
-    # avoids treating nested arrays inside an object as separate candidates.
     first = _find_next_json_value(stripped)
     if first is None:
         raise VisionProviderError("model response does not contain a JSON object or array")
     value, _, end = first
-
-    second = _find_next_json_value(stripped, end)
-    if second is not None:
+    if _find_next_json_value(stripped, end) is not None:
         raise VisionProviderError("model response contains more than one JSON value")
     return value
 
@@ -222,6 +265,30 @@ def _urllib_json_transport(url: str, body: bytes, timeout_seconds: float) -> dic
     return value
 
 
+def _validate_image_data_uris(image_data_uris: Sequence[str]) -> tuple[str, ...]:
+    if isinstance(image_data_uris, (str, bytes)):
+        raise VisionProviderError("image_data_uris must be a sequence")
+    values = tuple(image_data_uris)
+    if not 1 <= len(values) <= 2:
+        raise VisionProviderError("bounded vision calls support one or two images")
+    for value in values:
+        if not isinstance(value, str) or not value.startswith("data:image/"):
+            raise VisionProviderError("each image must be a local data:image URI")
+    return values
+
+
+def _validate_response_schema(response_schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    if response_schema is None:
+        return None
+    if not isinstance(response_schema, dict) or not response_schema:
+        raise VisionProviderError("response_schema must be a non-empty JSON schema object")
+    try:
+        json.dumps(response_schema, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise VisionProviderError("response_schema must be JSON serializable") from exc
+    return response_schema
+
+
 class LlamaCppLoopbackClient:
     """Small internal client for an already-running loopback llama.cpp server."""
 
@@ -244,42 +311,50 @@ class LlamaCppLoopbackClient:
     def url(self) -> str:
         return self._url
 
-    def chat_with_image(
+    def chat_with_images(
         self,
         *,
-        image_data_uri: str,
+        image_data_uris: Sequence[str],
         prompt: str,
         max_tokens: int = 128,
+        response_schema: dict[str, Any] | None = None,
     ) -> VisionChatResult:
-        if not isinstance(image_data_uri, str) or not image_data_uri.startswith("data:image/"):
-            raise VisionProviderError("image_data_uri must be a local data:image URI")
+        images = _validate_image_data_uris(image_data_uris)
+        schema = _validate_response_schema(response_schema)
         if not isinstance(prompt, str) or not prompt.strip():
             raise VisionProviderError("prompt must be non-empty text")
         if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or not (1 <= max_tokens <= 1024):
             raise VisionProviderError("max_tokens must be between 1 and 1024")
 
-        payload = {
+        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+        content.extend(
+            {"type": "image_url", "image_url": {"url": image_uri}}
+            for image_uri in images
+        )
+
+        payload: dict[str, Any] = {
             "model": "local",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": image_data_uri}},
-                    ],
-                }
-            ],
+            "messages": [{"role": "user", "content": content}],
             "temperature": 0,
             "max_tokens": max_tokens,
         }
-        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        if schema is not None:
+            # llama.cpp /v1/chat/completions supports schema-constrained JSON via
+            # response_format. The schema constrains generation; the reviewed
+            # prompt still explains the intended semantics to the model.
+            payload["response_format"] = {
+                "type": "json_object",
+                "schema": schema,
+            }
+
+        body = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
         response = self._transport(self._url, body, self._timeout_seconds)
 
         try:
-            content = response["choices"][0]["message"]["content"]
+            response_content = response["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise VisionProviderError("local inference response is missing choices[0].message.content") from exc
-        if not isinstance(content, str) or not content.strip():
+        if not isinstance(response_content, str) or not response_content.strip():
             raise VisionProviderError("local inference content must be non-empty text")
 
         usage = response.get("usage")
@@ -291,8 +366,23 @@ class LlamaCppLoopbackClient:
             return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
         return VisionChatResult(
-            content=content,
+            content=response_content,
             prompt_tokens=token_value("prompt_tokens"),
             completion_tokens=token_value("completion_tokens"),
             total_tokens=token_value("total_tokens"),
+        )
+
+    def chat_with_image(
+        self,
+        *,
+        image_data_uri: str,
+        prompt: str,
+        max_tokens: int = 128,
+        response_schema: dict[str, Any] | None = None,
+    ) -> VisionChatResult:
+        return self.chat_with_images(
+            image_data_uris=(image_data_uri,),
+            prompt=prompt,
+            max_tokens=max_tokens,
+            response_schema=response_schema,
         )
