@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const TOKEN_PREFIX = 'visual-target:';
+const MAX_PREPARED_TARGETS = 256;
 const STRUCTURED_TARGET_KEYS = new Set(['target', 'instruction', 'kind', 'targetText']);
 
 function resultText(result) {
@@ -171,6 +172,15 @@ export class SameSessionVisualGroundingBridge {
     this.#now = now;
   }
 
+  #purgeExpiredTargets() {
+    const current = this.#now();
+    for (const [token, prepared] of this.#targets) {
+      if (current > prepared.expiresAt) {
+        this.#targets.delete(token);
+      }
+    }
+  }
+
   async #captureCssViewport() {
     const result = await this.#client.callTool({
       name: 'browser_take_screenshot',
@@ -185,6 +195,7 @@ export class SameSessionVisualGroundingBridge {
 
   async prepare(target) {
     const targetRequest = normalizeTargetRequest(target);
+    this.#purgeExpiredTargets();
     const capture = await this.#captureCssViewport();
     let raw;
     try {
@@ -220,6 +231,11 @@ export class SameSessionVisualGroundingBridge {
       return grounding;
     }
 
+    this.#purgeExpiredTargets();
+    if (this.#targets.size >= MAX_PREPARED_TARGETS) {
+      return { status: 'error', reason: 'visual-target-capacity-exceeded' };
+    }
+
     const token = `${TOKEN_PREFIX}${randomUUID()}`;
     this.#targets.set(token, {
       target: targetRequest.target,
@@ -246,16 +262,19 @@ export class SameSessionVisualGroundingBridge {
 
   async commitClick(token) {
     if (typeof token !== 'string' || !token.startsWith(TOKEN_PREFIX)) {
+      this.#purgeExpiredTargets();
       return { status: 'abstain', reason: 'invalid-visual-target-token' };
     }
     const prepared = this.#targets.get(token);
     if (!prepared) {
+      this.#purgeExpiredTargets();
       return { status: 'abstain', reason: 'unknown-or-consumed-visual-target' };
     }
 
     // One-shot semantics: consume before any possible page mutation. A failed or
     // stale commit must be re-prepared from a fresh capture rather than replayed.
     this.#targets.delete(token);
+    this.#purgeExpiredTargets();
 
     if (this.#now() > prepared.expiresAt) {
       return { status: 'abstain', reason: 'visual-target-expired' };
