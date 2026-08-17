@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import process from 'node:process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -126,7 +127,6 @@ try {
   const semantic = await router.click({
     target: 'stale-ref-not-used',
     visualFallback: {
-      semanticName: 'Save',
       targetText: 'Save',
       instruction: 'click the Save button'
     }
@@ -140,7 +140,6 @@ try {
   await navigate(client, fixture.url);
   const visual = await router.click({
     visualFallback: {
-      semanticName: 'Launch',
       targetText: 'Launch',
       instruction: 'click the visible Launch control'
     }
@@ -155,7 +154,6 @@ try {
   const ambiguousCallsBefore = grounderCalls;
   const ambiguous = await router.click({
     visualFallback: {
-      semanticName: 'Delete',
       targetText: 'Delete',
       instruction: 'click Delete'
     }

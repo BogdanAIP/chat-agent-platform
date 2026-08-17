@@ -14,9 +14,7 @@ function textResult(text, isError = false) {
 }
 
 function screenshotResult() {
-  return {
-    content: [{ type: 'image', mimeType: 'image/png', data: PNG_1X1 }]
-  };
+  return { content: [{ type: 'image', mimeType: 'image/png', data: PNG_1X1 }] };
 }
 
 class FakeClient {
@@ -58,11 +56,7 @@ class FakeClient {
   const result = await router.click({
     target: 'stale-or-descriptive-target',
     element: 'Save button',
-    visualFallback: {
-      semanticName: 'Save',
-      targetText: 'Save',
-      instruction: 'click the Save button'
-    }
+    visualFallback: { targetText: 'Save', instruction: 'click the Save button' }
   });
   assert.equal(result.status, 'acted');
   assert.equal(result.source, 'semantic');
@@ -83,19 +77,13 @@ class FakeClient {
       assert.equal(request.targetText, 'Launch');
       assert.equal(request.instruction, 'click the visible Launch control');
       return {
-        status: 'resolved',
-        reason: 'test-resolved',
-        point: { x: 0, y: 0 },
+        status: 'resolved', reason: 'test-resolved', point: { x: 0, y: 0 },
         bbox: { x1: 0, y1: 0, x2: 1, y2: 1 }
       };
     }
   });
   const result = await router.click({
-    visualFallback: {
-      semanticName: 'Launch',
-      targetText: 'Launch',
-      instruction: 'click the visible Launch control'
-    }
+    visualFallback: { targetText: 'Launch', instruction: 'click the visible Launch control' }
   });
   assert.equal(result.status, 'acted');
   assert.equal(result.source, 'vision');
@@ -106,9 +94,7 @@ class FakeClient {
 
 {
   let grounderCalls = 0;
-  const client = new FakeClient({
-    snapshot: '- button "Delete" [ref=e1]\n- button "Delete" [ref=e2]'
-  });
+  const client = new FakeClient({ snapshot: '- button "Delete" [ref=e1]\n- button "Delete" [ref=e2]' });
   const router = new SemanticVisionClickRouter({
     client,
     grounder: async () => {
@@ -117,10 +103,7 @@ class FakeClient {
     }
   });
   const result = await router.click({
-    visualFallback: {
-      targetText: 'Delete',
-      instruction: 'click Delete'
-    }
+    visualFallback: { targetText: 'Delete', instruction: 'click Delete' }
   });
   assert.equal(result.status, 'abstain');
   assert.equal(result.reason, 'semantic-ambiguity-visual-escalation-not-promoted');
@@ -140,10 +123,7 @@ class FakeClient {
     }
   });
   const result = await router.click({
-    visualFallback: {
-      targetText: 'Save',
-      instruction: 'click Save'
-    }
+    visualFallback: { targetText: 'Save', instruction: 'click Save' }
   });
   assert.equal(result.status, 'error');
   assert.equal(result.source, 'semantic');
@@ -163,16 +143,50 @@ class FakeClient {
     }
   });
   const result = await router.click({
-    visualFallback: {
-      targetText: 'Export CSV',
-      instruction: 'click Export CSV'
-    }
+    visualFallback: { targetText: 'Export CSV', instruction: 'click Export CSV' }
   });
   assert.equal(result.status, 'abstain');
   assert.equal(result.source, 'vision');
   assert.equal(grounderCalls, 1);
   assert.equal(client.calls.some(call => call.name === 'browser_mouse_click_xy'), false);
   console.log('SEMANTIC_VISION_GROUNDER_ABSTAIN_NO_ACTION=PASS');
+}
+
+{
+  const client = new FakeClient({ snapshot: '- heading "Other" [ref=e1]' });
+  const router = new SemanticVisionClickRouter({
+    client,
+    grounder: async () => ({ status: 'abstain', reason: 'not-used' })
+  });
+  await assert.rejects(
+    () => router.click({
+      visualFallback: {
+        targetText: 'Launch', instruction: 'click Launch', semanticName: 'Definitely Missing'
+      }
+    }),
+    /semanticName must normalize exactly to targetText/
+  );
+  assert.equal(client.calls.length, 0);
+  console.log('SEMANTIC_VISION_SEPARATE_PREFLIGHT_NAME_REJECTED=PASS');
+}
+
+{
+  let grounderCalls = 0;
+  const client = new FakeClient({ snapshot: '- button "Save" [ref=e1]' });
+  const router = new SemanticVisionClickRouter({
+    client,
+    grounder: async () => {
+      grounderCalls += 1;
+      return { status: 'abstain', reason: 'not-used' };
+    }
+  });
+  const result = await router.click({
+    visualFallback: { targetText: ' Save ', semanticName: 'save', instruction: 'click Save' }
+  });
+  assert.equal(result.status, 'acted');
+  assert.equal(result.source, 'semantic');
+  assert.equal(grounderCalls, 0);
+  console.log('SEMANTIC_VISION_MATCHING_PREFLIGHT_ALIAS_SAFE=PASS');
 }
 
 console.log('SEMANTIC_VISION_CLICK_ROUTER=PASS');

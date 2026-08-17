@@ -3,7 +3,6 @@ import { createRuntimeBackedBridgeGrounder } from './runtime-backed-bridge-groun
 import { RuntimeBackedVisualGrounder } from './runtime-backed-visual-grounder.mjs';
 
 const MAX_SNAPSHOT_TEXT = 4 * 1024 * 1024;
-const MAX_SEMANTIC_NAME = 1024;
 const MAX_TARGET_TEXT = 2048;
 const MAX_INSTRUCTION = 4096;
 
@@ -25,6 +24,10 @@ function normalizeRequiredText(value, label, maxLength) {
   return normalized;
 }
 
+function normalizedName(value) {
+  return String(value).replace(/\s+/g, ' ').trim().toLocaleLowerCase('en-US');
+}
+
 function normalizeFallbackIntent(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('visualFallback must be one object');
@@ -36,17 +39,22 @@ function normalizeFallbackIntent(value) {
     }
   }
   const targetText = normalizeRequiredText(value.targetText, 'visualFallback.targetText', MAX_TARGET_TEXT);
-  const semanticName = normalizeRequiredText(
-    value.semanticName ?? targetText,
-    'visualFallback.semanticName',
-    MAX_SEMANTIC_NAME
-  );
   const instruction = normalizeRequiredText(
     value.instruction,
     'visualFallback.instruction',
     MAX_INSTRUCTION
   );
-  return { targetText, semanticName, instruction };
+  if (value.semanticName !== undefined) {
+    const semanticName = normalizeRequiredText(
+      value.semanticName,
+      'visualFallback.semanticName',
+      MAX_TARGET_TEXT
+    );
+    if (normalizedName(semanticName) !== normalizedName(targetText)) {
+      throw new Error('visualFallback.semanticName must normalize exactly to targetText');
+    }
+  }
+  return { targetText, instruction };
 }
 
 function parseFirstQuotedText(line) {
@@ -71,11 +79,7 @@ function parseFirstQuotedText(line) {
   return null;
 }
 
-function normalizedName(value) {
-  return String(value).replace(/\s+/g, ' ').trim().toLocaleLowerCase('en-US');
-}
-
-export function exactAccessibilityCandidates(snapshotResult, semanticName) {
+export function exactAccessibilityCandidates(snapshotResult, targetText) {
   if (snapshotResult?.isError) {
     throw new Error(`semantic snapshot failed: ${resultText(snapshotResult) || 'unknown backend error'}`);
   }
@@ -83,7 +87,7 @@ export function exactAccessibilityCandidates(snapshotResult, semanticName) {
   if (text.length > MAX_SNAPSHOT_TEXT) {
     throw new Error(`semantic snapshot exceeds ${MAX_SNAPSHOT_TEXT} characters`);
   }
-  const expected = normalizedName(normalizeRequiredText(semanticName, 'semanticName', MAX_SEMANTIC_NAME));
+  const expected = normalizedName(normalizeRequiredText(targetText, 'targetText', MAX_TARGET_TEXT));
   const refs = new Map();
   for (const line of text.split(/\r?\n/)) {
     const refMatch = line.match(/\[ref=([^\]\s]+)\]/);
@@ -112,23 +116,15 @@ export class SemanticVisionClickRouter {
       throw new Error('SemanticVisionClickRouter grounder must be a function');
     }
     this.#client = client;
-    this.#bridge = new SameSessionVisualGroundingBridge({
-      client,
-      grounder: effectiveGrounder,
-      ttlMs
-    });
+    this.#bridge = new SameSessionVisualGroundingBridge({ client, grounder: effectiveGrounder, ttlMs });
   }
 
   async click({ target = null, element = null, visualFallback } = {}) {
     const fallback = normalizeFallbackIntent(visualFallback);
-
-    const snapshot = await this.#client.callTool({
-      name: 'browser_snapshot',
-      arguments: {}
-    });
+    const snapshot = await this.#client.callTool({ name: 'browser_snapshot', arguments: {} });
     let candidates;
     try {
-      candidates = exactAccessibilityCandidates(snapshot, fallback.semanticName);
+      candidates = exactAccessibilityCandidates(snapshot, fallback.targetText);
     } catch (error) {
       return noAction(
         'error',
@@ -138,34 +134,22 @@ export class SemanticVisionClickRouter {
     }
 
     if (candidates.length === 1) {
-      const downstream = { target: candidates[0].ref };
-      if (element) downstream.element = element;
-      else downstream.element = fallback.semanticName;
-      const click = await this.#client.callTool({
-        name: 'browser_click',
-        arguments: downstream
-      });
+      const downstream = { target: candidates[0].ref, element: element ?? fallback.targetText };
+      const click = await this.#client.callTool({ name: 'browser_click', arguments: downstream });
       if (click?.isError) {
         return noAction('error', `semantic-click-error:${resultText(click) || 'unknown backend error'}`, {
-          source: 'semantic',
-          backendResult: click,
-          semanticCandidateCount: 1
+          source: 'semantic', backendResult: click, semanticCandidateCount: 1
         });
       }
       return {
-        status: 'acted',
-        reason: 'semantic-exact-accessible-name',
-        acted: true,
-        source: 'semantic',
-        backendResult: click,
-        semanticCandidateCount: 1
+        status: 'acted', reason: 'semantic-exact-accessible-name', acted: true,
+        source: 'semantic', backendResult: click, semanticCandidateCount: 1
       };
     }
 
     if (candidates.length > 1) {
       return noAction('abstain', 'semantic-ambiguity-visual-escalation-not-promoted', {
-        source: 'semantic',
-        semanticCandidateCount: candidates.length
+        source: 'semantic', semanticCandidateCount: candidates.length
       });
     }
 
@@ -175,29 +159,22 @@ export class SemanticVisionClickRouter {
       kind: 'labeled_button',
       targetText: fallback.targetText
     });
-
     if (prepared.status !== 'resolved') {
       return noAction(prepared.status, prepared.reason ?? 'visual-fallback-not-resolved', {
-        source: 'vision',
-        semanticCandidateCount: 0
+        source: 'vision', semanticCandidateCount: 0
       });
     }
 
     const committed = await this.#bridge.commitClick(prepared.token);
     if (committed.status !== 'acted') {
       return noAction(committed.status, committed.reason ?? 'visual-fallback-not-committed', {
-        source: 'vision',
-        semanticCandidateCount: 0
+        source: 'vision', semanticCandidateCount: 0
       });
     }
 
     return {
-      status: 'acted',
-      reason: committed.reason ?? 'visual-click-committed',
-      acted: true,
-      source: 'vision',
-      point: committed.point,
-      semanticCandidateCount: 0
+      status: 'acted', reason: committed.reason ?? 'visual-click-committed', acted: true,
+      source: 'vision', point: committed.point, semanticCandidateCount: 0
     };
   }
 
