@@ -30,25 +30,57 @@ function refOnMatchingLine(result, needle) {
   assert.fail(`Could not resolve a Playwright ref for ${JSON.stringify(needle)}:\n${text}`);
 }
 
+async function clickSemantic(client, label) {
+  const found = await client.callTool({ name: 'browser_find', arguments: { text: label } });
+  assert.equal(found.isError, undefined, textOf(found));
+  const ref = refOnMatchingLine(found, label);
+  const clicked = await client.callTool({
+    name: 'browser_click',
+    arguments: { target: ref, element: `${label} button` }
+  });
+  assert.equal(clicked.isError, undefined, textOf(clicked));
+}
+
 async function startFixtureServer() {
-  const server = http.createServer((_request, response) => {
+  const server = http.createServer((request, response) => {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
+
+    if (request.url?.startsWith('/replacement')) {
+      response.end(`<!doctype html>
+<html>
+<head><meta charset="utf-8" /><title>Replacement Page</title></head>
+<body style="margin:0;background:#ddeeff;font-family:Arial,sans-serif">
+  <h1>REPLACEMENT_PAGE</h1>
+  <p>The original visual target is not present on this page.</p>
+</body>
+</html>`);
+      return;
+    }
+
     response.end(`<!doctype html>
 <html>
 <head>
 <meta charset="utf-8" />
 <title>Stage 25.1 Same Session Fixture</title>
 <style>
-  html, body { margin: 0; width: 100%; height: 100%; background: #f4f5f7; font-family: Arial, sans-serif; }
+  html, body { margin: 0; width: 100%; min-height: 1400px; background: #f4f5f7; font-family: Arial, sans-serif; }
   #visual-target { position: absolute; left: 120px; top: 160px; width: 80px; height: 50px; background: #d32f2f; }
-  #shift { position: absolute; right: 24px; top: 24px; padding: 10px 18px; }
+  .control { position: absolute; right: 24px; padding: 8px 16px; }
+  #shift { top: 24px; }
+  #scroll { top: 70px; }
+  #overlay { top: 116px; }
   #status { position: absolute; left: 24px; top: 300px; font-size: 20px; }
+  #lower-marker { position: absolute; left: 24px; top: 720px; font-size: 20px; }
+  .blocking-overlay { position: fixed; left: 90px; top: 130px; width: 150px; height: 120px; background: rgba(20,20,20,.92); color: white; z-index: 99; }
 </style>
 </head>
 <body>
   <div id="visual-target"></div>
-  <button id="shift" type="button">Shift layout</button>
+  <button class="control" id="shift" type="button">Shift layout</button>
+  <button class="control" id="scroll" type="button">Scroll viewport</button>
+  <button class="control" id="overlay" type="button">Show overlay</button>
   <p id="status">WAITING</p>
+  <p id="lower-marker">LOWER_CONTENT</p>
 <script>
   let visualClicks = 0;
   const target = document.getElementById('visual-target');
@@ -60,6 +92,17 @@ async function startFixtureServer() {
   document.getElementById('shift').addEventListener('click', () => {
     target.style.left = '360px';
     status.textContent = 'SHIFTED';
+  });
+  document.getElementById('scroll').addEventListener('click', () => {
+    status.textContent = 'SCROLLED';
+    window.scrollTo(0, 220);
+  });
+  document.getElementById('overlay').addEventListener('click', () => {
+    const blocker = document.createElement('div');
+    blocker.className = 'blocking-overlay';
+    blocker.textContent = 'OVERLAY_BLOCKING_TARGET';
+    document.body.appendChild(blocker);
+    status.textContent = 'OVERLAY_SHOWN';
   });
 </script>
 </body>
@@ -85,6 +128,18 @@ function childEnvironment() {
     if (typeof value === 'string') env[key] = value;
   }
   return env;
+}
+
+async function openBase(client, fixture) {
+  const open = await client.callTool({ name: 'browser_navigate', arguments: { url: fixture.baseUrl } });
+  assert.equal(open.isError, undefined, textOf(open));
+}
+
+async function assertNoVisualClick(client, expectedMarker) {
+  const snapshot = await client.callTool({ name: 'browser_snapshot', arguments: {} });
+  const text = textOf(snapshot);
+  if (expectedMarker) assert(text.includes(expectedMarker), text);
+  assert(!text.includes('VISUAL_CLICKED'), text);
 }
 
 const fixture = await startFixtureServer();
@@ -142,6 +197,9 @@ try {
       if (request.target === 'missing visual target') {
         return { status: 'abstain', reason: 'fixture-target-absent' };
       }
+      if (request.target === 'ambiguous repeated visual target') {
+        return { status: 'abstain', reason: 'fixture-target-ambiguous' };
+      }
       assert.equal(request.target, 'red visual target');
       return {
         status: 'resolved',
@@ -152,9 +210,8 @@ try {
     }
   });
 
-  const open = await client.callTool({ name: 'browser_navigate', arguments: { url: fixture.baseUrl } });
-  assert.equal(open.isError, undefined, textOf(open));
-
+  // Positive: unchanged screenshot in the same Playwright session authorizes exactly one click.
+  await openBase(client, fixture);
   const prepared = await bridge.prepare('red visual target');
   assert.equal(prepared.status, 'resolved');
   assert.match(prepared.token, /^visual-target:/);
@@ -168,6 +225,7 @@ try {
   assert(textOf(positive).includes('VISUAL_CLICKED_1'), textOf(positive));
   console.log('VISION_BRIDGE_POSITIVE=PASS');
 
+  // Prepared targets are one-shot; replay cannot cause a second click.
   const replay = await bridge.commitClick(prepared.token);
   assert.equal(replay.status, 'abstain');
   assert.equal(replay.reason, 'unknown-or-consumed-visual-target');
@@ -176,40 +234,74 @@ try {
   assert(!textOf(afterReplay).includes('VISUAL_CLICKED_2'), textOf(afterReplay));
   console.log('VISION_BRIDGE_REPLAY_GUARD=PASS');
 
-  const reopen = await client.callTool({ name: 'browser_navigate', arguments: { url: fixture.baseUrl } });
-  assert.equal(reopen.isError, undefined, textOf(reopen));
+  // Layout shift invalidates the exact prepared frame.
+  await openBase(client, fixture);
+  const layoutPrepared = await bridge.prepare('red visual target');
+  assert.equal(layoutPrepared.status, 'resolved');
+  await clickSemantic(client, 'Shift layout');
+  const layoutCommit = await bridge.commitClick(layoutPrepared.token);
+  assert.equal(layoutCommit.status, 'abstain', JSON.stringify(layoutCommit));
+  assert.equal(layoutCommit.reason, 'stale-visual-capture');
+  assert.notEqual(layoutCommit.preparedSha256, layoutCommit.currentSha256);
+  await assertNoVisualClick(client, 'SHIFTED');
+  console.log('VISION_BRIDGE_LAYOUT_SHIFT_ABSTAIN=PASS');
 
-  const stalePrepared = await bridge.prepare('red visual target');
-  assert.equal(stalePrepared.status, 'resolved');
+  // Scroll changes CSS viewport contents and invalidates the prepared visual target.
+  await openBase(client, fixture);
+  const scrollPrepared = await bridge.prepare('red visual target');
+  assert.equal(scrollPrepared.status, 'resolved');
+  await clickSemantic(client, 'Scroll viewport');
+  const scrollCommit = await bridge.commitClick(scrollPrepared.token);
+  assert.equal(scrollCommit.status, 'abstain', JSON.stringify(scrollCommit));
+  assert.equal(scrollCommit.reason, 'stale-visual-capture');
+  assert.notEqual(scrollCommit.preparedSha256, scrollCommit.currentSha256);
+  await assertNoVisualClick(client, 'SCROLLED');
+  console.log('VISION_BRIDGE_SCROLL_ABSTAIN=PASS');
 
-  const findShift = await client.callTool({ name: 'browser_find', arguments: { text: 'Shift layout' } });
-  assert.equal(findShift.isError, undefined, textOf(findShift));
-  const shiftRef = refOnMatchingLine(findShift, 'Shift layout');
-  const shift = await client.callTool({
-    name: 'browser_click',
-    arguments: { target: shiftRef, element: 'Shift layout button' }
+  // A newly introduced overlay invalidates the prepared target before it can be clicked.
+  await openBase(client, fixture);
+  const overlayPrepared = await bridge.prepare('red visual target');
+  assert.equal(overlayPrepared.status, 'resolved');
+  await clickSemantic(client, 'Show overlay');
+  const overlayCommit = await bridge.commitClick(overlayPrepared.token);
+  assert.equal(overlayCommit.status, 'abstain', JSON.stringify(overlayCommit));
+  assert.equal(overlayCommit.reason, 'stale-visual-capture');
+  assert.notEqual(overlayCommit.preparedSha256, overlayCommit.currentSha256);
+  await assertNoVisualClick(client, 'OVERLAY_SHOWN');
+  console.log('VISION_BRIDGE_OVERLAY_ABSTAIN=PASS');
+
+  // Navigation/page replacement cannot reuse a target prepared on the previous page.
+  await openBase(client, fixture);
+  const navigationPrepared = await bridge.prepare('red visual target');
+  assert.equal(navigationPrepared.status, 'resolved');
+  const replacement = await client.callTool({
+    name: 'browser_navigate',
+    arguments: { url: `${fixture.baseUrl}replacement` }
   });
-  assert.equal(shift.isError, undefined, textOf(shift));
-  const shiftedBeforeCommit = await client.callTool({ name: 'browser_find', arguments: { text: 'SHIFTED' } });
-  assert.equal(shiftedBeforeCommit.isError, undefined, textOf(shiftedBeforeCommit));
+  assert.equal(replacement.isError, undefined, textOf(replacement));
+  const navigationCommit = await bridge.commitClick(navigationPrepared.token);
+  assert.equal(navigationCommit.status, 'abstain', JSON.stringify(navigationCommit));
+  assert.equal(navigationCommit.reason, 'stale-visual-capture');
+  assert.notEqual(navigationCommit.preparedSha256, navigationCommit.currentSha256);
+  await assertNoVisualClick(client, 'REPLACEMENT_PAGE');
+  console.log('VISION_BRIDGE_NAVIGATION_ABSTAIN=PASS');
 
-  const staleCommit = await bridge.commitClick(stalePrepared.token);
-  assert.equal(staleCommit.status, 'abstain', JSON.stringify(staleCommit));
-  assert.equal(staleCommit.reason, 'stale-visual-capture');
-  assert.notEqual(staleCommit.preparedSha256, staleCommit.currentSha256);
-
-  const staleSnapshot = await client.callTool({ name: 'browser_snapshot', arguments: {} });
-  const staleText = textOf(staleSnapshot);
-  assert(staleText.includes('SHIFTED'), staleText);
-  assert(!staleText.includes('VISUAL_CLICKED'), staleText);
-  console.log('VISION_BRIDGE_STALE_ABSTAIN=PASS');
-
+  // Grounder uncertainty never produces an actionable token.
+  await openBase(client, fixture);
   const missing = await bridge.prepare('missing visual target');
   assert.equal(missing.status, 'abstain');
   assert.equal(missing.reason, 'fixture-target-absent');
-  assert.equal(grounderCalls, 3);
+  await assertNoVisualClick(client, 'WAITING');
   console.log('VISION_BRIDGE_GROUNDER_ABSTAIN=PASS');
 
+  const ambiguous = await bridge.prepare('ambiguous repeated visual target');
+  assert.equal(ambiguous.status, 'abstain');
+  assert.equal(ambiguous.reason, 'fixture-target-ambiguous');
+  await assertNoVisualClick(client, 'WAITING');
+  console.log('VISION_BRIDGE_AMBIGUOUS_ABSTAIN=PASS');
+
+  assert.equal(grounderCalls, 7);
+  console.log('VISION_BRIDGE_ADVERSARIAL_STALE_STATE=PASS');
   console.log('VISION_BRIDGE_ACCEPTANCE=PASS');
 } finally {
   await client.close().catch(() => {});
