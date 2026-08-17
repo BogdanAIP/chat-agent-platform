@@ -12,6 +12,8 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod/v4';
 
+import { createSemanticVisionClickRouter } from '../lib/semantic-vision-click-router.mjs';
+
 const VERSION = '0.1.0';
 const require = createRequire(import.meta.url);
 const FILESYSTEM_ENTRY = require.resolve('@modelcontextprotocol/server-filesystem/dist/index.js');
@@ -34,7 +36,9 @@ const REQUIRED_PLAYWRIGHT_TOOLS = new Set([
   'browser_find',
   'browser_snapshot',
   'browser_click',
-  'browser_type'
+  'browser_type',
+  'browser_take_screenshot',
+  'browser_mouse_click_xy'
 ]);
 
 const workspaceRootInput = process.env.CHAT_LOCAL_FILES_ROOT;
@@ -49,6 +53,8 @@ if (!workspaceStat?.isDirectory()) {
 }
 
 const backendPromises = new Map();
+let semanticVisionRouter = null;
+let semanticVisionClient = null;
 let shuttingDown = false;
 
 function localNodeCommand(entryPoint, extraArgs = []) {
@@ -92,6 +98,24 @@ function toolError(message) {
     content: [{ type: 'text', text: message }],
     isError: true
   };
+}
+
+function visualOutcomeResult(outcome) {
+  if (outcome?.status === 'acted' && outcome.source === 'semantic' && outcome.backendResult) {
+    return normalizeBackendResult(outcome.backendResult);
+  }
+  if (outcome?.status === 'acted' && outcome.source === 'vision') {
+    return {
+      content: [{
+        type: 'text',
+        text: 'web_interact click completed through the reviewed same-session visual fallback after a proven semantic miss.'
+      }]
+    };
+  }
+  const reason = typeof outcome?.reason === 'string' && outcome.reason
+    ? outcome.reason
+    : 'unknown-escalation-result';
+  return toolError(`web_interact performed no action: ${reason}`);
 }
 
 function normalizeNavigationHostname(hostname) {
@@ -174,12 +198,14 @@ async function createBackend(kind) {
       'chrome',
       '--isolated',
       '--image-responses',
-      'omit',
+      'allow',
       '--blocked-origins',
       PLAYWRIGHT_DEFENSE_BLOCKED_ORIGINS,
       '--block-service-workers',
       '--codegen',
       'none',
+      '--caps',
+      'vision',
       '--timeout-action',
       '15000'
     ]);
@@ -234,7 +260,20 @@ async function callBackend(kind, toolName, args) {
   return normalizeBackendResult(result);
 }
 
+async function getSemanticVisionRouter() {
+  const { client } = await getBackend('playwright');
+  if (!semanticVisionRouter || semanticVisionClient !== client) {
+    semanticVisionRouter?.clear();
+    semanticVisionClient = client;
+    semanticVisionRouter = createSemanticVisionClickRouter({ client });
+  }
+  return semanticVisionRouter;
+}
+
 async function closeBackends() {
+  semanticVisionRouter?.clear();
+  semanticVisionRouter = null;
+  semanticVisionClient = null;
   const pending = [...backendPromises.values()];
   backendPromises.clear();
   const settled = await Promise.allSettled(pending);
@@ -265,11 +304,24 @@ const relativePathSchema = z
   .max(2048)
   .describe('Path relative to the configured workspace root. Absolute paths and parent traversal are rejected.');
 
+const visualFallbackSchema = z
+  .object({
+    instruction: z.string().min(1).max(4096).describe('Concrete visual instruction for one text-labeled control.'),
+    targetText: z.string().min(1).max(2048).describe('Visible text expected on the control.'),
+    semanticName: z
+      .string()
+      .min(1)
+      .max(1024)
+      .optional()
+      .describe('Exact accessible name to preflight before vision. Defaults to targetText.')
+  })
+  .strict();
+
 const server = new McpServer(
   { name: 'chat-semantic-projection', version: VERSION },
   {
     instructions:
-      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use an isolated headless Playwright session.'
+      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use an isolated headless Playwright session. For click only, a reviewed text-labeled visual fallback may run internally after a fresh accessibility snapshot proves zero exact semantic candidates; ambiguity and semantic action errors fail closed without vision.'
   }
 );
 
@@ -392,7 +444,7 @@ server.registerTool(
   {
     title: 'Observe Web Page',
     description:
-      'Read-only browser observation. operation=find searches the current accessibility snapshot by plain text or regex. operation=snapshot captures the current accessibility snapshot, optionally for one target. No screenshots, network bodies or arbitrary code are exposed.',
+      'Read-only browser observation. operation=find searches the current accessibility snapshot by plain text or regex. operation=snapshot captures the current accessibility snapshot, optionally for one target. Screenshots remain internal to the reviewed click fallback and are never exposed as a public observation operation.',
     inputSchema: z
       .object({
         operation: z.enum(['find', 'snapshot']),
@@ -429,16 +481,17 @@ server.registerTool(
   {
     title: 'Interact With Web Page',
     description:
-      'Interact with the isolated browser using a closed operation set: click one target or type text into one target. No arbitrary Playwright/JavaScript, file upload, direct network inspection or backend/tool selection is available.',
+      'Interact with the isolated browser using a closed operation set: click one target or type text into one target. click may optionally include visualFallback for one text-labeled control. The server always performs a fresh accessibility preflight first: one exact candidate is clicked semantically; multiple candidates fail closed; only zero exact candidates may invoke the internal reviewed same-session visual grounder. No icon-only/ambiguous automatic visual promotion, arbitrary Playwright/JavaScript, file upload, direct network inspection or backend/tool selection is available.',
     inputSchema: z
       .object({
         operation: z.enum(['click', 'type']),
-        target: z.string().min(1).max(4096),
+        target: z.string().min(1).max(4096).optional(),
         element: z.string().min(1).max(1024).optional(),
         doubleClick: z.boolean().optional(),
         text: z.string().max(200000).optional(),
         submit: z.boolean().optional(),
-        slowly: z.boolean().optional()
+        slowly: z.boolean().optional(),
+        visualFallback: visualFallbackSchema.optional()
       })
       .strict(),
     annotations: {
@@ -454,11 +507,28 @@ server.registerTool(
         if (args.text !== undefined || args.submit !== undefined || args.slowly !== undefined) {
           return toolError('web_interact click does not accept type-only arguments.');
         }
+        if (args.visualFallback !== undefined) {
+          if (args.doubleClick !== undefined) {
+            return toolError('web_interact visualFallback supports only one left single click; doubleClick is not accepted.');
+          }
+          const router = await getSemanticVisionRouter();
+          return visualOutcomeResult(await router.click({
+            target: args.target ?? null,
+            element: args.element ?? null,
+            visualFallback: args.visualFallback
+          }));
+        }
+        if (!args.target) return toolError('web_interact click requires target unless visualFallback is provided.');
         const downstream = { target: args.target };
         if (args.element !== undefined) downstream.element = args.element;
         if (args.doubleClick !== undefined) downstream.doubleClick = args.doubleClick;
         return await callBackend('playwright', 'browser_click', downstream);
       }
+
+      if (args.visualFallback !== undefined) {
+        return toolError('web_interact type does not accept visualFallback.');
+      }
+      if (!args.target) return toolError('web_interact type requires target.');
       if (args.text === undefined) return toolError('web_interact type requires text.');
       if (args.doubleClick !== undefined) return toolError('web_interact type does not accept doubleClick.');
       const downstream = { target: args.target, text: args.text };
