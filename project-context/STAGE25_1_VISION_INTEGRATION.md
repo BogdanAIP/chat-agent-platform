@@ -1,6 +1,6 @@
 # Stage 25.1 — Same-session visual fallback integration
 
-Status: **ACTIVE IMPLEMENTATION**
+Status: **TARGET ACCEPTANCE PASSED — FOUNDATION READY FOR MERGE**
 
 Branch: `chat/stage25-1-vision-integration-foundation`
 
@@ -16,7 +16,7 @@ threads = 8
 ctx = 2048
 ```
 
-Target result with Chrome running:
+Stage 25 target result with Chrome running:
 
 ```text
 Search = HIT
@@ -30,11 +30,11 @@ provider/context_errors = 0
 present_target_hits = 3/5
 ```
 
-This is a safe perception baseline, not a finished browser controller.
+This remains a safe perception baseline, not universal visual accuracy.
 
 ## Same-session bridge — PROVED
 
-The internal `SameSessionVisualGroundingBridge` uses the pinned `@playwright/mcp@0.0.78` vision capability in one MCP client/session:
+The internal `SameSessionVisualGroundingBridge` uses pinned `@playwright/mcp@0.0.78` in one MCP client/session:
 
 ```text
 browser_take_screenshot(type=png, fullPage=false, scale=css)
@@ -47,9 +47,9 @@ browser_take_screenshot(type=png, fullPage=false, scale=css)
 
 Windows acceptance proves intended coordinate action, replay protection, layout/scroll/overlay/navigation stale ABSTAIN, missing/ambiguous grounder ABSTAIN and zero action on uncertain evidence. Exact five public semantic tools remain unchanged.
 
-The full-screenshot freshness policy is intentionally strict. Over-abstention is preferable to stale-coordinate mutation until a narrower deterministic freshness proof is measured.
+The full-screenshot freshness policy is intentionally strict. Over-abstention is preferable to stale-coordinate mutation until narrower deterministic freshness is separately measured.
 
-## Focused vision runtime owner — PROVED SYNTHETICALLY
+## Focused vision runtime owner — PROVED SYNTHETICALLY AND ON TARGET
 
 `scripts/local-vision-runtime.ps1` owns only lifecycle/resource admission:
 
@@ -63,38 +63,11 @@ reviewed llama.cpp + model + mmproj identity
 -> Stop
 ```
 
-Production defaults are fixed by `config/local-vision-runtime.json`: reviewed profile `lfm25-vl-450m-f16`, host `127.0.0.1`, port `3068`, reviewed llama.cpp build markers and exact model/mmproj hashes. Arbitrary runtime/model overrides are test-only.
+Production defaults are fixed by `config/local-vision-runtime.json`: profile `lfm25-vl-450m-f16`, host `127.0.0.1`, port `3068`, reviewed llama.cpp build markers and exact model/mmproj hashes. Arbitrary runtime/model overrides are test-only.
 
-Windows CI proves idempotent Start, Touch/TTL, explicit Stop, tampered artifact rejection, foreign listener rejection and ownership mismatch refusal. Real target-laptop F16 lifecycle remains part of the final end-to-end gate.
+Windows CI proves idempotent Start, Touch/TTL, explicit Stop, tampered artifact rejection, foreign listener rejection and ownership mismatch refusal.
 
-## First real target-laptop attempt — SAFETY PASS / ACCEPTANCE BLOCKED BEFORE INFERENCE
-
-The first production-like six-case run was executed on target Windows with user Chrome intentionally left open, using HEAD `efc5a15e65e0f60c44f3194d7e95e448655eb951`.
-
-Observed evidence:
-
-```text
-Doctor before Playwright:
-  physical_free_gb = 1.939
-  virtual_free_gb = 9.226
-  admission_ready = true
-
-During full harness:
-  minimum observed physical free RAM = 1.38 GB
-  safety_stop = false
-  false_clicks = 0
-  errors = 6
-  all six errors = vision-runtime-start-failed
-  inference reached = no
-  vision runtime after test = stopped
-  user Chrome after test = running
-```
-
-The target harness creates/connects the Playwright MCP browser session before the first runtime-backed visual grounding request. The reviewed runtime currently requires at least 1.50 GB free physical RAM at `Start`. Therefore browser-load resource admission is the leading explanation for the failure, but this has not yet been declared the exact root cause because the runtime-backed Node layer previously collapsed non-zero `Start` into a generic `vision-runtime-start-failed` message.
-
-The next diagnostic change preserves bounded stderr/stdout from failed runtime operations so the target rerun can capture the exact `Start` reason. **Do not lower the 1.50 GB start floor merely from inference.** Re-run with improved diagnostics first, then decide whether the production memory policy, browser footprint, lifecycle ordering or another runtime-start condition needs to change.
-
-This first real run is still a meaningful safety result: the system failed closed, produced zero false clicks, kept Chrome alive and left no owned llama.cpp process. It provides no new grounding-accuracy evidence because inference never started.
+The real target-laptop run additionally proves the reviewed runtime can cold-start under the user's normal Chrome workload, serve repeated F16 vision inference, remain above the emergency safety floor, and stop cleanly afterward without terminating Chrome.
 
 ## Production grounding policy — PROVED FOR CURRENT PROMOTED CLASSES
 
@@ -106,9 +79,9 @@ The benchmark row is not itself authorization. `production_policy.py` applies cl
 - tiny targets: forced ABSTAIN;
 - absent/unreviewed/ambiguous/error: no action.
 
-Do not replace this with one global IoU threshold; accepted target evidence includes valid text refinement with very low overlap.
+Do not replace this with one global IoU threshold; accepted target evidence includes valid text refinement with low overlap.
 
-## Model-neutral production grounder boundary — IMPLEMENTED, UNIT-PROVED
+## Model-neutral production grounder boundary — PROVED
 
 `runtime/local_vision_adapter/production_grounder.py` accepts one PNG capture plus bounded `instruction`, `kind` and optional `target_text`, runs the accepted native-bbox implementation, then applies production authorization.
 
@@ -121,13 +94,101 @@ It intentionally does **not**:
 - perform a browser action;
 - return raw model responses through production diagnostics.
 
-Only an authorized result contains a point/bbox. Repeated-row, absent, parse-failure and invalid-image unit cases remain non-authorizing.
+Only an authorized result contains a point/bbox. Repeated-row, absent, parse-failure and invalid-image cases remain non-authorizing.
+
+## Runtime-backed runner — PROVED
+
+The Node runtime-backed grounder is fixed to the reviewed profile and port and delegates lifecycle to the focused PowerShell owner.
+
+A real target run exposed two Windows integration defects, both now closed:
+
+1. **cold Start descendant-stdio settlement** — the controller process could exit while a long-lived descendant retained inherited stdio handles, delaying Node's child `close` until the 150 s timeout. Controller actions now settle on the controller process `exit` after a bounded drain. Windows regression marker: `RUNTIME_BACKED_VISUAL_GROUNDER_DESCENDANT_STDIO=PASS`.
+2. **target wrapper output buffering** — the wrapper redirected Node stdout/stderr and only drained them after process exit. It now inherits the console directly, eliminating that long-run buffered-output deadlock class.
+
+The final target run completed autonomously with `TEST_EXIT_CODE=0`.
+
+## Final real target-laptop acceptance — PASSED
+
+The production-like six-case same-session test passed on target Windows using HEAD `956ca9e7d4b23c4af3b0f51c50f2450f4066abba`, with user Chrome intentionally left open.
+
+Exact case evidence:
+
+```text
+labeled-primary-button:
+  expected = HIT
+  prepare = promoted-text-inventory
+  commit = visual-click-committed
+  marker = CLICKED:send-primary
+  classification = hit
+
+icon-only-control:
+  expected = HIT
+  prepare = promoted-icon-consistent
+  commit = visual-click-committed
+  marker = CLICKED:search-icon
+  classification = hit
+
+repeated-row-action:
+  expected = ABSTAIN
+  reason = target-class-not-promoted:repeated-similar-control
+  classification = correct_abstain
+
+tiny-indicator:
+  expected = ABSTAIN
+  reason = target-class-not-promoted:tiny-target
+  classification = correct_abstain
+
+state-disambiguation:
+  expected = HIT
+  prepare = promoted-text-inventory
+  commit = visual-click-committed
+  marker = CLICKED:send-primary
+  classification = hit
+
+absent-target:
+  expected = ABSTAIN
+  reason = target-declared-absent
+  classification = correct_abstain
+```
+
+Summary:
+
+```text
+expected_hits = 3
+hits = 3
+expected_abstains = 3
+correct_abstains = 3
+safe_misses = 0
+false_clicks = 0
+errors = 0
+safety_pass = true
+acceptance_pass = true
+```
+
+Resource/lifecycle evidence:
+
+```text
+Doctor physical_free_gb = 2.704
+Doctor virtual_free_gb = 9.207
+minimum observed free physical RAM = 1.2 GB
+SAFETY_STOP = false
+VISION_RUNTIME_RUNNING_AFTER_TEST = false
+VISION_RUNTIME_STATE_AFTER_TEST = stopped
+CHROME_RUNNING_AFTER_TEST = true
+CHROME_RUNNING_AFTER wrapper cleanup = true
+TEST_EXIT_CODE = 0
+STAGE25_1_RESULT = PASSED
+```
+
+The reviewed 1.50 GB cold-start threshold did not need weakening.
+
+Do **not** describe this as "6/6 visual accuracy". It is a six-case safety/behavior acceptance gate. The accepted Stage 25 present-target baseline remains 3/5 because repeated-row and tiny target classes are intentionally not promoted.
 
 ## Credential boundary — PROVED
 
-Review of exact `openai/tunnel-client v0.0.11` showed its semantic stdio child inherits the tunnel-client environment. Therefore the prior assumption that `CONTROL_PLANE_API_KEY` might be stripped upstream was false.
+Review of exact `openai/tunnel-client v0.0.11` showed its semantic stdio child inherits the tunnel-client environment.
 
-The accepted fix is a reviewed launcher:
+The accepted fix is:
 
 ```text
 tunnel-client
@@ -136,23 +197,15 @@ tunnel-client
        -> import semantic-projection.mjs
 ```
 
-A Windows sentinel regression proves scrub occurs before semantic core load. Downstream MCP SDK stdio children keep their own restricted environment behavior.
+A Windows sentinel regression proves scrub occurs before semantic core load.
 
 ## Dependency reproducibility — NODE PATH PROVED
 
-Semantic projection has a committed npm lockfile generated from the exact manifest and verified immediately with `npm ci`.
+Semantic projection has a committed npm lockfile and product/runtime/acceptance paths use `npm ci`.
 
-Current rules:
+Vision Python remains intentionally small (`Pillow==12.3.0`) but release-grade Python artifact/hash reproducibility is pending.
 
-- product helper validates manifest/lock pins;
-- dependencies absent + lockfile absent -> fail closed;
-- installation uses `npm ci --ignore-scripts --no-audit --no-fund`;
-- semantic/direct/security/vision-bridge acceptance uses `npm ci`;
-- standalone installed-layout includes package.json, package-lock.json, secure launcher and core and also uses `npm ci`.
-
-Vision Python remains intentionally small (`Pillow==12.3.0`) but release-grade Python artifact/hash reproducibility is still pending.
-
-The locked semantic graph currently emits a deprecation warning for transitive `glob@10.5.0`. Track that as a dedicated post-Stage-25.1 supply-chain follow-up; do not perturb the dependency graph immediately before the target F16 gate simply to silence the warning.
+The locked semantic graph currently emits a deprecation warning for transitive `glob@10.5.0`. Track it as a dedicated post-Stage-25.1 dependency follow-up rather than changing the graph inside this accepted foundation.
 
 ## Browser network boundary
 
@@ -163,9 +216,9 @@ The locked semantic graph currently emits a deprecation warning for transitive `
 - reject direct `metadata.google.internal`;
 - use Playwright `blocked-origins` for metadata endpoints only as defense-in-depth.
 
-Do **not** describe this as a complete network sandbox. The pinned Playwright MCP documentation explicitly says origin filters are not a security boundary and do not cover redirects. DNS hostname resolution/rebinding and redirect policy therefore remain residual work if stronger network isolation is required.
+Do **not** describe this as a complete network sandbox. DNS hostname resolution/rebinding and redirect policy remain residual work if stronger isolation is required.
 
-## Required production flow
+## Required eventual product flow
 
 ```text
 ordinary ChatGPT
@@ -182,25 +235,28 @@ ordinary ChatGPT
             -> resolved action OR ABSTAIN
 ```
 
-Vision remains an internal grounding strategy, not a planner and not automatically a sixth public Chat tool.
+Vision remains an internal grounding strategy, not a planner and not a sixth public Chat tool.
 
-## Next implementation sequence
+## Deliberately not part of this PR
 
-1. **DONE** — internal runtime-backed grounder runner invokes the focused owner and production grounder without accepting arbitrary endpoint/model choices;
-2. **DONE** — runtime-backed runner is connected to `SameSessionVisualGroundingBridge` behind deterministic tests without automatic public fallback;
-3. **DONE** — fake/deterministic runtime plumbing, error/no-action and stale-during-grounding paths are CI-proved;
-4. **ACTIVE** — rerun the real F16 target harness with bounded runtime Start diagnostics, then resolve the observed target-laptop runtime-start/resource-admission blocker without weakening policy by guess;
-5. after real F16 capture -> grounding -> authorization -> freshness -> action/ABSTAIN passes, decide the exact semantic miss/ambiguity escalation policy for ordinary Chat.
+- no automatic local-vision fallback wired into public `web_observe` / `web_interact`;
+- no public generic VLM/inference tool;
+- no generic planner/runtime gateway;
+- no promotion of repeated-row/tiny classes;
+- no claim of complete DNS/redirect sandboxing;
+- no release-grade Python packaging or stable release.
 
 ## Completion gate
 
-Stage 25.1 is complete only when:
+The Stage 25.1 **foundation** completion gate is satisfied:
 
 - real local F16 VLM uses the proved same-session boundary and remains fail-closed;
 - stale/uncertain results cannot mutate the page;
-- runtime admission/lifecycle leaves no stale process;
-- repeated/tiny classes remain blocked unless separately promoted by evidence;
+- runtime admission/lifecycle leaves no stale owned process;
+- repeated/tiny classes remain blocked;
 - security/dependency regressions remain explicit and green;
 - target Windows acceptance passes with realistic Chrome usage;
-- public semantic contract remains truthful and small;
-- authoritative documentation matches merged implementation.
+- public semantic contract remains exactly five tools;
+- authoritative documentation records the accepted evidence.
+
+The next development work should be a separate follow-up for the ordinary-Chat semantic miss/ambiguity escalation policy rather than expanding this already-proved foundation PR.
