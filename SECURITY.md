@@ -81,7 +81,13 @@ focused runtime owner
 
 The production grounder does not own runtime, browser state or action. Repeated-row and tiny classes remain non-authorizing until separately promoted by measured evidence.
 
-Automatic visual interaction requires capture/action in the same Playwright session and fresh CSS-pixel evidence. If page identity, viewport/scroll state, coordinate mapping or freshness is uncertain, the result is ABSTAIN and the page remains unchanged. Never implement a blind cross-session `VLM coordinate -> click` path.
+The runtime-backed grounder requires the controller's exact owned PID and, before sending screenshot bytes, verifies with Windows `Get-NetTCPConnection` that the reviewed `127.0.0.1:3068` listener is owned by that PID. A mismatch fails closed and attempts cleanup of only the ownership-verified runtime. This closes the stale-state case where an owned process remains alive while a different local process already owns the inference port.
+
+This PID/listener check is not cryptographic endpoint authentication. Loopback TCP cannot eliminate a theoretical local race in which the verified llama.cpp listener disappears after the check and another local process immediately acquires the same port before the request connects. The current boundary therefore assumes no actively malicious same-user local process racing the inference socket. A stronger future threat model would require an authenticated per-instance endpoint, stronger OS isolation or another transport that can bind peer identity to the request.
+
+Automatic visual interaction requires capture/action in the same Playwright session and fresh CSS-pixel evidence. Layout, scroll, overlay and navigation changes observed before commit are fail-closed through an exact viewport screenshot hash. Prepared targets are one-shot, TTL-bounded and capacity-bounded.
+
+The final freshness screenshot and `browser_mouse_click_xy` are nevertheless two separate MCP calls. A page can theoretically mutate in the small interval after the final screenshot response and before the coordinate click is processed. This residual screenshot-to-click TOCTOU window is why automatic semantic-miss -> vision escalation is not part of Stage 25.1, and why consequential visual actions need additional application-specific safeguards or a more atomic backend primitive before promotion. Never implement a blind cross-session `VLM coordinate -> click` path.
 
 ## Resource/process boundary
 
