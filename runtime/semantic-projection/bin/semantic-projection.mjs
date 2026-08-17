@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import net from 'node:net';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -16,6 +17,12 @@ const require = createRequire(import.meta.url);
 const FILESYSTEM_ENTRY = require.resolve('@modelcontextprotocol/server-filesystem/dist/index.js');
 const PLAYWRIGHT_MANIFEST = require.resolve('@playwright/mcp/package.json');
 const PLAYWRIGHT_ENTRY = path.join(path.dirname(PLAYWRIGHT_MANIFEST), 'cli.js');
+const PLAYWRIGHT_DEFENSE_BLOCKED_ORIGINS = [
+  'http://169.254.169.254:*',
+  'https://169.254.169.254:*',
+  'http://metadata.google.internal:*',
+  'https://metadata.google.internal:*'
+].join(';');
 const REQUIRED_FILESYSTEM_TOOLS = new Set([
   'list_allowed_directories',
   'read_text_file',
@@ -87,6 +94,72 @@ function toolError(message) {
   };
 }
 
+function normalizeNavigationHostname(hostname) {
+  let normalized = String(hostname ?? '').trim().toLowerCase();
+  if (normalized.startsWith('[') && normalized.endsWith(']')) {
+    normalized = normalized.slice(1, -1);
+  }
+  while (normalized.endsWith('.')) normalized = normalized.slice(0, -1);
+  return normalized;
+}
+
+function classifyDirectNavigationHost(hostname) {
+  const host = normalizeNavigationHostname(hostname);
+  if (!host) return { allowed: false, scope: 'empty-host' };
+
+  if (host === 'localhost' || host.endsWith('.localhost')) {
+    return { allowed: true, scope: 'loopback' };
+  }
+  if (host === 'metadata.google.internal') {
+    return { allowed: false, scope: 'metadata-hostname' };
+  }
+
+  const ipVersion = net.isIP(host);
+  if (ipVersion === 4) {
+    const octets = host.split('.').map(value => Number.parseInt(value, 10));
+    const [a, b, c] = octets;
+
+    if (a === 127) return { allowed: true, scope: 'loopback' };
+
+    const blocked =
+      a === 0 ||
+      a === 10 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 0 && c === 0) ||
+      (a === 192 && b === 0 && c === 2) ||
+      (a === 192 && b === 88 && c === 99) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      (a === 198 && b === 51 && c === 100) ||
+      (a === 203 && b === 0 && c === 113) ||
+      a >= 224;
+
+    return blocked
+      ? { allowed: false, scope: a === 169 && b === 254 ? 'link-local-or-metadata-ip' : 'non-public-ip' }
+      : { allowed: true, scope: 'public-ip' };
+  }
+
+  if (ipVersion === 6) {
+    if (host === '::1') return { allowed: true, scope: 'loopback' };
+
+    const blocked =
+      host === '::' ||
+      host.startsWith('::ffff:') ||
+      /^f[cd]/.test(host) ||
+      /^fe[89ab]/.test(host) ||
+      /^ff/.test(host) ||
+      /^2001:db8(?::|$)/.test(host);
+
+    return blocked
+      ? { allowed: false, scope: 'non-public-ip' }
+      : { allowed: true, scope: 'public-ip' };
+  }
+
+  return { allowed: true, scope: 'hostname' };
+}
+
 async function createBackend(kind) {
   let spec;
   let requiredTools;
@@ -102,6 +175,8 @@ async function createBackend(kind) {
       '--isolated',
       '--image-responses',
       'omit',
+      '--blocked-origins',
+      PLAYWRIGHT_DEFENSE_BLOCKED_ORIGINS,
       '--block-service-workers',
       '--codegen',
       'none',
@@ -280,7 +355,7 @@ server.registerTool(
   {
     title: 'Open Web Page',
     description:
-      'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data and credential-bearing URLs are rejected.',
+      'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows.',
     inputSchema: z.object({ url: z.string().url().max(4096) }).strict(),
     annotations: {
       readOnlyHint: false,
@@ -297,6 +372,13 @@ server.registerTool(
       }
       if (parsed.username || parsed.password) {
         return toolError('web_open rejects URLs containing embedded credentials.');
+      }
+      const networkPolicy = classifyDirectNavigationHost(parsed.hostname);
+      if (!networkPolicy.allowed) {
+        return toolError(
+          `web_open rejects direct ${networkPolicy.scope} destinations by default: ${parsed.hostname}. ` +
+          'Loopback remains allowed; broader private-network access requires a separately reviewed capability.'
+        );
       }
       return await callBackend('playwright', 'browser_navigate', { url: parsed.href });
     } catch (error) {
