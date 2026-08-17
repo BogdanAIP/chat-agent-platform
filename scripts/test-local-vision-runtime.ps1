@@ -67,17 +67,14 @@ function Invoke-VisionRuntime {
         [Parameter(Mandatory)][string]$Action,
         [switch]$NoWatchdog
     )
-    $arguments = @(
-        '-Action', $Action,
-        '-ConfigPath', $configPath,
-        '-ModelRoot', $modelRoot,
-        '-StateRoot', $stateRoot
-    )
-    if ($NoWatchdog) { $arguments += '-NoWatchdog' }
-    $text = & $controller @arguments 2>&1 | Out-String
-    if ($LASTEXITCODE -notin @(0, $null)) {
-        throw "Vision runtime $Action failed: $text"
+    $parameters = @{
+        Action = $Action
+        ConfigPath = $configPath
+        ModelRoot = $modelRoot
+        StateRoot = $stateRoot
     }
+    if ($NoWatchdog) { $parameters.NoWatchdog = $true }
+    $text = & $controller @parameters 2>&1 | Out-String
     return ($text | ConvertFrom-Json)
 }
 
@@ -87,6 +84,7 @@ function Wait-Status {
         [int]$TimeoutSeconds = 10
     )
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    $status = $null
     do {
         $status = Invoke-VisionRuntime -Action Status
         if ([bool]$status.running -eq $Running) { return $status }
