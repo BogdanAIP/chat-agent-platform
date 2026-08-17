@@ -2,7 +2,7 @@
 
 ## Goal
 
-Keep ordinary ChatGPT Chat as the intelligence layer while local capabilities remain replaceable MCP modules or focused local adapters. Scale capability count without scaling ChatGPT app/plugin count, keeping hundreds of tools permanently visible, or running every local process all the time.
+Keep ordinary ChatGPT as the intelligence layer while local capabilities remain replaceable MCP modules or focused adapters. Scale capability count without scaling ChatGPT app/plugin count, keeping hundreds of tools permanently visible, or running every local process all the time.
 
 ## Stage 21 — Native ChatGPT ↔ local MCP — DONE
 
@@ -10,17 +10,17 @@ Accepted 2026-08-10: Secure MCP Tunnel + official tunnel-client + local 1MCP + S
 
 ## Stage 22 — Remove superseded custom platform infrastructure — DONE
 
-Removed the obsolete universal Rust/Python core, custom ingress/polling/Yandex/media platform runtime. Historical implementation remains in Git at `a446397d99276856c614bc49526cab422c7e74bd`.
+Removed the obsolete universal Rust/Python core and custom ingress/polling/media platform runtime. Historical implementation remains recoverable at `a446397d99276856c614bc49526cab422c7e74bd`.
 
 ## Stage 23 — Quality-first module selection — DONE
 
-Accepted Windows candidates include Filesystem MCP `2026.7.10`, Microsoft Playwright MCP `0.0.78` and 1MCP direct baseline `0.34.4`.
+Accepted Windows candidates include Filesystem MCP `2026.7.10`, Microsoft Playwright MCP `0.0.78` and 1MCP baseline/adaptive lines.
 
-## Stage 24 — Windows lifecycle + scalable typed ordinary-Chat surface — DONE
+## Stage 24 — Windows lifecycle + stable typed ordinary-Chat surface — DONE
 
-Squash-merged to `main` on 2026-08-16 as `175d36236f80a1f99f091d4f031a1c6255f3652b` from PR #66.
+Merged as `175d36236f80a1f99f091d4f031a1c6255f3652b` (#66).
 
-Accepted results include standalone Windows management, DPAPI tunnel-key storage, verified official tunnel-client, least-privilege diagnostic profiles, adaptive 1MCP diagnostic lifecycle, one authoritative manager owner, occupied-port fail-closed behavior and the exact five-tool semantic projection:
+Accepted exact public semantic surface:
 
 ```text
 workspace_read
@@ -30,160 +30,100 @@ web_observe
 web_interact
 ```
 
-Real ordinary-Chat multi-backend E2E passed through one `Chat Local Bridge Test` app.
-
 ## Stage 24.1 — Direct semantic tunnel A/B — DONE
 
-Squash-merged to `main` on 2026-08-16 as `df1d5e232b739b62e72ad81e5d82fd01be53e884` from PR #70.
+Merged as `df1d5e232b739b62e72ad81e5d82fd01be53e884` (#70).
 
-Goal: remove the unnecessary intermediate 1MCP hop from the **normal semantic request path** while retaining 1MCP as internal replaceable infrastructure where its aggregation/lifecycle features remain useful.
-
-Evaluated paths:
-
-```text
-A — Stage 24 baseline
-Tunnel -> 1MCP -> semantic-projection
-
-B — selected
-Tunnel -> stdio semantic-projection
-```
-
-This was not a response to a proven 1MCP failure. Stage 24 proved A works. B was selected because it passed equivalent functional/reliability gates and was materially simpler/faster on the target machine.
-
-### Stage 24.1 accepted evidence
-
-- Windows direct semantic tunnel CI with modern MCP negotiation and exact five-tool inventory;
-- target Windows direct-tunnel test with real Filesystem + Playwright and negative cases;
-- existing Secure MCP Tunnel hosted direct semantic path with `DIRECT_SEMANTIC_1MCP_USED=False`;
-- existing Chat app Refresh and exact same five semantic actions;
-- real ordinary-Chat read -> browser observe/interact -> write -> independent read workflow;
-- first-class public-manager direct profile, shared ownership/fail-closed handling and clean Start/Status/Stop/Start lifecycle;
-- forced tunnel-client crash recovery and duplicate-free idempotent repeated Start;
-- target A/B lifecycle comparison, 3/3 healthy cycles on both transports;
-- normal public `semantic` promotion smoke;
-- exact promotion-head and post-merge `main` workflows all green;
-- stable LocalAppData installation updated from `main` with matching SHA256 for public manager/direct controller/semantic projection and `STAGE24_1_PERSISTENT_INSTALL=PASS`.
-
-### Target A/B evidence
-
-| Metric | 1MCP baseline | Direct stdio |
-|---|---:|---:|
-| Average initial Start | 123685 ms | 5007 ms |
-| Average repeated/idempotent Start | 84119 ms | 4876 ms |
-| Average Stop | 23252 ms | 1043 ms |
-| Running port-3050 listener | 1 | 0 |
-| Healthy lifecycle cycles | 3/3 | 3/3 |
-
-Direct was approximately 24.70x faster to start, 17.25x faster on repeated Start and 22.29x faster to stop in this sample.
-
-### Accepted normal semantic path
+Selected normal transport:
 
 ```text
 ordinary ChatGPT
   -> Secure MCP Tunnel
   -> official tunnel-client
-  -> stdio semantic-projection
-  -> task-active backends / focused adapters
+  -> direct stdio semantic-projection
+  -> focused backends/adapters
 ```
 
-`semantic-direct` remains temporarily as a compatibility/diagnostic alias. The legacy 1MCP-backed semantic implementation remains internal diagnostic/A-B evidence. 1MCP stays in the project.
+1MCP remains internal replaceable infrastructure for diagnostics/adaptive/aggregation use.
 
-## Stage 25 — Local specialist inference runtime + `local-vision` — ACTIVE
+## Stage 25 — Safe local vision grounding benchmark — DONE FOR GROUNDING BASELINE
 
-Goal: add local model-powered perception without adding a second planner/agent brain.
+PR #73 merged on 2026-08-17 as `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
 
-### Runtime candidate
-
-Evaluate LM Studio/`llmster` first as replaceable local inference infrastructure.
-
-Current official LM Studio capabilities match the required lifecycle boundary:
-
-- Windows headless `llmster` without GUI dependency;
-- `lms` model discovery/load/unload/server lifecycle;
-- memory estimation before load via `lms load --estimate-only`;
-- configurable GPU offload, context length and TTL;
-- JIT loading and automatic eviction/unload;
-- local loopback HTTP server;
-- OpenAI-compatible image chat.
-
-Benchmark model discovery, resource estimation, hardware-aware load settings, JIT/explicit load behavior, TTL/auto-evict/unload, status/metrics and clean process lifecycle.
-
-### Model candidates
-
-`LiquidAI/LFM2.5-VL-3B` is an official Liquid AI release from 2026-08-12. The project records direct official evidence from the Liquid AI release blog, Liquid Docs model page, official Hugging Face weights and WebGPU demo.
-
-Stage 25 separates preferred quality from hardware-safe test order:
-
-1. **`LiquidAI/LFM2.5-VL-3B`** — preferred quality candidate;
-2. `LiquidAI/LFM2.5-VL-1.6B` — middle current-generation comparison;
-3. **`LiquidAI/LFM2.5-VL-450M-GGUF` Q4** — first target-machine runtime candidate on the current laptop.
-
-The current target has i5-1135G7, 7.68 GB RAM and Intel Iris Xe. Therefore local test order remains 450M Q4 → 1.6B Q4 → 3B only after pre-load estimate and observed free-memory checks. This is a resource-safety order, not a quality ranking.
-
-Select actual model/format/quantization from target-machine quality + speed + memory evidence, not parameter count or assumption.
-
-### Representative Stage 25 benchmark set
-
-Benchmark at least:
-
-- UI/screenshot understanding and element/state description;
-- OCR and document comprehension/extraction;
-- chart/graph interpretation with numeric/text labels;
-- multi-image comparison and change description;
-- representative video-frame/image sequence analysis;
-- structured extraction where a deterministic schema is useful;
-- negative/adversarial cases such as missing image, unsupported path/type, oversized inputs and malformed runtime response.
-
-Record:
-
-- cold runtime/model startup;
-- memory estimate before load;
-- measured peak RAM/VRAM;
-- time to first token;
-- generation tokens/sec;
-- end-to-end task latency;
-- unload/eviction time;
-- crash/restart/cleanup behavior;
-- quality/correctness on the representative benchmark set.
-
-### Chat-facing capability boundary
-
-Do not expose LM Studio administration or arbitrary model invocation directly to Chat.
-
-Keep the semantic local-vision surface small. Candidate capability family:
+Selected target-laptop grounding baseline:
 
 ```text
-vision_analyze
-vision_compare
-vision_extract
-vision_analyze_frames
+runtime = llama.cpp b10448 / ad1de39e0
+model = LFM2.5-VL-450M F16
+mmproj = F16
+CPU = 8 threads
+ctx = 2048
 ```
 
-Before adding several actions, test whether one coherent `vision_analyze` contract with a bounded task mode/schema can cover representative work without becoming a generic hidden invocation endpoint. Any final API must remain truthful, typed and reviewable.
+Final target evidence with Chrome running:
 
-Changing exported Chat actions requires Chat app Refresh/review and a new ordinary-Chat acceptance gate.
+- Search: HIT;
+- Send: HIT;
+- state-disambiguated Send: HIT;
+- Gamma repeated-row action: safe ABSTAIN;
+- tiny alert indicator: safe ABSTAIN;
+- absent Export CSV: correct ABSTAIN;
+- false clicks: 0;
+- provider/context errors: 0.
 
-### Stage 25 gates
+Present-target accuracy is 3/5. This closes the benchmark safety gate, not production browser integration.
 
-1. **ACTIVE:** verify/install LM Studio or standalone llmster on target Windows and capture exact runtime/CLI versions.
-2. **PENDING:** prove headless daemon + local server lifecycle and machine-readable model/status discovery.
-3. **PENDING:** benchmark memory estimation vs measured RAM/VRAM for selected candidate formats/quantizations.
-4. **PENDING:** benchmark representative VLM quality, latency and throughput.
-5. **PENDING:** select runtime/model/format policy from measurements and document rollback/replacement behavior.
-6. **PENDING:** implement the smallest deterministic local-vision adapter behind the semantic boundary.
-7. **PENDING:** add negative/security/process-lifecycle acceptance and keep manager single-owner rules intact where applicable.
-8. **PENDING:** expose the reviewed small typed vision capability, Refresh the Chat app and run one real ordinary-Chat workflow.
-9. **PENDING:** only then accept ADR-020/ADR-022 and mark Stage 25 DONE.
+## Stage 25.1 — Same-session local vision fallback integration — ACTIVE
 
-Stage 25 is product-complete only when one replaceable runtime/model path passes target Windows acceptance and ordinary Chat uses it in a real workflow.
+Goal: integrate local visual grounding behind the existing browser semantic path without creating a second planner, unsafe coordinate click path, or permanent heavyweight model process.
+
+### P0 gates
+
+1. **IN PROGRESS:** synchronize all authoritative documentation with merged #73 evidence.
+2. **ACTIVE:** prove a same-Playwright-session capture/ground/action boundary.
+3. **PENDING:** add real semantic->vision integration acceptance:
+   - semantic miss/ambiguity -> visual HIT -> action -> observable page result;
+   - uncertain/stale visual result -> ABSTAIN -> zero page mutation.
+
+### P1 gates
+
+4. **PENDING:** add focused vision-runtime lifecycle/resource admission:
+   - approved artifact identity;
+   - memory admission;
+   - start/health;
+   - idle unload/TTL;
+   - crash/stale-process cleanup.
+5. **PENDING:** strengthen production grounding verification per target class without a single global IoU threshold.
+6. **PENDING:** add browser-state/adversarial tests: layout shift, navigation replacement, scroll, overlays, repeated icons/rows, tiny targets, canvas/WebGL where practical, and hostile UI text.
+7. **PENDING:** add security regressions for Windows link/junction root containment, localhost/private-network navigation policy, and tunnel credential inheritance.
+8. **PENDING:** broaden static analysis and dependency maintenance to the actual Node/Python code; keep PowerShell contract checks explicit.
+9. **PENDING:** move stable installation toward locked/reproducible npm/Python dependency graphs.
+10. **PENDING:** refactor common loopback inference transport and model-neutral naming after the P0/P1 contracts stabilize.
+
+### Stage 25.1 architectural rule
+
+```text
+semantic DOM/accessibility first
+  -> if resolved: act semantically
+  -> if unavailable/ambiguous:
+       SAME Playwright page/session
+       -> capture
+       -> local vision
+       -> deterministic validation/freshness
+       -> resolved action OR ABSTAIN
+```
+
+Never implement `VLM point -> blind click` across an unverified page/session boundary.
+
+No new public Chat tool is required merely to add browser visual fallback. The existing five tools remain unchanged until a separate task class justifies a new reviewed action.
 
 ## Stage 26 — Professional application capability benchmarks
 
-Benchmark and promote real workflows for REAPER, Origin, FFmpeg, Blender and Windows UI fallback behind the stable semantic capability boundary. Adding a backend should normally require catalog/config/security/acceptance work, not a new ChatGPT app.
+After Stage 25.1 is safe, benchmark and promote real workflows for REAPER, Origin, FFmpeg, Blender and Windows UI fallback behind the same stable semantic capability philosophy.
 
 ## Stage 27 — Distribution and maintenance hardening
 
-After the scalable typed boundary, local inference and professional backends stabilize:
+After semantic, local vision and at least one professional backend stabilize:
 
 - stable release artifact;
 - reproducible dependency installation/locking;
@@ -195,4 +135,4 @@ After the scalable typed boundary, local inference and professional backends sta
 
 ## Definition of Done
 
-The product succeeds when ordinary ChatGPT can use useful local capabilities through a stable standard-MCP bridge, starting only what tasks require, without a second AI planner, mandatory SaaS chain, project-owned generic gateway, one ChatGPT app per local tool, or a hard-coded local model/runtime stack.
+The product succeeds when ordinary ChatGPT can use useful local capabilities through a stable MCP bridge, starting only what tasks require, without a second AI planner, mandatory SaaS chain, project-owned generic gateway, one ChatGPT app per local tool, unsafe stale-coordinate browser action, or hard-coded local model/runtime identity.

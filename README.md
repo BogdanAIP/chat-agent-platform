@@ -1,16 +1,15 @@
 # Chat Agent Platform
 
-Тонкий мост между **обычным ChatGPT Chat** и локальным Windows-компьютером через стандартный MCP. ChatGPT остаётся интеллектом и выбирает инструменты; локальная часть не содержит второго planner/agent brain.
+Тонкий мост между **обычным ChatGPT Chat** и локальным Windows-компьютером через стандартный MCP. ChatGPT остаётся интеллектом/планировщиком; локальная часть выполняет только ограниченные детерминированные действия или специализированное восприятие.
 
-Для продолжения разработки из нового Chat/Codex сначала читайте [`AGENTS.md`](AGENTS.md) и [`project-context/START_HERE.md`](project-context/START_HERE.md).
+Для продолжения разработки сначала читайте [`AGENTS.md`](AGENTS.md), [`project-context/START_HERE.md`](project-context/START_HERE.md) и текущий Stage 25.1 контракт [`project-context/STAGE25_1_VISION_INTEGRATION.md`](project-context/STAGE25_1_VISION_INTEGRATION.md).
 
 ## Принятая основа
 
-Нормальный путь после завершения Stage 24.1:
+Нормальный путь после Stage 24.1:
 
 ```text
 ordinary ChatGPT Chat
-  -> ChatGPT custom MCP app/plugin
   -> OpenAI Secure MCP Tunnel
   -> official openai/tunnel-client on Windows
   -> direct stdio semantic-projection
@@ -18,11 +17,9 @@ ordinary ChatGPT Chat
   -> local programs/files/devices/models
 ```
 
-1MCP не удалён из проекта. Он остаётся заменяемой внутренней инфраструктурой для diagnostic/adaptive/catalog/aggregation задач, где его возможности действительно полезны, но обычный public `semantic` через 1MCP больше не проходит.
+1MCP не удалён: он остаётся внутренней diagnostic/adaptive/aggregation инфраструктурой, но обычный public `semantic` проходит напрямую через stdio.
 
-## Stage 24 / 24.1 — завершены
-
-Stage 24 принял маленькую стабильную semantic typed surface:
+Принятая публичная semantic surface всё ещё содержит ровно пять действий:
 
 ```text
 workspace_read
@@ -32,105 +29,100 @@ web_observe
 web_interact
 ```
 
-Через один `Chat Local Bridge Test` пройден реальный ordinary-Chat workflow: scoped file read/write, browser navigation/observation/interaction и независимое чтение записанного результата.
+## Stage 25 grounding — safety baseline принят
 
-Stage 24.1 сравнил старый 1MCP-hop и direct stdio. Оба варианта прошли 3/3 lifecycle-цикла на target Windows, но direct stdio оказался значительно быстрее в этой выборке и устранил локальный HTTP-hop/порт 3050 из normal semantic path.
-
-Stage 24.1 squash-merged в `main` как:
+PR #73 слит в `main` как:
 
 ```text
-df1d5e232b739b62e72ad81e5d82fd01be53e884
-Stage 24.1: direct semantic tunnel A/B acceptance (#70)
+acc6334ef0114d3ca6b6a243d904605cd00a321a
+Stage 25: safe local vision grounding benchmark (#73)
 ```
 
-После merge постоянная копия `%LOCALAPPDATA%\ChatAgentPlatform\app` обновлена из `main`; SHA256 контрольных runtime-файлов совпал, а финальный target test завершился:
+Текущий реальный baseline на целевом ноутбуке:
 
 ```text
-STAGE24_1_PERSISTENT_INSTALL=PASS
-active_profile=semantic
-tunnel_binding=direct-stdio
-active_count=1
-conflict=false
-PORT_3050_LISTENER_COUNT=0
+runtime = llama.cpp b10448 / ad1de39e0
+model = LiquidAI LFM2.5-VL-450M F16
+mmproj = F16
+CPU = 8 threads
+ctx = 2048
 ```
+
+С открытым Chrome прошли:
+
+- Search — HIT;
+- Send — HIT;
+- enabled Send/state disambiguation — HIT;
+- Gamma repeated-row — безопасный ABSTAIN;
+- tiny indicator — безопасный ABSTAIN;
+- отсутствующий Export CSV — корректный ABSTAIN;
+- false clicks = 0;
+- provider/context errors = 0.
+
+Точность по присутствующим целям сейчас 3/5. Поэтому vision — безопасный fallback-кандидат, а не основной browser controller.
+
+Старые тексты про LM Studio/`llmster`, 450M Q4 и «ещё не запущенный target benchmark» — историческая исследовательская часть и не описывают текущий принятый runtime/model baseline.
+
+## Stage 25.1 — интеграция visual fallback
+
+Следующий этап не добавляет «слепой клик по координате».
+
+Правильная граница:
+
+```text
+web operation
+  -> semantic DOM/accessibility grounding first
+  -> если semantic target отсутствует/неоднозначен:
+       SAME Playwright page/session
+       -> capture
+       -> local vision
+       -> deterministic validation + freshness
+       -> action в той же page/session ИЛИ ABSTAIN
+```
+
+Если нельзя доказать, что screenshot и действие относятся к одному неизменившемуся browser state, автоматическое действие запрещено.
+
+`semantic-projection` не должен превращаться в model manager, workflow brain или универсальный gateway. Управление моделью должно жить в отдельном узком lifecycle-компоненте с проверкой памяти, health, cleanup и idle unload.
 
 ## Windows bootstrap/manager
 
-Bootstrap рассчитан на PowerShell 7+, Node/npm и обычный Windows user account:
+Bootstrap:
 
 ```powershell
 .\scripts\bootstrap-chat-platform.ps1
 ```
 
-Он проверяет окружение и pinned dependencies, устанавливает проверенный официальный `openai/tunnel-client`, сохраняет runtime key через Windows DPAPI `CurrentUser`, устанавливает standalone manager под `%LOCALAPPDATA%\ChatAgentPlatform\app`, создаёт shortcut и поддерживает один authoritative runtime owner.
+Менеджер/tray отвечает только за lifecycle/configuration/diagnostics. Секрет tunnel-client хранится через Windows DPAPI. Для shared runtime действует один authoritative owner и fail-closed обработка конфликтов.
 
-Manager/tray — только lifecycle/UI слой. Он не является агентом, MCP gateway или planner.
+## Безопасность
 
-## Принцип безопасности
-
-Рабочая модель:
+Основная модель:
 
 ```text
 AVAILABLE -> ACTIVE -> AUTHORIZED
 ```
 
-Возможность может быть зарегистрирована, но не запущена; нужные процессы включаются по задаче; чувствительные операции получают соответствующий scope/authorization.
+Возможность может быть установлена, но не запущена; тяжёлые процессы включаются только по необходимости; операция выполняется только в принятом scope.
 
-Безопасность не должна превращаться в бесконечные approval-карточки. Предпочтение: scoped roots/workspaces, backup/git/rollback, bounded tools и подтверждение действительно значимых/необратимых последствий.
-
-## Stage 25 — local specialist inference / local vision
-
-Stage 25 активен. Цель — добавить локальное мультимодальное восприятие без второго AI planner.
-
-Предполагаемая граница:
+Для browser vision дополнительно действует правило:
 
 ```text
-ChatGPT planner
-  -> small typed local-vision capability
-  -> deterministic focused adapter
-  -> replaceable local inference runtime
-  -> replaceable VLM
+uncertain/stale grounding -> ABSTAIN -> zero page mutation
 ```
 
-Первый runtime-manager кандидат: **LM Studio / `llmster`**. Текущая официальная документация LM Studio подтверждает headless `llmster`, `lms` lifecycle/model commands, memory estimate before load, GPU offload/context controls, TTL/JIT eviction, loopback HTTP server и OpenAI-compatible chat с изображениями.
+## Текущий приоритет разработки
 
-### Кандидаты Liquid AI
+1. синхронизация source-of-truth после #73;
+2. same-session browser capture/ground/action contract;
+3. integration acceptance HIT + ABSTAIN/no-action;
+4. local vision lifecycle/resource admission;
+5. усиление verifier и stale/adversarial tests;
+6. security regressions;
+7. static analysis/dependency reproducibility;
+8. только потом расширение product surface и стабильный release.
 
-**`LiquidAI/LFM2.5-VL-3B` существует и является официальным релизом Liquid AI от 2026-08-12.** Прямые официальные источники релиза: блог Liquid AI, отдельная страница модели в Liquid Docs, официальный Hugging Face репозиторий весов и WebGPU demo space.
-
-Для Stage 25 разделяем «предпочтительный по качеству кандидат» и «первый кандидат для текущего ноутбука»:
-
-1. **`LiquidAI/LFM2.5-VL-3B`** — preferred quality candidate;
-2. `LiquidAI/LFM2.5-VL-1.6B` — средний current-generation вариант;
-3. **`LiquidAI/LFM2.5-VL-450M` / GGUF Q4** — первый target-machine кандидат из-за 7.68 ГБ RAM и Intel Iris Xe.
-
-Порядок локального теста на текущем компьютере остаётся 450M Q4 → 1.6B Q4 → 3B только после `estimate-only` и проверки фактического запаса памяти. Это ограничение текущего железа, а не оценка качества модели.
-
-Ни LM Studio, ни конкретная VLM не считаются принятыми до реального target-Windows benchmark по качеству, скорости и памяти.
-
-Подробный Stage 25 план: [`project-context/LOCAL_SPECIALIST_INFERENCE.md`](project-context/LOCAL_SPECIALIST_INFERENCE.md).
-
-## Правило выбора модулей
-
-1. официальный/vendor MCP или mature local runtime;
-2. зрелый open-source MCP/runtime;
-3. готовый local API/CLI + маленький typed adapter;
-4. project-owned focused adapter только для измеримого отсутствующего boundary.
-
-Никаких обязательных дополнительных SaaS для базовых локальных возможностей.
-
-## Состояние разработки
-
-Stage 21–24.1 завершены. **Stage 25 активен**: сначала runtime/model reconnaissance и benchmark на реальном Windows-компьютере, затем focused local-vision adapter и только после измерений — новый reviewed Chat-facing vision contract.
-
-Точная текущая точка — [`project-context/CURRENT_STATE.md`](project-context/CURRENT_STATE.md). План — [`project-context/ROADMAP.md`](project-context/ROADMAP.md).
-
-Не считайте README более свежим источником, чем код/tests/CI и `CURRENT_STATE.md`.
-
-## Security
-
-Секреты, tunnel IDs и пользовательские абсолютные пути не являются repository content. См. `SECURITY.md` и `project-context/SECURITY_POLICY.md`.
+Точная текущая точка: [`project-context/CURRENT_STATE.md`](project-context/CURRENT_STATE.md). План: [`project-context/ROADMAP.md`](project-context/ROADMAP.md).
 
 ## License / Support
 
-MIT License без дополнительных обязательных условий. Поддержка проекта добровольна и не влияет на лицензионные права.
+MIT License. Поддержка проекта добровольна и не влияет на лицензионные права.
