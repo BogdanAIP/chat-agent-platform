@@ -38,7 +38,7 @@ CPU = 8 threads
 ctx = 2048
 ```
 
-Final evidence with Chrome running:
+Final Stage 25 evidence with Chrome running:
 
 ```text
 Search = HIT
@@ -52,13 +52,48 @@ false clicks = 0
 provider/context errors = 0
 ```
 
-This is a safe fallback baseline, not a finished browser controller.
+This remains the accepted perception baseline. Do not call it 6/6 accuracy; the six-case gate is a safety/behavior result while the present-target baseline is 3/5.
 
-## Stage 25.1 — ACTIVE
+## Stage 25.1 — TARGET GATE PASSED; PR FOUNDATION READY FOR FINAL REVIEW
 
 Branch: `chat/stage25-1-vision-integration-foundation`
 
-Draft PR: #74 — `Stage 25.1: same-session vision fallback foundation`.
+PR: #74 — `Stage 25.1: same-session vision fallback foundation`.
+
+The real target-laptop same-session F16 acceptance passed on HEAD `956ca9e7d4b23c4af3b0f51c50f2450f4066abba` with the user's normal Chrome workload intentionally left open.
+
+Exact final target evidence:
+
+```text
+labeled Send = HIT
+Search icon = HIT
+state-disambiguated Send = HIT
+Gamma repeated-row = correct ABSTAIN
+tiny indicator = correct ABSTAIN
+absent target = correct ABSTAIN
+
+expected_hits = 3
+hits = 3
+expected_abstains = 3
+correct_abstains = 3
+safe_misses = 0
+false_clicks = 0
+errors = 0
+safety_pass = true
+acceptance_pass = true
+
+Doctor physical free RAM = 2.704 GB
+Doctor virtual free RAM = 9.207 GB
+minimum observed free physical RAM = 1.2 GB
+SAFETY_STOP = false
+VISION_RUNTIME_RUNNING_AFTER_TEST = false
+VISION_RUNTIME_STATE_AFTER_TEST = stopped
+CHROME_RUNNING_AFTER_TEST = true
+TEST_EXIT_CODE = 0
+STAGE25_1_RESULT = PASSED
+```
+
+The final run completed autonomously. It did not require manual termination and it did not weaken the reviewed 1.50 GB cold-start admission threshold.
 
 ### PROVED foundations on PR #74
 
@@ -75,71 +110,84 @@ Draft PR: #74 — `Stage 25.1: same-session vision fallback foundation`.
    - PID + executable + full command SHA256 + UTC process-creation ticks ownership;
    - Touch, TTL unload, Stop and Sweep;
    - tampered artifacts, foreign listeners and ownership mismatch fail closed;
-   - no Chrome/unrelated-process termination.
+   - no Chrome/unrelated-process termination;
+   - real F16 target cleanup is proved.
 
 3. **Class-aware production authorization policy**
-   - inventory-backed text and reviewed icon/state classes can resolve only under their measured guards;
+   - inventory-backed text and reviewed icon/state classes resolve only under their measured guards;
    - repeated-row and tiny targets remain forced ABSTAIN until separately promoted;
    - no global high-IoU rule.
 
-4. **Windows workspace containment**
+4. **Runtime-backed production grounder**
+   - fixed reviewed profile `lfm25-vl-450m-f16` and loopback port 3068;
+   - Node cannot select arbitrary model paths/endpoints;
+   - reviewed Python production grounder executes the bounded request;
+   - Touch occurs even on failure;
+   - provider/contract failures cannot authorize a click;
+   - Windows descendant-stdio regression closes the real cold-Start timeout defect.
+
+5. **Windows workspace containment**
    - real junction read/write escape attempts are blocked;
    - normal in-root access remains functional.
 
-5. **Tunnel credential containment**
+6. **Tunnel credential containment**
    - exact `openai/tunnel-client v0.0.11` inherits its parent environment into the semantic stdio child;
-   - a reviewed semantic launcher now deletes `CONTROL_PLANE_API_KEY` and `OPENAI_API_KEY` before importing semantic core;
-   - Windows regression injects a sentinel and proves scrub-before-core-load;
-   - downstream MCP SDK stdio children retain their own safe environment filtering.
+   - a reviewed semantic launcher deletes `CONTROL_PLANE_API_KEY` and `OPENAI_API_KEY` before importing semantic core;
+   - Windows sentinel regression proves scrub-before-core-load.
 
-6. **Reproducible semantic Node dependencies**
-   - committed npm lockfile generated from the exact manifest and immediately verified with `npm ci`;
-   - product runtime refuses unlocked installation when dependencies are absent;
-   - semantic/direct/security/vision-bridge acceptance installs with `npm ci`;
-   - standalone installed-layout copies the lockfile and secure launcher and also uses `npm ci`.
+7. **Reproducible semantic Node dependencies**
+   - committed npm lockfile;
+   - product/runtime/acceptance paths use `npm ci`;
+   - unlocked installation is refused when dependencies are absent.
 
-7. **Bounded direct browser network scope**
-   - loopback (`localhost`, 127/8, `::1`) remains allowed for reviewed local workflows;
-   - direct RFC1918/link-local/metadata/CGNAT/reserved non-public IP destinations are rejected before `browser_navigate`;
-   - Playwright `blocked-origins` is used only as defense-in-depth for metadata endpoints, not as a claimed security boundary;
-   - DNS resolution and redirects remain a documented residual risk because upstream Playwright MCP explicitly does not make origin filters a redirect security boundary.
+8. **Bounded direct browser network scope**
+   - loopback remains allowed;
+   - direct RFC1918/link-local/metadata/CGNAT/reserved non-public IP destinations are rejected before navigation;
+   - DNS resolution/rebinding and redirects remain a documented residual risk.
 
-8. **Broader GitHub security automation**
+9. **GitHub security automation**
    - CodeQL: Actions + JavaScript/TypeScript + Python;
    - Dependabot: Actions + semantic npm + Python requirements;
-   - complete reachable Git history remains Gitleaks-scanned.
+   - reachable Git history remains Gitleaks-scanned.
 
-### Production visual grounder boundary — IMPLEMENTED, UNIT-PROVED
+## What Stage 25.1 deliberately does not do
 
-`runtime/local_vision_adapter/production_grounder.py` now converts one PNG capture plus bounded target metadata into a model-neutral bridge result using the accepted native-bbox adapter and deterministic production policy.
-
-It does **not** start llama.cpp, choose models, inspect Playwright state or click. It returns only `resolved`/`abstain`; provider/contract failures are non-authorizing errors. Raw model responses are not included in production diagnostics.
-
-CI proves text resolution, forced repeated-row ABSTAIN, absent inventory one-request abstention, provider parse failure fail-closed and non-PNG rejection.
+- no automatic local-vision fallback is wired into public `web_observe` / `web_interact` yet;
+- no sixth public vision/VLM tool exists;
+- no generic inference gateway or second planner exists;
+- repeated-row and tiny target classes remain non-promoted;
+- current browser URL filtering is not claimed as a complete DNS/redirect sandbox;
+- Python vision packaging is not yet release-grade;
+- no stable release is declared.
 
 ## Next active priority
 
-Connect the proved pieces without changing the five public Chat tools:
+Merge the coherent Stage 25.1 foundation after final documentation/CI review, then implement the ordinary-Chat semantic miss/ambiguity escalation policy as a separate follow-up rather than expanding the already-proved foundation PR.
+
+The intended next flow remains:
 
 ```text
-same Playwright session PNG
-  -> focused runtime owner Start/Status
-  -> production visual grounder against reviewed loopback llama.cpp
-  -> production authorization
-  -> same-session freshness bridge
-  -> coordinate action OR ABSTAIN
+ordinary ChatGPT
+  -> semantic DOM/accessibility grounding first
+       -> resolved: act semantically
+       -> unavailable/ambiguous:
+            SAME Playwright page/session
+            -> CSS-pixel capture
+            -> focused runtime owner
+            -> local production visual grounder
+            -> deterministic authorization
+            -> freshness proof
+            -> coordinate action OR ABSTAIN
 ```
-
-First prove this with deterministic/fake runtime plumbing in CI, then run the real F16 chain on the target Windows laptop with Chrome open.
 
 ## Remaining important work
 
-- real runtime-backed grounder runner and controlled semantic escalation;
-- real F16 same-session target-laptop acceptance;
+- design and prove the public semantic miss/ambiguity escalation policy without changing the five-tool contract;
 - keep repeated-row/tiny fail-closed until separately improved and measured;
-- decide whether stronger backend-level DNS/redirect/private-network isolation is required; do not claim current direct-input policy is a full network sandbox;
-- make Python vision dependencies release-grade reproducible beyond the current exact `Pillow==12.3.0` pin;
-- update repository metadata that still describes the removed Rust-first core when a repository-metadata write path is available;
+- decide whether stronger backend-level DNS/redirect/private-network isolation is required;
+- make Python vision dependencies release-grade reproducible beyond the exact `Pillow==12.3.0` pin;
+- investigate deprecated transitive `glob@10.5.0` in a separate dependency PR after Stage 25.1;
+- update stale repository metadata when a repository-metadata write path is available;
 - no stable product release yet.
 
 ## Active rules
