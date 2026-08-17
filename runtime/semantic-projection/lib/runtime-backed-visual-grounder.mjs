@@ -29,7 +29,11 @@ function defaultPythonExecutable() {
   );
 }
 
-function collectProcess(command, args, { input, timeoutMs = 150_000 } = {}) {
+function collectProcess(
+  command,
+  args,
+  { input, timeoutMs = 150_000, settleOnExit = false, exitDrainMs = 100 } = {}
+) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: REPO_ROOT,
@@ -41,11 +45,27 @@ function collectProcess(command, args, { input, timeoutMs = 150_000 } = {}) {
     let stdoutBytes = 0;
     let stderrBytes = 0;
     let settled = false;
+    let exitDrainTimer = null;
+
+    function complete(code) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (exitDrainTimer) clearTimeout(exitDrainTimer);
+      child.stdout.destroy();
+      child.stderr.destroy();
+      resolve({
+        code: Number.isInteger(code) ? code : -1,
+        stdout: Buffer.concat(stdout).toString('utf8'),
+        stderr: Buffer.concat(stderr).toString('utf8')
+      });
+    }
 
     const timer = setTimeout(() => {
       if (settled) return;
       child.kill('SIGKILL');
       settled = true;
+      if (exitDrainTimer) clearTimeout(exitDrainTimer);
       reject(new Error(`internal visual-grounder child timed out after ${timeoutMs}ms`));
     }, timeoutMs);
 
@@ -66,6 +86,7 @@ function collectProcess(command, args, { input, timeoutMs = 150_000 } = {}) {
         if (!settled) {
           settled = true;
           clearTimeout(timer);
+          if (exitDrainTimer) clearTimeout(exitDrainTimer);
           reject(error);
         }
       }
@@ -77,6 +98,7 @@ function collectProcess(command, args, { input, timeoutMs = 150_000 } = {}) {
         if (!settled) {
           settled = true;
           clearTimeout(timer);
+          if (exitDrainTimer) clearTimeout(exitDrainTimer);
           reject(error);
         }
       }
@@ -85,17 +107,21 @@ function collectProcess(command, args, { input, timeoutMs = 150_000 } = {}) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (exitDrainTimer) clearTimeout(exitDrainTimer);
       reject(error);
+    });
+    child.once('exit', code => {
+      if (!settleOnExit || settled) return;
+      // Windows descendants can retain inherited stdio handles after the
+      // controller process itself has exited. Runtime actions emit one bounded
+      // JSON object before exit, so allow a short drain window and then settle
+      // on the controller process boundary rather than waiting for descendant
+      // pipe EOF.
+      exitDrainTimer = setTimeout(() => complete(code), exitDrainMs);
     });
     child.once('close', code => {
       if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({
-        code: Number.isInteger(code) ? code : -1,
-        stdout: Buffer.concat(stdout).toString('utf8'),
-        stderr: Buffer.concat(stderr).toString('utf8')
-      });
+      complete(code);
     });
 
     if (input !== undefined) child.stdin.end(input);
@@ -195,7 +221,11 @@ export class RuntimeBackedVisualGrounder {
         '-Action',
         action
       ],
-      { timeoutMs: action === 'Start' ? 150_000 : 30_000 }
+      {
+        timeoutMs: action === 'Start' ? 150_000 : 30_000,
+        settleOnExit: true,
+        exitDrainMs: 100
+      }
     );
     if (result.code !== 0) {
       throw new Error(
@@ -278,4 +308,8 @@ export function productionRunnerPathsForTest() {
     reviewedProfile: REVIEWED_PROFILE,
     reviewedPort: REVIEWED_PORT
   };
+}
+
+export function collectRuntimeProcessForTest(command, args, options) {
+  return collectProcess(command, args, options);
 }
