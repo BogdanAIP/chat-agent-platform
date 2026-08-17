@@ -1,0 +1,74 @@
+name: Stage 25.1 Runtime-backed Grounder Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/local_vision_adapter/production_grounder.py"
+      - "runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs"
+      - "runtime/semantic-projection/tests/runtime-backed-visual-grounder.mjs"
+      - "scripts/production-visual-grounder.py"
+      - "scripts/local-vision-runtime.ps1"
+      - "config/local-vision-runtime.json"
+      - "requirements-stage25-vision.txt"
+      - "tests/test_production_grounder.py"
+      - "tests/test_production_visual_grounder_cli.py"
+      - ".github/workflows/stage25-1-runtime-grounder.yml"
+      - "project-context/STAGE25_1_VISION_INTEGRATION.md"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/local_vision_adapter/production_grounder.py"
+      - "runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs"
+      - "runtime/semantic-projection/tests/runtime-backed-visual-grounder.mjs"
+      - "scripts/production-visual-grounder.py"
+      - "scripts/local-vision-runtime.ps1"
+      - "config/local-vision-runtime.json"
+      - "requirements-stage25-vision.txt"
+      - "tests/test_production_grounder.py"
+      - "tests/test_production_visual_grounder_cli.py"
+      - ".github/workflows/stage25-1-runtime-grounder.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage25-1-runtime-grounder-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-windows:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install exact Stage 25 vision dependency
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements-stage25-vision.txt
+          if ($LASTEXITCODE -ne 0) { throw "vision dependency install failed with exit code $LASTEXITCODE" }
+
+      - name: Prove Python production grounder and fixed-profile CLI contracts
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_production_grounder tests.test_production_visual_grounder_cli
+          if ($LASTEXITCODE -ne 0) { throw "production grounder Python contracts failed with exit code $LASTEXITCODE" }
+          Write-Host 'PRODUCTION_VISUAL_GROUNDER_CLI=PASS'
+
+      - name: Prove runtime-backed Node orchestration contract without real model
+        shell: pwsh
+        run: |
+          node runtime/semantic-projection/tests/runtime-backed-visual-grounder.mjs
+          if ($LASTEXITCODE -ne 0) { throw "runtime-backed grounder contract failed with exit code $LASTEXITCODE" }
+
+      - name: Prove reviewed runtime profile remains fixed
+        shell: pwsh
+        run: |
+          $config = Get-Content 'config/local-vision-runtime.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([string]$config.profile -ne 'lfm25-vl-450m-f16') { throw 'reviewed vision profile drifted' }
+          if ([string]$config.runtime.host -ne '127.0.0.1') { throw 'reviewed vision host drifted' }
+          if ([int]$config.runtime.port -ne 3068) { throw 'reviewed vision port drifted' }
+          Write-Host 'RUNTIME_BACKED_GROUNDER_REVIEWED_PROFILE=PASS'
