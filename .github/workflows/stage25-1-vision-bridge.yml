@@ -6,6 +6,7 @@ on:
       - "runtime/semantic-projection/lib/visual-grounding-bridge.mjs"
       - "runtime/semantic-projection/tests/vision-bridge-acceptance.mjs"
       - "runtime/semantic-projection/package.json"
+      - "runtime/semantic-projection/package-lock.json"
       - "project-context/STAGE25_1_VISION_INTEGRATION.md"
       - ".github/workflows/stage25-1-vision-bridge.yml"
   push:
@@ -14,6 +15,7 @@ on:
       - "runtime/semantic-projection/lib/visual-grounding-bridge.mjs"
       - "runtime/semantic-projection/tests/vision-bridge-acceptance.mjs"
       - "runtime/semantic-projection/package.json"
+      - "runtime/semantic-projection/package-lock.json"
       - "project-context/STAGE25_1_VISION_INTEGRATION.md"
       - ".github/workflows/stage25-1-vision-bridge.yml"
   workflow_dispatch:
@@ -48,13 +50,13 @@ jobs:
             throw 'Stage 25.1 bridge acceptance requires the reviewed @playwright/mcp 0.0.78 pin.'
           }
 
-      - name: Install exact semantic projection dependencies
+      - name: Install locked semantic projection dependencies
         shell: pwsh
         run: |
           Push-Location 'runtime/semantic-projection'
           try {
-            npm install --ignore-scripts --no-audit --no-fund --package-lock=false
-            if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE" }
+            npm ci --ignore-scripts --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
           }
           finally {
             Pop-Location
