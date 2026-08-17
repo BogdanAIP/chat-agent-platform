@@ -62,9 +62,13 @@ function tinyPng() {
   assert.equal(calls.length, 3);
   assert(calls[0].args.includes('Start'));
   assert.equal(calls[1].command, process.execPath);
-  assert(calls[1].options.input.includes('"kind":"icon_only"'));
-  assert(!calls[1].options.input.includes('model_path'));
-  assert(!calls[1].options.input.includes('port'));
+
+  const request = JSON.parse(calls[1].options.input);
+  assert.equal(request.kind, 'icon_only');
+  assert.equal(request.coordinate_space, 'css_viewport');
+  assert.equal(Object.prototype.hasOwnProperty.call(request, 'model_path'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(request, 'port'), false);
+
   assert(calls[2].args.includes('Touch'));
 }
 
