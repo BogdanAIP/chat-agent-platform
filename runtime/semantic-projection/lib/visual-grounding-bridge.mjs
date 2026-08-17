@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const TOKEN_PREFIX = 'visual-target:';
+const STRUCTURED_TARGET_KEYS = new Set(['target', 'instruction', 'kind', 'targetText']);
 
 function resultText(result) {
   return (result?.content ?? [])
@@ -58,6 +59,42 @@ function validateFiniteNumber(value, label) {
     throw new Error(`${label} must be a finite number.`);
   }
   return value;
+}
+
+function normalizeText(value, label, maxLength) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${label} must be non-empty text.`);
+  }
+  const normalized = value.trim();
+  if (normalized.length > maxLength) {
+    throw new Error(`${label} exceeds ${maxLength} characters.`);
+  }
+  return normalized;
+}
+
+function normalizeTargetRequest(input) {
+  if (typeof input === 'string') {
+    return { target: normalizeText(input, 'Visual grounding target', 4096) };
+  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('Visual grounding target must be text or one structured target object.');
+  }
+  for (const key of Object.keys(input)) {
+    if (!STRUCTURED_TARGET_KEYS.has(key)) {
+      throw new Error(`Structured visual target contains unsupported field: ${key}.`);
+    }
+  }
+  const target = normalizeText(input.target, 'Structured visual target.target', 4096);
+  const instruction = normalizeText(input.instruction, 'Structured visual target.instruction', 4096);
+  const kind = normalizeText(input.kind, 'Structured visual target.kind', 128);
+  let targetText = null;
+  if (input.targetText !== undefined && input.targetText !== null) {
+    if (typeof input.targetText !== 'string' || input.targetText.length > 2048) {
+      throw new Error('Structured visual target.targetText must be text, null, or omitted and at most 2048 characters.');
+    }
+    targetText = input.targetText.trim() || null;
+  }
+  return { target, instruction, kind, targetText };
 }
 
 function normalizeGroundingResult(result, capture) {
@@ -147,15 +184,15 @@ export class SameSessionVisualGroundingBridge {
   }
 
   async prepare(target) {
-    if (typeof target !== 'string' || !target.trim()) {
-      throw new Error('Visual grounding target must be non-empty text.');
-    }
-    const normalizedTarget = target.trim();
+    const targetRequest = normalizeTargetRequest(target);
     const capture = await this.#captureCssViewport();
     let raw;
     try {
       raw = await this.#grounder({
-        target: normalizedTarget,
+        target: targetRequest.target,
+        instruction: targetRequest.instruction,
+        kind: targetRequest.kind,
+        targetText: targetRequest.targetText,
         imageBytes: capture.bytes,
         mimeType: capture.mimeType,
         width: capture.width,
@@ -185,7 +222,7 @@ export class SameSessionVisualGroundingBridge {
 
     const token = `${TOKEN_PREFIX}${randomUUID()}`;
     this.#targets.set(token, {
-      target: normalizedTarget,
+      target: targetRequest.target,
       captureSha256: capture.sha256,
       width: capture.width,
       height: capture.height,

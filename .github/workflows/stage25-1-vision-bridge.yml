@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - "runtime/semantic-projection/lib/visual-grounding-bridge.mjs"
+      - "runtime/semantic-projection/lib/runtime-backed-bridge-grounder.mjs"
+      - "runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs"
       - "runtime/semantic-projection/tests/vision-bridge-acceptance.mjs"
+      - "runtime/semantic-projection/tests/runtime-backed-bridge-integration.mjs"
       - "runtime/semantic-projection/package.json"
       - "runtime/semantic-projection/package-lock.json"
       - "project-context/STAGE25_1_VISION_INTEGRATION.md"
@@ -13,7 +16,10 @@ on:
     branches: [main]
     paths:
       - "runtime/semantic-projection/lib/visual-grounding-bridge.mjs"
+      - "runtime/semantic-projection/lib/runtime-backed-bridge-grounder.mjs"
+      - "runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs"
       - "runtime/semantic-projection/tests/vision-bridge-acceptance.mjs"
+      - "runtime/semantic-projection/tests/runtime-backed-bridge-integration.mjs"
       - "runtime/semantic-projection/package.json"
       - "runtime/semantic-projection/package-lock.json"
       - "project-context/STAGE25_1_VISION_INTEGRATION.md"
@@ -30,7 +36,7 @@ concurrency:
 jobs:
   same-session-vision-bridge:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -70,6 +76,20 @@ jobs:
             node tests/vision-bridge-acceptance.mjs
             if ($LASTEXITCODE -ne 0) {
               throw "Stage 25.1 vision bridge acceptance failed with exit code $LASTEXITCODE"
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Prove runtime-backed structured target bridge without real model
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            node tests/runtime-backed-bridge-integration.mjs
+            if ($LASTEXITCODE -ne 0) {
+              throw "Runtime-backed bridge integration failed with exit code $LASTEXITCODE"
             }
           }
           finally {
