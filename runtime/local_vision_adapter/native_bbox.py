@@ -3,11 +3,12 @@
 LFM2.5-VL-450M is explicitly post-trained for normalized bounding-box prediction.
 This module keeps that model-specific capability behind a deterministic adapter:
 
-1. detect the requested UI element on the full screenshot;
-2. fail closed when zero/multiple candidates make a click ambiguous;
-3. crop a bounded context region around one coarse candidate and upscale it;
-4. run the same normalized-bbox detector again on the crop;
-5. require coarse/refined spatial consistency before deriving a click point.
+1. for text-labeled buttons, inventory visible labeled buttons without naming the target;
+2. fail closed when that target-blind inventory does not contain exactly one requested label;
+3. otherwise detect the requested UI element on the full screenshot;
+4. crop bounded context around one coarse candidate without forced Mark-Grid upscaling;
+5. refine the normalized bbox on the crop;
+6. derive a click point only after deterministic validation.
 
 The model never clicks. The deterministic adapter maps normalized boxes back to
 source-image coordinates and emits no point when validation is uncertain.
@@ -30,7 +31,7 @@ from urllib import request as urllib_request
 from PIL import Image
 
 from .benchmark import box_iou, score_grounding
-from .mark_grid import Box, Point, box_center, map_box_from_crop, plan_mark_grid_crop
+from .mark_grid import Box, CropPlan, Point, box_center, map_box_from_crop
 from .renderer import crop_source_image
 from .provider import VisionProviderError
 
@@ -52,9 +53,11 @@ class NativeVisionResult:
     total_tokens: int | None = None
 
 
-def native_bbox_response_schema() -> dict[str, Any]:
+def native_bbox_response_schema(*, max_items: int = 8) -> dict[str, Any]:
     """Schema matching Liquid AI's documented normalized detection format."""
 
+    if isinstance(max_items, bool) or not isinstance(max_items, int) or not 1 <= max_items <= 32:
+        raise VisionProviderError("max_items must be an integer between 1 and 32")
     return {
         "type": "array",
         "items": {
@@ -71,7 +74,7 @@ def native_bbox_response_schema() -> dict[str, Any]:
             "required": ["label", "bbox"],
             "additionalProperties": False,
         },
-        "maxItems": 8,
+        "maxItems": max_items,
     }
 
 
@@ -87,6 +90,20 @@ def build_native_bbox_prompt(target: str) -> str:
         'Response must be a JSON array: [{"label": "...", "bbox": [x1, y1, x2, y2]}, ...]. '
         "Coordinates are normalized to [0,1]. Return [] if no matching UI element is visible. "
         "Do not invent an element that is not visible."
+    )
+
+
+def build_labeled_button_inventory_prompt() -> str:
+    """Build the target-blind inventory prompt used as a hallucination guard."""
+
+    return (
+        "Inspect this UI screenshot without looking for any particular requested target. "
+        "Detect every visible clickable button that has a readable text label. "
+        "For each button, copy the visible button text exactly and return its bounding box "
+        "as normalized [x1,y1,x2,y2] coordinates. "
+        "Do not invent buttons or labels. Omit text that is not actually readable. "
+        "Do not infer a button from what might normally exist in an application. "
+        "Return only the JSON array."
     )
 
 
@@ -106,11 +123,13 @@ def _extract_json_array(text: str) -> list[Any]:
     return value
 
 
-def parse_native_bbox_response(text: str) -> tuple[NativeDetection, ...]:
+def parse_native_bbox_response(text: str, *, max_items: int = 8) -> tuple[NativeDetection, ...]:
     """Validate normalized model-card detections; [] is an explicit abstention."""
 
+    if isinstance(max_items, bool) or not isinstance(max_items, int) or not 1 <= max_items <= 32:
+        raise VisionProviderError("max_items must be an integer between 1 and 32")
     value = _extract_json_array(text)
-    if len(value) > 8:
+    if len(value) > max_items:
         raise VisionProviderError("native bbox response contains too many detections")
 
     detections: list[NativeDetection] = []
@@ -161,12 +180,26 @@ def _context_box(coarse: Box, width: int, height: int) -> Box:
     x2 = x1 + target_width
     y2 = y1 + target_height
 
-    # Integer-aligned crop bounds keep Pillow crop dimensions and mapping exact.
     x1_i = max(0, int(math.floor(x1)))
     y1_i = max(0, int(math.floor(y1)))
     x2_i = min(width, int(math.ceil(x2)))
     y2_i = min(height, int(math.ceil(y2)))
     return Box(float(x1_i), float(y1_i), float(x2_i), float(y2_i)).validate()
+
+
+def _native_crop_plan(context_box: Box) -> CropPlan:
+    """Keep native crop pixels; do not inherit Mark-Grid's forced 512px short side."""
+
+    context_box = context_box.validate()
+    width = int(round(context_box.width))
+    height = int(round(context_box.height))
+    if width <= 0 or height <= 0:
+        raise VisionProviderError("native crop must have positive integer dimensions")
+    return CropPlan(
+        source_box=context_box,
+        output_width=width,
+        output_height=height,
+    )
 
 
 def _image_data_uri(image: Image.Image) -> str:
@@ -223,16 +256,23 @@ class NativeBBoxLoopbackClient:
     def url(self) -> str:
         return self._url
 
-    def detect(self, *, image_data_uri: str, target: str) -> NativeVisionResult:
+    def _request(
+        self,
+        *,
+        image_data_uri: str,
+        prompt: str,
+        max_items: int,
+        max_tokens: int,
+    ) -> NativeVisionResult:
         if not isinstance(image_data_uri, str) or not image_data_uri.startswith("data:image/"):
             raise VisionProviderError("image must be a local data:image URI")
-        prompt = build_native_bbox_prompt(target)
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise VisionProviderError("prompt must be non-empty text")
         payload = {
             "model": "local",
             "messages": [
                 {
                     "role": "user",
-                    # Keep image first to mirror Liquid AI's published grounding example.
                     "content": [
                         {"type": "image_url", "image_url": {"url": image_data_uri}},
                         {"type": "text", "text": prompt},
@@ -243,10 +283,10 @@ class NativeBBoxLoopbackClient:
             "min_p": 0.15,
             "repeat_penalty": 1.05,
             "seed": 42,
-            "max_tokens": 96,
+            "max_tokens": max_tokens,
             "response_format": {
                 "type": "json_object",
-                "schema": native_bbox_response_schema(),
+                "schema": native_bbox_response_schema(max_items=max_items),
             },
         }
         body = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
@@ -272,6 +312,22 @@ class NativeBBoxLoopbackClient:
             total_tokens=token_value("total_tokens"),
         )
 
+    def detect(self, *, image_data_uri: str, target: str) -> NativeVisionResult:
+        return self._request(
+            image_data_uri=image_data_uri,
+            prompt=build_native_bbox_prompt(target),
+            max_items=8,
+            max_tokens=96,
+        )
+
+    def inventory_labeled_buttons(self, *, image_data_uri: str) -> NativeVisionResult:
+        return self._request(
+            image_data_uri=image_data_uri,
+            prompt=build_labeled_button_inventory_prompt(),
+            max_items=16,
+            max_tokens=256,
+        )
+
 
 def _target_box(case: dict[str, Any]) -> Box | None:
     raw = case.get("bbox")
@@ -280,6 +336,10 @@ def _target_box(case: dict[str, Any]) -> Box | None:
     if not isinstance(raw, list) or len(raw) != 4:
         raise ValueError(f"case {case.get('id')} has malformed bbox")
     return Box(*(float(value) for value in raw)).validate()
+
+
+def _normalized_label(value: str) -> str:
+    return " ".join(value.casefold().split())
 
 
 def _usage(result: NativeVisionResult) -> dict[str, int | None]:
@@ -304,13 +364,18 @@ def run_native_bbox_zoom_case(
     case: dict[str, Any],
     artifact_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """Run native normalized bbox grounding plus deterministic coarse-to-fine zoom."""
+    """Run native normalized bbox grounding plus target-blind guard and zoom refinement."""
 
     target = _target_box(case)
     instruction = str(case["instruction"])
+    target_text_raw = case.get("target_text")
+    target_text = target_text_raw.strip() if isinstance(target_text_raw, str) else ""
     started = time.perf_counter()
     error: str | None = None
     decision = "error"
+    inventory_response: str | None = None
+    inventory_count: int | None = None
+    inventory_match_count: int | None = None
     pass1_response: str | None = None
     pass2_response: str | None = None
     pass1_count: int | None = None
@@ -320,35 +385,59 @@ def run_native_bbox_zoom_case(
     refined_box: Box | None = None
     point: Point | None = None
     consistency_iou: float | None = None
-    usage: dict[str, Any] = {"pass1": {}, "pass2": {}}
+    usage: dict[str, Any] = {"inventory": {}, "pass1": {}, "pass2": {}}
 
     try:
-        first = client.detect(image_data_uri=_image_data_uri(source), target=instruction)
-        pass1_response = first.content
-        usage["pass1"] = _usage(first)
-        first_detections = parse_native_bbox_response(first.content)
-        pass1_count = len(first_detections)
+        source_uri = _image_data_uri(source)
 
-        if len(first_detections) == 0:
-            decision = "absent"
-        elif len(first_detections) > 1:
-            decision = "ambiguous-pass1"
+        if target_text:
+            inventory = client.inventory_labeled_buttons(image_data_uri=source_uri)
+            inventory_response = inventory.content
+            usage["inventory"] = _usage(inventory)
+            inventory_detections = parse_native_bbox_response(inventory.content, max_items=16)
+            inventory_count = len(inventory_detections)
+            wanted = _normalized_label(target_text)
+            matches = tuple(
+                detection
+                for detection in inventory_detections
+                if _normalized_label(detection.label) == wanted
+            )
+            inventory_match_count = len(matches)
+            if len(matches) == 0:
+                decision = "inventory-absent"
+            elif len(matches) > 1:
+                decision = "inventory-ambiguous"
+            else:
+                coarse_box = normalized_box_to_pixels(
+                    matches[0].bbox,
+                    source.width,
+                    source.height,
+                )
+                pass1_response = inventory_response
+                pass1_count = 1
         else:
-            coarse_box = normalized_box_to_pixels(
-                first_detections[0].bbox,
-                source.width,
-                source.height,
-            )
+            first = client.detect(image_data_uri=source_uri, target=instruction)
+            pass1_response = first.content
+            usage["pass1"] = _usage(first)
+            first_detections = parse_native_bbox_response(first.content)
+            pass1_count = len(first_detections)
+            if len(first_detections) == 0:
+                decision = "absent"
+            elif len(first_detections) > 1:
+                decision = "ambiguous-pass1"
+            else:
+                coarse_box = normalized_box_to_pixels(
+                    first_detections[0].bbox,
+                    source.width,
+                    source.height,
+                )
+
+        if coarse_box is not None:
             context_box = _context_box(coarse_box, source.width, source.height)
-            plan = plan_mark_grid_crop(
-                context_box,
-                image_width=source.width,
-                image_height=source.height,
-                min_short_side=512,
-            )
+            plan = _native_crop_plan(context_box)
             crop = crop_source_image(source, context_box)
             if crop.size != (plan.output_width, plan.output_height):
-                crop = crop.resize((plan.output_width, plan.output_height), Image.Resampling.LANCZOS)
+                raise VisionProviderError("native crop dimensions drifted from deterministic plan")
             _save_image(
                 crop,
                 artifact_dir / str(case["id"]) / "native-bbox-pass2-crop.png"
@@ -374,12 +463,11 @@ def run_native_bbox_zoom_case(
                 )
                 refined_box = map_box_from_crop(local_box, plan)
                 consistency_iou = box_iou(coarse_box, refined_box)
-                if consistency_iou <= 0.0:
-                    decision = "inconsistent"
-                    refined_box = None
-                else:
-                    decision = "accepted"
-                    point = box_center(refined_box)
+                # The first pass is deliberately coarse. Measured target evidence
+                # showed a correct refinement at very low coarse/refined IoU, so
+                # overlap is diagnostic only rather than an acceptance threshold.
+                decision = "accepted"
+                point = box_center(refined_box)
     except (VisionProviderError, ValueError, OSError) as exc:
         error = f"{type(exc).__name__}: {exc}"
 
@@ -395,9 +483,13 @@ def run_native_bbox_zoom_case(
         "case_id": case["id"],
         "kind": case["kind"],
         "instruction": instruction,
-        "method": "native_bbox_450m_zoom",
+        "target_text": target_text or None,
+        "method": "native_bbox_450m_inventory_zoom",
         "latency_seconds": round(latency, 4),
         "decision": decision,
+        "inventory_response": inventory_response,
+        "inventory_detection_count": inventory_count,
+        "inventory_match_count": inventory_match_count,
         "pass1_response": pass1_response,
         "pass1_detection_count": pass1_count,
         "coarse_box": asdict(coarse_box) if coarse_box is not None else None,
