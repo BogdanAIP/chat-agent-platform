@@ -57,17 +57,17 @@ ctx 2048
 
 Target result with Chrome running: Search/Send/state HIT; Gamma/tiny safe ABSTAIN; absent Export CSV correct ABSTAIN; 0 false clicks; 0 provider/context errors; 3/5 present-target HIT.
 
-## Stage 25.1 — Same-session visual fallback integration — ACTIVE
+## Stage 25.1 — Same-session visual fallback foundation — TARGET ACCEPTANCE PASSED
 
-Draft PR #74 on `chat/stage25-1-vision-integration-foundation`.
+PR #74 on `chat/stage25-1-vision-integration-foundation`.
 
 ### P0.1 Source-of-truth synchronization — DONE
 
 Authoritative docs describe #73 and current Stage 25.1 implementation instead of historical LM Studio/Q4/PR #72 state.
 
-### P0.2 Same-session capture/freshness/action boundary — PROVED
+### P0.2 Same-session capture/freshness/action boundary — DONE
 
-One pinned Playwright MCP session now supports:
+One pinned Playwright MCP session supports:
 
 ```text
 CSS screenshot
@@ -79,29 +79,29 @@ CSS screenshot
 
 Replay, layout, scroll, overlay, navigation, missing and ambiguous cases fail closed. No second browser or unrestricted `browser_evaluate` is required.
 
-### P1.4 Focused local-vision lifecycle/resource admission — PROVED SYNTHETICALLY
+### P1.4 Focused local-vision lifecycle/resource admission — DONE
 
-Approved artifact/runtime identity, memory admission, loopback start/health, process ownership, Touch, TTL unload, Stop/Sweep, tamper/foreign-listener/ownership-mismatch rejection are covered by Windows CI.
+Approved artifact/runtime identity, memory admission, loopback start/health, process ownership, Touch, TTL unload, Stop/Sweep, tamper/foreign-listener/ownership-mismatch rejection are covered by Windows CI and final real F16 target acceptance.
 
-Real F16 lifecycle on the target laptop remains part of the final integration acceptance.
+The target run ended with owned vision runtime stopped and user Chrome still running.
 
 ### P1.5 Production grounding verifier — DONE FOR CURRENT PROMOTED CLASSES
 
-Class-aware deterministic authorization is implemented. Inventory-backed text and reviewed icon/state classes can resolve under measured guards. Repeated-row and tiny classes remain forced ABSTAIN until separately promoted.
+Class-aware deterministic authorization is implemented. Inventory-backed text and reviewed icon/state classes resolve under measured guards. Repeated-row and tiny classes remain forced ABSTAIN until separately promoted.
 
 ### P1.6 Adversarial/stale browser tests — DONE FOR CURRENT BRIDGE CONTRACT
 
-Covered: replay, layout shift, scroll, overlay, navigation/page replacement, missing and ambiguous target. More application-specific canvas/WebGL/hostile visual content belongs with later capability benchmarks.
+Covered: replay, layout shift, scroll, overlay, navigation/page replacement, missing and ambiguous target.
 
 ### P1.7 Security regressions — SUBSTANTIALLY DONE
 
 Proved:
 
 - Windows junction read/write containment;
-- tunnel credential inheritance was real in `tunnel-client v0.0.11`, and secure launcher scrub-before-core-load now passes a sentinel regression;
+- tunnel credential inheritance was real in `tunnel-client v0.0.11`, and secure launcher scrub-before-core-load passes a sentinel regression;
 - direct `web_open` to private/link-local/metadata/non-public literal IP destinations is blocked while reviewed loopback remains allowed.
 
-Residual: current URL policy is not a complete DNS/redirect network sandbox. Upstream Playwright origin filters are defense-in-depth only and explicitly do not define a redirect security boundary.
+Residual: current URL policy is not a complete DNS/redirect network sandbox.
 
 ### P1.8 Static analysis/dependency maintenance — DONE FOR CURRENT NODE/PYTHON SURFACE
 
@@ -109,33 +109,69 @@ CodeQL covers Actions, JavaScript/TypeScript and Python. Dependabot covers Actio
 
 ### P1/P2.9 Reproducible dependencies — NODE SIDE DONE; PYTHON RELEASE HARDENING PENDING
 
-Semantic projection now has a committed npm lockfile and product/acceptance paths use `npm ci`. Unlocked install is refused when dependencies are absent.
+Semantic projection has a committed npm lockfile and product/acceptance paths use `npm ci`. Unlocked install is refused when dependencies are absent.
 
-Vision Python currently has the exact small pin `Pillow==12.3.0`; release-grade Python artifact/hash policy is still pending.
+Vision Python currently has the exact pin `Pillow==12.3.0`; release-grade Python artifact/hash policy is still pending.
 
-### P0.3/P1.10 Real production grounder integration — ACTIVE
+Deprecated transitive `glob@10.5.0` is explicitly tracked for a separate post-Stage-25.1 dependency PR.
 
-A model-neutral production grounder boundary is implemented and unit-proved. It wraps the accepted native-bbox provider with the class-aware production policy and exposes only resolved/abstain evidence; it does not own runtime or browser action.
+### P0.3/P1.10 Real production grounder integration — DONE FOR FOUNDATION
 
-Next:
+A model-neutral production grounder boundary, fixed-profile runtime-backed runner and same-session bridge integration are implemented and proved.
 
-1. add runtime-backed internal runner: focused lifecycle owner -> loopback production grounder;
-2. connect that runner to the proved same-session bridge without changing the five public tools;
-3. prove deterministic CI plumbing and fail-closed behavior;
-4. run real F16 same-session acceptance on target Windows with Chrome open;
-5. only then decide whether/how semantic miss/ambiguity automatically escalates to vision in the ordinary Chat flow.
+Final target Windows evidence on HEAD `956ca9e7d4b23c4af3b0f51c50f2450f4066abba` with Chrome open:
 
-### P2 cleanup
+```text
+expected_hits = 3
+hits = 3
+expected_abstains = 3
+correct_abstains = 3
+safe_misses = 0
+false_clicks = 0
+errors = 0
+safety_pass = true
+acceptance_pass = true
+SAFETY_STOP = false
+VISION_RUNTIME_RUNNING_AFTER_TEST = false
+CHROME_RUNNING_AFTER_TEST = true
+TEST_EXIT_CODE = 0
+```
 
-After real integration stabilizes, extract any remaining common inference transport, keep production naming model-neutral, and retain Stage 25 benchmark evidence separately.
+Do not describe this as 6/6 visual accuracy; it is a six-case safety/behavior gate. The accepted Stage 25 present-target baseline remains 3/5 because repeated-row/tiny are intentionally not promoted.
+
+The two real integration defects found during target testing are closed:
+
+- Windows descendant-stdio cold-Start settlement;
+- long-run target wrapper stdout/stderr buffering.
+
+## Next follow-up — Ordinary Chat semantic → vision escalation
+
+After merging the Stage 25.1 foundation, implement the automatic internal escalation policy in a separate PR while keeping the public surface at five tools:
+
+```text
+semantic DOM/accessibility first
+  -> resolved: act semantically
+  -> unavailable/ambiguous:
+       same-session screenshot
+       -> reviewed local F16 grounder
+       -> deterministic authorization
+       -> freshness proof
+       -> coordinate action OR ABSTAIN
+```
+
+This follow-up must define exactly which semantic misses/ambiguities are eligible, preserve fail-closed behavior, and avoid turning vision into a generic public tool or second planner.
+
+## P2 cleanup
+
+After the escalation policy stabilizes, extract any remaining common inference transport, keep production naming model-neutral, and retain Stage 25 benchmark evidence separately.
 
 ## Stage 26 — Professional application capability benchmarks
 
-After Stage 25.1 stabilizes, benchmark REAPER, Origin, FFmpeg, Blender and Windows UI workflows behind the same semantic capability philosophy.
+Benchmark REAPER, Origin, FFmpeg, Blender and Windows UI workflows behind the same semantic capability philosophy.
 
 ## Stage 27 — Distribution and maintenance hardening
 
-Stable release artifact, complete locked dependencies, update/repair/doctor/uninstall, key rotation, upgrade/rollback and thin lifecycle UI.
+Stable release artifact, complete locked dependencies, Python artifact/hash policy, update/repair/doctor/uninstall, key rotation, upgrade/rollback and thin lifecycle UI.
 
 ## Definition of Done
 
