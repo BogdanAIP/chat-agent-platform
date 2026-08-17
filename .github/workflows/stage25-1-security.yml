@@ -5,8 +5,8 @@ on:
     paths:
       - "runtime/semantic-projection/**"
       - "scripts/semantic-direct-controller.ps1"
+      - "scripts/semantic-projection-runtime.ps1"
       - "scripts/chat-platform.ps1"
-      - "runtime/semantic-projection/tests/windows-junction-security.mjs"
       - ".github/workflows/stage25-1-security.yml"
       - "SECURITY.md"
       - "project-context/STAGE25_1_VISION_INTEGRATION.md"
@@ -15,8 +15,8 @@ on:
     paths:
       - "runtime/semantic-projection/**"
       - "scripts/semantic-direct-controller.ps1"
+      - "scripts/semantic-projection-runtime.ps1"
       - "scripts/chat-platform.ps1"
-      - "runtime/semantic-projection/tests/windows-junction-security.mjs"
       - ".github/workflows/stage25-1-security.yml"
   workflow_dispatch:
 
@@ -43,6 +43,20 @@ jobs:
           try {
             npm install --ignore-scripts --no-audit --no-fund --package-lock=false
             if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Prove tunnel credential scrub before semantic core load
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm run acceptance:credential-scrub
+            if ($LASTEXITCODE -ne 0) {
+              throw "Credential scrub acceptance failed with exit code $LASTEXITCODE"
+            }
           }
           finally {
             Pop-Location
