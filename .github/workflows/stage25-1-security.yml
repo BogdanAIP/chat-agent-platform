@@ -1,0 +1,63 @@
+name: Stage 25.1 Security Regressions
+
+on:
+  pull_request:
+    paths:
+      - "runtime/semantic-projection/**"
+      - "scripts/semantic-direct-controller.ps1"
+      - "scripts/chat-platform.ps1"
+      - "runtime/semantic-projection/tests/windows-junction-security.mjs"
+      - ".github/workflows/stage25-1-security.yml"
+      - "SECURITY.md"
+      - "project-context/STAGE25_1_VISION_INTEGRATION.md"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/semantic-projection/**"
+      - "scripts/semantic-direct-controller.ps1"
+      - "scripts/chat-platform.ps1"
+      - "runtime/semantic-projection/tests/windows-junction-security.mjs"
+      - ".github/workflows/stage25-1-security.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage25-1-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-security-regressions:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install exact semantic projection dependencies
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+            if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Prove workspace junction containment
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            node tests/windows-junction-security.mjs
+            if ($LASTEXITCODE -ne 0) {
+              throw "Windows junction security acceptance failed with exit code $LASTEXITCODE"
+            }
+          }
+          finally {
+            Pop-Location
+          }
