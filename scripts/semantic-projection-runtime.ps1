@@ -10,6 +10,7 @@ function Get-SemanticProjectionEntryPath {
 
     $projectionRoot = Join-Path $RepoRoot 'runtime\semantic-projection'
     $manifestPath = Join-Path $projectionRoot 'package.json'
+    $lockPath = Join-Path $projectionRoot 'package-lock.json'
     $corePath = Join-Path $projectionRoot 'bin\semantic-projection.mjs'
     $launcherPath = Join-Path $projectionRoot 'bin\semantic-projection-launcher.mjs'
 
@@ -99,6 +100,19 @@ await import('./semantic-projection.mjs');
         throw 'Semantic projection package file allowlist drifted.'
     }
 
+    if (Test-Path -LiteralPath $lockPath -PathType Leaf) {
+        $lock = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json
+        if ([int]$lock.lockfileVersion -ne 3) {
+            throw 'Semantic projection package-lock must use lockfileVersion 3.'
+        }
+        $rootPackage = $lock.packages.''
+        foreach ($dependencyName in $expectedDependencies.Keys) {
+            if ([string]$rootPackage.dependencies.$dependencyName -ne [string]$expectedDependencies[$dependencyName]) {
+                throw "Semantic projection lockfile root dependency drifted: $dependencyName"
+            }
+        }
+    }
+
     if (-not $EnsureDependencies) {
         return [System.IO.Path]::GetFullPath($launcherPath)
     }
@@ -134,19 +148,22 @@ await import('./semantic-projection.mjs');
     }
 
     if (-not (Test-DependenciesReady)) {
+        if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+            throw 'Semantic projection dependencies are absent and package-lock.json is missing; refusing unlocked installation.'
+        }
+
         Push-Location $projectionRoot
         try {
             $installOutput = @(
-                & $npm install `
+                & $npm ci `
                     --ignore-scripts `
                     --no-audit `
                     --no-fund `
-                    --package-lock=false `
                     2>&1
             )
 
             if ($LASTEXITCODE -ne 0) {
-                throw "Could not install semantic projection dependencies.`n$($installOutput -join "`n")"
+                throw "Could not install locked semantic projection dependencies with npm ci.`n$($installOutput -join "`n")"
             }
         }
         finally {
