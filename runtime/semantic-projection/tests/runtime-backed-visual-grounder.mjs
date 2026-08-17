@@ -3,6 +3,7 @@ import process from 'node:process';
 
 import {
   RuntimeBackedVisualGrounder,
+  collectRuntimeProcessForTest,
   productionRunnerPathsForTest
 } from '../lib/runtime-backed-visual-grounder.mjs';
 
@@ -61,6 +62,7 @@ function tinyPng() {
   assert.equal(result.status, 'resolved');
   assert.equal(calls.length, 3);
   assert(calls[0].args.includes('Start'));
+  assert.equal(calls[0].options.settleOnExit, true);
   assert.equal(calls[1].command, process.execPath);
 
   const request = JSON.parse(calls[1].options.input);
@@ -70,6 +72,7 @@ function tinyPng() {
   assert.equal(Object.prototype.hasOwnProperty.call(request, 'port'), false);
 
   assert(calls[2].args.includes('Touch'));
+  assert.equal(calls[2].options.settleOnExit, true);
 }
 
 {
@@ -174,6 +177,30 @@ function tinyPng() {
     /production-grounder-error:provider-failed/
   );
   assert.equal(touchCalled, true, 'runtime use must be touched even when inference fails');
+}
+
+if (process.platform === 'win32') {
+  const grandchildCode = 'setTimeout(() => {}, 5000);';
+  const parentCode = [
+    "const { spawn } = require('node:child_process');",
+    `const child = spawn(process.execPath, ['-e', ${JSON.stringify(grandchildCode)}], {`,
+    "  stdio: ['ignore', 'inherit', 'inherit'],",
+    '  windowsHide: true',
+    '});',
+    'child.unref();',
+    "process.stdout.write(JSON.stringify({ status: 'ready' }));"
+  ].join('\n');
+  const startedAt = Date.now();
+  const result = await collectRuntimeProcessForTest(
+    process.execPath,
+    ['-e', parentCode],
+    { timeoutMs: 1500, settleOnExit: true, exitDrainMs: 100 }
+  );
+  const elapsedMs = Date.now() - startedAt;
+  assert.equal(result.code, 0);
+  assert.deepEqual(JSON.parse(result.stdout), { status: 'ready' });
+  assert(elapsedMs < 1200, `controller exit settlement took ${elapsedMs}ms`);
+  console.log('RUNTIME_BACKED_VISUAL_GROUNDER_DESCENDANT_STDIO=PASS');
 }
 
 {
