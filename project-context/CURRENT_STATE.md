@@ -18,11 +18,12 @@ Stage 24.1 selected the normal path:
 ordinary ChatGPT
   -> Secure MCP Tunnel
   -> official tunnel-client
+  -> secure semantic launcher
   -> direct stdio semantic-projection
   -> focused backends/adapters
 ```
 
-1MCP remains internal diagnostic/adaptive/aggregation infrastructure.
+1MCP remains internal diagnostic/adaptive/aggregation infrastructure. ChatGPT remains the only planner/intelligence.
 
 ## Stage 25 grounding benchmark — ACCEPTED
 
@@ -54,13 +55,15 @@ provider/context errors = 0
 
 This remains the accepted perception baseline. Do not call it 6/6 accuracy; the six-case gate is a safety/behavior result while the present-target baseline is 3/5.
 
-## Stage 25.1 — TARGET GATE PASSED; PR FOUNDATION READY FOR FINAL REVIEW
+## Stage 25.1 — REVIEWED TARGET GATE PASSED; PR FOUNDATION READY FOR MERGE
 
 Branch: `chat/stage25-1-vision-integration-foundation`
 
 PR: #74 — `Stage 25.1: same-session vision fallback foundation`.
 
-The real target-laptop same-session F16 acceptance passed on HEAD `956ca9e7d4b23c4af3b0f51c50f2450f4066abba` with the user's normal Chrome workload intentionally left open.
+Final reviewed target HEAD: `edebbc9eda58637b2c9ea95fcab9f9fc4438fe6c`.
+
+The full same-session F16 acceptance passed on the target Windows laptop with the user's normal Chrome workload intentionally left open.
 
 Exact final target evidence:
 
@@ -82,73 +85,59 @@ errors = 0
 safety_pass = true
 acceptance_pass = true
 
-Doctor physical free RAM = 2.704 GB
-Doctor virtual free RAM = 9.207 GB
-minimum observed free physical RAM = 1.2 GB
+Doctor physical free RAM = 1.919 GB
+Doctor virtual free RAM = 8.335 GB
+minimum observed free physical RAM = 0.60 GB
 SAFETY_STOP = false
 VISION_RUNTIME_RUNNING_AFTER_TEST = false
 VISION_RUNTIME_STATE_AFTER_TEST = stopped
 CHROME_RUNNING_AFTER_TEST = true
 TEST_EXIT_CODE = 0
-STAGE25_1_RESULT = PASSED
+STAGE25_1_REVIEW_RESULT = PASSED
 ```
 
-The final run completed autonomously. It did not require manual termination and it did not weaken the reviewed 1.50 GB cold-start admission threshold.
+The final run completed autonomously and did not terminate Chrome.
 
-### PROVED foundations on PR #74
+### RAM admission result
 
-1. **Same-session visual action boundary**
-   - one pinned Playwright MCP 0.0.78 client/session;
-   - CSS screenshot -> one-shot visual token -> fresh re-capture -> exact dimensions/SHA256 -> coordinate action or ABSTAIN;
-   - replay, layout shift, scroll, overlay, navigation replacement, missing and ambiguous targets produce no coordinate action;
-   - exact five public tools remain unchanged.
+A post-review run on HEAD `49f1a9a7d3a4f90202b535693917829bef773f72` proved that the original `1.50 GB` cold-start threshold was too brittle after Playwright load: all six cases failed closed before inference with free physical RAM `1.446–1.486 GB`, zero false clicks, runtime stopped and Chrome preserved.
 
-2. **Focused local-vision lifecycle owner**
-   - approved llama.cpp/model/mmproj identity;
-   - physical/virtual memory admission;
-   - loopback-only start/health;
-   - PID + executable + full command SHA256 + UTC process-creation ticks ownership;
-   - Touch, TTL unload, Stop and Sweep;
-   - tampered artifacts, foreign listeners and ownership mismatch fail closed;
-   - no Chrome/unrelated-process termination;
-   - real F16 target cleanup is proved.
+Production `min_start_physical_gb` is therefore calibrated to `1.35 GB`. The stronger downstream guards remain unchanged:
 
-3. **Class-aware production authorization policy**
-   - inventory-backed text and reviewed icon/state classes resolve only under their measured guards;
-   - repeated-row and tiny targets remain forced ABSTAIN until separately promoted;
-   - no global high-IoU rule.
+```text
+min_start_virtual_gb = 3.0
+min_run_physical_gb = 0.5
+min_run_virtual_gb = 1.5
+target-wrapper emergency cutoff = 0.30 GB
+```
 
-4. **Runtime-backed production grounder**
-   - fixed reviewed profile `lfm25-vl-450m-f16` and loopback port 3068;
-   - Node cannot select arbitrary model paths/endpoints;
-   - reviewed Python production grounder executes the bounded request;
-   - Touch occurs even on failure;
-   - provider/contract failures cannot authorize a click;
-   - Windows descendant-stdio regression closes the real cold-Start timeout defect.
+The successful reviewed run reached a minimum of `0.60 GB`, above both the runtime pressure floor and the emergency cutoff.
 
-5. **Windows workspace containment**
-   - real junction read/write escape attempts are blocked;
-   - normal in-root access remains functional.
+### Pre-merge review findings — CLOSED
 
-6. **Tunnel credential containment**
-   - exact `openai/tunnel-client v0.0.11` inherits its parent environment into the semantic stdio child;
-   - a reviewed semantic launcher deletes `CONTROL_PLANE_API_KEY` and `OPENAI_API_KEY` before importing semantic core;
-   - Windows sentinel regression proves scrub-before-core-load.
+1. **Vision listener ownership** — production inference now verifies that `127.0.0.1:3068` belongs to the exact controller-returned runtime PID before sending the screenshot. Wrong PID fails closed. Loopback is still not cryptographic endpoint authentication; the narrow post-check race remains documented.
+2. **Prepared visual token lifetime/capacity** — expired entries are purged, outstanding tokens are capped at 256 and overflow/expiry fails closed with zero action.
+3. **Installed semantic runtime parity** — bootstrap now installs `package.json`, `package-lock.json`, secure launcher and core; installed-layout validation proves scrub-before-import and exact pins.
+4. **Lockfile application** — semantic runtime records the applied lockfile SHA256 and re-runs `npm ci` when the lock changes or the marker is absent.
+5. **Chrome regression assertion** — corrected so the lifecycle test really proves no Chrome termination path.
 
-7. **Reproducible semantic Node dependencies**
-   - committed npm lockfile;
-   - product/runtime/acceptance paths use `npm ci`;
-   - unlocked installation is refused when dependencies are absent.
+### Proven Stage 25.1 foundations
 
-8. **Bounded direct browser network scope**
-   - loopback remains allowed;
-   - direct RFC1918/link-local/metadata/CGNAT/reserved non-public IP destinations are rejected before navigation;
-   - DNS resolution/rebinding and redirects remain a documented residual risk.
+- same-session Playwright screenshot/freshness/coordinate-action boundary;
+- one-shot, TTL/cap-bounded visual authorization tokens;
+- fail-closed stale/replay/layout/scroll/overlay/navigation behavior;
+- focused llama.cpp lifecycle owner with exact artifact/process identity;
+- PID-bound loopback listener verification before inference;
+- class-aware production policy with repeated-row/tiny forced ABSTAIN;
+- runtime-backed fixed-profile F16 grounder;
+- Windows junction containment;
+- tunnel credential scrub before semantic core import;
+- reproducible locked Node dependency path with `npm ci` and lock-hash marker;
+- bounded direct browser literal-IP network policy;
+- CodeQL Actions + JavaScript/TypeScript + Python;
+- real target cleanup with runtime stopped and Chrome alive.
 
-9. **GitHub security automation**
-   - CodeQL: Actions + JavaScript/TypeScript + Python;
-   - Dependabot: Actions + semantic npm + Python requirements;
-   - reachable Git history remains Gitleaks-scanned.
+All 11 GitHub workflow families are green on the reviewed code, including the retried CodeQL JavaScript/TypeScript job after an initial GitHub service-side init outage.
 
 ## What Stage 25.1 deliberately does not do
 
@@ -162,7 +151,7 @@ The final run completed autonomously. It did not require manual termination and 
 
 ## Next active priority
 
-Merge the coherent Stage 25.1 foundation after final documentation/CI review, then implement the ordinary-Chat semantic miss/ambiguity escalation policy as a separate follow-up rather than expanding the already-proved foundation PR.
+Merge PR #74 as the coherent Stage 25.1 foundation, then implement the ordinary-Chat semantic miss/ambiguity escalation policy as a separate follow-up while keeping the five-tool public contract.
 
 The intended next flow remains:
 
@@ -187,7 +176,7 @@ ordinary ChatGPT
 - decide whether stronger backend-level DNS/redirect/private-network isolation is required;
 - make Python vision dependencies release-grade reproducible beyond the exact `Pillow==12.3.0` pin;
 - investigate deprecated transitive `glob@10.5.0` in a separate dependency PR after Stage 25.1;
-- update stale repository metadata when a repository-metadata write path is available;
+- update stale repository metadata when a repository-description write path is available;
 - no stable product release yet.
 
 ## Active rules

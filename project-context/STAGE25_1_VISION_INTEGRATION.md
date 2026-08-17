@@ -1,10 +1,12 @@
 # Stage 25.1 — Same-session visual fallback integration
 
-Status: **TARGET ACCEPTANCE PASSED — FOUNDATION READY FOR MERGE**
+Status: **TARGET ACCEPTANCE PASSED AFTER PRE-MERGE REVIEW — FOUNDATION READY FOR MERGE**
 
 Branch: `chat/stage25-1-vision-integration-foundation`
 
 Base: `acc6334ef0114d3ca6b6a243d904605cd00a321a` (`main` after PR #73).
+
+Final reviewed target HEAD: `edebbc9eda58637b2c9ea95fcab9f9fc4438fe6c`.
 
 ## Accepted Stage 25 starting point
 
@@ -47,7 +49,9 @@ browser_take_screenshot(type=png, fullPage=false, scale=css)
 
 Windows acceptance proves intended coordinate action, replay protection, layout/scroll/overlay/navigation stale ABSTAIN, missing/ambiguous grounder ABSTAIN and zero action on uncertain evidence. Exact five public semantic tools remain unchanged.
 
-The full-screenshot freshness policy is intentionally strict. Over-abstention is preferable to stale-coordinate mutation until narrower deterministic freshness is separately measured.
+Prepared targets are now also bounded operationally: expired entries are purged, outstanding targets are capped at 256, capacity overflow fails closed, and expired tokens cannot mutate the page.
+
+The full-screenshot freshness policy is intentionally strict. The final screenshot and coordinate click are still separate MCP calls, so a narrow post-check TOCTOU window remains a documented residual risk.
 
 ## Focused vision runtime owner — PROVED SYNTHETICALLY AND ON TARGET
 
@@ -65,9 +69,34 @@ reviewed llama.cpp + model + mmproj identity
 
 Production defaults are fixed by `config/local-vision-runtime.json`: profile `lfm25-vl-450m-f16`, host `127.0.0.1`, port `3068`, reviewed llama.cpp build markers and exact model/mmproj hashes. Arbitrary runtime/model overrides are test-only.
 
-Windows CI proves idempotent Start, Touch/TTL, explicit Stop, tampered artifact rejection, foreign listener rejection and ownership mismatch refusal.
+Pre-merge review added a fail-closed listener-ownership guard: before screenshot inference the runner verifies through Windows TCP state that `127.0.0.1:3068` belongs to the exact PID returned by the controller. A wrong listener PID prevents Python inference. Loopback TCP is not cryptographic process authentication, so a theoretical same-user port-reuse race after the check remains residual.
 
-The real target-laptop run additionally proves the reviewed runtime can cold-start under the user's normal Chrome workload, serve repeated F16 vision inference, remain above the emergency safety floor, and stop cleanly afterward without terminating Chrome.
+Windows CI proves idempotent Start, Touch/TTL, explicit Stop, tampered artifact rejection, foreign listener rejection, ownership mismatch refusal and the PID-bound listener regression.
+
+## RAM admission calibration — REVIEWED ON TARGET
+
+The original production cold-start floor was `1.50 GB`. A post-review target run on HEAD `49f1a9a7d3a4f90202b535693917829bef773f72` failed closed before llama.cpp inference because Playwright-active free physical RAM fluctuated between `1.446` and `1.486 GB` while virtual RAM remained about `7.7 GB`:
+
+```text
+errors = 6
+false_clicks = 0
+safety_pass = true
+acceptance_pass = false
+VISION_RUNTIME_RUNNING_AFTER_TEST = false
+CHROME_RUNNING_AFTER_TEST = true
+```
+
+This established that the 1.50 GB pre-start gate was too brittle for the reviewed browser-active workload. The production start floor was therefore calibrated to `1.35 GB` while keeping downstream safety floors unchanged:
+
+```text
+min_start_physical_gb = 1.35
+min_start_virtual_gb = 3.0
+min_run_physical_gb = 0.5
+min_run_virtual_gb = 1.5
+target-wrapper emergency cutoff = 0.30 GB
+```
+
+The final reviewed target run then passed with a minimum observed free physical RAM of `0.60 GB`, above the `0.50 GB` runtime pressure floor and above the `0.30 GB` emergency cutoff. `SAFETY_STOP` remained false.
 
 ## Production grounding policy — PROVED FOR CURRENT PROMOTED CLASSES
 
@@ -85,14 +114,7 @@ Do not replace this with one global IoU threshold; accepted target evidence incl
 
 `runtime/local_vision_adapter/production_grounder.py` accepts one PNG capture plus bounded `instruction`, `kind` and optional `target_text`, runs the accepted native-bbox implementation, then applies production authorization.
 
-It intentionally does **not**:
-
-- start/stop llama.cpp;
-- select/download a model;
-- accept arbitrary inference endpoints;
-- inspect browser/page state;
-- perform a browser action;
-- return raw model responses through production diagnostics.
+It intentionally does **not** start/stop llama.cpp, select/download a model, accept arbitrary inference endpoints, inspect browser/page state, perform a browser action, or expose raw model responses through production diagnostics.
 
 Only an authorized result contains a point/bbox. Repeated-row, absent, parse-failure and invalid-image cases remain non-authorizing.
 
@@ -100,16 +122,33 @@ Only an authorized result contains a point/bbox. Repeated-row, absent, parse-fai
 
 The Node runtime-backed grounder is fixed to the reviewed profile and port and delegates lifecycle to the focused PowerShell owner.
 
-A real target run exposed two Windows integration defects, both now closed:
+Real target testing exposed two Windows integration defects, both closed before final acceptance:
 
-1. **cold Start descendant-stdio settlement** — the controller process could exit while a long-lived descendant retained inherited stdio handles, delaying Node's child `close` until the 150 s timeout. Controller actions now settle on the controller process `exit` after a bounded drain. Windows regression marker: `RUNTIME_BACKED_VISUAL_GROUNDER_DESCENDANT_STDIO=PASS`.
-2. **target wrapper output buffering** — the wrapper redirected Node stdout/stderr and only drained them after process exit. It now inherits the console directly, eliminating that long-run buffered-output deadlock class.
+1. **cold Start descendant-stdio settlement** — controller actions now settle on the controller process `exit` after a bounded drain instead of waiting for descendant-held stdio until a 150 s timeout. Regression marker: `RUNTIME_BACKED_VISUAL_GROUNDER_DESCENDANT_STDIO=PASS`.
+2. **target wrapper output buffering** — the wrapper now inherits Node stdout/stderr directly instead of redirecting and draining only after exit.
 
-The final target run completed autonomously with `TEST_EXIT_CODE=0`.
+The final reviewed target run completed autonomously with `TEST_EXIT_CODE=0`.
+
+## Installed semantic runtime / reproducibility — REVIEWED
+
+Pre-merge review found that the bootstrap installed-layout contract lagged the secure source-tree contract. It now installs and validates:
+
+```text
+package.json
+package-lock.json
+semantic-projection-launcher.mjs
+semantic-projection.mjs
+```
+
+Installed-layout validation checks exact dependency pins and scrub-before-import ordering. Semantic dependency installation records the SHA256 of the applied `package-lock.json` and re-runs `npm ci` when that lock changes or the marker is absent.
+
+The secure launcher deletes `CONTROL_PLANE_API_KEY` and `OPENAI_API_KEY` before semantic core import. Windows acceptance proves the standalone installed layout uses the same contract.
+
+Vision Python remains intentionally small (`Pillow==12.3.0`) but release-grade Python artifact/hash reproducibility is pending. The locked semantic graph still contains deprecated transitive `glob@10.5.0`; keep that as a dedicated post-Stage-25.1 dependency follow-up.
 
 ## Final real target-laptop acceptance — PASSED
 
-The production-like six-case same-session test passed on target Windows using HEAD `956ca9e7d4b23c4af3b0f51c50f2450f4066abba`, with user Chrome intentionally left open.
+The production-like six-case same-session test passed on target Windows using reviewed HEAD `edebbc9eda58637b2c9ea95fcab9f9fc4438fe6c`, with user Chrome intentionally left open.
 
 Exact case evidence:
 
@@ -168,44 +207,19 @@ acceptance_pass = true
 Resource/lifecycle evidence:
 
 ```text
-Doctor physical_free_gb = 2.704
-Doctor virtual_free_gb = 9.207
-minimum observed free physical RAM = 1.2 GB
+Doctor physical_free_gb = 1.919
+Doctor virtual_free_gb = 8.335
+minimum observed free physical RAM = 0.60 GB
 SAFETY_STOP = false
 VISION_RUNTIME_RUNNING_AFTER_TEST = false
 VISION_RUNTIME_STATE_AFTER_TEST = stopped
 CHROME_RUNNING_AFTER_TEST = true
 CHROME_RUNNING_AFTER wrapper cleanup = true
 TEST_EXIT_CODE = 0
-STAGE25_1_RESULT = PASSED
+STAGE25_1_REVIEW_RESULT = PASSED
 ```
-
-The reviewed 1.50 GB cold-start threshold did not need weakening.
 
 Do **not** describe this as "6/6 visual accuracy". It is a six-case safety/behavior acceptance gate. The accepted Stage 25 present-target baseline remains 3/5 because repeated-row and tiny target classes are intentionally not promoted.
-
-## Credential boundary — PROVED
-
-Review of exact `openai/tunnel-client v0.0.11` showed its semantic stdio child inherits the tunnel-client environment.
-
-The accepted fix is:
-
-```text
-tunnel-client
-  -> semantic-projection-launcher.mjs
-       -> delete CONTROL_PLANE_API_KEY / OPENAI_API_KEY
-       -> import semantic-projection.mjs
-```
-
-A Windows sentinel regression proves scrub occurs before semantic core load.
-
-## Dependency reproducibility — NODE PATH PROVED
-
-Semantic projection has a committed npm lockfile and product/runtime/acceptance paths use `npm ci`.
-
-Vision Python remains intentionally small (`Pillow==12.3.0`) but release-grade Python artifact/hash reproducibility is pending.
-
-The locked semantic graph currently emits a deprecation warning for transitive `glob@10.5.0`. Track it as a dedicated post-Stage-25.1 dependency follow-up rather than changing the graph inside this accepted foundation.
 
 ## Browser network boundary
 
@@ -248,15 +262,17 @@ Vision remains an internal grounding strategy, not a planner and not a sixth pub
 
 ## Completion gate
 
-The Stage 25.1 **foundation** completion gate is satisfied:
+The Stage 25.1 **foundation** completion gate is satisfied on the reviewed code:
 
 - real local F16 VLM uses the proved same-session boundary and remains fail-closed;
 - stale/uncertain results cannot mutate the page;
 - runtime admission/lifecycle leaves no stale owned process;
+- listener ownership is PID-bound before inference;
+- prepared visual targets are TTL/cap bounded;
+- installed semantic runtime matches the secure locked source contract;
 - repeated/tiny classes remain blocked;
-- security/dependency regressions remain explicit and green;
-- target Windows acceptance passes with realistic Chrome usage;
-- public semantic contract remains exactly five tools;
-- authoritative documentation records the accepted evidence.
+- complete CI/security matrix is green on the reviewed code;
+- target Windows acceptance passes with realistic Chrome usage and calibrated RAM admission;
+- public semantic contract remains exactly five tools.
 
 The next development work should be a separate follow-up for the ordinary-Chat semantic miss/ambiguity escalation policy rather than expanding this already-proved foundation PR.

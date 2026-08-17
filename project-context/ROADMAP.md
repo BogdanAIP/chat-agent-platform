@@ -37,7 +37,7 @@ Merged as `df1d5e232b739b62e72ad81e5d82fd01be53e884` (#70).
 Selected normal path:
 
 ```text
-ChatGPT -> Secure MCP Tunnel -> tunnel-client -> direct stdio semantic-projection
+ChatGPT -> Secure MCP Tunnel -> tunnel-client -> secure semantic launcher -> direct stdio semantic-projection
 ```
 
 1MCP stays internal diagnostic/adaptive/aggregation infrastructure.
@@ -57,13 +57,15 @@ ctx 2048
 
 Target result with Chrome running: Search/Send/state HIT; Gamma/tiny safe ABSTAIN; absent Export CSV correct ABSTAIN; 0 false clicks; 0 provider/context errors; 3/5 present-target HIT.
 
-## Stage 25.1 — Same-session visual fallback foundation — TARGET ACCEPTANCE PASSED
+## Stage 25.1 — Same-session visual fallback foundation — REVIEWED TARGET ACCEPTANCE PASSED
 
 PR #74 on `chat/stage25-1-vision-integration-foundation`.
 
+Final reviewed target HEAD: `edebbc9eda58637b2c9ea95fcab9f9fc4438fe6c`.
+
 ### P0.1 Source-of-truth synchronization — DONE
 
-Authoritative docs describe #73 and current Stage 25.1 implementation instead of historical LM Studio/Q4/PR #72 state.
+Authoritative docs describe #73 and the reviewed Stage 25.1 implementation/evidence instead of historical LM Studio/Q4 state.
 
 ### P0.2 Same-session capture/freshness/action boundary — DONE
 
@@ -77,13 +79,27 @@ CSS screenshot
 -> coordinate action OR ABSTAIN
 ```
 
-Replay, layout, scroll, overlay, navigation, missing and ambiguous cases fail closed. No second browser or unrestricted `browser_evaluate` is required.
+Replay, layout, scroll, overlay, navigation, missing and ambiguous cases fail closed. Prepared targets are TTL-purged and capped at 256 outstanding entries; capacity/expiry fails closed. No second browser or unrestricted `browser_evaluate` is required.
+
+Residual: final freshness screenshot and coordinate click remain separate MCP calls, so a narrow TOCTOU window remains.
 
 ### P1.4 Focused local-vision lifecycle/resource admission — DONE
 
-Approved artifact/runtime identity, memory admission, loopback start/health, process ownership, Touch, TTL unload, Stop/Sweep, tamper/foreign-listener/ownership-mismatch rejection are covered by Windows CI and final real F16 target acceptance.
+Approved artifact/runtime identity, loopback start/health, process ownership, Touch, TTL unload, Stop/Sweep, tamper/foreign-listener/ownership-mismatch rejection are covered by Windows CI and final real F16 target acceptance.
 
-The target run ended with owned vision runtime stopped and user Chrome still running.
+Pre-merge review added PID-bound listener verification: production inference verifies that `127.0.0.1:3068` is owned by the controller-returned runtime PID before sending a screenshot. Wrong PID fails closed.
+
+RAM admission was calibrated from the target workload:
+
+```text
+min_start_physical_gb = 1.35
+min_start_virtual_gb = 3.0
+min_run_physical_gb = 0.5
+min_run_virtual_gb = 1.5
+target emergency cutoff = 0.30 GB
+```
+
+The original 1.50 GB start floor was proven too brittle after Playwright load at 1.446–1.486 GB free physical RAM. The reviewed 1.35 GB policy then passed the full target gate with minimum observed free physical RAM 0.60 GB, `SAFETY_STOP=false`, runtime stopped afterward and user Chrome still running.
 
 ### P1.5 Production grounding verifier — DONE FOR CURRENT PROMOTED CLASSES
 
@@ -91,7 +107,7 @@ Class-aware deterministic authorization is implemented. Inventory-backed text an
 
 ### P1.6 Adversarial/stale browser tests — DONE FOR CURRENT BRIDGE CONTRACT
 
-Covered: replay, layout shift, scroll, overlay, navigation/page replacement, missing and ambiguous target.
+Covered: replay, token expiry/capacity, layout shift, scroll, overlay, navigation/page replacement, missing and ambiguous target.
 
 ### P1.7 Security regressions — SUBSTANTIALLY DONE
 
@@ -99,27 +115,34 @@ Proved:
 
 - Windows junction read/write containment;
 - tunnel credential inheritance was real in `tunnel-client v0.0.11`, and secure launcher scrub-before-core-load passes a sentinel regression;
-- direct `web_open` to private/link-local/metadata/non-public literal IP destinations is blocked while reviewed loopback remains allowed.
+- direct `web_open` to private/link-local/metadata/non-public literal IP destinations is blocked while reviewed loopback remains allowed;
+- loopback vision listener must match the controller-owned PID before inference.
 
-Residual: current URL policy is not a complete DNS/redirect network sandbox.
+Residual: current URL policy is not a complete DNS/redirect network sandbox, and PID-bound loopback is not cryptographic endpoint authentication.
 
 ### P1.8 Static analysis/dependency maintenance — DONE FOR CURRENT NODE/PYTHON SURFACE
 
 CodeQL covers Actions, JavaScript/TypeScript and Python. Dependabot covers Actions, semantic npm and Python requirements. Secret history scan remains active.
 
+The final reviewed head passed all 11 workflow families. The JavaScript/TypeScript CodeQL job required one retry after GitHub returned `No server is currently available to service your request` during init; the retry completed successfully.
+
 ### P1/P2.9 Reproducible dependencies — NODE SIDE DONE; PYTHON RELEASE HARDENING PENDING
 
-Semantic projection has a committed npm lockfile and product/acceptance paths use `npm ci`. Unlocked install is refused when dependencies are absent.
+Semantic projection has a committed npm lockfile and product/acceptance paths use `npm ci`.
+
+Pre-merge review closed an installed/source drift: bootstrap now installs `package.json`, `package-lock.json`, secure semantic launcher and core, and standalone installed-layout acceptance verifies the same contract.
+
+Semantic dependency installation records the applied lockfile SHA256 and re-runs `npm ci` when that lock changes or the marker is absent.
 
 Vision Python currently has the exact pin `Pillow==12.3.0`; release-grade Python artifact/hash policy is still pending.
 
-Deprecated transitive `glob@10.5.0` is explicitly tracked for a separate post-Stage-25.1 dependency PR.
+Deprecated transitive `glob@10.5.0` remains a separate post-Stage-25.1 dependency PR.
 
 ### P0.3/P1.10 Real production grounder integration — DONE FOR FOUNDATION
 
 A model-neutral production grounder boundary, fixed-profile runtime-backed runner and same-session bridge integration are implemented and proved.
 
-Final target Windows evidence on HEAD `956ca9e7d4b23c4af3b0f51c50f2450f4066abba` with Chrome open:
+Final target Windows evidence on reviewed HEAD `edebbc9eda58637b2c9ea95fcab9f9fc4438fe6c` with Chrome open:
 
 ```text
 expected_hits = 3
@@ -131,18 +154,28 @@ false_clicks = 0
 errors = 0
 safety_pass = true
 acceptance_pass = true
+Doctor physical_free_gb = 1.919
+Doctor virtual_free_gb = 8.335
+minimum observed free physical RAM = 0.60 GB
 SAFETY_STOP = false
 VISION_RUNTIME_RUNNING_AFTER_TEST = false
+VISION_RUNTIME_STATE_AFTER_TEST = stopped
 CHROME_RUNNING_AFTER_TEST = true
 TEST_EXIT_CODE = 0
+STAGE25_1_REVIEW_RESULT = PASSED
 ```
 
 Do not describe this as 6/6 visual accuracy; it is a six-case safety/behavior gate. The accepted Stage 25 present-target baseline remains 3/5 because repeated-row/tiny are intentionally not promoted.
 
-The two real integration defects found during target testing are closed:
+Real integration defects and review findings closed before merge include:
 
 - Windows descendant-stdio cold-Start settlement;
-- long-run target wrapper stdout/stderr buffering.
+- long-run target wrapper stdout/stderr buffering;
+- PID-unbound vision listener acceptance;
+- prepared-token unbounded retention;
+- stale bootstrap installed semantic bundle;
+- lockfile-change reuse of old `node_modules`;
+- overly brittle 1.50 GB cold-start RAM gate.
 
 ## Next follow-up — Ordinary Chat semantic → vision escalation
 
