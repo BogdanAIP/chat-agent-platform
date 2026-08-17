@@ -1,8 +1,8 @@
 # Current State
 
-## Accepted platform foundation
+## Accepted foundation
 
-Stage 24 was squash-merged on 2026-08-16 as `175d36236f80a1f99f091d4f031a1c6255f3652b` (#66). Stage 24 accepted the exact five-tool semantic ordinary-Chat contract:
+Stage 24 (#66) accepted the exact five public semantic tools:
 
 ```text
 workspace_read
@@ -12,115 +12,113 @@ web_observe
 web_interact
 ```
 
-Stage 24.1 was squash-merged on 2026-08-16 as `df1d5e232b739b62e72ad81e5d82fd01be53e884` (#70). The selected normal path is direct stdio:
+Stage 24.1 (#70) selected the normal direct stdio path:
 
 ```text
 ordinary ChatGPT
   -> Secure MCP Tunnel
   -> official tunnel-client
   -> direct stdio semantic-projection
-  -> Filesystem / Playwright / focused adapters
+  -> focused backends/adapters
 ```
 
-The 1MCP path remains valid historical acceptance and internal diagnostic/adaptive infrastructure; it is not the normal semantic critical path.
+1MCP remains internal diagnostic/adaptive/aggregation infrastructure.
 
-## Stage 25 grounding benchmark — MERGED / SAFETY GATE PASSED
+## Stage 25 grounding benchmark — ACCEPTED
 
-PR #73 was squash-merged to `main` on 2026-08-17 as:
+PR #73 was squash-merged to `main` on 2026-08-17 as `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
 
-`acc6334ef0114d3ca6b6a243d904605cd00a321a` — `Stage 25: safe local vision grounding benchmark (#73)`.
-
-Current target-laptop grounding configuration:
+Current target-laptop grounding baseline:
 
 ```text
 llama.cpp = b10448 / commit ad1de39e0
 model = LFM2.5-VL-450M F16
-mmproj = LFM2.5-VL-450M F16
-CPU path = 8 threads
+mmproj = F16
+CPU = 8 threads
 ctx = 2048
-batch = 128
-ubatch = 64
-cache K/V = q8_0
-image tokens = 64..256
-parallel = 1
 ```
-
-The selected target-laptop model is F16, not Q4. The current accepted runtime for the grounding benchmark is llama.cpp, not LM Studio/llmster.
 
 Final target evidence with Chrome running:
 
-| Case | Result |
-|---|---|
-| labeled primary Send | HIT |
-| icon-only Search | HIT |
-| repeated-row Gamma menu | safe ABSTAIN |
-| tiny alert indicator | safe ABSTAIN |
-| enabled-vs-disabled Send | HIT |
-| absent Export CSV | correct ABSTAIN |
-
-Aggregate safety result:
-
 ```text
-present-target HIT = 3/5
+Search = HIT
+Send = HIT
+state-disambiguated Send = HIT
+Gamma = safe ABSTAIN
+tiny indicator = safe ABSTAIN
+Export CSV absent = correct ABSTAIN
+present-target hits = 3/5
 false clicks = 0
 provider/context errors = 0
 ```
 
-The native bbox adapter now includes target-blind labeled-button inventory, bounded downscale-only refinement crops, deterministic remapping, and fail-closed non-text pass disagreement. The model never performs an action itself.
+This is a safe visual-grounding fallback baseline, not a finished browser controller.
 
-This benchmark proves a safe perception candidate. It does not prove production browser integration.
+## Stage 25.1 — ACTIVE
 
-## Stage 25.1 — ACTIVE: same-session visual fallback integration
+Branch: `chat/stage25-1-vision-integration-foundation`
 
-Active branch:
+Draft PR: #74 — `Stage 25.1: same-session vision fallback foundation`.
 
-`chat/stage25-1-vision-integration-foundation`
+### P0 documentation synchronization — DONE ON BRANCH
 
-No visual coordinate is authorized for automatic interaction until the project proves this invariant:
+Authoritative docs now reflect #73, llama.cpp/F16 and the real 3/5 + safe-abstain result. Older LM Studio/llmster/Q4/PR #72 material remains historical research only.
+
+### P0 same-session browser bridge — PROVED IN WINDOWS CI
+
+Head `3183c537ca018d46d4d32c392ad101c20fe137b2` adds an internal same-session bridge using the already pinned Playwright MCP 0.0.78 opt-in vision primitives.
+
+Proved path:
 
 ```text
-same Playwright page/session
-  -> semantic attempt
-  -> screenshot of current page/viewport
-  -> local vision grounding
-  -> freshness/coordinate validation
-  -> action in the same page/session OR ABSTAIN
+one Playwright MCP client/session
+  -> browser_take_screenshot(scale=css)
+  -> bounded deterministic grounder
+  -> one-shot prepared visual token
+  -> fresh same-session screenshot
+  -> exact dimensions + SHA256 freshness validation
+  -> browser_mouse_click_xy OR ABSTAIN
 ```
 
-Current integration gap: `semantic-projection` acts through semantic/accessibility targets, while the Stage 25 benchmark adapter consumes an image and can return a source-image point. There is not yet a production-safe bridge that proves the screenshot and eventual action belong to the same unchanged browser state.
+Dedicated Windows workflow completed successfully and also reran the existing semantic acceptance, preserving the exact five public tools.
 
-Therefore Stage 25.1 must first establish an internal browser-grounding contract and acceptance tests. A simple `VLM point -> click` implementation is forbidden.
+Positive case: intended visual-only target clicked exactly once.
 
-## Current P0/P1 work
+Negative cases: replayed token, layout-shifted stale capture and grounder ABSTAIN all produced no coordinate action. This proves a second browser or unrestricted `browser_evaluate` is unnecessary for the same-session boundary.
 
-P0:
+The bridge is still internal only. Production `semantic-projection` has not yet been changed to invoke the real VLM or automatically escalate `web_interact`.
 
-1. synchronize authoritative documentation with #73;
-2. define same-session capture/ground/action invariants;
-3. add integration acceptance proving HIT and ABSTAIN/no-action behavior.
+## Next active priority — local vision runtime lifecycle
 
-P1:
+Implement a focused non-agentic llama.cpp runtime owner with:
 
-4. add focused local-vision lifecycle/resource admission instead of loading the model permanently;
-5. strengthen grounding verification per target class rather than one global IoU threshold;
-6. test stale layout, scroll, overlays, repeated targets, tiny targets and other adversarial browser states;
-7. test workspace link/junction containment, private-network navigation policy and tunnel-key inheritance;
-8. broaden static analysis/dependency maintenance;
-9. move stable installation toward locked/reproducible npm/Python dependencies.
+- exact approved runtime/model/projector identity;
+- conservative physical/virtual memory admission;
+- loopback-only owned process startup and readiness;
+- status/use-touch;
+- idle unload/TTL;
+- explicit stop and stale/crash cleanup;
+- no Chrome/unrelated-process termination.
 
-## Active architectural findings
+It must remain separate from Chat planning, browser action choice and arbitrary model administration.
 
-- ordinary ChatGPT is the planner/intelligence;
-- semantic DOM/accessibility grounding remains first choice;
-- local vision is a bounded fallback and may ABSTAIN;
-- current public tool count remains five;
-- `semantic-projection` must remain a thin deterministic compatibility boundary, not a model manager or second planner;
-- local inference lifecycle should be a focused owned subsystem with explicit resource admission and cleanup;
-- installed/source single-owner and fail-closed guarantees remain required;
+## Following P1 priorities
+
+- production model-neutral grounder + semantic->vision escalation;
+- class-aware grounding verifier;
+- stale/adversarial browser coverage;
+- Windows link/junction root containment regression;
+- localhost/private-network navigation policy test;
+- tunnel credential child-inheritance test;
+- Node/Python static analysis and npm/Python dependency maintenance;
+- reproducible dependency locking before stable distribution.
+
+## Active rules
+
+- ChatGPT is the only planner/intelligence;
+- semantic DOM/accessibility grounding comes first;
+- vision may ABSTAIN and never clicks by itself;
+- stale visual evidence must not mutate the page;
+- public semantic surface stays small and truthful;
+- authoritative documentation is updated together with accepted implementation evidence;
 - no stable product release exists yet.
-
-## Historical Stage 25 research
-
-Documents that describe LM Studio/llmster, 450M Q4 or PR #72 as the active next step are retained as research/history. They do not override the accepted #73 target evidence above.
-
-The complete pre-Stage-22 implementation remains recoverable at `a446397d99276856c614bc49526cab422c7e74bd` for historical extraction only.
