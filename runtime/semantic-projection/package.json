@@ -16,10 +16,11 @@
     "lib/runtime-backed-visual-grounder.mjs"
   ],
   "scripts": {
-    "acceptance": "node tests/acceptance.mjs && node tests/semantic-vision-click-router.mjs",
+    "acceptance": "node tests/acceptance.mjs && node tests/semantic-vision-click-router.mjs && node tests/semantic-vision-playwright-acceptance.mjs",
     "acceptance:direct-tunnel": "node tests/direct-tunnel-acceptance.mjs",
     "acceptance:credential-scrub": "node tests/credential-scrub.mjs",
-    "acceptance:semantic-vision-router": "node tests/semantic-vision-click-router.mjs"
+    "acceptance:semantic-vision-router": "node tests/semantic-vision-click-router.mjs",
+    "acceptance:semantic-vision-playwright": "node tests/semantic-vision-playwright-acceptance.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2.0.0",
