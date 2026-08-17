@@ -1,46 +1,80 @@
 {
   "fixture": "stage25_grounding_fixture.html",
-  "viewport": { "width": 1280, "height": 720 },
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
   "cases": [
     {
       "id": "labeled-primary-button",
       "target_id": "send-primary",
       "instruction": "click the enabled Send button in the lower-right corner",
-      "bbox": [1056, 636, 1200, 684],
+      "target_text": "Send",
+      "bbox": [
+        1056,
+        636,
+        1200,
+        684
+      ],
       "kind": "labeled_button"
     },
     {
       "id": "icon-only-control",
       "target_id": "search-icon",
       "instruction": "open Search using the icon in the top-left toolbar",
-      "bbox": [32, 24, 64, 56],
+      "target_text": null,
+      "bbox": [
+        32,
+        24,
+        64,
+        56
+      ],
       "kind": "icon_only"
     },
     {
       "id": "repeated-row-action",
       "target_id": "row-menu-3",
       "instruction": "open the actions menu for the Gamma deployment row",
-      "bbox": [1180, 298, 1208, 326],
+      "target_text": null,
+      "bbox": [
+        1180,
+        298,
+        1208,
+        326
+      ],
       "kind": "repeated_similar_control"
     },
     {
       "id": "tiny-indicator",
       "target_id": "notification-dot",
       "instruction": "click the red unread-alert indicator beside Alerts",
-      "bbox": [1212, 28, 1224, 40],
+      "target_text": null,
+      "bbox": [
+        1212,
+        28,
+        1224,
+        40
+      ],
       "kind": "tiny_target"
     },
     {
       "id": "state-disambiguation",
       "target_id": "send-primary",
       "instruction": "click the enabled Send button, not the disabled Send button",
-      "bbox": [1056, 636, 1200, 684],
+      "target_text": "Send",
+      "bbox": [
+        1056,
+        636,
+        1200,
+        684
+      ],
       "kind": "visual_state"
     },
     {
       "id": "absent-target",
       "target_id": null,
       "instruction": "click the Export CSV button",
+      "target_text": "Export CSV",
       "bbox": null,
       "kind": "absent_target"
     }
