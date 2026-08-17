@@ -1,20 +1,26 @@
 # Chat Agent Platform
 
-Тонкий мост между **обычным ChatGPT Chat** и локальным Windows-компьютером через стандартный MCP. ChatGPT остаётся единственным интеллектом/планировщиком; локальная часть выполняет ограниченные детерминированные действия или специализированное восприятие.
+Тонкий мост между **обычным ChatGPT Chat** и локальным Windows-компьютером через стандартный MCP. ChatGPT остаётся интеллектом/планировщиком; локальная часть выполняет только ограниченные детерминированные действия или специализированное восприятие.
 
 Для продолжения разработки сначала читайте [`AGENTS.md`](AGENTS.md), [`project-context/START_HERE.md`](project-context/START_HERE.md), [`project-context/CURRENT_STATE.md`](project-context/CURRENT_STATE.md) и текущий Stage 25.1 контракт [`project-context/STAGE25_1_VISION_INTEGRATION.md`](project-context/STAGE25_1_VISION_INTEGRATION.md).
 
 ## Принятая основа
 
+Нормальный путь после Stage 24.1:
+
 ```text
 ordinary ChatGPT Chat
   -> OpenAI Secure MCP Tunnel
-  -> official tunnel-client
+  -> official openai/tunnel-client on Windows
+  -> secure semantic launcher
   -> direct stdio semantic-projection
   -> replaceable task-active MCP backends / focused adapters
+  -> local programs/files/devices/models
 ```
 
-1MCP остаётся внутренней diagnostic/adaptive/aggregation инфраструктурой. Публичная semantic surface по-прежнему содержит ровно пять действий:
+1MCP остаётся внутренней diagnostic/adaptive/aggregation инфраструктурой, но обычный public `semantic` проходит напрямую через stdio.
+
+Публичная semantic surface по-прежнему содержит ровно пять действий:
 
 ```text
 workspace_read
@@ -24,85 +30,103 @@ web_observe
 web_interact
 ```
 
-## Stage 25 grounding — принят
+## Stage 25 grounding — safety baseline принят
 
-PR #73 слит как `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
+PR #73 слит в `main` как `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
 
-Текущий target baseline:
+Реальный baseline на целевом ноутбуке:
 
 ```text
-llama.cpp b10448 / ad1de39e0
-LFM2.5-VL-450M F16 + F16 mmproj
-CPU 8 threads
-ctx 2048
+runtime = llama.cpp b10448 / ad1de39e0
+model = LiquidAI LFM2.5-VL-450M F16
+mmproj = F16
+CPU = 8 threads
+ctx = 2048
 ```
 
-С открытым Chrome: Search/Send/state — HIT; Gamma/tiny — безопасный ABSTAIN; отсутствующий Export CSV — корректный ABSTAIN; `false_clicks=0`, `provider/context_errors=0`, точность по присутствующим целям `3/5`.
+С открытым Chrome:
+
+- Search — HIT;
+- Send — HIT;
+- enabled Send/state disambiguation — HIT;
+- Gamma repeated-row — безопасный ABSTAIN;
+- tiny indicator — безопасный ABSTAIN;
+- отсутствующий Export CSV — корректный ABSTAIN;
+- false clicks = 0;
+- provider/context errors = 0;
+- точность по присутствующим целям = 3/5.
 
 Vision поэтому остаётся безопасным fallback-кандидатом, а не основным browser controller.
 
-## Stage 25.1 — что уже доказано
+## Stage 25.1 — что уже сделано
 
-Активна draft PR #74: `chat/stage25-1-vision-integration-foundation`.
+Draft PR #74 строит безопасную интеграцию без шестого Chat tool и без второго planner.
 
-На полностью зелёном implementation head `c7eecc4ec1c4796e943816c9e51256d6b181b452` доказаны:
+Уже доказаны/реализованы:
 
-- **same-session visual bridge:** один Playwright MCP session, CSS screenshot, one-shot visual token, повторный screenshot, exact freshness check, coordinate action или ABSTAIN;
-- replay, layout shift, scroll, overlay, navigation/page replacement, missing/ambiguous target — без непредусмотренного coordinate action;
-- публичных semantic tools всё ещё ровно пять;
-- отдельный local-vision runtime owner проходит synthetic Windows lifecycle: Doctor, idempotent Start, Touch, TTL unload, Stop, tamper rejection, foreign-listener и ownership fail-closed;
-- Windows junction из workspace наружу не позволяет `workspace_read`/`workspace_write` выйти за root на текущем pinned Filesystem stack;
-- production grounding policy не разрешает repeated-row и tiny target превращать в клик без отдельного evidence;
-- CodeQL покрывает Actions + JavaScript/TypeScript + Python; Dependabot следит за Actions/npm/pip.
+- same-session Playwright capture/freshness/coordinate-action boundary;
+- one-shot visual tokens и ABSTAIN при layout/scroll/overlay/navigation/replay;
+- отдельный lifecycle owner для llama.cpp с RAM admission, exact artifact/process ownership и TTL unload;
+- class-aware verifier: repeated-row и tiny пока принудительно не авторизуются;
+- Windows junction containment;
+- secure semantic launcher, который удаляет унаследованные `CONTROL_PLANE_API_KEY`/`OPENAI_API_KEY` до загрузки core;
+- semantic npm lockfile и product/acceptance `npm ci`;
+- прямые private/link-local/metadata literal IP блокируются в `web_open`, а loopback остаётся доступен;
+- CodeQL расширен на Actions + JavaScript/TypeScript + Python;
+- отдельный production visual grounder превращает PNG + bounded target metadata только в `resolved`/`abstain` evidence и не управляет браузером или моделью.
 
-Важно: **реальный F16 ещё не подключён к same-session bridge в production path**. Synthetic runtime proof также не заменяет target-laptop lifecycle acceptance.
+Важно: Playwright origin filters используются только как дополнительная защита. Они не считаются полноценной DNS/redirect network sandbox.
 
-## Архитектурное правило vision
+## Что ещё не сделано
 
-```text
-semantic DOM/accessibility first
-  -> если target надёжен: semantic action
-  -> иначе SAME Playwright page/session
-       -> capture
-       -> bounded local vision
-       -> production authorization policy
-       -> freshness proof
-       -> action ИЛИ ABSTAIN
-```
-
-`semantic-projection` не превращается в model manager, workflow brain или универсальный gateway. Heavyweight model lifecycle живёт отдельно.
-
-## Следующие приоритеты
-
-1. проверить наследование `CONTROL_PLANE_API_KEY` и при необходимости явно вычистить его из downstream child env;
-2. зафиксировать localhost/private-network navigation scope без поломки намеренных local-web workflows;
-3. добавить настоящий npm lockfile и перейти на `npm ci`;
-4. подключить model-neutral real VLM grounder через runtime owner + production policy;
-5. включить controlled semantic->vision escalation;
-6. провести real target-Windows F16 lifecycle + same-session acceptance с Chrome;
-7. только затем расширять target-class promotion или публичную capability surface.
-
-## Безопасность
-
-Базовая модель:
+Пока **нет** автоматической цепочки:
 
 ```text
-AVAILABLE -> ACTIVE -> AUTHORIZED
+semantic miss/ambiguity
+  -> real F16 runtime
+  -> production grounder
+  -> same-session freshness
+  -> click/ABSTAIN
 ```
 
-Для visual browser action дополнительно:
+Следующий этап — связать уже доказанные внутренние части, сначала детерминированными CI-тестами, затем одним реальным тестом на целевом Windows-ноутбуке с открытым Chrome. До этого public semantic contract не расширяется.
 
-```text
-uncertain/stale/unpromoted target -> ABSTAIN -> zero page mutation
-```
+## Windows bootstrap/manager
 
-## Windows bootstrap
+Bootstrap:
 
 ```powershell
 .\scripts\bootstrap-chat-platform.ps1
 ```
 
-Менеджер отвечает за lifecycle/configuration/diagnostics; tunnel key хранится через Windows DPAPI; shared runtime использует authoritative ownership/fail-closed handling.
+Менеджер/tray отвечает за lifecycle/configuration/diagnostics, а не за ИИ-планирование. Секрет tunnel-client хранится через Windows DPAPI. Для shared runtime действует один authoritative owner и fail-closed обработка конфликтов.
+
+## Безопасность
+
+Основная модель:
+
+```text
+AVAILABLE -> ACTIVE -> AUTHORIZED
+```
+
+Для browser vision дополнительно:
+
+```text
+uncertain/stale/unpromoted grounding -> ABSTAIN -> zero page mutation
+```
+
+Тяжёлый vision runtime запускается только после resource admission и выгружается по TTL/pressure policy.
+
+## Текущий приоритет
+
+1. runtime-backed production grounder runner;
+2. внутреннее соединение с same-session bridge без изменения пяти public tools;
+3. deterministic integration CI HIT + ABSTAIN/no-action;
+4. реальный F16 end-to-end на целевом ноутбуке с Chrome;
+5. только затем политика автоматического semantic -> vision escalation;
+6. после Stage 25.1 — профессиональные application capabilities и distribution hardening.
+
+Точная текущая точка: [`project-context/CURRENT_STATE.md`](project-context/CURRENT_STATE.md). План: [`project-context/ROADMAP.md`](project-context/ROADMAP.md).
 
 ## License / Support
 

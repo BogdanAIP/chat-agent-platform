@@ -8,112 +8,99 @@ Do not publish tokens, API keys, private endpoints, exploit payloads or sensitiv
 
 ## Current normal security boundary
 
+The accepted normal semantic path is outbound from the user's machine:
+
 ```text
 ordinary ChatGPT
   -> OpenAI Secure MCP Tunnel
   -> official tunnel-client
-  -> direct stdio semantic-projection
+  -> direct stdio semantic-projection launcher
+  -> semantic-projection core
   -> scoped Filesystem / isolated Playwright / focused local adapters
 ```
 
-The normal semantic path does not require a local port-3050 1MCP hop. Port 3050/1MCP remains relevant only to accepted legacy/diagnostic/adaptive profiles.
+The normal semantic path does **not** require a local port-3050 1MCP hop. Port 3050/1MCP remains accepted legacy/diagnostic/adaptive infrastructure.
 
 The project does not implement its own public ingress, relay, tunnel, credential vault or generic authorization server.
 
-## Secrets
+## Secrets and child-process environment
 
-Secrets, including the OpenAI tunnel runtime key, must never be committed. The tunnel runtime key should have only the permissions required by tunnel operation and is stored locally through Windows DPAPI `CurrentUser` by the manager.
+Secrets, including the OpenAI tunnel runtime key, must never be committed. The tunnel runtime key should have only permissions required by tunnel operation and is stored locally through Windows DPAPI `CurrentUser` by the manager.
 
-The direct controller temporarily provides `CONTROL_PLANE_API_KEY` to tunnel-client startup. Explicit child-environment inheritance testing remains pending. Do not assume semantic-projection or downstream Filesystem/Playwright children cannot see the key until a regression proves that boundary; scrub downstream environments if the test shows inheritance.
+Review of exact `openai/tunnel-client v0.0.11` established that its stdio MCP child is launched with inherited parent environment. Therefore `CONTROL_PLANE_API_KEY` would reach semantic-projection if the project did nothing.
 
-## Filesystem scope
-
-Filesystem roots remain explicit. Lexical absolute/parent traversal is rejected by the semantic projection.
-
-Stage 25.1 additionally proved the current pinned Windows stack against a real directory junction:
+The accepted boundary is now explicit:
 
 ```text
-allowed workspace/outside-link -> junction -> outside directory
+tunnel-client inherited environment
+  -> semantic-projection-launcher.mjs
+       -> delete CONTROL_PLANE_API_KEY
+       -> delete OPENAI_API_KEY
+       -> import semantic-projection core
 ```
 
-Normal semantic calls produced:
+A Windows sentinel regression proves scrub occurs before core import and does not echo the injected value. Downstream Filesystem/Playwright are then launched through the pinned MCP SDK stdio transport, which applies its own restricted environment behavior.
+
+Do not remove the secure launcher merely because a future upstream version appears to filter environment; first prove and review that new contract.
+
+## Capability scope
+
+The normal semantic projection exposes only reviewed semantic operations and must not leak generic/raw backend capabilities.
+
+Raw Playwright code/evaluate/file-upload/direct-network-request actions are not part of the accepted semantic surface. Filesystem roots remain explicit; lexical traversal/absolute-path escape is rejected by projection; real Windows junction read/write escape attempts are also regression-tested and blocked by the current stack.
+
+## Browser network boundary
+
+The isolated Playwright profile is browser/process isolation, not a complete network sandbox.
+
+`web_open` accepts HTTP/HTTPS but now applies a direct-destination policy before `browser_navigate`:
+
+- reviewed loopback remains allowed: `localhost`, `*.localhost`, IPv4 127/8 and IPv6 `::1`;
+- direct RFC1918, CGNAT, link-local/metadata and other explicit non-public/special IP destinations are rejected by default;
+- direct `metadata.google.internal` is rejected;
+- Playwright `blocked-origins` additionally covers reviewed metadata endpoints as defense-in-depth.
+
+Do **not** treat Playwright `allowed-origins`/`blocked-origins` as the primary security boundary. The pinned upstream documentation explicitly states that origin filtering is not a security boundary and does not affect redirects. DNS hostname resolution/rebinding and redirects are therefore residual risks if future workflows require a stronger private-network/metadata isolation guarantee.
+
+Broader private-LAN browser access should be a separately reviewed capability/policy rather than silently weakening the normal web scope.
+
+## Local vision boundary
+
+Accepted Stage 25 grounding uses reviewed local image data and a loopback llama.cpp endpoint. Ordinary Chat must not receive arbitrary model administration, raw model prompts, arbitrary inference endpoints or unrestricted remote image URLs.
+
+The visual model never performs a browser action. Production layers are separated:
 
 ```text
-workspace_read through junction = blocked
-workspace_write through junction = blocked
-normal write inside root = works
+focused runtime owner
+  -> reviewed loopback inference
+  -> production visual grounder
+  -> deterministic class-aware authorization
+  -> same-session freshness bridge
+  -> action OR ABSTAIN
 ```
 
-The suspected junction escape did not reproduce. Keep this regression because downstream Filesystem dependency behavior may change.
+The production grounder does not own runtime, browser state or action. Repeated-row and tiny classes remain non-authorizing until separately promoted by measured evidence.
 
-## Browser scope
+Automatic visual interaction requires capture/action in the same Playwright session and fresh CSS-pixel evidence. If page identity, viewport/scroll state, coordinate mapping or freshness is uncertain, the result is ABSTAIN and the page remains unchanged. Never implement a blind cross-session `VLM coordinate -> click` path.
 
-Raw Playwright code/evaluate/file-upload/direct-network-request actions are not part of the accepted semantic surface.
+## Resource/process boundary
 
-The isolated Playwright profile is a browser/process isolation configuration, not a guaranteed network sandbox. `web_open` intentionally supports reviewed HTTP/HTTPS navigation and accepted tests/workflows use localhost. Therefore localhost/private-network behavior must be documented and regression-tested rather than hidden behind an arbitrary blanket block.
+The F16 vision model is heavyweight relative to the target laptop and is not an always-on default service. The focused lifecycle owner enforces approved artifact/runtime identity, conservative memory admission, loopback health, exact process ownership, Touch, TTL/resource-pressure unload and explicit cleanup.
 
-Vision fallback must not autonomously expand navigation scope from on-screen content. Its accepted role is grounding/action within the current already-authorized Playwright page/session.
-
-## Same-session local vision boundary
-
-The visual model never performs a browser action. It may only return bounded perception evidence that a deterministic adapter can resolve or reject.
-
-Stage 25.1 now proves this internal action boundary in Windows CI:
-
-```text
-same Playwright client/session
-  -> CSS screenshot
-  -> bounded grounding result
-  -> one-shot prepared target
-  -> fresh CSS screenshot
-  -> exact dimensions + screenshot SHA256
-  -> coordinate action OR ABSTAIN
-```
-
-Proved stale/uncertain no-action cases include layout shift, scroll, overlay, navigation/page replacement, replayed token, missing target and ambiguous target. Existing exact five-tool semantic acceptance remains green.
-
-The freshness policy is deliberately strict. Do not weaken it merely to increase hit rate.
-
-## Local vision runtime/process boundary
-
-A focused non-agentic lifecycle owner now exists for the reviewed F16 profile. Synthetic Windows acceptance proves:
-
-- exact runtime version markers;
-- exact model/mmproj size + SHA256;
-- loopback-only binding;
-- physical + virtual memory admission;
-- process ownership using PID + exact executable + full command-line SHA256 + UTC creation ticks;
-- idempotent Start;
-- Touch + idle TTL unload;
-- explicit Stop;
-- model tamper rejection;
-- foreign-listener fail-closed behavior;
-- ownership-mismatch fail-closed behavior.
-
-The controller does not kill Chrome or arbitrary user processes. **Real target-laptop F16 lifecycle acceptance is still required before product promotion.**
-
-## Production grounding authorization
-
-Benchmark output is not automatically actionable. Stage 25.1 adds a stricter class-aware promotion layer:
-
-- text/state targets require unique target-blind inventory and unique refinement;
-- icon targets require unique two-pass grounding and positive overlap;
-- repeated-row and tiny targets remain forced ABSTAIN until separate target evidence promotes them;
-- absent/unreviewed/ambiguous/error paths do not authorize action.
-
-Do not replace this with one global IoU threshold; accepted text evidence includes very low coarse/refined overlap.
+It must not become a generic model runner or kill Chrome/unrelated processes.
 
 ## Supply-chain status
 
 - complete reachable Git history is scanned with checksum-pinned Gitleaks;
-- GitHub Actions remain SHA-pinned where configured;
-- CodeQL now analyzes Actions, JavaScript/TypeScript and Python; all three jobs passed on the current Stage 25.1 evidence head;
-- Dependabot now monitors Actions, semantic npm and root pip dependencies;
-- semantic projection still lacks a committed npm lockfile and currently installs with `--package-lock=false`;
-- Stage 25 Python dependency management remains small but needs a stable reproducibility/update policy before release.
-
-Dependency monitoring is improved; reproducible installation is still pending.
+- GitHub Actions are SHA-pinned where configured;
+- CodeQL analyzes Actions, JavaScript/TypeScript and Python;
+- Dependabot covers Actions, semantic npm and Python requirements;
+- semantic projection uses exact top-level npm pins plus a committed lockfile;
+- product and acceptance semantic installs use `npm ci --ignore-scripts --no-audit --no-fund` and refuse unlocked install when dependencies are absent;
+- standalone installed-layout acceptance also carries the lockfile and secure launcher;
+- current vision Python dependency surface is small and exactly pins `Pillow==12.3.0`, but stable distribution still needs an explicit Python artifact/hash/update policy;
+- downloaded tunnel/model/runtime artifacts retain checksum/hash/version verification where applicable.
 
 ## Historical infrastructure
 
-Historical Yandex/Tailscale/custom universal-core paths are fallback/history only and must not be treated as current authorization boundaries.
+Historical Yandex/Tailscale/custom universal-core and LM Studio/llmster paths are fallback/history only and must not be treated as current authorization boundaries.

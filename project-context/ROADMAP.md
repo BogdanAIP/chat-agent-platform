@@ -2,17 +2,25 @@
 
 ## Goal
 
-Keep ordinary ChatGPT as the intelligence layer while local capabilities remain replaceable MCP modules or focused adapters. Do not scale capability count by exposing hundreds of raw Chat tools or by running every local process continuously.
+Keep ordinary ChatGPT as the intelligence layer while local capabilities remain replaceable MCP modules or focused adapters. Do not expose hundreds of raw tools or run heavyweight local components permanently.
 
-## Stages 21–24.1 — DONE
+## Stage 21 — Native ChatGPT ↔ local MCP — DONE
 
-- Stage 21: Secure MCP Tunnel + official tunnel-client + local MCP round trip.
-- Stage 22: obsolete universal Rust/Python/custom-ingress core removed.
-- Stage 23: quality-first Windows module selection.
-- Stage 24 (#66): exact five-tool semantic Chat surface accepted.
-- Stage 24.1 (#70): direct stdio semantic path selected; 1MCP retained internally for diagnostic/adaptive/aggregation use.
+Secure MCP Tunnel + official tunnel-client + local MCP round trip accepted.
 
-Accepted public tools:
+## Stage 22 — Remove superseded universal platform core — DONE
+
+Obsolete universal Rust/Python/custom-ingress core removed; historical implementation remains in Git.
+
+## Stage 23 — Quality-first module selection — DONE
+
+Accepted Windows Filesystem/Playwright/1MCP candidates and selection rules.
+
+## Stage 24 — Windows lifecycle + stable semantic Chat surface — DONE
+
+Merged as `175d36236f80a1f99f091d4f031a1c6255f3652b` (#66).
+
+Public tools remain exactly:
 
 ```text
 workspace_read
@@ -22,11 +30,23 @@ web_observe
 web_interact
 ```
 
+## Stage 24.1 — Direct semantic tunnel A/B — DONE
+
+Merged as `df1d5e232b739b62e72ad81e5d82fd01be53e884` (#70).
+
+Selected normal path:
+
+```text
+ChatGPT -> Secure MCP Tunnel -> tunnel-client -> direct stdio semantic-projection
+```
+
+1MCP stays internal diagnostic/adaptive/aggregation infrastructure.
+
 ## Stage 25 — Safe local vision grounding benchmark — DONE FOR BASELINE
 
 PR #73 merged as `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
 
-Selected target-laptop grounding baseline:
+Accepted target configuration:
 
 ```text
 llama.cpp b10448 / ad1de39e0
@@ -35,77 +55,79 @@ CPU 8 threads
 ctx 2048
 ```
 
-Final target result with Chrome running: Search/Send/state HIT; Gamma/tiny safe ABSTAIN; absent Export CSV correct ABSTAIN; 0 false clicks; 0 provider/context errors; 3/5 present-target HIT.
+Target result with Chrome running: Search/Send/state HIT; Gamma/tiny safe ABSTAIN; absent Export CSV correct ABSTAIN; 0 false clicks; 0 provider/context errors; 3/5 present-target HIT.
 
 ## Stage 25.1 — Same-session visual fallback integration — ACTIVE
 
 Draft PR #74 on `chat/stage25-1-vision-integration-foundation`.
 
-Fully-green implementation evidence before the current docs update: `c7eecc4ec1c4796e943816c9e51256d6b181b452`.
-
 ### P0.1 Source-of-truth synchronization — DONE
 
-Authoritative docs describe the accepted #73/F16 state and Stage 25.1 boundaries.
+Authoritative docs describe #73 and current Stage 25.1 implementation instead of historical LM Studio/Q4/PR #72 state.
 
 ### P0.2 Same-session capture/freshness/action boundary — PROVED
 
-One pinned Playwright MCP 0.0.78 client/session proves:
+One pinned Playwright MCP session now supports:
 
 ```text
 CSS screenshot
--> prepared one-shot visual target
+-> one-shot prepared visual target
 -> fresh CSS screenshot
 -> exact freshness validation
 -> coordinate action OR ABSTAIN
 ```
 
-Passed cases: positive intended click, replay guard, layout shift, scroll, overlay, navigation/page replacement, missing target and ambiguous target. Every stale/uncertain case produced no coordinate action. Exact five-tool semantic acceptance remains green.
-
-### P0.3 Real semantic -> VLM -> same-session action integration — PENDING
-
-The browser bridge still uses an injected deterministic grounder in CI. Connect the accepted real local-VLM path only through the focused runtime owner, then run real target-Windows acceptance with Chrome open.
+Replay, layout, scroll, overlay, navigation, missing and ambiguous cases fail closed. No second browser or unrestricted `browser_evaluate` is required.
 
 ### P1.4 Focused local-vision lifecycle/resource admission — PROVED SYNTHETICALLY
 
-Implemented reviewed F16 profile with exact runtime/model hashes, physical+virtual memory admission, loopback-only owned start/health, Touch, idle TTL unload, explicit Stop, tamper rejection, foreign-listener fail-closed and ownership-mismatch fail-closed behavior.
+Approved artifact/runtime identity, memory admission, loopback start/health, process ownership, Touch, TTL unload, Stop/Sweep, tamper/foreign-listener/ownership-mismatch rejection are covered by Windows CI.
 
-Synthetic Windows lifecycle acceptance is green. Real target-laptop F16 lifecycle remains pending.
+Real F16 lifecycle on the target laptop remains part of the final integration acceptance.
 
-### P1.5 Production grounding verifier — IMPLEMENTED / UNIT-TESTED
+### P1.5 Production grounding verifier — DONE FOR CURRENT PROMOTED CLASSES
 
-Evidence-based promotion policy:
+Class-aware deterministic authorization is implemented. Inventory-backed text and reviewed icon/state classes can resolve under measured guards. Repeated-row and tiny classes remain forced ABSTAIN until separately promoted.
 
-- text/state: unique target-blind inventory + unique refinement; no global high-IoU rule;
-- icon: unique two-pass result + positive overlap;
-- repeated-row and tiny targets: forced ABSTAIN until separate target evidence promotes them;
-- absent/unreviewed/error paths: no action.
+### P1.6 Adversarial/stale browser tests — DONE FOR CURRENT BRIDGE CONTRACT
 
-### P1.6 Adversarial/stale browser tests — SUBSTANTIALLY PROVED
+Covered: replay, layout shift, scroll, overlay, navigation/page replacement, missing and ambiguous target. More application-specific canvas/WebGL/hostile visual content belongs with later capability benchmarks.
 
-Green Windows coverage now includes layout shift, scroll, overlay, navigation/page replacement, replay, missing and ambiguous target. Remaining useful future cases include canvas/WebGL where practical and hostile on-screen prompt-like content.
+### P1.7 Security regressions — SUBSTANTIALLY DONE
 
-### P1.7 Security regressions — PARTIAL
+Proved:
 
-**PROVED:** Windows workspace junction read/write escape is blocked on the current pinned stack, while normal in-root write still works.
+- Windows junction read/write containment;
+- tunnel credential inheritance was real in `tunnel-client v0.0.11`, and secure launcher scrub-before-core-load now passes a sentinel regression;
+- direct `web_open` to private/link-local/metadata/non-public literal IP destinations is blocked while reviewed loopback remains allowed.
 
-**PENDING:**
+Residual: current URL policy is not a complete DNS/redirect network sandbox. Upstream Playwright origin filters are defense-in-depth only and explicitly do not define a redirect security boundary.
 
-- explicit localhost/private-network browser scope policy/regression;
-- explicit tunnel credential inheritance test and downstream environment scrub if required.
+### P1.8 Static analysis/dependency maintenance — DONE FOR CURRENT NODE/PYTHON SURFACE
 
-### P1.8 Static analysis/dependency maintenance — IMPROVED / PROVED
+CodeQL covers Actions, JavaScript/TypeScript and Python. Dependabot covers Actions, semantic npm and Python requirements. Secret history scan remains active.
 
-CodeQL matrix now covers `actions`, `javascript-typescript`, and `python`; all three jobs are green on the fully tested head.
+### P1/P2.9 Reproducible dependencies — NODE SIDE DONE; PYTHON RELEASE HARDENING PENDING
 
-Dependabot now monitors Actions, semantic npm, and root pip requirements.
+Semantic projection now has a committed npm lockfile and product/acceptance paths use `npm ci`. Unlocked install is refused when dependencies are absent.
 
-### P1/P2.9 Reproducible dependencies — PENDING
+Vision Python currently has the exact small pin `Pillow==12.3.0`; release-grade Python artifact/hash policy is still pending.
 
-Move semantic runtime away from unlocked `npm install --package-lock=false`; commit and validate a real lockfile before switching production/bootstrap/CI to `npm ci`. Keep Python dependency locking/update policy explicit.
+### P0.3/P1.10 Real production grounder integration — ACTIVE
 
-### P2.10 Internal cleanup — PENDING
+A model-neutral production grounder boundary is implemented and unit-proved. It wraps the accepted native-bbox provider with the class-aware production policy and exposes only resolved/abstain evidence; it does not own runtime or browser action.
 
-After remaining security/reproducibility/real-model gates stabilize, extract common loopback inference transport and use model-neutral production naming while retaining benchmark evidence.
+Next:
+
+1. add runtime-backed internal runner: focused lifecycle owner -> loopback production grounder;
+2. connect that runner to the proved same-session bridge without changing the five public tools;
+3. prove deterministic CI plumbing and fail-closed behavior;
+4. run real F16 same-session acceptance on target Windows with Chrome open;
+5. only then decide whether/how semantic miss/ambiguity automatically escalates to vision in the ordinary Chat flow.
+
+### P2 cleanup
+
+After real integration stabilizes, extract any remaining common inference transport, keep production naming model-neutral, and retain Stage 25 benchmark evidence separately.
 
 ## Stage 26 — Professional application capability benchmarks
 
@@ -113,8 +135,8 @@ After Stage 25.1 stabilizes, benchmark REAPER, Origin, FFmpeg, Blender and Windo
 
 ## Stage 27 — Distribution and maintenance hardening
 
-Stable release artifact, locked dependencies, update/repair/doctor/uninstall, key rotation, upgrade/rollback and thin lifecycle UI.
+Stable release artifact, complete locked dependencies, update/repair/doctor/uninstall, key rotation, upgrade/rollback and thin lifecycle UI.
 
 ## Definition of Done
 
-Ordinary ChatGPT can safely use scoped local capabilities through a small stable MCP surface, starting heavyweight components only when needed, without a second planner, generic hidden gateway, unsafe stale-coordinate browser action or hard-coded unreplaceable model/runtime identity.
+Ordinary ChatGPT can safely use scoped local capabilities through a small stable MCP surface, starting heavyweight components only when needed, without a second planner, generic hidden gateway, stale-coordinate browser action, uncontrolled network expansion or unreviewed dependency/runtime drift.
