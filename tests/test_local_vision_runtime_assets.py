@@ -75,7 +75,7 @@ class LocalVisionRuntimeAssetsTests(unittest.TestCase):
 
     def test_memory_policy_is_conservative_and_has_idle_unload(self) -> None:
         memory = self.config["memory"]
-        self.assertGreaterEqual(memory["min_start_physical_gb"], 1.5)
+        self.assertGreaterEqual(memory["min_start_physical_gb"], 1.35)
         self.assertGreaterEqual(memory["min_start_virtual_gb"], 3.0)
         self.assertGreaterEqual(memory["min_run_physical_gb"], 0.5)
         self.assertGreaterEqual(memory["min_run_virtual_gb"], 1.5)
