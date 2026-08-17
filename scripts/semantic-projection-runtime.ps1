@@ -13,6 +13,7 @@ function Get-SemanticProjectionEntryPath {
     $lockPath = Join-Path $projectionRoot 'package-lock.json'
     $corePath = Join-Path $projectionRoot 'bin\semantic-projection.mjs'
     $launcherPath = Join-Path $projectionRoot 'bin\semantic-projection-launcher.mjs'
+    $lockMarkerPath = Join-Path $projectionRoot 'node_modules\.chat-agent-platform-lock.sha256'
 
     foreach ($required in @($manifestPath, $corePath)) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
@@ -100,6 +101,7 @@ await import('./semantic-projection.mjs');
         throw 'Semantic projection package file allowlist drifted.'
     }
 
+    $lockSha256 = $null
     if (Test-Path -LiteralPath $lockPath -PathType Leaf) {
         $lock = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json -AsHashtable
         if ([int]$lock['lockfileVersion'] -ne 3) {
@@ -111,6 +113,7 @@ await import('./semantic-projection.mjs');
                 throw "Semantic projection lockfile root dependency drifted: $dependencyName"
             }
         }
+        $lockSha256 = (Get-FileHash -LiteralPath $lockPath -Algorithm SHA256).Hash.ToLowerInvariant()
     }
 
     if (-not $EnsureDependencies) {
@@ -144,6 +147,21 @@ await import('./semantic-projection.mjs');
             }
         }
 
+        if ($null -ne $lockSha256) {
+            if (-not (Test-Path -LiteralPath $lockMarkerPath -PathType Leaf)) {
+                return $false
+            }
+            try {
+                $appliedLockSha256 = (Get-Content -LiteralPath $lockMarkerPath -Raw -Encoding utf8).Trim().ToLowerInvariant()
+            }
+            catch {
+                return $false
+            }
+            if ($appliedLockSha256 -ne $lockSha256) {
+                return $false
+            }
+        }
+
         return $true
     }
 
@@ -169,10 +187,12 @@ await import('./semantic-projection.mjs');
         finally {
             Pop-Location
         }
+
+        Set-Content -LiteralPath $lockMarkerPath -Value $lockSha256 -Encoding utf8 -NoNewline
     }
 
     if (-not (Test-DependenciesReady)) {
-        throw 'Semantic projection dependencies failed exact-version verification after install.'
+        throw 'Semantic projection dependencies failed exact-version and lock-hash verification after install.'
     }
 
     return [System.IO.Path]::GetFullPath($launcherPath)
