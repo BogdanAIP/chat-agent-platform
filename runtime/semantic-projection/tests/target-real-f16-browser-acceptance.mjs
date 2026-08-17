@@ -27,6 +27,10 @@ const resultPath = process.env.STAGE25_1_RESULT_PATH
   ? path.resolve(process.env.STAGE25_1_RESULT_PATH)
   : null;
 
+function progress(message) {
+  process.stderr.write(`[stage25.1] ${message}\n`);
+}
+
 function textOf(result) {
   return (result?.content ?? [])
     .filter(block => block?.type === 'text' && typeof block.text === 'string')
@@ -131,7 +135,9 @@ async function run() {
 
   const rows = [];
   try {
+    progress('PLAYWRIGHT_CONNECT start');
     await client.connect(transport);
+    progress('PLAYWRIGHT_CONNECT ready');
     const inventory = await client.listTools();
     const tools = new Set(inventory.tools.map(tool => tool.name));
     for (const required of ['browser_navigate', 'browser_snapshot', 'browser_take_screenshot', 'browser_mouse_click_xy']) {
@@ -145,7 +151,9 @@ async function run() {
       ttlMs: 30_000
     });
 
-    for (const testCase of parsedCases.cases) {
+    for (let index = 0; index < parsedCases.cases.length; index += 1) {
+      const testCase = parsedCases.cases[index];
+      progress(`CASE ${index + 1}/6 ${testCase.id} open`);
       await openFixture(client, fixture.url);
       const expectedHit = expectedHitKinds.has(testCase.kind);
       const row = {
@@ -169,6 +177,7 @@ async function run() {
 
       let prepared;
       try {
+        progress(`CASE ${index + 1}/6 ${testCase.id} grounding-start`);
         prepared = await bridge.prepare({
           target: testCase.id,
           instruction: testCase.instruction,
@@ -178,6 +187,7 @@ async function run() {
         row.prepare_ms = elapsedMs(prepareStarted);
         row.prepare_status = prepared.status;
         row.prepare_reason = prepared.reason ?? null;
+        progress(`CASE ${index + 1}/6 ${testCase.id} grounding-done status=${prepared.status} reason=${row.prepare_reason ?? 'none'} ms=${row.prepare_ms.toFixed(1)}`);
       } catch (error) {
         row.prepare_ms = elapsedMs(prepareStarted);
         row.prepare_status = 'exception';
@@ -186,13 +196,16 @@ async function run() {
         row.error = true;
         row.total_ms = elapsedMs(totalStarted);
         rows.push(row);
+        progress(`CASE ${index + 1}/6 ${testCase.id} exception=${row.prepare_reason}`);
         continue;
       }
 
       if (prepared.status === 'resolved') {
+        progress(`CASE ${index + 1}/6 ${testCase.id} freshness-click-start`);
         const committed = await bridge.commitClick(prepared.token);
         row.commit_status = committed.status;
         row.commit_reason = committed.reason ?? null;
+        progress(`CASE ${index + 1}/6 ${testCase.id} freshness-click-done status=${row.commit_status} reason=${row.commit_reason ?? 'none'}`);
       }
 
       row.markers = await currentMarkers(client);
@@ -230,9 +243,12 @@ async function run() {
 
       row.total_ms = elapsedMs(totalStarted);
       rows.push(row);
+      progress(`CASE ${index + 1}/6 ${testCase.id} done classification=${row.classification} total_ms=${row.total_ms.toFixed(1)}`);
     }
   } finally {
-    await client.close().catch(() => {});
+    progress('PLAYWRIGHT_CLOSE start');
+    await client.close().catch(error => progress(`PLAYWRIGHT_CLOSE error=${error instanceof Error ? error.message : String(error)}`));
+    progress('PLAYWRIGHT_CLOSE done');
     await closeHttpServer(fixture.server).catch(() => {});
   }
 
@@ -262,6 +278,7 @@ async function run() {
     cases: rows,
     summary
   };
+  progress(`SUMMARY hits=${summary.hits}/${summary.expected_hits} abstains=${summary.correct_abstains}/${summary.expected_abstains} false_clicks=${summary.false_clicks} errors=${summary.errors}`);
   writeResult(output);
   return summary.acceptance_pass ? 0 : 1;
 }
@@ -269,6 +286,7 @@ async function run() {
 try {
   process.exitCode = await run();
 } catch (error) {
+  progress(`FATAL ${error instanceof Error ? error.message : String(error)}`);
   writeResult({
     schema_version: 1,
     git_head: gitHead(),
