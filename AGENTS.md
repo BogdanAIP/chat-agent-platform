@@ -12,7 +12,7 @@ This repository is designed to be continued safely from a fresh ChatGPT or Codex
 6. `project-context/ROADMAP.md`
 7. `project-context/DEVELOPMENT_PRINCIPLES.md`
 
-Historical Stage 24.1 transport evidence is in `project-context/DIRECT_SEMANTIC_TUNNEL.md`. Historical/pre-acceptance Stage 25 runtime/model research remains in `LOCAL_SPECIALIST_INFERENCE.md`, `ACTIVE_VISUAL_GROUNDING.md`, `STAGE25_TARGET_BENCHMARKS.md` and the dated Stage 25 handoff. Those files do not override current accepted #73 evidence.
+Historical Stage 24.1 transport evidence is in `DIRECT_SEMANTIC_TUNNEL.md`. Historical/pre-acceptance Stage 25 runtime/model research remains in `LOCAL_SPECIALIST_INFERENCE.md`, `ACTIVE_VISUAL_GROUNDING.md`, `STAGE25_TARGET_BENCHMARKS.md` and dated handoffs. Those files do not override current #73/#74 evidence.
 
 ## Source-of-truth order
 
@@ -31,13 +31,13 @@ Do not revive an older design merely because it remains in Git history.
 
 - ordinary ChatGPT Chat is the primary and only planning/intelligence layer;
 - local components expose deterministic capabilities or bounded specialist perception;
-- never add a second planner, autonomous workflow brain, generic local agent runtime, or hidden `tool_invoke` equivalent behind ChatGPT;
+- never add a second planner, autonomous workflow brain, generic local agent runtime, or hidden `tool_invoke` equivalent;
 - prefer official/vendor MCP, then mature OSS MCP, then a generic local API/CLI adapter, then the smallest focused project-owned adapter for a measured gap;
 - do not build a project-owned tunnel, generic MCP gateway, registry, vault, job system or policy platform while accepted ecosystem components cover those boundaries.
 
 ## Accepted semantic foundation
 
-Stage 24 accepted the exact public semantic surface:
+The public semantic surface remains exactly:
 
 ```text
 workspace_read
@@ -47,7 +47,7 @@ web_observe
 web_interact
 ```
 
-Stage 24.1 selected the normal direct stdio path:
+Normal path:
 
 ```text
 ordinary ChatGPT
@@ -61,72 +61,73 @@ ordinary ChatGPT
 
 ## Stage 25 accepted grounding evidence
 
-PR #73 was squash-merged to `main` on 2026-08-17 as:
-
-`acc6334ef0114d3ca6b6a243d904605cd00a321a`.
+PR #73 merged to `main` as `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
 
 Accepted target-laptop grounding baseline:
 
 ```text
-llama.cpp b10448 / commit ad1de39e0
+llama.cpp b10448 / ad1de39e0
 LFM2.5-VL-450M F16 + F16 mmproj
 CPU 8 threads
 ctx 2048
 ```
 
-Final target result with Chrome running:
+Target evidence with Chrome running:
 
 ```text
 Search = HIT
 Send = HIT
-state-disambiguated Send = HIT
-Gamma repeated-row = safe ABSTAIN
+state Send = HIT
+Gamma = safe ABSTAIN
 tiny indicator = safe ABSTAIN
 Export CSV absent = correct ABSTAIN
+present_target_hits = 3/5
 false_clicks = 0
 provider/context_errors = 0
-present_target_hits = 3/5
 ```
 
-The model never clicks. The adapter provides bounded perception plus deterministic validation/ABSTAIN.
+Do not describe LM Studio/llmster or 450M Q4 as the current accepted grounding baseline.
 
-Do not describe LM Studio/llmster or 450M Q4 as the current accepted grounding runtime/model. They remain useful historical research candidates only.
-
-## Current Stage 25.1 rule
+## Current Stage 25.1 evidence
 
 Active branch: `chat/stage25-1-vision-integration-foundation`.
 
-Do not implement `VLM coordinate -> blind click`.
+Draft PR: #74.
 
-Required integration invariant:
+Fully-green implementation evidence head before the latest docs update: `c7eecc4ec1c4796e943816c9e51256d6b181b452`.
 
-```text
-same Playwright page/session
-  -> semantic grounding first
-  -> if unavailable/ambiguous: capture
-  -> local vision grounding
-  -> deterministic validation + freshness proof
-  -> action in same page/session OR ABSTAIN
-```
+Proved on Windows CI:
 
-If capture/action identity, coordinate space, viewport/scroll state, or page freshness is uncertain, fail closed and do not mutate the page.
+- same Playwright-session CSS screenshot -> one-shot visual token -> exact freshness recheck -> coordinate action/ABSTAIN;
+- positive intended click and replay guard;
+- layout shift, scroll, overlay, navigation/page replacement -> stale ABSTAIN/no action;
+- missing/ambiguous grounder -> ABSTAIN/no action;
+- exact five public semantic tools remain unchanged;
+- focused local-vision runtime lifecycle passes synthetic Doctor/Start/Touch/TTL/Stop/tamper/foreign-listener/ownership tests;
+- Windows junction read/write escape is blocked on the pinned Filesystem stack;
+- class-aware production grounding policy forces repeated-row and tiny targets to ABSTAIN until separately promoted;
+- CodeQL Actions/JavaScript/Python and Secret Scan are green.
 
-The first integration test must prove both:
+Do not overstate these results: the browser bridge still uses an injected deterministic grounder in CI, and the lifecycle proof uses a fake loopback runtime. Real F16 target-laptop end-to-end integration is still pending.
 
-1. semantic miss/ambiguity -> visual HIT -> action -> observable result;
-2. uncertain/stale visual result -> ABSTAIN -> zero page mutation.
+## Current next order
 
-Keep vision runtime lifecycle outside `semantic-projection` as a focused non-agentic owner with resource admission, health, cleanup and idle unload.
+1. explicit `CONTROL_PLANE_API_KEY` child-environment regression/scrub if required;
+2. explicit localhost/private-network navigation scope policy/regression that preserves intentional local HTTP workflows;
+3. real npm lockfile + `npm ci` migration;
+4. model-neutral real local-VLM grounder behind the runtime owner + production policy;
+5. controlled semantic->vision escalation behind the already-proved same-session bridge;
+6. real target-Windows F16 lifecycle + same-session acceptance with Chrome open;
+7. only then consider more target-class promotion/public capability changes.
 
 ## Development workflow
 
 - inspect actual repository/PR/CI state before editing;
-- create stage branches from the exact current `main` commit;
-- keep `main` as the integration line, not a scratch branch;
+- create stage branches from exact current `main`;
+- keep `main` as integration line, not scratch;
 - do not force-push/rewrite `main`;
-- update authoritative documentation whenever accepted architecture/runtime evidence changes;
+- update authoritative docs whenever accepted evidence changes;
 - distinguish deterministic CI from real target-machine and ordinary-Chat acceptance;
 - use the user only for irreducible target-machine or Chat UI gates;
 - never claim an ordinary-Chat or target-machine test unless that exact path ran;
-- preserve/reconcile local uncommitted work rather than discarding it;
 - do not weaken fail-closed behavior merely to increase benchmark hit rate.

@@ -4,6 +4,8 @@ Status: **ACTIVE IMPLEMENTATION**
 
 Branch: `chat/stage25-1-vision-integration-foundation`
 
+Draft PR: #74.
+
 Base: `acc6334ef0114d3ca6b6a243d904605cd00a321a` (`main` after PR #73).
 
 ## Accepted Stage 25 starting point
@@ -32,33 +34,47 @@ present_target_hits = 3/5
 
 This is a safe perception baseline, not a finished browser controller.
 
+## Fully-green Stage 25.1 evidence point
+
+Implementation head `c7eecc4ec1c4796e943816c9e51256d6b181b452` completed successfully in:
+
+- general `ci`;
+- Stage 25.1 Vision Bridge Acceptance;
+- Stage 25.1 Vision Runtime Acceptance;
+- Stage 25.1 Security Regressions (Windows junction);
+- CodeQL Security for Actions, JavaScript/TypeScript and Python;
+- Secret History Scan.
+
+The documentation after that head records only behavior actually demonstrated at or before this evidence point.
+
 ## P0 same-session bridge — PROVED IN WINDOWS CI
 
-PR #74 head `3183c537ca018d46d4d32c392ad101c20fe137b2` added an internal `SameSessionVisualGroundingBridge` and a real Windows Playwright acceptance. The dedicated `Stage 25.1 Vision Bridge Acceptance` workflow completed successfully.
-
-The proof uses the already pinned `@playwright/mcp@0.0.78` with its opt-in vision capability in one MCP client/session:
+The internal `SameSessionVisualGroundingBridge` uses the already pinned Playwright MCP 0.0.78 vision capability in one MCP client/session:
 
 ```text
 browser_take_screenshot(type=png, fullPage=false, scale=css)
-  -> injected bounded grounder
+  -> bounded grounder
   -> one-shot opaque visual-target token
   -> re-capture same CSS viewport
   -> exact dimensions + SHA256 freshness check
   -> browser_mouse_click_xy only when unchanged
 ```
 
-Acceptance proved:
+Acceptance proves:
 
-- coordinate action reaches the intended visual-only target in the same Playwright session;
-- visual tokens are one-shot and cannot be replayed;
-- a layout change after preparation changes the capture and causes `stale-visual-capture` ABSTAIN;
-- stale/uncertain results cause zero coordinate click;
-- grounder ABSTAIN causes zero action;
+- intended visual-only target is clicked exactly once when the frame is unchanged;
+- token replay cannot cause a second action;
+- layout shift invalidates the prepared target;
+- scroll invalidates the prepared target;
+- a newly introduced overlay invalidates the prepared target;
+- navigation/page replacement invalidates the prepared target;
+- missing or ambiguous grounder output yields ABSTAIN;
+- every stale/uncertain path produces zero coordinate action;
 - the existing exact five-tool public semantic acceptance still passes.
 
-This closes the architectural question of whether a second browser or unsafe `browser_evaluate` is required: **it is not**. The pinned Playwright MCP can provide the narrow same-session capture/action primitives internally.
+This closes the architectural question of whether a second browser or unsafe `browser_evaluate` is required: **it is not**.
 
-The current freshness policy is deliberately strict: the full CSS screenshot must match exactly before commit. This may over-abstain on dynamic pages, but it is the correct safe first policy. Any later relaxation must be measured and deterministic.
+The current freshness policy intentionally requires an exact full CSS screenshot match. It may over-abstain on dynamic pages. Any later relaxation must be deterministic and separately accepted.
 
 ## Required product flow
 
@@ -71,118 +87,149 @@ ordinary ChatGPT
             SAME Playwright page/session
             -> CSS-pixel capture
             -> local visual grounding
-            -> deterministic validation
+            -> production authorization policy
             -> freshness proof
             -> resolved action OR ABSTAIN
 ```
 
-Vision remains an internal browser-grounding strategy. It does not become a planner and does not automatically require a sixth public Chat tool.
+Vision remains an internal grounding strategy, not a planner and not a reason to add a sixth public Chat tool.
 
-## Same-session invariants
+## Focused vision runtime lifecycle — PROVED SYNTHETICALLY
 
-Automatic visual action requires all applicable conditions:
+The benchmark originally assumed an already-running llama.cpp server. Stage 25.1 now has a separate non-agentic runtime owner for the reviewed profile.
 
-1. capture and action belong to the same Playwright client/session/page;
-2. coordinate space is explicit and deterministic;
-3. screenshot and viewport dimensions agree in CSS pixels;
-4. any navigation/layout/scroll/visual state change that invalidates the prepared target causes ABSTAIN;
-5. prepared targets are short-lived and one-shot;
-6. ABSTAIN/error produces zero page mutation;
-7. diagnostics retained after ABSTAIN are non-authorizing.
+Production profile fixes:
 
-Do not replace a stable semantic ref with a visual coordinate.
+- llama.cpp command and required `build 10448` / `ad1de39e0` markers;
+- exact F16 model/mmproj filenames, sizes and SHA256;
+- `127.0.0.1` only;
+- accepted Stage 25 CPU/context arguments;
+- conservative physical + virtual memory admission;
+- idle TTL and watchdog interval.
 
-## Production integration still pending
-
-The CI bridge currently uses an injected deterministic grounder. It intentionally does **not** yet wire the real llama.cpp/VLM into `semantic-projection` or change public `web_observe`/`web_interact` behavior.
-
-Next dependency-valid work:
-
-1. focused local-vision runtime lifecycle/resource admission;
-2. model-neutral production grounder adapter using the accepted native-bbox path;
-3. controlled semantic->vision escalation behind the same-session bridge;
-4. target-Windows acceptance with the real F16 model and Chrome open.
-
-## Vision runtime lifecycle — P1 ACTIVE
-
-The Stage 25 benchmark assumed an already-running llama.cpp server. Production integration needs a focused non-agentic runtime owner.
-
-Responsibilities:
+Owned-process identity requires:
 
 ```text
-approved runtime/model artifact identity
--> physical + virtual memory admission
--> owned process start
--> loopback-only health/readiness
--> touch/use tracking
--> idle TTL unload
--> explicit stop
--> crash/stale-state cleanup
+PID
++ exact executable
++ SHA256(full actual Windows CommandLine)
++ exact process creation UTC ticks
 ```
 
-Non-responsibilities:
+Windows fake-loopback acceptance proves:
 
-- user-goal planning;
-- arbitrary model selection/download;
-- Chat-facing model administration;
-- browser action decisions;
-- generic job orchestration;
-- killing Chrome or unrelated user processes.
+```text
+Doctor = PASS
+idempotent Start = PASS
+Touch + idle TTL unload = PASS
+explicit Stop = PASS
+tampered model rejection = PASS
+foreign listener fail-closed = PASS
+ownership mismatch fail-closed = PASS
+```
 
-The lifecycle owner remains separate from `semantic-projection` and from the public platform manager's core responsibilities.
+The controller never kills Chrome or arbitrary user processes. Arbitrary production config/model/runtime overrides remain disabled outside explicit test mode.
 
-## Resource policy
+**Boundary:** this is deterministic/synthetic lifecycle proof. The real F16 model still needs target-laptop lifecycle acceptance with realistic Chrome usage.
 
-The accepted F16 model is viable but leaves limited memory headroom on the target laptop. Admission must fail closed before model start when conservative physical/virtual memory floors are not met. Exact production thresholds remain subject to target-machine acceptance; do not lower them merely to make a test pass.
+## Production grounding authorization — IMPLEMENTED / UNIT-TESTED
 
-## Grounding verifier — P1
+`runtime/local_vision_adapter/production_policy.py` intentionally authorizes less than the benchmark adapter.
 
-Do not use one global IoU threshold. Current evidence needs class-aware verification:
+Current promotion policy:
 
-- text-labeled targets: target-blind inventory + refinement;
-- icon/non-text: pass consistency + freshness;
-- repeated rows: stronger contextual disambiguation;
-- tiny targets: safe ABSTAIN over guessed click;
-- state-dependent targets: state evidence, not label text alone.
+- `labeled_button`: unique target-blind text inventory + unique refinement; no global/high IoU threshold;
+- `visual_state`: same unique text inventory guard;
+- `icon_only`: unique pass1 + unique pass2 + positive coarse/refined overlap;
+- `repeated_similar_control`: forced ABSTAIN even if a benchmark row says `accepted`;
+- `tiny_target`: forced ABSTAIN even if a benchmark row says `accepted`;
+- absent, unknown, ambiguous or error paths: no action.
 
-## Adversarial/stale-state tests — P1
+This preserves the measured valid very-low-overlap text case while preventing benchmark-only success from silently promoting unproven target classes.
 
-The first CI already proves one layout-shift stale-capture case. Remaining coverage includes scroll, navigation/page replacement, overlays, repeated visual targets, tiny/state/absent cases, canvas/WebGL where practical, and hostile on-screen prompt-like text.
+## Security regressions
 
-## Security regressions — P1
+### Windows workspace junction — PROVED SAFE ON CURRENT PINNED STACK
 
-Add explicit tests for:
+A real Windows test created:
 
-1. Windows symlink/junction escape from an authorized filesystem root;
-2. localhost/private-network browser navigation policy;
-3. absence of `CONTROL_PLANE_API_KEY` in semantic-projection/downstream backend environments unless explicitly required.
+```text
+allowed workspace/outside-link -> junction -> outside directory
+```
 
-Do not describe these as confirmed vulnerabilities until tests prove one.
+Then called the normal semantic tools. Result:
 
-## Supply-chain/dependency hardening — P1/P2
+```text
+workspace_read through junction = blocked
+workspace_write through junction = blocked
+normal write inside workspace = works
+```
 
-- expand static analysis to active Node/Python code in addition to Actions;
-- keep PowerShell syntax/contract checks explicit;
-- add npm/Python dependency update coverage;
-- move stable distribution away from unlocked runtime install (`npm install --package-lock=false`);
-- preserve checksum/hash verification for downloaded binaries/model artifacts.
+The suspected junction escape did not reproduce. Keep the regression because future Filesystem MCP behavior can change.
+
+### Tunnel credential inheritance — PENDING
+
+The direct controller temporarily provides `CONTROL_PLANE_API_KEY` to tunnel-client startup. Do not assume it is absent from semantic/downstream children. Add an explicit regression and, if necessary, atomically scrub it from downstream backend environments without breaking packaged/installed semantic layout.
+
+### Browser localhost/private-network scope — PENDING
+
+The isolated Playwright profile is not a network sandbox, and local HTTP is intentionally used by accepted workflows/tests. Therefore do not impose an arbitrary blanket block. Define and test a truthful policy that preserves explicit local-web capability while preventing vision from autonomously expanding navigation scope.
+
+## Supply-chain/static-analysis status
+
+CodeQL now runs three jobs:
+
+```text
+actions
+javascript-typescript
+python
+```
+
+All three passed on the fully-green evidence head.
+
+Dependabot now monitors GitHub Actions, semantic npm dependencies and root pip requirements.
+
+Secret history scanning remains enabled and green.
+
+## Reproducible dependency installation — PENDING
+
+Semantic projection still uses exact top-level npm pins but runtime/bootstrap/CI currently installs without a committed lockfile:
+
+```text
+npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+```
+
+Next hardening step is to generate/commit a real package lock from the pinned manifest, validate it, then switch reviewed install paths to `npm ci`. Do not hand-author a lockfile.
+
+## Real production integration still pending
+
+The browser bridge CI uses an injected deterministic grounder. It does **not** yet connect the real llama.cpp/VLM to `semantic-projection` or alter public `web_observe`/`web_interact` behavior.
+
+Dependency-valid next work:
+
+1. explicit credential inheritance regression / environment scrub policy;
+2. explicit local/private browser scope policy/regression;
+3. reproducible npm dependency lock/install;
+4. model-neutral production grounder client combining the runtime owner + accepted native-bbox adapter + production policy;
+5. controlled semantic->vision escalation behind the same-session bridge;
+6. target-Windows real F16 lifecycle + real same-session acceptance with Chrome open;
+7. only after those gates, consider additional target-class promotion or public capability changes.
 
 ## Public Chat surface
 
-Do not add a public `vision_*` action solely for browser fallback. Independent document/image/chart analysis may justify a separate future reviewed capability, but that is a different contract and requires Refresh/review + ordinary-Chat acceptance.
+Exported Chat tools remain exactly five. Do not add a public `vision_*` tool solely for browser fallback. Independent document/image/chart analysis may justify a separate future capability with its own reviewed schema and ordinary-Chat acceptance.
 
-Until then exported Chat tools remain exactly five.
-
-## Stage 25.1 completion gate
+## Completion gate
 
 Stage 25.1 is complete only when:
 
-- same-session capture/ground/action remains green (PROVED for deterministic injected grounder);
-- real local VLM is connected through the same boundary and remains fail-closed;
+- same-session capture/ground/action remains fail-closed;
+- real local VLM is connected through the same boundary;
 - stale/uncertain visual results cannot mutate the page;
-- runtime resource admission/lifecycle leaves no stale process;
-- security regressions are explicit;
+- real target-laptop runtime admission/lifecycle leaves no stale process;
+- credential/network scope regressions are explicit;
+- dependencies are reproducible enough for the promoted path;
 - integration CI reacts to visual/runtime changes;
 - target Windows acceptance passes with realistic Chrome usage;
 - public semantic contract remains truthful and small;
-- authoritative documentation matches merged implementation.
+- authoritative documentation matches the merged implementation.

@@ -2,23 +2,15 @@
 
 ## Goal
 
-Keep ordinary ChatGPT as the intelligence layer while local capabilities remain replaceable MCP modules or focused adapters. Do not scale local capability count by exposing hundreds of raw Chat tools or by running every local process continuously.
+Keep ordinary ChatGPT as the intelligence layer while local capabilities remain replaceable MCP modules or focused adapters. Do not scale capability count by exposing hundreds of raw Chat tools or by running every local process continuously.
 
-## Stage 21 — Native ChatGPT ↔ local MCP — DONE
+## Stages 21–24.1 — DONE
 
-Secure MCP Tunnel + official tunnel-client + local MCP round trip accepted.
-
-## Stage 22 — Remove superseded universal platform core — DONE
-
-Obsolete universal Rust/Python/custom-ingress core removed; historical implementation remains recoverable in Git.
-
-## Stage 23 — Quality-first module selection — DONE
-
-Accepted Windows Filesystem/Playwright/1MCP candidates and selection rules.
-
-## Stage 24 — Windows lifecycle + stable semantic Chat surface — DONE
-
-Merged as `175d36236f80a1f99f091d4f031a1c6255f3652b` (#66).
+- Stage 21: Secure MCP Tunnel + official tunnel-client + local MCP round trip.
+- Stage 22: obsolete universal Rust/Python/custom-ingress core removed.
+- Stage 23: quality-first Windows module selection.
+- Stage 24 (#66): exact five-tool semantic Chat surface accepted.
+- Stage 24.1 (#70): direct stdio semantic path selected; 1MCP retained internally for diagnostic/adaptive/aggregation use.
 
 Accepted public tools:
 
@@ -29,18 +21,6 @@ web_open
 web_observe
 web_interact
 ```
-
-## Stage 24.1 — Direct semantic tunnel A/B — DONE
-
-Merged as `df1d5e232b739b62e72ad81e5d82fd01be53e884` (#70).
-
-Selected normal path:
-
-```text
-ChatGPT -> Secure MCP Tunnel -> tunnel-client -> direct stdio semantic-projection
-```
-
-1MCP stays internal diagnostic/adaptive/aggregation infrastructure.
 
 ## Stage 25 — Safe local vision grounding benchmark — DONE FOR BASELINE
 
@@ -61,13 +41,15 @@ Final target result with Chrome running: Search/Send/state HIT; Gamma/tiny safe 
 
 Draft PR #74 on `chat/stage25-1-vision-integration-foundation`.
 
-### P0.1 Source-of-truth synchronization — DONE ON PR BRANCH
+Fully-green implementation evidence before the current docs update: `c7eecc4ec1c4796e943816c9e51256d6b181b452`.
 
-Authoritative docs updated for #73 and Stage 25.1.
+### P0.1 Source-of-truth synchronization — DONE
 
-### P0.2 Same-session capture/freshness/action boundary — PROVED IN WINDOWS CI
+Authoritative docs describe the accepted #73/F16 state and Stage 25.1 boundaries.
 
-Internal bridge now proves, using one pinned Playwright MCP 0.0.78 client/session:
+### P0.2 Same-session capture/freshness/action boundary — PROVED
+
+One pinned Playwright MCP 0.0.78 client/session proves:
 
 ```text
 CSS screenshot
@@ -77,52 +59,53 @@ CSS screenshot
 -> coordinate action OR ABSTAIN
 ```
 
-Positive coordinate action, replay prevention, stale-layout ABSTAIN and grounder ABSTAIN passed. Existing exact five-tool semantic acceptance also remains green.
-
-This proves no second browser and no unrestricted `browser_evaluate` are needed for the internal visual-action boundary.
+Passed cases: positive intended click, replay guard, layout shift, scroll, overlay, navigation/page replacement, missing target and ambiguous target. Every stale/uncertain case produced no coordinate action. Exact five-tool semantic acceptance remains green.
 
 ### P0.3 Real semantic -> VLM -> same-session action integration — PENDING
 
-The bridge acceptance currently uses an injected deterministic grounder. Before production fallback, add the accepted real local-VLM grounder behind a focused runtime owner, then prove the same positive/negative chain with the real F16 model on target Windows.
+The browser bridge still uses an injected deterministic grounder in CI. Connect the accepted real local-VLM path only through the focused runtime owner, then run real target-Windows acceptance with Chrome open.
 
-### P1.4 Focused local-vision lifecycle/resource admission — ACTIVE
+### P1.4 Focused local-vision lifecycle/resource admission — PROVED SYNTHETICALLY
 
-Implement:
+Implemented reviewed F16 profile with exact runtime/model hashes, physical+virtual memory admission, loopback-only owned start/health, Touch, idle TTL unload, explicit Stop, tamper rejection, foreign-listener fail-closed and ownership-mismatch fail-closed behavior.
 
-- exact approved llama.cpp/model/mmproj identity;
-- conservative physical/virtual memory admission;
-- loopback-only owned process start/health;
-- touch/use tracking;
-- idle TTL/unload;
-- explicit stop;
-- crash/stale-state cleanup;
-- no unrelated process or Chrome termination.
+Synthetic Windows lifecycle acceptance is green. Real target-laptop F16 lifecycle remains pending.
 
-### P1.5 Production grounding verifier — PENDING
+### P1.5 Production grounding verifier — IMPLEMENTED / UNIT-TESTED
 
-Use target-class-aware deterministic verification rather than one global IoU threshold.
+Evidence-based promotion policy:
 
-### P1.6 Adversarial/stale browser tests — PARTIAL
+- text/state: unique target-blind inventory + unique refinement; no global high-IoU rule;
+- icon: unique two-pass result + positive overlap;
+- repeated-row and tiny targets: forced ABSTAIN until separate target evidence promotes them;
+- absent/unreviewed/error paths: no action.
 
-Layout-shift stale capture already proved. Still add scroll, navigation/page replacement, overlays, repeated visual targets, tiny/state/absent cases, canvas/WebGL where practical and hostile prompt-like on-screen text.
+### P1.6 Adversarial/stale browser tests — SUBSTANTIALLY PROVED
 
-### P1.7 Security regressions — PENDING
+Green Windows coverage now includes layout shift, scroll, overlay, navigation/page replacement, replay, missing and ambiguous target. Remaining useful future cases include canvas/WebGL where practical and hostile on-screen prompt-like content.
 
-- Windows link/junction workspace containment;
-- localhost/private-network browser navigation policy;
-- tunnel credential inheritance into child processes.
+### P1.7 Security regressions — PARTIAL
 
-### P1.8 Static analysis/dependency maintenance — PENDING
+**PROVED:** Windows workspace junction read/write escape is blocked on the current pinned stack, while normal in-root write still works.
 
-Broaden security/static analysis to active Node/Python implementation and add npm/Python dependency maintenance coverage.
+**PENDING:**
+
+- explicit localhost/private-network browser scope policy/regression;
+- explicit tunnel credential inheritance test and downstream environment scrub if required.
+
+### P1.8 Static analysis/dependency maintenance — IMPROVED / PROVED
+
+CodeQL matrix now covers `actions`, `javascript-typescript`, and `python`; all three jobs are green on the fully tested head.
+
+Dependabot now monitors Actions, semantic npm, and root pip requirements.
 
 ### P1/P2.9 Reproducible dependencies — PENDING
 
-Move stable runtime away from unlocked npm installation and define reproducible Python dependencies.
+Move semantic runtime away from unlocked `npm install --package-lock=false`; commit and validate a real lockfile before switching production/bootstrap/CI to `npm ci`. Keep Python dependency locking/update policy explicit.
 
 ### P2.10 Internal cleanup — PENDING
 
-After P0/P1 contracts stabilize, extract common loopback inference transport and use model-neutral production naming while retaining benchmark evidence.
+After remaining security/reproducibility/real-model gates stabilize, extract common loopback inference transport and use model-neutral production naming while retaining benchmark evidence.
 
 ## Stage 26 — Professional application capability benchmarks
 
