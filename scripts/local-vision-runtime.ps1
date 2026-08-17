@@ -126,8 +126,8 @@ function Get-Config {
     }
 
     if (-not $TestMode) {
-        if ([double]$config.memory.min_start_physical_gb -lt 1.50) {
-            throw 'Production min_start_physical_gb must remain at least 1.50 GB until target acceptance changes it.'
+        if ([double]$config.memory.min_start_physical_gb -lt 1.35) {
+            throw 'Production min_start_physical_gb must remain at least 1.35 GB after target acceptance review.'
         }
         if ([double]$config.memory.min_start_virtual_gb -lt 3.00) {
             throw 'Production min_start_virtual_gb must remain at least 3.00 GB until target acceptance changes it.'
