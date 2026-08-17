@@ -41,7 +41,6 @@ Write-Host "`n===== STAGE 25.1 REAL F16 SAME-SESSION ACCEPTANCE =====" -Foregrou
 Write-Host "HEAD=$head"
 Write-Host "CHROME_RUNNING_BEFORE=$chromeRunningBefore"
 
-# Dependency preparation is locked; no unlocked npm install is allowed.
 . $RuntimeHelper
 $entry = Get-SemanticProjectionEntryPath -RepoRoot $RepoRoot -EnsureDependencies
 Write-Host "SEMANTIC_ENTRY=$entry"
@@ -55,7 +54,6 @@ if ($pillowVersion -ne '12.3.0') {
 }
 Write-Host "PILLOW_VERSION=$pillowVersion"
 
-# Doctor checks reviewed llama.cpp build, artifacts, hashes and resource policy.
 $doctorText = & $RuntimeController -Action Doctor | Out-String
 if ($LASTEXITCODE -ne 0) {
     throw "Vision runtime Doctor failed:`n$doctorText"
@@ -69,7 +67,6 @@ Write-Host "VISION_RUNTIME_ADMISSION_READY=$([bool]$doctor.admission_ready)"
 Write-Host "VISION_RUNTIME_DOCTOR_PHYSICAL_GB=$([double]$doctor.physical_free_gb)"
 Write-Host "VISION_RUNTIME_DOCTOR_VIRTUAL_GB=$([double]$doctor.virtual_free_gb)"
 
-# Start from a cold owned runtime. Stop is ownership-aware and refuses foreign processes.
 $statusBefore = ((& $RuntimeController -Action Status | Out-String) | ConvertFrom-Json)
 if ([bool]$statusBefore.running) {
     Write-Host 'Stopping the currently owned vision runtime before cold-start acceptance.' -ForegroundColor Yellow
@@ -92,18 +89,19 @@ $psi.FileName = $node
 $psi.WorkingDirectory = $SemanticRoot
 $psi.UseShellExecute = $false
 $psi.CreateNoWindow = $true
-$psi.RedirectStandardOutput = $true
-$psi.RedirectStandardError = $true
+# Keep stdout/stderr inherited by this console. Redirecting without draining can
+# deadlock a long real-model run once the OS pipe buffer fills.
+$psi.RedirectStandardOutput = $false
+$psi.RedirectStandardError = $false
 [void]$psi.ArgumentList.Add($Harness)
 $psi.Environment['STAGE25_1_RESULT_PATH'] = $ResultPath
 
 $clientProc = $null
 $minRamGB = [double]::MaxValue
 $safetyStop = $false
-$stdout = ''
-$stderr = ''
 
 try {
+    Write-Host "`n===== LIVE TARGET HARNESS =====" -ForegroundColor Cyan
     $clientProc = [System.Diagnostics.Process]::Start($psi)
     if ($null -eq $clientProc) {
         throw 'Could not start Stage 25.1 Node target harness.'
@@ -124,15 +122,6 @@ try {
     }
 
     $clientProc.WaitForExit()
-    $stdout = $clientProc.StandardOutput.ReadToEnd()
-    $stderr = $clientProc.StandardError.ReadToEnd()
-
-    Write-Host "`n===== TARGET HARNESS OUTPUT =====" -ForegroundColor Cyan
-    if ($stdout) { Write-Host $stdout }
-    if ($stderr) {
-        Write-Host "`n===== TARGET HARNESS STDERR =====" -ForegroundColor Yellow
-        Write-Host $stderr
-    }
 
     Write-Host "`n===== RESOURCE SAFETY =====" -ForegroundColor Cyan
     Write-Host "SAFETY_STOP=$safetyStop"
