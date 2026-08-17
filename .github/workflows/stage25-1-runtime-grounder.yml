@@ -6,10 +6,14 @@ on:
       - "runtime/local_vision_adapter/production_grounder.py"
       - "runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs"
       - "runtime/semantic-projection/tests/runtime-backed-visual-grounder.mjs"
+      - "runtime/semantic-projection/tests/target-real-f16-browser-acceptance.mjs"
       - "scripts/production-visual-grounder.py"
+      - "scripts/test-stage25-1-real-f16-browser.ps1"
       - "scripts/local-vision-runtime.ps1"
       - "config/local-vision-runtime.json"
       - "requirements-stage25-vision.txt"
+      - "tests/fixtures/stage25_grounding_cases.json"
+      - "tests/fixtures/stage25_1_runtime_grounding_fixture.html"
       - "tests/test_production_grounder.py"
       - "tests/test_production_visual_grounder_cli.py"
       - ".github/workflows/stage25-1-runtime-grounder.yml"
@@ -20,10 +24,14 @@ on:
       - "runtime/local_vision_adapter/production_grounder.py"
       - "runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs"
       - "runtime/semantic-projection/tests/runtime-backed-visual-grounder.mjs"
+      - "runtime/semantic-projection/tests/target-real-f16-browser-acceptance.mjs"
       - "scripts/production-visual-grounder.py"
+      - "scripts/test-stage25-1-real-f16-browser.ps1"
       - "scripts/local-vision-runtime.ps1"
       - "config/local-vision-runtime.json"
       - "requirements-stage25-vision.txt"
+      - "tests/fixtures/stage25_grounding_cases.json"
+      - "tests/fixtures/stage25_1_runtime_grounding_fixture.html"
       - "tests/test_production_grounder.py"
       - "tests/test_production_visual_grounder_cli.py"
       - ".github/workflows/stage25-1-runtime-grounder.yml"
@@ -44,6 +52,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+
+      - name: Parse target acceptance wrapper and Node harness
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/test-stage25-1-real-f16-browser.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) {
+            throw "Real F16 target wrapper has PowerShell syntax errors: $($errors -join '; ')"
+          }
+          node --check runtime/semantic-projection/tests/target-real-f16-browser-acceptance.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Real F16 Node target harness failed syntax check.' }
+          Write-Host 'REAL_F16_TARGET_HARNESS_PARSE=PASS'
 
       - name: Install exact Stage 25 vision dependency
         shell: pwsh

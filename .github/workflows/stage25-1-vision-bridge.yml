@@ -8,6 +8,9 @@ on:
       - "runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs"
       - "runtime/semantic-projection/tests/vision-bridge-acceptance.mjs"
       - "runtime/semantic-projection/tests/runtime-backed-bridge-integration.mjs"
+      - "runtime/semantic-projection/tests/target-fixture-visual-equivalence.mjs"
+      - "tests/fixtures/stage25_grounding_fixture.html"
+      - "tests/fixtures/stage25_1_runtime_grounding_fixture.html"
       - "runtime/semantic-projection/package.json"
       - "runtime/semantic-projection/package-lock.json"
       - "project-context/STAGE25_1_VISION_INTEGRATION.md"
@@ -20,6 +23,9 @@ on:
       - "runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs"
       - "runtime/semantic-projection/tests/vision-bridge-acceptance.mjs"
       - "runtime/semantic-projection/tests/runtime-backed-bridge-integration.mjs"
+      - "runtime/semantic-projection/tests/target-fixture-visual-equivalence.mjs"
+      - "tests/fixtures/stage25_grounding_fixture.html"
+      - "tests/fixtures/stage25_1_runtime_grounding_fixture.html"
       - "runtime/semantic-projection/package.json"
       - "runtime/semantic-projection/package-lock.json"
       - "project-context/STAGE25_1_VISION_INTEGRATION.md"
@@ -36,7 +42,7 @@ concurrency:
 jobs:
   same-session-vision-bridge:
     runs-on: windows-latest
-    timeout-minutes: 18
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -63,6 +69,20 @@ jobs:
           try {
             npm ci --ignore-scripts --no-audit --no-fund
             if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Prove target telemetry fixture is pixel-identical before click
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            node tests/target-fixture-visual-equivalence.mjs
+            if ($LASTEXITCODE -ne 0) {
+              throw "Stage 25.1 target fixture visual equivalence failed with exit code $LASTEXITCODE"
+            }
           }
           finally {
             Pop-Location
