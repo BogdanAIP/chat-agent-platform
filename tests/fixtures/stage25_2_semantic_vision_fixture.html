@@ -7,9 +7,11 @@
   <style>
     html, body { width: 100%; height: 100%; margin: 0; font-family: Arial, sans-serif; }
     body { position: relative; background: white; color: black; }
-    #semantic-save { position: absolute; left: 80px; top: 120px; width: 160px; height: 48px; }
-    #delete-a { position: absolute; left: 80px; top: 220px; width: 140px; height: 44px; }
-    #delete-b { position: absolute; left: 240px; top: 220px; width: 140px; height: 44px; }
+    #semantic-save { position: absolute; left: 80px; top: 90px; width: 160px; height: 48px; }
+    #send-disabled { position: absolute; left: 80px; top: 160px; width: 140px; height: 44px; }
+    #send-enabled { position: absolute; left: 240px; top: 160px; width: 140px; height: 44px; }
+    #delete-a { position: absolute; left: 80px; top: 230px; width: 140px; height: 44px; }
+    #delete-b { position: absolute; left: 240px; top: 230px; width: 140px; height: 44px; }
     #visual-launch {
       position: absolute;
       left: 500px;
@@ -33,24 +35,19 @@
 </head>
 <body>
   <button id="semantic-save" type="button">Save</button>
+  <button id="send-disabled" type="button" disabled>Send</button>
+  <button id="send-enabled" type="button">Send</button>
   <button id="delete-a" type="button">Delete</button>
   <button id="delete-b" type="button">Delete</button>
   <div id="visual-launch" aria-hidden="true">Launch</div>
   <div id="marker" aria-live="polite"></div>
   <script>
     const marker = document.getElementById('marker');
-    document.getElementById('semantic-save').addEventListener('click', () => {
-      marker.textContent = 'CLICKED:semantic-save';
-    });
-    document.getElementById('delete-a').addEventListener('click', () => {
-      marker.textContent = 'CLICKED:delete-a';
-    });
-    document.getElementById('delete-b').addEventListener('click', () => {
-      marker.textContent = 'CLICKED:delete-b';
-    });
-    document.getElementById('visual-launch').addEventListener('click', () => {
-      marker.textContent = 'CLICKED:visual-launch';
-    });
+    document.getElementById('semantic-save').addEventListener('click', () => { marker.textContent = 'CLICKED:semantic-save'; });
+    document.getElementById('send-enabled').addEventListener('click', () => { marker.textContent = 'CLICKED:send-enabled'; });
+    document.getElementById('delete-a').addEventListener('click', () => { marker.textContent = 'CLICKED:delete-a'; });
+    document.getElementById('delete-b').addEventListener('click', () => { marker.textContent = 'CLICKED:delete-b'; });
+    document.getElementById('visual-launch').addEventListener('click', () => { marker.textContent = 'CLICKED:visual-launch'; });
   </script>
 </body>
 </html>

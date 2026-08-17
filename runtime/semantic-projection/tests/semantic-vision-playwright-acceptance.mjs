@@ -8,11 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-
-import {
-  SemanticVisionClickRouter,
-  exactAccessibilityCandidates
-} from '../lib/semantic-vision-click-router.mjs';
+import { SemanticVisionClickRouter, exactAccessibilityCandidates } from '../lib/semantic-vision-click-router.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const semanticRoot = path.resolve(here, '..');
@@ -23,10 +19,7 @@ const playwrightManifest = require.resolve('@playwright/mcp/package.json');
 const playwrightEntry = path.join(path.dirname(playwrightManifest), 'cli.js');
 
 function textOf(result) {
-  return (result?.content ?? [])
-    .filter(block => block?.type === 'text' && typeof block.text === 'string')
-    .map(block => block.text)
-    .join('\n');
+  return (result?.content ?? []).filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n');
 }
 
 async function startFixtureServer() {
@@ -42,10 +35,6 @@ async function startFixtureServer() {
   const address = server.address();
   assert(address && typeof address === 'object');
   return { server, url: `http://127.0.0.1:${address.port}/` };
-}
-
-async function closeServer(server) {
-  await new Promise(resolve => server.close(() => resolve()));
 }
 
 async function navigate(client, url) {
@@ -70,16 +59,10 @@ const transport = new StdioClientTransport({
   command: process.execPath,
   args: [
     playwrightEntry,
-    '--headless',
-    '--browser', 'chrome',
-    '--isolated',
-    '--image-responses', 'allow',
-    '--block-service-workers',
-    '--codegen', 'none',
-    '--caps', 'vision',
-    '--viewport-size', '1280x720',
-    '--timeout-action', '15000',
-    '--timeout-navigation', '30000'
+    '--headless', '--browser', 'chrome', '--isolated',
+    '--image-responses', 'allow', '--block-service-workers', '--codegen', 'none',
+    '--caps', 'vision', '--viewport-size', '1280x720',
+    '--timeout-action', '15000', '--timeout-navigation', '30000'
   ],
   env: { ...process.env }
 });
@@ -88,13 +71,7 @@ try {
   await client.connect(transport);
   const inventory = await client.listTools();
   const names = new Set(inventory.tools.map(tool => tool.name));
-  for (const required of [
-    'browser_navigate',
-    'browser_snapshot',
-    'browser_click',
-    'browser_take_screenshot',
-    'browser_mouse_click_xy'
-  ]) {
+  for (const required of ['browser_navigate','browser_snapshot','browser_click','browser_take_screenshot','browser_mouse_click_xy']) {
     assert(names.has(required), `missing Playwright MCP tool ${required}`);
   }
 
@@ -103,6 +80,9 @@ try {
   assert.equal(exactAccessibilityCandidates(initial, 'Save').length, 1);
   assert.equal(exactAccessibilityCandidates(initial, 'Launch').length, 0);
   assert.equal(exactAccessibilityCandidates(initial, 'Delete').length, 2);
+  const sendCandidates = exactAccessibilityCandidates(initial, 'Send');
+  assert.equal(sendCandidates.length, 2);
+  assert.equal(sendCandidates.filter(candidate => candidate.disabled).length, 1);
   console.log('SEMANTIC_VISION_REAL_SNAPSHOT_CLASSIFICATION=PASS');
 
   let grounderCalls = 0;
@@ -115,9 +95,7 @@ try {
       assert.equal(request.width, 1280);
       assert.equal(request.height, 720);
       return {
-        status: 'resolved',
-        reason: 'fixture-grounder',
-        point: { x: 600, y: 330 },
+        status: 'resolved', reason: 'fixture-grounder', point: { x: 600, y: 330 },
         bbox: { x1: 500, y1: 300, x2: 700, y2: 360 }
       };
     }
@@ -126,10 +104,7 @@ try {
   await navigate(client, fixture.url);
   const semantic = await router.click({
     target: 'stale-ref-not-used',
-    visualFallback: {
-      targetText: 'Save',
-      instruction: 'click the Save button'
-    }
+    visualFallback: { targetText: 'Save', instruction: 'click the Save button' }
   });
   assert.equal(semantic.status, 'acted');
   assert.equal(semantic.source, 'semantic');
@@ -138,11 +113,19 @@ try {
   console.log('SEMANTIC_VISION_REAL_SEMANTIC_FIRST=PASS');
 
   await navigate(client, fixture.url);
+  const state = await router.click({
+    visualFallback: { targetText: 'Send', instruction: 'click the enabled Send button' }
+  });
+  assert.equal(state.status, 'acted');
+  assert.equal(state.source, 'semantic');
+  assert.equal(state.reason, 'semantic-unique-enabled-button-state');
+  assert.equal(grounderCalls, 0);
+  await assertMarker(client, 'CLICKED:send-enabled');
+  console.log('SEMANTIC_VISION_REAL_STATE_DISAMBIGUATION=PASS');
+
+  await navigate(client, fixture.url);
   const visual = await router.click({
-    visualFallback: {
-      targetText: 'Launch',
-      instruction: 'click the visible Launch control'
-    }
+    visualFallback: { targetText: 'Launch', instruction: 'click the visible Launch control' }
   });
   assert.equal(visual.status, 'acted');
   assert.equal(visual.source, 'vision');
@@ -153,10 +136,7 @@ try {
   await navigate(client, fixture.url);
   const ambiguousCallsBefore = grounderCalls;
   const ambiguous = await router.click({
-    visualFallback: {
-      targetText: 'Delete',
-      instruction: 'click Delete'
-    }
+    visualFallback: { targetText: 'Delete', instruction: 'click Delete' }
   });
   assert.equal(ambiguous.status, 'abstain');
   assert.equal(ambiguous.reason, 'semantic-ambiguity-visual-escalation-not-promoted');
@@ -169,5 +149,5 @@ try {
   console.log('SEMANTIC_VISION_PLAYWRIGHT_ACCEPTANCE=PASS');
 } finally {
   await client.close().catch(() => {});
-  await closeServer(fixture.server);
+  await new Promise(resolve => fixture.server.close(() => resolve()));
 }
