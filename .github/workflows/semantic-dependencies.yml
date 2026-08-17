@@ -39,10 +39,11 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $manifest = Get-Content 'runtime/semantic-projection/package.json' -Raw -Encoding utf8 | ConvertFrom-Json
-          $lock = Get-Content 'runtime/semantic-projection/package-lock.json' -Raw -Encoding utf8 | ConvertFrom-Json
-          if ([int]$lock.lockfileVersion -ne 3) { throw 'Expected lockfileVersion 3.' }
+          $lock = Get-Content 'runtime/semantic-projection/package-lock.json' -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+          if ([int]$lock['lockfileVersion'] -ne 3) { throw 'Expected lockfileVersion 3.' }
+          $rootPackage = $lock['packages']['']
           foreach ($property in $manifest.dependencies.PSObject.Properties) {
-            $locked = [string]$lock.packages.''.dependencies.($property.Name)
+            $locked = [string]$rootPackage['dependencies'][$property.Name]
             if ($locked -ne [string]$property.Value) {
               throw "Root dependency mismatch for $($property.Name): manifest=$($property.Value) lock=$locked"
             }

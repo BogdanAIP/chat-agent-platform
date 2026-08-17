@@ -101,13 +101,13 @@ await import('./semantic-projection.mjs');
     }
 
     if (Test-Path -LiteralPath $lockPath -PathType Leaf) {
-        $lock = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json
-        if ([int]$lock.lockfileVersion -ne 3) {
+        $lock = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json -AsHashtable
+        if ([int]$lock['lockfileVersion'] -ne 3) {
             throw 'Semantic projection package-lock must use lockfileVersion 3.'
         }
-        $rootPackage = $lock.packages.''
+        $rootPackage = $lock['packages']['']
         foreach ($dependencyName in $expectedDependencies.Keys) {
-            if ([string]$rootPackage.dependencies.$dependencyName -ne [string]$expectedDependencies[$dependencyName]) {
+            if ([string]$rootPackage['dependencies'][$dependencyName] -ne [string]$expectedDependencies[$dependencyName]) {
                 throw "Semantic projection lockfile root dependency drifted: $dependencyName"
             }
         }
