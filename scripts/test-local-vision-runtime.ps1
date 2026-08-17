@@ -39,16 +39,8 @@ $config = [ordered]@{
     }
     artifacts = [ordered]@{
         directory = 'fixture-model'
-        model = [ordered]@{
-            file = 'model.gguf'
-            bytes = [int64]$modelItem.Length
-            sha256 = $modelSha
-        }
-        mmproj = [ordered]@{
-            file = 'mmproj.gguf'
-            bytes = [int64]$mmprojItem.Length
-            sha256 = $mmprojSha
-        }
+        model = [ordered]@{ file = 'model.gguf'; bytes = [int64]$modelItem.Length; sha256 = $modelSha }
+        mmproj = [ordered]@{ file = 'mmproj.gguf'; bytes = [int64]$mmprojItem.Length; sha256 = $mmprojSha }
     }
     memory = [ordered]@{
         min_start_physical_gb = 0.01
@@ -63,26 +55,15 @@ $config = [ordered]@{
 $config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $configPath -Encoding utf8
 
 function Invoke-VisionRuntime {
-    param(
-        [Parameter(Mandatory)][string]$Action,
-        [switch]$NoWatchdog
-    )
-    $parameters = @{
-        Action = $Action
-        ConfigPath = $configPath
-        ModelRoot = $modelRoot
-        StateRoot = $stateRoot
-    }
+    param([Parameter(Mandatory)][string]$Action, [switch]$NoWatchdog)
+    $parameters = @{ Action = $Action; ConfigPath = $configPath; ModelRoot = $modelRoot; StateRoot = $stateRoot }
     if ($NoWatchdog) { $parameters.NoWatchdog = $true }
     $text = & $controller @parameters 2>&1 | Out-String
     return ($text | ConvertFrom-Json)
 }
 
 function Wait-Status {
-    param(
-        [Parameter(Mandatory)][bool]$Running,
-        [int]$TimeoutSeconds = 10
-    )
+    param([Parameter(Mandatory)][bool]$Running, [int]$TimeoutSeconds = 10)
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     $status = $null
     do {
@@ -91,6 +72,38 @@ function Wait-Status {
         Start-Sleep -Milliseconds 250
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
     throw "Timed out waiting for running=$Running. Last status: $($status | ConvertTo-Json -Compress)"
+}
+
+function Get-TestCommandSha256 {
+    param([Parameter(Mandatory)][string]$Value)
+    $bytes = [Text.Encoding]::UTF8.GetBytes($Value)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return [Convert]::ToHexString($sha.ComputeHash($bytes)).ToLowerInvariant() }
+    finally { $sha.Dispose(); [Array]::Clear($bytes, 0, $bytes.Length) }
+}
+
+function Write-OwnershipDiagnostic {
+    param([Parameter(Mandatory)][int]$ProcessId)
+    $statePath = Join-Path $stateRoot 'state.json'
+    if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
+        Write-Host 'OWNERSHIP_DIAGNOSTIC_STATE_MISSING=True'
+        return
+    }
+
+    $state = Get-Content -LiteralPath $statePath -Raw -Encoding utf8 | ConvertFrom-Json
+    $cim = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction SilentlyContinue
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    $actualExecutable = if ($null -ne $cim) { [string]$cim.ExecutablePath } else { '' }
+    $actualCommand = if ($null -ne $cim) { [string]$cim.CommandLine } else { '' }
+    $actualCommandSha = if ($actualCommand) { Get-TestCommandSha256 -Value $actualCommand } else { '' }
+    $actualStart = if ($null -ne $process) { $process.StartTime.ToUniversalTime().ToString('o') } else { '' }
+
+    Write-Host "OWNERSHIP_STORED_EXE=$([string]$state.runtime_executable)"
+    Write-Host "OWNERSHIP_ACTUAL_EXE=$actualExecutable"
+    Write-Host "OWNERSHIP_STORED_CMD_SHA=$([string]$state.process_command_sha256)"
+    Write-Host "OWNERSHIP_ACTUAL_CMD_SHA=$actualCommandSha"
+    Write-Host "OWNERSHIP_STORED_START=$([string]$state.process_start_time_utc)"
+    Write-Host "OWNERSHIP_ACTUAL_START=$actualStart"
 }
 
 $oldTestMode = $env:CHAT_VISION_RUNTIME_TEST_MODE
@@ -109,6 +122,7 @@ try {
     Write-Host '===== START / IDEMPOTENT START ====='
     $first = Invoke-VisionRuntime -Action Start
     if (-not [bool]$first.running -or -not [bool]$first.ready -or [bool]$first.conflict) {
+        if ($null -ne $first.pid) { Write-OwnershipDiagnostic -ProcessId ([int]$first.pid) }
         throw "Runtime did not start cleanly: $($first | ConvertTo-Json -Compress)"
     }
     $firstPid = [int]$first.pid
@@ -139,12 +153,8 @@ try {
     Write-Host '===== ARTIFACT TAMPER ====='
     Add-Content -LiteralPath $modelPath -Value 'tamper' -NoNewline
     $artifactRejected = $false
-    try {
-        $null = Invoke-VisionRuntime -Action Doctor
-    }
-    catch {
-        $artifactRejected = ($_.Exception.Message -match 'byte-size mismatch|SHA256 mismatch')
-    }
+    try { $null = Invoke-VisionRuntime -Action Doctor }
+    catch { $artifactRejected = ($_.Exception.Message -match 'byte-size mismatch|SHA256 mismatch') }
     if (-not $artifactRejected) { throw 'Tampered model artifact was not rejected.' }
     [IO.File]::WriteAllBytes($modelPath, [Text.Encoding]::UTF8.GetBytes('FAKE_MODEL_STAGE25_1'))
     Write-Host 'VISION_RUNTIME_ARTIFACT_TAMPER=PASS'
@@ -166,12 +176,8 @@ try {
     }
     if (-not $foreignReady) { throw 'Foreign fake listener did not start.' }
     $foreignRejected = $false
-    try {
-        $null = Invoke-VisionRuntime -Action Start
-    }
-    catch {
-        $foreignRejected = ($_.Exception.Message -match 'occupied by an unowned listener')
-    }
+    try { $null = Invoke-VisionRuntime -Action Start }
+    catch { $foreignRejected = ($_.Exception.Message -match 'occupied by an unowned listener') }
     if (-not $foreignRejected) { throw 'Controller did not fail closed on an unowned port listener.' }
     if ($foreign.HasExited) { throw 'Controller must not kill the foreign listener.' }
     Stop-Process -Id $foreign.Id -Force
@@ -189,12 +195,8 @@ try {
     $state | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $statePath -Encoding utf8
 
     $ownershipRejected = $false
-    try {
-        $null = Invoke-VisionRuntime -Action Stop
-    }
-    catch {
-        $ownershipRejected = ($_.Exception.Message -match 'ownership mismatch')
-    }
+    try { $null = Invoke-VisionRuntime -Action Stop }
+    catch { $ownershipRejected = ($_.Exception.Message -match 'ownership mismatch') }
     if (-not $ownershipRejected) { throw 'Ownership mismatch did not fail closed.' }
     if ($null -eq (Get-Process -Id $ownedPid -ErrorAction SilentlyContinue)) { throw 'Ownership mismatch path killed an unverified live process.' }
 
