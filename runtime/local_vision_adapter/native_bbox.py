@@ -6,7 +6,7 @@ This module keeps that model-specific capability behind a deterministic adapter:
 1. for text-labeled buttons, inventory visible labeled buttons without naming the target;
 2. fail closed when that target-blind inventory does not contain exactly one requested label;
 3. otherwise detect the requested UI element on the full screenshot;
-4. crop bounded context around one coarse candidate without forced Mark-Grid upscaling;
+4. crop bounded context around one coarse candidate and downscale oversized crops only;
 5. refine the normalized bbox on the crop;
 6. derive a click point only after deterministic validation.
 
@@ -37,6 +37,7 @@ from .provider import VisionProviderError
 
 
 Transport = Callable[[str, bytes, float], dict[str, Any]]
+DEFAULT_NATIVE_CROP_MAX_LONG_SIDE = 768
 
 
 @dataclass(frozen=True)
@@ -187,19 +188,55 @@ def _context_box(coarse: Box, width: int, height: int) -> Box:
     return Box(float(x1_i), float(y1_i), float(x2_i), float(y2_i)).validate()
 
 
-def _native_crop_plan(context_box: Box) -> CropPlan:
-    """Keep native crop pixels; do not inherit Mark-Grid's forced 512px short side."""
+def _native_crop_plan(
+    context_box: Box,
+    *,
+    max_long_side: int = DEFAULT_NATIVE_CROP_MAX_LONG_SIDE,
+) -> CropPlan:
+    """Keep native pixels unless a crop exceeds the bounded long-side budget.
+
+    Native bbox refinement must not inherit Mark-Grid's forced 512px upscaling.
+    Large context crops are downscaled proportionally so the source ROI is kept
+    while the visual-token footprint remains bounded for the ctx=2048 path.
+    """
 
     context_box = context_box.validate()
+    if (
+        isinstance(max_long_side, bool)
+        or not isinstance(max_long_side, int)
+        or max_long_side <= 0
+    ):
+        raise VisionProviderError("max_long_side must be a positive integer")
+
     width = int(round(context_box.width))
     height = int(round(context_box.height))
     if width <= 0 or height <= 0:
         raise VisionProviderError("native crop must have positive integer dimensions")
+
+    scale = min(1.0, max_long_side / max(width, height))
+    output_width = max(1, int(round(width * scale)))
+    output_height = max(1, int(round(height * scale)))
     return CropPlan(
         source_box=context_box,
-        output_width=width,
-        output_height=height,
+        output_width=output_width,
+        output_height=output_height,
     )
+
+
+def _prepare_native_crop(source: Image.Image, context_box: Box, plan: CropPlan) -> Image.Image:
+    """Crop the full source ROI and apply deterministic downscale-only resizing."""
+
+    crop = crop_source_image(source, context_box)
+    native_size = (
+        int(round(context_box.width)),
+        int(round(context_box.height)),
+    )
+    if crop.size != native_size:
+        raise VisionProviderError("native crop dimensions drifted from deterministic source ROI")
+    output_size = (plan.output_width, plan.output_height)
+    if crop.size != output_size:
+        crop = crop.resize(output_size, resample=Image.Resampling.LANCZOS)
+    return crop
 
 
 def _image_data_uri(image: Image.Image) -> str:
@@ -435,9 +472,7 @@ def run_native_bbox_zoom_case(
         if coarse_box is not None:
             context_box = _context_box(coarse_box, source.width, source.height)
             plan = _native_crop_plan(context_box)
-            crop = crop_source_image(source, context_box)
-            if crop.size != (plan.output_width, plan.output_height):
-                raise VisionProviderError("native crop dimensions drifted from deterministic plan")
+            crop = _prepare_native_crop(source, context_box, plan)
             _save_image(
                 crop,
                 artifact_dir / str(case["id"]) / "native-bbox-pass2-crop.png"
@@ -463,11 +498,11 @@ def run_native_bbox_zoom_case(
                 )
                 refined_box = map_box_from_crop(local_box, plan)
                 consistency_iou = box_iou(coarse_box, refined_box)
-                # The first pass is deliberately coarse. Measured target evidence
-                # showed a correct refinement at very low coarse/refined IoU, so
-                # overlap is diagnostic only rather than an acceptance threshold.
-                decision = "accepted"
-                point = box_center(refined_box)
+                if not target_text and consistency_iou <= 0.0:
+                    decision = "inconsistent-pass2"
+                else:
+                    decision = "accepted"
+                    point = box_center(refined_box)
     except (VisionProviderError, ValueError, OSError) as exc:
         error = f"{type(exc).__name__}: {exc}"
 
@@ -476,7 +511,7 @@ def run_native_bbox_zoom_case(
         score_grounding(
             target_box=target,
             predicted_point=point,
-            predicted_box=refined_box,
+            predicted_box=refined_box if point is not None else None,
         )
     )
     return {
