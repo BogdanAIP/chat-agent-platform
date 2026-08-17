@@ -103,7 +103,7 @@ class LocalVisionRuntimeAssetsTests(unittest.TestCase):
             self.assertIn(marker, self.controller)
         self.assertIn("CHAT_VISION_RUNTIME_TEST_MODE", self.controller)
         self.assertIn("override is available only", self.controller)
-        self.assertNotIn("Get-Process chrome", self.controller.lower())
+        self.assertNotIn("get-process chrome", self.controller.lower())
         self.assertNotIn("Stop-Process -Name", self.controller)
         self.assertNotIn("Invoke-Expression", self.controller)
 
