@@ -12,6 +12,7 @@ const REVIEWED_PROFILE = 'lfm25-vl-450m-f16';
 const REVIEWED_PORT = 3068;
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const MAX_INPUT_PNG_BYTES = 8 * 1024 * 1024;
+const MAX_RUNTIME_DIAGNOSTIC_CHARS = 4096;
 
 function defaultPythonExecutable() {
   const localAppData = process.env.LOCALAPPDATA;
@@ -113,6 +114,15 @@ function parseSingleJson(stdout, label) {
   }
 }
 
+function boundedProcessDiagnostic(result) {
+  for (const value of [result?.stderr, result?.stdout]) {
+    if (typeof value !== 'string') continue;
+    const compact = value.replace(/\s+/g, ' ').trim();
+    if (compact) return compact.slice(0, MAX_RUNTIME_DIAGNOSTIC_CHARS);
+  }
+  return `exit=${String(result?.code ?? 'unknown')}`;
+}
+
 function validateRuntimeStatus(status) {
   if (!status || typeof status !== 'object' || Array.isArray(status)) {
     throw new Error('vision runtime status must be an object');
@@ -188,7 +198,9 @@ export class RuntimeBackedVisualGrounder {
       { timeoutMs: action === 'Start' ? 150_000 : 30_000 }
     );
     if (result.code !== 0) {
-      throw new Error(`vision-runtime-${action.toLowerCase()}-failed`);
+      throw new Error(
+        `vision-runtime-${action.toLowerCase()}-failed:${boundedProcessDiagnostic(result)}`
+      );
     }
     return parseSingleJson(result.stdout, `vision runtime ${action}`);
   }

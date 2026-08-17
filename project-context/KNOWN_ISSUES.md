@@ -2,11 +2,11 @@
 
 Only unresolved issues for the current bridge architecture are listed here.
 
-1. **Real F16 visual grounding is not yet wired into the same-session browser bridge.** The same-session capture/freshness/action boundary, focused llama.cpp lifecycle owner and model-neutral production grounder are each implemented/proved separately, but the real runtime-backed chain has not yet run end-to-end.
+1. **Real F16 visual grounding is connected to the internal target harness but has not yet completed a same-session browser inference/action run.** The same-session capture/freshness/action boundary, focused llama.cpp lifecycle owner, production grounder and runtime-backed bridge are implemented and CI-proved, but the first target-laptop production-like attempt stopped before inference because every case hit `vision-runtime-start-failed`.
 
 2. **Present-target visual accuracy is still limited.** Accepted target evidence remains 3/5 present-target HIT. Gamma repeated-row and tiny-indicator cases safely abstain and are deliberately not promoted for production clicks.
 
-3. **The target laptop has not yet run the final Stage 25.1 production chain.** Synthetic lifecycle and deterministic bridge tests are green, but the exact real path `Chrome -> same-session PNG -> reviewed F16 runtime -> production authorization -> freshness -> action/ABSTAIN` still requires target Windows acceptance.
+3. **The first target-laptop Stage 25.1 production-like run exposed a runtime-start/resource-admission blocker.** On HEAD `efc5a15e65e0f60c44f3194d7e95e448655eb951`, Doctor passed before Playwright with 1.939 GB free physical RAM and 9.226 GB free virtual memory, but the harness later observed a minimum of 1.38 GB free physical RAM while the Playwright/Chrome session was active. All six cases failed before inference with `vision-runtime-start-failed`; false clicks remained 0, `SAFETY_STOP=False`, the owned vision runtime was stopped after the test, and user Chrome remained running. The reviewed start floor is 1.50 GB, so browser-load admission is the leading explanation, but do not lower the floor until the next run captures the exact bounded Start stderr/stdout from the runtime-backed runner.
 
 4. **Browser network policy is not a complete DNS/redirect sandbox.** Direct literal private/link-local/metadata/non-public destinations are blocked while loopback remains allowed. General hostnames can still resolve/redirect in ways that require a stronger backend/network boundary if future threat models demand it. Playwright origin filters are defense-in-depth only.
 

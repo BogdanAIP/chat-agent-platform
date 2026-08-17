@@ -67,6 +67,35 @@ Production defaults are fixed by `config/local-vision-runtime.json`: reviewed pr
 
 Windows CI proves idempotent Start, Touch/TTL, explicit Stop, tampered artifact rejection, foreign listener rejection and ownership mismatch refusal. Real target-laptop F16 lifecycle remains part of the final end-to-end gate.
 
+## First real target-laptop attempt — SAFETY PASS / ACCEPTANCE BLOCKED BEFORE INFERENCE
+
+The first production-like six-case run was executed on target Windows with user Chrome intentionally left open, using HEAD `efc5a15e65e0f60c44f3194d7e95e448655eb951`.
+
+Observed evidence:
+
+```text
+Doctor before Playwright:
+  physical_free_gb = 1.939
+  virtual_free_gb = 9.226
+  admission_ready = true
+
+During full harness:
+  minimum observed physical free RAM = 1.38 GB
+  safety_stop = false
+  false_clicks = 0
+  errors = 6
+  all six errors = vision-runtime-start-failed
+  inference reached = no
+  vision runtime after test = stopped
+  user Chrome after test = running
+```
+
+The target harness creates/connects the Playwright MCP browser session before the first runtime-backed visual grounding request. The reviewed runtime currently requires at least 1.50 GB free physical RAM at `Start`. Therefore browser-load resource admission is the leading explanation for the failure, but this has not yet been declared the exact root cause because the runtime-backed Node layer previously collapsed non-zero `Start` into a generic `vision-runtime-start-failed` message.
+
+The next diagnostic change preserves bounded stderr/stdout from failed runtime operations so the target rerun can capture the exact `Start` reason. **Do not lower the 1.50 GB start floor merely from inference.** Re-run with improved diagnostics first, then decide whether the production memory policy, browser footprint, lifecycle ordering or another runtime-start condition needs to change.
+
+This first real run is still a meaningful safety result: the system failed closed, produced zero false clicks, kept Chrome alive and left no owned llama.cpp process. It provides no new grounding-accuracy evidence because inference never started.
+
 ## Production grounding policy — PROVED FOR CURRENT PROMOTED CLASSES
 
 The benchmark row is not itself authorization. `production_policy.py` applies class-aware rules:
@@ -123,6 +152,8 @@ Current rules:
 
 Vision Python remains intentionally small (`Pillow==12.3.0`) but release-grade Python artifact/hash reproducibility is still pending.
 
+The locked semantic graph currently emits a deprecation warning for transitive `glob@10.5.0`. Track that as a dedicated post-Stage-25.1 supply-chain follow-up; do not perturb the dependency graph immediately before the target F16 gate simply to silence the warning.
+
 ## Browser network boundary
 
 `web_open` preserves reviewed local loopback workflows while reducing unintended private-network reachability:
@@ -155,11 +186,11 @@ Vision remains an internal grounding strategy, not a planner and not automatical
 
 ## Next implementation sequence
 
-1. add an internal runtime-backed grounder runner that invokes the focused owner and the production grounder without accepting arbitrary endpoint/model choices;
-2. connect that runner to `SameSessionVisualGroundingBridge` behind tests, still without automatic public fallback;
-3. prove fake/deterministic runtime plumbing and no-action failure modes in CI;
-4. run real F16 capture -> grounding -> authorization -> freshness -> action/ABSTAIN on target Windows with Chrome open;
-5. only after that decide the exact semantic miss/ambiguity escalation policy for ordinary Chat.
+1. **DONE** — internal runtime-backed grounder runner invokes the focused owner and production grounder without accepting arbitrary endpoint/model choices;
+2. **DONE** — runtime-backed runner is connected to `SameSessionVisualGroundingBridge` behind deterministic tests without automatic public fallback;
+3. **DONE** — fake/deterministic runtime plumbing, error/no-action and stale-during-grounding paths are CI-proved;
+4. **ACTIVE** — rerun the real F16 target harness with bounded runtime Start diagnostics, then resolve the observed target-laptop runtime-start/resource-admission blocker without weakening policy by guess;
+5. after real F16 capture -> grounding -> authorization -> freshness -> action/ABSTAIN passes, decide the exact semantic miss/ambiguity escalation policy for ordinary Chat.
 
 ## Completion gate
 

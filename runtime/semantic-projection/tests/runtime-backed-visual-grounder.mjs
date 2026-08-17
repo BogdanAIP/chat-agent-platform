@@ -112,6 +112,38 @@ function tinyPng() {
 }
 
 {
+  let pythonCalled = false;
+  const fakeRun = async (_command, args) => {
+    if (args.includes('Start')) {
+      return {
+        code: 1,
+        stdout: '',
+        stderr: 'Exception: Vision runtime admission denied: free physical=1.38 GB, virtual=8.90 GB.'
+      };
+    }
+    pythonCalled = true;
+    return { code: 0, stdout: '{}', stderr: '' };
+  };
+  const runner = new RuntimeBackedVisualGrounder({
+    runProcess: fakeRun,
+    pythonExecutable: process.execPath
+  });
+  await assert.rejects(
+    runner.ground({
+      imageBytes: tinyPng(),
+      mimeType: 'image/png',
+      width: 1,
+      height: 1,
+      coordinateSpace: 'css_viewport',
+      instruction: 'click Search',
+      kind: 'icon_only'
+    }),
+    /vision-runtime-start-failed:.*admission denied: free physical=1\.38 GB/i
+  );
+  assert.equal(pythonCalled, false, 'runtime start failure must stop before production grounder invocation');
+}
+
+{
   let touchCalled = false;
   const fakeRun = async (_command, args) => {
     if (args.includes('Start')) return { code: 0, stdout: readyRuntime(), stderr: '' };
@@ -154,4 +186,5 @@ function tinyPng() {
 
 console.log('RUNTIME_BACKED_VISUAL_GROUNDER=PASS');
 console.log('RUNTIME_BACKED_VISUAL_GROUNDER_FIXED_PROFILE=PASS');
+console.log('RUNTIME_BACKED_VISUAL_GROUNDER_RUNTIME_DIAGNOSTICS=PASS');
 console.log('RUNTIME_BACKED_VISUAL_GROUNDER_TOUCH_ON_ERROR=PASS');
