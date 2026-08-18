@@ -155,8 +155,10 @@ $result = [ordered]@{
     raw_action_types = $null
     raw_structural_action_count = $null
     foreign_structural_window_count = $null
+    raw_uia_evidence_pass = $null
     flow_event_kinds = $null
     structural_event_count = $null
+    window_scoped_structural_suppression_pass = $null
     video_evidence_pass = $null
     window_scope_pass = $null
     foreign_structural_window_pass = $null
@@ -349,14 +351,15 @@ print(json.dumps({'flow': info('openadapt-flow'), 'capture': info('openadapt-cap
     foreach ($field in @(
         'raw_capture_dir', 'recording_dir', 'bundle_dir',
         'raw_action_count', 'raw_action_types', 'raw_structural_action_count',
-        'foreign_structural_window_count', 'flow_event_kinds',
-        'structural_event_count', 'video_evidence_pass', 'window_scope_pass',
-        'foreign_structural_window_pass', 'required_kinds_pass',
-        'expected_text_pass', 'expected_key_pass', 'uia_evidence_pass',
-        'fixture_sequence_pass', 'compile_pass', 'compiled_step_count',
-        'compiled_structural_count', 'compiled_surface', 'surface_contract_pass',
-        'native_windows_replay_claimed', 'replay_execution',
-        'bounded_replay_refusal'
+        'foreign_structural_window_count', 'raw_uia_evidence_pass',
+        'flow_event_kinds', 'structural_event_count',
+        'window_scoped_structural_suppression_pass', 'video_evidence_pass',
+        'window_scope_pass', 'foreign_structural_window_pass',
+        'required_kinds_pass', 'expected_text_pass', 'expected_key_pass',
+        'uia_evidence_pass', 'fixture_sequence_pass', 'compile_pass',
+        'compiled_step_count', 'compiled_structural_count', 'compiled_surface',
+        'surface_contract_pass', 'native_windows_replay_claimed',
+        'replay_execution', 'bounded_replay_refusal'
     )) {
         $result[$field] = $driverResult.$field
     }
@@ -446,8 +449,10 @@ Write-Flag 'RAW_ACTION_COUNT' $result.raw_action_count
 Write-Flag 'RAW_ACTION_TYPES' ($result.raw_action_types -join ',')
 Write-Flag 'RAW_STRUCTURAL_ACTION_COUNT' $result.raw_structural_action_count
 Write-Flag 'FOREIGN_STRUCTURAL_WINDOW_COUNT' $result.foreign_structural_window_count
+Write-Flag 'RAW_UIA_EVIDENCE_PASS' $result.raw_uia_evidence_pass
 Write-Flag 'FLOW_EVENT_KINDS' ($result.flow_event_kinds -join ',')
 Write-Flag 'STRUCTURAL_EVENT_COUNT' $result.structural_event_count
+Write-Flag 'WINDOW_SCOPED_STRUCTURAL_SUPPRESSION_PASS' $result.window_scoped_structural_suppression_pass
 Write-Flag 'VIDEO_EVIDENCE_PASS' $result.video_evidence_pass
 Write-Flag 'WINDOW_SCOPE_PASS' $result.window_scope_pass
 Write-Flag 'FOREIGN_STRUCTURAL_WINDOW_PASS' $result.foreign_structural_window_pass
