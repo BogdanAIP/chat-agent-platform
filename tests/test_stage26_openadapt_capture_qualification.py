@@ -99,19 +99,34 @@ class Stage26OpenAdaptCaptureQualificationTests(unittest.TestCase):
 
     def test_window_scoped_surface_contract_is_not_falsified(self):
         self.assertIn('EXPECTED_WINDOW_SCOPED_SURFACE = "rdp"', self.driver)
+        self.assertIn("backend_kind=EXPECTED_WINDOW_SCOPED_SURFACE", self.driver)
         self.assertIn("surface_contract_pass", self.driver)
         self.assertNotIn('target_surface="windows"', self.driver)
         self.assertIn("native_windows_replay_claimed", self.driver)
         self.assertIn('"native_windows_replay_claimed": False', self.driver)
 
-    def test_raw_uia_is_required_but_rdp_conversion_suppression_is_preserved(self):
+    def test_raw_uia_containment_uses_native_identity_not_form_text_only(self):
+        # The first real target run proved WinForms UIA can expose AccessibleName
+        # as the top-level title. Qualification must therefore bind evidence to
+        # its owned process/HWND and fail closed on explicit mismatches rather
+        # than treating a title alias as a foreign application.
+        self.assertIn("_structural_identity_record", self.driver)
+        self.assertIn("process_id", self.driver)
+        self.assertIn("native_window_handle", self.driver)
+        self.assertIn("captured_window_id", self.driver)
+        self.assertIn("pid_match is False or handle_match is False", self.driver)
+        self.assertNotIn("args.window_title.lower() not in title.lower()", self.driver)
+
+    def test_raw_uia_is_required_but_explicit_rdp_conversion_suppresses_it(self):
         # Raw Capture on the local WinForms fixture must really observe UIA.
         self.assertIn('"raw_uia_evidence_pass": False', self.driver)
         self.assertIn('result["raw_structural_action_count"] > 0', self.driver)
         self.assertIn('result["uia_evidence_pass"] = result["raw_uia_evidence_pass"]', self.driver)
-        # But pinned Flow intentionally does not promote local UIA into a
-        # window-scoped RDP/client-window bundle. Qualification must preserve
-        # that upstream meaning instead of falsifying a native-Windows surface.
+        # Pinned Flow suppresses local client-window UIA only when the live
+        # orchestration explicitly identifies the replay substrate as rdp or
+        # citrix. The real target run exposed that window scope alone is not
+        # enough, so Stage 26.1B must pass backend_kind explicitly.
+        self.assertIn("backend_kind=EXPECTED_WINDOW_SCOPED_SURFACE", self.driver)
         self.assertIn('"window_scoped_structural_suppression_pass": False', self.driver)
         self.assertIn('result["structural_event_count"] == 0', self.driver)
         self.assertIn('result["compiled_structural_count"] == 0', self.driver)
