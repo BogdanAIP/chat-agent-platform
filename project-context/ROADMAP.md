@@ -42,11 +42,11 @@ Accepted target configuration: llama.cpp `b10448/ad1de39e0`, LFM2.5-VL-450M F16 
 
 PR #74 squash-merged as `bbf490778a4d883bc54aa58a1d14e8779b7a5c94`.
 
-Accepted foundations: same-session screenshot/freshness/coordinate action, fail-closed stale/replay/layout/scroll/overlay/navigation handling, focused vision-runtime lifecycle, PID-bound listener verification, installed-layout parity, lock-hash-controlled npm dependencies, junction containment, credential scrub and security regressions.
+Accepted same-session screenshot/freshness/coordinate action, fail-closed stale/replay/layout/scroll/overlay/navigation handling, focused vision-runtime lifecycle, PID-bound listener verification, installed-layout parity, dependency integrity, junction containment, credential scrub and security regressions.
 
 ## Stage 25.2 — Ordinary Chat semantic → vision escalation — DONE
 
-PR #77 squash-merged to `main` as:
+PR #77 squash-merged as runtime/code milestone:
 
 `2a410476ef849fd6d9c172703a004b1befcbcfb1`.
 
@@ -75,29 +75,37 @@ Final target result: `semantic_hits=2`, `visual_hits=1`, `correct_abstains=2`, `
 
 Purpose: reuse successful procedures as bounded procedural memory without adding a second planner or blind macro replay.
 
-Upstream technical reference: official `Tencent/UI-Mate`, analyzed at pinned commit `d2b2e0aede83eeacfb1bc86f66503acbc4a6738a`. The project does not adopt UI-Mate as the product agent/model. We adopt the separation between rich trajectory evidence and compact current-subtask workflow guidance, while strengthening trust and completion verification for our architecture.
+Upstream technical reference: official `Tencent/UI-Mate`, analyzed at pinned commit `d2b2e0aede83eeacfb1bc86f66503acbc4a6738a`. We adopt the separation between rich trajectory evidence and compact current-subtask workflow guidance, while strengthening trust and completion verification for our architecture. We do not adopt UI-Mate as the product planner/agent.
 
 Authoritative design: `project-context/STAGE26_PROCEDURAL_MEMORY.md`.
 
-### Stage 26.0 — Upstream analysis + contract — CURRENT DOCS WORK
+### Stage 26.0 — Upstream analysis + authoritative contract/context sync — DONE
 
-- pin upstream reference/license;
-- define what is adopted/rejected;
-- fix stale cross-chat continuation docs after Stage 25.2;
-- preserve ChatGPT-only planner boundary.
+Completed through PR #78, merged as documentation milestone:
 
-### Stage 26.1 — Procedural data foundation
+`04dccfd30eb06a82899e2771f6d53ab4c8387128`.
+
+Completed work:
+
+- pinned upstream reference/license;
+- reviewed `demo_workflow.py`, agent integration, prepared demonstration trajectory and bundled example runner;
+- defined what is adopted/rejected;
+- synchronized stale cross-chat continuation docs after Stage 25.2;
+- preserved the ChatGPT-only planner boundary;
+- made Windows desktop surface and the later public-contract decision explicit.
+
+### Stage 26.1 — Procedural data foundation — NEXT
 
 Build:
 
 - raw trajectory schema;
-- secret/sensitive-data redaction and retention policy;
+- secret/sensitive-data redaction and retention/deletion policy;
 - coordinate-free compiled skill schema;
 - versioned local skill store;
 - schema validation and deterministic stale/disable handling;
 - explicit candidate/verified/promoted lifecycle.
 
-No public Chat tool change in this step.
+No public Chat tool-name change in this step.
 
 ### Stage 26.2 — Demo Compiler + verifier + self-demo dogfood
 
@@ -132,7 +140,7 @@ Requirements:
 - screen/vision is a bounded fallback/evidence source, not a second planner;
 - keyboard/mouse actions are scoped and fail closed;
 - preserve observable before/after evidence for later procedural-memory compilation;
-- select concrete local programs/capabilities from real user tasks and evidence at the time of benchmarking; **do not preselect a fixed application list in the roadmap**.
+- select concrete local programs/capabilities from real user tasks and evidence at the time of benchmarking; do not preselect a fixed application list in the roadmap.
 
 ### Stage 26.4 — Human demonstration capture + transferable skill acceptance
 
@@ -148,7 +156,7 @@ Once Windows desktop observation/actuation exists:
 
 Only after Windows desktop surface exists, decide by ADR and ordinary-Chat acceptance whether:
 
-1. the current five public tools can remain the product contract while desktop/procedural layers stay behind a few existing/new coarse semantic boundaries; or
+1. the current five public tools can remain the product contract behind a small truthful semantic surface; or
 2. a small number of new truthful public tool names is required.
 
 Until this decision:
@@ -180,7 +188,7 @@ After the Stage 26 capability boundary is accepted:
 
 ## Stage 28 — Clean-user product E2E + first stable release
 
-Before saying “install and use” rather than “development platform”, prove from a clean-user perspective:
+Before saying “install and use” rather than “development platform”, prove:
 
 ```text
 install
@@ -198,13 +206,15 @@ Then cut the first stable release.
 
 ## Cross-cutting follow-ups
 
-These remain important but do not replace the active Stage 26 sequence:
-
 - repeated-row/tiny/icon-only visual promotion only with separate evidence;
 - decide whether stronger DNS/redirect/private-network isolation is required;
 - release-grade Python/model reproducibility;
-- dependency cleanup including deprecated transitive `glob@10.5.0`;
+- dependency cleanup including deprecated transitive dependencies;
 - repository metadata cleanup where needed.
+
+## Context-continuation rule
+
+Do not embed a docs commit as permanently “current main”. Fresh sessions must resolve live `main` from GitHub first, then use the stable milestone/acceptance SHAs above as historical evidence.
 
 ## Definition of Done
 

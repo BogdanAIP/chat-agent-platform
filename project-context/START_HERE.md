@@ -2,11 +2,16 @@
 
 Use this file as the first context document in a new ChatGPT or Codex session.
 
-## Current accepted integration line
+## Resolve live `main` first
 
-Current accepted `main`:
+Do not treat an embedded docs merge SHA as permanently current. Before creating a branch or changing code/docs, resolve the live `main` from GitHub and use that exact SHA as the base.
 
-`2a410476ef849fd6d9c172703a004b1befcbcfb1` — `Stage 25.2: semantic-first internal vision escalation (#77)`.
+Stable accepted integration milestones:
+
+- Stage 25.2 runtime/code merge: `2a410476ef849fd6d9c172703a004b1befcbcfb1` — `Stage 25.2: semantic-first internal vision escalation (#77)`;
+- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` — `Docs: activate Stage 26 procedural memory (#78)`.
+
+Live `main` may be newer because of later integration/docs commits. Always resolve it rather than copying one of the historical milestone SHAs into a new branch blindly.
 
 The ordinary-Chat path is:
 
@@ -83,6 +88,10 @@ Read `project-context/STAGE26_PROCEDURAL_MEMORY.md` before implementation work.
 
 Stage 26 is based on a technical review of official `Tencent/UI-Mate` pinned to upstream commit `d2b2e0aede83eeacfb1bc86f66503acbc4a6738a`.
 
+Stage 26.0 — upstream analysis + contract/context synchronization — is **DONE** via PR #78.
+
+Next implementation step: **Stage 26.1 — Procedural data foundation**.
+
 Core direction:
 
 ```text
@@ -102,7 +111,7 @@ Do not store private chain-of-thought. Procedural traces may store structured/us
 
 ## Stage 26 order
 
-1. **26.0 — upstream analysis and contract:** documentation/design; current step.
+1. **26.0 — upstream analysis and contract:** DONE through PR #78.
 2. **26.1 — procedural data foundation:** raw trajectory schema, redaction/retention, compiled skill schema, versioned skill store, validators. No public tool change.
 3. **26.2 — Demo Compiler + verifier + self-demo dogfood:** compile successful existing Chat/semantic trajectories; prove coordinate-free current-state-first reuse including a changed/variant case.
 4. **26.3 — Windows desktop surface:** explicit required stage. Native/semantic observation first, screen/vision where needed, reviewed keyboard/mouse execution, fail closed.

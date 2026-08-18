@@ -1,8 +1,17 @@
 # Module / Capability Catalog
 
-Status synchronized after merged Stage 25.2 on 2026-08-18.
+Status synchronized after merged Stage 25.2 and Stage 26 architecture activation on 2026-08-18.
 
-This file is a **current capability-status catalog**, not a fixed list of future applications. Historical candidate research remains in Git history and dated Stage 23/25 documents.
+This is a **current capability-status catalog**, not a fixed list of future applications. Historical candidate research remains in Git history and dated Stage 23/25 documents.
+
+## Repository-state rule
+
+Resolve live `main` before new work. Stable milestones used for acceptance evidence:
+
+- Stage 25.2 runtime/code baseline: `2a410476ef849fd6d9c172703a004b1befcbcfb1` (#77);
+- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` (#78).
+
+Live `main` may be newer because of later integration/docs commits.
 
 ## Status meanings
 
@@ -12,7 +21,7 @@ This file is a **current capability-status catalog**, not a fixed list of future
 - **DIAGNOSTIC** — useful internal testing/lifecycle infrastructure, not the promoted Chat-facing contract.
 - **ACTIVE-DESIGN** — current architecture/design work, not product-accepted.
 - **FUTURE-SCOPED-GATE** — explicit future capability boundary requiring its own measured acceptance.
-- **TASK-SELECTED-CANDIDATE** — do not preselect now; choose a concrete implementation later from the actual task and evidence.
+- **TASK-SELECTED-CANDIDATE** — choose a concrete implementation later from the actual task and evidence.
 
 ## Current catalog
 
@@ -27,10 +36,10 @@ This file is a **current capability-status catalog**, not a fixed list of future
 | Semantic capability projection | project-owned deterministic five-tool compatibility boundary | PRODUCT-ACCEPTED | Small truthful public surface; not planner/gateway/workflow engine. |
 | Local visual grounding | llama.cpp + LFM2.5-VL-450M F16 behind focused vision runtime/grounder | ACCEPTED-SPECIALIST | Stage 25/25.1/25.2 accepted target path; model/runtime remains replaceable. |
 | Browser semantic→vision escalation | Stage 25.2 internal fallback inside `web_interact` | PRODUCT-ACCEPTED | Zero-exact-candidate promoted text-labeled miss only; ambiguity/disabled/non-button ABSTAIN without VLM. |
-| Procedural memory | raw trajectory + Demo Compiler + skill store/retrieval/progress/verifier design | ACTIVE-DESIGN | Stage 26; non-agentic, coordinate-free skills, current-state-first, evidence-based trust. |
+| Procedural memory | raw trajectory + Demo Compiler + skill store/retrieval/progress/verifier | ACTIVE-DESIGN | Stage 26; non-agentic, coordinate-free skills, current-state-first, evidence-based trust. |
 | Windows desktop surface | native/deterministic observation first + bounded screen/vision + reviewed keyboard/mouse | FUTURE-SCOPED-GATE | Explicit Stage 26.3. Must not be forgotten or inferred from browser acceptance. |
-| Human demonstration capture | recorder over the future desktop surface + procedural compiler | FUTURE-SCOPED-GATE | Stage 26.4; not honestly available for arbitrary Windows work before desktop surface exists. |
-| Future local programs/capabilities | implementation chosen from real user task + evidence | TASK-SELECTED-CANDIDATE | No fixed future application list in the active roadmap/catalog. |
+| Human demonstration capture | recorder over future desktop surface + procedural compiler | FUTURE-SCOPED-GATE | Stage 26.4; not honestly available for arbitrary Windows work before desktop surface exists. |
+| Future local programs/capabilities | implementation chosen from real user task + evidence | TASK-SELECTED-CANDIDATE | No fixed future application list in active roadmap/catalog. |
 | Distribution/maintenance | installer/update/repair/doctor/uninstall/rollback/restart recovery | FUTURE-SCOPED-GATE | Stage 27. |
 
 ## Current public surface
@@ -43,21 +52,19 @@ web_observe
 web_interact
 ```
 
-This count is an accepted current contract, not a permanent dogma. The explicit decision point for any expansion is after the Windows desktop surface exists and is locally accepted. Any change then requires a separate ADR, truthful schemas and ordinary-Chat acceptance.
+This count is an accepted current contract, not a permanent dogma. The explicit decision point for any expansion is after Windows desktop surface exists and is accepted. Any change then requires a separate ADR, truthful schemas and ordinary-Chat acceptance.
 
 Do not preserve the count by hiding unrelated desktop/workflow operations behind current tool names. Do not add a generic opaque dispatcher as a renamed `tool_invoke`.
 
 ## Accepted Stage 25.2 evidence
 
-Current `main`:
+Accepted Stage 25.2 runtime/code milestone:
 
 `2a410476ef849fd6d9c172703a004b1befcbcfb1`.
 
 Final target-tested production-code HEAD:
 
 `41ef3f4032ae9169d940b3a04e5bdfe75170ca85`.
-
-Target result:
 
 ```text
 semantic_hits = 2
@@ -72,7 +79,7 @@ CHROME_RUNNING_AFTER_TEST = true
 TEST_EXIT_CODE = 0
 ```
 
-Current accepted visual target path is **not** the older LM Studio/large-model candidate line. Earlier candidate rankings belong to historical research files.
+Earlier Stage 25 runtime/model candidate rankings are historical research, not the current path.
 
 ## Stage 26 upstream reference
 
@@ -86,9 +93,11 @@ Relevant upstream mechanics:
 - compact `WorkflowPlan`/`Subtask` runtime;
 - current-subtask guidance blocks;
 - no coordinate replay in `DemoWorkflow`;
-- live/current state as the authoritative execution context.
+- live/current state as authoritative execution context.
 
 We do **not** promote UI-Mate's large GUI-agent checkpoint as a required product component. ChatGPT already owns planning/reasoning. We build the smallest non-agentic procedural-memory substrate needed by our architecture.
+
+Stage 26.0 analysis/context contract is complete via PR #78. Stage 26.1 procedural data foundation is next.
 
 ## Candidate selection rule for future capabilities
 
@@ -101,7 +110,7 @@ actual task and consequence class
   -> scope/reduce surface
   -> target-machine benchmark
   -> security/negative tests
-  -> decide focused adapter only for measured gap
+  -> focused adapter only for measured gap
   -> ordinary-Chat/public-contract review if exported
 ```
 
@@ -109,11 +118,4 @@ Do not promote a backend merely because it appears in an old catalog or prior co
 
 ## Historical evidence note
 
-Older sections/files that discuss:
-
-- Stage 24 semantic projection as experimental;
-- LM Studio as the active Stage 25 manager candidate;
-- larger LFM variants as the preferred current path;
-- a fixed list/order of future desktop applications;
-
-are historical research and do not override `START_HERE.md`, `CURRENT_STATE.md`, `STAGE26_PROCEDURAL_MEMORY.md`, `ROADMAP.md` or this synchronized catalog.
+Older sections/files that discuss Stage 24 semantic projection as experimental, superseded Stage 25 runtime/model candidate lines or a fixed list/order of future desktop applications are historical research. They do not override `START_HERE.md`, `CURRENT_STATE.md`, `STAGE26_PROCEDURAL_MEMORY.md`, `ROADMAP.md` or this synchronized catalog.
