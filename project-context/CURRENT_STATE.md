@@ -7,11 +7,12 @@ Do not treat an embedded documentation merge SHA as permanently current. Resolve
 Stable accepted milestones:
 
 - Stage 25.2 runtime/code merge: `2a410476ef849fd6d9c172703a004b1befcbcfb1` (#77);
-- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` (#78).
+- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` (#78);
+- Stage 26.1A target-tested qualification code: `f8e8f606db845821b8fa24c09f9032015fb0e79e` (#80 branch before docs-only descendants).
 
-Live `main` may be newer than either milestone because of later code/docs integration.
+Live `main` may be newer than these milestones. Resolve it rather than assuming a docs SHA is current.
 
-The accepted ordinary-Chat path is:
+The accepted ordinary-Chat path remains:
 
 ```text
 ordinary ChatGPT Chat
@@ -58,25 +59,7 @@ Repeated-row and tiny target classes remain deliberately unpromoted.
 
 ### Stage 25.1 — same-session visual foundation
 
-Accepted foundations include:
-
-- same Playwright page/session screenshot -> prepared target -> freshness -> coordinate action or ABSTAIN;
-- stale/replay/layout/scroll/overlay/navigation uncertainty fails closed;
-- focused llama.cpp lifecycle owner and deterministic unload;
-- PID-bound loopback listener verification before inference;
-- class-aware visual authorization;
-- secure installed semantic runtime and lock-hash-enforced dependency installation;
-- Windows junction containment, credential scrub, bounded literal-IP browser policy and security regressions.
-
-Reviewed RAM policy:
-
-```text
-min_start_physical_gb = 1.35
-min_start_virtual_gb = 3.0
-min_run_physical_gb = 0.5
-min_run_virtual_gb = 1.5
-target emergency cutoff = 0.30 GB
-```
+Accepted foundations include same-session screenshot -> prepared target -> freshness -> coordinate action or ABSTAIN, fail-closed stale/replay/layout/scroll/overlay/navigation handling, focused llama.cpp lifecycle, PID-bound listener verification, class-aware visual authorization and installed-layout/security hardening.
 
 ### Stage 25.2 — MERGED AND ACCEPTED
 
@@ -96,11 +79,7 @@ fresh accessibility snapshot
        -> semantic click; VLM stays stopped
   -> duplicate same-name buttons with exactly one enabled + disabled alternatives
        -> semantic click; VLM stays stopped
-  -> disabled exact target
-       -> ABSTAIN; VLM stays stopped
-  -> exact target of an unpromoted semantic role
-       -> ABSTAIN; VLM stays stopped
-  -> unresolved semantic ambiguity
+  -> disabled / unpromoted role / unresolved semantic ambiguity
        -> ABSTAIN; VLM stays stopped
   -> zero exact candidates
        -> SAME Playwright page/session screenshot
@@ -110,139 +89,163 @@ fresh accessibility snapshot
        -> one coordinate click OR ABSTAIN
 ```
 
-Authorization rules:
+`targetText` remains the semantic/visual authorization anchor. Planner `target`, free-form `instruction` and planner-supplied `kind` cannot redirect visual authorization.
 
-- `targetText` is the semantic and visual authorization anchor;
-- planner-supplied target `kind` is not accepted;
-- planner `target` and free-form `instruction` cannot redirect visual grounding;
-- generic semantic click failures never trigger vision;
-- icon-only, repeated-row and tiny targets are not automatically promoted.
+Final target evidence: `semantic_hits=2`, `visual_hits=1`, `correct_abstains=2`, `false_clicks=0`, `errors=0`, `semantic_cases_started_vlm=0`, `acceptance_pass=true`; runtime stopped afterward and Chrome remained running.
 
-Final real target evidence with normal Chrome workload open:
+## Stage 26 — Procedural Memory / Demo2Workflow — ACTIVE
 
-```text
-semantic_hits = 2
-visual_hits = 1
-correct_abstains = 2
-false_clicks = 0
-errors = 0
-semantic_cases_started_vlm = 0
-acceptance_pass = true
-Doctor physical free RAM = 2.62 GB
-Doctor virtual free RAM = 8.129 GB
-minimum observed free physical RAM = 1.04 GB
-SAFETY_STOP = false
-VISION_RUNTIME_RUNNING_AFTER_TEST = false
-CHROME_RUNNING_AFTER_TEST = true
-TEST_EXIT_CODE = 0
-```
+Authoritative design:
 
-## Stage 26 — Procedural Memory / Demo2Workflow — ACTIVE DESIGN
+- `project-context/STAGE26_PROCEDURAL_MEMORY.md`
+- `project-context/STAGE26_1A_OPENADAPT_QUALIFICATION.md`
 
-Stage 26 architecture/context activation was merged in PR #78 as milestone:
+### Stage 26.0 — UI-Mate analysis + contract/context sync — DONE
 
-`04dccfd30eb06a82899e2771f6d53ab4c8387128`.
+PR #78 activated the procedural-memory architecture and preserved these rules:
 
-Stage 26.0 — upstream analysis + contract/context synchronization — is **DONE**.
+- ChatGPT is the only planner/intelligence;
+- remembered procedure is guidance/evidence, not authorization;
+- current observed state outranks remembered action history;
+- no private chain-of-thought is persisted;
+- Windows desktop surface is an explicit required future stage;
+- public contract is reconsidered only after desktop surface exists.
 
-Next implementation step: **Stage 26.1 — procedural data foundation**.
+### Stage 26.1A — OpenAdapt core qualification — TARGET PASS
 
-Technical reference: official `Tencent/UI-Mate`, pinned during analysis to upstream commit:
+Broader research found that `OpenAdaptAI/openadapt-flow` and `openadapt-capture` already implement major parts of the originally planned project-owned recorder/compiler/skill-store/lifecycle substrate.
 
-`d2b2e0aede83eeacfb1bc86f66503acbc4a6738a`.
-
-We do not adopt UI-Mate as a second GUI agent or large local planner. We adopt the procedural-memory pattern:
+Pinned target-tested upstreams:
 
 ```text
-successful trajectory
-  -> raw structured evidence
-  -> Demo Compiler
-  -> coordinate-free versioned candidate skill
-  -> compact current-subtask guidance
-  -> current observed state remains authoritative
-  -> completion verifier
-  -> evidence-based promotion / stale / disable
+openadapt-flow 1.31.0
+commit d7f58d9f35c8369f16a9b378f23952d425334ad7
+
+openadapt-capture 1.2.2
+commit bcf12942d61d66b64d94e645e9124273a5cc5963
 ```
 
-Stage 26 rules:
+Target-tested qualification-code HEAD:
 
-- stored workflows are guidance/evidence, not authorization and not planners;
-- do not persist private chain-of-thought;
-- one successful run creates at most a candidate skill;
-- completion pointer advances only on applicable verifier evidence;
-- retrieval may rank candidate skills but cannot authorize an action;
-- current observed state outranks remembered milestones/action history;
-- specific local programs/capabilities are selected later from actual tasks and evidence, not preselected in the roadmap.
+`f8e8f606db845821b8fa24c09f9032015fb0e79e`.
 
-## Stage 26.1 — NEXT
+Real Windows result:
 
-Implement the procedural data foundation:
+```text
+Python 3.12.10
+FLOW_INSTALLED_COMMIT matches expected
+FLOW_INSTALLED_VERSION=1.31.0
+CAPTURE_INSTALLED_COMMIT matches expected
+CAPTURE_INSTALLED_VERSION=1.2.2
+PHASE_B_PASS=True
+PHASE_C_TUTORIAL_PASS=True
+PROBE_ERROR=<null>
+ERROR=<null>
+STAGE26_1A_PREFLIGHT_RESULT=PASSED
+TEST_EXIT_CODE=0
+Chrome process count 15 -> 15
+```
 
-- raw trajectory schema;
-- redaction/retention/deletion policy;
-- compiled coordinate-free skill schema;
-- versioned local skill store;
-- deterministic parser/validator;
-- candidate/verified/promoted/stale/disabled lifecycle.
+Result artifact:
 
-No public Chat tool-name change in this step.
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\openadapt-qualification\qualification-20260818-170434\result.json`
 
-## Stage 26.2 — after 26.1
+The tutorial path is model-free and upstream's lifecycle contract checks production `VERIFIED` outcome, effect evidence, digest-bound receipt and `model_calls=0`.
 
-Demo Compiler + verifier + self-demo dogfood using successful controlled Chat/tool-driven trajectories. Acceptance must include a related changed/variant case, not only identical replay.
+Current component decisions:
+
+- Flow compiler + `Workflow` / `ProgramGraph`: **ADOPT** behind project boundaries;
+- `SkillLibrary` + learning/teach lifecycle: **ADAPT** because project policy remains candidate-first and upstream bootstrap v1 becomes active immediately;
+- Capture recorder: continue real Windows qualification before adoption; do not build our own recorder first;
+- Windows backend/agent: continue security A/B; typed/guarded/UIA routes exist and legacy `/execute_windows` is disabled by default, but the interactive-session authority boundary still needs acceptance;
+- F16 integration: adapt through OpenAdapt's narrow proposal-only `Grounder` seam after capture qualification;
+- OpenAdapt Desktop: distribution/cockpit reference for Stage 27, not current runtime baseline.
+
+No OpenAdapt code has been integrated into `semantic-projection` or the installed product path yet.
+
+## Stage 26.1B — NEXT — real bounded Windows Capture qualification
+
+Use a harmless bounded test window first.
+
+Required evidence:
+
+- capture start/stop in the interactive user session;
+- selected window scope respected;
+- click, typing, key and scroll evidence captured;
+- UIA evidence retained when exposed;
+- conversion to Flow recording input;
+- compile/replay success or bounded explicit refusal;
+- false actions = 0;
+- unrelated-window actions = 0;
+- raw artifacts remain only in the explicit local qualification directory;
+- cleanup successful; unrelated user applications remain untouched.
+
+Concrete local programs/capabilities are not preselected; choose them later from actual tasks and evidence.
+
+## Stage 26.1C — after capture
+
+Executor security A/B:
+
+```text
+A. OpenAdapt typed WindowsBackend + hardened local interactive-session agent
+B. OpenAdapt IR/runtime + narrower native/project-owned actuator
+```
+
+Then prototype the accepted local LFM2.5-VL-450M F16 through OpenAdapt's `Grounder` protocol. Grounder output remains only a proposal; identity/risk/freshness/effect checks remain authoritative.
+
+## Stage 26.2 — ChatGPT procedural integration + variant-task dogfood
+
+Integrate accepted upstream pieces behind the ChatGPT-only planner boundary. Prove current-state-first reuse, candidate-first trust, verifier/effect-based completion and changed/variant task behavior without blind replay.
 
 ## Stage 26.3 — Windows desktop surface — REQUIRED / DO NOT DROP
 
-This is an explicit planned capability boundary:
+This explicit product stage remains:
 
 ```text
 native/deterministic UI observation first
   -> screen capture where needed
-  -> bounded visual grounding where needed
+  -> bounded local visual grounding where needed
   -> reviewed keyboard/mouse action
   -> verification / ABSTAIN
 ```
 
-True arbitrary human “show me once” recording belongs at or after this layer because the current browser semantic bridge observes controlled tool actions rather than arbitrary Windows user interaction.
+Productize whichever Windows observation/actuation combination wins the qualification A/B. Concrete local programs/capabilities are selected later from real tasks and evidence.
 
-Concrete local programs/capabilities are chosen later from real tasks and evidence.
+## Stage 26.4 — human demonstration transferable-skill acceptance
 
-## Stage 26.4 — human demonstration capture
-
-After desktop observation/actuation exists, record a real user demonstration, compile it into a coordinate-free candidate, verify it and re-apply it to a related changed task/state.
+After the desktop surface is accepted, record a real user demonstration, compile it through the accepted procedural substrate, apply project trust policy, verify it and re-apply it to a related changed task/state.
 
 ## Stage 26.5 — public contract decision
 
-Only after Windows desktop surface exists, make a separate ADR + ordinary-Chat acceptance decision whether:
-
-- the existing small-semantic-surface philosophy can continue; or
-- a small number of new truthful public tool names is required.
-
-Until then the accepted public tool names remain the current five.
+Only after Windows desktop surface exists, make a separate ADR + ordinary-Chat acceptance decision whether the current five public tools remain sufficient or a small number of new truthful public tool names is required.
 
 Do not overload existing tools or add a generic opaque workflow dispatcher merely to preserve a tool count.
 
 ## Remaining product work
 
-- Stage 26.1 procedural data foundation;
-- Stage 26.2 compiler/verifier/self-demo acceptance;
+- Stage 26.1B real Windows Capture qualification;
+- Stage 26.1C executor security A/B + F16 seam;
+- Stage 26.2 ChatGPT procedural integration + variant-task acceptance;
 - Stage 26.3 Windows desktop surface;
 - Stage 26.4 human demonstration capture and transfer;
 - Stage 26.5 public contract decision;
+- raw demonstration retention/redaction/encryption policy;
 - stronger DNS/redirect/private-network boundary decision;
-- release-grade Python/model artifact reproducibility;
-- deprecated transitive dependency cleanup;
-- Stage 27 installer/update/repair/doctor/uninstall/key rotation/rollback/restart recovery;
+- release-grade Python/model/OpenAdapt artifact reproducibility;
+- dependency cleanup;
+- Stage 27 installer/update/repair/doctor/uninstall/key rotation/rollback/restart recovery, with OpenAdapt Desktop patterns evaluated before reimplementation;
 - Stage 28 clean-user product E2E and first stable release.
 
 ## Active rules
 
 - resolve live `main` before work;
 - ChatGPT is the only planner/intelligence;
+- do not duplicate accepted upstream procedural mechanisms without an integration blocker;
 - semantic/native structure comes before vision whenever reliable structure exists;
 - local vision starts only on explicitly authorized paths and may ABSTAIN;
-- stale or uncertain visual evidence causes zero mutation;
+- stale or uncertain evidence causes zero mutation;
 - remembered procedure never overrides current observed state;
 - procedural memory stores structured evidence, not private reasoning;
+- raw capture is not safe-to-sync by default;
 - public semantic surface remains exactly five tool names until the explicit post-desktop contract decision;
 - accepted implementation evidence and authoritative documentation move together.

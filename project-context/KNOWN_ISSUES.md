@@ -26,27 +26,35 @@ Only unresolved issues for the current architecture are listed here. Historical 
 
 12. **Runtime-key rotation/repair/uninstall are not first-class manager flows yet.** These remain Stage 27 distribution/maintenance work.
 
-13. **Procedural memory is design-active, not implemented/product-accepted.** Raw trajectory schema, redaction/retention, Demo Compiler, versioned skill store, trust lifecycle, retrieval evidence and completion verifier still need implementation and acceptance.
+13. **Procedural-memory upstream core is qualified but not integrated into the product path.** OpenAdapt Flow/Capture passed exact-source install/import and model-free tutorial verification on the target Windows machine, but no OpenAdapt dependency is yet part of production `semantic-projection` or installed runtime.
 
-14. **A successful trajectory is not yet a trusted reusable skill.** Stage 26 must prove candidate -> verified -> promoted/stale/disabled lifecycle and prevent one lucky success from auto-promotion.
+14. **The first compiled procedure must not silently become product-trusted.** Upstream `SkillLibrary.create_skill()` marks bootstrap v1 active; Chat Agent Platform keeps a stricter candidate-first product policy. A thin policy adapter still needs implementation/acceptance before integration.
 
-15. **Human demonstration privacy/retention is unresolved.** Long-term raw screenshot/text storage could contain secrets or personal data. Redaction and retention policy must exist before arbitrary demonstrations are persisted.
+15. **Human demonstration privacy/retention is unresolved.** Raw desktop capture may contain everything visible or typed. Long-lived storage/sync is not accepted until deletion, encryption and redaction policy is defined and tested.
 
-16. **Private reasoning must not enter procedural memory.** The recorder/compiler must store structured/user-visible intent summaries and operational evidence only, not private chain-of-thought.
+16. **Private reasoning must not enter procedural memory.** Store structured/user-visible intent summaries and operational evidence only, never private chain-of-thought.
 
-17. **Completion verification is not implemented yet.** A model/Chat `subtask_complete` claim must not advance a workflow pointer without applicable verifier evidence.
+17. **OpenAdapt Capture has not yet passed the real bounded Windows capture gate.** Package install/symbol checks passed, but Stage 26.1B still must prove window-scoped recording, action classes, UIA evidence, conversion/compile/replay or bounded refusal, zero unrelated-window actions and clean local artifact containment.
 
-18. **Windows desktop surface is not implemented yet.** Native/deterministic UI observation, screen capture, bounded vision and reviewed keyboard/mouse actuation need their own scoped acceptance before arbitrary local desktop workflows can be claimed.
+18. **Windows executor authority boundary is not accepted yet.** The pinned OpenAdapt server has bounded typed `/input`, `/input/guarded`, `/uia/find` and `/uia/act` routes and disables legacy `/execute_windows` by default. The project still must compare this agent boundary with a narrower actuator and prove generic exec is disabled/unreachable in product configuration.
 
-19. **Arbitrary human “show me once” recording is not available yet.** The current browser semantic path can observe controlled Chat/tool actions, not general user interaction across Windows. True human demonstration capture belongs at/after the Windows desktop surface.
+19. **F16 -> OpenAdapt Grounder adapter is not implemented yet.** The seam looks compatible and proposal-only, but it needs a real adapter test proving local/on-demand lifecycle, no screenshot egress, and preservation of identity/risk/freshness/effect gates.
 
-20. **The post-desktop public contract is intentionally undecided.** Current accepted public tool names remain five. After Windows desktop surface exists, a separate ADR and ordinary-Chat acceptance must decide whether new truthful tool names are required or the same small-semantic philosophy can continue. Do not overload existing tools or add a generic opaque dispatcher merely to avoid this decision.
+20. **Windows desktop surface is not product-accepted yet.** Native/deterministic UI observation, screen capture, bounded vision and reviewed keyboard/mouse actuation need their own scoped acceptance before arbitrary local desktop workflows can be claimed.
 
-21. **Concrete future local programs/capabilities are intentionally not preselected.** They should be chosen from actual user tasks and evidence when desktop/capability benchmarking begins.
+21. **Arbitrary human “show me once” transfer is not accepted yet.** Capture and compiler candidates exist upstream, but Stage 26.4 still must prove real demonstration -> compiled procedure -> project trust gate -> variant-task reuse with current-state priority.
 
-22. **Repository metadata may still contain historical wording.** Current code and authoritative `project-context` docs override stale descriptive metadata.
+22. **The post-desktop public contract is intentionally undecided.** Current accepted public tool names remain five. After Windows desktop surface exists, a separate ADR and ordinary-Chat acceptance must decide whether new truthful tool names are required or the same small-semantic philosophy can continue. Do not overload existing tools or add a generic opaque dispatcher merely to avoid this decision.
 
-23. **No first stable release exists.** Browser semantic→vision is accepted, but Procedural Memory, Windows desktop capability, distribution/maintenance hardening and clean-user product E2E remain incomplete.
+23. **Concrete future local programs/capabilities are intentionally not preselected.** Choose them from actual user tasks and evidence when desktop/capability benchmarking begins.
+
+24. **OpenAdapt Desktop is not the qualified runtime baseline.** Its pinned packaging lane embeds a different Flow version from the target-qualified Flow 1.31.0. Reuse its Tauri/sidecar/installer ideas only after Stage 27 compatibility review.
+
+25. **Python/OpenAdapt packaging is not release-grade.** Qualification used isolated Python 3.12 because Flow 1.31.0 currently declares Python `<3.13`. Stage 27 must own exact Python/upstream artifact/hash/update policy instead of relying on user global environments.
+
+26. **Repository metadata may still contain historical wording.** Current code and authoritative `project-context` docs override stale descriptive metadata.
+
+27. **No first stable release exists.** Browser semantic→vision is accepted, but Procedural Memory integration, Windows desktop capability, distribution/maintenance hardening and clean-user product E2E remain incomplete.
 
 ## Closed / superseded findings
 
@@ -60,3 +68,5 @@ Only unresolved issues for the current architecture are listed here. Historical 
 - Safe ABSTAIN is a no-action result rather than a backend error.
 - Installed semantic bootstrap/source drift, lockfile application, prepared-target expiry/cap, descendant stdio/buffering, junction containment, credential scrub, CodeQL coverage and literal private-network blocking remain regression-tested foundations.
 - Earlier Stage 25 runtime/model candidate rankings are historical research; accepted target path is the measured llama.cpp + LFM2.5-VL-450M F16 configuration above.
+- The assumption that Stage 26 must first build its own recorder/compiler/skill store from scratch is superseded. Pinned OpenAdapt Flow/Capture passed exact-source qualification on Windows; reuse/adapt qualified upstream mechanisms before writing replacements.
+- An early Stage 26.1A target failure caused by missing `requests` was a qualification-harness defect: the probe imported `WindowsBackend` while installing Flow only with `[browser]`. The pinned package correctly declares `requests` in `[windows]`; after installing `[browser,windows]` the exact target rerun passed.

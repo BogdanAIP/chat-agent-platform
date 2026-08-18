@@ -2,12 +2,13 @@
 
 ## Repository-state rule
 
-Resolve live `main` from GitHub before new work. Documentation milestones can move `main` without changing the accepted runtime/code baseline, so do not treat an embedded docs SHA as permanently current.
+Resolve live `main` from GitHub before new work. Documentation milestones can move `main` without changing accepted runtime/code evidence, so do not treat an embedded docs SHA as permanently current.
 
 Stable milestones:
 
 - accepted Stage 25.2 runtime/code merge: `2a410476ef849fd6d9c172703a004b1befcbcfb1` (#77);
-- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` (#78).
+- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` (#78);
+- Stage 26.1A target-tested qualification code: `f8e8f606db845821b8fa24c09f9032015fb0e79e` (#80 branch before docs-only descendants).
 
 ## Product boundary
 
@@ -48,7 +49,7 @@ web_interact
 - become a general process supervisor/model manager;
 - hide new desktop/workflow consequence classes behind misleading existing schemas merely to avoid adding a truthful capability later.
 
-## Capability and skill lifecycle
+## Capability and procedural trust lifecycle
 
 Capability state:
 
@@ -56,15 +57,17 @@ Capability state:
 AVAILABLE -> ACTIVE -> AUTHORIZED
 ```
 
-Procedural-memory trust is separate:
+Procedural trust is separate from capability authorization. OpenAdapt's internal skill statuses may be reused, but the product boundary remains candidate-first:
 
 ```text
-CANDIDATE -> VERIFIED -> PROMOTED
-     |          |          |
-     +-------> STALE / DISABLED
+new/learned procedure
+  -> project CANDIDATE
+  -> verification / regression / variant evidence
+  -> trusted reusable status
+  -> stale / quarantine / disable / rollback as needed
 ```
 
-A promoted skill is trusted procedural guidance; it does not itself authorize every action it mentions.
+A trusted procedure is still guidance/executable program evidence, not blanket authorization for every action it contains.
 
 ## Browser grounding architecture — Stage 25.2 accepted
 
@@ -89,18 +92,6 @@ web_interact(click)
 
 This supersedes earlier Stage 25.1 wording that treated semantic ambiguity as a possible vision-escalation case. Current accepted policy does not visually escalate unresolved semantic ambiguity. Generic semantic click failures also do not invoke vision.
 
-### Same-session invariants
-
-Automatic visual browser interaction is forbidden unless all applicable invariants are proven:
-
-1. capture and action belong to the same Playwright page/session;
-2. coordinate space is explicit and deterministic;
-3. viewport/layout state required by the verifier is known;
-4. no navigation/page replacement invalidated the capture;
-5. stale/ambiguous visual evidence produces ABSTAIN;
-6. action cannot silently fall back to a different page/browser instance;
-7. page mutation is zero when grounding returns ABSTAIN/error.
-
 `targetText` is the semantic/visual authorization anchor. Planner `target`, free-form `instruction` and planner-supplied `kind` cannot redirect the visual target.
 
 ## Local vision boundary
@@ -117,81 +108,143 @@ ctx = 2048
 
 The model is bounded perception. It never plans the user's workflow and never clicks by itself. Product code keeps runtime/model identity replaceable behind focused interfaces.
 
-## Procedural-memory architecture — Stage 26 active design
+## Procedural-memory architecture — Stage 26 active
 
-Stage 26.0 analysis/context contract is complete via PR #78. Stage 26.1 is next.
+Stage 26.0 established the conceptual pattern from `Tencent/UI-Mate`.
 
-Procedural memory is a local **memory/state substrate**, not an agent.
+Stage 26.1A then qualified a much more complete implementation candidate:
+
+```text
+openadapt-flow 1.31.0
+commit d7f58d9f35c8369f16a9b378f23952d425334ad7
+
+openadapt-capture 1.2.2
+commit bcf12942d61d66b64d94e645e9124273a5cc5963
+```
+
+Target-tested qualification-code HEAD:
+
+`f8e8f606db845821b8fa24c09f9032015fb0e79e`.
+
+Real Windows evidence: exact commits verified, `PHASE_B_PASS=True`, `PHASE_C_TUTORIAL_PASS=True`, no probe/error, model-free tutorial verification, Chrome remained 15/15 processes.
+
+Detailed qualification contract: `STAGE26_1A_OPENADAPT_QUALIFICATION.md`.
+
+### Revised procedural split
+
+Do not assume the repository owns its own generic recorder/compiler/skill-store implementation.
 
 ```text
 ordinary ChatGPT
-  planner / task interpretation / adaptation
+  planner / task interpretation / applicability / adaptation
         |
-        | bounded candidate workflow guidance
+        | bounded procedure context / accepted routine invocation
         v
-procedural-memory substrate
-  raw trajectory recorder
-  Demo Compiler
-  versioned skill store
-  retrieval/ranking evidence
-  workflow progress state
-  completion verifier
+qualified procedural substrate
+  OpenAdapt Flow compiler + Workflow/ProgramGraph
+  adapted SkillLibrary/learn/teach lifecycle
+  accepted capture source
+  project trust/policy adapter
+  project integration/authorization boundaries
         |
         v
 accepted capability layer
+  browser/files semantics today
+  qualified Windows desktop surface later
+  local F16 only as proposal-only bounded perception
 ```
 
-Detailed contract: `STAGE26_PROCEDURAL_MEMORY.md`.
+The repository owns the integration and policy boundary. It reuses upstream procedural mechanics where qualified and writes a replacement only for a measured gap.
 
-### Raw evidence vs compiled skill
+### Compiled-program evidence rule
+
+The original Stage 26 design said compiled skills should contain no coordinates. Qualification produced a more accurate invariant.
+
+OpenAdapt retains structural/native evidence and may also retain template/OCR/geometry/pixel evidence for fallback. Therefore the product rule is:
+
+> A compiled procedure must not use blind historical absolute-coordinate replay as authority or primary identity.
+
+Preferred order:
 
 ```text
-raw trajectory
-  observations/actions/results/verification evidence
-        |
-        v
-Demo Compiler
-        |
-        v
-compiled skill
-  purpose/applicability
-  subtasks/goals
-  completion criteria
-  prior milestones
-  recovery hints
-  evidence statistics
+live structural/native/semantic evidence
+  -> deterministic re-resolution
+  -> bounded OCR/template/geometry/visual fallback where allowed
+  -> identity/risk/freshness checks
+  -> action
+  -> postcondition/effect verification
+  -> HALT/ABSTAIN on unresolved state
 ```
 
-Compiled skills must not contain actionable replay coordinates. Do not persist private chain-of-thought.
+Historical pixel evidence may exist inside a bundle, but it is evidence, not authority.
 
 ### Current-state priority
 
 ```text
 current observed state
-  > completion criteria / current subtask goal
-  > prior successful milestones
+  > verifier/effect criteria / current task goal
+  > prior successful procedural evidence
   > raw historical action sequence
 ```
 
-A remembered procedure may guide exploration but cannot override contradictory current evidence.
+A remembered procedure may guide execution but cannot override contradictory current evidence.
 
-### Completion verification
+### Completion/effect verification
 
 A model/Chat report that a subtask is complete is a proposal, not sufficient evidence:
 
 ```text
 completion proposal
-  -> native/deterministic verifier where possible
-       PASS -> advance workflow pointer
-       FAIL -> stay on current subtask
-       UNKNOWN -> observe / ABSTAIN / user input as appropriate
+  -> native/deterministic verifier or system-of-record effect where possible
+       PASS -> advance / complete
+       FAIL -> remain / recover
+       UNKNOWN -> observe / HALT / ABSTAIN / user input
 ```
 
 Retrieval and workflow progress are non-authorizing. Every actual capability action still passes through its normal scope/authorization boundary.
 
-## Windows desktop surface — explicit planned boundary
+## Windows capture qualification — next active gate
 
-Stage 26.3 introduces a scoped Windows desktop surface. This is intentionally separate from browser Playwright and must not be forgotten.
+Stage 26.1B qualifies OpenAdapt Capture on a harmless bounded Windows fixture before any project recorder is written.
+
+Required evidence:
+
+- interactive-session record start/stop;
+- selected window scope respected;
+- click/type/key/scroll event capture;
+- UIA evidence where exposed;
+- conversion to Flow recording input;
+- compile/replay success or bounded refusal;
+- zero false/unrelated-window actions;
+- explicit local raw-artifact containment and cleanup.
+
+## Windows execution boundary — separate security decision
+
+The pinned OpenAdapt server exposes bounded typed routes including `/input`, `/input/guarded`, `/uia/find` and `/uia/act`. Legacy arbitrary `/execute_windows` is disabled by default.
+
+That does not automatically accept the agent boundary. Stage 26.1C compares:
+
+```text
+A. OpenAdapt typed WindowsBackend + hardened local interactive-session agent
+B. OpenAdapt IR/runtime + narrower native/project-owned actuator
+```
+
+The selected design must explicitly cover callable authority, process/session ownership, authentication, stale/focus/frame binding, action-delivery evidence and blast radius. Product configuration must make legacy generic exec disabled/unreachable.
+
+## F16 integration seam
+
+OpenAdapt `Grounder` is a narrow proposal interface:
+
+```text
+current PNG + intent + optional OCR label
+  -> proposed point/region/confidence OR None
+```
+
+The already accepted local LFM2.5-VL-450M F16 should be adapted here rather than replacing its existing lifecycle. F16 remains local, on-demand, unloadable and non-authorizing. Identity/risk/freshness/effect checks stay authoritative.
+
+## Windows desktop surface — explicit required product boundary
+
+Stage 26.3 remains deliberately separate and must not be lost.
 
 ```text
 Windows task
@@ -202,9 +255,24 @@ Windows task
   -> post-action verification / ABSTAIN
 ```
 
+Productize whichever Windows observation/actuation combination wins Stage 26.1B/26.1C qualification.
+
 Concrete local programs/capabilities are selected from real tasks and evidence when this stage is benchmarked; architecture does not preselect a fixed list.
 
-True arbitrary human demonstration capture should be built at or after this desktop surface exists.
+## Human demonstration transfer
+
+Stage 26.4, after desktop-surface acceptance:
+
+```text
+real bounded human demonstration
+  -> accepted capture source
+  -> qualified compiler/IR
+  -> project candidate/trust policy
+  -> verifier/effect evidence
+  -> related changed-task reuse
+```
+
+One demonstration is evidence, not automatic trust.
 
 ## Public contract decision after desktop surface
 
@@ -227,9 +295,11 @@ Do not add a generic opaque workflow dispatcher, and do not overload current too
 - workspace containment accounts for Windows links/junctions;
 - browser DNS/rebinding/redirect isolation remains an explicit residual boundary;
 - child backends must not inherit tunnel credentials unless required;
-- procedural-memory storage requires redaction/retention rules before long-term screenshot/sensitive observation storage;
-- private chain-of-thought must never be written into skills;
-- stale/malformed/incompatible skills fail closed and can be disabled deterministically.
+- raw desktop capture is sensitive local data and not safe-to-sync by default;
+- private chain-of-thought must never be persisted into procedural memory;
+- stale/malformed/incompatible procedures fail closed;
+- OpenAdapt qualification does not itself grant production authority;
+- generic Windows code execution must remain disabled/unreachable in product configuration.
 
 ## Windows management
 
@@ -239,19 +309,18 @@ The public manager/tray owns lifecycle/configuration/diagnostics only. It does n
 
 Stage 25.2 browser semantic→vision integration is accepted; do not describe it as the next gate.
 
-Stage 26 gates focus on:
+Current Stage 26 gates:
 
-1. raw/compiled procedural schemas and redaction;
-2. coordinate-free candidate skill generation;
-3. verifier-controlled subtask advancement;
-4. same/related changed-task adaptation without blind replay;
-5. incompatible/stale skill fail-closed behavior;
-6. Windows desktop observation/actuation acceptance when Stage 26.3 begins;
-7. later human demonstration capture and transfer;
-8. explicit post-desktop public contract decision.
+1. Stage 26.1B real bounded Windows Capture qualification;
+2. Stage 26.1C Windows executor security A/B;
+3. F16 Grounder adapter qualification;
+4. ChatGPT procedural integration with current-state-first variant-task dogfood;
+5. Windows desktop surface product acceptance;
+6. human demonstration transfer acceptance;
+7. explicit post-desktop public contract decision.
 
 Changing exported Chat actions still requires explicit Refresh/review and fresh ordinary-Chat acceptance.
 
 ## Ownership
 
-The repository owns thin integration assets: pinned configs, lifecycle/bootstrap, deterministic compatibility adapters, focused missing-boundary adapters, procedural-memory schemas/state/verifiers, tests and project context. It does not own a generic AI gateway, registry, vault, autonomous workflow brain or general model-serving platform.
+The repository owns thin integration assets: pinned configs, lifecycle/bootstrap, deterministic compatibility adapters, project trust/policy wrappers, focused missing-boundary adapters, tests and project context. It does not own a generic AI gateway, registry, vault, autonomous workflow brain, generic workflow engine or general model-serving platform while qualified upstream components cover those boundaries.

@@ -31,15 +31,17 @@ AVAILABLE -> ACTIVE -> AUTHORIZED
 - **ACTIVE:** required process/runtime is running for the task;
 - **AUTHORIZED:** the requested action is within accepted local scope plus applicable product/user policy.
 
-Procedural-memory trust is separate:
+Procedural-memory trust is separate. The project boundary remains candidate-first even if an upstream library uses different internal names:
 
 ```text
-CANDIDATE -> VERIFIED -> PROMOTED
-     |          |          |
-     +-------> STALE / DISABLED
+new / learned procedure
+  -> project CANDIDATE
+  -> verification / regression / variant evidence
+  -> trusted reusable status
+  -> stale / quarantine / disable / rollback as needed
 ```
 
-A promoted skill is trusted procedural guidance; it is **not** blanket action authorization.
+An upstream `active` status is **not** automatically equivalent to product trust or action authorization.
 
 ## Chat-facing tool semantics
 
@@ -84,9 +86,11 @@ Security rules:
 - local model output is untrusted evidence and never self-authorizes an action;
 - screenshot→click remains a narrow non-atomic TOCTOU residual boundary.
 
-## Procedural-memory security — Stage 26 design
+## Procedural-memory security — Stage 26
 
 A remembered workflow can carry sensitive operational context and can bias future actions. Treat it as a distinct security/privacy boundary.
+
+Stage 26.1A qualified OpenAdapt Flow/Capture as upstream candidates on exact target-tested pins, but qualification does **not** grant production authority. No OpenAdapt dependency is product-integrated merely because install/tutorial verification passed.
 
 ### No private chain-of-thought persistence
 
@@ -101,7 +105,9 @@ Do not record or persist private model reasoning. Procedural traces may contain 
 
 ### Raw demonstration retention
 
-Before arbitrary demonstrations are stored long term, define:
+Raw desktop capture may contain everything visible or typed. It is sensitive local data by default.
+
+Before arbitrary demonstrations are stored long term, define and test:
 
 - explicit storage location and ownership;
 - retention/expiry behavior;
@@ -109,27 +115,99 @@ Before arbitrary demonstrations are stored long term, define:
 - secret/credential filtering;
 - path/content minimization;
 - deletion and disable semantics;
-- backup/export policy if later supported.
+- encryption-at-rest policy;
+- backup/export/sync policy if later supported.
 
-Raw screenshots should not automatically become permanent compiled-skill content.
+Raw capture must remain inside the explicitly selected local qualification/product directory unless a later reviewed export path is added. Raw screenshots should not automatically become permanent reusable-skill content.
+
+### Compiled-procedure evidence rule
+
+A compiled procedure may retain structural/native evidence and bounded pixel/template/OCR/geometry evidence, but it must not use blind historical absolute-coordinate replay as authority or primary identity.
+
+Preferred authorization/evidence order:
+
+```text
+live structural/native/semantic evidence
+  -> deterministic re-resolution
+  -> bounded OCR/template/geometry/visual fallback when allowed
+  -> identity/risk/freshness checks
+  -> scoped action
+  -> postcondition/effect verification
+  -> HALT/ABSTAIN on unresolved state
+```
+
+Historical pixel evidence is evidence, not authority.
 
 ### Skill trust and poisoning resistance
 
-- one successful run creates at most a candidate;
+- one successful run/demonstration creates at most a project candidate;
+- upstream `SkillLibrary.create_skill()` immediate-active bootstrap must be wrapped by stricter product policy;
 - candidate retrieval is non-authorizing;
-- promotion requires measured re-application/verification policy;
-- malformed, incompatible or stale skills fail closed;
+- promotion/trust requires measured re-application/verification policy;
+- malformed, incompatible or stale procedures fail closed;
 - version changes preserve provenance and prior evidence rather than silently overwriting trust history;
 - a remembered milestone cannot override contradictory current observed state;
 - imported/upstream procedures receive no implicit local authorization.
 
 ### Completion integrity
 
-A model/Chat completion report is not enough to advance workflow state. Use deterministic/native verification where available. UNKNOWN should cause further observation/ABSTAIN/user input rather than optimistic advancement.
+A model/Chat completion report is not enough to advance workflow state. Use deterministic/native verification or stronger system-of-record effect evidence where available. UNKNOWN should cause further observation/HALT/ABSTAIN/user input rather than optimistic advancement.
 
-## Windows desktop surface security — future explicit gate
+## OpenAdapt Windows-agent security — explicit qualification boundary
 
-The future Stage 26.3 desktop surface must not inherit browser-click authorization by analogy.
+The pinned OpenAdapt server has materially safer default behavior than the legacy WAA contract alone suggests:
+
+- bounded typed `/input` and `/input/guarded` routes;
+- `/uia/find`, `/uia/act`, `/uia/locator-at`, `/uia/text-at-point` structural routes;
+- frame/context/focus stale checks on guarded input;
+- action-delivery receipts separated from outcome verification;
+- legacy arbitrary-Python `/execute_windows` route **disabled by default**.
+
+However, product acceptance is still pending because the server runs with interactive-session authority.
+
+Before adoption, Stage 26.1C must compare:
+
+```text
+A. OpenAdapt typed WindowsBackend + hardened local interactive-session agent
+B. OpenAdapt IR/runtime + narrower native/project-owned actuator
+```
+
+The selected product configuration must prove:
+
+1. callable authority is bounded to accepted operation classes;
+2. process/session ownership is known;
+3. loopback/authentication boundary is explicit;
+4. stale frame/focus/context is refused before mutation;
+5. ambiguous UIA targets refuse rather than pick a candidate;
+6. before/after and delivery/effect evidence are preserved;
+7. blast radius is understood if the local caller is compromised;
+8. legacy `/execute_windows` cannot be enabled or reached through normal product configuration;
+9. no generic Python/command execution surface is exposed to ordinary ChatGPT.
+
+A qualification fixture passing does not imply arbitrary Windows application support.
+
+## F16 / local grounding security
+
+The accepted local LFM2.5-VL-450M F16 remains bounded perception, not a second planner.
+
+For future OpenAdapt integration, use the narrow `Grounder` seam only:
+
+```text
+current PNG + intent + optional OCR label
+  -> proposed match OR None
+```
+
+Requirements:
+
+- local-only by default; no screenshot egress;
+- focused/on-demand lifecycle and deterministic unload;
+- model proposal never authorizes an action;
+- identity/risk/freshness/effect checks remain authoritative;
+- no new public Chat vision tool is introduced merely for the adapter.
+
+## Windows desktop surface security — future explicit product gate
+
+Stage 26.3 must not inherit browser-click or OpenAdapt-fixture authorization by analogy.
 
 Before promotion, separately review:
 
@@ -142,7 +220,7 @@ Before promotion, separately review:
 7. before/after verification;
 8. process/window ownership where applicable;
 9. demonstration recording boundaries;
-10. recovery/ABSTAIN behavior.
+10. recovery/HALT/ABSTAIN behavior.
 
 Concrete local programs/capabilities are chosen from real tasks at that time; no fixed future application list is security policy.
 
@@ -166,19 +244,6 @@ Concrete local programs/capabilities are chosen from real tasks at that time; no
 ## Browser network boundary
 
 Current policy blocks direct literal private/link-local/metadata/non-public destinations while preserving reviewed loopback use. This is **not** a complete DNS/rebinding/redirect sandbox. Do not describe it as one. A stronger boundary remains a future decision if consequences require it.
-
-## Local specialist inference security
-
-Accepted local vision remains a bounded capability, not a second planner.
-
-- local-only/focused serving by default;
-- no arbitrary model-management/install/search/admin surface to ordinary Chat;
-- use accepted local artifact/profile identities;
-- resource-admit before heavy start and unload predictably;
-- treat inference output as untrusted evidence;
-- never let a local model grant itself capabilities or change authorization policy.
-
-Earlier unaccepted runtime/model candidates are historical research, not current security configuration.
 
 ## Bootstrap/lifecycle integrity
 
