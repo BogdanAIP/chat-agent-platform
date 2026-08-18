@@ -6,13 +6,14 @@ This repository is designed to be continued safely from a fresh ChatGPT or Codex
 
 1. `project-context/START_HERE.md`
 2. `project-context/CURRENT_STATE.md`
-3. `project-context/ARCHITECTURE.md`
-4. `project-context/STAGE25_1_VISION_INTEGRATION.md`
+3. `project-context/STAGE26_PROCEDURAL_MEMORY.md`
+4. `project-context/ARCHITECTURE.md`
 5. `project-context/DECISIONS.md`
 6. `project-context/ROADMAP.md`
-7. `project-context/DEVELOPMENT_PRINCIPLES.md`
+7. `project-context/KNOWN_ISSUES.md`
+8. `project-context/DEVELOPMENT_PRINCIPLES.md`
 
-Historical Stage 24.1 transport evidence is in `project-context/DIRECT_SEMANTIC_TUNNEL.md`. Historical/pre-acceptance Stage 25 runtime/model research remains in `LOCAL_SPECIALIST_INFERENCE.md`, `ACTIVE_VISUAL_GROUNDING.md`, `STAGE25_TARGET_BENCHMARKS.md` and dated handoffs. Those files do not override current accepted #73/#74 evidence.
+Stage 25/25.1 research and handoff documents remain useful historical evidence, but they are no longer the active continuation contract. In particular, `ACTIVE_VISUAL_GROUNDING.md`, `LOCAL_SPECIALIST_INFERENCE.md`, `STAGE25_TARGET_BENCHMARKS.md`, `STAGE25_CHAT_HANDOFF_2026-08-17.md` and `STAGE25_1_VISION_INTEGRATION.md` must not override the merged Stage 25.2 state or Stage 26 plan.
 
 ## Source-of-truth order
 
@@ -20,22 +21,18 @@ When documents disagree:
 
 1. current code, tests and exact current CI/target evidence;
 2. `START_HERE.md` and `CURRENT_STATE.md`;
-3. `ARCHITECTURE.md` and accepted ADRs;
-4. `STAGE25_1_VISION_INTEGRATION.md` for active browser/vision integration;
-5. `ROADMAP.md`;
-6. historical research/handoff documents and README.
+3. the active stage contract `STAGE26_PROCEDURAL_MEMORY.md`;
+4. `ARCHITECTURE.md`, `DECISIONS.md`, `ROADMAP.md`, `KNOWN_ISSUES.md`;
+5. `DEVELOPMENT_PRINCIPLES.md` and current capability contracts;
+6. historical research/handoff documents and older README revisions.
 
 Do not revive an older design merely because it remains in Git history.
 
-## Product boundary
+## Current accepted line
 
-- ordinary ChatGPT Chat is the primary and only planning/intelligence layer;
-- local components expose deterministic capabilities or bounded specialist perception;
-- never add a second planner, autonomous workflow brain, generic local agent runtime, or hidden `tool_invoke` equivalent behind ChatGPT;
-- prefer official/vendor MCP, then mature OSS MCP, then a generic local API/CLI adapter, then the smallest focused project-owned adapter for a measured gap;
-- do not build a project-owned tunnel, generic MCP gateway, registry, vault, job system or policy platform while accepted ecosystem components cover those boundaries.
+Current `main` after Stage 25.2:
 
-## Accepted semantic foundation
+`2a410476ef849fd6d9c172703a004b1befcbcfb1` — `Stage 25.2: semantic-first internal vision escalation (#77)`.
 
 Public semantic tools remain exactly:
 
@@ -51,7 +48,7 @@ Normal path:
 
 ```text
 ordinary ChatGPT
-  -> Secure MCP Tunnel
+  -> OpenAI Secure MCP Tunnel
   -> official tunnel-client
   -> direct stdio secure semantic launcher
   -> semantic-projection
@@ -60,61 +57,35 @@ ordinary ChatGPT
 
 1MCP remains internal replaceable diagnostic/adaptive/aggregation infrastructure.
 
-## Stage 25 accepted grounding evidence
+## Product boundary
 
-PR #73 merged to `main` as `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
+- ordinary ChatGPT Chat is the primary and only planning/intelligence layer;
+- local components expose deterministic capabilities, bounded specialist perception, or non-agentic procedural memory;
+- never add a second planner, autonomous workflow brain, generic local agent runtime, or hidden `tool_invoke` equivalent behind ChatGPT;
+- a stored workflow is guidance/evidence, not a planner and not authorization;
+- current observed state outranks remembered procedure;
+- prefer official/vendor MCP/runtime, then mature OSS, then a generic local API/CLI adapter, then the smallest focused project-owned adapter for a measured gap;
+- do not build a project-owned generic tunnel/gateway/registry/vault/job/policy platform while accepted ecosystem components cover those boundaries.
 
-Accepted target-laptop baseline:
+## Stage 25.2 accepted behavior
 
-```text
-llama.cpp b10448 / commit ad1de39e0
-LFM2.5-VL-450M F16 + F16 mmproj
-CPU 8 threads
-ctx 2048
-```
+`web_interact(click)` is semantic-first. Vision is allowed only after a reviewed zero-exact-candidate semantic miss for the promoted text-labeled button path. Disabled/non-button exact matches and unresolved semantic ambiguity ABSTAIN without starting VLM. Planner `target`/free-form `instruction` cannot redirect visual authorization away from `targetText`.
 
-Target result with Chrome running: Search/Send/state HIT; Gamma/tiny safe ABSTAIN; absent Export CSV correct ABSTAIN; 0 false clicks; 0 provider/context errors; 3/5 present-target HIT.
+Final target-tested production-code HEAD:
 
-Do not describe LM Studio/llmster or 450M Q4 as the accepted baseline.
+`41ef3f4032ae9169d940b3a04e5bdfe75170ca85`
 
-## Current Stage 25.1 state
+Final real target result: 2 semantic HIT, 1 real-F16 visual HIT, 2 correct ABSTAIN, 0 false clicks, 0 errors, `semantic_cases_started_vlm=0`, `acceptance_pass=true`, runtime stopped afterward and Chrome remained running.
 
-Active branch: `chat/stage25-1-vision-integration-foundation`, draft PR #74.
+## Active Stage 26 direction
 
-Already proved/implemented:
+The next stage is Procedural Memory / Demo2Workflow, based on an upstream technical analysis of `Tencent/UI-Mate` pinned in `STAGE26_PROCEDURAL_MEMORY.md`.
 
-- same Playwright session CSS capture -> one-shot visual token -> exact fresh re-capture -> coordinate action/ABSTAIN;
-- stale layout/scroll/overlay/navigation and replay fail closed;
-- focused llama.cpp lifecycle/resource owner with strict process/artifact identity;
-- class-aware production authorization; repeated-row/tiny remain forced ABSTAIN;
-- Windows junction containment;
-- explicit scrub-before-core-load for inherited tunnel credentials;
-- committed semantic npm lockfile + product/acceptance `npm ci`;
-- direct private/link-local/metadata literal IP blocking while loopback remains allowed;
-- CodeQL Actions + JS/TS + Python and broader Dependabot;
-- model-neutral Python production-grounder boundary, unit-proved and non-authorizing on parse/invalid/repeated/absent cases.
+Do not turn this into a second GUI agent. Implement a small local substrate for trajectory recording, workflow compilation, skill storage/versioning, retrieval evidence, workflow progress and completion verification while ChatGPT remains the planner.
 
-Still **not** accepted:
+Specific local programs/capabilities are selected later from actual tasks and evidence; do not hard-code a future application list into architecture.
 
-- real F16 same-session end-to-end action path;
-- automatic semantic miss/ambiguity -> vision escalation in ordinary Chat;
-- repeated-row or tiny-target production clicks;
-- claim of a full DNS/redirect browser network sandbox;
-- stable product release.
-
-Required integration invariant:
-
-```text
-same Playwright page/session
-  -> semantic grounding first
-  -> if unavailable/ambiguous: CSS capture
-  -> reviewed local runtime + production visual grounder
-  -> deterministic authorization
-  -> freshness proof
-  -> action in same page/session OR ABSTAIN
-```
-
-If capture/action identity, coordinate space, browser state or freshness is uncertain, fail closed and do not mutate the page.
+**Windows desktop surface is an explicit planned Stage 26.x item and must not be forgotten.** Only after that surface exists should the project decide, via a separate ADR and ordinary-Chat acceptance, whether the public contract needs new tool names or can preserve the same small-semantic-surface philosophy.
 
 ## Development workflow
 
@@ -128,6 +99,5 @@ If capture/action identity, coordinate space, browser state or freshness is unce
 - never claim a target/ordinary-Chat result unless that exact path ran;
 - preserve/reconcile local uncommitted work rather than discarding it;
 - do not weaken fail-closed behavior merely to increase benchmark hit rate;
-- never reintroduce unlocked semantic npm install when dependencies are absent;
-- do not expose tunnel-only credentials to semantic core/downstream children;
-- do not describe Playwright origin filters as a complete network security boundary.
+- never persist private chain-of-thought into procedural memory; keep only structured/user-visible intent, actions, observations and verification evidence;
+- do not describe browser filters or loopback PID checks as stronger isolation/authentication than actually proved.

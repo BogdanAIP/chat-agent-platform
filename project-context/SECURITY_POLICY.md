@@ -2,135 +2,203 @@
 
 ## Trust boundaries
 
-Normal path:
+Normal public path:
 
 ```text
-ChatGPT -> OpenAI tunnel service -> official tunnel-client -> loopback 1MCP/focused adapter -> selected backend(s)
+ordinary ChatGPT
+  -> OpenAI Secure MCP Tunnel
+  -> official tunnel-client
+  -> direct stdio secure semantic launcher
+  -> semantic-projection
+  -> selected focused backend(s)/adapters
 ```
 
-The tunnel provides authenticated reachability. It is not a substitute for backend-level scope, truthful tool semantics or product-level safety review.
+1MCP remains internal/diagnostic where useful; it is not the normal public semantic hop.
+
+The tunnel provides authenticated reachability. It is not a substitute for backend-level scope, truthful tool semantics, capability authorization, procedural-memory trust or product-level safety review.
 
 ## Security objective
 
-Security should control consequence, scope and lifetime without making legitimate workflows impossible.
+Control consequence, scope and lifetime without making legitimate workflows impossible.
 
-Use three states:
+Capability lifecycle:
 
-- **AVAILABLE:** backend is registered/approved locally;
-- **ACTIVE:** backend process is running for the current task;
-- **AUTHORIZED:** the requested action is within local scope plus applicable Chat/OpenAI policy/confirmation requirements.
+```text
+AVAILABLE -> ACTIVE -> AUTHORIZED
+```
 
-Avoid keeping a broad local-files + open-network surface permanently active. This is not a blanket prohibition on temporarily using Browser + Filesystem or multiple application backends when a concrete task needs them and their scopes are acceptable. Real ordinary-Chat typed Filesystem + Browser use has passed on synthetic scoped data.
+- **AVAILABLE:** backend/capability is locally approved/known;
+- **ACTIVE:** required process/runtime is running for the task;
+- **AUTHORIZED:** the requested action is within accepted local scope plus applicable product/user policy.
+
+Procedural-memory trust is separate:
+
+```text
+CANDIDATE -> VERIFIED -> PROMOTED
+     |          |          |
+     +-------> STALE / DISABLED
+```
+
+A promoted skill is trusted procedural guidance; it is **not** blanket action authorization.
 
 ## Chat-facing tool semantics
 
 Prefer concrete typed actions with truthful schemas and side-effect semantics.
 
-The generic adaptive `tool_invoke` boundary is not the accepted ordinary-Chat product surface. Its runtime mechanics remain useful diagnostics, but real Chat blocked lifecycle/generic execution before MCP and one generic descriptor cannot truthfully characterize every nested downstream operation.
+Current accepted public tool names are exactly:
 
-The current Stage 24 scaling candidate is a small stable semantic typed projection. Each exposed action must have a fixed truthful schema, a coherent consequence/authorization class and deterministic routing to reviewed backend capability. The projection must not choose user goals, act as a workflow planner or recreate arbitrary `tool_invoke` under another name.
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+```
 
-Current OpenAI documentation describes ChatGPT MCP tool definitions as a frozen reviewed snapshot. Local runtime filtering cannot be treated as dynamic Chat authorization/publication. Tool Search is relevant to large tool ecosystems in the API/Agents SDK but is not a documented capability of the ordinary-Chat custom MCP path used here.
+The generic adaptive `tool_invoke` boundary is not the accepted ordinary-Chat product surface. `semantic-projection` must remain deterministic and non-agentic; it cannot become a hidden workflow engine, generic desktop dispatcher or arbitrary server/tool selector.
 
-Do not falsify read-only/destructive/open-world annotations or hide a consequential operation behind a harmless-looking generic tool solely to bypass product review.
+After a future Windows desktop surface exists, any public-contract expansion requires a separate architecture decision/schema review/ordinary-Chat acceptance. Do not overload harmless-looking existing tools with unrelated desktop/workflow consequence classes merely to preserve the number five.
 
-Do not expose arbitrary catalog mutation/admin operations such as install/uninstall/update/edit/search as part of the ordinary-Chat baseline.
+## Browser semantic→vision authorization — ACCEPTED
 
-## Chat permission and safety behavior
+Stage 25.2 browser interaction is semantic-first:
 
-App permission mode is an additional user/product control, not the only security boundary.
+```text
+fresh accessibility evidence
+  -> exact enabled button -> semantic action
+  -> disabled/non-button/unresolved ambiguity -> ABSTAIN, no VLM
+  -> reviewed zero-exact-candidate miss only
+       -> same-session capture
+       -> bounded local F16 grounding
+       -> deterministic authorization
+       -> freshness proof
+       -> one coordinate action OR ABSTAIN
+```
 
-Observed on the real app:
+Security rules:
 
-- `Allow read actions` allowed `read_text_file` without a card and showed a one-time approval card for isolated `write_file`;
-- `Allow all actions` allowed typed read/navigate/write without approval;
-- a larger composite local-file -> browser -> write workflow was still blocked by OpenAI safety even under full app access, while the same typed actions passed sequentially.
+- `targetText` is the authorization anchor;
+- planner-supplied `kind`, alternate `target` or free-form instruction cannot redirect visual authorization;
+- generic semantic click errors do not trigger vision;
+- uncertain/stale/unpromoted visual evidence causes zero page mutation;
+- local model output is untrusted evidence and never self-authorizes an action;
+- screenshot→click remains a narrow non-atomic TOCTOU residual boundary.
 
-Therefore:
+## Procedural-memory security — Stage 26 design
 
-- never infer that full app access disables all OpenAI safety review;
-- never diagnose a local backend failure solely from a pre-MCP product safety block;
-- do not design the user experience around approval for every low-risk action.
+A remembered workflow can carry sensitive operational context and can bias future actions. Treat it as a distinct security/privacy boundary.
 
-Prefer explicit roots/workspaces, backups, git/rollback, output isolation and bounded tools. Reserve explicit confirmation for genuinely consequential, external or hard-to-reverse effects where practical.
+### No private chain-of-thought persistence
+
+Do not record or persist private model reasoning. Procedural traces may contain only data needed for execution/verification such as:
+
+- user-visible/structured intent summaries;
+- bounded tool/capability actions;
+- structured observations/state fingerprints;
+- outcome classifications;
+- explicit completion/verification evidence;
+- reviewed metadata needed for versioning/applicability.
+
+### Raw demonstration retention
+
+Before arbitrary demonstrations are stored long term, define:
+
+- explicit storage location and ownership;
+- retention/expiry behavior;
+- screenshot/text redaction rules;
+- secret/credential filtering;
+- path/content minimization;
+- deletion and disable semantics;
+- backup/export policy if later supported.
+
+Raw screenshots should not automatically become permanent compiled-skill content.
+
+### Skill trust and poisoning resistance
+
+- one successful run creates at most a candidate;
+- candidate retrieval is non-authorizing;
+- promotion requires measured re-application/verification policy;
+- malformed, incompatible or stale skills fail closed;
+- version changes preserve provenance and prior evidence rather than silently overwriting trust history;
+- a remembered milestone cannot override contradictory current observed state;
+- imported/upstream procedures receive no implicit local authorization.
+
+### Completion integrity
+
+A model/Chat completion report is not enough to advance workflow state. Use deterministic/native verification where available. UNKNOWN should cause further observation/ABSTAIN/user input rather than optimistic advancement.
+
+## Windows desktop surface security — future explicit gate
+
+The future Stage 26.3 desktop surface must not inherit browser-click authorization by analogy.
+
+Before promotion, separately review:
+
+1. native/deterministic UI observation scope;
+2. screen capture scope/privacy;
+3. bounded vision fallback;
+4. keyboard/mouse action classes;
+5. focus/window identity and stale-screen handling;
+6. irreversible/external consequences and confirmation policy;
+7. before/after verification;
+8. process/window ownership where applicable;
+9. demonstration recording boundaries;
+10. recovery/ABSTAIN behavior.
+
+Concrete local programs/capabilities are chosen from real tasks at that time; no fixed future application list is security policy.
 
 ## Secrets
 
 - `CONTROL_PLANE_API_KEY` stays local and is never repository content.
-- Long-lived runtime principal uses only permissions required by tunnel runtime (`Tunnels: Read + Use`) unless a separate admin action explicitly requires more.
-- Manager stores the runtime key via DPAPI `CurrentUser`; plaintext exists only as needed for child startup.
-- Tunnel IDs are local operational configuration.
-- Never commit secrets/tunnel IDs or place them in documentation/log screenshots.
+- Long-lived runtime principal uses only permissions required by tunnel runtime unless a separate admin operation explicitly requires more.
+- Manager stores runtime key via DPAPI `CurrentUser`; plaintext exists only as needed for child startup.
+- Tunnel IDs and runtime secrets remain local operational configuration.
+- Never commit secrets or copy them into workflow/skill metadata, logs, screenshots or documentation.
 - If exposure is suspected, rotate first.
+- Child backends must not inherit tunnel credentials unless explicitly required.
 
-## Bootstrap supply boundary
+## Workspace/files security
 
-Accepted bootstrap must:
+- workspace paths remain rooted/scoped;
+- containment accounts for Windows links/junctions, not only lexical traversal;
+- writes remain within accepted roots/capability scope;
+- procedural memory must not broaden a previously scoped path simply because an older trajectory referenced it.
 
-1. use official `openai/tunnel-client` release channel;
-2. pin reviewed release tag/artifact hash;
-3. verify official checksum/digest evidence;
-4. verify extracted executable before installation;
-5. refuse unsafe replacement while the owned binary runs;
-6. create tunnel profile via official `tunnel-client init`.
+## Browser network boundary
 
-Installed manager/runtime bundle is copied to `%LOCALAPPDATA%\ChatAgentPlatform\app` with verification. Secrets/profile/state/binary live separately.
-
-## Direct reference/diagnostic profiles
-
-`reference` exposes harmless Sequential Thinking.
-
-`files-readonly` scopes one explicit root and removes create/write/edit/move.
-
-`browser-isolated` uses isolated/headless Playwright and removes unsafe code/evaluate/file-upload/direct-network tools.
-
-Their separation is conservative acceptance evidence and fallback diagnostics. It must not be misread as a permanent rule that no legitimate task may ever combine their classes of capability.
-
-## Privileged backend promotion
-
-Before promoting filesystem writes, shell, browser session reuse, local application control, credentials or devices:
-
-1. minimize tools/paths/actions;
-2. use scopes/allowlists where supported;
-3. prove forbidden tools are absent or denied;
-4. document rollback/revocation;
-5. avoid secret/environment enumeration by default;
-6. decide which operations can be automatic and which consequences need confirmation;
-7. test ordinary-Chat product admission separately from local backend health.
+Current policy blocks direct literal private/link-local/metadata/non-public destinations while preserving reviewed loopback use. This is **not** a complete DNS/rebinding/redirect sandbox. Do not describe it as one. A stronger boundary remains a future decision if consequences require it.
 
 ## Local specialist inference security
 
-A local model/runtime must remain a bounded capability, not a second autonomous planner.
+Accepted local vision remains a bounded capability, not a second planner.
 
-For local inference candidates:
+- local-only/focused serving by default;
+- no arbitrary model-management/install/search/admin surface to ordinary Chat;
+- use accepted local artifact/profile identities;
+- resource-admit before heavy start and unload predictably;
+- treat inference output as untrusted evidence;
+- never let a local model grant itself capabilities or change authorization policy.
 
-- prefer local-only serving by default;
-- do not expose model-management/install/search/admin actions to ordinary Chat unless specifically needed and accepted;
-- select models/variants from a pre-approved/tested set;
-- estimate resource use before load where supported;
-- use predictable JIT/load/TTL/unload lifecycle;
-- treat model output as untrusted capability output that Chat may reason about, not authoritative policy;
-- do not let a vision model directly grant itself additional tools or permissions.
+Earlier unaccepted runtime/model candidates are historical research, not current security configuration.
 
-LM Studio/`llmster` and `LiquidAI/LFM2.5-VL-3B` remain candidates until target-machine acceptance.
+## Bootstrap/lifecycle integrity
 
-## Lifecycle integrity — ACCEPTED for installed/source ownership
+Accepted bootstrap/manager must preserve:
 
-- fixed tunnel target must resolve to one intended local 1MCP runtime;
-- installed/source manager copies share one authoritative owner for the fixed runtime through LocalAppData owner state;
-- `Status` follows the recorded owner;
-- takeover stops a foreign owner before starting the new copy;
-- an occupied `127.0.0.1:3050` without trustworthy ownership fails closed instead of accepting another process's health response;
-- conflict state remains observable/recoverable;
-- green platform state requires MCP + tunnel readiness;
-- startup failure rolls back partial lifecycle;
-- task-driven backend activation must clean up idle/disabled backend processes;
-- manager/tray must not invent an independent authorization or planning layer.
+- official reviewed tunnel-client artifact path and integrity checks;
+- one authoritative installed/source manager owner;
+- fail-closed ambiguous/foreign runtime state;
+- clean startup rollback and deterministic stop/recovery;
+- secure installed semantic dependency closure;
+- no tunnel-key inheritance into semantic core/downstream children without need.
 
-Real target Windows acceptance on 2026-08-14 passed installed -> source -> installed handoff, cross-copy Status, foreign-owner Stop/cleanup and foreign-port fail-closed behavior. Functional head `ffcc2e407...` adds an automated Windows test that binds a real foreign listener to `3050` and verifies the public manager refuses it. CI, Chat Profile Acceptance, Module Candidate Acceptance, CodeQL and Secret History Scan all pass on that functional head.
+Manager/tray owns lifecycle/configuration/diagnostics only. Procedural memory may have storage/state components, but the manager must not become an independent planner or authorization brain.
 
-The dedicated foreign-owner `Toggle` branch remains regression-covered but was not separately repeated as an independent target-machine user test.
+## Chat permission and OpenAI safety behavior
+
+App permission mode is an additional user/product control, not the only security boundary. OpenAI safety can block a composite workflow even when local typed calls are healthy. Distinguish pre-MCP product blocking from backend failure.
+
+Prefer scopes, reversible workspaces, backups/git/rollback and bounded tools. Reserve confirmation for genuinely consequential/hard-to-reverse effects where practical; do not force approval for every low-risk action.
 
 ## External fallback paths
 
-Historical Yandex/Tailscale routes are not active security architecture. Do not extend them and do not treat public reachability as authorization.
+Historical public/Yandex/Tailscale routes are not active security architecture. Do not extend them without a new measured requirement and review.

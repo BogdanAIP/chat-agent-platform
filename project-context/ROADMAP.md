@@ -2,125 +2,210 @@
 
 ## Goal
 
-Keep ordinary ChatGPT as the intelligence layer while local capabilities remain replaceable MCP modules or focused adapters. Do not expose hundreds of raw tools or run heavyweight local components permanently.
+Keep ordinary ChatGPT as the only intelligence/planning layer while local capabilities remain replaceable MCP modules, focused adapters, bounded perception backends and non-agentic procedural memory. Do not expose hundreds of raw tools or run heavyweight local components permanently.
 
 ## Stage 21 — Native ChatGPT ↔ local MCP — DONE
+
 Secure MCP Tunnel + official tunnel-client + local MCP round trip accepted.
 
 ## Stage 22 — Remove superseded universal platform core — DONE
-Obsolete universal Rust/Python/custom-ingress core removed; historical implementation remains in Git.
+
+Obsolete universal Rust/Python/custom-ingress core removed from the active tree; history remains in Git.
 
 ## Stage 23 — Quality-first module selection — DONE
+
 Accepted Windows Filesystem/Playwright/1MCP candidates and selection rules.
 
 ## Stage 24 — Windows lifecycle + stable semantic Chat surface — DONE
-Merged as `175d36236f80a1f99f091d4f031a1c6255f3652b` (#66). Public tools remain exactly `workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`.
+
+Merged as `175d36236f80a1f99f091d4f031a1c6255f3652b` (#66). Public tools are exactly:
+
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+```
 
 ## Stage 24.1 — Direct semantic tunnel A/B — DONE
+
 Merged as `df1d5e232b739b62e72ad81e5d82fd01be53e884` (#70). Normal path is ChatGPT -> Secure MCP Tunnel -> tunnel-client -> secure semantic launcher -> direct stdio semantic-projection. 1MCP stays internal diagnostic/adaptive/aggregation infrastructure.
 
 ## Stage 25 — Safe local vision grounding benchmark — DONE FOR BASELINE
 
 PR #73 merged as `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
 
-Accepted target configuration: llama.cpp `b10448/ad1de39e0`, LFM2.5-VL-450M F16 + F16 mmproj, CPU 8 threads, ctx 2048. Target result with Chrome running: Search/Send/state HIT; Gamma/tiny safe ABSTAIN; absent Export CSV correct ABSTAIN; 0 false clicks; 0 provider/context errors; 3/5 present-target HIT.
+Accepted target configuration: llama.cpp `b10448/ad1de39e0`, LFM2.5-VL-450M F16 + F16 mmproj, CPU 8 threads, ctx 2048. Target result: 3/5 present-target HIT, repeated-row/tiny safe ABSTAIN, absent target correct ABSTAIN, zero false clicks/provider-context errors.
 
 ## Stage 25.1 — Same-session visual fallback foundation — DONE
 
-PR #74 squash-merged to `main` as `bbf490778a4d883bc54aa58a1d14e8779b7a5c94`.
+PR #74 squash-merged as `bbf490778a4d883bc54aa58a1d14e8779b7a5c94`.
 
-Final reviewed target production-code HEAD: `edebbc9eda58637b2c9ea95fcab9f9fc4438fe6c`.
+Accepted foundations: same-session screenshot/freshness/coordinate action, fail-closed stale/replay/layout/scroll/overlay/navigation handling, focused vision-runtime lifecycle, PID-bound listener verification, installed-layout parity, lock-hash-controlled npm dependencies, junction containment, credential scrub and security regressions.
 
-Accepted foundations include same-session screenshot/freshness/coordinate-action, TTL/capped prepared targets, focused llama.cpp lifecycle ownership, PID-bound loopback listener verification, class-aware fail-closed visual policy, secure installed semantic runtime, lock-hash-enforced `npm ci`, junction containment, bounded literal-IP browser policy and CodeQL across Actions/JavaScript/Python.
+## Stage 25.2 — Ordinary Chat semantic → vision escalation — DONE
 
-Accepted RAM policy:
+PR #77 squash-merged to `main` as:
 
-```text
-min_start_physical_gb = 1.35
-min_start_virtual_gb = 3.0
-min_run_physical_gb = 0.5
-min_run_virtual_gb = 1.5
-target emergency cutoff = 0.30 GB
-```
+`2a410476ef849fd6d9c172703a004b1befcbcfb1`.
 
-Final reviewed Stage 25.1 run: 3/3 expected HIT, 3/3 required ABSTAIN, 0 false clicks, 0 errors, minimum observed free physical RAM 0.60 GB, no safety stop, runtime stopped, Chrome alive.
+Final target-tested production-code HEAD:
 
-## Stage 25.2 — Ordinary Chat semantic → vision escalation — ACCEPTED FOR MERGE
+`41ef3f4032ae9169d940b3a04e5bdfe75170ca85`.
 
-PR #77 integrates the Stage 25.1 vision foundation into the existing public `web_interact` without adding a sixth public tool, second planner, generic inference gateway or catch-all click-error fallback.
-
-Final reviewed production-code HEAD: `41ef3f4032ae9169d940b3a04e5bdfe75170ca85`.
-
-Accepted routing boundary:
+Accepted routing:
 
 ```text
 fresh accessibility snapshot
-  -> 1 exact enabled button: semantic click; VLM does not start
-  -> same-name buttons with exactly 1 enabled + disabled alternatives: semantic click
-  -> disabled/non-button/ambiguous semantic target: ABSTAIN; VLM does not start
-  -> 0 exact candidates: reviewed text-labeled same-session visual fallback
-       -> target-blind button inventory
-       -> local deterministic authorization
+  -> exact enabled button: semantic click; VLM stays stopped
+  -> same-name buttons with exactly one enabled + disabled alternatives: semantic click
+  -> disabled/non-button/ambiguous exact evidence: ABSTAIN; VLM stays stopped
+  -> zero exact candidates:
+       same-session screenshot
+       -> reviewed local F16 text-labeled grounder
+       -> deterministic authorization
        -> freshness proof
        -> one coordinate click OR ABSTAIN
 ```
 
-Important authorization rules:
+Final target result: `semantic_hits=2`, `visual_hits=1`, `correct_abstains=2`, `false_clicks=0`, `errors=0`, `semantic_cases_started_vlm=0`, `acceptance_pass=true`; runtime stopped afterward and Chrome remained running.
 
-- `targetText` is the semantic and visual anchor;
-- planner-supplied `kind` is never accepted;
-- planner `target` and free-form `instruction` cannot redirect visual grounding;
-- router generates the canonical visual instruction from `targetText`;
-- generic semantic click errors never escalate to vision;
-- icon-only, repeated-row, tiny targets and semantic ambiguity are not automatically visually promoted by Stage 25.2;
-- public semantic surface remains exactly five tools.
+## Stage 26 — Procedural Memory / Demo2Workflow — ACTIVE
 
-Final target-laptop evidence with normal Chrome workload open:
+Purpose: reuse successful procedures as bounded procedural memory without adding a second planner or blind macro replay.
+
+Upstream technical reference: official `Tencent/UI-Mate`, analyzed at pinned commit `d2b2e0aede83eeacfb1bc86f66503acbc4a6738a`. The project does not adopt UI-Mate as the product agent/model. We adopt the separation between rich trajectory evidence and compact current-subtask workflow guidance, while strengthening trust and completion verification for our architecture.
+
+Authoritative design: `project-context/STAGE26_PROCEDURAL_MEMORY.md`.
+
+### Stage 26.0 — Upstream analysis + contract — CURRENT DOCS WORK
+
+- pin upstream reference/license;
+- define what is adopted/rejected;
+- fix stale cross-chat continuation docs after Stage 25.2;
+- preserve ChatGPT-only planner boundary.
+
+### Stage 26.1 — Procedural data foundation
+
+Build:
+
+- raw trajectory schema;
+- secret/sensitive-data redaction and retention policy;
+- coordinate-free compiled skill schema;
+- versioned local skill store;
+- schema validation and deterministic stale/disable handling;
+- explicit candidate/verified/promoted lifecycle.
+
+No public Chat tool change in this step.
+
+### Stage 26.2 — Demo Compiler + verifier + self-demo dogfood
+
+Compile successful existing Chat/tool-driven trajectories into candidate workflows, then prove:
+
+- no coordinate replay in compiled skills;
+- current state outranks remembered milestones;
+- completion advances only with verifier evidence;
+- a changed/variant task adapts rather than blindly replaying;
+- an incompatible workflow does not force execution;
+- one lucky success does not auto-promote trust.
+
+Start here because current semantic/browser execution gives exact structured actions and results. This is not yet arbitrary human desktop recording.
+
+### Stage 26.3 — Windows desktop surface — REQUIRED / DO NOT DROP
+
+**This stage is deliberately written into the roadmap so it is not lost.**
+
+Build a scoped Windows desktop capability surface:
 
 ```text
-semantic_hits = 2
-visual_hits = 1
-correct_abstains = 2
-false_clicks = 0
-errors = 0
-semantic_cases_started_vlm = 0
-acceptance_pass = true
-Doctor physical free RAM = 2.62 GB
-Doctor virtual free RAM = 8.129 GB
-minimum observed free physical RAM = 1.04 GB
-SAFETY_STOP = false
-VISION_RUNTIME_RUNNING_AFTER_TEST = false
-VISION_RUNTIME_STATE_AFTER_TEST = stopped
-CHROME_RUNNING_AFTER_TEST = true
-TEST_EXIT_CODE = 0
-STAGE25_2_FINAL_REVIEW_RESULT = PASSED
+native/deterministic UI observation first
+  -> screen capture where needed
+  -> bounded local visual grounding where needed
+  -> reviewed keyboard/mouse action
+  -> verification / ABSTAIN
 ```
 
-Result path: `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage25\runtime\stage25-2-public-escalation-20260818-161812\result.json`.
+Requirements:
 
-All 9 workflow families triggered for final Stage 25.2 code HEAD were green before documentation sync.
+- use native/semantic structure before pixels where available;
+- screen/vision is a bounded fallback/evidence source, not a second planner;
+- keyboard/mouse actions are scoped and fail closed;
+- preserve observable before/after evidence for later procedural-memory compilation;
+- select concrete local programs/capabilities from real user tasks and evidence at the time of benchmarking; **do not preselect a fixed application list in the roadmap**.
 
-## Stage 26 — Professional application capability benchmarks — NEXT
+### Stage 26.4 — Human demonstration capture + transferable skill acceptance
 
-Move from browser fixtures to real product workflows. Benchmark Windows UI and representative professional applications behind the same semantic-first/fail-closed capability philosophy. Initial candidates: Origin, REAPER, FFmpeg, Blender and broader Windows UI.
+Once Windows desktop observation/actuation exists:
 
-The purpose is not to expose application internals as hundreds of raw tools. Define focused capabilities and prove useful end-to-end workflows with ordinary ChatGPT as the only planner.
+- record a real user demonstration;
+- compile it into a coordinate-free candidate skill;
+- verify goals/completion criteria;
+- re-apply it to a related changed task/state;
+- prove current UI state takes precedence over remembered action history.
+
+### Stage 26.5 — Public contract decision — EXPLICIT DECISION POINT
+
+Only after Windows desktop surface exists, decide by ADR and ordinary-Chat acceptance whether:
+
+1. the current five public tools can remain the product contract while desktop/procedural layers stay behind a few existing/new coarse semantic boundaries; or
+2. a small number of new truthful public tool names is required.
+
+Until this decision:
+
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+```
+
+remain the accepted public tool names.
+
+Do not create a generic opaque workflow dispatcher or hide desktop/workflow operations behind misleading existing semantics merely to preserve a tool count.
 
 ## Stage 27 — Distribution and maintenance hardening
 
-Stable release artifact, complete locked dependencies, Python artifact/hash policy, model/runtime installation, update/repair/doctor/uninstall, key rotation, upgrade/rollback, restart recovery and thin lifecycle UI.
+After the Stage 26 capability boundary is accepted:
 
-## Product-ready gate
+- stable install artifact;
+- complete locked dependencies;
+- Python/model artifact and hash policy;
+- installer/update/repair/doctor/uninstall;
+- key rotation;
+- upgrade/rollback;
+- restart recovery;
+- thin lifecycle UI.
 
-Before declaring “install and use” rather than “development platform”:
+## Stage 28 — Clean-user product E2E + first stable release
 
-1. Stage 25.2 must be merged and the five-tool Chat surface remain stable.
-2. At least representative real Windows/application workflows must be accepted, not only HTML fixtures.
-3. Installation must no longer depend on a git checkout or manual development repair steps.
-4. Restart/recovery, doctor/repair/update/rollback/uninstall must be predictable.
-5. A clean-user E2E must prove install -> connect Chat -> files -> browser semantic action -> browser visual fallback -> real desktop capability -> restart -> safe cleanup.
-6. A stable release must be cut only after the above passes.
+Before saying “install and use” rather than “development platform”, prove from a clean-user perspective:
+
+```text
+install
+ -> connect ordinary ChatGPT
+ -> scoped files
+ -> browser semantic action
+ -> browser visual fallback
+ -> procedural-memory reuse
+ -> Windows desktop capability
+ -> restart/recovery
+ -> safe cleanup / repair path
+```
+
+Then cut the first stable release.
+
+## Cross-cutting follow-ups
+
+These remain important but do not replace the active Stage 26 sequence:
+
+- repeated-row/tiny/icon-only visual promotion only with separate evidence;
+- decide whether stronger DNS/redirect/private-network isolation is required;
+- release-grade Python/model reproducibility;
+- dependency cleanup including deprecated transitive `glob@10.5.0`;
+- repository metadata cleanup where needed.
 
 ## Definition of Done
 
-Ordinary ChatGPT can safely use scoped local capabilities through a small stable MCP surface without a second planner, generic hidden gateway, stale-coordinate action, uncontrolled network expansion or unreviewed dependency/runtime drift, and the Windows companion can be installed and maintained as a normal product rather than a development checkout.
+Ordinary ChatGPT can safely use scoped local capabilities through a small truthful MCP surface, reuse verified user/task procedures without a second planner or blind replay, and operate through a maintainable Windows companion whose desktop capability and public-contract boundary have been explicitly accepted. The installed product must recover predictably and not depend on a development git checkout for normal use.
