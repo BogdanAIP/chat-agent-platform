@@ -56,6 +56,18 @@ class Stage26OpenAdaptWindowsExecutorQualificationTests(unittest.TestCase):
         self.assertNotIn('subprocess', self.driver)
         self.assertNotIn('os.system', self.driver)
 
+    def test_pre_routing_refusal_probes_are_zero_body_on_windows(self):
+        self.assertIn('def _post_empty(', self.driver)
+        helper_start = self.driver.index('def _post_empty(')
+        helper_end = self.driver.index('def _structural(', helper_start)
+        helper = self.driver[helper_start:helper_end]
+        self.assertIn('data=b""', helper)
+        self.assertNotIn('json=', helper)
+        self.assertIn('WinError 10053', helper)
+        self.assertIn('unauthorized = _post_empty(', self.driver)
+        self.assertIn('legacy = _post_empty(', self.driver)
+        self.assertNotIn("THIS MUST NEVER EXECUTE", self.driver)
+
     def test_negative_guard_probes_are_non_mutating(self):
         self.assertIn('"expected_frame_sha256": "0" * 64', self.driver)
         self.assertIn('stale_frame_refusal_pass', self.driver)
