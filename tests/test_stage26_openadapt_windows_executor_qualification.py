@@ -26,6 +26,21 @@ class Stage26OpenAdaptWindowsExecutorQualificationTests(unittest.TestCase):
         self.assertIn("flow_pin_pass", self.harness)
         self.assertNotIn("d7f58d9f35c8369f16a9b378f23952d425334ad7", self.harness)
 
+    def test_harness_pins_actual_lazy_windows_agent_runtime(self):
+        self.assertIn("$windowsRuntimePins", self.harness)
+        self.assertIn("mss = '10.2.0'", self.harness)
+        self.assertIn("pyautogui = '0.9.54'", self.harness)
+        self.assertIn("uiautomation = '2.0.29'", self.harness)
+        self.assertIn('"mss==$($windowsRuntimePins.mss)"', self.harness)
+        self.assertIn('"PyAutoGUI==$($windowsRuntimePins.pyautogui)"', self.harness)
+        self.assertIn('"uiautomation==$($windowsRuntimePins.uiautomation)"', self.harness)
+        self.assertIn("metadata.version('mss')", self.harness)
+        self.assertIn("metadata.version('PyAutoGUI')", self.harness)
+        self.assertIn("metadata.version('uiautomation')", self.harness)
+        self.assertIn("windows_runtime_pin_pass", self.harness)
+        accepted = self.harness.index("$accepted = [bool](")
+        self.assertIn("$result.windows_runtime_pin_pass", self.harness[accepted:])
+
     def test_product_candidate_constructs_agent_without_cli_passthrough(self):
         self.assertIn('AgentConfig(', self.driver)
         self.assertIn('host="127.0.0.1"', self.driver)
