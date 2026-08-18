@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "runtime/semantic-projection/**"
+      - "runtime/local_vision_adapter/**"
       - "runtime/chat-profiles/semantic/**"
+      - "config/local-vision-runtime.json"
       - "scripts/semantic-projection-runtime.ps1"
       - "scripts/start-semantic-profile.ps1"
       - "scripts/status-chat-profile.ps1"
@@ -12,13 +14,20 @@ on:
       - "scripts/chat-platform-controller.ps1"
       - "scripts/chat-platform.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/local-vision-runtime.ps1"
+      - "scripts/local-vision-runtime-watchdog.ps1"
+      - "scripts/verify-local-vision-listener.ps1"
+      - "scripts/production-visual-grounder.py"
+      - "tests/fixtures/stage25_2_semantic_vision_fixture.html"
       - "project-context/TYPED_CAPABILITY_PROJECTION.md"
       - ".github/workflows/semantic-projection.yml"
   push:
     branches: [main]
     paths:
       - "runtime/semantic-projection/**"
+      - "runtime/local_vision_adapter/**"
       - "runtime/chat-profiles/semantic/**"
+      - "config/local-vision-runtime.json"
       - "scripts/semantic-projection-runtime.ps1"
       - "scripts/start-semantic-profile.ps1"
       - "scripts/status-chat-profile.ps1"
@@ -26,6 +35,11 @@ on:
       - "scripts/chat-platform-controller.ps1"
       - "scripts/chat-platform.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/local-vision-runtime.ps1"
+      - "scripts/local-vision-runtime-watchdog.ps1"
+      - "scripts/verify-local-vision-listener.ps1"
+      - "scripts/production-visual-grounder.py"
+      - "tests/fixtures/stage25_2_semantic_vision_fixture.html"
       - "project-context/TYPED_CAPABILITY_PROJECTION.md"
       - ".github/workflows/semantic-projection.yml"
   workflow_dispatch:
@@ -146,7 +160,6 @@ jobs:
 
           try {
             .\scripts\start-semantic-profile.ps1 -FilesRoot $workspace -ReadyTimeoutSeconds 120
-
             $statusText = .\scripts\status-chat-profile.ps1 | Out-String
             $status = $statusText | ConvertFrom-Json
             if ([int]$status.active_count -ne 1) { throw "Expected one active profile; got $($status.active_count)." }
@@ -165,7 +178,6 @@ jobs:
             if (($actual -join "`n") -ne ($expected -join "`n")) {
               throw "Semantic profile surface drifted: $($actual -join ', ')"
             }
-
             Write-Host 'SEMANTIC_PROFILE_ACTIVE=PASS'
             Write-Host 'SEMANTIC_PROFILE_TOOL_COUNT=5'
             Write-Host 'SEMANTIC_PROFILE_1MCP=PASS'
@@ -186,6 +198,7 @@ jobs:
           $installedRoot = Join-Path $env:RUNNER_TEMP 'semantic-installed-app'
           $installedScripts = Join-Path $installedRoot 'scripts'
           $installedRuntime = Join-Path $installedRoot 'runtime'
+          $installedConfig = Join-Path $installedRoot 'config'
           Remove-Item -LiteralPath $installedRoot -Recurse -Force -ErrorAction SilentlyContinue
 
           $scriptNames = @(
@@ -196,7 +209,11 @@ jobs:
             'start-semantic-profile.ps1',
             'semantic-projection-runtime.ps1',
             'status-chat-profile.ps1',
-            'stop-chat-profile.ps1'
+            'stop-chat-profile.ps1',
+            'local-vision-runtime.ps1',
+            'local-vision-runtime-watchdog.ps1',
+            'verify-local-vision-listener.ps1',
+            'production-visual-grounder.py'
           )
           foreach ($name in $scriptNames) {
             $destination = Join-Path $installedScripts $name
@@ -213,7 +230,19 @@ jobs:
             'runtime/semantic-projection/package.json',
             'runtime/semantic-projection/package-lock.json',
             'runtime/semantic-projection/bin/semantic-projection-launcher.mjs',
-            'runtime/semantic-projection/bin/semantic-projection.mjs'
+            'runtime/semantic-projection/bin/semantic-projection.mjs',
+            'runtime/semantic-projection/lib/semantic-vision-click-router.mjs',
+            'runtime/semantic-projection/lib/visual-grounding-bridge.mjs',
+            'runtime/semantic-projection/lib/runtime-backed-bridge-grounder.mjs',
+            'runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs',
+            'runtime/local_vision_adapter/__init__.py',
+            'runtime/local_vision_adapter/benchmark.py',
+            'runtime/local_vision_adapter/mark_grid.py',
+            'runtime/local_vision_adapter/native_bbox.py',
+            'runtime/local_vision_adapter/production_grounder.py',
+            'runtime/local_vision_adapter/production_policy.py',
+            'runtime/local_vision_adapter/provider.py',
+            'runtime/local_vision_adapter/renderer.py'
           )
           foreach ($relative in $runtimeFiles) {
             $suffix = $relative.Substring('runtime/'.Length).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
@@ -221,6 +250,23 @@ jobs:
             New-Item -ItemType Directory -Force -Path (Split-Path $destination -Parent) | Out-Null
             Copy-Item -LiteralPath (Join-Path $PWD $relative) -Destination $destination -Force
           }
+
+          New-Item -ItemType Directory -Force -Path $installedConfig | Out-Null
+          Copy-Item -LiteralPath (Join-Path $PWD 'config/local-vision-runtime.json') -Destination (Join-Path $installedConfig 'local-vision-runtime.json') -Force
+
+          foreach ($required in @(
+            (Join-Path $installedRuntime 'semantic-projection/lib/semantic-vision-click-router.mjs'),
+            (Join-Path $installedRuntime 'semantic-projection/lib/runtime-backed-visual-grounder.mjs'),
+            (Join-Path $installedRuntime 'local_vision_adapter/native_bbox.py'),
+            (Join-Path $installedScripts 'local-vision-runtime.ps1'),
+            (Join-Path $installedScripts 'production-visual-grounder.py'),
+            (Join-Path $installedConfig 'local-vision-runtime.json')
+          )) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+              throw "Standalone installed semantic/vision asset missing: $required"
+            }
+          }
+          Write-Host 'SEMANTIC_INSTALLED_VISION_BUNDLE=PASS'
 
           Push-Location (Join-Path $installedRuntime 'semantic-projection')
           try {

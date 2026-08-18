@@ -21,9 +21,6 @@ function Get-SemanticProjectionEntryPath {
         }
     }
 
-    # Standalone installed-layout tests historically copied only the core entry.
-    # Recreate the reviewed launcher if that old copy list omitted it. Normal
-    # source/bootstrap layouts already contain the checked-in launcher.
     if (-not (Test-Path -LiteralPath $launcherPath -PathType Leaf)) {
         $launcherTemplate = @'
 #!/usr/bin/env node
@@ -93,12 +90,26 @@ await import('./semantic-projection.mjs');
     }
 
     $packageFiles = @($manifest.files | ForEach-Object { [string]$_ })
-    $expectedFiles = @('bin/semantic-projection-launcher.mjs', 'bin/semantic-projection.mjs')
+    $expectedFiles = @(
+        'bin/semantic-projection-launcher.mjs',
+        'bin/semantic-projection.mjs',
+        'lib/semantic-vision-click-router.mjs',
+        'lib/visual-grounding-bridge.mjs',
+        'lib/runtime-backed-bridge-grounder.mjs',
+        'lib/runtime-backed-visual-grounder.mjs'
+    )
     if (
         $packageFiles.Count -ne $expectedFiles.Count -or
         (($packageFiles | Sort-Object) -join "`n") -ne (($expectedFiles | Sort-Object) -join "`n")
     ) {
         throw 'Semantic projection package file allowlist drifted.'
+    }
+
+    foreach ($relativeSource in $expectedFiles) {
+        $sourcePath = Join-Path $projectionRoot ($relativeSource -replace '/', '\')
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+            throw "Semantic projection reviewed source file is missing: $sourcePath"
+        }
     }
 
     $lockSha256 = $null

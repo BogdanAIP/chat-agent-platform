@@ -31,19 +31,7 @@ PR #74 squash-merged to `main` as `bbf490778a4d883bc54aa58a1d14e8779b7a5c94`.
 
 Final reviewed target production-code HEAD: `edebbc9eda58637b2c9ea95fcab9f9fc4438fe6c`.
 
-Accepted foundations:
-
-- one pinned Playwright MCP same-session screenshot -> one-shot prepared target -> exact fresh screenshot -> coordinate action or ABSTAIN;
-- replay/layout/scroll/overlay/navigation/missing/ambiguous cases fail closed;
-- prepared targets are TTL-purged and capped at 256; expiry/capacity fails closed;
-- focused llama.cpp lifecycle owner with exact artifact/process identity, Touch, TTL unload and Stop/Sweep;
-- production inference verifies `127.0.0.1:3068` belongs to the controller-returned PID before sending a screenshot;
-- class-aware production verifier; repeated-row/tiny remain forced ABSTAIN;
-- Windows junction containment and tunnel credential scrub-before-core-load;
-- bootstrap installed semantic runtime matches source (`package.json`, `package-lock.json`, secure launcher, core);
-- applied lockfile SHA256 is recorded and changed/missing marker forces `npm ci`;
-- direct literal private/link-local/metadata/non-public IP destinations are blocked while loopback remains available;
-- CodeQL covers Actions, JavaScript/TypeScript and Python.
+Accepted foundations include same-session screenshot/freshness/coordinate-action, TTL/capped prepared targets, focused llama.cpp lifecycle ownership, PID-bound loopback listener verification, class-aware fail-closed visual policy, secure installed semantic runtime, lock-hash-enforced `npm ci`, junction containment, bounded literal-IP browser policy and CodeQL across Actions/JavaScript/Python.
 
 Accepted RAM policy:
 
@@ -55,57 +43,84 @@ min_run_virtual_gb = 1.5
 target emergency cutoff = 0.30 GB
 ```
 
-The original 1.50 GB start floor was proven too brittle after Playwright load at 1.446–1.486 GB free physical RAM. The final reviewed run passed with a 0.60 GB minimum, no safety stop, runtime stopped afterward and Chrome still running.
+Final reviewed Stage 25.1 run: 3/3 expected HIT, 3/3 required ABSTAIN, 0 false clicks, 0 errors, minimum observed free physical RAM 0.60 GB, no safety stop, runtime stopped, Chrome alive.
 
-Final target evidence:
+## Stage 25.2 — Ordinary Chat semantic → vision escalation — ACCEPTED FOR MERGE
+
+PR #77 integrates the Stage 25.1 vision foundation into the existing public `web_interact` without adding a sixth public tool, second planner, generic inference gateway or catch-all click-error fallback.
+
+Final reviewed production-code HEAD: `41ef3f4032ae9169d940b3a04e5bdfe75170ca85`.
+
+Accepted routing boundary:
 
 ```text
-expected_hits = 3
-hits = 3
-expected_abstains = 3
-correct_abstains = 3
-safe_misses = 0
+fresh accessibility snapshot
+  -> 1 exact enabled button: semantic click; VLM does not start
+  -> same-name buttons with exactly 1 enabled + disabled alternatives: semantic click
+  -> disabled/non-button/ambiguous semantic target: ABSTAIN; VLM does not start
+  -> 0 exact candidates: reviewed text-labeled same-session visual fallback
+       -> target-blind button inventory
+       -> local deterministic authorization
+       -> freshness proof
+       -> one coordinate click OR ABSTAIN
+```
+
+Important authorization rules:
+
+- `targetText` is the semantic and visual anchor;
+- planner-supplied `kind` is never accepted;
+- planner `target` and free-form `instruction` cannot redirect visual grounding;
+- router generates the canonical visual instruction from `targetText`;
+- generic semantic click errors never escalate to vision;
+- icon-only, repeated-row, tiny targets and semantic ambiguity are not automatically visually promoted by Stage 25.2;
+- public semantic surface remains exactly five tools.
+
+Final target-laptop evidence with normal Chrome workload open:
+
+```text
+semantic_hits = 2
+visual_hits = 1
+correct_abstains = 2
 false_clicks = 0
 errors = 0
-safety_pass = true
+semantic_cases_started_vlm = 0
 acceptance_pass = true
-Doctor physical_free_gb = 1.919
-Doctor virtual_free_gb = 8.335
-minimum observed free physical RAM = 0.60 GB
+Doctor physical free RAM = 2.62 GB
+Doctor virtual free RAM = 8.129 GB
+minimum observed free physical RAM = 1.04 GB
 SAFETY_STOP = false
 VISION_RUNTIME_RUNNING_AFTER_TEST = false
+VISION_RUNTIME_STATE_AFTER_TEST = stopped
 CHROME_RUNNING_AFTER_TEST = true
 TEST_EXIT_CODE = 0
+STAGE25_2_FINAL_REVIEW_RESULT = PASSED
 ```
 
-Do not describe this as 6/6 visual accuracy; the Stage 25 present-target baseline remains 3/5 because repeated-row/tiny are intentionally unpromoted.
+Result path: `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage25\runtime\stage25-2-public-escalation-20260818-161812\result.json`.
 
-Residuals remain explicit: screenshot->click is not atomic, PID-bound loopback is not cryptographic endpoint authentication, DNS/rebinding/redirect isolation is incomplete, Python packaging is not release-grade, and `glob@10.5.0` needs a separate dependency follow-up.
+All 9 workflow families triggered for final Stage 25.2 code HEAD were green before documentation sync.
 
-All 11 workflow families were green on the final PR head before merge.
+## Stage 26 — Professional application capability benchmarks — NEXT
 
-## Next active follow-up — Ordinary Chat semantic → vision escalation
+Move from browser fixtures to real product workflows. Benchmark Windows UI and representative professional applications behind the same semantic-first/fail-closed capability philosophy. Initial candidates: Origin, REAPER, FFmpeg, Blender and broader Windows UI.
 
-Implement automatic internal escalation in a separate PR while keeping the public surface at five tools:
-
-```text
-semantic DOM/accessibility first
-  -> resolved: act semantically
-  -> unavailable/ambiguous:
-       same-session screenshot
-       -> reviewed local F16 grounder
-       -> deterministic authorization
-       -> freshness proof
-       -> coordinate action OR ABSTAIN
-```
-
-Define exactly which semantic misses/ambiguities are eligible and preserve fail-closed behavior.
-
-## Stage 26 — Professional application capability benchmarks
-Benchmark REAPER, Origin, FFmpeg, Blender and Windows UI workflows behind the same semantic capability philosophy.
+The purpose is not to expose application internals as hundreds of raw tools. Define focused capabilities and prove useful end-to-end workflows with ordinary ChatGPT as the only planner.
 
 ## Stage 27 — Distribution and maintenance hardening
-Stable release artifact, complete locked dependencies, Python artifact/hash policy, update/repair/doctor/uninstall, key rotation, upgrade/rollback and thin lifecycle UI.
+
+Stable release artifact, complete locked dependencies, Python artifact/hash policy, model/runtime installation, update/repair/doctor/uninstall, key rotation, upgrade/rollback, restart recovery and thin lifecycle UI.
+
+## Product-ready gate
+
+Before declaring “install and use” rather than “development platform”:
+
+1. Stage 25.2 must be merged and the five-tool Chat surface remain stable.
+2. At least representative real Windows/application workflows must be accepted, not only HTML fixtures.
+3. Installation must no longer depend on a git checkout or manual development repair steps.
+4. Restart/recovery, doctor/repair/update/rollback/uninstall must be predictable.
+5. A clean-user E2E must prove install -> connect Chat -> files -> browser semantic action -> browser visual fallback -> real desktop capability -> restart -> safe cleanup.
+6. A stable release must be cut only after the above passes.
 
 ## Definition of Done
-Ordinary ChatGPT can safely use scoped local capabilities through a small stable MCP surface without a second planner, generic hidden gateway, stale-coordinate action, uncontrolled network expansion or unreviewed dependency/runtime drift.
+
+Ordinary ChatGPT can safely use scoped local capabilities through a small stable MCP surface without a second planner, generic hidden gateway, stale-coordinate action, uncontrolled network expansion or unreviewed dependency/runtime drift, and the Windows companion can be installed and maintained as a normal product rather than a development checkout.

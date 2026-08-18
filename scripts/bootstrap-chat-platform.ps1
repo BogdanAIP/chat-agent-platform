@@ -21,6 +21,7 @@ $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
 $AppRoot = Join-Path $LocalRoot "app"
 $AppScriptsDir = Join-Path $AppRoot "scripts"
 $AppRuntimeDir = Join-Path $AppRoot "runtime"
+$AppConfigDir = Join-Path $AppRoot "config"
 $BinDir = Join-Path $LocalRoot "bin"
 $TunnelDir = Join-Path $LocalRoot "tunnel"
 $StateDir = Join-Path $LocalRoot "state"
@@ -331,12 +332,6 @@ function Test-TunnelProfileContract {
     if (-not (Test-Path -LiteralPath $Path)) { return $false }
     $raw = Get-Content -LiteralPath $Path -Raw
 
-    # Old project-managed profiles could pin log.file to a repository-relative
-    # path such as runtime/openai-tunnel-client/local-1mcp.log. That silently
-    # tied tunnel startup to whichever current working directory happened to
-    # launch the manager. The current official remote-no-auth sample does not
-    # need a profile-owned log file, so bootstrap repairs only relative log.file
-    # entries by regenerating the profile through official `tunnel-client init`.
     $logBlock = [regex]::Match(
         $raw,
         '(?ms)^\s*log:\s*\r?\n(?<body>(?:[ \t]+[^\r\n]*(?:\r?\n|$))*)'
@@ -367,10 +362,7 @@ function Initialize-OfficialTunnelProfile {
     New-Item -ItemType Directory -Force -Path $TunnelDir | Out-Null
     $profileValid = Test-TunnelProfileContract -Path $TunnelProfile -ResolvedTunnelId $ResolvedTunnelId
 
-    if (
-        -not $ReconfigureTunnelProfile -and
-        $profileValid
-    ) {
+    if (-not $ReconfigureTunnelProfile -and $profileValid) {
         Write-Host "TUNNEL_PROFILE=$TunnelProfile"
         Write-Host "TUNNEL_PROFILE_SOURCE=existing-validated"
         return
@@ -441,14 +433,7 @@ function Stop-InstalledManagerForBundleUpdate {
     }
 
     $pwsh = Require-Command "pwsh.exe"
-    & $pwsh `
-        -NoLogo `
-        -NoProfile `
-        -ExecutionPolicy Bypass `
-        -File $CommandPath `
-        -Action Stop `
-        -NoNotify
-
+    & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $CommandPath -Action Stop -NoNotify
     if ($LASTEXITCODE -ne 0) {
         throw "Could not stop the installed manager before updating its runtime bundle."
     }
@@ -474,10 +459,7 @@ function Assert-InstalledAdaptiveRuntime {
         "bin/1mcp-adaptive.mjs",
         "scripts/apply-compatibility-patch.mjs"
     )
-    if (
-        (@($manifest.files) -join "`n") -ne
-        ($expectedPackageFiles -join "`n")
-    ) {
+    if ((@($manifest.files) -join "`n") -ne ($expectedPackageFiles -join "`n")) {
         throw "Installed adaptive package file allowlist drifted."
     }
 
@@ -488,10 +470,7 @@ function Assert-InstalledAdaptiveRuntime {
         }
     }
     $adaptiveRaw = Get-Content -LiteralPath $adaptiveConfigPath -Raw
-    foreach ($pin in @(
-        "@modelcontextprotocol/server-filesystem@2026.7.10",
-        "@playwright/mcp@0.0.78"
-    )) {
+    foreach ($pin in @("@modelcontextprotocol/server-filesystem@2026.7.10", "@playwright/mcp@0.0.78")) {
         if ($adaptiveRaw -notmatch [regex]::Escape($pin)) {
             throw "Installed adaptive runtime is missing pin '$pin'."
         }
@@ -499,15 +478,55 @@ function Assert-InstalledAdaptiveRuntime {
 }
 
 function Assert-InstalledSemanticRuntimeSource {
-    $manifestPath = Join-Path $AppRuntimeDir "semantic-projection\package.json"
-    $lockPath = Join-Path $AppRuntimeDir "semantic-projection\package-lock.json"
-    $launcherPath = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection-launcher.mjs"
-    $entryPath = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection.mjs"
+    $semanticRoot = Join-Path $AppRuntimeDir "semantic-projection"
+    $manifestPath = Join-Path $semanticRoot "package.json"
+    $lockPath = Join-Path $semanticRoot "package-lock.json"
     $semanticConfigPath = Join-Path $AppRuntimeDir "chat-profiles\semantic\mcp.json"
+    $visionConfigPath = Join-Path $AppConfigDir "local-vision-runtime.json"
 
-    foreach ($required in @($manifestPath, $lockPath, $launcherPath, $entryPath, $semanticConfigPath)) {
-        if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-            throw "Installed semantic runtime asset is missing: $required"
+    $expectedPackageFiles = @(
+        "bin/semantic-projection-launcher.mjs",
+        "bin/semantic-projection.mjs",
+        "lib/semantic-vision-click-router.mjs",
+        "lib/visual-grounding-bridge.mjs",
+        "lib/runtime-backed-bridge-grounder.mjs",
+        "lib/runtime-backed-visual-grounder.mjs"
+    )
+    $visionScripts = @(
+        "local-vision-runtime.ps1",
+        "local-vision-runtime-watchdog.ps1",
+        "verify-local-vision-listener.ps1",
+        "production-visual-grounder.py"
+    )
+    $visionPythonFiles = @(
+        "__init__.py",
+        "benchmark.py",
+        "mark_grid.py",
+        "native_bbox.py",
+        "production_grounder.py",
+        "production_policy.py",
+        "provider.py",
+        "renderer.py"
+    )
+
+    $required = [System.Collections.Generic.List[string]]::new()
+    $required.Add($manifestPath)
+    $required.Add($lockPath)
+    $required.Add($semanticConfigPath)
+    $required.Add($visionConfigPath)
+    foreach ($relative in $expectedPackageFiles) {
+        $required.Add((Join-Path $semanticRoot ($relative -replace '/', '\')))
+    }
+    foreach ($name in $visionScripts) {
+        $required.Add((Join-Path $AppScriptsDir $name))
+    }
+    foreach ($name in $visionPythonFiles) {
+        $required.Add((Join-Path $AppRuntimeDir "local_vision_adapter\$name"))
+    }
+
+    foreach ($path in $required) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Installed semantic/vision runtime asset is missing: $path"
         }
     }
 
@@ -532,15 +551,7 @@ function Assert-InstalledSemanticRuntimeSource {
             throw "Installed semantic dependency pin drifted: $name"
         }
     }
-
-    $expectedPackageFiles = @(
-        "bin/semantic-projection-launcher.mjs",
-        "bin/semantic-projection.mjs"
-    )
-    if (
-        (@($manifest.files) -join "`n") -ne
-        ($expectedPackageFiles -join "`n")
-    ) {
+    if ((@($manifest.files) -join "`n") -ne ($expectedPackageFiles -join "`n")) {
         throw "Installed semantic package file allowlist drifted."
     }
 
@@ -555,19 +566,25 @@ function Assert-InstalledSemanticRuntimeSource {
         }
     }
 
+    $launcherPath = Join-Path $semanticRoot "bin\semantic-projection-launcher.mjs"
     $launcherSource = Get-Content -LiteralPath $launcherPath -Raw
     $deleteIndex = $launcherSource.IndexOf("delete process.env[key]", [StringComparison]::Ordinal)
     $controlIndex = $launcherSource.IndexOf("'CONTROL_PLANE_API_KEY'", [StringComparison]::Ordinal)
     $openAiIndex = $launcherSource.IndexOf("'OPENAI_API_KEY'", [StringComparison]::Ordinal)
     $importIndex = $launcherSource.IndexOf("await import('./semantic-projection.mjs')", [StringComparison]::Ordinal)
-    if (
-        $deleteIndex -lt 0 -or
-        $controlIndex -lt 0 -or
-        $openAiIndex -lt 0 -or
-        $importIndex -lt 0 -or
-        $deleteIndex -gt $importIndex
-    ) {
+    if ($deleteIndex -lt 0 -or $controlIndex -lt 0 -or $openAiIndex -lt 0 -or $importIndex -lt 0 -or $deleteIndex -gt $importIndex) {
         throw "Installed semantic credential-scrub launcher failed its runtime contract."
+    }
+
+    $visionConfig = Get-Content -LiteralPath $visionConfigPath -Raw | ConvertFrom-Json
+    if (
+        [string]$visionConfig.profile -ne 'lfm25-vl-450m-f16' -or
+        [string]$visionConfig.runtime.host -ne '127.0.0.1' -or
+        [int]$visionConfig.runtime.port -ne 3068 -or
+        [double]$visionConfig.memory.min_start_physical_gb -ne 1.35 -or
+        [double]$visionConfig.memory.min_run_physical_gb -ne 0.5
+    ) {
+        throw 'Installed semantic vision runtime config drifted from the reviewed profile.'
     }
 
     $semantic = Get-Content -LiteralPath $semanticConfigPath -Raw | ConvertFrom-Json
@@ -585,8 +602,6 @@ function Assert-InstalledSemanticRuntimeSource {
 }
 
 function Install-ManagerBundle {
-    # The adaptive catalog is mutable while running. Stop the installed
-    # manager before replacing the reviewed all-disabled catalog baseline.
     Stop-InstalledManagerForBundleUpdate
 
     $scriptNames = @(
@@ -601,70 +616,47 @@ function Install-ManagerBundle {
         "chat-platform-controller.ps1",
         "semantic-direct-controller.ps1",
         "chat-platform.ps1",
-        "chat-platform-tray.ps1"
+        "chat-platform-tray.ps1",
+        "local-vision-runtime.ps1",
+        "local-vision-runtime-watchdog.ps1",
+        "verify-local-vision-listener.ps1",
+        "production-visual-grounder.py"
     )
 
     foreach ($name in $scriptNames) {
-        Copy-VerifiedManagerFile `
-            -Source (Join-Path $RepoRoot "scripts\$name") `
-            -Destination (Join-Path $AppScriptsDir $name)
+        Copy-VerifiedManagerFile -Source (Join-Path $RepoRoot "scripts\$name") -Destination (Join-Path $AppScriptsDir $name)
     }
 
     $runtimeFiles = @(
-        @{
-            Source = Join-Path $RepoRoot "runtime\mcp.json"
-            Destination = Join-Path $AppRuntimeDir "mcp.json"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\chat-profiles\files-readonly\mcp.json"
-            Destination = Join-Path $AppRuntimeDir "chat-profiles\files-readonly\mcp.json"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\chat-profiles\browser-isolated\mcp.json"
-            Destination = Join-Path $AppRuntimeDir "chat-profiles\browser-isolated\mcp.json"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\chat-profiles\semantic\mcp.json"
-            Destination = Join-Path $AppRuntimeDir "chat-profiles\semantic\mcp.json"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\chat-profiles\adaptive\mcp.json"
-            Destination = Join-Path $AppRuntimeDir "chat-profiles\adaptive\mcp.json"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\semantic-projection\package.json"
-            Destination = Join-Path $AppRuntimeDir "semantic-projection\package.json"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\semantic-projection\package-lock.json"
-            Destination = Join-Path $AppRuntimeDir "semantic-projection\package-lock.json"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\semantic-projection\bin\semantic-projection-launcher.mjs"
-            Destination = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection-launcher.mjs"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\semantic-projection\bin\semantic-projection.mjs"
-            Destination = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection.mjs"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\package.json"
-            Destination = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\package.json"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\bin\1mcp-adaptive.mjs"
-            Destination = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\bin\1mcp-adaptive.mjs"
-        },
-        @{
-            Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\scripts\apply-compatibility-patch.mjs"
-            Destination = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\scripts\apply-compatibility-patch.mjs"
-        }
+        @{ Source = Join-Path $RepoRoot "runtime\mcp.json"; Destination = Join-Path $AppRuntimeDir "mcp.json" },
+        @{ Source = Join-Path $RepoRoot "runtime\chat-profiles\files-readonly\mcp.json"; Destination = Join-Path $AppRuntimeDir "chat-profiles\files-readonly\mcp.json" },
+        @{ Source = Join-Path $RepoRoot "runtime\chat-profiles\browser-isolated\mcp.json"; Destination = Join-Path $AppRuntimeDir "chat-profiles\browser-isolated\mcp.json" },
+        @{ Source = Join-Path $RepoRoot "runtime\chat-profiles\semantic\mcp.json"; Destination = Join-Path $AppRuntimeDir "chat-profiles\semantic\mcp.json" },
+        @{ Source = Join-Path $RepoRoot "runtime\chat-profiles\adaptive\mcp.json"; Destination = Join-Path $AppRuntimeDir "chat-profiles\adaptive\mcp.json" },
+        @{ Source = Join-Path $RepoRoot "runtime\semantic-projection\package.json"; Destination = Join-Path $AppRuntimeDir "semantic-projection\package.json" },
+        @{ Source = Join-Path $RepoRoot "runtime\semantic-projection\package-lock.json"; Destination = Join-Path $AppRuntimeDir "semantic-projection\package-lock.json" },
+        @{ Source = Join-Path $RepoRoot "runtime\semantic-projection\bin\semantic-projection-launcher.mjs"; Destination = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection-launcher.mjs" },
+        @{ Source = Join-Path $RepoRoot "runtime\semantic-projection\bin\semantic-projection.mjs"; Destination = Join-Path $AppRuntimeDir "semantic-projection\bin\semantic-projection.mjs" },
+        @{ Source = Join-Path $RepoRoot "runtime\semantic-projection\lib\semantic-vision-click-router.mjs"; Destination = Join-Path $AppRuntimeDir "semantic-projection\lib\semantic-vision-click-router.mjs" },
+        @{ Source = Join-Path $RepoRoot "runtime\semantic-projection\lib\visual-grounding-bridge.mjs"; Destination = Join-Path $AppRuntimeDir "semantic-projection\lib\visual-grounding-bridge.mjs" },
+        @{ Source = Join-Path $RepoRoot "runtime\semantic-projection\lib\runtime-backed-bridge-grounder.mjs"; Destination = Join-Path $AppRuntimeDir "semantic-projection\lib\runtime-backed-bridge-grounder.mjs" },
+        @{ Source = Join-Path $RepoRoot "runtime\semantic-projection\lib\runtime-backed-visual-grounder.mjs"; Destination = Join-Path $AppRuntimeDir "semantic-projection\lib\runtime-backed-visual-grounder.mjs" },
+        @{ Source = Join-Path $RepoRoot "config\local-vision-runtime.json"; Destination = Join-Path $AppConfigDir "local-vision-runtime.json" },
+        @{ Source = Join-Path $RepoRoot "runtime\local_vision_adapter\__init__.py"; Destination = Join-Path $AppRuntimeDir "local_vision_adapter\__init__.py" },
+        @{ Source = Join-Path $RepoRoot "runtime\local_vision_adapter\benchmark.py"; Destination = Join-Path $AppRuntimeDir "local_vision_adapter\benchmark.py" },
+        @{ Source = Join-Path $RepoRoot "runtime\local_vision_adapter\mark_grid.py"; Destination = Join-Path $AppRuntimeDir "local_vision_adapter\mark_grid.py" },
+        @{ Source = Join-Path $RepoRoot "runtime\local_vision_adapter\native_bbox.py"; Destination = Join-Path $AppRuntimeDir "local_vision_adapter\native_bbox.py" },
+        @{ Source = Join-Path $RepoRoot "runtime\local_vision_adapter\production_grounder.py"; Destination = Join-Path $AppRuntimeDir "local_vision_adapter\production_grounder.py" },
+        @{ Source = Join-Path $RepoRoot "runtime\local_vision_adapter\production_policy.py"; Destination = Join-Path $AppRuntimeDir "local_vision_adapter\production_policy.py" },
+        @{ Source = Join-Path $RepoRoot "runtime\local_vision_adapter\provider.py"; Destination = Join-Path $AppRuntimeDir "local_vision_adapter\provider.py" },
+        @{ Source = Join-Path $RepoRoot "runtime\local_vision_adapter\renderer.py"; Destination = Join-Path $AppRuntimeDir "local_vision_adapter\renderer.py" },
+        @{ Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\package.json"; Destination = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\package.json" },
+        @{ Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\bin\1mcp-adaptive.mjs"; Destination = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\bin\1mcp-adaptive.mjs" },
+        @{ Source = Join-Path $RepoRoot "runtime\1mcp-adaptive-shim\scripts\apply-compatibility-patch.mjs"; Destination = Join-Path $AppRuntimeDir "1mcp-adaptive-shim\scripts\apply-compatibility-patch.mjs" }
     )
 
     foreach ($entry in $runtimeFiles) {
-        Copy-VerifiedManagerFile `
-            -Source ([string]$entry.Source) `
-            -Destination ([string]$entry.Destination)
+        Copy-VerifiedManagerFile -Source ([string]$entry.Source) -Destination ([string]$entry.Destination)
     }
 
     Assert-InstalledAdaptiveRuntime
@@ -687,13 +679,26 @@ function Install-ManagerBundle {
             "runtime/chat-profiles/files-readonly/mcp.json",
             "runtime/chat-profiles/browser-isolated/mcp.json",
             "runtime/chat-profiles/semantic/mcp.json",
-            "runtime/chat-profiles/adaptive/mcp.json"
+            "runtime/chat-profiles/adaptive/mcp.json",
+            "config/local-vision-runtime.json"
         )
         runtime_assets = @(
             "runtime/semantic-projection/package.json",
             "runtime/semantic-projection/package-lock.json",
             "runtime/semantic-projection/bin/semantic-projection-launcher.mjs",
             "runtime/semantic-projection/bin/semantic-projection.mjs",
+            "runtime/semantic-projection/lib/semantic-vision-click-router.mjs",
+            "runtime/semantic-projection/lib/visual-grounding-bridge.mjs",
+            "runtime/semantic-projection/lib/runtime-backed-bridge-grounder.mjs",
+            "runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs",
+            "runtime/local_vision_adapter/__init__.py",
+            "runtime/local_vision_adapter/benchmark.py",
+            "runtime/local_vision_adapter/mark_grid.py",
+            "runtime/local_vision_adapter/native_bbox.py",
+            "runtime/local_vision_adapter/production_grounder.py",
+            "runtime/local_vision_adapter/production_policy.py",
+            "runtime/local_vision_adapter/provider.py",
+            "runtime/local_vision_adapter/renderer.py",
             "runtime/1mcp-adaptive-shim/package.json",
             "runtime/1mcp-adaptive-shim/bin/1mcp-adaptive.mjs",
             "runtime/1mcp-adaptive-shim/scripts/apply-compatibility-patch.mjs"
@@ -707,20 +712,10 @@ function Install-ManagerBundle {
 function Invoke-ManagerStatusCapture {
     $pwsh = Require-Command "pwsh.exe"
     $output = @(
-        & $pwsh `
-            -NoLogo `
-            -NoProfile `
-            -ExecutionPolicy Bypass `
-            -File $CommandPath `
-            -Action Status `
-            -NoNotify `
-            2>&1
+        & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $CommandPath -Action Status -NoNotify 2>&1
     )
 
-    return [pscustomobject]@{
-        exit_code = $LASTEXITCODE
-        output = $output
-    }
+    return [pscustomobject]@{ exit_code = $LASTEXITCODE; output = $output }
 }
 
 function Invoke-ManagerAction {
@@ -738,14 +733,7 @@ function Invoke-ManagerAction {
     $startInfo.FileName = $pwsh
     $startInfo.UseShellExecute = $false
 
-    foreach ($argument in @(
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", $CommandPath,
-        "-Action", $Action,
-        "-NoNotify"
-    )) {
+    foreach ($argument in @("-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $CommandPath, "-Action", $Action, "-NoNotify")) {
         $startInfo.ArgumentList.Add([string]$argument)
     }
 
@@ -754,9 +742,6 @@ function Invoke-ManagerAction {
         $startInfo.ArgumentList.Add($Profile)
     }
 
-    # Mutating manager actions can create persistent descendants. Waiting on
-    # an exact Process handle avoids PowerShell pipeline EOF being held open by
-    # inherited handles from 1MCP or tunnel-client.
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
 
@@ -773,18 +758,8 @@ function Invoke-ManagerAction {
 }
 
 function Install-Manager {
-    # Install may ask for CONTROL_PLANE_API_KEY through Read-Host. Keep the
-    # child process attached to the console instead of capturing its output so
-    # the hidden interactive prompt is always visible to the user.
     $pwsh = Require-Command "pwsh.exe"
-    & $pwsh `
-        -NoLogo `
-        -NoProfile `
-        -ExecutionPolicy Bypass `
-        -File $CommandPath `
-        -Action Install `
-        -NoNotify
-
+    & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $CommandPath -Action Install -NoNotify
     if ($LASTEXITCODE -ne 0) {
         throw "Manager installation failed with exit code $LASTEXITCODE."
     }
@@ -831,14 +806,8 @@ function Invoke-SmokeTest {
             }
         }
         else {
-            # Start performs its own rollback, but a best-effort Stop also
-            # clears any pre-existing partial state from an interrupted setup.
-            try {
-                $null = Invoke-ManagerAction -Action Stop
-            }
-            catch {
-                Write-Warning "Bootstrap cleanup could not invoke Stop: $($_.Exception.Message)"
-            }
+            try { $null = Invoke-ManagerAction -Action Stop }
+            catch { Write-Warning "Bootstrap cleanup could not invoke Stop: $($_.Exception.Message)" }
         }
     }
 }
@@ -866,11 +835,7 @@ if (-not $SkipSmokeTest) {
 
 if ($LaunchTray) {
     Start-Process -FilePath (Require-Command "pwsh.exe") -ArgumentList @(
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-WindowStyle", "Hidden",
-        "-File", $TrayPath
+        "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", $TrayPath
     ) | Out-Null
 }
 
