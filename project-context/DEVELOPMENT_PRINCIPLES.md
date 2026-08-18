@@ -2,13 +2,13 @@
 
 ## 1. Chat is the agent
 
-Do not add a second planner, workflow brain or autonomous coordinator behind ChatGPT. Local components expose capabilities; ordinary ChatGPT decides how to combine them.
+Do not add a second planner, workflow brain or autonomous coordinator behind ChatGPT. Local components expose capabilities, bounded perception or non-agentic procedural memory; ordinary ChatGPT decides how to combine them.
 
-Specialized local models are allowed only as bounded capability backends for tasks such as vision/OCR/grounding/extraction/classification. They must not silently become a second planner. Chat is the brain; specialist models are tools.
+Specialized local models are tools for vision/OCR/grounding/extraction/classification. Stored workflows are guidance/evidence. Neither may silently become a second planner.
 
 ## 2. Off-the-shelf first
 
-For transport, MCP runtime, discovery, lifecycle, local model serving and common integrations, use maintained ecosystem components before writing project code.
+For transport, MCP runtime, discovery, lifecycle, model serving and common integrations, use maintained ecosystem components before writing project code.
 
 ```text
 official/vendor MCP or runtime
@@ -17,82 +17,161 @@ official/vendor MCP or runtime
   -> smallest project-owned focused adapter
 ```
 
-Do not write a custom gateway/broker/model runtime until a concrete upstream gap is demonstrated.
+Do not write a custom generic gateway/broker/model runtime/workflow platform until a concrete upstream gap is demonstrated.
+
+Stage 26 may use upstream implementations such as `Tencent/UI-Mate` as technical references without importing their whole agent/model architecture.
 
 ## 3. Evidence before architecture
 
-A component becomes supported only after the applicable real install/start/health/tool-call acceptance. A target design or documentation claim is not acceptance evidence.
+A component becomes supported only after applicable real install/start/health/tool-call/task acceptance. Documentation/design is not acceptance evidence.
 
-When CI and docs disagree, investigate the code/logs; do not rewrite evidence to fit the intended architecture.
+When CI/docs disagree, investigate code/logs. Distinguish local/runtime failure from Chat product admission/safety failure.
 
-Distinguish local/runtime failure from Chat product admission/safety failure. A tool blocked before MCP is not evidence that the backend itself failed.
+For procedural memory, distinguish:
+
+- one successful trajectory;
+- a compiled candidate skill;
+- a verified/promoted reusable skill.
+
+Do not collapse those into one claim.
 
 ## 4. Thin project-owned surface
 
-Allowed project code should normally be lifecycle/configuration convenience, compatibility/acceptance tests, or a focused typed adapter for one missing program/device/model boundary.
+Allowed project code should normally be lifecycle/configuration convenience, compatibility/acceptance tests, focused adapters, or the smallest procedural-memory schemas/state/verifiers needed for the product boundary.
 
-Do not rebuild generic tunnels, MCP gateways, registries, vaults, databases, job systems, policy engines or general model-serving stacks without a measured requirement.
+Do not rebuild generic tunnels, MCP gateways, registries, vaults, databases, job systems, policy engines, autonomous agent runtimes or general model-serving stacks without a measured requirement.
 
-## 5. Stable typed capability boundary
+## 5. Stable truthful typed capability boundary
 
-Adding/removing a backend should not require changing the bridge protocol or normally creating another ChatGPT app/plugin. Runtime/tunnel/module/model choices remain replaceable implementation details.
+Current accepted public tool names are exactly:
 
-Preserve concrete typed schemas and truthful tool semantics at the Chat-facing boundary. Do not hide heterogeneous operations behind an opaque generic dispatcher solely to reduce the visible tool count.
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+```
 
-Real Stage 24 evidence showed effective action-snapshot truncation around 20 actions in the tested app. Treat this as a measured compatibility constraint, not an official universal constant. The scaling mechanism must remain adaptable if Chat product behavior changes.
+Adding/removing a backend should not normally require another ChatGPT app/plugin. Preserve concrete schemas and truthful semantics; do not hide heterogeneous operations behind opaque generic dispatch.
 
-## 6. Task-driven lifecycle
+The current count of five is a proven contract, not a permanent dogma. After Windows desktop surface exists, explicitly decide whether new truthful public capability names are required. Never overload existing tools with unrelated behavior solely to preserve the count.
 
-Do not run the whole backend catalog permanently. Register capabilities separately from process activation. Start what the task needs, reuse active backends across dependent stages, and stop idle backends.
+## 6. Task-driven lifecycle and task-driven capability selection
 
-Parallel backend execution is allowed when the task requires it; sequential execution is a resource-saving default, not a universal prohibition.
+Do not run the whole backend catalog permanently. Start what the task needs, reuse active backends across dependent stages, and stop idle heavyweight components.
 
-Model runtimes follow the same principle: load/JIT the selected specialist model when needed and unload/evict it when idle unless a measured workflow benefits from residence.
+Do not preselect a fixed future list of local programs merely because they were previously discussed. Select concrete integrations/benchmarks from real user tasks and evidence when the relevant capability stage is reached.
 
 ## 7. Security enables controlled capability
 
 Use least privilege and negative tests, but do not turn security into capability paralysis.
 
-Think in terms of:
+Capability lifecycle:
 
 ```text
-AVAILABLE
-ACTIVE
-AUTHORIZED
+AVAILABLE -> ACTIVE -> AUTHORIZED
 ```
 
-Avoid broad always-on access. Scope sensitive operations and keep dangerous administrative mutation tools out of ordinary Chat. Legitimate multi-tool workflows may receive the combined capability they need.
+Procedural skill trust:
 
-Prefer containment and reversibility — explicit roots, disposable/synthetic workspaces, backups, git, rollback and tool allowlists — over asking the user to approve every low-risk action. Reserve confirmation for genuinely consequential or hard-to-reverse effects.
+```text
+CANDIDATE -> VERIFIED -> PROMOTED
+```
 
-Do not assume that Chat app permission mode is the only safety layer. OpenAI safety may still block a composite workflow even when the same typed calls pass separately.
+These are separate. A trusted workflow is not blanket authorization for its actions.
 
-## 8. No sunk-cost architecture
+Prefer scoped roots/resources, reversible workspaces, backups/git/rollback and tool allowlists. Reserve confirmation for genuinely consequential or hard-to-reverse effects where practical.
 
-Git history is the archive. Old code stays out of the active tree unless later evidence proves a specific piece useful.
+## 8. Current state beats memory
 
-## 9. Cost discipline
+Procedural memory must never become blind replay.
 
-Prefer local/free/open-source components where quality is adequate. Do not introduce paid model APIs or SaaS as mandatory dependencies when ordinary ChatGPT + local bridge satisfies the requirement.
+Execution priority:
 
-A local runtime manager such as LM Studio may be evaluated because it avoids bespoke model-serving code and paid inference APIs, but it remains replaceable infrastructure rather than a mandatory product identity.
+```text
+current observed state
+  > completion criteria / current subtask goal
+  > prior successful milestones
+  > historical low-level action sequence
+```
 
-## 10. Hardware-aware local model selection
+When remembered procedure conflicts with live state, adapt or ABSTAIN.
 
-Do not hard-code a local model/quantization based on guesswork. Prefer runtime-provided capability discovery and resource estimation before load. Choose the highest-quality tested variant that fits measured RAM/VRAM/latency guardrails on the actual machine.
+Compiled skills must not contain actionable replay coordinates as the solution.
 
-Keep fallback models/runtimes available where useful. A machine upgrade should normally change selection results, not require architecture changes.
+## 9. Completion is verified, not merely asserted
 
-## 11. Acceptance ownership and continuation discipline
+ChatGPT may propose that a subtask is complete, but workflow state advances only after applicable verification:
 
-Keep `START_HERE.md` and `CURRENT_STATE.md` synchronized with functional reality at architecture-changing points.
+```text
+PASS -> advance
+FAIL -> remain
+UNKNOWN -> observe / ABSTAIN / user input
+```
 
-Codex should perform all locally accessible acceptance itself when its environment and permissions allow it, including Windows, CLI, process lifecycle, local applications, MCP backends, local inference runtimes and local integration tests. Do not ask the user to perform routine local tests that the development agent can execute directly.
+Prefer deterministic/native verification where available; bounded vision may supply evidence but does not self-authorize completion.
 
-Reserve user participation for gates that specifically require the real ordinary ChatGPT UI/custom-app path or another irreducible user-only action. For such a gate, provide one precise test and wait for the actual result. Do not substitute a mock, local MCP client or narrower integration test for a claimed ordinary-Chat E2E pass.
+## 10. Procedural memory has a privacy boundary
 
-Do not claim a local-machine or ordinary-Chat test unless that exact path actually ran. After a user-run ordinary-Chat acceptance, record the evidence and continue development.
+Do not persist private chain-of-thought.
 
-Use isolated branches/worktrees for independent parallel agents and integrate only reviewed/tested results.
+Store only structured/user-visible intent summaries, actions, observations/results and explicit verification evidence needed for procedural reuse/debugging.
 
-Preserve local uncommitted work before syncing remote documentation/code. Reconcile overlapping documentation intentionally rather than discarding the user's local diff.
+Before long-term arbitrary human-demo storage, define screenshot/text retention, redaction, secret filtering, deletion and versioning policies.
+
+One successful run creates at most a candidate skill. Do not auto-promote based on invented confidence scores.
+
+## 11. No sunk-cost architecture
+
+Git history is the archive. Old code/design docs stay out of the active decision path unless later evidence proves a specific piece useful.
+
+Historical Stage 25 candidate/model docs do not override accepted Stage 25.2 reality. Active continuation docs must state clearly when older files are research/history.
+
+## 12. Cost discipline
+
+Prefer local/free/open-source components where quality is adequate. Do not introduce paid model APIs or extra SaaS as mandatory dependencies when ordinary ChatGPT + local bridge satisfies the requirement.
+
+A large local CUA model is not justified merely because an upstream procedural-memory reference uses one; ChatGPT already supplies the planning/intelligence layer.
+
+## 13. Hardware-aware local models
+
+Do not hard-code a model/quantization based on guesswork. Use measured RAM/VRAM/latency and accepted target evidence.
+
+Current accepted local-vision target path is llama.cpp + LFM2.5-VL-450M F16. Future model changes require evidence, not architecture churn.
+
+## 14. Windows desktop surface is a separate capability boundary
+
+Do not blur browser Playwright acceptance into general desktop control.
+
+Stage 26.3 must separately establish:
+
+- native/deterministic UI observation where possible;
+- screen capture where needed;
+- bounded vision fallback;
+- reviewed keyboard/mouse action;
+- window/focus/freshness integrity;
+- post-action verification and ABSTAIN.
+
+True arbitrary human “show me once” capture belongs at or after this boundary.
+
+## 15. Acceptance ownership and continuation discipline
+
+Keep `START_HERE.md`, `CURRENT_STATE.md`, the active stage contract, `ROADMAP.md` and relevant ADRs synchronized at architecture-changing points.
+
+Codex/automation should perform all locally accessible acceptance when environment/permissions allow it. Reserve user participation for gates that specifically require the real ordinary ChatGPT UI/custom-app path or another irreducible user-only action.
+
+Never claim a local-machine or ordinary-Chat test unless that exact path actually ran. Preserve local uncommitted work before syncing remote code/docs. Use isolated branches/worktrees for independent work.
+
+## 16. Context transfer is a product-development requirement
+
+A fresh ChatGPT/Codex session should be able to determine:
+
+- current merged `main`;
+- what is actually accepted;
+- the active stage and exact next gate;
+- historical files that must not override current design;
+- residual risks;
+- whether user-machine/ordinary-Chat evidence is required.
+
+When a stage closes, audit entry-point docs instead of only adding another historical handoff file.

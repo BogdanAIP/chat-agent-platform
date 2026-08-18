@@ -1,154 +1,148 @@
-# Stage 24 — Semantic Typed Capability Projection
+# Semantic Typed Capability Projection
 
-Status: **PRODUCT ACCEPTED: local/CI + real ordinary Chat**.
+Status: **PRODUCT ACCEPTED FOUNDATION; CURRENT PUBLIC CONTRACT REMAINS FIVE TOOLS**.
+
+This document records the current invariant of the Stage 24 semantic projection after later Stage 25.2 integration. Historical Stage 24 acceptance detail remains in Git history and PR #66.
 
 ## Why this boundary exists
 
-Real ordinary-Chat evidence established two simultaneous constraints:
+Real ordinary-Chat evidence established that concrete typed actions work, while large raw backend inventories and generic nested dispatch are poor product surfaces. The project therefore keeps a small truthful deterministic compatibility layer between ChatGPT and replaceable local capabilities.
 
-1. concrete typed Filesystem + Playwright actions work through one Chat app;
-2. a large direct action inventory is effectively truncated in the tested Chat app, while the app also keeps a frozen reviewed tool snapshot until Refresh/review.
+`semantic-projection` is not:
 
-1MCP tags/presets/filtering can select whole backend servers locally, but they do not create a new small fixed semantic schema set for an already-reviewed Chat app. The generic adaptive `tool_invoke` path is not the accepted product surface.
-
-A smallest project-owned projection is therefore accepted as a measured compatibility adapter. It must remain deterministic and non-agentic.
-
-## Non-goals
-
-The projection is **not**:
-
-- a planner or autonomous coordinator;
-- a workflow engine;
+- a planner/autonomous coordinator;
+- a procedural-memory engine;
 - a generic MCP gateway replacement;
 - a dynamic server/tool registry;
 - an arbitrary `server + tool + args` dispatcher;
-- a place to hide mixed consequence classes behind misleading annotations.
+- a place to hide unrelated desktop/workflow consequence classes behind misleading schemas.
 
-ChatGPT remains the planner. 1MCP and downstream MCPs remain replaceable infrastructure.
+ChatGPT remains the planner.
 
-## Accepted Chat-facing surface
+## Current accepted Chat-facing surface
 
-Exactly five semantic tools are the Stage 24 product surface:
+Exactly these tool names are currently accepted:
 
-| Tool | Effect class | Closed downstream mapping |
-|---|---|---|
-| `workspace_read` | read-only, closed-world | `list_allowed_directories`, `read_text_file`, `search_files` |
-| `workspace_write` | local write/overwrite | `write_file` |
-| `web_open` | browser navigation, open-world | `browser_navigate` |
-| `web_observe` | read-only browser observation | `browser_find`, `browser_snapshot` |
-| `web_interact` | browser interaction, open-world | `browser_click`, `browser_type` |
+| Tool | Current semantic class |
+|---|---|
+| `workspace_read` | scoped workspace observation/read/search |
+| `workspace_write` | scoped text create/overwrite |
+| `web_open` | reviewed browser navigation |
+| `web_observe` | browser/accessibility observation |
+| `web_interact` | reviewed browser interaction, including Stage 25.2 internal vision fallback for its narrow accepted click path |
 
-No Chat-facing argument can select an arbitrary MCP server or arbitrary backend tool.
+No Chat-facing argument can choose an arbitrary MCP server/backend tool/model endpoint.
 
 ## Workspace boundary
 
-`CHAT_LOCAL_FILES_ROOT` is mandatory. Chat-facing workspace paths are relative to that root.
+`CHAT_LOCAL_FILES_ROOT` is mandatory for the current workspace path. Chat-facing paths are relative to that root. Absolute/traversal/junction escapes remain rejected by the accepted containment layers.
 
-The projection rejects:
+Procedural memory must not broaden a workspace scope merely because an older trajectory used a path. Historical procedure references are evidence, not path authorization.
 
-- absolute paths;
-- `..` traversal that escapes the configured root.
+## Browser boundary after Stage 25.2
 
-The official Filesystem MCP remains a second enforcement layer and receives only the resolved path plus the fixed allowlisted operation.
+`web_open` remains HTTP/HTTPS-scoped under the reviewed browser policy.
 
-`workspace_read` supports only:
+`web_observe` remains observation only.
 
-- `roots`;
-- `read_text`;
-- `search`.
-
-`workspace_write` supports only create/overwrite text through Filesystem `write_file`.
-
-## Browser boundary
-
-The downstream Browser is exact `@playwright/mcp@0.0.78` in isolated/headless Chrome mode.
-
-`web_open` accepts only HTTP/HTTPS URLs and rejects embedded URL credentials.
-
-`web_observe` supports only:
-
-- `find` by plain text or regex;
-- accessibility `snapshot`.
-
-`web_interact` supports only:
-
-- `click`;
-- `type`.
-
-The projection does not expose or call arbitrary JavaScript/Playwright execution, file upload, direct network-body access, raw backend tool selection or catalog mutation.
-
-## Implementation rule
-
-The local adapter boundary is pinned to:
-
-- `@modelcontextprotocol/server@2.0.0`;
-- `@modelcontextprotocol/client@2.0.0`;
-- `@modelcontextprotocol/server-filesystem@2026.7.10`;
-- `@playwright/mcp@0.0.78`;
-- `zod@4.4.3`.
-
-The projection is a normal stdio MCP server. It lazily creates official `StdioClientTransport` clients for exact pinned downstream MCPs and verifies that every required allowlisted downstream tool exists before using that backend.
-
-Downstream packages are installed once as exact dependencies of `runtime/semantic-projection`; user tool calls do not perform nested `npx` installs. 1MCP launches the prepared projection entrypoint directly with Node.
-
-Closing the projection client must close its downstream MCP clients/processes.
-
-## Accepted local/CI evidence
-
-On functional head `aa6bc034c1ecb36af469ecf78959a243526e2af3`, all six PR workflows passed, including Semantic Projection Acceptance run `31809532437` and Chat Profile Acceptance run `31809532439`.
-
-The semantic acceptance proves:
-
-1. exactly five Chat-facing tools;
-2. real Filesystem roots/read/search/write;
-3. relative-path and traversal rejection;
-4. real Playwright navigate/find/click/type/snapshot;
-5. non-HTTP URL rejection;
-6. no raw/generic tool leakage;
-7. clean stdio/downstream lifecycle;
-8. real 1MCP `semantic` Runtime Scope start -> ready -> exact five-tool inventory -> stop;
-9. the same semantic runtime from a standalone installed-layout copy outside the source checkout;
-10. public manager recognition of `semantic` with persisted `FilesRoot`, while direct/adaptive/single-owner regressions remain green.
-
-The installed layout contains the projection source/config and installs/verifies its exact dependencies inside the installed runtime. It does not copy checkout `node_modules`.
-
-## Real ordinary-Chat promotion evidence
-
-On 2026-08-16 the target Windows machine ran the installed manager with:
+`web_interact` supports reviewed browser interaction. For the Stage 25.2 visual click path:
 
 ```text
-ACTIVE_PROFILE=semantic
-MCP_READY=True
-TUNNEL_RUNNING=True
-TUNNEL_READY=True
-SEMANTIC_TOOL_COUNT=5
+fresh accessibility snapshot
+  -> exact enabled button: semantic click
+  -> disabled/non-button/unresolved ambiguity: ABSTAIN, no VLM
+  -> zero exact candidates:
+       same-session screenshot
+       -> bounded local text-labeled F16 grounder
+       -> deterministic authorization/freshness
+       -> one coordinate click OR ABSTAIN
 ```
 
-After refreshing the existing `Chat Local Bridge Test` app and opening a new ordinary Chat, the real product path completed the required sequential multi-backend workflow:
+`targetText` is the authorization anchor. Planner `target`, free-form instruction and planner-supplied kind cannot redirect visual authorization.
 
-1. `workspace_read` read `input.txt` and returned exactly `SEMANTIC_FINAL_INPUT_20260816`;
-2. `web_open` opened `https://example.com`;
-3. `web_observe` observed that the live page exposed `Learn more` rather than the earlier expected label;
-4. `web_interact` clicked that observed link;
-5. `web_observe` identified the resulting page title as `Example Domains`;
-6. `workspace_write` created `result.txt` containing the input value and page title;
-7. a final `workspace_read` independently verified the exact two-line file content:
+The projection does not expose arbitrary JavaScript/Playwright execution, unrestricted upload/network-body access, raw backend selection or generic model invocation.
+
+## Procedural Memory relationship — Stage 26
+
+Stage 26 procedural memory is intentionally **not implemented by inflating `semantic-projection` into a hidden workflow brain**.
+
+Preferred separation:
 
 ```text
-SEMANTIC_FINAL_INPUT_20260816
-Example Domains
+ChatGPT
+  -> current semantic tool call(s)
+
+procedural-memory substrate (internal/non-agentic)
+  -> candidate skill retrieval/progress/completion evidence
+  -> supplies bounded context/state to Chat/integration layer
+
+semantic-projection
+  -> executes only truthful reviewed capability semantics
 ```
 
-The Chat used only the semantic surface. It did not use raw Filesystem/Playwright actions, generic `tool_invoke`, one app per backend, or a Refresh between individual operations.
+A workflow may guide ChatGPT's sequence of tool use, but the projection itself does not choose the sequence/user goal.
 
-This satisfies the ordinary-Chat promotion requirement. The projection is therefore Stage-24 product accepted.
+Until an explicit post-desktop contract decision:
 
-A transient Refresh/Create failure occurred earlier the same day while the local manager, MCP and tunnel were healthy. After the Chat app/plugin updated, the existing app refreshed and the unchanged accepted runtime passed the E2E. That earlier UI failure must not be recorded as a proven defect in the semantic projection.
+- do not add workflow CRUD/execution as misleading variants of existing tools;
+- do not create a generic `workflow_execute`/opaque dispatcher merely to keep the visible surface small;
+- internal Stage 26 data/compiler/verifier work may proceed without exporting new Chat tool names.
 
-## Remaining Stage 24 completion gate
+## Windows desktop relationship — future decision point
 
-Only repository integration remains:
+A Windows desktop surface is a separate planned Stage 26.3 capability boundary. Once it exists and passes local safety/functional acceptance, the project must decide explicitly whether:
 
-1. keep final docs/PR evidence synchronized with the accepted functional head and the 2026-08-16 user-path result;
-2. confirm the resulting PR HEAD is green across final CI/security/acceptance checks;
-3. then merge/integrate Stage 24 into `main`.
+1. a few new truthful public semantic capabilities are required; or
+2. the small-semantic-surface philosophy can continue without new names.
+
+This decision requires its own ADR, exact schemas/annotations and ordinary-Chat acceptance.
+
+The current count of five is a proven current contract, **not permission to overload existing schemas indefinitely** and not a claim that the product can never evolve.
+
+## Implementation invariants
+
+- dependencies remain pinned/locked and installed outside individual user calls;
+- downstream capability clients close cleanly;
+- no hidden runtime package download during user tool calls;
+- tunnel-only secrets are scrubbed before semantic core/downstream child startup;
+- installed layout must match the reviewed source dependency closure;
+- accepted network/workspace containment regressions remain active;
+- local vision/runtime management remains a focused internal boundary rather than generic model orchestration.
+
+## Accepted evidence lineage
+
+Stage 24 ordinary-Chat product acceptance proved the five-tool file/browser workflow through PR #66.
+
+Stage 24.1 proved the same public contract through the simpler direct stdio transport.
+
+Stage 25.1 proved the same-session visual action foundation without adding a public vision tool.
+
+Stage 25.2 PR #77, merged as `2a410476ef849fd6d9c172703a004b1befcbcfb1`, proved public `web_interact` semantic-first internal vision escalation on the real target machine while keeping the exact five public names.
+
+Final target-tested Stage 25.2 production-code HEAD:
+
+`41ef3f4032ae9169d940b3a04e5bdfe75170ca85`.
+
+Result summary:
+
+```text
+semantic_hits = 2
+visual_hits = 1
+correct_abstains = 2
+false_clicks = 0
+errors = 0
+semantic_cases_started_vlm = 0
+acceptance_pass = true
+```
+
+## Change rule
+
+Any exported public tool/schema/annotation change requires:
+
+1. architecture/security review;
+2. deterministic integration tests;
+3. exact downstream mapping review;
+4. Chat app Refresh/review where applicable;
+5. real ordinary-Chat acceptance for the changed product surface.
+
+The planned explicit contract-review point is after the Windows desktop surface exists.
