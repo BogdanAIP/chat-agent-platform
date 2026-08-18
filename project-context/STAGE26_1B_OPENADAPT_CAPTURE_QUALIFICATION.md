@@ -1,6 +1,6 @@
 # Stage 26.1B — Real bounded Windows Capture qualification
 
-Status: **DRAFT / FIRST REAL TARGET RUN CLASSIFIED AS HARNESS DEFECT / RERUN REQUIRED**
+Status: **ACCEPTED / EXACT-HEAD REAL WINDOWS TARGET PASSED / MERGED VIA PR #81**
 
 Branch base resolved from live `main` after merged Stage 26.1A:
 
@@ -235,7 +235,65 @@ Correction: Stage 26.1B now passes `backend_kind="rdp"` explicitly, preserving r
 
 The first run is retained as **valid real-target evidence of a harness defect**, not as operator failure and not as accepted Stage 26.1B qualification.
 
-It must not be converted to PASS retroactively. A new exact-head physical run is required after the corrections.
+It was not converted to PASS retroactively. The corrected harness was rerun on a new exact head and passed as documented below.
+
+## Successful exact-head target run — 2026-08-18
+
+The corrected second physical Windows qualification was run against exact PR head:
+
+`7a9daa9329d81994833c22b4ca2e321927527dcc`
+
+Local acceptance artifact:
+
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\stage26\capture-qualification\capture-20260818-194033\result.json
+```
+
+The complete target gate passed:
+
+```text
+FFMPEG_RUNTIME_PASS=True
+DRIVER_PASS=True
+RAW_ACTION_COUNT=40
+RAW_STRUCTURAL_ACTION_COUNT=40
+FOREIGN_STRUCTURAL_WINDOW_COUNT=0
+RAW_UIA_EVIDENCE_PASS=True
+STRUCTURAL_EVENT_COUNT=0
+WINDOW_SCOPED_STRUCTURAL_SUPPRESSION_PASS=True
+VIDEO_EVIDENCE_PASS=True
+WINDOW_SCOPE_PASS=True
+FOREIGN_STRUCTURAL_WINDOW_PASS=True
+REQUIRED_KINDS_PASS=True
+EXPECTED_TEXT_PASS=True
+EXPECTED_KEY_PASS=True
+UIA_EVIDENCE_PASS=True
+FIXTURE_SEQUENCE_PASS=True
+COMPILE_PASS=True
+COMPILED_STEP_COUNT=30
+COMPILED_STRUCTURAL_COUNT=0
+COMPILED_SURFACE=rdp
+SURFACE_CONTRACT_PASS=True
+NATIVE_WINDOWS_REPLAY_CLAIMED=False
+REPLAY_EXECUTION=SKIPPED_UNACCEPTED_WINDOWS_EXECUTOR
+BOUNDED_REPLAY_REFUSAL=True
+RAW_ARTIFACT_CONTAINMENT_PASS=True
+CHROME_PROCESS_COUNT_BEFORE=12
+CHROME_PROCESS_COUNT_AFTER=12
+CHROME_SURVIVAL_PASS=True
+FIXTURE_KILLED=False
+FIXTURE_CLEANUP_PASS=True
+STAGE26_1B_CAPTURE_RESULT=PASSED
+TEST_EXIT_CODE=0
+STAGE26_1B_TARGET_RESULT=PASSED
+```
+
+This exact tested head was merged by PR #81 as squash commit:
+
+`94681ef27286f6483e26dbc00ef22d94be3f89d6`
+
+The larger raw/Flow action counts are retained as evidence rather than normalized away. Acceptance depends on the independently verified fixture sequence, required event/text/key evidence, strict native window/UIA containment, successful Flow conversion/compiler contract, and containment/cleanup gates.
+
+The OpenAdapt recorder emitted timestamp-order diagnostic ERROR lines during capture, but they did not abort recording or invalidate any acceptance gate.
 
 ## Driver acceptance
 
