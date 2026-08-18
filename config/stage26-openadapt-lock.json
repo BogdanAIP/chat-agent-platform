@@ -31,6 +31,33 @@
       "note": "Desktop is evaluated separately because its frozen Flow runtime intentionally trails current openadapt-flow main."
     }
   },
+  "qualification_assets": {
+    "ffmpeg_windows_x86_64": {
+      "source_repository": "OpenAdaptAI/openadapt-desktop",
+      "source_commit": "86b1da232d88537e5e4b92ec23571008ed7ff81f",
+      "manifest_path": "src-tauri/ffmpeg-runtime-manifest.json",
+      "runtime_version": "8.1.2-r1",
+      "target": "x86_64-pc-windows-msvc",
+      "license": "LGPL-2.1-or-later",
+      "url": "https://github.com/OpenAdaptAI/openadapt-desktop/releases/download/ffmpeg-runtime-v8.1.2-r1/openadapt-ffmpeg-8.1.2-r1-x86_64-pc-windows-msvc.zip",
+      "archive_sha256": "bd88874357d3ea6490e22e7911f31df777e4e291b3ba83f3bfef9dc9bd366080",
+      "ffmpeg_relative_path": "bin/ffmpeg.exe",
+      "ffmpeg_sha256": "33e322b544f07118d4c1a8a56e9e84e5a5c06f86c9fcbf749359b2a1042eebd3",
+      "ffprobe_relative_path": "bin/ffprobe.exe",
+      "ffprobe_sha256": "f65a1b8874446cce3bda7112b89c6172a8c12983eade2b040cf3672e4fa5740b",
+      "required_build_properties": [
+        "--disable-gpl",
+        "--disable-nonfree",
+        "--disable-version3",
+        "--disable-network",
+        "encoder:mpeg4",
+        "encoder:png",
+        "muxer:mp4",
+        "muxer:image2pipe"
+      ],
+      "role": "exact OpenAdapt-managed capture video runtime for Stage 26.1B qualification only"
+    }
+  },
   "non_goals": [
     "No OpenAdapt component is production-approved merely by appearing in this lock.",
     "Do not expose generated per-workflow MCP tools to ChatGPT during qualification.",

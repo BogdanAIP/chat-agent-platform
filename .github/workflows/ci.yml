@@ -40,7 +40,9 @@ jobs:
             'scripts/bootstrap-chat-platform.ps1',
             'scripts/stage25-capture-grounding-fixture.ps1',
             'scripts/stage25-run-grounding-benchmark.ps1',
-            'scripts/stage26-openadapt-qualification.ps1'
+            'scripts/stage26-openadapt-qualification.ps1',
+            'scripts/stage26-openadapt-capture-qualification.ps1',
+            'scripts/stage26-windows-capture-fixture.ps1'
           )) {
             $tokens = $null
             $errors = $null
