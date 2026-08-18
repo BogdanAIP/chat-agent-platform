@@ -87,9 +87,10 @@ Correction:
 - the authorized disabled-route `POST /execute_windows -> 404` probe also uses an explicit zero-length body;
 - both still prove the same live routing/auth properties;
 - authorized typed-schema probes continue to send real JSON bodies and therefore still exercise the pinned parser;
+- regression tests lock the zero-body transport contract;
 - no acceptance gate is weakened and no legacy route is enabled.
 
-The first run is **not** retroactively accepted. A new exact-head Windows target rerun is required after corrected deterministic CI passes.
+The first run is **not** retroactively accepted. The corrected qualification must pass deterministic CI at its new exact HEAD and then pass a new exact-head Windows target rerun.
 
 ## A/B result before target acceptance
 
