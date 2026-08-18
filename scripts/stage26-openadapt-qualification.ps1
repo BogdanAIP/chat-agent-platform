@@ -11,9 +11,10 @@ $ErrorActionPreference = 'Stop'
 function Write-Flag {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)]$Value
+        [AllowNull()]$Value
     )
-    Write-Host ("{0}={1}" -f $Name, $Value)
+    $rendered = if ($null -eq $Value) { '<null>' } else { [string]$Value }
+    Write-Host ("{0}={1}" -f $Name, $rendered)
 }
 
 function Invoke-Checked {
@@ -73,11 +74,14 @@ New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
 $chromeBefore = @(Get-Process chrome -ErrorAction SilentlyContinue).Count
 $projectHead = $null
-try {
-    $projectHead = (& git -C $repoRoot rev-parse HEAD 2>$null).Trim()
-}
-catch {
-    $projectHead = $null
+$gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue
+if ($null -ne $gitCommand) {
+    try {
+        $projectHead = (& $gitCommand.Source -C $repoRoot rev-parse HEAD 2>$null | Select-Object -Last 1).Trim()
+    }
+    catch {
+        $projectHead = $null
+    }
 }
 
 $result = [ordered]@{
@@ -136,7 +140,12 @@ try {
     }
 
     $captureSpec = "openadapt-capture @ git+https://github.com/$($capture.repository).git@$($capture.commit)"
-    $flowSpec = "openadapt-flow[browser,capture] @ git+https://github.com/$($flow.repository).git@$($flow.commit)"
+    if ($RunTutorial) {
+        $flowSpec = "openadapt-flow[browser] @ git+https://github.com/$($flow.repository).git@$($flow.commit)"
+    }
+    else {
+        $flowSpec = "openadapt-flow @ git+https://github.com/$($flow.repository).git@$($flow.commit)"
+    }
 
     Invoke-Checked -FilePath $pythonExe -ArgumentList @(
         '-m', 'pip', 'install', '--disable-pip-version-check', '--no-input', '--no-cache-dir', $captureSpec
