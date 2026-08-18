@@ -79,6 +79,31 @@ def _post(
     )
 
 
+def _post_empty(
+    base_url: str,
+    path: str,
+    *,
+    token: str | None,
+    timeout: float = 10.0,
+) -> requests.Response:
+    """POST an explicit zero-length body for a pre-routing refusal probe.
+
+    Pinned win_agent intentionally rejects unknown routes and unauthorized
+    requests before reading Content-Length/body. On Windows, closing a socket
+    with unread inbound body bytes can surface as WinError 10053 and hide the
+    intended HTTP 401/404 response from requests. A zero-length POST tests the
+    same routing/auth property without creating unread request bytes.
+    """
+
+    headers = _headers(token) if token is not None else None
+    return requests.post(
+        f"{base_url}{path}",
+        data=b"",
+        headers=headers,
+        timeout=timeout,
+    )
+
+
 def _structural(role: str, name: str) -> StructuralLocator:
     return StructuralLocator(
         role=role,
@@ -346,22 +371,19 @@ def main() -> int:
             isinstance(capabilities, list) and "legacy_exec" not in capabilities
         )
 
-        unauthorized = _post(
+        # These two paths reject before win_agent reads a request body. Keep
+        # them zero-length so Windows cannot turn unread inbound bytes into a
+        # connection reset that hides the intended 401/404 status.
+        unauthorized = _post_empty(
             base_url,
             "/input",
-            {
-                "action": "scroll",
-                "horizontal_notches": 0,
-                "vertical_notches": 0,
-            },
             token=None,
         )
         result["unauthorized_input_401_pass"] = unauthorized.status_code == 401
 
-        legacy = _post(
+        legacy = _post_empty(
             base_url,
             "/execute_windows",
-            {"command": "print('THIS MUST NEVER EXECUTE')"},
             token=token,
         )
         result["legacy_route_404_pass"] = legacy.status_code == 404
