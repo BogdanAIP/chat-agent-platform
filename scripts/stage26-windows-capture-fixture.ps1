@@ -130,6 +130,9 @@ $inputBox.Add_KeyDown({
         $state.enter_pressed = $true
         Save-State
         Update-Ui
+        # Move focus without synthesizing any input so the next physical wheel
+        # event is delivered to the qualification list deterministically.
+        [void]$listBox.Focus()
         $eventArgs.SuppressKeyPress = $true
     }
 })
@@ -144,7 +147,7 @@ $form.Controls.Add($enterLabel)
 $scrollLabel = New-Object System.Windows.Forms.Label
 $scrollLabel.Location = New-Object System.Drawing.Point(370, 150)
 $scrollLabel.Size = New-Object System.Drawing.Size(320, 38)
-$scrollLabel.Text = '4. Наведите мышь на список и прокрутите колесом вниз'
+$scrollLabel.Text = '4. После Enter прокрутите список колесом вниз'
 $form.Controls.Add($scrollLabel)
 
 $listBox = New-Object System.Windows.Forms.ListBox
