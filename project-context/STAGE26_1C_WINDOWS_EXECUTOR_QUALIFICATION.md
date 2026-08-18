@@ -79,7 +79,7 @@ ConnectionError: ConnectionAbortedError(10053, ... host computer aborted the est
 
 This is classified as a qualification transport defect, not an executor/UIA failure and not an operator error.
 
-Pinned `win_agent.server` checks route availability and bearer authorization **before** reading `Content-Length` and the request body. The original qualification driver sent a JSON body for the deliberately unauthenticated `/input` probe. On Windows, closing a TCP socket while inbound request-body bytes remain unread can surface as a connection reset/abort before `requests` receives the intended HTTP `401`. The disabled `/execute_windows` route has the same pre-body routing shape for `404`.
+Pinned `win_agent.server` checks route availability and bearer authorization **before** reading `Content-Length` and the request body. The original qualification driver sent a JSON body for the deliberately unauthenticated `/input` probe. On this Windows target that pre-body rejection surfaced as a local TCP abort/reset (`WinError 10053`) before `requests` received the intended HTTP `401`. The disabled `/execute_windows` route has the same pre-body routing shape for `404`.
 
 Correction:
 
@@ -173,7 +173,7 @@ command-shaped extra field on authorized /input -> 400
 unsupported authorized action=exec -> 400
 ```
 
-The zero-body form is deliberate for the two responses produced before the pinned server reads a request body; it avoids Windows TCP reset behavior while preserving the routing/auth property under test.
+The zero-body form is deliberate for the two responses produced before the pinned server reads a request body; it avoids the observed Windows pre-body TCP abort while preserving the routing/auth property under test.
 
 A source-level dormant handler inside the exact upstream dependency is not treated as harmless by assertion alone. The live target process must prove the route is absent from routing while running under the exact construction path proposed for the product.
 
