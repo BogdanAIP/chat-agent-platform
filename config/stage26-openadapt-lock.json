@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "qualified_on": "2026-08-18",
+  "project_base_main": "58b441b9b50291189ac32f72d194b5ba6d0a182c",
+  "python": {
+    "required_major_minor": "3.12",
+    "reason": "openadapt-flow 1.31.0 declares Python >=3.10,<3.13"
+  },
+  "upstreams": {
+    "openadapt_flow": {
+      "repository": "OpenAdaptAI/openadapt-flow",
+      "commit": "d7f58d9f35c8369f16a9b378f23952d425334ad7",
+      "declared_version": "1.31.0",
+      "license": "MIT",
+      "role": "candidate procedural compiler/runtime/IR/lifecycle/verifier"
+    },
+    "openadapt_capture": {
+      "repository": "OpenAdaptAI/openadapt-capture",
+      "commit": "bcf12942d61d66b64d94e645e9124273a5cc5963",
+      "declared_version": "1.2.2",
+      "license": "MIT",
+      "role": "candidate human desktop demonstration recorder"
+    },
+    "openadapt_desktop": {
+      "repository": "OpenAdaptAI/openadapt-desktop",
+      "commit": "86b1da232d88537e5e4b92ec23571008ed7ff81f",
+      "declared_version": "0.15.0",
+      "license": "MIT",
+      "role": "distribution/cockpit reference only during Stage 26.1A",
+      "embedded_flow_version_at_pin": "1.27.1",
+      "note": "Desktop is evaluated separately because its frozen Flow runtime intentionally trails current openadapt-flow main."
+    }
+  },
+  "non_goals": [
+    "No OpenAdapt component is production-approved merely by appearing in this lock.",
+    "Do not expose generated per-workflow MCP tools to ChatGPT during qualification.",
+    "Do not replace ordinary ChatGPT as the only planner/intelligence.",
+    "Do not route Chat-facing requests to OpenAdapt win_agent execute_windows during qualification.",
+    "Do not change the accepted five public semantic tool names."
+  ]
+}
