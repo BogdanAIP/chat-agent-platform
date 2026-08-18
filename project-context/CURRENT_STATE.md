@@ -29,7 +29,7 @@ ordinary ChatGPT
 
 PR #73 was squash-merged to `main` as `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
 
-Target-laptop baseline:
+Accepted target baseline:
 
 ```text
 llama.cpp = b10448 / commit ad1de39e0
@@ -37,66 +37,30 @@ model = LFM2.5-VL-450M F16
 mmproj = F16
 CPU = 8 threads
 ctx = 2048
-```
-
-Final Stage 25 evidence with Chrome running:
-
-```text
-Search = HIT
-Send = HIT
-state-disambiguated Send = HIT
-Gamma = safe ABSTAIN
-tiny indicator = safe ABSTAIN
-Export CSV absent = correct ABSTAIN
 present-target hits = 3/5
 false clicks = 0
-provider/context errors = 0
 ```
 
-This remains the accepted perception baseline. Do not call it 6/6 accuracy; the six-case gate is a safety/behavior result while the present-target baseline is 3/5.
+Repeated-row and tiny target classes remain deliberately unpromoted. Do not describe the six-case Stage 25 safety gate as 6/6 visual accuracy.
 
 ## Stage 25.1 — MERGED AND ACCEPTED
 
-PR #74 `Stage 25.1: same-session vision fallback foundation` was squash-merged to `main` as `bbf490778a4d883bc54aa58a1d14e8779b7a5c94`.
+PR #74 was squash-merged to `main` as `bbf490778a4d883bc54aa58a1d14e8779b7a5c94`.
 
 Final reviewed target production-code HEAD: `edebbc9eda58637b2c9ea95fcab9f9fc4438fe6c`.
 
-The full same-session F16 acceptance passed on the target Windows laptop with the user's normal Chrome workload intentionally left open:
+Accepted foundations:
 
-```text
-labeled Send = HIT
-Search icon = HIT
-state-disambiguated Send = HIT
-Gamma repeated-row = correct ABSTAIN
-tiny indicator = correct ABSTAIN
-absent target = correct ABSTAIN
+- same-session Playwright screenshot -> prepared target -> exact freshness -> coordinate action or ABSTAIN;
+- stale/replay/layout/scroll/overlay/navigation uncertainty fails closed;
+- prepared visual targets are TTL-purged and capped at 256;
+- focused llama.cpp lifecycle owner with exact artifact/process ownership and deterministic unload;
+- production inference verifies the `127.0.0.1:3068` listener belongs to the controller-returned PID;
+- class-aware visual verifier;
+- secure installed semantic runtime and lock-hash-enforced `npm ci`;
+- junction containment, credential scrub, bounded literal-IP browser policy and CodeQL coverage.
 
-expected_hits = 3
-hits = 3
-expected_abstains = 3
-correct_abstains = 3
-safe_misses = 0
-false_clicks = 0
-errors = 0
-safety_pass = true
-acceptance_pass = true
-
-Doctor physical free RAM = 1.919 GB
-Doctor virtual free RAM = 8.335 GB
-minimum observed free physical RAM = 0.60 GB
-SAFETY_STOP = false
-VISION_RUNTIME_RUNNING_AFTER_TEST = false
-VISION_RUNTIME_STATE_AFTER_TEST = stopped
-CHROME_RUNNING_AFTER_TEST = true
-TEST_EXIT_CODE = 0
-STAGE25_1_REVIEW_RESULT = PASSED
-```
-
-Do not describe this as 6/6 visual accuracy. The accepted Stage 25 present-target baseline remains 3/5 because repeated-row/tiny are deliberately unpromoted.
-
-### Reviewed RAM policy
-
-A post-review run proved the original `1.50 GB` cold-start floor too brittle after Playwright load at `1.446–1.486 GB` free physical RAM. Production policy is now:
+Reviewed RAM policy:
 
 ```text
 min_start_physical_gb = 1.35
@@ -106,80 +70,127 @@ min_run_virtual_gb = 1.5
 target emergency cutoff = 0.30 GB
 ```
 
-The final accepted run reached a minimum of `0.60 GB`, above the runtime pressure floor and emergency cutoff, with no safety stop.
+## Stage 25.2 — FINAL REVIEWED CODE ACCEPTED FOR MERGE
 
-### Pre-merge review findings — CLOSED
+PR #77 `Stage 25.2: semantic-first internal vision escalation` wires the already accepted Stage 25.1 visual foundation into public `web_interact` while keeping exactly five public tools.
 
-- production inference verifies the `127.0.0.1:3068` listener belongs to the controller-returned PID before sending a screenshot;
-- prepared visual tokens are TTL-purged, capped at 256 and fail closed on expiry/capacity;
-- bootstrap installed semantic layout now matches source: `package.json`, `package-lock.json`, secure launcher and core;
-- applied lockfile SHA256 is recorded and a changed/missing marker forces `npm ci`;
-- Chrome non-termination regression assertion was corrected;
-- Windows descendant-stdio and target wrapper output-buffering defects are closed;
-- authoritative docs and PR review record residual risks rather than claiming stronger isolation than proved.
+Final target-tested production-code HEAD:
 
-### Proven Stage 25.1 foundations
+`41ef3f4032ae9169d940b3a04e5bdfe75170ca85`
 
-- same-session Playwright screenshot/freshness/coordinate-action boundary;
-- fail-closed stale/replay/layout/scroll/overlay/navigation behavior;
-- focused llama.cpp lifecycle owner with exact artifact/process identity;
-- PID-bound loopback listener verification before inference;
-- class-aware production policy with repeated-row/tiny forced ABSTAIN;
-- runtime-backed fixed-profile F16 grounder;
-- Windows junction containment;
-- tunnel credential scrub before semantic core import;
-- reproducible locked Node dependency path with `npm ci` and lock-hash marker;
-- bounded direct browser literal-IP network policy;
-- CodeQL Actions + JavaScript/TypeScript + Python;
-- real target cleanup with runtime stopped and Chrome alive.
+### Accepted routing contract
 
-All 11 workflow families were green on the final PR head before merge.
-
-## What Stage 25.1 deliberately does not do
-
-- no automatic local-vision fallback is wired into public `web_observe` / `web_interact` yet;
-- no sixth public vision/VLM tool exists;
-- no generic inference gateway or second planner exists;
-- repeated-row and tiny target classes remain non-promoted;
-- current browser URL filtering is not claimed as a complete DNS/redirect sandbox;
-- PID-bound loopback is not cryptographic endpoint authentication;
-- Python vision packaging is not yet release-grade;
-- no stable release is declared.
-
-## Next active priority
-
-Implement the ordinary-Chat semantic miss/ambiguity -> internal vision escalation policy as a separate follow-up while keeping the public five-tool contract unchanged:
+For `web_interact(operation=click)` with bounded `visualFallback` intent:
 
 ```text
-ordinary ChatGPT
-  -> semantic DOM/accessibility grounding first
-       -> resolved: act semantically
-       -> unavailable/ambiguous:
-            SAME Playwright page/session
-            -> CSS-pixel capture
-            -> focused runtime owner
-            -> local production visual grounder
-            -> deterministic authorization
-            -> freshness proof
-            -> coordinate action OR ABSTAIN
+fresh accessibility snapshot
+  -> exact enabled button -> semantic click; VLM stays stopped
+  -> duplicate same-name buttons with exactly one enabled and disabled alternatives
+       -> semantic click; VLM stays stopped
+  -> disabled exact target -> ABSTAIN; VLM stays stopped
+  -> exact target of an unpromoted semantic role -> ABSTAIN; VLM stays stopped
+  -> unresolved semantic ambiguity -> ABSTAIN; VLM stays stopped
+  -> zero exact candidates
+       -> same Playwright page/session screenshot
+       -> reviewed F16 text-labeled visual grounder
+       -> deterministic authorization
+       -> exact freshness
+       -> one coordinate click OR ABSTAIN
 ```
 
-## Remaining important work
+Generic semantic click failures never trigger vision.
 
-- define exactly which semantic misses/ambiguities are eligible for internal vision escalation;
-- keep repeated-row/tiny fail-closed until separately improved and measured;
-- decide whether stronger backend-level DNS/redirect/private-network isolation is required;
-- make Python vision dependencies release-grade reproducible beyond `Pillow==12.3.0`;
-- investigate deprecated transitive `glob@10.5.0` in a separate dependency PR;
-- update stale repository metadata when a repository-description write path is available;
-- no stable product release yet.
+### Authorization hardening completed in review
+
+Two merge-blocking findings were found after the first successful target run and fixed before the final accepted run:
+
+1. A single exact accessibility candidate was previously clickable regardless of role/disabled state. It is now actionable only when it is an enabled `button`; disabled or non-button exact matches ABSTAIN without VLM.
+2. Planner-supplied `target`/free-form `instruction` could conceptually influence visual refinement separately from `targetText`. The router now treats `targetText` as the sole visual anchor, ignores planner redirection for authorization and generates the canonical visual instruction locally from `targetText`.
+
+Additional boundaries:
+
+- no planner-supplied target `kind`;
+- `semanticName`, when supplied for compatibility, must normalize exactly to `targetText`;
+- no automatic icon-only, repeated-row or tiny-target promotion in Stage 25.2;
+- semantic ambiguity does not invoke vision;
+- safe ABSTAIN is returned as no-action rather than masquerading as a backend error;
+- installed `%LOCALAPPDATA%`-style semantic bundle contains the reviewed vision dependency closure and does not require the git checkout at runtime.
+
+### Final real target evidence
+
+Target Windows laptop, normal user Chrome workload intentionally left open:
+
+```text
+HEAD = 41ef3f4032ae9169d940b3a04e5bdfe75170ca85
+public_tools = 5
+semantic-unique Save = semantic_hit
+semantic-enabled-state Send = semantic_hit
+semantic-ambiguity Delete = correct_abstain
+semantic-miss Launch = visual_hit through real F16
+semantic-miss absent Export CSV = correct_abstain
+
+semantic_hits = 2
+visual_hits = 1
+correct_abstains = 2
+false_clicks = 0
+errors = 0
+semantic_cases_started_vlm = 0
+acceptance_pass = true
+
+Doctor physical free RAM = 2.62 GB
+Doctor virtual free RAM = 8.129 GB
+minimum observed free physical RAM = 1.04 GB
+SAFETY_STOP = false
+VISION_RUNTIME_RUNNING_AFTER_TEST = false
+VISION_RUNTIME_STATE_AFTER_TEST = stopped
+CHROME_RUNNING_AFTER_TEST = true
+TEST_EXIT_CODE = 0
+STAGE25_2_FINAL_REVIEW_RESULT = PASSED
+```
+
+Result path:
+
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage25\runtime\stage25-2-public-escalation-20260818-161812\result.json`
+
+All 9 workflow families triggered on this production-code HEAD completed successfully before documentation sync: CI, Semantic Projection Acceptance, Chat Profile Acceptance, Direct Semantic Tunnel Acceptance, Semantic Dependency Reproducibility, Stage 25.1 Vision Bridge Acceptance, Stage 25.1 Security Regressions, CodeQL Security and Secret History Scan.
+
+## What Stage 25.2 deliberately does not claim
+
+- repeated-row and tiny visual targets remain unpromoted;
+- icon-only automatic semantic-miss promotion is not part of this first public escalation boundary;
+- screenshot -> click is still a narrow non-atomic TOCTOU boundary;
+- PID-bound loopback is not cryptographic endpoint authentication;
+- browser DNS/rebinding/redirect isolation is incomplete;
+- Python vision distribution is not release-grade;
+- no stable end-user release is declared yet.
+
+## Next active priority — Stage 26
+
+Move from browser fixtures to representative real Windows/product workflows. Benchmark focused capabilities for Windows UI and professional applications such as Origin, REAPER, FFmpeg and Blender, preserving:
+
+- ChatGPT as the only planner/intelligence;
+- semantic/native application structure before vision where available;
+- vision as bounded perception only;
+- fail-closed authorization and no stale-coordinate mutation;
+- a small stable Chat-facing surface rather than raw application tool explosion.
+
+## Remaining product work
+
+- real professional/Windows application acceptance;
+- stronger network isolation decision for DNS/redirect/private-network behavior;
+- release-grade Python/model artifact reproducibility;
+- dependency cleanup for deprecated transitive `glob@10.5.0`;
+- installer/update/repair/doctor/uninstall/key rotation/rollback/restart recovery;
+- final clean-user end-to-end product acceptance;
+- first stable release.
 
 ## Active rules
 
 - ChatGPT is the only planner/intelligence;
-- semantic DOM/accessibility grounding comes first;
+- semantic/accessibility grounding comes first;
+- local vision starts only on explicitly authorized semantic miss paths;
 - vision may ABSTAIN and never acts by itself;
 - stale or uncertain visual evidence causes zero page mutation;
-- public semantic surface stays small and truthful;
+- public semantic surface remains exactly five tools;
 - heavy local vision starts only when admitted/needed and unloads deterministically;
-- documentation changes together with accepted implementation evidence.
+- accepted implementation evidence and documentation move together.
