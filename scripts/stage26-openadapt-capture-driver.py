@@ -43,6 +43,55 @@ def _count_key_recursive(value: Any, key: str) -> int:
     return 0
 
 
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _structural_identity_record(
+    observation: Any,
+    *,
+    fixture_pid: int,
+    captured_window_id: int | None,
+) -> dict[str, Any]:
+    process = getattr(observation, "process", None)
+    window = getattr(observation, "window", None)
+    process_id = _optional_int(getattr(process, "process_id", None))
+    process_name = getattr(process, "process_name", None)
+    window_handle = _optional_int(getattr(window, "native_window_handle", None))
+    window_title = getattr(window, "title", None)
+
+    # Strong native identity wins over accessibility naming. WinForms may expose
+    # AccessibleName as the UIA top-level title rather than Form.Text, which was
+    # observed on the first real Stage 26.1B target run. Explicit PID/handle
+    # mismatches fail closed; missing optional fields are tolerated only when
+    # another strong native identity field matches the qualification-owned
+    # fixture.
+    pid_match = process_id == fixture_pid if process_id is not None else None
+    handle_match = (
+        window_handle == captured_window_id
+        if window_handle is not None and captured_window_id is not None
+        else None
+    )
+    explicit_mismatch = pid_match is False or handle_match is False
+    strong_match = pid_match is True or handle_match is True
+    contained = bool(strong_match and not explicit_mismatch)
+
+    return {
+        "contained": contained,
+        "process_id": process_id,
+        "process_name": process_name,
+        "window_handle": window_handle,
+        "window_title": window_title,
+        "pid_match": pid_match,
+        "window_handle_match": handle_match,
+    }
+
+
 class _ReadyMarkerRecorder:
     """Real Capture Recorder with qualification-only policy overrides.
 
@@ -119,7 +168,7 @@ def main() -> int:
     result_path = run_dir / "driver-result.json"
 
     result: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "python_version": ".".join(map(str, sys.version_info[:3])),
         "window_title": args.window_title,
         "raw_capture_dir": str(raw_dir),
@@ -129,6 +178,8 @@ def main() -> int:
         "raw_action_count": 0,
         "raw_action_types": [],
         "raw_structural_action_count": 0,
+        "captured_window_id": None,
+        "structural_identity_records": [],
         "foreign_structural_window_count": 0,
         "foreign_structural_windows": [],
         "foreign_structural_window_pass": False,
@@ -204,10 +255,18 @@ def main() -> int:
         if not ffmpeg_path.is_file() or not ffprobe_path.is_file():
             raise RuntimeError("pinned FFmpeg qualification runtime is missing")
 
+        # Raw Capture remains a native Windows observation and retains UIA.
+        # The converted bundle is deliberately requested as the upstream RDP
+        # client-window contract. Pinned Flow suppresses local-client UIA only
+        # when backend_kind is explicitly rdp/citrix; the first real target run
+        # proved that omitting this argument leaves structural evidence in the
+        # generic window-scoped conversion even though that conversion is
+        # stamped surface=rdp.
         recording = record_desktop_capture(
             recording_dir,
             task_description=task,
             window={"owner": None, "title": args.window_title},
+            backend_kind=EXPECTED_WINDOW_SCOPED_SURFACE,
             capture_dir=raw_dir,
             ready_timeout_s=60.0,
             recorder_factory=factory,
@@ -233,12 +292,16 @@ def main() -> int:
             )
         ) and fixture_state.get("text_value") == EXPECTED_TEXT
 
-        # Inspect real raw Capture actions before relying on Flow conversion.
-        # For this local WinForms fixture, structural UIA evidence should point
-        # at the unique fixture window. Flow's window-scoped converter later
-        # suppresses that local UIA deliberately because the resulting bundle
-        # is an RDP/remote-client surface contract.
-        foreign_windows: list[str] = []
+        fixture_pid = _optional_int(fixture_state.get("fixture_pid"))
+        if fixture_pid is None or fixture_pid <= 0:
+            raise RuntimeError("fixture state carries no valid fixture_pid")
+
+        # Inspect native Capture UIA before relying on Flow conversion. The
+        # native identity check intentionally uses qualification-owned PID and
+        # captured HWND when available, not Form.Text alone: WinForms UIA may
+        # surface AccessibleName as the top-level window title.
+        identity_records: list[dict[str, Any]] = []
+        foreign_records: list[dict[str, Any]] = []
         with CaptureSession.load(raw_dir) as capture:
             raw_actions = list(capture.actions(include_moves=False))
             result["raw_action_count"] = len(raw_actions)
@@ -249,24 +312,31 @@ def main() -> int:
                 if action.structural_observation is not None
             ]
             result["raw_structural_action_count"] = len(raw_structural)
+
+            raw_window_capture = getattr(capture, "window_capture", None)
+            captured_window_id = None
+            if isinstance(raw_window_capture, dict):
+                captured_window_id = _optional_int(raw_window_capture.get("window_id"))
+            result["captured_window_id"] = captured_window_id
+
             for observation in raw_structural:
-                title = (
-                    observation.window.title
-                    if observation.window is not None
-                    else None
+                record = _structural_identity_record(
+                    observation,
+                    fixture_pid=fixture_pid,
+                    captured_window_id=captured_window_id,
                 )
-                if title and args.window_title.lower() not in title.lower():
-                    foreign_windows.append(title)
-        result["foreign_structural_windows"] = sorted(set(foreign_windows))
-        result["foreign_structural_window_count"] = len(foreign_windows)
-        result["foreign_structural_window_pass"] = len(foreign_windows) == 0
+                identity_records.append(record)
+                if not record["contained"]:
+                    foreign_records.append(record)
+
+        result["structural_identity_records"] = identity_records
+        result["foreign_structural_windows"] = foreign_records
+        result["foreign_structural_window_count"] = len(foreign_records)
+        result["foreign_structural_window_pass"] = len(foreign_records) == 0
         result["raw_uia_evidence_pass"] = bool(
             result["raw_structural_action_count"] > 0
             and result["foreign_structural_window_pass"]
         )
-        # Overall UIA qualification means Capture observed correct raw UIA.
-        # It does not falsely require Flow to promote that local UIA into an
-        # RDP bundle, which upstream intentionally forbids.
         result["uia_evidence_pass"] = result["raw_uia_evidence_pass"]
 
         video_files = list(raw_dir.glob("oa_recording-*.mp4"))
@@ -306,11 +376,6 @@ def main() -> int:
             in str(window_capture.get("resolved_title") or "").lower()
         )
 
-        # Do not lie about the upstream surface contract. Flow 1.31.0 stamps a
-        # window-scoped Capture conversion as backend=rdp because this capture
-        # mode was designed for one remote-client window. It also deliberately
-        # does NOT promote local Windows UIA into an RDP bundle. Stage 26.1B
-        # validates both facts instead of rewriting metadata/evidence.
         workflow = compile_recording(
             recording_dir,
             bundle_dir,
