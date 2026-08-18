@@ -46,8 +46,6 @@ class Stage26OpenAdaptCaptureQualificationTests(unittest.TestCase):
         self.assertIn("ffmpeg_windows_x86_64", self.harness)
         self.assertIn("-buildconf", self.harness)
         self.assertIn("--disable-network", self.harness)
-        # Source SHAs and release URLs live in the reviewed lock, not as a
-        # second independently drifting copy inside the harness.
         for entry in self.lock["upstreams"].values():
             self.assertNotIn(entry["commit"], self.harness)
         ffmpeg_url = self.lock["qualification_assets"]["ffmpeg_windows_x86_64"]["url"]
@@ -81,6 +79,7 @@ class Stage26OpenAdaptCaptureQualificationTests(unittest.TestCase):
             self.assertIn(required, self.driver)
         self.assertIn("CaptureSession.load(raw_dir)", self.driver)
         self.assertIn("foreign_structural_window_pass", self.driver)
+        self.assertIn("raw_uia_evidence_pass", self.driver)
         self.assertIn("window_scope_pass", self.driver)
         self.assertIn("video_evidence_pass", self.driver)
 
@@ -105,6 +104,19 @@ class Stage26OpenAdaptCaptureQualificationTests(unittest.TestCase):
         self.assertIn("native_windows_replay_claimed", self.driver)
         self.assertIn('"native_windows_replay_claimed": False', self.driver)
 
+    def test_raw_uia_is_required_but_rdp_conversion_suppression_is_preserved(self):
+        # Raw Capture on the local WinForms fixture must really observe UIA.
+        self.assertIn('"raw_uia_evidence_pass": False', self.driver)
+        self.assertIn('result["raw_structural_action_count"] > 0', self.driver)
+        self.assertIn('result["uia_evidence_pass"] = result["raw_uia_evidence_pass"]', self.driver)
+        # But pinned Flow intentionally does not promote local UIA into a
+        # window-scoped RDP/client-window bundle. Qualification must preserve
+        # that upstream meaning instead of falsifying a native-Windows surface.
+        self.assertIn('"window_scoped_structural_suppression_pass": False', self.driver)
+        self.assertIn('result["structural_event_count"] == 0', self.driver)
+        self.assertIn('result["compiled_structural_count"] == 0', self.driver)
+        self.assertIn("window_scoped_structural_suppression_pass", self.driver)
+
     def test_unaccepted_windows_executor_and_production_runtime_are_not_called(self):
         combined = "\n".join((self.harness, self.driver, self.fixture))
         for forbidden in (
@@ -127,8 +139,6 @@ class Stage26OpenAdaptCaptureQualificationTests(unittest.TestCase):
         self.assertIn("ProcessStartInfo", self.harness)
         self.assertIn("ArgumentList.Add", self.harness)
         self.assertNotIn("Start-Process", self.harness)
-        # The only forced termination is an exact Process object returned when
-        # launching the qualification-owned fixture.
         self.assertIn("$fixtureProcess.Kill($true)", self.harness)
         self.assertNotIn("Get-Process pwsh", self.harness)
 
@@ -138,6 +148,12 @@ class Stage26OpenAdaptCaptureQualificationTests(unittest.TestCase):
         self.assertIn("SKIPPED_UNACCEPTED_WINDOWS_EXECUTOR", self.driver)
         self.assertIn("bounded_replay_refusal", self.driver)
         self.assertIn("fixture_cleanup_pass", self.harness)
+
+    def test_harness_surfaces_raw_uia_and_structural_suppression_results(self):
+        self.assertIn("raw_uia_evidence_pass", self.harness)
+        self.assertIn("window_scoped_structural_suppression_pass", self.harness)
+        self.assertIn("RAW_UIA_EVIDENCE_PASS", self.harness)
+        self.assertIn("WINDOW_SCOPED_STRUCTURAL_SUPPRESSION_PASS", self.harness)
 
 
 if __name__ == "__main__":
