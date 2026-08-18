@@ -86,19 +86,29 @@ export function exactAccessibilityCandidates(snapshotResult, targetText) {
   return [...refs.values()];
 }
 
-function chooseSemanticCandidate(candidates) {
-  if (candidates.length === 1) return { candidate: candidates[0], reason: 'semantic-exact-accessible-name' };
-  if (
-    candidates.length > 1 &&
-    candidates.every(candidate => candidate.role === 'button')
-  ) {
+function classifySemanticCandidates(candidates) {
+  if (candidates.length === 0) return { status: 'miss', reason: 'semantic-exact-accessible-name-miss' };
+
+  if (candidates.length === 1) {
+    const candidate = candidates[0];
+    if (candidate.role !== 'button') {
+      return { status: 'blocked', reason: 'semantic-target-role-not-promoted' };
+    }
+    if (candidate.disabled) {
+      return { status: 'blocked', reason: 'semantic-target-disabled' };
+    }
+    return { status: 'resolved', candidate, reason: 'semantic-exact-enabled-button' };
+  }
+
+  if (candidates.every(candidate => candidate.role === 'button')) {
     const enabled = candidates.filter(candidate => !candidate.disabled);
     const disabled = candidates.filter(candidate => candidate.disabled);
     if (enabled.length === 1 && disabled.length >= 1) {
-      return { candidate: enabled[0], reason: 'semantic-unique-enabled-button-state' };
+      return { status: 'resolved', candidate: enabled[0], reason: 'semantic-unique-enabled-button-state' };
     }
   }
-  return null;
+
+  return { status: 'blocked', reason: 'semantic-ambiguity-visual-escalation-not-promoted' };
 }
 
 function noAction(status, reason, extra = {}) {
@@ -127,9 +137,9 @@ export class SemanticVisionClickRouter {
       return noAction('error', `semantic-preflight-error:${error instanceof Error ? error.message : String(error)}`, { source: 'semantic' });
     }
 
-    const semanticChoice = chooseSemanticCandidate(candidates);
-    if (semanticChoice) {
-      const downstream = { target: semanticChoice.candidate.ref, element: element ?? fallback.targetText };
+    const semantic = classifySemanticCandidates(candidates);
+    if (semantic.status === 'resolved') {
+      const downstream = { target: semantic.candidate.ref, element: element ?? fallback.targetText };
       const click = await this.#client.callTool({ name: 'browser_click', arguments: downstream });
       if (click?.isError) {
         return noAction('error', `semantic-click-error:${resultText(click) || 'unknown backend error'}`, {
@@ -137,13 +147,13 @@ export class SemanticVisionClickRouter {
         });
       }
       return {
-        status: 'acted', reason: semanticChoice.reason, acted: true, source: 'semantic',
+        status: 'acted', reason: semantic.reason, acted: true, source: 'semantic',
         backendResult: click, semanticCandidateCount: candidates.length
       };
     }
 
-    if (candidates.length > 1) {
-      return noAction('abstain', 'semantic-ambiguity-visual-escalation-not-promoted', {
+    if (semantic.status === 'blocked') {
+      return noAction('abstain', semantic.reason, {
         source: 'semantic', semanticCandidateCount: candidates.length
       });
     }
