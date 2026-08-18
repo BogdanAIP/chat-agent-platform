@@ -1,12 +1,17 @@
 # Architecture
 
+## Repository-state rule
+
+Resolve live `main` from GitHub before new work. Documentation milestones can move `main` without changing the accepted runtime/code baseline, so do not treat an embedded docs SHA as permanently current.
+
+Stable milestones:
+
+- accepted Stage 25.2 runtime/code merge: `2a410476ef849fd6d9c172703a004b1befcbcfb1` (#77);
+- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` (#78).
+
 ## Product boundary
 
 `chat-agent-platform` is a thin Windows companion that lets ordinary ChatGPT use scoped local capabilities. Ordinary ChatGPT remains the only planner/orchestrator. Local components may provide deterministic execution, bounded specialist inference and non-agentic procedural memory; they must not become a second agent brain.
-
-Current accepted `main` after Stage 25.2:
-
-`2a410476ef849fd6d9c172703a004b1befcbcfb1`.
 
 ## Accepted ordinary-Chat path
 
@@ -43,17 +48,15 @@ web_interact
 - become a general process supervisor/model manager;
 - hide new desktop/workflow consequence classes behind misleading existing schemas merely to avoid adding a truthful capability later.
 
-## Capability lifecycle
+## Capability and skill lifecycle
 
-Use independent capability states:
+Capability state:
 
 ```text
 AVAILABLE -> ACTIVE -> AUTHORIZED
 ```
 
-A backend/model may exist on disk without running. Start it only when a task needs it. Concurrent backends are allowed when a real workflow requires them, but idle heavyweight processes should not remain loaded without measured need.
-
-Procedural-memory trust is separate from capability lifecycle:
+Procedural-memory trust is separate:
 
 ```text
 CANDIDATE -> VERIFIED -> PROMOTED
@@ -61,13 +64,11 @@ CANDIDATE -> VERIFIED -> PROMOTED
      +-------> STALE / DISABLED
 ```
 
-A stored skill being promoted does not itself authorize every action it mentions; normal capability authorization still applies at execution time.
+A promoted skill is trusted procedural guidance; it does not itself authorize every action it mentions.
 
 ## Browser grounding architecture — Stage 25.2 accepted
 
 Deterministic semantic DOM/accessibility grounding is preferred whenever reliable structure exists.
-
-Accepted Stage 25.2 behavior:
 
 ```text
 web_interact(click)
@@ -86,7 +87,7 @@ web_interact(click)
             -> one coordinate action OR ABSTAIN
 ```
 
-This supersedes the earlier Stage 25.1 design wording that treated semantic ambiguity as a possible vision-escalation case. **Current accepted policy does not visually escalate unresolved semantic ambiguity.** Generic semantic click failures also do not invoke vision.
+This supersedes earlier Stage 25.1 wording that treated semantic ambiguity as a possible vision-escalation case. Current accepted policy does not visually escalate unresolved semantic ambiguity. Generic semantic click failures also do not invoke vision.
 
 ### Same-session invariants
 
@@ -114,11 +115,11 @@ CPU = 8 threads
 ctx = 2048
 ```
 
-The model is bounded perception. It never plans the user's workflow and never clicks by itself. Product code keeps runtime/model identity replaceable behind provider-neutral/focused interfaces.
+The model is bounded perception. It never plans the user's workflow and never clicks by itself. Product code keeps runtime/model identity replaceable behind focused interfaces.
 
-Final Stage 25.2 public target gate proved semantic-first routing, one real F16 visual hit, correct ABSTAIN cases, zero false clicks/errors and deterministic runtime cleanup.
+## Procedural-memory architecture — Stage 26 active design
 
-## Procedural-memory architecture — Stage 26 design
+Stage 26.0 analysis/context contract is complete via PR #78. Stage 26.1 is next.
 
 Procedural memory is a local **memory/state substrate**, not an agent.
 
@@ -140,11 +141,9 @@ procedural-memory substrate
 accepted capability layer
 ```
 
-Detailed active contract: `STAGE26_PROCEDURAL_MEMORY.md`.
+Detailed contract: `STAGE26_PROCEDURAL_MEMORY.md`.
 
 ### Raw evidence vs compiled skill
-
-Never treat a recorded low-level action sequence as the reusable procedure.
 
 ```text
 raw trajectory
@@ -163,9 +162,7 @@ compiled skill
   evidence statistics
 ```
 
-Compiled skills must not contain actionable replay coordinates.
-
-Do not persist private chain-of-thought. Procedural memory stores structured/user-visible intent summaries and operational evidence only.
+Compiled skills must not contain actionable replay coordinates. Do not persist private chain-of-thought.
 
 ### Current-state priority
 
@@ -196,8 +193,6 @@ Retrieval and workflow progress are non-authorizing. Every actual capability act
 
 Stage 26.3 introduces a scoped Windows desktop surface. This is intentionally separate from browser Playwright and must not be forgotten.
 
-Preferred layering:
-
 ```text
 Windows task
   -> native/deterministic UI observation where available
@@ -209,13 +204,13 @@ Windows task
 
 Concrete local programs/capabilities are selected from real tasks and evidence when this stage is benchmarked; architecture does not preselect a fixed list.
 
-True arbitrary human demonstration capture should be built at or after this desktop surface exists, because the current browser semantic bridge does not observe arbitrary user interaction across Windows.
+True arbitrary human demonstration capture should be built at or after this desktop surface exists.
 
 ## Public contract decision after desktop surface
 
-Current five public tool names are an accepted **current contract**, not a dogmatic permanent limit.
+Current five public tool names are an accepted current contract, not a dogmatic permanent limit.
 
-Only after the Windows desktop surface exists, make an explicit ADR and ordinary-Chat acceptance decision between:
+Only after Windows desktop surface exists, make an explicit ADR and ordinary-Chat acceptance decision between:
 
 - preserving the existing small semantic philosophy with a few coarse truthful capabilities; or
 - adding a small number of new public tool names if required for truthful semantics/safety.
@@ -228,12 +223,11 @@ Do not add a generic opaque workflow dispatcher, and do not overload current too
 - normal semantic transport is direct stdio;
 - secrets live outside repository content and tunnel keys use Windows DPAPI;
 - Filesystem roots and browser capability exposure remain explicitly scoped;
-- raw unrestricted browser execution/network/file-upload surfaces stay out of ordinary Chat;
-- local inference remains loopback/focused and does not expose arbitrary endpoint/model/prompt control;
+- local inference remains bounded and non-authorizing;
 - workspace containment accounts for Windows links/junctions;
 - browser DNS/rebinding/redirect isolation remains an explicit residual boundary;
 - child backends must not inherit tunnel credentials unless required;
-- procedural-memory storage requires redaction/retention rules before long-term storage of screenshots/sensitive observations;
+- procedural-memory storage requires redaction/retention rules before long-term screenshot/sensitive observation storage;
 - private chain-of-thought must never be written into skills;
 - stale/malformed/incompatible skills fail closed and can be disabled deterministically.
 
@@ -243,9 +237,9 @@ The public manager/tray owns lifecycle/configuration/diagnostics only. It does n
 
 ## Testing direction
 
-Stage 25.2 browser semantic→vision integration is already accepted; do not describe it as the next gate.
+Stage 25.2 browser semantic→vision integration is accepted; do not describe it as the next gate.
 
-Stage 26 gates now focus on:
+Stage 26 gates focus on:
 
 1. raw/compiled procedural schemas and redaction;
 2. coordinate-free candidate skill generation;

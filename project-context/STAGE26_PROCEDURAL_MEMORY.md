@@ -2,13 +2,13 @@
 
 Status: **ACTIVE DESIGN / NOT PRODUCT-ACCEPTED YET**
 
-This document is the authoritative design contract for the next stage after merged Stage 25.2. It does not declare a working end-user teach-by-demonstration feature.
+Stage 26.0 (upstream analysis + authoritative contract/context synchronization) is **DONE** through PR #78. The next implementation step is **Stage 26.1 — Procedural data foundation**.
+
+This document is the authoritative design contract for the stage after merged Stage 25.2. It does not declare a working end-user teach-by-demonstration feature.
 
 ## Goal
 
 Let ordinary ChatGPT reuse previously successful procedures without adding a second planner or turning local execution into blind macro replay.
-
-The intended product behavior is:
 
 ```text
 current user task
@@ -27,7 +27,7 @@ A stored procedure is advice and evidence, not an autonomous agent and not autho
 
 Technical analysis was performed against public `Tencent/UI-Mate` main commit:
 
-`d2b2e0aede83eeacfb1bc86f66503acbc4a6738a` (2026-08-18)
+`d2b2e0aede83eeacfb1bc86f66503acbc4a6738a` (2026-08-18).
 
 License: Apache-2.0 for UI Mate inference-enabling code/parameters/weights, with third-party components retaining their original terms.
 
@@ -54,7 +54,7 @@ WorkflowPlan
        key_steps
 ```
 
-For each step it renders three compact guidance blocks:
+For each step it renders:
 
 ```text
 <workflow_progress>
@@ -64,20 +64,22 @@ For each step it renders three compact guidance blocks:
 
 The workflow pointer advances when the model reports `subtask_complete`. Recorded coordinates are not replayed by `DemoWorkflow`.
 
-`agents/ui_mate_agent.py` layers `DemoWorkflow` over the normal GUI-agent loop rather than replacing the whole agent implementation. The dedicated DemoCUA checkpoint was trained to use this guidance; this learned checkpoint behavior is not required in our architecture because ordinary ChatGPT remains the workflow interpreter/planner.
+`agents/ui_mate_agent.py` layers `DemoWorkflow` over the normal GUI-agent loop. The dedicated DemoCUA checkpoint was trained to use this guidance; that learned checkpoint behavior is not required in our architecture because ordinary ChatGPT remains the workflow interpreter/planner.
 
-The supplied `trajectory_captioned.json` is a rich raw/annotated trajectory, not the compact runtime plan. It includes observation, planner, executor, validation and grounding layers. The example also demonstrates why annotations must not be trusted blindly: one early step says a click intended to open Terminal actually opened Files, while the stored `step_correctness.is_correct` is still `true`.
+The supplied `trajectory_captioned.json` is a rich raw/annotated trajectory, not the compact runtime plan. It includes observation, planner, executor, validation and grounding layers. The example demonstrates why annotations must not be trusted blindly: an early step says a click intended to open Terminal actually opened Files, while stored `step_correctness.is_correct` remains `true`.
 
-The public repository snapshot contains the inference/runtime layer, examples and prepared resources. It does **not** expose a complete production recorder + raw-recording-to-`trajectory_captioned.json` compiler pipeline as a reusable public library. We therefore need our own recorder/compiler boundary.
+The bundled `examples/run_agent.py` is an inference/inspection runner: it passes `--demo` into `UIMateAgent`, predicts actions against screenshots/recorded trajectories, compares/plots predicted coordinates and maintains history. It is not a complete production desktop recorder/executor.
+
+The public repository snapshot contains inference/runtime code, examples and prepared resources. It does **not** expose a complete production recorder + raw-recording-to-`trajectory_captioned.json` compiler pipeline as a reusable public library. We therefore need our own recorder/compiler boundary.
 
 ## What we adopt
 
 1. **Separate raw trajectory from compiled skill.**
 2. **Store goals, completion criteria and useful milestones rather than replay coordinates.**
 3. **Keep current state authoritative over remembered procedure.**
-4. **Present only the current subtask plus compact progress, not an ever-growing raw trace.**
+4. **Present only current subtask plus compact progress, not an ever-growing raw trace.**
 5. **Use explicit subtask completion semantics.**
-6. **Keep the workflow runtime small, inspectable and non-agentic.**
+6. **Keep workflow runtime small, inspectable and non-agentic.**
 7. **Treat prior successful runs as procedural evidence that can reduce exploration.**
 
 ## What we do not adopt
@@ -164,21 +166,19 @@ compatibility metadata
 
 ## Trust lifecycle
 
-Skills need an evidence lifecycle separate from runtime activation:
-
 ```text
 CANDIDATE -> VERIFIED -> PROMOTED
      |          |          |
      +-------> STALE / DISABLED
 ```
 
-A single successful trajectory may create a candidate. It must not silently become a trusted reusable skill. Promotion requires an explicit acceptance rule, including successful re-application and completion verification.
+A single successful trajectory may create a candidate. It must not silently become a trusted reusable skill. Promotion requires an explicit acceptance rule including successful re-application and completion verification.
 
-Skill success statistics are operational evidence; avoid invented model-confidence values as a substitute for measured outcomes.
+Use measured operational evidence rather than invented model-confidence values as a substitute for outcomes.
 
 ## Completion semantics
 
-ChatGPT may propose that a subtask is complete, but the local workflow pointer should advance only after the applicable completion verifier returns a supported result.
+ChatGPT may propose that a subtask is complete, but the local workflow pointer advances only after the applicable completion verifier returns a supported result.
 
 ```text
 ChatGPT proposes completion
@@ -188,11 +188,9 @@ ChatGPT proposes completion
        UNKNOWN -> observe again / ABSTAIN / request user input as appropriate
 ```
 
-For browser work, examples include URL/state/accessibility evidence. For file work, examples include existence, path scope, type/hash/size or content predicates. Future desktop criteria should prefer native observable state when available and use vision only as bounded evidence.
+For browser work, verification may use URL/state/accessibility evidence. For file work, it may use existence, path scope, type/hash/size or content predicates. Future desktop criteria should prefer native observable state where available and use vision only as bounded evidence.
 
 ## Current-state priority
-
-The execution priority is:
 
 ```text
 current observed state
@@ -205,15 +203,25 @@ A remembered procedure must be abandoned or adapted when it conflicts with curre
 
 ## Stage 26 implementation order
 
-### 26.0 — Upstream analysis and contract — THIS DOCUMENT
+### 26.0 — Upstream analysis and authoritative contract/context sync — DONE
 
-Pin the upstream reference, define what is adopted/rejected, and synchronize continuation docs.
+Completed in PR #78, documentation milestone:
 
-### 26.1 — Procedural data foundation
+`04dccfd30eb06a82899e2771f6d53ab4c8387128`.
 
-Implement raw trajectory schema, redaction/retention policy, compiled skill schema, versioned local skill store and deterministic parser/validator. No public Chat tool changes.
+Result:
 
-### 26.2 — Demo compiler + verifier + self-demo dogfood
+- official upstream pinned and technically reviewed;
+- adopt/reject boundary documented;
+- stale cross-chat source-of-truth files synchronized after Stage 25.2;
+- procedural memory separated from planner/authorization;
+- Windows desktop surface and later public-contract decision made explicit.
+
+### 26.1 — Procedural data foundation — NEXT
+
+Implement raw trajectory schema, redaction/retention/deletion policy, compiled skill schema, versioned local skill store and deterministic parser/validator. No public Chat tool-name changes.
+
+### 26.2 — Demo Compiler + verifier + self-demo dogfood
 
 Compile successful existing semantic/browser trajectories into candidate skills, then prove that the stored skill is coordinate-free, current-state-first and fail-closed. Start with Chat-executed/self-demo trajectories because the current platform can observe those actions exactly.
 
@@ -221,7 +229,7 @@ Acceptance must include a related-but-changed case, not only replay of the ident
 
 ### 26.3 — Windows desktop surface — EXPLICIT PLANNED STAGE
 
-Do not lose this stage.
+**Do not lose this stage.**
 
 Design a scoped Windows desktop capability layer using the best deterministic/native observation available first, with screen capture and bounded visual grounding only where needed. Keyboard/mouse actuation must remain reviewed and fail closed.
 
@@ -239,7 +247,7 @@ Only after the Windows desktop surface exists, make an explicit ADR deciding whe
 
 Until that decision:
 
-- the accepted public tool names remain exactly five;
+- accepted public tool names remain exactly five;
 - do not hide workflow CRUD/execution behind misleading existing tool semantics;
 - do not add a generic opaque `workflow_execute`/`tool_invoke` equivalent by default;
 - Stage 26 foundations may remain internal/tested infrastructure until there is a truthful Chat-facing boundary.
@@ -274,3 +282,7 @@ web_interact
 ```
 
 This is the current contract, not a promise that the product can never evolve. Any future change requires its own architecture decision, exact schema review and ordinary-Chat acceptance. The explicit decision point is after the Windows desktop surface is available.
+
+## Repository-state continuation rule
+
+The stage milestones above are stable historical acceptance references. They are **not** a substitute for resolving live `main` before new work. Documentation merges can move `main` without changing the accepted runtime/code baseline.

@@ -28,11 +28,21 @@ When documents disagree:
 
 Do not revive an older design merely because it remains in Git history.
 
-## Current accepted line
+## Resolve live repository state first
 
-Current `main` after Stage 25.2:
+Do not hard-code a documentation merge SHA as “current main”: the act of merging documentation immediately makes such a line stale.
+
+Before any new work, resolve live `main` from GitHub and record it in the working branch/PR/handoff evidence.
+
+Accepted Stage 25.2 **runtime/code baseline** is:
 
 `2a410476ef849fd6d9c172703a004b1befcbcfb1` — `Stage 25.2: semantic-first internal vision escalation (#77)`.
+
+Stage 26 documentation/context activation was merged in PR #78 as:
+
+`04dccfd30eb06a82899e2771f6d53ab4c8387128` — `Docs: activate Stage 26 procedural memory (#78)`.
+
+Later docs/code commits may legitimately make live `main` newer than either historical baseline; always resolve the actual branch before editing.
 
 Public semantic tools remain exactly:
 
@@ -81,14 +91,17 @@ Final real target result: 2 semantic HIT, 1 real-F16 visual HIT, 2 correct ABSTA
 
 The next stage is Procedural Memory / Demo2Workflow, based on an upstream technical analysis of `Tencent/UI-Mate` pinned in `STAGE26_PROCEDURAL_MEMORY.md`.
 
+Stage 26.0 (upstream analysis + authoritative contract/context synchronization) is complete via PR #78. The next implementation step is Stage 26.1 — procedural data foundation.
+
 Do not turn this into a second GUI agent. Implement a small local substrate for trajectory recording, workflow compilation, skill storage/versioning, retrieval evidence, workflow progress and completion verification while ChatGPT remains the planner.
 
 Specific local programs/capabilities are selected later from actual tasks and evidence; do not hard-code a future application list into architecture.
 
-**Windows desktop surface is an explicit planned Stage 26.x item and must not be forgotten.** Only after that surface exists should the project decide, via a separate ADR and ordinary-Chat acceptance, whether the public contract needs new tool names or can preserve the same small-semantic-surface philosophy.
+**Windows desktop surface is an explicit planned Stage 26.3 item and must not be forgotten.** Only after that surface exists should the project decide, via a separate ADR and ordinary-Chat acceptance, whether the public contract needs new tool names or can preserve the same small-semantic-surface philosophy.
 
 ## Development workflow
 
+- resolve live `main` before branching/editing; do not trust a stale embedded SHA;
 - inspect actual repository/PR/CI state before editing;
 - create stage branches from exact current `main`;
 - keep `main` as integration line, not scratch;

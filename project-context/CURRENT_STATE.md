@@ -1,8 +1,15 @@
 # Current State
 
-## Current accepted `main`
+## Resolve live repository state before editing
 
-`2a410476ef849fd6d9c172703a004b1befcbcfb1` — `Stage 25.2: semantic-first internal vision escalation (#77)`.
+Do not treat an embedded documentation merge SHA as permanently current. Resolve live `main` from GitHub before branching or editing.
+
+Stable accepted milestones:
+
+- Stage 25.2 runtime/code merge: `2a410476ef849fd6d9c172703a004b1befcbcfb1` (#77);
+- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` (#78).
+
+Live `main` may be newer than either milestone because of later code/docs integration.
 
 The accepted ordinary-Chat path is:
 
@@ -15,7 +22,7 @@ ordinary ChatGPT Chat
   -> focused task-active backends/adapters
 ```
 
-Current public Chat-facing tools remain exactly:
+Current public Chat-facing tool names remain exactly:
 
 ```text
 workspace_read
@@ -27,15 +34,15 @@ web_interact
 
 1MCP remains internal diagnostic/adaptive/aggregation infrastructure. Ordinary ChatGPT remains the only planner/intelligence.
 
-## Stage 24 / 24.1 — ACCEPTED
+## Accepted foundation through Stage 25.2
 
-Stage 24 accepted the five-tool semantic surface and Windows lifecycle. Stage 24.1 selected direct stdio semantic tunnel binding as the normal public path while retaining 1MCP internally where its lifecycle/diagnostic features add value.
+### Stage 24 / 24.1
 
-## Stage 25 — grounding baseline ACCEPTED
+Five-tool semantic surface, Windows lifecycle and direct stdio semantic tunnel are accepted product foundations.
 
-PR #73 was squash-merged as `acc6334ef0114d3ca6b6a243d904605cd00a321a`.
+### Stage 25 — local grounding baseline
 
-Accepted target baseline:
+Accepted target configuration:
 
 ```text
 llama.cpp = b10448 / commit ad1de39e0
@@ -47,22 +54,19 @@ present-target hits = 3/5
 false clicks = 0
 ```
 
-Repeated-row and tiny target classes remain deliberately unpromoted. Do not describe the safety gate as universal visual accuracy.
+Repeated-row and tiny target classes remain deliberately unpromoted.
 
-## Stage 25.1 — same-session visual foundation ACCEPTED
-
-PR #74 was squash-merged as `bbf490778a4d883bc54aa58a1d14e8779b7a5c94`.
+### Stage 25.1 — same-session visual foundation
 
 Accepted foundations include:
 
 - same Playwright page/session screenshot -> prepared target -> freshness -> coordinate action or ABSTAIN;
 - stale/replay/layout/scroll/overlay/navigation uncertainty fails closed;
-- prepared visual targets are TTL-purged/capped;
 - focused llama.cpp lifecycle owner and deterministic unload;
 - PID-bound loopback listener verification before inference;
 - class-aware visual authorization;
-- secure installed semantic runtime and lock-hash-enforced `npm ci`;
-- Windows junction containment, credential scrub, bounded literal-IP browser policy and CodeQL coverage.
+- secure installed semantic runtime and lock-hash-enforced dependency installation;
+- Windows junction containment, credential scrub, bounded literal-IP browser policy and security regressions.
 
 Reviewed RAM policy:
 
@@ -74,9 +78,9 @@ min_run_virtual_gb = 1.5
 target emergency cutoff = 0.30 GB
 ```
 
-## Stage 25.2 — MERGED AND ACCEPTED
+### Stage 25.2 — MERGED AND ACCEPTED
 
-PR #77 was squash-merged to current `main` as:
+PR #77 was squash-merged as runtime/code milestone:
 
 `2a410476ef849fd6d9c172703a004b1befcbcfb1`.
 
@@ -84,9 +88,7 @@ Final target-tested production-code HEAD:
 
 `41ef3f4032ae9169d940b3a04e5bdfe75170ca85`.
 
-### Accepted routing contract
-
-For `web_interact(operation=click)` with bounded `visualFallback` intent:
+Accepted `web_interact(click)` routing:
 
 ```text
 fresh accessibility snapshot
@@ -108,18 +110,15 @@ fresh accessibility snapshot
        -> one coordinate click OR ABSTAIN
 ```
 
-Generic semantic click failures never trigger vision.
-
 Authorization rules:
 
 - `targetText` is the semantic and visual authorization anchor;
 - planner-supplied target `kind` is not accepted;
 - planner `target` and free-form `instruction` cannot redirect visual grounding;
-- the router builds canonical visual instruction locally from `targetText`;
-- safe ABSTAIN is a successful no-action result, not a disguised backend error;
+- generic semantic click failures never trigger vision;
 - icon-only, repeated-row and tiny targets are not automatically promoted.
 
-Final real target evidence with normal Chrome workload left open:
+Final real target evidence with normal Chrome workload open:
 
 ```text
 semantic_hits = 2
@@ -134,25 +133,25 @@ Doctor virtual free RAM = 8.129 GB
 minimum observed free physical RAM = 1.04 GB
 SAFETY_STOP = false
 VISION_RUNTIME_RUNNING_AFTER_TEST = false
-VISION_RUNTIME_STATE_AFTER_TEST = stopped
 CHROME_RUNNING_AFTER_TEST = true
 TEST_EXIT_CODE = 0
-STAGE25_2_FINAL_REVIEW_RESULT = PASSED
 ```
 
-Result path:
+## Stage 26 — Procedural Memory / Demo2Workflow — ACTIVE DESIGN
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage25\runtime\stage25-2-public-escalation-20260818-161812\result.json`
+Stage 26 architecture/context activation was merged in PR #78 as milestone:
 
-## Active priority — Stage 26 Procedural Memory / Demo2Workflow
+`04dccfd30eb06a82899e2771f6d53ab4c8387128`.
 
-Stage 26 is **design-active, not product-accepted**. Read `project-context/STAGE26_PROCEDURAL_MEMORY.md` before implementation.
+Stage 26.0 — upstream analysis + contract/context synchronization — is **DONE**.
 
-The technical reference is official `Tencent/UI-Mate`, pinned during analysis to upstream commit:
+Next implementation step: **Stage 26.1 — procedural data foundation**.
+
+Technical reference: official `Tencent/UI-Mate`, pinned during analysis to upstream commit:
 
 `d2b2e0aede83eeacfb1bc86f66503acbc4a6738a`.
 
-We are not adopting UI-Mate as a second GUI agent or adding a large local planner. We adopt the procedural-memory pattern:
+We do not adopt UI-Mate as a second GUI agent or large local planner. We adopt the procedural-memory pattern:
 
 ```text
 successful trajectory
@@ -165,49 +164,85 @@ successful trajectory
   -> evidence-based promotion / stale / disable
 ```
 
-Important Stage 26 rules:
+Stage 26 rules:
 
 - stored workflows are guidance/evidence, not authorization and not planners;
 - do not persist private chain-of-thought;
 - one successful run creates at most a candidate skill;
-- completion pointer advances only on applicable verifier evidence, not merely because a model says `subtask_complete`;
+- completion pointer advances only on applicable verifier evidence;
 - retrieval may rank candidate skills but cannot authorize an action;
 - current observed state outranks remembered milestones/action history;
 - specific local programs/capabilities are selected later from actual tasks and evidence, not preselected in the roadmap.
 
-## Explicit planned Stage 26.x — Windows desktop surface
+## Stage 26.1 — NEXT
 
-**Do not omit or forget this layer.**
+Implement the procedural data foundation:
 
-After the procedural data/compiler foundation, build a scoped Windows desktop capability surface with deterministic/native observation first, screen capture and bounded vision where needed, reviewed keyboard/mouse execution and fail-closed authorization.
+- raw trajectory schema;
+- redaction/retention/deletion policy;
+- compiled coordinate-free skill schema;
+- versioned local skill store;
+- deterministic parser/validator;
+- candidate/verified/promoted/stale/disabled lifecycle.
 
-True arbitrary human “show me once” recording belongs at or after this layer, because the current browser semantic bridge observes its own controlled actions but does not yet provide a general Windows demonstration recorder.
+No public Chat tool-name change in this step.
 
-Only after the Windows desktop surface exists should the project make an explicit ADR deciding whether ordinary Chat needs new public tool names or whether the current small-semantic-surface philosophy can continue with a few coarse truthful actions.
+## Stage 26.2 — after 26.1
 
-Until then the accepted public tool names remain the same five.
+Demo Compiler + verifier + self-demo dogfood using successful controlled Chat/tool-driven trajectories. Acceptance must include a related changed/variant case, not only identical replay.
+
+## Stage 26.3 — Windows desktop surface — REQUIRED / DO NOT DROP
+
+This is an explicit planned capability boundary:
+
+```text
+native/deterministic UI observation first
+  -> screen capture where needed
+  -> bounded visual grounding where needed
+  -> reviewed keyboard/mouse action
+  -> verification / ABSTAIN
+```
+
+True arbitrary human “show me once” recording belongs at or after this layer because the current browser semantic bridge observes controlled tool actions rather than arbitrary Windows user interaction.
+
+Concrete local programs/capabilities are chosen later from real tasks and evidence.
+
+## Stage 26.4 — human demonstration capture
+
+After desktop observation/actuation exists, record a real user demonstration, compile it into a coordinate-free candidate, verify it and re-apply it to a related changed task/state.
+
+## Stage 26.5 — public contract decision
+
+Only after Windows desktop surface exists, make a separate ADR + ordinary-Chat acceptance decision whether:
+
+- the existing small-semantic-surface philosophy can continue; or
+- a small number of new truthful public tool names is required.
+
+Until then the accepted public tool names remain the current five.
+
+Do not overload existing tools or add a generic opaque workflow dispatcher merely to preserve a tool count.
 
 ## Remaining product work
 
-- Stage 26.1 procedural data foundation: raw trajectory/redaction/retention, compiled skill schema, versioning/store/validation;
-- Stage 26.2 Demo Compiler + completion verifier + self-demo/variant-task acceptance;
+- Stage 26.1 procedural data foundation;
+- Stage 26.2 compiler/verifier/self-demo acceptance;
 - Stage 26.3 Windows desktop surface;
-- Stage 26.4 human demonstration capture + transferable skill acceptance;
-- Stage 26.5 explicit public contract decision;
+- Stage 26.4 human demonstration capture and transfer;
+- Stage 26.5 public contract decision;
 - stronger DNS/redirect/private-network boundary decision;
 - release-grade Python/model artifact reproducibility;
-- dependency cleanup for deprecated transitive `glob@10.5.0`;
+- deprecated transitive dependency cleanup;
 - Stage 27 installer/update/repair/doctor/uninstall/key rotation/rollback/restart recovery;
-- Stage 28 clean-user end-to-end product acceptance and first stable release.
+- Stage 28 clean-user product E2E and first stable release.
 
 ## Active rules
 
+- resolve live `main` before work;
 - ChatGPT is the only planner/intelligence;
 - semantic/native structure comes before vision whenever reliable structure exists;
 - local vision starts only on explicitly authorized paths and may ABSTAIN;
 - stale or uncertain visual evidence causes zero mutation;
 - remembered procedure never overrides current observed state;
 - procedural memory stores structured evidence, not private reasoning;
-- public semantic surface remains exactly five tools until the explicit post-desktop contract decision;
-- heavy local vision starts only when admitted/needed and unloads deterministically;
+- public semantic surface remains exactly five tool names until the explicit post-desktop contract decision;
 - accepted implementation evidence and authoritative documentation move together.
