@@ -66,6 +66,8 @@ class Stage26OpenAdaptWindowsExecutorQualificationTests(unittest.TestCase):
         self.assertIn('WinError 10053', helper)
         self.assertIn('unauthorized = _post_empty(', self.driver)
         self.assertIn('legacy = _post_empty(', self.driver)
+        # The disabled legacy route is proven by routing status alone. Do not
+        # send a command body to a path rejected before body parsing.
         self.assertNotIn("THIS MUST NEVER EXECUTE", self.driver)
 
     def test_negative_guard_probes_are_non_mutating(self):
