@@ -24,6 +24,10 @@ function normalizedName(value) {
   return String(value).replace(/\s+/g, ' ').trim().toLocaleLowerCase('en-US');
 }
 
+function canonicalLabeledButtonInstruction(targetText) {
+  return `Click the visible button whose text label exactly matches ${JSON.stringify(targetText)}.`;
+}
+
 function normalizeFallbackIntent(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('visualFallback must be one object');
@@ -33,14 +37,17 @@ function normalizeFallbackIntent(value) {
     if (!allowed.has(key)) throw new Error(`visualFallback contains unsupported field: ${key}`);
   }
   const targetText = normalizeRequiredText(value.targetText, 'visualFallback.targetText', MAX_TARGET_TEXT);
-  const instruction = normalizeRequiredText(value.instruction, 'visualFallback.instruction', MAX_INSTRUCTION);
+  // Keep the existing public field bounded for compatibility, but never use
+  // planner-provided instruction text as visual authorization. The actual VLM
+  // instruction is derived locally from the exact targetText anchor below.
+  normalizeRequiredText(value.instruction, 'visualFallback.instruction', MAX_INSTRUCTION);
   if (value.semanticName !== undefined) {
     const semanticName = normalizeRequiredText(value.semanticName, 'visualFallback.semanticName', MAX_TARGET_TEXT);
     if (normalizedName(semanticName) !== normalizedName(targetText)) {
       throw new Error('visualFallback.semanticName must normalize exactly to targetText');
     }
   }
-  return { targetText, instruction };
+  return { targetText, instruction: canonicalLabeledButtonInstruction(targetText) };
 }
 
 function parseFirstQuotedText(line) {
@@ -127,7 +134,7 @@ export class SemanticVisionClickRouter {
     this.#bridge = new SameSessionVisualGroundingBridge({ client, grounder: effectiveGrounder, ttlMs });
   }
 
-  async click({ target = null, element = null, visualFallback } = {}) {
+  async click({ element = null, visualFallback } = {}) {
     const fallback = normalizeFallbackIntent(visualFallback);
     const snapshot = await this.#client.callTool({ name: 'browser_snapshot', arguments: {} });
     let candidates;
@@ -159,7 +166,7 @@ export class SemanticVisionClickRouter {
     }
 
     const prepared = await this.#bridge.prepare({
-      target: target ?? fallback.targetText,
+      target: fallback.targetText,
       instruction: fallback.instruction,
       kind: 'labeled_button',
       targetText: fallback.targetText
