@@ -55,6 +55,17 @@ if ([int]$lock.schema_version -ne 1) { throw 'Unsupported OpenAdapt lock schema.
 $flow = $lock.upstreams.openadapt_flow
 $requiredPython = [string]$lock.python.required_major_minor
 
+# Pinned Flow 1.31.0's win_agent imports these lazily at request time, but its
+# [windows] extra currently declares only requests + pywin32. A clean target
+# venv therefore needs the actual agent runtime substrate stated explicitly.
+# Keep these exact so the physical acceptance run is reproducible instead of
+# inheriting whatever happens to be installed globally on the operator host.
+$windowsRuntimePins = [ordered]@{
+    mss = '10.2.0'
+    pyautogui = '0.9.54'
+    uiautomation = '2.0.29'
+}
+
 $timestamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
 $runDir = Join-Path $OutputRoot "executor-$timestamp"
 $venvDir = Join-Path $runDir 'venv'
@@ -84,6 +95,13 @@ $result = [ordered]@{
     flow_installed_commit = $null
     flow_installed_version = $null
     flow_pin_pass = $false
+    windows_runtime_expected = [ordered]@{
+        mss = [string]$windowsRuntimePins.mss
+        pyautogui = [string]$windowsRuntimePins.pyautogui
+        uiautomation = [string]$windowsRuntimePins.uiautomation
+    }
+    windows_runtime_installed = $null
+    windows_runtime_pin_pass = $false
     driver_exit_code = $null
     driver_pass = $false
     driver_error = $null
@@ -142,6 +160,16 @@ try {
         '-m', 'pip', 'install', '--disable-pip-version-check', '--no-input', $flowSpec
     ) -Label 'Install pinned openadapt-flow[windows]'
 
+    $runtimeSpecs = @(
+        "mss==$($windowsRuntimePins.mss)",
+        "PyAutoGUI==$($windowsRuntimePins.pyautogui)",
+        "uiautomation==$($windowsRuntimePins.uiautomation)"
+    )
+    Invoke-Checked -FilePath $pythonExe -ArgumentList @(
+        '-m', 'pip', 'install', '--disable-pip-version-check', '--no-input',
+        $runtimeSpecs[0], $runtimeSpecs[1], $runtimeSpecs[2]
+    ) -Label 'Install pinned OpenAdapt Windows agent runtime dependencies'
+
     $pinProbe = @'
 import json
 from importlib import metadata
@@ -151,11 +179,16 @@ direct = json.loads(dist.read_text('direct_url.json') or '{}')
 print(json.dumps({
     'version': metadata.version('openadapt-flow'),
     'commit': (direct.get('vcs_info') or {}).get('commit_id'),
+    'windows_runtime': {
+        'mss': metadata.version('mss'),
+        'pyautogui': metadata.version('PyAutoGUI'),
+        'uiautomation': metadata.version('uiautomation'),
+    },
 }))
 '@
     Set-Content -LiteralPath $pinProbePath -Value $pinProbe -Encoding utf8
     $pinOutput = & $pythonExe $pinProbePath 2>&1
-    if ($LASTEXITCODE -ne 0) { throw 'Pinned OpenAdapt Flow direct_url probe failed.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Pinned OpenAdapt Flow direct_url/runtime dependency probe failed.' }
     $pin = (($pinOutput | Select-Object -Last 1) -as [string]) | ConvertFrom-Json
     $result.flow_installed_commit = [string]$pin.commit
     $result.flow_installed_version = [string]$pin.version
@@ -165,6 +198,20 @@ print(json.dumps({
     )
     if (-not $result.flow_pin_pass) {
         throw "Flow pin mismatch: $($result.flow_installed_version) / $($result.flow_installed_commit)"
+    }
+
+    $result.windows_runtime_installed = [ordered]@{
+        mss = [string]$pin.windows_runtime.mss
+        pyautogui = [string]$pin.windows_runtime.pyautogui
+        uiautomation = [string]$pin.windows_runtime.uiautomation
+    }
+    $result.windows_runtime_pin_pass = [bool](
+        $result.windows_runtime_installed.mss -eq [string]$windowsRuntimePins.mss -and
+        $result.windows_runtime_installed.pyautogui -eq [string]$windowsRuntimePins.pyautogui -and
+        $result.windows_runtime_installed.uiautomation -eq [string]$windowsRuntimePins.uiautomation
+    )
+    if (-not $result.windows_runtime_pin_pass) {
+        throw "Windows runtime dependency pin mismatch."
     }
 
     Write-Host ''
@@ -275,6 +322,20 @@ Write-Flag 'PYTHON_VERSION' $result.python_version
 Write-Flag 'FLOW_INSTALLED_COMMIT' $result.flow_installed_commit
 Write-Flag 'FLOW_INSTALLED_VERSION' $result.flow_installed_version
 Write-Flag 'FLOW_PIN_PASS' $result.flow_pin_pass
+Write-Flag 'WINDOWS_RUNTIME_EXPECTED_MSS' $result.windows_runtime_expected.mss
+Write-Flag 'WINDOWS_RUNTIME_EXPECTED_PYAUTOGUI' $result.windows_runtime_expected.pyautogui
+Write-Flag 'WINDOWS_RUNTIME_EXPECTED_UIAUTOMATION' $result.windows_runtime_expected.uiautomation
+if ($null -ne $result.windows_runtime_installed) {
+    Write-Flag 'WINDOWS_RUNTIME_INSTALLED_MSS' $result.windows_runtime_installed.mss
+    Write-Flag 'WINDOWS_RUNTIME_INSTALLED_PYAUTOGUI' $result.windows_runtime_installed.pyautogui
+    Write-Flag 'WINDOWS_RUNTIME_INSTALLED_UIAUTOMATION' $result.windows_runtime_installed.uiautomation
+}
+else {
+    Write-Flag 'WINDOWS_RUNTIME_INSTALLED_MSS' $null
+    Write-Flag 'WINDOWS_RUNTIME_INSTALLED_PYAUTOGUI' $null
+    Write-Flag 'WINDOWS_RUNTIME_INSTALLED_UIAUTOMATION' $null
+}
+Write-Flag 'WINDOWS_RUNTIME_PIN_PASS' $result.windows_runtime_pin_pass
 Write-Flag 'DRIVER_PASS' $result.driver_pass
 foreach ($name in @(
     'AGENT_LOOPBACK_PASS','AGENT_AUTH_REQUIRED_PASS','LEGACY_CAPABILITY_ABSENT_PASS',
@@ -301,6 +362,7 @@ Write-Flag 'ERROR' $result.error
 
 $accepted = [bool](
     $result.flow_pin_pass -and
+    $result.windows_runtime_pin_pass -and
     $result.driver_pass -and
     $result.chrome_survival_pass -and
     $result.fixture_cleanup_pass -and
