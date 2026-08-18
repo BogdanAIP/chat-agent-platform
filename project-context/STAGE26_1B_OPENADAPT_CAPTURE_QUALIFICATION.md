@@ -1,6 +1,6 @@
 # Stage 26.1B — Real bounded Windows Capture qualification
 
-Status: **DRAFT / TARGET RUN NOT YET ACCEPTED**
+Status: **DRAFT / FIRST REAL TARGET RUN CLASSIFIED AS HARNESS DEFECT / RERUN REQUIRED**
 
 Branch base resolved from live `main` after merged Stage 26.1A:
 
@@ -8,7 +8,7 @@ Branch base resolved from live `main` after merged Stage 26.1A:
 
 Stage 26.1A already proved exact-source OpenAdapt Flow/Capture installation and the model-free tutorial. Stage 26.1B asks a narrower new question:
 
-> Can pinned OpenAdapt Capture record a real physical-user interaction in one harmless Windows window, preserve correct raw Windows UIA/window evidence, convert it into Flow recording input and compile it according to the upstream window-scoped contract without touching unrelated user applications or invoking the still-unaccepted Windows executor?
+> Can pinned OpenAdapt Capture record a real physical-user interaction in one harmless Windows window, preserve correct raw Windows UIA/window evidence, convert it into a Flow recording under an explicit remote-client surface contract and compile it without touching unrelated user applications or invoking the still-unaccepted Windows executor?
 
 ## Product boundary
 
@@ -68,7 +68,7 @@ No actual work application is used.
 
 ## Qualification fixture
 
-One dedicated WinForms window is created with a unique per-run title and native accessibility names.
+One dedicated WinForms window is created with a unique per-run `Form.Text` title and native accessibility names.
 
 The controls remain disabled until OpenAdapt Recorder reports READY.
 
@@ -103,69 +103,143 @@ ffmpeg / ffprobe = exact lock-pinned OpenAdapt managed runtime
 
 The test preserves the raw capture, converted Flow recording and compiled bundle under one explicit local run directory for inspection. The temporary Python venv and managed FFmpeg runtime are removed after the run unless `-KeepEnvironment` is explicitly used.
 
-## Important upstream surface finding
+## Upstream surface and structural contract
 
-OpenAdapt Flow 1.31.0 deliberately treats **window-scoped Capture conversion** as a remote-display client-window contract and stamps:
+Pinned Flow 1.31.0 has two separate facts that Stage 26.1B must not conflate.
+
+### 1. Window-scoped Capture uses the remote-client pixel contract
+
+A window-scoped Capture session is represented in one window's pixel coordinate space. Flow's adapter records that window identity and the compiled workflow is expected to remain:
 
 ```text
 backend_hints.backend = rdp
 surface = rdp
 ```
 
-This is upstream behavior, not a project rewrite.
+Stage 26.1B must **not** force `target_surface="windows"` and must not claim native-Windows replay from this compiled bundle.
 
-Therefore Stage 26.1B must **not** force `target_surface="windows"`. Doing so would correctly fail because the explicit surface would contradict the converter's declared backend.
+### 2. Local UIA suppression is controlled by explicit replay substrate
 
-The qualification compiles the recording according to the upstream-declared `rdp` surface and records that fact.
+Pinned `openadapt_flow.desktop_record.record_desktop_capture()` calls the Capture adapter with structural inclusion controlled by `backend_kind`:
 
-Consequences:
+```text
+include_structural = backend_kind not in ("rdp", "citrix")
+```
 
-- PASS proves real Windows host capture + bounded window pixels + raw Windows UIA observation + Flow conversion/compiler compatibility;
-- PASS does **not** prove native-Windows replay from that privacy-friendly window-scoped bundle;
-- whether the project should adapt this window-scoped evidence into a native-Windows procedure is a later design/security decision;
-- native Windows executor acceptance remains Stage 26.1C / Stage 26.3 work.
+Therefore **window scope by itself is not the suppression switch**.
 
-Do not hide this limitation by rewriting metadata in the qualification harness.
+For the Stage 26.1B conversion we deliberately pass:
 
-## Important upstream structural-evidence finding
+```text
+backend_kind = rdp
+```
 
-Pinned OpenAdapt Capture can attach real Windows UIA observations to native actions. The qualification fixture is a local WinForms window specifically so this raw UIA path can be measured.
+This is not a claim that the WinForms fixture is remotely hosted. It is an explicit statement about the **converted bundle's replay substrate contract**: local Windows UIA must not be promoted into an RDP/client-window bundle. Raw Capture UIA is inspected independently before conversion acceptance.
 
-However, pinned Flow 1.31.0 deliberately does **not** promote local UIA observations when converting a window-scoped recording to its `rdp`/remote-client surface. Upstream's rationale is correct for the surface it models: local UIA in a remote-client window describes the local client shell, not the controls inside the remote session.
-
-For our local WinForms fixture this creates an important, honest distinction:
+The intended two-layer evidence is therefore:
 
 ```text
 raw OpenAdapt Capture
-  -> real Windows UIA for the WinForms fixture MUST be present
+  -> native Windows UIA MUST exist for the qualification-owned fixture
 
-window-scoped Flow conversion
+explicit RDP Flow conversion
+  -> structural_event_count = 0
+  -> compiled_structural_count = 0
   -> surface = rdp
-  -> local UIA structural locators MUST be suppressed by current upstream semantics
 ```
 
-Therefore Stage 26.1B must prove both sides independently:
+## Raw UIA containment contract
+
+OpenAdapt Capture's structural schema includes native identity fields beyond text labels:
+
+- `process.process_id`;
+- `process.process_name`;
+- `window.native_window_handle`;
+- `window.title`.
+
+The qualification must bind structural evidence to the **qualification-owned fixture process and captured HWND when those fields are available**.
+
+It must not classify an observation as foreign solely because a UIA title string differs from `Form.Text`. WinForms may expose `AccessibleName` as the top-level accessibility title.
+
+Containment therefore follows these rules:
+
+- explicit PID mismatch -> FAIL;
+- explicit captured-HWND mismatch -> FAIL;
+- matching owned PID and/or matching captured HWND, with no explicit mismatch -> contained;
+- no strong native identity at all -> not accepted as contained;
+- textual title remains diagnostic evidence, not the sole security boundary.
+
+The driver preserves per-observation PID/HWND/title diagnostics in `driver-result.json`.
+
+## First real target run — 2026-08-18
+
+The first physical Windows qualification was run against exact PR head:
+
+`2e0b3bf3205eb9ee36449f6674c30a9d6ed81520`
+
+The user sequence was independently confirmed by the fixture and by Capture/Flow:
 
 ```text
-raw_uia_evidence_pass = true
-foreign_structural_window_pass = true
-structural_event_count = 0
-compiled_structural_count = 0
-window_scoped_structural_suppression_pass = true
+FIXTURE_SEQUENCE_PASS=True
+REQUIRED_KINDS_PASS=True
+EXPECTED_TEXT_PASS=True
+EXPECTED_KEY_PASS=True
+VIDEO_EVIDENCE_PASS=True
+WINDOW_SCOPE_PASS=True
+FFMPEG_RUNTIME_PASS=True
+CHROME_SURVIVAL_PASS=True
+FIXTURE_CLEANUP_PASS=True
 ```
 
-This is **not** evidence that UIA recording failed. It is evidence that the current privacy-friendly window-scoped conversion path does not directly produce a native-Windows structural bundle.
+Raw Capture observed all required action classes, including click/type/key/scroll.
 
-That gap becomes explicit input to Stage 26.1C:
+The run failed for two harness assumptions:
 
-- either qualify/adapt a native Windows capture path that preserves UIA while maintaining acceptable privacy/scope;
-- or design a narrowly justified conversion/actuator boundary without falsifying upstream provenance.
+### Harness defect A — UIA title alias misclassified as foreign
 
-Do not patch Stage 26.1B by forcing structural locators into an `rdp` bundle.
+Observed:
+
+```text
+RAW_STRUCTURAL_ACTION_COUNT=9
+FOREIGN_STRUCTURAL_WINDOW_COUNT=9
+RAW_UIA_EVIDENCE_PASS=False
+```
+
+The recorded UIA top-level title was:
+
+```text
+Stage 26 capture qualification fixture
+```
+
+That string is the fixture's own WinForms `AccessibleName`, while the old driver compared it only to the unique `Form.Text` title. All nine observations were therefore incorrectly labelled foreign even though they came from the fixture.
+
+Correction: containment now uses native PID/HWND identity and records title only as diagnostic evidence.
+
+### Harness defect B — structural suppression was assumed from window scope alone
+
+Observed:
+
+```text
+STRUCTURAL_EVENT_COUNT=4
+COMPILED_STRUCTURAL_COUNT=4
+COMPILED_SURFACE=rdp
+SURFACE_CONTRACT_PASS=True
+WINDOW_SCOPED_STRUCTURAL_SUPPRESSION_PASS=False
+```
+
+Inspection of the exact pinned Flow source showed why: `record_desktop_capture()` suppresses structural evidence only when `backend_kind` is explicitly `rdp` or `citrix`. The old Stage 26.1B driver omitted `backend_kind`.
+
+Correction: Stage 26.1B now passes `backend_kind="rdp"` explicitly, preserving raw Windows UIA while requesting the intended UIA-free RDP conversion.
+
+### Classification of the first run
+
+The first run is retained as **valid real-target evidence of a harness defect**, not as operator failure and not as accepted Stage 26.1B qualification.
+
+It must not be converted to PASS retroactively. A new exact-head physical run is required after the corrections.
 
 ## Driver acceptance
 
-The real capture driver must prove all of these:
+The corrected real capture driver must prove all of these:
 
 ```text
 fixture_sequence_pass = true
@@ -200,11 +274,9 @@ CAPTURE_OK
 Enter
 ```
 
-Raw UIA acceptance requires real structural evidence from the fixture, not just pixel coordinates. Any structural window identity that is present must resolve to the unique fixture window; foreign structural window evidence fails the run.
+Raw UIA acceptance requires real structural evidence from the fixture and no explicit native identity mismatch with the qualification-owned fixture.
 
-Converted Flow structural evidence is expected to be empty on this exact **window-scoped `rdp` contract**, by upstream design. The test records this as a separate suppression PASS rather than incorrectly treating it as missing raw UIA.
-
-Window-scoped conversion itself also refuses out-of-window mouse actions instead of silently dropping/replaying them.
+Converted Flow structural evidence is required to be empty only because Stage 26.1B now invokes the explicit `rdp` conversion contract. It is not inferred merely from window scope.
 
 ## Replay boundary
 
@@ -254,7 +326,7 @@ driver-result.json
 result.json
 ```
 
-These artifacts should contain only the dedicated fixture and the test value `CAPTURE_OK` when the instructions are followed. They are still treated as local raw qualification evidence and are not synced automatically.
+These artifacts should contain only the dedicated fixture and the test value `CAPTURE_OK` when the instructions are followed. They are local raw qualification evidence and are not synced automatically.
 
 ## PASS / FAIL interpretation
 
@@ -264,28 +336,28 @@ PASS means:
 
 - pinned OpenAdapt Capture genuinely observed physical user input on the target Windows machine;
 - bounded window capture did not fall back to full-screen pixels;
-- raw Windows UIA evidence was captured for the WinForms fixture and no foreign structural window was observed;
+- raw Windows UIA evidence was captured for the qualification-owned WinForms fixture with no native identity mismatch;
 - expected event classes/text/key were represented;
-- the window-scoped Flow adapter intentionally suppressed local UIA under its current `rdp` semantics, exactly as upstream specifies;
-- Flow compiled the converted recording according to its own declared window-scoped surface contract;
+- explicit RDP conversion suppressed local UIA as required for that remote-client surface;
+- Flow compiled the converted recording according to its declared `rdp` surface contract;
 - raw artifacts stayed in the qualification directory;
 - normal Chrome survived;
 - the unaccepted Windows executor was not invoked.
 
-PASS therefore **does not** mean that a native-Windows structural replay path is solved. It qualifies the recorder and exposes the conversion-surface gap honestly.
+PASS therefore **does not** mean that a native-Windows structural replay path is solved. It qualifies the recorder and the safe conversion boundary honestly.
 
 ### FAIL
 
-A fail is valuable evidence. Do not patch around it by disabling raw UIA, widening capture to full desktop, injecting actions, forcing a false Windows surface, injecting structural locators into an `rdp` bundle or invoking the Windows executor.
+A fail is valuable evidence. Do not patch around it by disabling raw UIA, widening capture to full desktop, injecting actions, forcing a false Windows surface, inserting local structural locators into an `rdp` bundle or invoking the Windows executor.
 
 Classify the failure as one of:
 
 - Capture startup/video provision;
 - native input observation;
 - window scoping;
-- raw UIA structural evidence;
+- raw UIA structural evidence/identity;
 - Capture -> Flow conversion;
-- expected upstream structural suppression;
+- explicit RDP structural suppression;
 - compiler/surface contract;
 - cleanup/containment;
 - harness defect.
