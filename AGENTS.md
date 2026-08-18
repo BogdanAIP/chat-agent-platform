@@ -6,14 +6,15 @@ This repository is designed to be continued safely from a fresh ChatGPT or Codex
 
 1. `project-context/START_HERE.md`
 2. `project-context/CURRENT_STATE.md`
-3. `project-context/STAGE26_PROCEDURAL_MEMORY.md`
-4. `project-context/ARCHITECTURE.md`
-5. `project-context/DECISIONS.md`
-6. `project-context/ROADMAP.md`
-7. `project-context/KNOWN_ISSUES.md`
-8. `project-context/DEVELOPMENT_PRINCIPLES.md`
+3. `project-context/STAGE26_1A_OPENADAPT_QUALIFICATION.md`
+4. `project-context/STAGE26_PROCEDURAL_MEMORY.md`
+5. `project-context/ARCHITECTURE.md`
+6. `project-context/DECISIONS.md`
+7. `project-context/ROADMAP.md`
+8. `project-context/KNOWN_ISSUES.md`
+9. `project-context/DEVELOPMENT_PRINCIPLES.md`
 
-Stage 25/25.1 research and handoff documents remain useful historical evidence, but they are no longer the active continuation contract. In particular, `ACTIVE_VISUAL_GROUNDING.md`, `LOCAL_SPECIALIST_INFERENCE.md`, `STAGE25_TARGET_BENCHMARKS.md`, `STAGE25_CHAT_HANDOFF_2026-08-17.md` and `STAGE25_1_VISION_INTEGRATION.md` must not override the merged Stage 25.2 state or Stage 26 plan.
+Stage 25/25.1 research and handoff documents remain useful historical evidence, but they are no longer the active continuation contract. Do not revive an older design merely because it remains in Git history.
 
 ## Source-of-truth order
 
@@ -21,28 +22,22 @@ When documents disagree:
 
 1. current code, tests and exact current CI/target evidence;
 2. `START_HERE.md` and `CURRENT_STATE.md`;
-3. the active stage contract `STAGE26_PROCEDURAL_MEMORY.md`;
+3. `STAGE26_1A_OPENADAPT_QUALIFICATION.md` and `STAGE26_PROCEDURAL_MEMORY.md`;
 4. `ARCHITECTURE.md`, `DECISIONS.md`, `ROADMAP.md`, `KNOWN_ISSUES.md`;
 5. `DEVELOPMENT_PRINCIPLES.md` and current capability contracts;
 6. historical research/handoff documents and older README revisions.
 
-Do not revive an older design merely because it remains in Git history.
-
 ## Resolve live repository state first
 
-Do not hard-code a documentation merge SHA as “current main”: the act of merging documentation immediately makes such a line stale.
+Do not hard-code a documentation merge SHA as “current main”. Before any new work, resolve live `main` from GitHub and record it in the branch/PR/handoff evidence.
 
-Before any new work, resolve live `main` from GitHub and record it in the working branch/PR/handoff evidence.
+Stable milestones:
 
-Accepted Stage 25.2 **runtime/code baseline** is:
+- Stage 25.2 runtime/code baseline: `2a410476ef849fd6d9c172703a004b1befcbcfb1` — PR #77;
+- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` — PR #78;
+- Stage 26.1A target-tested qualification code: `f8e8f606db845821b8fa24c09f9032015fb0e79e` — PR #80 branch before docs-only descendants.
 
-`2a410476ef849fd6d9c172703a004b1befcbcfb1` — `Stage 25.2: semantic-first internal vision escalation (#77)`.
-
-Stage 26 documentation/context activation was merged in PR #78 as:
-
-`04dccfd30eb06a82899e2771f6d53ab4c8387128` — `Docs: activate Stage 26 procedural memory (#78)`.
-
-Later docs/code commits may legitimately make live `main` newer than either historical baseline; always resolve the actual branch before editing.
+Live `main` may be newer than any of these.
 
 Public semantic tools remain exactly:
 
@@ -74,8 +69,8 @@ ordinary ChatGPT
 - never add a second planner, autonomous workflow brain, generic local agent runtime, or hidden `tool_invoke` equivalent behind ChatGPT;
 - a stored workflow is guidance/evidence, not a planner and not authorization;
 - current observed state outranks remembered procedure;
-- prefer official/vendor MCP/runtime, then mature OSS, then a generic local API/CLI adapter, then the smallest focused project-owned adapter for a measured gap;
-- do not build a project-owned generic tunnel/gateway/registry/vault/job/policy platform while accepted ecosystem components cover those boundaries.
+- prefer official/vendor runtime, then mature OSS, then a generic local API/CLI adapter, then the smallest focused project-owned adapter for a measured gap;
+- do not duplicate accepted upstream mechanisms without a demonstrated integration/security/product blocker.
 
 ## Stage 25.2 accepted behavior
 
@@ -89,19 +84,64 @@ Final real target result: 2 semantic HIT, 1 real-F16 visual HIT, 2 correct ABSTA
 
 ## Active Stage 26 direction
 
-The next stage is Procedural Memory / Demo2Workflow, based on an upstream technical analysis of `Tencent/UI-Mate` pinned in `STAGE26_PROCEDURAL_MEMORY.md`.
+Stage 26 is Procedural Memory / Demo2Workflow, but the implementation plan changed after a broader upstream qualification.
 
-Stage 26.0 (upstream analysis + authoritative contract/context synchronization) is complete via PR #78. The next implementation step is Stage 26.1 — procedural data foundation.
+### Stage 26.0 — DONE
 
-Do not turn this into a second GUI agent. Implement a small local substrate for trajectory recording, workflow compilation, skill storage/versioning, retrieval evidence, workflow progress and completion verification while ChatGPT remains the planner.
+`Tencent/UI-Mate` remains a workflow-guidance reference: rich demonstration evidence -> compact current-subtask guidance while live state stays authoritative. Do not adopt UI-Mate as a second planner/agent.
 
-Specific local programs/capabilities are selected later from actual tasks and evidence; do not hard-code a future application list into architecture.
+### Stage 26.1A — OpenAdapt core qualification — TARGET PASS
 
-**Windows desktop surface is an explicit planned Stage 26.3 item and must not be forgotten.** Only after that surface exists should the project decide, via a separate ADR and ordinary-Chat acceptance, whether the public contract needs new tool names or can preserve the same small-semantic-surface philosophy.
+Pinned and target-tested:
+
+```text
+openadapt-flow 1.31.0
+commit d7f58d9f35c8369f16a9b378f23952d425334ad7
+
+openadapt-capture 1.2.2
+commit bcf12942d61d66b64d94e645e9124273a5cc5963
+```
+
+Qualification-code HEAD:
+
+`f8e8f606db845821b8fa24c09f9032015fb0e79e`
+
+Target result: exact package commits verified, `PHASE_B_PASS=True`, `PHASE_C_TUTORIAL_PASS=True`, no probe/error, Chrome 15->15, `TEST_EXIT_CODE=0`.
+
+Decisions:
+
+- Flow compiler + `Workflow`/`ProgramGraph`: **ADOPT** behind project boundaries;
+- `SkillLibrary` + learning/teach lifecycle: **ADAPT**, because project trust remains candidate-first;
+- Capture: qualify on real bounded Windows before adoption; do **not** build a project recorder first;
+- Windows backend/agent: security A/B still required;
+- local F16: prototype through OpenAdapt's proposal-only `Grounder` seam after capture qualification;
+- OpenAdapt Desktop: Stage 27 distribution/cockpit reference only for now.
+
+No OpenAdapt code is integrated into production `semantic-projection` or the installed product path yet.
+
+### Next — Stage 26.1B real Windows Capture qualification
+
+Use a harmless bounded fixture. Prove window scope, click/type/key/scroll capture, UIA evidence where available, conversion/compile/replay or bounded refusal, zero false/unrelated-window actions, local raw-artifact containment and clean cleanup.
+
+Specific local programs/capabilities are selected later from actual tasks and evidence; do not hard-code a future application list.
+
+### After capture — Stage 26.1C executor A/B + F16 seam
+
+Compare OpenAdapt typed Windows agent against a narrower actuator boundary. The pinned server's legacy `/execute_windows` route is disabled by default; product configuration must prove it cannot be enabled/reached. Then test the accepted LFM2.5-VL F16 through the narrow Grounder protocol.
+
+### Stage 26.2 — ChatGPT procedural integration
+
+Integrate only accepted upstream components behind the ChatGPT-only planner boundary. Retrieval/procedure selection is non-authorizing; current state outranks history; verifier/effect evidence controls completion; bootstrap procedures follow project candidate policy.
+
+### Stage 26.3 — Windows desktop surface — REQUIRED / DO NOT DROP
+
+**Windows desktop surface remains an explicit required stage and must not be forgotten.** Productize whichever Windows observation/actuation/verification combination wins qualification.
+
+Only after that surface exists should the project decide, via a separate ADR and ordinary-Chat acceptance, whether the public contract needs new tool names or can preserve the same small-semantic-surface philosophy.
 
 ## Development workflow
 
-- resolve live `main` before branching/editing; do not trust a stale embedded SHA;
+- resolve live `main` before branching/editing;
 - inspect actual repository/PR/CI state before editing;
 - create stage branches from exact current `main`;
 - keep `main` as integration line, not scratch;
@@ -112,5 +152,6 @@ Specific local programs/capabilities are selected later from actual tasks and ev
 - never claim a target/ordinary-Chat result unless that exact path ran;
 - preserve/reconcile local uncommitted work rather than discarding it;
 - do not weaken fail-closed behavior merely to increase benchmark hit rate;
-- never persist private chain-of-thought into procedural memory; keep only structured/user-visible intent, actions, observations and verification evidence;
-- do not describe browser filters or loopback PID checks as stronger isolation/authentication than actually proved.
+- never persist private chain-of-thought into procedural memory;
+- treat raw capture as sensitive local data until retention/redaction/encryption policy is accepted;
+- do not describe browser filters, loopback PID checks or typed Windows routes as stronger isolation/authentication than actually proved.
