@@ -65,6 +65,7 @@ $runDir = Join-Path $OutputRoot "qualification-$timestamp"
 $venvDir = Join-Path $runDir 'venv'
 $probePath = Join-Path $runDir 'probe.py'
 $probeResultPath = Join-Path $runDir 'probe-result.json'
+$probeErrorPath = Join-Path $runDir 'probe-error.log'
 $resultPath = Join-Path $runDir 'result.json'
 $tutorialDir = Join-Path $runDir 'tutorial'
 $tutorialLog = Join-Path $runDir 'tutorial.log'
@@ -112,6 +113,7 @@ $result = [ordered]@{
     chrome_process_count_after = $null
     environment_kept = [bool]$KeepEnvironment
     result_dir = $runDir
+    probe_error = $null
     error = $null
 }
 
@@ -141,10 +143,10 @@ try {
 
     $captureSpec = "openadapt-capture @ git+https://github.com/$($capture.repository).git@$($capture.commit)"
     if ($RunTutorial) {
-        $flowSpec = "openadapt-flow[browser] @ git+https://github.com/$($flow.repository).git@$($flow.commit)"
+        $flowSpec = "openadapt-flow[browser,windows] @ git+https://github.com/$($flow.repository).git@$($flow.commit)"
     }
     else {
-        $flowSpec = "openadapt-flow @ git+https://github.com/$($flow.repository).git@$($flow.commit)"
+        $flowSpec = "openadapt-flow[windows] @ git+https://github.com/$($flow.repository).git@$($flow.commit)"
     }
 
     Invoke-Checked -FilePath $pythonExe -ArgumentList @(
@@ -203,7 +205,8 @@ print(json.dumps(result, sort_keys=True))
     $probeOutput = & $pythonExe $probePath 2>&1
     $probeExitCode = $LASTEXITCODE
     if ($probeExitCode -ne 0) {
-        $probeOutput | Set-Content -LiteralPath (Join-Path $runDir 'probe-error.log') -Encoding utf8
+        $probeOutput | Set-Content -LiteralPath $probeErrorPath -Encoding utf8
+        $result.probe_error = (($probeOutput | Select-Object -Last 20) -join "`n")
         throw "OpenAdapt import/direct-url probe failed with exit code $probeExitCode"
     }
 
@@ -301,6 +304,7 @@ Write-Flag 'TUTORIAL_REQUESTED' $result.tutorial_requested
 Write-Flag 'PHASE_C_TUTORIAL_PASS' $result.phase_c_tutorial_pass
 Write-Flag 'CHROME_PROCESS_COUNT_BEFORE' $result.chrome_process_count_before
 Write-Flag 'CHROME_PROCESS_COUNT_AFTER' $result.chrome_process_count_after
+Write-Flag 'PROBE_ERROR' $result.probe_error
 Write-Flag 'ERROR' $result.error
 
 $accepted = [bool]$result.phase_b_pass
