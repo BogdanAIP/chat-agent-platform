@@ -1,6 +1,6 @@
 # Stage 26.1C — Windows executor security A/B qualification
 
-Status: **DRAFT / REAL WINDOWS TARGET RUN REQUIRED**
+Status: **DRAFT / FIRST REAL TARGET RUN CLASSIFIED AS TRANSPORT-HARNESS DEFECT / RERUN REQUIRED**
 
 Branch base resolved from live `main` after accepted Stage 26.1B documentation:
 
@@ -41,6 +41,55 @@ Python 3.12.x
 ```
 
 The target harness installs the exact VCS commit into an isolated venv and verifies installed `direct_url.json` plus declared version before the fixture is allowed to receive any action.
+
+## First real target run — transport-harness defect, no executor action
+
+First real Windows target run used qualification HEAD:
+
+`13bf8b51f04d2df3a7a70b45f9dc911f4d43b69a`
+
+Evidence directory:
+
+```text
+C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\executor-qualification\executor-20260818-211345\
+```
+
+Observed before the failure:
+
+```text
+FLOW_PIN_PASS=True
+AGENT_LOOPBACK_PASS=True
+AGENT_AUTH_REQUIRED_PASS=True
+LEGACY_CAPABILITY_ABSENT_PASS=True
+DELIVERED_OPERATIONS=[]
+UNRELATED_WINDOW_ACTION_COUNT=0
+FALSE_ACTION_COUNT=0
+CHROME_PROCESS_COUNT_BEFORE=11
+CHROME_PROCESS_COUNT_AFTER=11
+CHROME_SURVIVAL_PASS=True
+FIXTURE_KILLED=False
+FIXTURE_CLEANUP_PASS=True
+```
+
+The driver then failed on the first negative POST with:
+
+```text
+ConnectionError: ConnectionAbortedError(10053, ... host computer aborted the established connection ...)
+```
+
+This is classified as a qualification transport defect, not an executor/UIA failure and not an operator error.
+
+Pinned `win_agent.server` checks route availability and bearer authorization **before** reading `Content-Length` and the request body. The original qualification driver sent a JSON body for the deliberately unauthenticated `/input` probe. On Windows, closing a TCP socket while inbound request-body bytes remain unread can surface as a connection reset/abort before `requests` receives the intended HTTP `401`. The disabled `/execute_windows` route has the same pre-body routing shape for `404`.
+
+Correction:
+
+- the `unauthorized POST /input -> 401` probe now uses an explicit zero-length POST body;
+- the authorized disabled-route `POST /execute_windows -> 404` probe also uses an explicit zero-length body;
+- both still prove the same live routing/auth properties;
+- authorized typed-schema probes continue to send real JSON bodies and therefore still exercise the pinned parser;
+- no acceptance gate is weakened and no legacy route is enabled.
+
+The first run is **not** retroactively accepted. A new exact-head Windows target rerun is required after corrected deterministic CI passes.
 
 ## A/B result before target acceptance
 
@@ -118,11 +167,13 @@ The project-controlled candidate must prove all of these on the live process:
 AgentConfig.allow_legacy_exec = false
 WindowsBackend.allow_legacy_exec = false
 health.capabilities does not contain legacy_exec
-authorized POST /execute_windows -> 404
-unauthorized POST /input -> 401
-command-shaped extra field on /input -> 400
-unsupported action=exec -> 400
+authorized zero-body POST /execute_windows -> 404
+unauthorized zero-body POST /input -> 401
+command-shaped extra field on authorized /input -> 400
+unsupported authorized action=exec -> 400
 ```
+
+The zero-body form is deliberate for the two responses produced before the pinned server reads a request body; it avoids Windows TCP reset behavior while preserving the routing/auth property under test.
 
 A source-level dormant handler inside the exact upstream dependency is not treated as harmless by assertion alone. The live target process must prove the route is absent from routing while running under the exact construction path proposed for the product.
 
