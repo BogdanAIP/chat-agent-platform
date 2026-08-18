@@ -132,11 +132,13 @@ def main() -> int:
         "foreign_structural_window_count": 0,
         "foreign_structural_windows": [],
         "foreign_structural_window_pass": False,
+        "raw_uia_evidence_pass": False,
         "flow_event_count": 0,
         "flow_event_kinds": [],
         "type_values": [],
         "key_values": [],
         "structural_event_count": 0,
+        "window_scoped_structural_suppression_pass": False,
         "window_capture": None,
         "window_scope_pass": False,
         "required_kinds_pass": False,
@@ -231,9 +233,11 @@ def main() -> int:
             )
         ) and fixture_state.get("text_value") == EXPECTED_TEXT
 
-        # Inspect the real raw Capture actions before relying on the Flow
-        # conversion. Structural observations are optional, but any window
-        # identity that is present must point at the bounded fixture.
+        # Inspect real raw Capture actions before relying on Flow conversion.
+        # For this local WinForms fixture, structural UIA evidence should point
+        # at the unique fixture window. Flow's window-scoped converter later
+        # suppresses that local UIA deliberately because the resulting bundle
+        # is an RDP/remote-client surface contract.
         foreign_windows: list[str] = []
         with CaptureSession.load(raw_dir) as capture:
             raw_actions = list(capture.actions(include_moves=False))
@@ -256,6 +260,14 @@ def main() -> int:
         result["foreign_structural_windows"] = sorted(set(foreign_windows))
         result["foreign_structural_window_count"] = len(foreign_windows)
         result["foreign_structural_window_pass"] = len(foreign_windows) == 0
+        result["raw_uia_evidence_pass"] = bool(
+            result["raw_structural_action_count"] > 0
+            and result["foreign_structural_window_pass"]
+        )
+        # Overall UIA qualification means Capture observed correct raw UIA.
+        # It does not falsely require Flow to promote that local UIA into an
+        # RDP bundle, which upstream intentionally forbids.
+        result["uia_evidence_pass"] = result["raw_uia_evidence_pass"]
 
         video_files = list(raw_dir.glob("oa_recording-*.mp4"))
         result["video_evidence_pass"] = bool(
@@ -284,17 +296,6 @@ def main() -> int:
             event for event in events if isinstance(event.get("structural"), dict)
         ]
         result["structural_event_count"] = len(structural_events)
-        result["uia_evidence_pass"] = bool(
-            result["raw_structural_action_count"] > 0
-            and any(
-                event["structural"].get("automation_id")
-                or (
-                    event["structural"].get("role")
-                    and event["structural"].get("name")
-                )
-                for event in structural_events
-            )
-        )
 
         window_capture = meta.get("window_capture")
         result["window_capture"] = window_capture
@@ -307,10 +308,9 @@ def main() -> int:
 
         # Do not lie about the upstream surface contract. Flow 1.31.0 stamps a
         # window-scoped Capture conversion as backend=rdp because this capture
-        # mode was designed for one remote-client window. Compiling it as
-        # target_surface="windows" would correctly refuse as contradictory.
-        # Stage 26.1B qualifies recording/conversion/compiler evidence only;
-        # native Windows replay remains a separate Stage 26.1C design decision.
+        # mode was designed for one remote-client window. It also deliberately
+        # does NOT promote local Windows UIA into an RDP bundle. Stage 26.1B
+        # validates both facts instead of rewriting metadata/evidence.
         workflow = compile_recording(
             recording_dir,
             bundle_dir,
@@ -327,11 +327,16 @@ def main() -> int:
             and (meta.get("backend_hints") or {}).get("backend")
             == EXPECTED_WINDOW_SCOPED_SURFACE
         )
+        result["window_scoped_structural_suppression_pass"] = bool(
+            result["structural_event_count"] == 0
+            and result["compiled_structural_count"] == 0
+        )
         result["compile_pass"] = bool(
             (bundle_dir / "workflow.json").is_file()
             and (bundle_dir / "workflow.py").is_file()
             and len(workflow.steps) > 0
             and result["surface_contract_pass"]
+            and result["window_scoped_structural_suppression_pass"]
         )
 
         result["pass"] = all(
@@ -345,6 +350,7 @@ def main() -> int:
                 "expected_text_pass",
                 "expected_key_pass",
                 "uia_evidence_pass",
+                "window_scoped_structural_suppression_pass",
                 "compile_pass",
                 "surface_contract_pass",
                 "bounded_replay_refusal",
@@ -364,9 +370,11 @@ def main() -> int:
         "raw_action_types",
         "raw_structural_action_count",
         "foreign_structural_window_count",
+        "raw_uia_evidence_pass",
         "flow_event_count",
         "flow_event_kinds",
         "structural_event_count",
+        "window_scoped_structural_suppression_pass",
         "video_evidence_pass",
         "window_scope_pass",
         "foreign_structural_window_pass",
