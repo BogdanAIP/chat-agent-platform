@@ -1,12 +1,16 @@
 # Stage 26.1A — OpenAdapt Qualification Spike
 
-Status: **ACTIVE QUALIFICATION / NOT ADOPTED YET**
+Status: **CORE QUALIFICATION ACCEPTED / PRODUCT INTEGRATION NOT STARTED**
 
 Base project `main` resolved before branch creation:
 
 `58b441b9b50291189ac32f72d194b5ba6d0a182c`
 
-This gate exists because Stage 26.0 originally concluded that the project would need to build its own recorder, demo compiler, skill store and lifecycle after reviewing Tencent/UI-Mate. A broader upstream review found that OpenAdapt already implements substantial portions of those boundaries. The project must therefore qualify the upstream before duplicating it.
+Target-tested qualification-code HEAD:
+
+`f8e8f606db845821b8fa24c09f9032015fb0e79e`
+
+This gate exists because the first Stage 26 design assumed the project would need to build its own recorder, demo compiler, skill store and lifecycle after reviewing Tencent/UI-Mate. Broader upstream research found that OpenAdapt already implements substantial portions of those boundaries. Stage 26 therefore qualifies upstream components before duplicating them.
 
 Exact source pins live in `config/stage26-openadapt-lock.json`.
 
@@ -14,11 +18,11 @@ Exact source pins live in `config/stage26-openadapt-lock.json`.
 
 Ordinary ChatGPT remains the only planner/intelligence.
 
-OpenAdapt is being evaluated only as a local non-agentic procedural engine and authoring/runtime substrate:
+OpenAdapt is evaluated only as a local non-agentic procedural engine and authoring/runtime substrate:
 
 ```text
 ordinary ChatGPT
-  -> understands current task and decides whether a known procedure applies
+  -> understands the current task and decides whether a known procedure applies
   -> current live state remains authoritative
   -> bounded local capability/procedural substrate
        -> deterministic procedure execution where qualified
@@ -53,7 +57,7 @@ Observed package version: `1.31.0`.
 
 License: MIT.
 
-Candidate responsibilities:
+Qualified candidate responsibilities:
 
 - demonstration compiler;
 - `Workflow` / `ProgramGraph` IR;
@@ -97,180 +101,219 @@ License: MIT.
 
 Role in this gate: **distribution/cockpit reference, not execution baseline**.
 
-At the pin above its build extra freezes `openadapt-flow[browser,console]==1.27.1`, while current Flow main reports `1.31.0`. Desktop is therefore evaluated separately for installer/sidecar/cockpit ideas rather than being assumed to provide the exact runtime under qualification.
+At the pin above its build extra freezes `openadapt-flow[browser,console]==1.27.1`, while the Flow source under qualification reports `1.31.0`. Desktop is therefore evaluated separately for installer/sidecar/cockpit ideas rather than assumed to provide the exact runtime under qualification.
 
-## What Stage 26.1A must answer
+## Real Windows target evidence
+
+Exact target rerun on qualification-code HEAD `f8e8f606db845821b8fa24c09f9032015fb0e79e`:
+
+```text
+PYTHON_VERSION=3.12.10
+FLOW_EXPECTED_COMMIT=d7f58d9f35c8369f16a9b378f23952d425334ad7
+FLOW_INSTALLED_COMMIT=d7f58d9f35c8369f16a9b378f23952d425334ad7
+FLOW_INSTALLED_VERSION=1.31.0
+CAPTURE_EXPECTED_COMMIT=bcf12942d61d66b64d94e645e9124273a5cc5963
+CAPTURE_INSTALLED_COMMIT=bcf12942d61d66b64d94e645e9124273a5cc5963
+CAPTURE_INSTALLED_VERSION=1.2.2
+PHASE_B_PASS=True
+TUTORIAL_REQUESTED=True
+PHASE_C_TUTORIAL_PASS=True
+CHROME_PROCESS_COUNT_BEFORE=15
+CHROME_PROCESS_COUNT_AFTER=15
+PROBE_ERROR=<null>
+ERROR=<null>
+STAGE26_1A_PREFLIGHT_RESULT=PASSED
+TEST_EXIT_CODE=0
+STAGE26_1A_TARGET_RESULT=PASSED
+```
+
+Result artifact:
+
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\openadapt-qualification\qualification-20260818-170434\result.json`
+
+Normal user Chrome remained running. The harness used an isolated Python 3.12 venv and isolated Playwright browser directory; the venv/browser artifacts were removed after the run.
+
+### Harness defect found and corrected during qualification
+
+An earlier target run installed Flow only with `[browser]` while the probe imported `WindowsBackend`. The pinned Flow package declares `requests` in its official `[windows]` extra, so the probe failed with `ModuleNotFoundError: requests`.
+
+This was a qualification-harness defect, not an upstream runtime failure. The harness was corrected to install:
+
+```text
+Phase B: openadapt-flow[windows]
+Phase B + tutorial: openadapt-flow[browser,windows]
+```
+
+The exact rerun then passed.
+
+## What Stage 26.1A answers
 
 ### Q1 — Can Flow replace our planned Demo Compiler / IR?
 
-PASS requires all of the following from the pinned build:
+**Decision: ADOPT as the upstream procedural-program substrate, behind project boundaries.**
 
-- import and instantiate the core IR without model/API credentials;
-- compile/replay path is deterministic on a healthy synthetic/tutorial workflow;
-- compiled representation contains semantic/structural target evidence rather than requiring blind absolute-coordinate replay;
-- ambiguous/unsupported state can refuse rather than silently proceed;
-- current application state is re-observed at replay time.
+Evidence:
+
+- exact pinned package imports without model/API credentials;
+- tutorial compile/replay path completed `VERIFIED` on the target Windows machine;
+- upstream quickstart lifecycle requires production `standard` profile, effect verification, digest-bound receipt and `model_calls=0` for the tutorial;
+- `Workflow` / `ProgramGraph` preserve semantic/structural target evidence plus visual evidence rather than requiring blind coordinate replay;
+- current state is re-observed at replay time;
+- structural resolution refuses stale/ambiguous targets rather than selecting the first candidate.
+
+Do not build a competing project-owned compiler/IR before an integration blocker is demonstrated.
 
 ### Q2 — Can Flow replace the planned skill store/lifecycle?
 
-PASS requires evidence that pinned code provides:
+**Decision: ADAPT, not blind ADOPT.**
+
+Reusable upstream capabilities include:
 
 - versioned skill revisions;
-- candidate/active/superseded/rollback or equivalent governed states;
-- provenance sufficient to identify the source traces/revision lineage;
-- regression/held-out or equivalent promotion gate;
-- safe refusal when a proposed learned correction is underdetermined.
+- `candidate` / `active` / `superseded` / `rolled_back` states;
+- provenance with parent version and source traces;
+- held-out/regression/canary learning gates;
+- governed HALT -> teach -> learn -> promote/refuse path.
 
-Do not recreate these project-side before this question is decided.
+Project adaptation is required because upstream `SkillLibrary.create_skill()` makes the first version immediately `active`. Chat Agent Platform must not silently treat one newly compiled demonstration as product-trusted. A thin project policy adapter must preserve the stricter candidate-first rule at the product boundary.
+
+Do not recreate the underlying version store or learning loop unless the adapter proves insufficient.
 
 ### Q3 — Can Capture replace our planned human recorder?
 
-PASS requires on the real Windows target:
+**Decision: CONTINUE QUALIFICATION; do not build our own recorder first.**
 
-- recording starts/stops in the interactive user session;
-- a bounded test window can be recorded without affecting unrelated windows;
-- click, typing, key and scroll evidence is captured correctly for the chosen fixture;
-- structural UIA evidence is retained when the fixture exposes it;
-- conversion to Flow recording is exact enough for compile/replay;
-- no cloud transfer is required;
-- raw artifacts remain within the explicitly selected local qualification directory.
+The pinned Flow/Capture packages install together and expose the expected recorder/adapter symbols. Upstream recording design already provides window-scoped capture, UIA evidence where available, exact conversion to Flow recording input and local-only operation.
+
+Still required on the real target in **Stage 26.1B / Phase D**:
+
+- start/stop a bounded harmless window recording;
+- capture click, typing, key and scroll evidence;
+- confirm UIA evidence where the fixture exposes it;
+- convert -> compile -> replay or bounded refusal;
+- false actions = 0;
+- unrelated-window actions = 0;
+- raw artifacts remain only in the selected local qualification directory;
+- cleanup succeeds.
 
 ### Q4 — Is the Windows execution boundary acceptable?
 
-This is a security A/B, not an automatic adoption.
+**Decision: CONTINUE AS ADAPT / SECURITY A/B.**
 
-OpenAdapt's current `win_agent` exposes an internal `/execute_windows` contract capable of executing Python in the interactive desktop session. It is not permitted to become a Chat-facing capability.
-
-Compare:
+Important updated finding: in the pinned server, `/execute_windows` is a **legacy arbitrary-Python route disabled by default**. The default agent exposes bounded typed routes including:
 
 ```text
-A. OpenAdapt WindowsBackend + hardened loopback/session agent
+/screenshot
+/context/identity
+/input
+/input/guarded
+/uia/locator-at
+/uia/text-at-point
+/uia/find
+/uia/act
+```
+
+The client/server also have stale/ambiguous refusal paths and action-delivery receipts.
+
+That is materially safer than the early upstream impression, but the Windows agent remains a separate interactive-session authority boundary. Before product integration compare:
+
+```text
+A. OpenAdapt typed WindowsBackend + hardened loopback/session agent
 B. OpenAdapt IR/runtime + narrower native/project-owned UIA actuator
 ```
 
-Acceptance decision must explicitly cover:
-
-- callable authority;
-- process/session ownership;
-- loopback authentication;
-- command surface width;
-- stale/ambiguous target behavior;
-- before/after evidence;
-- blast radius if the local caller is compromised.
-
-A result may be `ADOPT`, `ADAPT`, or `REJECT`. A failure here does not invalidate Flow compiler/IR/lifecycle reuse.
+Acceptance must explicitly cover callable authority, process/session ownership, authentication, stale/focus/frame binding, blast radius and whether the legacy exec route is impossible in the product configuration.
 
 ### Q5 — Can our accepted local F16 become an OpenAdapt Grounder?
 
-Prototype only after Q1/Q2 basic import gates pass.
+**Decision: ADAPT CANDIDATE; prototype after Windows capture qualification.**
 
-Required properties:
+The pinned `Grounder` protocol is narrow:
 
-- adapter implements the narrow Grounder contract;
-- OpenAdapt receives only a proposal from F16, not authorization;
-- existing identity/risk/freshness/effect checks remain authoritative;
-- F16 lifecycle remains focused/on-demand and unloads after use;
-- no new public Chat vision tool is introduced.
+```text
+current PNG + intent + optional OCR label
+  -> GrounderMatch proposal OR None
+```
+
+Upstream explicitly treats a grounder result as a proposal only; deterministic identity/risk checks remain authoritative. This is compatible with the accepted local LFM2.5-VL-450M F16 model and does not require a new public Chat vision tool.
+
+Required prototype properties remain:
+
+- F16 lifecycle stays focused/on-demand and unloads after use;
+- no model proposal authorizes an action by itself;
+- existing identity/risk/freshness/effect gates remain authoritative;
+- no screenshot egress is introduced.
 
 ### Q6 — What should happen to Stage 27?
 
-OpenAdapt Desktop already implements a Beta cockpit/frozen-sidecar/install packaging lane. After Flow/Capture qualification, evaluate whether its Tauri/sidecar/update/installer patterns can replace portions of the planned project-owned distribution layer.
+**Decision: ADAPT/REFERENCE.**
 
-Do not copy or integrate Desktop yet; first record which parts are reusable and which conflict with the ChatGPT-only product boundary.
+OpenAdapt Desktop already demonstrates a Beta Tauri cockpit, frozen Python sidecar and installer packaging lane. Because its current bundled Flow version differs from the qualified Flow pin, it is not accepted as the runtime baseline. Re-evaluate its installer/sidecar/update/cockpit patterns during Stage 27 before building equivalent distribution infrastructure from scratch.
 
-## Qualification phases
+## Decision matrix after Stage 26.1A core qualification
 
-### Phase A — offline/static contract
+| Component | Decision | Next gate |
+| --- | --- | --- |
+| Flow compiler + IR | **ADOPT** | integration behind ChatGPT-only boundary |
+| SkillLibrary + learning lifecycle | **ADAPT** | candidate-first project policy wrapper |
+| Capture recorder | **CONTINUE QUALIFICATION** | real bounded Windows Phase D |
+| Windows backend/agent | **ADAPT / A/B REQUIRED** | executor security Phase E |
+| F16 Grounder integration | **ADAPT CANDIDATE** | bounded adapter Phase F |
+| Desktop cockpit/distribution patterns | **REFERENCE / ADAPT** | Stage 27 evaluation |
 
-- validate exact lock schema;
-- validate pins, versions and licenses recorded from upstream source;
-- ensure no public Chat tool change;
-- ensure qualification code does not import OpenAdapt into production semantic-projection.
+## Next active work
 
-### Phase B — isolated Python 3.12 source install
+### Stage 26.1B — real Windows Capture qualification — NEXT
 
-Use `scripts/stage26-openadapt-qualification.ps1` in a dedicated local directory.
-
-The script must:
-
-- resolve exact source pins from the lock file;
-- require Python 3.12;
-- create an isolated venv;
-- install exact pinned Flow/Capture commits;
-- verify installed package versions and key symbols;
-- write machine-readable results;
-- leave the existing Chat Agent Platform runtime and user Chrome untouched.
-
-No target result is accepted unless the exact tested commits match the lock file.
-
-### Phase C — upstream synthetic/tutorial lifecycle
-
-After Phase B passes:
-
-- record/compile/replay a synthetic or bundled upstream workflow;
-- run deterministic refusal/drift tests where available;
-- inspect emitted bundle/IR;
-- inspect skill lifecycle and teach path;
-- record model call count and any network/runtime side effects.
-
-### Phase D — real Windows capture
-
-Use a harmless bounded fixture first. Do not start with Origin, REAPER or another consequential user workload.
+Use a harmless bounded fixture. Do not start with a consequential user workload or preselected application list.
 
 Acceptance measures:
 
 - exact captured action count/classes;
+- window scope respected;
 - UIA evidence availability;
-- compile success/refusal reason;
-- replay outcome;
+- conversion and compile result;
+- replay outcome or explicit bounded refusal;
 - false actions = 0;
 - unrelated-window actions = 0;
-- cleanup successful.
+- raw capture location/retention recorded;
+- cleanup successful;
+- normal user Chrome and unrelated applications untouched.
 
-### Phase E — executor security A/B
+### Stage 26.1C — executor security A/B + F16 seam
 
-Only after capture/compiler acceptance.
+Only after capture/compiler acceptance:
 
-No merge that makes OpenAdapt Windows execution part of the product path until this A/B has a written result.
+- compare typed OpenAdapt Windows agent with a narrower actuator boundary;
+- prove legacy arbitrary exec disabled/unreachable in the proposed product configuration;
+- prototype the accepted local F16 through the narrow Grounder protocol;
+- rerun stale/ambiguous/freshness/false-action acceptance.
 
-### Phase F — F16 adapter
+### Stage 26.2 — ChatGPT procedural integration / dogfood
 
-Wire the already accepted local F16 only through the narrow Grounder seam and rerun a bounded visual-fallback acceptance.
+After upstream capability gates, integrate the accepted compiler/skill substrate behind the ChatGPT-only planner boundary and prove variant-task reuse without blind replay.
 
-## Decision matrix
+### Stage 26.3 — Windows desktop surface — REQUIRED / DO NOT DROP
 
-Each component gets one explicit result:
+Productize the accepted Windows observation/actuation/verification combination. Concrete local programs/capabilities are selected later from actual tasks and evidence.
 
-| Component | Possible result | Default before evidence |
-| --- | --- | --- |
-| Flow compiler + IR | ADOPT / ADAPT / REJECT | UNDECIDED |
-| SkillLibrary + learning lifecycle | ADOPT / ADAPT / REJECT | UNDECIDED |
-| Capture recorder | ADOPT / ADAPT / REJECT | UNDECIDED |
-| Windows backend/agent | ADOPT / ADAPT / REJECT | UNDECIDED |
-| F16 Grounder integration | ADOPT / ADAPT / REJECT | UNDECIDED |
-| Desktop cockpit/distribution patterns | ADOPT / ADAPT / REJECT | UNDECIDED |
+### Stage 26.4 — human demonstration transferable-skill acceptance
 
-No component is accepted merely because upstream CI or documentation calls it Beta/scoped-accepted.
+Record a real user demonstration through the accepted desktop surface, compile it, verify it and re-apply it to a related changed task/state.
 
-## Merge gate for Stage 26.1A
+### Stage 26.5 — public contract decision
 
-Stage 26.1A may merge as a qualification milestone when:
-
-1. exact pins and static contract are reviewed;
-2. Phase B isolated install/import evidence is green on the target Windows machine;
-3. Phase C synthetic/tutorial compiler/replay evidence is green or produces a bounded documented refusal;
-4. no production runtime import/routing has been changed;
-5. the next active implementation work is rewritten from evidence, not from the pre-research assumption that all procedural components must be project-owned.
-
-Windows capture/executor/F16 may continue as follow-up qualification commits/PRs if they need separate target gates, but their status must remain explicit.
+Only after Windows desktop surface exists, decide whether the current five public tool names remain sufficient or a small number of new truthful public tools is required.
 
 ## Hard safety boundaries
 
-- do not expose `/execute_windows` or equivalent generic code execution to ChatGPT;
+- ordinary ChatGPT remains the only planner/intelligence;
+- do not expose `/execute_windows` or any equivalent generic code execution to ChatGPT;
+- do not enable the legacy arbitrary-exec route in the product configuration;
 - do not auto-generate hundreds of public MCP tools from workflow bundles;
 - do not let retrieval or skill selection authorize consequential actions;
 - do not persist private chain-of-thought;
 - do not treat raw capture as safe-to-sync data;
 - do not let a model proposal bypass identity, risk, freshness, postcondition or effect verification;
 - do not claim arbitrary Windows application support from a fixture acceptance;
-- do not merge an upstream dependency into the installed product before exact-version and target acceptance.
+- do not integrate an upstream dependency into the installed product before exact-version and target acceptance.
