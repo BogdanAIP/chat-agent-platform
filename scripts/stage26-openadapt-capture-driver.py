@@ -8,6 +8,7 @@ import traceback
 from pathlib import Path
 from typing import Any
 
+from openadapt_capture import CaptureSession
 from openadapt_capture import Recorder as CaptureRecorder
 from openadapt_flow.compiler import compile_recording
 from openadapt_flow.desktop_record import record_desktop_capture
@@ -16,6 +17,7 @@ from openadapt_flow.desktop_record import record_desktop_capture
 REQUIRED_FLOW_KINDS = {"click", "type", "key", "scroll"}
 EXPECTED_TEXT = "CAPTURE_OK"
 EXPECTED_KEY = "Enter"
+EXPECTED_WINDOW_SCOPED_SURFACE = "rdp"
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -44,23 +46,34 @@ def _count_key_recursive(value: Any, key: str) -> int:
 class _ReadyMarkerRecorder:
     """Real Capture Recorder with qualification-only policy overrides.
 
-    Input is still observed by OpenAdapt's native observer. We intentionally do
-    not synthesize mouse/keyboard events: Capture filters injected input and the
-    qualification is meant to exercise the real human-input path.
+    Input is observed by OpenAdapt's native observer. We intentionally do not
+    synthesize mouse/keyboard events: Capture filters injected input and this
+    qualification must exercise the real physical-user-input path.
     """
 
-    def __init__(self, *, task: str, capture_dir: str, window_title: str, ready: Path):
+    def __init__(
+        self,
+        *,
+        task: str,
+        capture_dir: str,
+        window_title: str,
+        ready: Path,
+        ffmpeg_path: Path,
+        ffprobe_path: Path,
+    ) -> None:
         self._ready = ready
         self._inner = CaptureRecorder(
             capture_dir=capture_dir,
             task_description=task,
-            capture_video=False,
+            capture_video=True,
             capture_audio=False,
-            capture_images=True,
+            capture_images=False,
             capture_window_data=False,
             capture_structural_observations=True,
             capture_browser_events=False,
             capture_full_video=False,
+            ffmpeg_path=str(ffmpeg_path),
+            ffprobe_path=str(ffprobe_path),
             log_memory=False,
             plot_performance=False,
             screen_capture_fps=4.0,
@@ -89,6 +102,8 @@ def main() -> int:
     parser.add_argument("--fixture-state", required=True)
     parser.add_argument("--done", required=True)
     parser.add_argument("--recorder-ready", required=True)
+    parser.add_argument("--ffmpeg", required=True)
+    parser.add_argument("--ffprobe", required=True)
     parser.add_argument("--timeout-seconds", type=float, default=240.0)
     args = parser.parse_args()
 
@@ -99,6 +114,8 @@ def main() -> int:
     fixture_state_path = Path(args.fixture_state).resolve()
     done_path = Path(args.done).resolve()
     ready_path = Path(args.recorder_ready).resolve()
+    ffmpeg_path = Path(args.ffmpeg).resolve()
+    ffprobe_path = Path(args.ffprobe).resolve()
     result_path = run_dir / "driver-result.json"
 
     result: dict[str, Any] = {
@@ -109,6 +126,12 @@ def main() -> int:
         "recording_dir": str(recording_dir),
         "bundle_dir": str(bundle_dir),
         "fixture_state": None,
+        "raw_action_count": 0,
+        "raw_action_types": [],
+        "raw_structural_action_count": 0,
+        "foreign_structural_window_count": 0,
+        "foreign_structural_windows": [],
+        "foreign_structural_window_pass": False,
         "flow_event_count": 0,
         "flow_event_kinds": [],
         "type_values": [],
@@ -121,9 +144,14 @@ def main() -> int:
         "expected_key_pass": False,
         "uia_evidence_pass": False,
         "fixture_sequence_pass": False,
+        "video_evidence_pass": False,
         "compile_pass": False,
         "compiled_step_count": 0,
         "compiled_structural_count": 0,
+        "compiled_surface": None,
+        "window_scoped_surface_contract": EXPECTED_WINDOW_SCOPED_SURFACE,
+        "surface_contract_pass": False,
+        "native_windows_replay_claimed": False,
         "replay_execution": "SKIPPED_UNACCEPTED_WINDOWS_EXECUTOR",
         "bounded_replay_refusal": True,
         "pass": False,
@@ -147,8 +175,8 @@ def main() -> int:
         if done_path.exists():
             if done_seen_at is None:
                 done_seen_at = time.monotonic()
-            # Keep recording briefly after the Finish click so Capture has an
-            # after-frame opportunity before the recorder is stopped.
+            # Keep recording briefly after Finish so Capture has an after-frame
+            # opportunity and sees the click release before teardown.
             if time.monotonic() - done_seen_at >= 1.5:
                 return True
         if time.monotonic() >= deadline:
@@ -166,9 +194,14 @@ def main() -> int:
             capture_dir=capture_dir,
             window_title=args.window_title,
             ready=ready_path,
+            ffmpeg_path=ffmpeg_path,
+            ffprobe_path=ffprobe_path,
         )
 
     try:
+        if not ffmpeg_path.is_file() or not ffprobe_path.is_file():
+            raise RuntimeError("pinned FFmpeg qualification runtime is missing")
+
         recording = record_desktop_capture(
             recording_dir,
             task_description=task,
@@ -198,6 +231,37 @@ def main() -> int:
             )
         ) and fixture_state.get("text_value") == EXPECTED_TEXT
 
+        # Inspect the real raw Capture actions before relying on the Flow
+        # conversion. Structural observations are optional, but any window
+        # identity that is present must point at the bounded fixture.
+        foreign_windows: list[str] = []
+        with CaptureSession.load(raw_dir) as capture:
+            raw_actions = list(capture.actions(include_moves=False))
+            result["raw_action_count"] = len(raw_actions)
+            result["raw_action_types"] = [action.type for action in raw_actions]
+            raw_structural = [
+                action.structural_observation
+                for action in raw_actions
+                if action.structural_observation is not None
+            ]
+            result["raw_structural_action_count"] = len(raw_structural)
+            for observation in raw_structural:
+                title = (
+                    observation.window.title
+                    if observation.window is not None
+                    else None
+                )
+                if title and args.window_title.lower() not in title.lower():
+                    foreign_windows.append(title)
+        result["foreign_structural_windows"] = sorted(set(foreign_windows))
+        result["foreign_structural_window_count"] = len(foreign_windows)
+        result["foreign_structural_window_pass"] = len(foreign_windows) == 0
+
+        video_files = list(raw_dir.glob("oa_recording-*.mp4"))
+        result["video_evidence_pass"] = bool(
+            len(video_files) == 1 and video_files[0].stat().st_size > 0
+        )
+
         meta = _read_json(recording_dir / "meta.json")
         events = _read_events(recording_dir / "events.jsonl")
         result["flow_event_count"] = len(events)
@@ -220,13 +284,16 @@ def main() -> int:
             event for event in events if isinstance(event.get("structural"), dict)
         ]
         result["structural_event_count"] = len(structural_events)
-        result["uia_evidence_pass"] = any(
-            event["structural"].get("automation_id")
-            or (
-                event["structural"].get("role")
-                and event["structural"].get("name")
+        result["uia_evidence_pass"] = bool(
+            result["raw_structural_action_count"] > 0
+            and any(
+                event["structural"].get("automation_id")
+                or (
+                    event["structural"].get("role")
+                    and event["structural"].get("name")
+                )
+                for event in structural_events
             )
-            for event in structural_events
         )
 
         window_capture = meta.get("window_capture")
@@ -238,33 +305,48 @@ def main() -> int:
             in str(window_capture.get("resolved_title") or "").lower()
         )
 
+        # Do not lie about the upstream surface contract. Flow 1.31.0 stamps a
+        # window-scoped Capture conversion as backend=rdp because this capture
+        # mode was designed for one remote-client window. Compiling it as
+        # target_surface="windows" would correctly refuse as contradictory.
+        # Stage 26.1B qualifies recording/conversion/compiler evidence only;
+        # native Windows replay remains a separate Stage 26.1C design decision.
         workflow = compile_recording(
             recording_dir,
             bundle_dir,
             name="stage26_1b_windows_capture_fixture",
-            target_surface="windows",
         )
         workflow_data = workflow.model_dump(mode="json", exclude_none=True)
         result["compiled_step_count"] = len(workflow.steps)
         result["compiled_structural_count"] = _count_key_recursive(
             workflow_data, "structural"
         )
+        result["compiled_surface"] = workflow_data.get("surface")
+        result["surface_contract_pass"] = (
+            result["compiled_surface"] == EXPECTED_WINDOW_SCOPED_SURFACE
+            and (meta.get("backend_hints") or {}).get("backend")
+            == EXPECTED_WINDOW_SCOPED_SURFACE
+        )
         result["compile_pass"] = bool(
             (bundle_dir / "workflow.json").is_file()
             and (bundle_dir / "workflow.py").is_file()
             and len(workflow.steps) > 0
+            and result["surface_contract_pass"]
         )
 
         result["pass"] = all(
             bool(result[name])
             for name in (
                 "fixture_sequence_pass",
+                "video_evidence_pass",
                 "window_scope_pass",
+                "foreign_structural_window_pass",
                 "required_kinds_pass",
                 "expected_text_pass",
                 "expected_key_pass",
                 "uia_evidence_pass",
                 "compile_pass",
+                "surface_contract_pass",
                 "bounded_replay_refusal",
             )
         )
@@ -278,10 +360,16 @@ def main() -> int:
 
     print("===== STAGE 26.1B CAPTURE DRIVER =====")
     for key in (
+        "raw_action_count",
+        "raw_action_types",
+        "raw_structural_action_count",
+        "foreign_structural_window_count",
         "flow_event_count",
         "flow_event_kinds",
         "structural_event_count",
+        "video_evidence_pass",
         "window_scope_pass",
+        "foreign_structural_window_pass",
         "required_kinds_pass",
         "expected_text_pass",
         "expected_key_pass",
@@ -290,6 +378,9 @@ def main() -> int:
         "compile_pass",
         "compiled_step_count",
         "compiled_structural_count",
+        "compiled_surface",
+        "surface_contract_pass",
+        "native_windows_replay_claimed",
         "replay_execution",
         "bounded_replay_refusal",
         "error",
