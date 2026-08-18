@@ -116,37 +116,39 @@ PR #77 was squash-merged as `2a410476ef849fd6d9c172703a004b1befcbcfb1` after rea
 
 ## ADR-023 — Procedural memory is guidance/state, not a second planner — PROVISIONAL
 
-Stage 26 adopts a procedural-memory pattern informed by official `Tencent/UI-Mate` (`d2b2e0aede83eeacfb1bc86f66503acbc4a6738a`) without adopting UI-Mate as the product agent/model.
+Stage 26 adopts procedural-memory principles informed by `Tencent/UI-Mate` and now backed by qualified OpenAdapt compiler/lifecycle candidates.
 
 Direction:
 
 ```text
-successful structured trajectory
-  -> Demo Compiler
-  -> coordinate-free versioned candidate skill
-  -> compact current-subtask guidance
+successful structured trajectory / demonstration
+  -> qualified compiler + ProgramGraph/Workflow
+  -> versioned candidate procedure
+  -> ChatGPT decides applicability and adaptation
   -> current observed state remains authoritative
-  -> completion verifier
-  -> evidence-based trust lifecycle
+  -> deterministic/native/visual resolution as allowed
+  -> completion/effect verification
+  -> continue / HALT / ABSTAIN
 ```
 
 Rules:
 
 - ChatGPT remains the only planner/interpreter;
 - a stored workflow is advice/evidence, not action authorization;
-- compiled skills must not replay coordinates;
-- current state outranks remembered milestones;
-- one successful run creates at most a candidate skill;
+- compiled procedures must not use blind historical absolute-coordinate replay as authority or primary identity;
+- structural/native/semantic evidence is preferred; pixel/template/geometry evidence may exist only as bounded fallback evidence behind live re-resolution and safety gates;
+- current state outranks remembered history;
+- one successful run/demonstration does not silently become product-trusted;
 - skill retrieval/ranking is non-authorizing;
-- subtask advancement requires applicable verifier evidence, not only a model completion claim;
+- task/subtask completion requires applicable verifier/effect evidence, not only a model completion claim;
 - private chain-of-thought must not be stored in procedural memory;
-- raw screenshot/sensitive-data retention requires explicit redaction/retention policy.
+- raw screenshot/desktop capture retention requires explicit deletion/redaction/encryption policy.
 
-Acceptance gate is defined in `STAGE26_PROCEDURAL_MEMORY.md` and includes variant-task adaptation, incompatible/stale fail-closed behavior and deterministic skill version/trust handling.
+Acceptance gates are defined in `STAGE26_PROCEDURAL_MEMORY.md`.
 
 ## ADR-024 — Windows desktop surface precedes any public-contract expansion decision — PROVISIONAL
 
-A scoped Windows desktop surface is an explicit required Stage 26.x item.
+A scoped Windows desktop surface is an explicit required Stage 26 item.
 
 Preferred layering:
 
@@ -160,7 +162,7 @@ native/deterministic UI observation first
 
 Concrete local programs/capabilities are chosen later from real tasks/evidence; no fixed future application list is architectural policy.
 
-Until the desktop surface exists, the accepted public tool names remain the current five and procedural-memory foundations may stay internal/tested.
+Until the desktop surface exists, accepted public tool names remain the current five and procedural-memory foundations may stay internal/tested.
 
 Only after desktop acceptance, make a separate ADR + ordinary-Chat acceptance decision whether:
 
@@ -168,3 +170,44 @@ Only after desktop acceptance, make a separate ADR + ordinary-Chat acceptance de
 - the same small-semantic-surface philosophy can continue without expanding tool names.
 
 Do not preserve the number five by misleadingly overloading existing tools, and do not introduce a generic opaque workflow/desktop dispatcher.
+
+## ADR-025 — Reuse qualified OpenAdapt procedural core before writing replacements — ACCEPTED FOR STAGE 26 DEVELOPMENT
+
+Stage 26.1A qualified exact pinned sources on the target Windows machine:
+
+```text
+openadapt-flow 1.31.0
+commit d7f58d9f35c8369f16a9b378f23952d425334ad7
+
+openadapt-capture 1.2.2
+commit bcf12942d61d66b64d94e645e9124273a5cc5963
+```
+
+Target-tested qualification-code HEAD:
+
+`f8e8f606db845821b8fa24c09f9032015fb0e79e`.
+
+Evidence: exact source commit verification passed, Flow/Capture imported, model-free upstream tutorial completed `VERIFIED`, `PHASE_B_PASS=True`, `PHASE_C_TUTORIAL_PASS=True`, no probe/error, and normal Chrome remained 15/15 processes.
+
+Decision:
+
+- adopt OpenAdapt Flow `Workflow`/`ProgramGraph` compiler/IR as the upstream procedural-program substrate behind project boundaries;
+- adapt rather than reimplement `SkillLibrary` and learn/teach lifecycle because the project keeps stricter candidate-first trust at the product boundary;
+- continue real Windows qualification of OpenAdapt Capture before deciding recorder adoption;
+- do not build project-owned recorder/compiler/skill-store replacements unless a measured integration/security/product blocker demonstrates the need;
+- no OpenAdapt dependency enters production `semantic-projection` merely because qualification passed.
+
+## ADR-026 — OpenAdapt Windows agent and F16 integration remain separate qualification boundaries — PROVISIONAL
+
+The pinned OpenAdapt Windows server provides bounded typed routes and disables legacy arbitrary `/execute_windows` by default. This materially narrows the risk but does not by itself accept the interactive-session authority boundary.
+
+Before product integration compare:
+
+```text
+A. OpenAdapt typed WindowsBackend + hardened local interactive-session agent
+B. OpenAdapt IR/runtime + narrower native/project-owned actuator
+```
+
+The chosen design must prove process/session ownership, authentication, stale/focus/frame binding, bounded callable authority and that generic code execution is disabled/unreachable in product configuration.
+
+The already accepted local LFM2.5-VL-450M F16 should be tested through OpenAdapt's narrow proposal-only `Grounder` seam. Grounder output remains non-authorizing and must not bypass identity/risk/freshness/effect verification or create a new public vision tool.
