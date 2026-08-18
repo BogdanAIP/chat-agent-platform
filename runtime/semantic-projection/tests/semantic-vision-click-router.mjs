@@ -42,6 +42,7 @@ class FakeClient {
   const result = await router.click({ target: 'stale', visualFallback: { targetText: 'Save', instruction: 'click Save' } });
   assert.equal(result.status, 'acted');
   assert.equal(result.source, 'semantic');
+  assert.equal(result.reason, 'semantic-exact-enabled-button');
   assert.equal(grounderCalls, 0);
   assert.equal(client.calls.find(call => call.name === 'browser_click').arguments.target, 'e7');
   console.log('SEMANTIC_VISION_SEMANTIC_FIRST=PASS');
@@ -58,6 +59,34 @@ class FakeClient {
   assert.equal(grounderCalls, 0);
   assert.equal(client.calls.find(call => call.name === 'browser_click').arguments.target, 'e2');
   console.log('SEMANTIC_VISION_ENABLED_STATE_SEMANTIC=PASS');
+}
+
+{
+  let grounderCalls = 0;
+  const client = new FakeClient({ snapshot: '- button "Send" [disabled] [ref=e1]' });
+  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
+  const result = await router.click({ visualFallback: { targetText: 'Send', instruction: 'click Send' } });
+  assert.equal(result.status, 'abstain');
+  assert.equal(result.source, 'semantic');
+  assert.equal(result.reason, 'semantic-target-disabled');
+  assert.equal(grounderCalls, 0);
+  assert.equal(client.calls.some(call => call.name === 'browser_click'), false);
+  assert.equal(client.calls.some(call => call.name === 'browser_take_screenshot'), false);
+  console.log('SEMANTIC_VISION_SINGLE_DISABLED_ABSTAINS=PASS');
+}
+
+{
+  let grounderCalls = 0;
+  const client = new FakeClient({ snapshot: '- link "Launch" [ref=e1]' });
+  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
+  const result = await router.click({ visualFallback: { targetText: 'Launch', instruction: 'click Launch' } });
+  assert.equal(result.status, 'abstain');
+  assert.equal(result.source, 'semantic');
+  assert.equal(result.reason, 'semantic-target-role-not-promoted');
+  assert.equal(grounderCalls, 0);
+  assert.equal(client.calls.some(call => call.name === 'browser_click'), false);
+  assert.equal(client.calls.some(call => call.name === 'browser_take_screenshot'), false);
+  console.log('SEMANTIC_VISION_NON_BUTTON_EXACT_MATCH_ABSTAINS=PASS');
 }
 
 {
