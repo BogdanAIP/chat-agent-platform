@@ -1,6 +1,6 @@
 # Start Here — authoritative continuation guide
 
-Use this file first in a fresh ChatGPT or Codex session.
+Use this file first in a fresh ordinary ChatGPT session.
 
 ## Resolve live repository state first
 
@@ -16,6 +16,10 @@ Never treat a documentation SHA as permanently current. Resolve live `main`, the
 6. stage-specific accepted documents as needed
 
 When documents disagree, exact code/tests/current CI/physical target evidence outrank prose.
+
+## Current operating constraint
+
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources for development, review, orchestration or execution unless the user explicitly re-enables them later.
 
 ## Product boundary
 
@@ -48,8 +52,6 @@ Local components may observe, execute bounded actions, verify effects, reuse pro
 
 Stage 25.2 remains semantic/native first. Local LFM2.5-VL-450M F16 starts only on the reviewed zero-exact-candidate browser path, is proposal-only and remains behind deterministic target/freshness authorization.
 
-Accepted target specialist:
-
 ```text
 llama.cpp b10448 / ad1de39e0
 LFM2.5-VL-450M F16
@@ -75,17 +77,15 @@ Controlled Stage 26.1E evidence: 97 scoped resolutions, 0 Desktop fallback, 0 bi
 
 ### Stage 26.2A — Production Windows Runtime Foundation — merged #87
 
-Maintained `runtime/windows/` owns bounded actuation, PID/HWND window-scoped UIA and verifier foundation.
-
-Physical production benchmark preserved zero false/unrelated-window actions and about 3.410 s p50 / 3.631 s p95.
+Maintained `runtime/windows/` owns bounded actuation, PID/HWND window-scoped UIA and verifier foundation. Physical production benchmark preserved zero false/unrelated-window actions and about 3.410 s p50 / 3.631 s p95.
 
 ### Stage 26.2B — Desktop Observation / DesktopState — accepted
 
-PR #88 carries the production read-only observer. Exact physically tested runtime head:
+Introduced by PR #88. Exact physically tested runtime head:
 
 `dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
 
-Accepted physical result:
+Physically measured result:
 
 ```text
 SAME_IDENTITY_PASS=True
@@ -93,17 +93,19 @@ CONTROL_CONTRACT_PASS=True
 SCREENSHOT_DIGEST_PASS=True
 FRESHNESS_CONTRACT_PASS=True
 BOUNDED_CONTROL_COUNT_PASS=True
-OBSERVATION_ONLY_PASS=True
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-ACTION_COUNT=0
-FALSE_ACTION_COUNT=0
-UNRELATED_WINDOW_ACTION_COUNT=0
+CHROME_PROCESS_COUNT_BEFORE=11
+CHROME_PROCESS_COUNT_AFTER=11
+CHROME_SURVIVAL_PASS=True
+FIXTURE_CLEANUP_PASS=True
 PASS=True
 ```
 
-`DesktopState` is evidence, not authorization. Observation-only control fingerprints are distinct from executor authorization fingerprints. Screenshot bytes are not retained in the state.
+DesktopState is evidence, not authorization. Observation-only control fingerprints are distinct from executor authorization fingerprints. Screenshot bytes are not retained in the state.
+
+Self-review corrected the initial qualification reporting: the old `ACTION_COUNT=0` family of values were declarative constants, not instrumented counters, so they are not accepted as physical evidence. Read-only behavior is instead established by code review + CI source-boundary tests showing the observer/driver expose no executor or actuation channel.
 
 ## Current critical path
 
@@ -122,18 +124,18 @@ Desktop vision must use native exact-window pixel coordinates, never the browser
 
 Once a branch is logically complete, intended diff is verified, required physical/CI tests pass, and the applicable review/acceptance gate passes, it may be merged without waiting for a separate merge command.
 
-If a required review is unavailable, skipped, ambiguous, or reports findings, do not auto-merge; surface the blocker instead.
+If a required review is unavailable, skipped, ambiguous, or reports findings, or if any required test fails, do not auto-merge; surface the blocker instead.
 
 ## Optional/parallel directions
 
 - Procedure-state dataset + TRM/STARM/FPRM/small-model experiments are optional research only after real verified data and measured need; not Stage 27/28 prerequisites.
-- Multi-Chat/Codex orchestration is a separate upper layer; keep it outside Windows/procedure safety core.
+- Multi-chat orchestration is a separate upper layer. Under the current constraint it must not use Codex or Work resources.
 
 ## Non-negotiable rules
 
 - ChatGPT is the only general planner/intelligence;
 - semantic/native structure before pixels where reliable;
-- observation/model/procedure proposal is not authorization;
+- model/procedure/observation proposal is not authorization;
 - current observed state outranks remembered history;
 - verification controls completion;
 - stale/ambiguous/UNKNOWN fails closed;
