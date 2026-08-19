@@ -20,30 +20,39 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         ast.parse(self.resolver)
         ast.parse(self.driver)
 
-    def test_native_uia_conditions_replace_python_desktop_dfs(self):
-        self.assertIn("CreatePropertyCondition", self.resolver)
-        self.assertIn("CreateAndCondition", self.resolver)
-        self.assertIn("root.Element.FindAll(", self.resolver)
-        self.assertIn("window.Element.FindAll(", self.resolver)
-        self.assertIn("TREE_SCOPE_CHILDREN", self.resolver)
-        self.assertIn("TREE_SCOPE_DESCENDANTS", self.resolver)
+    def test_window_binding_uses_pid_scoped_win32_hwnds_not_desktop_uia_walk(self):
+        self.assertIn("EnumWindows", self.resolver)
+        self.assertIn("GetWindowThreadProcessId", self.resolver)
+        self.assertIn("auto.ControlFromHandle(hwnd)", self.resolver)
+        self.assertIn("expected_process_id", self.resolver)
+        self.assertIn("window_name_match_count", self.resolver)
+        self.assertNotIn("GetRootControl", self.resolver)
         self.assertNotIn("GetChildren", self.resolver)
+        self.assertNotIn("root.Element.FindAll", self.resolver)
         self.assertNotIn("stack.extend", self.resolver)
 
-    def test_raw_element_arrays_are_wrapped_back_into_controls(self):
-        self.assertIn("_controls_from_element_array", self.resolver)
+    def test_window_binding_is_bounded_and_fail_closed(self):
+        self.assertIn("_MAX_ENUM_WINDOWS = 4096", self.resolver)
+        self.assertIn("window_context_unbound", self.resolver)
+        self.assertIn("window_enumeration_truncated", self.resolver)
+        self.assertIn("window_binding_failures", self.resolver)
+        self.assertIn("window_binding_ambiguities", self.resolver)
+
+    def test_target_search_is_native_and_only_inside_bound_window(self):
+        self.assertIn("CreatePropertyCondition", self.resolver)
+        self.assertIn("CreateAndCondition", self.resolver)
+        self.assertIn("window.Element.FindAll(", self.resolver)
+        self.assertIn("TREE_SCOPE_DESCENDANTS", self.resolver)
         self.assertIn("elements.Length", self.resolver)
         self.assertIn("elements.GetElement(index)", self.resolver)
         self.assertIn("auto.Control.CreateControlFromElement(raw)", self.resolver)
-        self.assertNotIn("root.FindAll(", self.resolver)
-        self.assertNotIn("window.FindAll(", self.resolver)
 
-    def test_search_is_scoped_by_exact_window_name(self):
+    def test_search_is_scoped_by_exact_normalized_window_name(self):
         self.assertIn('window_name = locator.get("window_name")', self.resolver)
-        self.assertIn("auto.ControlType.WindowControl", self.resolver)
-        self.assertIn("auto.PropertyId.NameProperty", self.resolver)
-        self.assertIn("window_name", self.resolver)
-        self.assertIn("desktop_fallback_calls", self.resolver)
+        self.assertIn("_normalize_name", self.resolver)
+        self.assertIn('ControlTypeName", ""', self.resolver)
+        self.assertIn('!= "WindowControl"', self.resolver)
+        self.assertIn("observed_name == expected_name", self.resolver)
 
     def test_automation_id_has_a_direct_native_condition_path(self):
         self.assertIn("auto.PropertyId.AutomationIdProperty", self.resolver)
@@ -71,14 +80,15 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertIn("baseline._run_cycle", self.driver)
         self.assertIn("baseline.EXPECTED_OPERATIONS", self.driver)
 
-    def test_all_structural_operations_must_use_window_scoped_path(self):
-        self.assertIn("expected_scoped_calls = total_cycles * 8", self.driver)
-        self.assertIn(
-            "resolver.stats.window_scoped_find_calls == expected_scoped_calls",
-            self.driver,
-        )
-        self.assertIn("resolver.stats.desktop_fallback_calls == 0", self.driver)
-        self.assertIn("$result.resolver_stats.desktop_fallback_calls -eq 0", self.harness)
+    def test_non_actuating_preflight_must_pass_before_cycles(self):
+        self.assertIn("resolver.set_expected_process_id(fixture_pid)", self.driver)
+        self.assertIn("preflight_locator = baseline.accepted._structural", self.driver)
+        self.assertIn("preflight_handle = baseline.accepted._resolve_unique", self.driver)
+        self.assertIn('"window_binding_pass": True', self.driver)
+        self.assertIn("expected_scoped_calls = total_cycles * 8 + 1", self.driver)
+        self.assertIn('result["preflight"]["window_binding_pass"]', self.driver)
+        self.assertIn("resolver.stats.window_binding_failures == 0", self.driver)
+        self.assertIn("resolver.stats.window_binding_ambiguities == 0", self.driver)
 
     def test_performance_gate_is_derived_from_physical_stage1d_baseline(self):
         self.assertIn("BASELINE_ACTION_P50_MS = 183606.855", self.driver)
