@@ -78,6 +78,7 @@ $result = [ordered]@{
     agent_process_reused = $false
     fixture_process_reused = $false
     resolver_stats = $null
+    baseline_comparison = $null
     summary = $null
     unrelated_window_action_count = $null
     false_action_count = $null
@@ -175,6 +176,7 @@ try {
     $result.agent_process_reused = [bool]$driver.agent_process_reused
     $result.fixture_process_reused = [bool]$driver.fixture_process_reused
     $result.resolver_stats = $driver.resolver_stats
+    $result.baseline_comparison = $driver.baseline_comparison
     $result.summary = $driver.summary
     $result.unrelated_window_action_count = $driver.unrelated_window_action_count
     $result.false_action_count = $driver.false_action_count
@@ -229,6 +231,12 @@ if ($null -ne $result.resolver_stats) {
         Write-Flag ($property.Name.ToUpperInvariant()) $property.Value
     }
 }
+if ($null -ne $result.baseline_comparison) {
+    Write-Flag 'P50_SPEEDUP' $result.baseline_comparison.p50_speedup
+    Write-Flag 'P95_SPEEDUP' $result.baseline_comparison.p95_speedup
+    Write-Flag 'MINIMUM_SPEEDUP' $result.baseline_comparison.minimum_speedup
+    Write-Flag 'MINIMUM_SPEEDUP_PASS' $result.baseline_comparison.minimum_speedup_pass
+}
 if ($null -ne $result.summary) {
     foreach ($property in @($result.summary.PSObject.Properties | Sort-Object Name)) {
         $metric = $property.Name.ToUpperInvariant()
@@ -254,6 +262,7 @@ $accepted = [bool](
     $result.agent_process_reused -and
     $result.fixture_process_reused -and
     $result.resolver_stats.desktop_fallback_calls -eq 0 -and
+    $result.baseline_comparison.minimum_speedup_pass -and
     $result.unrelated_window_action_count -eq 0 -and
     $result.false_action_count -eq 0 -and
     $result.chrome_survival_pass -and
