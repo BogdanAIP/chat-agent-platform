@@ -25,6 +25,13 @@ class DesktopGrounderQualificationBoundaryTests(unittest.TestCase):
         self.assertIn('"grounder_source_sha256"', self.driver)
         self.assertIn('"observer_source_sha256"', self.driver)
 
+    def test_driver_separates_visible_vlm_label_from_uia_identity(self):
+        self.assertIn('TARGET_UIA_NAME = "Stage 26 start button"', self.driver)
+        self.assertIn('TARGET_VISIBLE_TEXT = "1. Benchmark start"', self.driver)
+        self.assertIn("control.name == TARGET_UIA_NAME", self.driver)
+        self.assertIn("target_text=TARGET_VISIBLE_TEXT", self.driver)
+        self.assertNotIn('TARGET_TEXT = "Stage 26 start button"', self.driver)
+
     def test_driver_has_no_action_channel(self):
         for token in (
             "runtime.windows.actuation",
@@ -52,6 +59,13 @@ class DesktopGrounderQualificationBoundaryTests(unittest.TestCase):
         self.assertIn("VISION_RESTORED_PASS", self.harness)
         self.assertIn("Stage 26.2C", self.harness)
         self.assertNotIn("production-visual-grounder.py", self.harness)
+
+    def test_vision_lifecycle_helper_does_not_consume_stale_last_exit_code(self):
+        helper = self.harness.split("function Invoke-VisionRuntimeJson", 1)[1].split("$repoRoot", 1)[0]
+        self.assertNotIn("$LASTEXITCODE", helper)
+        self.assertIn("try {", helper)
+        self.assertIn("ConvertFrom-Json", helper)
+        self.assertIn("$driverExit = $LASTEXITCODE", self.harness)
 
     def test_ci_parses_stage26_2c_harness(self):
         self.assertIn("scripts/stage26-desktop-grounder-qualification.ps1", self.ci)
