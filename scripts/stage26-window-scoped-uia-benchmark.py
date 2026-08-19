@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import sys
 import threading
 import traceback
 from dataclasses import asdict
@@ -20,6 +21,7 @@ def _load(path: Path, name: str):
     if spec is None or spec.loader is None:
         raise RuntimeError(f"unable to load {path.name}")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
