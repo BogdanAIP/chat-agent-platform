@@ -23,7 +23,8 @@ from runtime.windows.window_scoped_uia import WindowScopedUiaResolver
 
 
 FIXTURE_WINDOW_NAME = "Stage 26 capture qualification fixture"
-TARGET_TEXT = "Stage 26 start button"
+TARGET_UIA_NAME = "Stage 26 start button"
+TARGET_VISIBLE_TEXT = "1. Benchmark start"
 ABSENT_TARGET_TEXT = "Stage 26 definitely absent target"
 VISION_PORT = 3068
 
@@ -78,7 +79,7 @@ def _find_target_control(state: DesktopState):
     matches = [
         control
         for control in state.controls
-        if control.name == TARGET_TEXT and control.visible is not False
+        if control.name == TARGET_UIA_NAME and control.visible is not False
     ]
     if len(matches) != 1:
         raise RuntimeError(f"expected one visible target control, found {len(matches)}")
@@ -117,6 +118,8 @@ def main() -> int:
         "grounder_source_sha256": _sha256(grounder_path),
         "driver_source_sha256": _sha256(driver_path),
         "fixture_process_id": None,
+        "target_uia_name": TARGET_UIA_NAME,
+        "target_visible_text": TARGET_VISIBLE_TEXT,
         "desktop_state": None,
         "proposal": None,
         "same_frame_binding_pass": False,
@@ -160,7 +163,7 @@ def main() -> int:
         proposal = locate_desktop_target(
             client=client,
             window_png=screenshot,
-            target_text=TARGET_TEXT,
+            target_text=TARGET_VISIBLE_TEXT,
             desktop_state=state,
             uia_evidence=[target],
         )
@@ -183,7 +186,10 @@ def main() -> int:
             proposal.frame_digest == state.frame_digest
             and proposal.screenshot_digest == state.screenshot_digest
             and proposal.window_instance == state.window_instance
+            and proposal.session_id == state.session_id
+            and proposal.application_identity == state.application_identity
             and proposal.process_id == state.process_id
+            and proposal.process_generation == state.process_generation
             and proposal.window_handle == state.window_handle
         )
         result["coordinate_contract_pass"] = bool(
@@ -223,7 +229,7 @@ def main() -> int:
             locate_desktop_target(
                 client=client,
                 window_png=screenshot,
-                target_text=TARGET_TEXT,
+                target_text=TARGET_VISIBLE_TEXT,
                 desktop_state=stale_state,
             )
         except DesktopGrounderError as exc:
@@ -256,6 +262,8 @@ def main() -> int:
     print(f"OBSERVER_SOURCE_SHA256={result['observer_source_sha256']}")
     print(f"GROUNDER_SOURCE_SHA256={result['grounder_source_sha256']}")
     print(f"DRIVER_SOURCE_SHA256={result['driver_source_sha256']}")
+    print(f"TARGET_UIA_NAME={result['target_uia_name']}")
+    print(f"TARGET_VISIBLE_TEXT={result['target_visible_text']}")
     print(f"SAME_FRAME_BINDING_PASS={result['same_frame_binding_pass']}")
     print(f"COORDINATE_CONTRACT_PASS={result['coordinate_contract_pass']}")
     print(f"TARGET_POINT_INSIDE_UIA_PASS={result['target_point_inside_uia_pass']}")
