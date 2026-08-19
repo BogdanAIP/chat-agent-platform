@@ -5,7 +5,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RESOLVER = ROOT / "scripts" / "stage26-window-scoped-uia-resolver.py"
+RESOLVER = ROOT / "runtime" / "windows" / "window_scoped_uia.py"
+ACTUATION = ROOT / "runtime" / "windows" / "actuation.py"
 DRIVER = ROOT / "scripts" / "stage26-window-scoped-uia-benchmark.py"
 HARNESS = ROOT / "scripts" / "stage26-window-scoped-uia-benchmark.ps1"
 
@@ -13,11 +14,13 @@ HARNESS = ROOT / "scripts" / "stage26-window-scoped-uia-benchmark.ps1"
 class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
     def setUp(self):
         self.resolver = RESOLVER.read_text(encoding="utf-8")
+        self.actuation = ACTUATION.read_text(encoding="utf-8")
         self.driver = DRIVER.read_text(encoding="utf-8")
         self.harness = HARNESS.read_text(encoding="utf-8")
 
     def test_python_assets_parse(self):
         ast.parse(self.resolver)
+        ast.parse(self.actuation)
         ast.parse(self.driver)
 
     def test_window_binding_uses_pid_scoped_win32_hwnds_not_desktop_uia_walk(self):
@@ -32,7 +35,7 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertNotIn("stack.extend", self.resolver)
 
     def test_window_binding_is_bounded_and_fail_closed(self):
-        self.assertIn("_MAX_ENUM_WINDOWS = 4096", self.resolver)
+        self.assertIn("MAX_ENUM_WINDOWS = 4096", self.resolver)
         self.assertIn("window_context_unbound", self.resolver)
         self.assertIn("window_enumeration_truncated", self.resolver)
         self.assertIn("window_binding_failures", self.resolver)
@@ -61,7 +64,6 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         bind_index = function.index("windows = self._find_target_windows(auto, window_name)")
         client_index = function.index("auto_impl._AutomationClient.instance().IUIAutomation")
         self.assertLess(bind_index, client_index)
-        self.assertIn("Physical qualification proved", function)
 
     def test_pinned_uiautomation_internal_client_is_imported_explicitly(self):
         self.assertIn(
@@ -76,7 +78,6 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
             "client = auto._AutomationClient.instance().IUIAutomation",
             self.resolver,
         )
-        self.assertIn("star-import intentionally omits leading-underscore names", self.resolver)
 
     def test_hidden_uia_failures_are_diagnostic_not_collapsed_silently(self):
         self.assertIn("last_failure_stage", self.resolver)
@@ -101,17 +102,33 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertNotIn("SetFocus", self.resolver)
         self.assertNotIn("expected_fingerprint", self.resolver)
 
+    def test_module_global_upstream_patch_is_serialized(self):
+        self.assertIn("_PATCH_LOCK = threading.RLock()", self.resolver)
+        self.assertIn("with _PATCH_LOCK:", self.resolver)
+
     def test_non_find_uia_routes_remain_exact_upstream(self):
         self.assertIn('if operation not in {"find", "act"}', self.resolver)
         self.assertIn("return upstream._perform_uia(operation, payload)", self.resolver)
         self.assertIn("delegated_uia_calls", self.resolver)
 
-    def test_benchmark_injects_only_uia_function(self):
+    def test_benchmark_uses_production_runtime_primitives(self):
+        self.assertIn('WINDOWS_RUNTIME_DIR = REPO_ROOT / "runtime" / "windows"', self.driver)
+        self.assertIn('RESOLVER_PATH = WINDOWS_RUNTIME_DIR / "window_scoped_uia.py"', self.driver)
+        self.assertIn('ACTUATION_PATH = WINDOWS_RUNTIME_DIR / "actuation.py"', self.driver)
         self.assertIn("WindowScopedUiaResolver()", self.driver)
-        self.assertIn("input_fn=baseline.accepted._qualification_input", self.driver)
+        self.assertIn("input_fn=actuation.bounded_input", self.driver)
         self.assertIn("uia_fn=resolver.perform", self.driver)
         self.assertIn("baseline._run_cycle", self.driver)
         self.assertIn("baseline.EXPECTED_OPERATIONS", self.driver)
+        self.assertNotIn('RESOLVER_PATH = SCRIPT_DIR / "stage26-window-scoped-uia-resolver.py"', self.driver)
+
+    def test_harness_requires_and_reports_production_runtime(self):
+        self.assertIn("runtime\\windows\\window_scoped_uia.py", self.harness)
+        self.assertIn("runtime\\windows\\actuation.py", self.harness)
+        self.assertIn("PRODUCTION_RESOLVER_PATH", self.harness)
+        self.assertIn("PRODUCTION_ACTUATION_PATH", self.harness)
+        self.assertIn("STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME_RESULT", self.harness)
+        self.assertNotIn("$resolverPath = Join-Path $PSScriptRoot 'stage26-window-scoped-uia-resolver.py'", self.harness)
 
     def test_non_actuating_preflight_must_pass_before_cycles(self):
         self.assertIn("resolver.set_expected_process_id(fixture_pid)", self.driver)
@@ -124,13 +141,25 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertIn("resolver.stats.window_binding_ambiguities == 0", self.driver)
 
     def test_role_name_path_is_provider_tolerant_inside_bound_window(self):
-        self.assertIn("_MAX_WINDOW_CONTROL_SCAN = 512", self.resolver)
-        self.assertIn("Provider-tolerant fallback", self.resolver)
+        self.assertIn("MAX_WINDOW_CONTROL_SCAN = 512", self.resolver)
         direct_start = self.resolver.index("def _direct_find_candidates")
         direct_end = self.resolver.index("\n    def perform", direct_start)
         direct = self.resolver[direct_start:direct_end]
         self.assertNotIn("auto.PropertyId.NameProperty", direct)
         self.assertIn("candidate.get(key) != expected", direct)
+
+    def test_bounded_unicode_actuation_preserves_accepted_contract(self):
+        self.assertIn("KEYEVENTF_UNICODE", self.actuation)
+        self.assertIn('ctypes.WinDLL("user32"', self.actuation)
+        self.assertIn("MOUSEINPUT", self.actuation)
+        self.assertIn("KEYBDINPUT", self.actuation)
+        self.assertIn("HARDWAREINPUT", self.actuation)
+        self.assertIn("MAX_TEXT_CHARS = 65_536", self.actuation)
+        self.assertIn('payload.get("action") != "type_text"', self.actuation)
+        self.assertIn("return _perform_input(payload)", self.actuation)
+        self.assertIn("physical_type_text", self.actuation)
+        for forbidden in ("clipboard", "subprocess", "os.system", "shell=True"):
+            self.assertNotIn(forbidden, self.actuation)
 
     def test_performance_gate_is_derived_from_physical_stage1d_baseline(self):
         self.assertIn("BASELINE_ACTION_P50_MS = 183606.855", self.driver)
@@ -151,7 +180,7 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertNotIn("RebuildEnvironment", self.harness)
 
     def test_no_generic_execution_or_production_chat_surface(self):
-        combined = "\n".join((self.resolver, self.driver, self.harness))
+        combined = "\n".join((self.resolver, self.actuation, self.driver, self.harness))
         self.assertNotRegex(self.resolver, re.compile(r"\bexec\s*\(", re.I))
         self.assertNotRegex(self.resolver, re.compile(r"\beval\s*\(", re.I))
         self.assertNotIn("subprocess", self.resolver)
@@ -173,7 +202,7 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertIn("fixture_process_reused", self.driver)
         self.assertIn("agent_process_reused", self.driver)
         self.assertIn("CHROME_SURVIVAL_PASS", self.harness)
-        self.assertIn("STAGE26_1E_WINDOW_SCOPED_RESULT", self.harness)
+        self.assertIn("STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME_RESULT", self.harness)
 
 
 if __name__ == "__main__":

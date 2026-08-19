@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$OutputRoot = (Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\stage26\window-scoped-uia-benchmark'),
+    [string]$OutputRoot = (Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\stage26\production-windows-runtime-benchmark'),
     [string]$EnvironmentRoot = (Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\stage26\hot-runtime-env'),
     [ValidateRange(0, 10)][int]$WarmupCycles = 2,
     [ValidateRange(3, 50)][int]$MeasuredCycles = 10
@@ -32,12 +32,19 @@ function Start-ExactProcess {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $driverPath = Join-Path $PSScriptRoot 'stage26-window-scoped-uia-benchmark.py'
-$resolverPath = Join-Path $PSScriptRoot 'stage26-window-scoped-uia-resolver.py'
+$productionResolverPath = Join-Path $repoRoot 'runtime\windows\window_scoped_uia.py'
+$productionActuationPath = Join-Path $repoRoot 'runtime\windows\actuation.py'
 $fixturePath = Join-Path $PSScriptRoot 'stage26-windows-hot-runtime-fixture.ps1'
 $lockPath = Join-Path $repoRoot 'config\stage26-openadapt-lock.json'
-foreach ($required in @($driverPath, $resolverPath, $fixturePath, $lockPath)) {
+foreach ($required in @(
+    $driverPath,
+    $productionResolverPath,
+    $productionActuationPath,
+    $fixturePath,
+    $lockPath
+)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-        throw "Required Stage 26.1E asset is missing: $required"
+        throw "Required Stage 26.2A asset is missing: $required"
     }
 }
 
@@ -57,7 +64,7 @@ $closePath = Join-Path $runDir 'fixture-close.txt'
 $driverResultPath = Join-Path $runDir 'window-scoped-result.json'
 $resultPath = Join-Path $runDir 'result.json'
 $pinProbePath = Join-Path $runDir 'pin-probe.py'
-$windowTitle = "Chat Agent Platform Stage 26.1E Window Scoped UIA $timestamp"
+$windowTitle = "Chat Agent Platform Stage 26.2A Production Windows Runtime $timestamp"
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
 $totalCycles = $WarmupCycles + $MeasuredCycles
@@ -66,8 +73,10 @@ $fixtureKilled = $false
 $chromeBefore = @(Get-Process chrome -ErrorAction SilentlyContinue).Count
 
 $result = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     project_head = $null
+    production_resolver_path = $productionResolverPath
+    production_actuation_path = $productionActuationPath
     warmup_cycles = $WarmupCycles
     measured_cycles = $MeasuredCycles
     total_cycles = $totalCycles
@@ -131,10 +140,10 @@ try {
     }
 
     Write-Host ''
-    Write-Host '===== STAGE 26.1E WINDOW-SCOPED UIA BENCHMARK =====' -ForegroundColor Cyan
+    Write-Host '===== STAGE 26.2A PRODUCTION WINDOWS RUNTIME BENCHMARK =====' -ForegroundColor Cyan
     Write-Host "Warmup cycles: $WarmupCycles | measured cycles: $MeasuredCycles" -ForegroundColor Yellow
     Write-Host 'Ничего не трогайте до DONE.' -ForegroundColor Yellow
-    Write-Host 'Executor и fixture не перезапускаются между циклами.' -ForegroundColor Yellow
+    Write-Host 'Production resolver/actuation и fixture не перезапускаются между циклами.' -ForegroundColor Yellow
 
     $pwsh = Get-Command pwsh.exe -ErrorAction Stop
     $fixtureArgs = @(
@@ -169,7 +178,7 @@ try {
     $driverExit = $LASTEXITCODE
 
     if (-not (Test-Path -LiteralPath $driverResultPath -PathType Leaf)) {
-        throw 'Window-scoped driver result is missing.'
+        throw 'Production Windows runtime driver result is missing.'
     }
     $driver = Get-Content -LiteralPath $driverResultPath -Raw -Encoding utf8 | ConvertFrom-Json
     $result.driver_pass = [bool]$driver.pass
@@ -184,7 +193,7 @@ try {
 
     if ($driverExit -ne 0 -or -not $result.driver_pass) {
         $detail = if ($driver.error) { [string]$driver.error } else { "driver exit $driverExit" }
-        throw "Stage 26.1E window-scoped benchmark failed: $detail"
+        throw "Stage 26.2A production Windows runtime benchmark failed: $detail"
     }
 }
 catch {
@@ -218,9 +227,11 @@ finally {
 }
 
 Write-Host ''
-Write-Host '===== STAGE 26.1E WINDOW-SCOPED RESULT =====' -ForegroundColor Cyan
+Write-Host '===== STAGE 26.2A PRODUCTION WINDOWS RUNTIME RESULT =====' -ForegroundColor Cyan
 Write-Flag 'RESULT_PATH' $resultPath
 Write-Flag 'PROJECT_HEAD' $result.project_head
+Write-Flag 'PRODUCTION_RESOLVER_PATH' $result.production_resolver_path
+Write-Flag 'PRODUCTION_ACTUATION_PATH' $result.production_actuation_path
 Write-Flag 'ENVIRONMENT_REUSED' $result.environment_reused
 Write-Flag 'FLOW_PIN_PASS' $result.flow_pin_pass
 Write-Flag 'WINDOWS_RUNTIME_PIN_PASS' $result.windows_runtime_pin_pass
@@ -270,8 +281,8 @@ $accepted = [bool](
     $null -eq $result.error
 )
 if ($accepted) {
-    Write-Flag 'STAGE26_1E_WINDOW_SCOPED_RESULT' 'PASSED'
+    Write-Flag 'STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME_RESULT' 'PASSED'
     exit 0
 }
-Write-Flag 'STAGE26_1E_WINDOW_SCOPED_RESULT' 'FAILED'
+Write-Flag 'STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME_RESULT' 'FAILED'
 exit 1
