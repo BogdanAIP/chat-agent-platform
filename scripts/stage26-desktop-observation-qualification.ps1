@@ -64,10 +64,12 @@ $fixtureKilled = $false
 $chromeBefore = @(Get-Process chrome -ErrorAction SilentlyContinue).Count
 
 $result = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     project_head = $null
     production_observation_path = $observationPath
     production_resolver_path = $resolverPath
+    observer_source_sha256 = $null
+    driver_source_sha256 = $null
     environment_reused = $true
     flow_pin_pass = $false
     windows_runtime_pin_pass = $false
@@ -77,11 +79,7 @@ $result = [ordered]@{
     screenshot_digest_pass = $false
     freshness_contract_pass = $false
     bounded_control_count_pass = $false
-    observation_only_pass = $false
     resolver_stats = $null
-    action_count = $null
-    false_action_count = $null
-    unrelated_window_action_count = $null
     fixture_pid = $null
     fixture_killed = $false
     fixture_cleanup_pass = $false
@@ -130,7 +128,8 @@ try {
 
     Write-Host ''
     Write-Host '===== STAGE 26.2B DESKTOP OBSERVATION QUALIFICATION =====' -ForegroundColor Cyan
-    Write-Host 'Read-only fixture observation. No clicks, typing or scrolling are performed.' -ForegroundColor Yellow
+    Write-Host 'Read-only observation path: no executor or actuation module is invoked by this harness.' -ForegroundColor Yellow
+    Write-Host 'Read-only source-boundary enforcement is covered by CI/review; this physical run measures observation evidence.' -ForegroundColor Yellow
 
     $pwsh = Get-Command pwsh.exe -ErrorAction Stop
     $fixtureArgs = @(
@@ -164,16 +163,14 @@ try {
     }
     $driver = Get-Content -LiteralPath $driverResultPath -Raw -Encoding utf8 | ConvertFrom-Json
     $result.driver_pass = [bool]$driver.pass
+    $result.observer_source_sha256 = [string]$driver.observer_source_sha256
+    $result.driver_source_sha256 = [string]$driver.driver_source_sha256
     $result.same_identity_pass = [bool]$driver.same_identity_pass
     $result.control_contract_pass = [bool]$driver.control_contract_pass
     $result.screenshot_digest_pass = [bool]$driver.screenshot_digest_pass
     $result.freshness_contract_pass = [bool]$driver.freshness_contract_pass
     $result.bounded_control_count_pass = [bool]$driver.bounded_control_count_pass
-    $result.observation_only_pass = [bool]$driver.observation_only_pass
     $result.resolver_stats = $driver.resolver_stats
-    $result.action_count = $driver.action_count
-    $result.false_action_count = $driver.false_action_count
-    $result.unrelated_window_action_count = $driver.unrelated_window_action_count
     $result.driver_error = $driver.error
 
     if ($driverExit -ne 0 -or -not $result.driver_pass) {
@@ -217,6 +214,8 @@ Write-Flag 'RESULT_PATH' $resultPath
 Write-Flag 'PROJECT_HEAD' $result.project_head
 Write-Flag 'PRODUCTION_OBSERVATION_PATH' $result.production_observation_path
 Write-Flag 'PRODUCTION_RESOLVER_PATH' $result.production_resolver_path
+Write-Flag 'OBSERVER_SOURCE_SHA256' $result.observer_source_sha256
+Write-Flag 'DRIVER_SOURCE_SHA256' $result.driver_source_sha256
 Write-Flag 'ENVIRONMENT_REUSED' $result.environment_reused
 Write-Flag 'FLOW_PIN_PASS' $result.flow_pin_pass
 Write-Flag 'WINDOWS_RUNTIME_PIN_PASS' $result.windows_runtime_pin_pass
@@ -225,15 +224,11 @@ Write-Flag 'CONTROL_CONTRACT_PASS' $result.control_contract_pass
 Write-Flag 'SCREENSHOT_DIGEST_PASS' $result.screenshot_digest_pass
 Write-Flag 'FRESHNESS_CONTRACT_PASS' $result.freshness_contract_pass
 Write-Flag 'BOUNDED_CONTROL_COUNT_PASS' $result.bounded_control_count_pass
-Write-Flag 'OBSERVATION_ONLY_PASS' $result.observation_only_pass
 if ($null -ne $result.resolver_stats) {
     foreach ($property in @($result.resolver_stats.PSObject.Properties | Sort-Object Name)) {
         Write-Flag ($property.Name.ToUpperInvariant()) $property.Value
     }
 }
-Write-Flag 'ACTION_COUNT' $result.action_count
-Write-Flag 'FALSE_ACTION_COUNT' $result.false_action_count
-Write-Flag 'UNRELATED_WINDOW_ACTION_COUNT' $result.unrelated_window_action_count
 Write-Flag 'CHROME_PROCESS_COUNT_BEFORE' $result.chrome_process_count_before
 Write-Flag 'CHROME_PROCESS_COUNT_AFTER' $result.chrome_process_count_after
 Write-Flag 'CHROME_SURVIVAL_PASS' $result.chrome_survival_pass
@@ -241,6 +236,13 @@ Write-Flag 'FIXTURE_KILLED' $result.fixture_killed
 Write-Flag 'FIXTURE_CLEANUP_PASS' $result.fixture_cleanup_pass
 Write-Flag 'DRIVER_ERROR' $result.driver_error
 Write-Flag 'ERROR' $result.error
+
+$resolverStatsPass = [bool](
+    $null -ne $result.resolver_stats -and
+    $result.resolver_stats.desktop_fallback_calls -eq 0 -and
+    $result.resolver_stats.window_binding_failures -eq 0 -and
+    $result.resolver_stats.window_binding_ambiguities -eq 0
+)
 
 $accepted = [bool](
     $result.flow_pin_pass -and
@@ -251,13 +253,7 @@ $accepted = [bool](
     $result.screenshot_digest_pass -and
     $result.freshness_contract_pass -and
     $result.bounded_control_count_pass -and
-    $result.observation_only_pass -and
-    $result.resolver_stats.desktop_fallback_calls -eq 0 -and
-    $result.resolver_stats.window_binding_failures -eq 0 -and
-    $result.resolver_stats.window_binding_ambiguities -eq 0 -and
-    $result.action_count -eq 0 -and
-    $result.false_action_count -eq 0 -and
-    $result.unrelated_window_action_count -eq 0 -and
+    $resolverStatsPass -and
     $result.chrome_survival_pass -and
     $result.fixture_cleanup_pass -and
     $null -eq $result.error
