@@ -14,6 +14,9 @@ from typing import Any
 SCRIPT_DIR = Path(__file__).resolve().parent
 BASELINE_PATH = SCRIPT_DIR / "stage26-windows-hot-runtime-benchmark.py"
 RESOLVER_PATH = SCRIPT_DIR / "stage26-window-scoped-uia-resolver.py"
+BASELINE_ACTION_P50_MS = 183606.855
+BASELINE_ACTION_P95_MS = 185567.403
+MINIMUM_SPEEDUP = 10.0
 
 
 def _load(path: Path, name: str):
@@ -61,6 +64,14 @@ def main() -> int:
         "total_cycles": total_cycles,
         "expected_window_scoped_find_calls": expected_scoped_calls,
         "resolver_stats": {},
+        "baseline_comparison": {
+            "baseline_action_p50_ms": BASELINE_ACTION_P50_MS,
+            "baseline_action_p95_ms": BASELINE_ACTION_P95_MS,
+            "minimum_speedup": MINIMUM_SPEEDUP,
+            "p50_speedup": None,
+            "p95_speedup": None,
+            "minimum_speedup_pass": False,
+        },
         "agent_process_reused": False,
         "fixture_process_reused": False,
         "samples": [],
@@ -171,6 +182,19 @@ def main() -> int:
         }
         result["resolver_stats"] = asdict(resolver.stats)
 
+        action_summary = result["summary"]["action_sequence_total_ms"]
+        p50_speedup = BASELINE_ACTION_P50_MS / float(action_summary["p50_ms"])
+        p95_speedup = BASELINE_ACTION_P95_MS / float(action_summary["p95_ms"])
+        speedup_pass = p50_speedup >= MINIMUM_SPEEDUP and p95_speedup >= MINIMUM_SPEEDUP
+        result["baseline_comparison"] = {
+            "baseline_action_p50_ms": BASELINE_ACTION_P50_MS,
+            "baseline_action_p95_ms": BASELINE_ACTION_P95_MS,
+            "minimum_speedup": MINIMUM_SPEEDUP,
+            "p50_speedup": round(p50_speedup, 3),
+            "p95_speedup": round(p95_speedup, 3),
+            "minimum_speedup_pass": speedup_pass,
+        }
+
         result["pass"] = bool(
             len(samples) == args.measured_cycles
             and int(final_state.get("completed_cycles", 0)) == total_cycles
@@ -180,6 +204,7 @@ def main() -> int:
             and resolver.stats.desktop_fallback_calls == 0
             and result["unrelated_window_action_count"] == 0
             and result["false_action_count"] == 0
+            and speedup_pass
             and all(
                 sample["delivered_operations"] == baseline.EXPECTED_OPERATIONS
                 for sample in samples
@@ -224,6 +249,11 @@ def main() -> int:
         "role_name_condition_calls",
     ):
         print(f"{key.upper()}={stats.get(key)}")
+    comparison = result.get("baseline_comparison", {})
+    print(f"P50_SPEEDUP={comparison.get('p50_speedup')}")
+    print(f"P95_SPEEDUP={comparison.get('p95_speedup')}")
+    print(f"MINIMUM_SPEEDUP={comparison.get('minimum_speedup')}")
+    print(f"MINIMUM_SPEEDUP_PASS={comparison.get('minimum_speedup_pass')}")
     for metric, summary in result.get("summary", {}).items():
         label = metric.upper()
         if label.endswith("_MS"):
