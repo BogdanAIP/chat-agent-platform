@@ -59,9 +59,24 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         function_end = self.resolver.index("\n    def perform", function_start)
         function = self.resolver[function_start:function_end]
         bind_index = function.index("windows = self._find_target_windows(auto, window_name)")
-        client_index = function.index("auto._AutomationClient.instance().IUIAutomation")
+        client_index = function.index("auto_impl._AutomationClient.instance().IUIAutomation")
         self.assertLess(bind_index, client_index)
         self.assertIn("Physical qualification proved", function)
+
+    def test_pinned_uiautomation_internal_client_is_imported_explicitly(self):
+        self.assertIn(
+            "from uiautomation import uiautomation as auto_impl",
+            self.resolver,
+        )
+        self.assertIn(
+            "auto_impl._AutomationClient.instance().IUIAutomation",
+            self.resolver,
+        )
+        self.assertNotIn(
+            "client = auto._AutomationClient.instance().IUIAutomation",
+            self.resolver,
+        )
+        self.assertIn("star-import intentionally omits leading-underscore names", self.resolver)
 
     def test_hidden_uia_failures_are_diagnostic_not_collapsed_silently(self):
         self.assertIn("last_failure_stage", self.resolver)
