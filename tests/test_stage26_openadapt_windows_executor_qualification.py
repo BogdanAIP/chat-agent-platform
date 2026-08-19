@@ -47,7 +47,7 @@ class Stage26OpenAdaptWindowsExecutorQualificationTests(unittest.TestCase):
         self.assertIn('port=0', self.driver)
         self.assertIn('token=token', self.driver)
         self.assertIn('allow_legacy_exec=False', self.driver)
-        self.assertIn('create_server(config)', self.driver)
+        self.assertIn('create_server(config, input_fn=_qualification_input)', self.driver)
         self.assertNotIn('win_agent.server.main', self.driver)
         self.assertNotIn('--allow-legacy-exec', self.driver)
 
@@ -74,23 +74,32 @@ class Stage26OpenAdaptWindowsExecutorQualificationTests(unittest.TestCase):
     def test_pre_routing_refusal_probes_are_zero_body_on_windows(self):
         self.assertIn('def _post_empty(', self.driver)
         helper_start = self.driver.index('def _post_empty(')
-        helper_end = self.driver.index('def _structural(', helper_start)
+        helper_end = self.driver.index('def _delivery_receipt(', helper_start)
         helper = self.driver[helper_start:helper_end]
         self.assertIn('data=b""', helper)
         self.assertNotIn('json=', helper)
         self.assertIn('WinError 10053', helper)
         self.assertIn('unauthorized = _post_empty(', self.driver)
         self.assertIn('legacy = _post_empty(', self.driver)
-        # The disabled legacy route is proven by routing status alone. Do not
-        # send a command body to a path rejected before body parsing.
         self.assertNotIn("THIS MUST NEVER EXECUTE", self.driver)
+
+    def test_layout_independent_text_input_is_narrow_and_win32_native(self):
+        self.assertIn('KEYEVENTF_UNICODE = 0x0004', self.driver)
+        self.assertIn('user32.SendInput', self.driver)
+        self.assertIn('def _qualification_input(', self.driver)
+        self.assertIn('if payload.get("action") != "type_text"', self.driver)
+        self.assertIn('return upstream_perform_input(payload)', self.driver)
+        self.assertIn('_send_unicode_text(text, float(interval))', self.driver)
+        self.assertIn('layout_independent_text_input_pass', self.driver)
+        self.assertNotIn('Set-Clipboard', self.driver)
+        self.assertNotIn('pyautogui.write(', self.driver)
+        self.assertNotIn('LoadKeyboardLayout', self.driver)
+        self.assertNotIn('ActivateKeyboardLayout', self.driver)
 
     def test_negative_guard_probes_are_non_mutating(self):
         self.assertIn('"expected_frame_sha256": "0" * 64', self.driver)
         self.assertIn('stale_frame_refusal_pass', self.driver)
         self.assertIn('stale_context_refusal_pass', self.driver)
-        # Both deliberate stale probes carry a zero-notch scroll. If a guard
-        # regressed, the test still emits no input edge before failing closed.
         self.assertGreaterEqual(self.driver.count('"horizontal_notches": 0'), 3)
         self.assertGreaterEqual(self.driver.count('"vertical_notches": 0'), 2)
 
@@ -149,6 +158,13 @@ class Stage26OpenAdaptWindowsExecutorQualificationTests(unittest.TestCase):
         self.assertIn('token = secrets.token_urlsafe(32)', self.driver)
         self.assertNotIn('"token": token', self.driver)
 
+    def test_partial_delivery_and_fixture_state_survive_failure(self):
+        finally_start = self.driver.index('    finally:')
+        final_block = self.driver[finally_start:]
+        self.assertIn('result["delivered_operations"] = list(delivered)', final_block)
+        self.assertIn('result["fixture_state"] = _read_json(fixture_state_path)', final_block)
+        self.assertIn('"fixture_state",', self.driver)
+
     def test_production_chat_surface_is_not_touched(self):
         combined = "\n".join((self.driver, self.harness))
         for forbidden in (
@@ -167,6 +183,7 @@ class Stage26OpenAdaptWindowsExecutorQualificationTests(unittest.TestCase):
     def test_final_acceptance_requires_zero_false_or_unrelated_actions(self):
         self.assertIn('result["unrelated_window_action_count"] == 0', self.driver)
         self.assertIn('result["false_action_count"] == 0', self.driver)
+        self.assertIn('layout_independent_text_input_pass', self.driver)
         self.assertIn('STAGE26_1C_EXECUTOR_RESULT', self.harness)
         self.assertIn('fixture_cleanup_pass', self.harness)
         self.assertIn('chrome_survival_pass', self.harness)
