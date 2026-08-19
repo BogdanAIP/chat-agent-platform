@@ -54,7 +54,9 @@ def main() -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     total_cycles = args.warmup_cycles + args.measured_cycles
-    expected_scoped_calls = total_cycles * 8
+    # Eight structural resolutions per complete cycle plus one non-actuating
+    # preflight lookup before any benchmark action is allowed.
+    expected_scoped_calls = total_cycles * 8 + 1
     resolver = optimized.WindowScopedUiaResolver()
     result: dict[str, Any] = {
         "schema_version": 1,
@@ -63,6 +65,12 @@ def main() -> int:
         "measured_cycles": args.measured_cycles,
         "total_cycles": total_cycles,
         "expected_window_scoped_find_calls": expected_scoped_calls,
+        "preflight": {
+            "window_binding_pass": False,
+            "fixture_process_id": None,
+            "candidate_count": None,
+            "fingerprint_present": False,
+        },
         "resolver_stats": {},
         "baseline_comparison": {
             "baseline_action_p50_ms": BASELINE_ACTION_P50_MS,
@@ -134,6 +142,27 @@ def main() -> int:
             label="optimized benchmark fixture recorder_ready",
         )
         fixture_pid = initial.get("fixture_pid")
+        if isinstance(fixture_pid, bool) or not isinstance(fixture_pid, int) or fixture_pid <= 0:
+            raise RuntimeError("fixture did not publish a valid process id")
+
+        resolver.set_expected_process_id(fixture_pid)
+
+        # Non-actuating fail-fast preflight. No benchmark cycle is started until
+        # the exact fixture process/window and Start button resolve uniquely.
+        preflight_locator = baseline.accepted._structural(
+            "button",
+            "Stage 26 start button",
+        )
+        preflight_handle = baseline.accepted._resolve_unique(
+            backend,
+            preflight_locator,
+        )
+        result["preflight"] = {
+            "window_binding_pass": True,
+            "fixture_process_id": fixture_pid,
+            "candidate_count": preflight_handle.candidate_count,
+            "fingerprint_present": bool(preflight_handle.target_fingerprint),
+        }
 
         cycle = 1
         for _ in range(args.warmup_cycles):
@@ -196,12 +225,17 @@ def main() -> int:
         }
 
         result["pass"] = bool(
-            len(samples) == args.measured_cycles
+            result["preflight"]["window_binding_pass"]
+            and result["preflight"]["candidate_count"] == 1
+            and result["preflight"]["fingerprint_present"]
+            and len(samples) == args.measured_cycles
             and int(final_state.get("completed_cycles", 0)) == total_cycles
             and result["agent_process_reused"]
             and result["fixture_process_reused"]
             and resolver.stats.window_scoped_find_calls == expected_scoped_calls
             and resolver.stats.desktop_fallback_calls == 0
+            and resolver.stats.window_binding_failures == 0
+            and resolver.stats.window_binding_ambiguities == 0
             and result["unrelated_window_action_count"] == 0
             and result["false_action_count"] == 0
             and speedup_pass
@@ -240,6 +274,10 @@ def main() -> int:
     print(f"BENCHMARK_KIND={result['benchmark_kind']}")
     print(f"WARMUP_CYCLES={result['warmup_cycles']}")
     print(f"MEASURED_CYCLES={result['measured_cycles']}")
+    preflight = result.get("preflight", {})
+    print(f"WINDOW_BINDING_PASS={preflight.get('window_binding_pass')}")
+    print(f"PREFLIGHT_CANDIDATE_COUNT={preflight.get('candidate_count')}")
+    print(f"PREFLIGHT_FINGERPRINT_PRESENT={preflight.get('fingerprint_present')}")
     stats = result.get("resolver_stats", {})
     for key in (
         "window_scoped_find_calls",
@@ -247,6 +285,13 @@ def main() -> int:
         "delegated_uia_calls",
         "automation_id_condition_calls",
         "role_name_condition_calls",
+        "window_enum_calls",
+        "window_enum_handles_seen",
+        "process_window_handles_seen",
+        "window_uia_convertible_count",
+        "window_name_match_count",
+        "window_binding_failures",
+        "window_binding_ambiguities",
     ):
         print(f"{key.upper()}={stats.get(key)}")
     comparison = result.get("baseline_comparison", {})
