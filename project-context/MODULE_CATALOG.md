@@ -1,27 +1,17 @@
 # Module / Capability Catalog
 
-Status synchronized through the physically accepted Stage 26.2B DesktopState work. Resolve live `main` and relevant PR heads before work.
+Status synchronized through accepted Stage 26.2B DesktopState work. Resolve live `main` and relevant PR heads before work.
 
-Current integration line:
+## Operating constraint
 
-```text
-main = d044926846d9c2e198c906ff5174308da0974b03
-```
-
-Current open accepted work:
-
-```text
-#88 Stage 26.2B Desktop Observation / DesktopState
-physical runtime head = dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a
-ready for review; not merged
-```
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources unless the user explicitly re-enables them later.
 
 ## Status meanings
 
 - **PRODUCT-ACCEPTED** — accepted normal product/ordinary-Chat path for the scoped contract.
 - **ACCEPTED-INFRASTRUCTURE** — accepted maintained internal runtime/lifecycle foundation.
 - **ACCEPTED-SPECIALIST** — bounded specialist backend accepted behind a focused boundary.
-- **TARGET-QUALIFIED** — exact component/path physically passed target qualification but is not yet in `main`/normal product path.
+- **TARGET-QUALIFIED** — exact component/path physically passed target qualification but is not yet promoted into the normal maintained product path.
 - **ADAPT-CANDIDATE** — reusable upstream mechanism that still needs project integration/policy wrapping.
 - **DIAGNOSTIC** — internal testing/lifecycle infrastructure only.
 - **ACTIVE-INTEGRATION** — current product-integration work.
@@ -49,15 +39,15 @@ ready for review; not merged
 | Window-scoped Windows UI resolution | PID -> Win32 HWND -> exact window -> bounded native UIA FindAll | ACCEPTED-INFRASTRUCTURE | Stage 26.1E accepted and promoted by Stage 26.2A. |
 | Runtime verifier foundation | before/after evidence + `PASS|FAIL|UNKNOWN` | ACCEPTED-INFRASTRUCTURE | Delivery is not success; UNKNOWN does not silently advance. |
 | Production Windows runtime | `runtime/windows` bounded observation/actuation/verification foundation | ACCEPTED-INFRASTRUCTURE | Stage 26.2A merged #87. |
-| Desktop observation | canonical read-only `DesktopState` | TARGET-QUALIFIED | Stage 26.2B physically accepted on #88; land separately when authorized. |
-| Desktop F16 Grounder | native exact-window pixel-space adapter | ACTIVE-INTEGRATION | Next after #88; separate from browser CSS viewport and proposal-only. |
+| Desktop observation | canonical read-only `DesktopState` | ACCEPTED-INFRASTRUCTURE | Stage 26.2B accepted; introduced by #88 with exact physical runtime evidence. |
+| Desktop F16 Grounder | native exact-window pixel-space adapter | ACTIVE-INTEGRATION | Next stage; separate from browser CSS viewport and proposal-only. |
 | Windows UIA->vision router | deterministic structure first, bounded visual fallback | FUTURE-SCOPED-GATE | Must pass adversarial accuracy suite before broad desktop claims. |
 | Real application Windows E2E | one medium-complexity user app + disposable artifact | FUTURE-SCOPED-GATE | Select from real task/evidence; deterministic postcondition and rollback. |
 | Verified Procedure Runtime | ProgramGraph + live state + authorization + verifier | FUTURE-SCOPED-GATE | Only after real desktop E2E. |
 | Human demonstration transfer | Capture -> candidate procedure -> changed-state verified replay | FUTURE-SCOPED-GATE | Not blind macro replay. |
 | Procedure-state dataset | structured verified state-transition examples | OPTIONAL-RESEARCH | Not a Stage 27/28 prerequisite. |
 | Specialized local reasoning | generic `SpecializedReasoningBackend` | OPTIONAL-RESEARCH | Only if real data and measured escalation/latency need justify it. |
-| Multi-Chat/Codex orchestration | upper-layer controller over Chat/Codex sessions | PARALLEL-TRACK | Keep outside Windows/procedure safety core. |
+| Multi-chat orchestration | upper-layer controller over ordinary Chat sessions | PARALLEL-TRACK | Keep outside Windows/procedure safety core; no Codex/Work under current constraint. |
 | Distribution/cockpit reference | OpenAdapt Desktop packaging/Tauri/sidecar patterns | ADAPT-CANDIDATE | Stage 27 reference; verify runtime-version compatibility. |
 | Distribution/maintenance | installer/update/repair/doctor/uninstall/rollback/restart recovery | FUTURE-SCOPED-GATE | Stage 27. |
 
@@ -77,19 +67,13 @@ After a real Windows desktop surface exists, a separate ADR decides whether a fe
 
 ### Stage 26.1B Capture
 
-```text
-head = 7a9daa9329d81994833c22b4ca2e321927527dcc
-```
+`7a9daa9329d81994833c22b4ca2e321927527dcc`
 
 Interactive-session capture, bounded selected-window evidence, raw UIA retention, Flow compile, zero foreign structural-window evidence, explicit refusal of unaccepted replay and clean local artifact handling were accepted.
 
 ### Stage 26.1C executor
 
-```text
-physical head = 4bf08dd9b8d1ff010f14723f9bb0384b97334a2b
-```
-
-Authenticated loopback, legacy exec absent/disabled, typed actions, stale frame/context refusal, focus/fingerprint binding, bounded keyboard/pointer/scroll, layout-independent Unicode typing, zero false/unrelated-window actions.
+Physical head `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`: authenticated loopback, legacy exec absent/disabled, typed actions, stale frame/context refusal, focus/fingerprint binding, bounded keyboard/pointer/scroll, layout-independent Unicode typing, zero false/unrelated-window actions.
 
 ### Stage 26.1D / 26.1E performance
 
@@ -110,7 +94,6 @@ The 97/97 result is controlled WinForms role+name evidence, not global Windows a
 
 ```text
 physical head = 6ae5c3a9e624c8c341857c025625b203b796b41c
-merged main = d044926846d9c2e198c906ff5174308da0974b03
 production p50 = 3410.031 ms
 production p95 = 3630.583 ms
 ```
@@ -119,10 +102,9 @@ Production-owned runtime preserved the accepted safety/performance behavior.
 
 ### Stage 26.2B DesktopState
 
-```text
-physical runtime head = dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a
-PR = #88 open
-```
+Exact physically tested runtime head:
+
+`dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
 
 ```text
 SAME_IDENTITY_PASS=True
@@ -143,6 +125,10 @@ PASS=True
 ```
 
 This proves bounded read-only DesktopState observation on the controlled WinForms fixture. It does not prove cross-application UIA coverage or desktop VLM accuracy.
+
+## Merge rule
+
+A logically complete branch with reviewed intended diff, passing required physical/CI gates and satisfied applicable review/acceptance checks should be merged without waiting for a separate merge command. Stop instead on unresolved findings, conflicts, ambiguous scope, failed/skipped required tests or unavailable required review evidence.
 
 ## Candidate selection rule for future capabilities
 
