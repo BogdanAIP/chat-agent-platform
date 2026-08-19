@@ -54,6 +54,24 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertIn('!= "WindowControl"', self.resolver)
         self.assertIn("observed_name == expected_name", self.resolver)
 
+    def test_window_binding_happens_before_native_condition_client_creation(self):
+        function_start = self.resolver.index("def _direct_find_candidates")
+        function_end = self.resolver.index("\n    def perform", function_start)
+        function = self.resolver[function_start:function_end]
+        bind_index = function.index("windows = self._find_target_windows(auto, window_name)")
+        client_index = function.index("auto._AutomationClient.instance().IUIAutomation")
+        self.assertLess(bind_index, client_index)
+        self.assertIn("Physical qualification proved", function)
+
+    def test_hidden_uia_failures_are_diagnostic_not_collapsed_silently(self):
+        self.assertIn("last_failure_stage", self.resolver)
+        self.assertIn("last_failure_detail", self.resolver)
+        self.assertIn('"automation_client"', self.resolver)
+        self.assertIn('"target_findall"', self.resolver)
+        self.assertIn('"target_candidate_match"', self.resolver)
+        self.assertIn('"window_match"', self.resolver)
+        self.assertIn("conversion_error", self.resolver)
+
     def test_automation_id_has_a_direct_native_condition_path(self):
         self.assertIn("auto.PropertyId.AutomationIdProperty", self.resolver)
         self.assertIn("automation_id_condition_calls", self.resolver)
@@ -89,6 +107,15 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertIn('result["preflight"]["window_binding_pass"]', self.driver)
         self.assertIn("resolver.stats.window_binding_failures == 0", self.driver)
         self.assertIn("resolver.stats.window_binding_ambiguities == 0", self.driver)
+
+    def test_role_name_path_is_provider_tolerant_inside_bound_window(self):
+        self.assertIn("_MAX_WINDOW_CONTROL_SCAN = 512", self.resolver)
+        self.assertIn("Provider-tolerant fallback", self.resolver)
+        direct_start = self.resolver.index("def _direct_find_candidates")
+        direct_end = self.resolver.index("\n    def perform", direct_start)
+        direct = self.resolver[direct_start:direct_end]
+        self.assertNotIn("auto.PropertyId.NameProperty", direct)
+        self.assertIn("candidate.get(key) != expected", direct)
 
     def test_performance_gate_is_derived_from_physical_stage1d_baseline(self):
         self.assertIn("BASELINE_ACTION_P50_MS = 183606.855", self.driver)
