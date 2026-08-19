@@ -23,10 +23,20 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
     def test_native_uia_conditions_replace_python_desktop_dfs(self):
         self.assertIn("CreatePropertyCondition", self.resolver)
         self.assertIn("CreateAndCondition", self.resolver)
-        self.assertIn("root.FindAll(TREE_SCOPE_CHILDREN, window_condition)", self.resolver)
-        self.assertIn("window.FindAll(TREE_SCOPE_DESCENDANTS, condition)", self.resolver)
+        self.assertIn("root.Element.FindAll(", self.resolver)
+        self.assertIn("window.Element.FindAll(", self.resolver)
+        self.assertIn("TREE_SCOPE_CHILDREN", self.resolver)
+        self.assertIn("TREE_SCOPE_DESCENDANTS", self.resolver)
         self.assertNotIn("GetChildren", self.resolver)
         self.assertNotIn("stack.extend", self.resolver)
+
+    def test_raw_element_arrays_are_wrapped_back_into_controls(self):
+        self.assertIn("_controls_from_element_array", self.resolver)
+        self.assertIn("elements.Length", self.resolver)
+        self.assertIn("elements.GetElement(index)", self.resolver)
+        self.assertIn("auto.Control.CreateControlFromElement(raw)", self.resolver)
+        self.assertNotIn("root.FindAll(", self.resolver)
+        self.assertNotIn("window.FindAll(", self.resolver)
 
     def test_search_is_scoped_by_exact_window_name(self):
         self.assertIn('window_name = locator.get("window_name")', self.resolver)
