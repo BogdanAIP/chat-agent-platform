@@ -65,8 +65,6 @@ openadapt-flow 1.31.0 @ d7f58d9f35c8369f16a9b378f23952d425334ad7
 openadapt-capture 1.2.2 @ bcf12942d61d66b64d94e645e9124273a5cc5963
 ```
 
-Flow `Workflow`/`ProgramGraph` is adopted behind project boundaries; `SkillLibrary` lifecycle is adapted under candidate-first trust; Capture/Windows mechanics are reused where qualified.
-
 ## Stage 26.1B — bounded Windows Capture — ACCEPTED
 
 Exact target-tested qualification head:
@@ -143,7 +141,7 @@ Evidence:
 
 `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-observation-qualification\observation-20260819-184904\result.json`
 
-Accepted read-only result:
+Physically measured result:
 
 ```text
 SAME_IDENTITY_PASS=True
@@ -151,21 +149,21 @@ CONTROL_CONTRACT_PASS=True
 SCREENSHOT_DIGEST_PASS=True
 FRESHNESS_CONTRACT_PASS=True
 BOUNDED_CONTROL_COUNT_PASS=True
-OBSERVATION_ONLY_PASS=True
 WINDOW_ENUM_CALLS=2
 WINDOW_NAME_MATCH_COUNT=2
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-ACTION_COUNT=0
-FALSE_ACTION_COUNT=0
-UNRELATED_WINDOW_ACTION_COUNT=0
+CHROME_PROCESS_COUNT_BEFORE=11
+CHROME_PROCESS_COUNT_AFTER=11
 CHROME_SURVIVAL_PASS=True
 FIXTURE_CLEANUP_PASS=True
 PASS=True
 ```
 
 `DesktopState` is evidence only. Observation/control fingerprints are not executor authorization. Screenshot bytes are not retained in the state; the state carries digest/freshness/provenance evidence.
+
+Self-review correction: the first qualification output also contained `ACTION_COUNT=0` and related fields, but those were declarative constants rather than instrumented counters. They are excluded from physical acceptance. The read-only boundary is established by direct code review plus CI source-boundary tests showing the observer and driver expose no executor/actuation channel.
 
 Scope remains controlled WinForms read-only observation. Real-app coverage, broader AutomationId/custom-control coverage and desktop VLM remain separate future evidence.
 
