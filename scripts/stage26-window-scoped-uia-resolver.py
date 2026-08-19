@@ -240,7 +240,12 @@ class WindowScopedUiaResolver:
             return [], False
 
         try:
-            client = auto._AutomationClient.instance().IUIAutomation
+            # uiautomation 2.0.29 package __init__ uses ``from .uiautomation import *``.
+            # Python star-import intentionally omits leading-underscore names, so
+            # ``_AutomationClient`` is available only on the pinned internal module.
+            from uiautomation import uiautomation as auto_impl
+
+            client = auto_impl._AutomationClient.instance().IUIAutomation
         except Exception as exc:
             self._record_failure(
                 "automation_client",
