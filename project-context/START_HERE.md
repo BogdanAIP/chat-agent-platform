@@ -1,52 +1,29 @@
 # Start Here — authoritative continuation guide
 
-Use this file first in a fresh ChatGPT or Codex session.
+Use this file first in a fresh ordinary ChatGPT session.
 
-## 1. Resolve live repository state first
+## Resolve live repository state first
 
-Never treat a documentation SHA as permanently current. Resolve live `main`, then inspect the exact PR heads relevant to the task.
+Never treat a documentation SHA as permanently current. Resolve live `main`, then inspect any active PR heads relevant to the task.
 
-At creation of this synchronization branch:
-
-```text
-main = def67e45d7a72547c53bcf339d00124f4edca0be
-```
-
-Accepted but still stacked/unmerged Windows qualification work:
-
-```text
-#83 Stage 26.1C
-  head = 4bf08dd9b8d1ff010f14723f9bb0384b97334a2b
-  base = main
-
-#84 Stage 26.1D
-  head = 114e865090d39d218418958c40cf359b5f6808da
-  base = #83 branch
-
-#85 Stage 26.1E
-  head = 66390aca1dadf57c4f11568ec311ad6fcdbd7596
-  base = #84 branch
-```
-
-This docs branch is stacked on exact accepted #85 head. It does **not** mean C/D/E are already in `main`.
-
-## 2. Read current authoritative context
-
-Read in this order:
+## Read current authoritative context
 
 1. `project-context/CURRENT_STATE.md`
 2. `project-context/ROADMAP.md`
 3. `project-context/ARCHITECTURE.md`
 4. `project-context/MODULE_CATALOG.md`
 5. `project-context/KNOWN_ISSUES.md`
-6. `project-context/STAGE26_PROCEDURAL_MEMORY.md`
-7. accepted Stage 26.1 qualification documents/results as needed
+6. stage-specific accepted documents as needed
 
 When documents disagree, exact code/tests/current CI/physical target evidence outrank prose.
 
-## 3. Product boundary
+## Current operating constraint
 
-Ordinary ChatGPT remains the only general planner/intelligence.
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources for development, review, orchestration or execution unless the user explicitly re-enables them later.
+
+## Product boundary
+
+Ordinary ChatGPT remains the only general planner/intelligence layer.
 
 ```text
 ordinary ChatGPT
@@ -71,224 +48,94 @@ web_interact
 
 Local components may observe, execute bounded actions, verify effects, reuse procedures and run bounded specialist perception. They must not become a second universal planner or expose generic hidden execution.
 
-## 4. Browser foundation already accepted
+## Accepted browser foundation
 
-Stage 25/25.1/25.2 established:
-
-- semantic/accessibility structure before pixels;
-- local LFM2.5-VL-450M F16 only on the reviewed visual fallback path;
-- model proposal is not authorization;
-- stale/unpromoted/ambiguous evidence fails closed;
-- 0 false clicks in accepted Stage 25.2 target test.
-
-Accepted local visual baseline:
+Stage 25.2 remains semantic/native first. Local LFM2.5-VL-450M F16 starts only on the reviewed zero-exact-candidate browser path, is proposal-only and remains behind deterministic target/freshness authorization.
 
 ```text
 llama.cpp b10448 / ad1de39e0
 LFM2.5-VL-450M F16
-F16 mmproj
 CPU 8 threads
 ctx 2048
 ```
 
-## 5. Procedural substrate direction
+## Accepted Windows state
 
-Target-qualified upstreams:
+### Stage 26.1A / 26.1B
 
 ```text
-openadapt-flow 1.31.0
-commit d7f58d9f35c8369f16a9b378f23952d425334ad7
-
-openadapt-capture 1.2.2
-commit bcf12942d61d66b64d94e645e9124273a5cc5963
+openadapt-flow 1.31.0 @ d7f58d9f35c8369f16a9b378f23952d425334ad7
+openadapt-capture 1.2.2 @ bcf12942d61d66b64d94e645e9124273a5cc5963
+Capture qualification head = 7a9daa9329d81994833c22b4ca2e321927527dcc
 ```
 
-Use Flow `Workflow`/`ProgramGraph`; adapt upstream lifecycle under project candidate-first trust; reuse Capture/Windows mechanics where qualified. Do not build duplicate generic recorder/compiler/skill-store/actuator components without a measured blocker.
+### Stage 26.1C–26.1E — merged
 
-## 6. Stage 26.1B Capture — accepted
+#83 executor accepted; #84 latency baseline measured; #85 window-scoped UIA accepted.
 
-Exact accepted qualification head:
+Controlled Stage 26.1E evidence: 97 scoped resolutions, 0 Desktop fallback, 0 binding failures/ambiguities, 0 false/unrelated-window actions, about 3.324 s p50 / 3.720 s p95. Do not generalize this to universal Windows accuracy.
 
-`7a9daa9329d81994833c22b4ca2e321927527dcc`
+### Stage 26.2A — Production Windows Runtime Foundation — merged #87
 
-Evidence:
+Maintained `runtime/windows/` owns bounded actuation, PID/HWND window-scoped UIA and verifier foundation. Physical production benchmark preserved zero false/unrelated-window actions and about 3.410 s p50 / 3.631 s p95.
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\capture-qualification\capture-20260818-194033\result.json`
+### Stage 26.2B — Desktop Observation / DesktopState — accepted
 
-Capture is no longer the next unresolved gate.
+Introduced by PR #88. Exact physically tested runtime head:
 
-## 7. Stage 26.1C executor — accepted on target / PR #83
+`dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
 
-Exact accepted head:
-
-`4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`
-
-Accepted boundary:
+Physically measured result:
 
 ```text
-loopback/auth
-legacy generic exec absent/disabled
-typed bounded actions
-stale frame/context refusal
-focus/fingerprint checks
-bounded keyboard/pointer/scroll
-layout-independent Unicode typing
-FALSE_ACTION_COUNT=0
-UNRELATED_WINDOW_ACTION_COUNT=0
-```
-
-No new project-owned Windows actuator is justified without later measured evidence.
-
-## 8. Stage 26.1D latency baseline — accepted benchmark / PR #84
-
-Warm action sequence:
-
-```text
-p50 = 183606.855 ms
-p95 = 185567.403 ms
-```
-
-Exact upstream source inspection identified repeated desktop-wide UIA traversal as the dominant blocker.
-
-## 9. Stage 26.1E window-scoped UIA — accepted on target / PR #85
-
-Exact accepted head:
-
-`66390aca1dadf57c4f11568ec311ad6fcdbd7596`
-
-Accepted resolution path:
-
-```text
-expected PID
- -> bounded EnumWindows
- -> same-process HWNDs only
- -> exact UIA WindowControl
- -> native FindAll inside the bound window only
- -> existing candidate/fingerprint semantics
- -> independent re-resolution before act
-```
-
-Physical result:
-
-```text
-WINDOW_BINDING_PASS=True
-PREFLIGHT_CANDIDATE_COUNT=1
-PREFLIGHT_FINGERPRINT_PRESENT=True
-WINDOW_SCOPED_FIND_CALLS=97
-WINDOW_NAME_MATCH_COUNT=97
+SAME_IDENTITY_PASS=True
+CONTROL_CONTRACT_PASS=True
+SCREENSHOT_DIGEST_PASS=True
+FRESHNESS_CONTRACT_PASS=True
+BOUNDED_CONTROL_COUNT_PASS=True
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-FALSE_ACTION_COUNT=0
-UNRELATED_WINDOW_ACTION_COUNT=0
-p50=3323.570 ms
-p95=3720.061 ms
-speedup=55.244x p50 / 49.883x p95
+CHROME_PROCESS_COUNT_BEFORE=11
+CHROME_PROCESS_COUNT_AFTER=11
+CHROME_SURVIVAL_PASS=True
+FIXTURE_CLEANUP_PASS=True
+PASS=True
 ```
 
-Do not call this “100% Windows accuracy”. It is 97/97 controlled fixture evidence for the exercised role+name path. `AutomationId`, custom controls, multiple real applications/windows and visual fallback still need separate evidence.
+DesktopState is evidence, not authorization. Observation-only control fingerprints are distinct from executor authorization fingerprints. Screenshot bytes are not retained in the state.
 
-## 10. Immediate critical path
+Self-review corrected the initial qualification reporting: the old `ACTION_COUNT=0` family of values were declarative constants, not instrumented counters, so they are not accepted as physical evidence. Read-only behavior is instead established by code review + CI source-boundary tests showing the observer/driver expose no executor or actuation channel.
 
-### A. Land the stacked qualification PRs safely
+## Current critical path
 
 ```text
-verify exact #83 -> merge only on explicit authorization
- -> retarget #84 to main
- -> inspect resulting diff + CI
- -> merge only on explicit authorization
- -> retarget #85 to main
- -> inspect resulting diff + CI
- -> merge only on explicit authorization
+Stage 26.2C native desktop F16 Grounder
+ -> Stage 26.2D UIA -> vision routing + adversarial accuracy suite
+ -> Stage 26.2E real application E2E
+ -> Stage 26.3 Verified Procedure Runtime
+ -> Stage 26.4 Human Demo -> transferable verified candidate skill
+ -> Stage 27/28 distribution and clean-user release
 ```
 
-Do not blindly merge the stack.
+Desktop vision must use native exact-window pixel coordinates, never the browser CSS/Playwright adapter. VLM proposals never authorize actions or task completion.
 
-### B. Retarget authoritative docs sync
+## Merge policy
 
-After #85 is in `main`, retarget the docs-sync PR to `main`, inspect that only intended documentation remains and re-run CI before merge.
+Once a branch is logically complete, intended diff is verified, required physical/CI tests pass, and the applicable review/acceptance gate passes, it may be merged without waiting for a separate merge command.
 
-### C. Stage 26.2A — Production Windows Runtime Foundation
+If a required review is unavailable, skipped, ambiguous, or reports findings, or if any required test fails, do not auto-merge; surface the blocker instead.
 
-Move accepted qualification mechanisms into a maintained runtime boundary:
+## Optional/parallel directions
 
-```text
-interactive session identity
-application/process identity
-PID/HWND exact-window binding
-window-scoped UIA
-typed guarded execution
-stale/focus/fingerprint safety
-verifier foundation
-lifecycle/health/logging
-```
+- Procedure-state dataset + TRM/STARM/FPRM/small-model experiments are optional research only after real verified data and measured need; not Stage 27/28 prerequisites.
+- Multi-chat orchestration is a separate upper layer. Under the current constraint it must not use Codex or Work resources.
 
-Verifier foundation is required here:
-
-```text
-observe before
- -> authorize
- -> act
- -> observe after
- -> PASS | FAIL | UNKNOWN
-```
-
-Action delivery alone never means success.
-
-### D. Stage 26.2B — DesktopState/observation
-
-Canonical state must carry identity, coordinate space, freshness/provenance, control fingerprints and screenshot/frame digests. Observation is not authorization.
-
-### E. Stage 26.2C — native desktop F16 Grounder
-
-Do not reuse the browser CSS/Playwright viewport adapter as native Windows coordinates. Create a dedicated window-pixel proposal seam.
-
-### F. Stage 26.2D — semantic/UIA -> vision routing + accuracy suite
-
-Before broad desktop claims, exercise duplicates, disabled/hidden controls, wrong process/window, overlays, focus changes, stale/recreated windows, `AutomationId`, role+name, weak/custom controls, UIA-missing visual fallback and visual ambiguity/ABSTAIN.
-
-### G. Stage 26.2E — one real application E2E
-
-Choose one medium-complexity real user app from task/evidence with disposable data, deterministic postcondition and rollback. Names such as VS Code, OriginPro or Reaper are candidates, not fixed architecture.
-
-### H. Stage 26.3 / 26.4
-
-Only after real desktop E2E:
-
-```text
-Verified Procedure Runtime
- -> candidate-first trust
- -> advanced postcondition verifiers
- -> Human Demo -> transferable verified candidate skill
-```
-
-## 11. Optional/parallel directions
-
-### Specialized local reasoning
-
-Procedure-state datasets and TRM/STARM/FPRM/small-model benchmarks are optional research. They start only after real verified data and a measured need such as excessive ChatGPT escalation/decision latency. They are not prerequisites for Stage 27/28.
-
-### Multi-Chat / Codex orchestration
-
-Keep it as a separate upper-layer controller over ChatGPT/Codex. It must not enter Windows executor/procedure safety core and is not a release prerequisite.
-
-## 12. Public contract decision
-
-Only after the Windows desktop surface exists, make a separate ADR deciding whether the current five tools remain sufficient or a few truthful coarse desktop/procedure tools are required.
-
-Never hide desktop control behind misleading `web_interact`, and never add a generic `tool_invoke`/`run_anything`/opaque workflow dispatcher.
-
-## 13. Stage 27 / 28
-
-Stage 27: installer/update/repair/doctor/uninstall/rollback/restart recovery/key rotation/artifact validation/lifecycle UI.
-
-Stage 28: clean-user E2E and first stable release without git checkout or developer-only Python/PowerShell setup.
-
-## 14. Non-negotiable rules
+## Non-negotiable rules
 
 - ChatGPT is the only general planner/intelligence;
 - semantic/native structure before pixels where reliable;
-- model/procedure proposal is not authorization;
+- model/procedure/observation proposal is not authorization;
 - current observed state outranks remembered history;
 - verification controls completion;
 - stale/ambiguous/UNKNOWN fails closed;
@@ -296,5 +143,4 @@ Stage 28: clean-user E2E and first stable release without git checkout or develo
 - raw desktop capture is sensitive local data;
 - generic Windows code execution remains disabled/unreachable;
 - preserve credential isolation, Windows junction/root containment and browser network residual-risk tracking;
-- release-grade Python/model/OpenAdapt reproducibility is required before stable distribution;
-- use the user only for irreducible target-machine or ordinary-Chat UI gates.
+- release-grade Python/model/OpenAdapt reproducibility is required before stable distribution.

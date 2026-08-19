@@ -6,6 +6,14 @@ public Chat/MCP surface on its own.
 """
 
 from .actuation import bounded_input, send_unicode_text
+from .observation import (
+    ControlObservation,
+    DesktopState,
+    EvidenceProvenance,
+    Rect,
+    build_desktop_state,
+    observe_bound_window,
+)
 from .verifier import (
     VerificationResult,
     VerificationStatus,
@@ -15,12 +23,18 @@ from .verifier import (
 from .window_scoped_uia import ResolverStats, WindowScopedUiaResolver
 
 __all__ = [
+    "ControlObservation",
+    "DesktopState",
+    "EvidenceProvenance",
+    "Rect",
     "ResolverStats",
     "VerificationResult",
     "VerificationStatus",
     "Verifier",
     "WindowScopedUiaResolver",
     "bounded_input",
+    "build_desktop_state",
+    "observe_bound_window",
     "send_unicode_text",
     "verify_expected_fields",
 ]
