@@ -10,6 +10,7 @@ TREE_SCOPE_DESCENDANTS = 4
 _MAX_DIRECT_CANDIDATES = 8
 _MAX_WINDOW_CONTROL_SCAN = 512
 _MAX_ENUM_WINDOWS = 4096
+_MAX_DIAGNOSTIC_CHARS = 240
 
 
 @dataclass
@@ -26,6 +27,8 @@ class ResolverStats:
     window_name_match_count: int = 0
     window_binding_failures: int = 0
     window_binding_ambiguities: int = 0
+    last_failure_stage: str | None = None
+    last_failure_detail: str | None = None
 
 
 class WindowScopedUiaResolver:
@@ -53,6 +56,15 @@ class WindowScopedUiaResolver:
     @staticmethod
     def _normalize_name(value: object) -> str:
         return " ".join(str(value or "").split())
+
+    def _record_failure(self, stage: str, detail: object) -> None:
+        self.stats.last_failure_stage = stage
+        rendered = str(detail)
+        self.stats.last_failure_detail = rendered[:_MAX_DIAGNOSTIC_CHARS]
+
+    def _clear_failure(self) -> None:
+        self.stats.last_failure_stage = None
+        self.stats.last_failure_detail = None
 
     @staticmethod
     def _and_conditions(client: Any, conditions: list[Any]) -> Any:
@@ -100,6 +112,7 @@ class WindowScopedUiaResolver:
 
         if self.expected_process_id is None:
             self.stats.window_binding_failures += 1
+            self._record_failure("window_context", "expected process id is not bound")
             raise upstream.AgentRequestError(
                 409,
                 "window_context_unbound",
@@ -144,6 +157,7 @@ class WindowScopedUiaResolver:
         if not completed and all_count <= _MAX_ENUM_WINDOWS:
             error = ctypes.get_last_error()
             self.stats.window_binding_failures += 1
+            self._record_failure("enum_windows", f"EnumWindows failed ({error})")
             raise upstream.AgentRequestError(
                 503,
                 "uia_unavailable",
@@ -151,6 +165,10 @@ class WindowScopedUiaResolver:
             )
         if all_count > _MAX_ENUM_WINDOWS:
             self.stats.window_binding_failures += 1
+            self._record_failure(
+                "enum_windows",
+                f"enumeration exceeded {_MAX_ENUM_WINDOWS} top-level HWNDs",
+            )
             raise upstream.AgentRequestError(
                 409,
                 "window_enumeration_truncated",
@@ -161,11 +179,13 @@ class WindowScopedUiaResolver:
         self.stats.process_window_handles_seen += len(process_handles)
         expected_name = self._normalize_name(window_name)
         matches: list[Any] = []
+        conversion_errors: list[str] = []
 
         for hwnd in process_handles:
             try:
                 control = auto.ControlFromHandle(hwnd)
-            except Exception:
+            except Exception as exc:
+                conversion_errors.append(f"hwnd={hwnd}: {type(exc).__name__}: {exc}")
                 continue
             if control is None:
                 continue
@@ -181,8 +201,21 @@ class WindowScopedUiaResolver:
         self.stats.window_name_match_count += len(matches)
         if not matches:
             self.stats.window_binding_failures += 1
+            detail = (
+                f"pid={self.expected_process_id} all_hwnds={all_count} "
+                f"pid_hwnds={len(process_handles)} "
+                f"uia_convertible={self.stats.window_uia_convertible_count} "
+                f"expected_name={expected_name!r}"
+            )
+            if conversion_errors:
+                detail += f" conversion_error={conversion_errors[0]}"
+            self._record_failure("window_match", detail)
         if len(matches) > 1:
             self.stats.window_binding_ambiguities += 1
+            self._record_failure(
+                "window_match",
+                f"expected one window for pid={self.expected_process_id}, found {len(matches)}",
+            )
         return matches
 
     def _direct_find_candidates(
@@ -196,10 +229,24 @@ class WindowScopedUiaResolver:
             return upstream._find_candidates(locator, auto)
 
         self.stats.window_scoped_find_calls += 1
-        client = auto._AutomationClient.instance().IUIAutomation
+        self._clear_failure()
+
+        # Bind the exact process/window before creating the native UIA condition
+        # client. Physical qualification proved that any failure before this call
+        # otherwise leaves every Win32 diagnostic counter at zero and gets
+        # collapsed by WindowsBackend into a generic "target not found".
         windows = self._find_target_windows(auto, window_name)
         if not windows:
             return [], False
+
+        try:
+            client = auto._AutomationClient.instance().IUIAutomation
+        except Exception as exc:
+            self._record_failure(
+                "automation_client",
+                f"{type(exc).__name__}: {exc}",
+            )
+            raise
 
         control_conditions: list[Any] = []
         automation_id = locator.get("automation_id")
@@ -217,8 +264,7 @@ class WindowScopedUiaResolver:
             # Provider-tolerant fallback: native search narrows by control type
             # inside the already-bound window. Exact normalized Name remains a
             # hard check in the upstream candidate comparison below. This
-            # avoids relying on raw UIA NameProperty matching after the physical
-            # WinForms top-level NameProperty mismatch was observed.
+            # avoids relying on raw UIA NameProperty equality.
             self.stats.role_name_condition_calls += 1
 
         control_type = self._role_control_type(auto, role)
@@ -233,11 +279,23 @@ class WindowScopedUiaResolver:
         condition = self._and_conditions(client, control_conditions)
         found: list[tuple[Any, dict[str, Any]]] = []
         truncated = False
+        scanned_controls = 0
 
         for window in windows:
-            control_elements = window.Element.FindAll(
-                TREE_SCOPE_DESCENDANTS,
-                condition,
+            try:
+                control_elements = window.Element.FindAll(
+                    TREE_SCOPE_DESCENDANTS,
+                    condition,
+                )
+            except Exception as exc:
+                self._record_failure(
+                    "target_findall",
+                    f"{type(exc).__name__}: {exc}",
+                )
+                raise
+            scanned_controls += min(
+                int(control_elements.Length),
+                _MAX_WINDOW_CONTROL_SCAN,
             )
             controls = self._controls_from_element_array(
                 auto,
@@ -262,6 +320,11 @@ class WindowScopedUiaResolver:
             if int(control_elements.Length) > _MAX_WINDOW_CONTROL_SCAN:
                 truncated = True
 
+        if not found:
+            self._record_failure(
+                "target_candidate_match",
+                f"role={role!r} name={locator.get('name')!r} scanned={scanned_controls}",
+            )
         return found, truncated
 
     def perform(self, operation: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -272,6 +335,7 @@ class WindowScopedUiaResolver:
         try:
             import uiautomation as auto
         except Exception as exc:
+            self._record_failure("uia_import", f"{type(exc).__name__}: {exc}")
             raise upstream.AgentRequestError(
                 503,
                 "uia_unavailable",
@@ -294,6 +358,11 @@ class WindowScopedUiaResolver:
         except upstream.AgentRequestError:
             raise
         except Exception as exc:
+            if self.stats.last_failure_stage is None:
+                self._record_failure(
+                    "uia_operation",
+                    f"{type(exc).__name__}: {exc}",
+                )
             raise upstream.AgentRequestError(
                 503,
                 "uia_unavailable",
