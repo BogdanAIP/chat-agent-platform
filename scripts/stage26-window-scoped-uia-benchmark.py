@@ -12,8 +12,11 @@ from typing import Any
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
 BASELINE_PATH = SCRIPT_DIR / "stage26-windows-hot-runtime-benchmark.py"
-RESOLVER_PATH = SCRIPT_DIR / "stage26-window-scoped-uia-resolver.py"
+WINDOWS_RUNTIME_DIR = REPO_ROOT / "runtime" / "windows"
+RESOLVER_PATH = WINDOWS_RUNTIME_DIR / "window_scoped_uia.py"
+ACTUATION_PATH = WINDOWS_RUNTIME_DIR / "actuation.py"
 BASELINE_ACTION_P50_MS = 183606.855
 BASELINE_ACTION_P95_MS = 185567.403
 MINIMUM_SPEEDUP = 10.0
@@ -30,7 +33,8 @@ def _load(path: Path, name: str):
 
 
 baseline = _load(BASELINE_PATH, "stage26_1d_baseline")
-optimized = _load(RESOLVER_PATH, "stage26_1e_resolver")
+optimized = _load(RESOLVER_PATH, "stage26_2a_window_scoped_uia")
+actuation = _load(ACTUATION_PATH, "stage26_2a_actuation")
 
 
 def main() -> int:
@@ -54,13 +58,13 @@ def main() -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     total_cycles = args.warmup_cycles + args.measured_cycles
-    # Eight structural resolutions per complete cycle plus one non-actuating
-    # preflight lookup before any benchmark action is allowed.
     expected_scoped_calls = total_cycles * 8 + 1
     resolver = optimized.WindowScopedUiaResolver()
     result: dict[str, Any] = {
-        "schema_version": 1,
-        "benchmark_kind": "warm-window-scoped-native-uia",
+        "schema_version": 2,
+        "benchmark_kind": "warm-production-window-scoped-native-uia",
+        "production_resolver_path": str(RESOLVER_PATH),
+        "production_actuation_path": str(ACTUATION_PATH),
         "warmup_cycles": args.warmup_cycles,
         "measured_cycles": args.measured_cycles,
         "total_cycles": total_cycles,
@@ -105,7 +109,7 @@ def main() -> int:
         )
         server = baseline.create_server(
             config,
-            input_fn=baseline.accepted._qualification_input,
+            input_fn=actuation.bounded_input,
             uia_fn=resolver.perform,
         )
         host, port = server.server_address[:2]
@@ -114,7 +118,7 @@ def main() -> int:
 
         thread = threading.Thread(
             target=server.serve_forever,
-            name="stage26-1e-window-scoped-uia-agent",
+            name="stage26-2a-production-window-scoped-uia-agent",
             daemon=True,
         )
         thread.start()
@@ -147,8 +151,6 @@ def main() -> int:
 
         resolver.set_expected_process_id(fixture_pid)
 
-        # Non-actuating fail-fast preflight. No benchmark cycle is started until
-        # the exact fixture process/window and Start button resolve uniquely.
         preflight_locator = baseline.accepted._structural(
             "button",
             "Stage 26 start button",
@@ -270,8 +272,10 @@ def main() -> int:
             encoding="utf-8",
         )
 
-    print("===== STAGE 26.1E WINDOW-SCOPED UIA BENCHMARK =====")
+    print("===== STAGE 26.2A PRODUCTION WINDOWS RUNTIME BENCHMARK =====")
     print(f"BENCHMARK_KIND={result['benchmark_kind']}")
+    print(f"PRODUCTION_RESOLVER_PATH={result['production_resolver_path']}")
+    print(f"PRODUCTION_ACTUATION_PATH={result['production_actuation_path']}")
     print(f"WARMUP_CYCLES={result['warmup_cycles']}")
     print(f"MEASURED_CYCLES={result['measured_cycles']}")
     preflight = result.get("preflight", {})
@@ -292,6 +296,8 @@ def main() -> int:
         "window_name_match_count",
         "window_binding_failures",
         "window_binding_ambiguities",
+        "last_failure_stage",
+        "last_failure_detail",
     ):
         print(f"{key.upper()}={stats.get(key)}")
     comparison = result.get("baseline_comparison", {})
