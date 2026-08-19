@@ -18,6 +18,7 @@ from openadapt_flow.backend import StructuralResolutionRefused
 from openadapt_flow.backends.windows_backend import WindowsBackend
 from openadapt_flow.backends.win_agent.server import (
     AgentConfig,
+    AgentRequestError,
     _perform_input as upstream_perform_input,
     create_server,
 )
@@ -139,13 +140,23 @@ def _send_unicode_text(text: str, interval_s: float) -> None:
     if not text:
         return
     if not isinstance(interval_s, (int, float)) or isinstance(interval_s, bool):
-        raise ValueError("interval_s must be numeric")
+        raise AgentRequestError(400, "invalid_schema", "interval_s must be numeric")
     if not 0 <= float(interval_s) <= 1:
-        raise ValueError("interval_s must be between 0 and 1")
+        raise AgentRequestError(400, "invalid_schema", "interval_s must be between 0 and 1")
 
     from ctypes import wintypes
 
     ULONG_PTR = ctypes.c_size_t
+
+    class MOUSEINPUT(ctypes.Structure):
+        _fields_ = [
+            ("dx", wintypes.LONG),
+            ("dy", wintypes.LONG),
+            ("mouseData", wintypes.DWORD),
+            ("dwFlags", wintypes.DWORD),
+            ("time", wintypes.DWORD),
+            ("dwExtraInfo", ULONG_PTR),
+        ]
 
     class KEYBDINPUT(ctypes.Structure):
         _fields_ = [
@@ -156,8 +167,19 @@ def _send_unicode_text(text: str, interval_s: float) -> None:
             ("dwExtraInfo", ULONG_PTR),
         ]
 
+    class HARDWAREINPUT(ctypes.Structure):
+        _fields_ = [
+            ("uMsg", wintypes.DWORD),
+            ("wParamL", wintypes.WORD),
+            ("wParamH", wintypes.WORD),
+        ]
+
     class INPUTUNION(ctypes.Union):
-        _fields_ = [("ki", KEYBDINPUT)]
+        _fields_ = [
+            ("mi", MOUSEINPUT),
+            ("ki", KEYBDINPUT),
+            ("hi", HARDWAREINPUT),
+        ]
 
     class INPUT(ctypes.Structure):
         _anonymous_ = ("u",)
@@ -217,15 +239,15 @@ def _qualification_input(payload: dict[str, Any]) -> dict[str, Any]:
 
     allowed = {"action", "text", "interval_s"}
     if set(payload) - allowed or "text" not in payload:
-        raise ValueError("invalid type_text fields")
+        raise AgentRequestError(400, "invalid_schema", "invalid type_text fields")
     text = payload.get("text")
     interval = payload.get("interval_s", 0.05)
     if not isinstance(text, str) or len(text) > _MAX_TEXT_CHARS:
-        raise ValueError("text exceeds the bounded string contract")
+        raise AgentRequestError(400, "invalid_schema", "text exceeds the bounded string contract")
     if isinstance(interval, bool) or not isinstance(interval, (int, float)):
-        raise ValueError("interval_s must be numeric")
+        raise AgentRequestError(400, "invalid_schema", "interval_s must be numeric")
     if not 0 <= float(interval) <= 1:
-        raise ValueError("interval_s must be between 0 and 1")
+        raise AgentRequestError(400, "invalid_schema", "interval_s must be between 0 and 1")
 
     _send_unicode_text(text, float(interval))
     return _delivery_receipt("physical_type_text")
