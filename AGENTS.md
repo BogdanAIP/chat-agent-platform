@@ -1,6 +1,6 @@
 # Agent Entry Point
 
-This repository is designed to be continued safely from a fresh ChatGPT or Codex session.
+This repository is designed to be continued safely from a fresh ordinary ChatGPT session.
 
 ## Read first
 
@@ -13,7 +13,7 @@ This repository is designed to be continued safely from a fresh ChatGPT or Codex
 7. `project-context/STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME.md`
 8. `project-context/STAGE26_2B_DESKTOP_OBSERVATION.md`
 9. `project-context/STAGE26_PROCEDURAL_MEMORY.md`
-10. older qualification docs only as needed for historical evidence.
+10. older qualification docs only as historical evidence when needed.
 
 ## Source-of-truth order
 
@@ -24,27 +24,13 @@ When documents disagree:
 3. `ROADMAP.md`, `ARCHITECTURE.md`, `MODULE_CATALOG.md`, `KNOWN_ISSUES.md`;
 4. accepted stage-specific qualification documents;
 5. `DECISIONS.md` and `DEVELOPMENT_PRINCIPLES.md`;
-6. historical research/handoffs/older README revisions.
+6. historical research/handoffs/older revisions.
 
-Never hard-code a docs SHA as permanently current. Resolve live `main` and relevant PR heads before branching/editing.
+Always resolve live `main` and relevant PR heads before branching/editing. Never treat a documentation SHA as permanently current.
 
-## Current repository state
+## Current operating constraint
 
-Current integration line after landing #83–#87:
-
-```text
-main = d044926846d9c2e198c906ff5174308da0974b03
-```
-
-Current open accepted work:
-
-```text
-#88 Stage 26.2B Desktop Observation / DesktopState
-physical runtime head = dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a
-ready for review; not merged
-```
-
-Do not merge PRs unless the user explicitly authorizes merge.
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources for development, review, orchestration or execution unless the user explicitly re-enables them later.
 
 ## Public semantic contract
 
@@ -96,9 +82,9 @@ CPU 8 threads
 ctx 2048
 ```
 
-## Accepted Stage 26 state
+## Accepted Windows foundation
 
-### 26.1A / 26.1B
+### Stage 26.1A / 26.1B
 
 ```text
 openadapt-flow 1.31.0 @ d7f58d9f35c8369f16a9b378f23952d425334ad7
@@ -106,27 +92,21 @@ openadapt-capture 1.2.2 @ bcf12942d61d66b64d94e645e9124273a5cc5963
 Capture qualification head = 7a9daa9329d81994833c22b4ca2e321927527dcc
 ```
 
-### 26.1C–26.1E — merged
+### Stage 26.1C–26.1E — accepted and merged
 
-```text
-#83 executor accepted
-#84 baseline measured ~183.6 s / 185.6 s p50/p95
-#85 window-scoped UIA accepted
-```
+#83 executor accepted; #84 baseline measured; #85 window-scoped UIA accepted.
 
-Stage 26.1E controlled fixture evidence: 97 scoped resolutions, 0 Desktop fallback, 0 binding failure/ambiguity, 0 false/unrelated-window actions, ~3.324 s p50 / ~3.720 s p95. Do not generalize this to universal Windows accuracy.
+Controlled Stage 26.1E evidence: 97 scoped resolutions, 0 Desktop fallback, 0 binding failure/ambiguity, 0 false/unrelated-window actions, about 3.324 s p50 / 3.720 s p95. Do not generalize this to universal Windows accuracy.
 
-### 26.2A — production Windows runtime — merged #87
+### Stage 26.2A — production Windows runtime — accepted and merged #87
 
-Maintained runtime owns bounded actuation, verifier foundation and PID/HWND window-scoped UIA. Physical production benchmark preserved zero false/unrelated-window actions and ~3.410 s p50 / ~3.631 s p95.
+Maintained runtime owns bounded actuation, verifier foundation and PID/HWND window-scoped UIA. Physical production benchmark preserved zero false/unrelated-window actions and about 3.410 s p50 / 3.631 s p95.
 
-### 26.2B — DesktopState — physically accepted / PR #88 open
+### Stage 26.2B — DesktopState — accepted
 
-Exact tested runtime head:
+Introduced by PR #88. Exact physically tested runtime head:
 
 `dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
-
-Physical read-only result:
 
 ```text
 SAME_IDENTITY_PASS=True
@@ -144,26 +124,26 @@ UNRELATED_WINDOW_ACTION_COUNT=0
 PASS=True
 ```
 
-The state carries identity, bounded controls, coordinate space, observation-only fingerprints, visible text, screenshot/frame digests, provenance and freshness. Screenshot bytes are not retained in DesktopState.
+DesktopState is evidence only. Observation fingerprints are not executor authorization. Screenshot bytes are not retained in DesktopState.
 
 ## Current critical path
 
 ```text
-merge #88 only on explicit authorization
- -> Stage 26.2C native desktop F16 Grounder
+Stage 26.2C native desktop F16 Grounder
  -> Stage 26.2D UIA -> vision routing + adversarial accuracy suite
  -> Stage 26.2E real application E2E
  -> Stage 26.3 Verified Procedure Runtime
- -> Stage 26.4 Human Demo -> transferable skill
+ -> Stage 26.4 Human Demo -> transferable verified candidate skill
  -> Stage 27/28 release work
 ```
 
 Desktop vision must use native exact-window pixel coordinates, never the browser CSS/Playwright adapter. VLM proposals never authorize actions or task completion.
 
-## Optional/parallel work
+## Merge policy
 
-- Procedure-state dataset + TRM/STARM/FPRM/small-model experiments are optional after real verified data and measured need; not Stage 27/28 prerequisites.
-- Multi-Chat/Codex orchestration is a separate upper layer; keep it outside Windows/procedure safety core.
+When a branch is logically complete, intended diff is reviewed, required physical/CI tests pass, and applicable review/acceptance checks are satisfied, merge it without waiting for a separate merge command.
+
+Do not auto-merge when there is an unresolved finding, conflict, ambiguous scope, failed/skipped required test, or unavailable required review evidence. Surface the blocker instead.
 
 ## Development workflow
 
