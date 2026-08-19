@@ -1,31 +1,63 @@
 # Start Here — authoritative continuation guide
 
-Use this file as the first context document in a new ChatGPT or Codex session.
+Use this file first in a fresh ChatGPT or Codex session.
 
-## Resolve live `main` first
+## 1. Resolve live repository state first
 
-Do not treat an embedded docs merge SHA as permanently current. Before creating a branch or changing code/docs, resolve live `main` from GitHub and use that exact SHA as the base.
+Never treat a documentation SHA as permanently current. Resolve live `main`, then inspect the exact PR heads relevant to the task.
 
-Stable accepted milestones:
-
-- Stage 25.2 runtime/code merge: `2a410476ef849fd6d9c172703a004b1befcbcfb1` — PR #77;
-- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` — PR #78;
-- Stage 26.1A target-tested qualification-code HEAD: `f8e8f606db845821b8fa24c09f9032015fb0e79e` — PR #80 branch before docs-only descendants.
-
-Live `main` may be newer. Always resolve it rather than copying a historical SHA blindly.
-
-The ordinary-Chat path remains:
+At creation of this synchronization branch:
 
 ```text
-ordinary ChatGPT Chat
+main = def67e45d7a72547c53bcf339d00124f4edca0be
+```
+
+Accepted but still stacked/unmerged Windows qualification work:
+
+```text
+#83 Stage 26.1C
+  head = 4bf08dd9b8d1ff010f14723f9bb0384b97334a2b
+  base = main
+
+#84 Stage 26.1D
+  head = 114e865090d39d218418958c40cf359b5f6808da
+  base = #83 branch
+
+#85 Stage 26.1E
+  head = 66390aca1dadf57c4f11568ec311ad6fcdbd7596
+  base = #84 branch
+```
+
+This docs branch is stacked on exact accepted #85 head. It does **not** mean C/D/E are already in `main`.
+
+## 2. Read current authoritative context
+
+Read in this order:
+
+1. `project-context/CURRENT_STATE.md`
+2. `project-context/ROADMAP.md`
+3. `project-context/ARCHITECTURE.md`
+4. `project-context/MODULE_CATALOG.md`
+5. `project-context/KNOWN_ISSUES.md`
+6. `project-context/STAGE26_PROCEDURAL_MEMORY.md`
+7. accepted Stage 26.1 qualification documents/results as needed
+
+When documents disagree, exact code/tests/current CI/physical target evidence outrank prose.
+
+## 3. Product boundary
+
+Ordinary ChatGPT remains the only general planner/intelligence.
+
+```text
+ordinary ChatGPT
   -> OpenAI Secure MCP Tunnel
   -> official tunnel-client
   -> secure semantic launcher
   -> direct stdio semantic-projection
-  -> focused task-active backends/adapters
+  -> focused local capabilities
 ```
 
-The current public semantic surface remains exactly:
+Current public semantic tool names remain exactly:
 
 ```text
 workspace_read
@@ -35,72 +67,33 @@ web_observe
 web_interact
 ```
 
-1MCP remains internal diagnostic/adaptive/aggregation infrastructure. ChatGPT remains the only planner/intelligence.
+1MCP remains internal diagnostic/adaptive/aggregation infrastructure.
 
-## Accepted foundation through Stage 25.2
+Local components may observe, execute bounded actions, verify effects, reuse procedures and run bounded specialist perception. They must not become a second universal planner or expose generic hidden execution.
 
-- Stage 24: five-tool semantic surface and Windows lifecycle accepted.
-- Stage 24.1: direct semantic tunnel selected as normal path.
-- Stage 25: LFM2.5-VL-450M F16 local grounding baseline accepted on the target laptop; present-target accuracy remains 3/5 because repeated-row/tiny are deliberately unpromoted.
-- Stage 25.1: same-session screenshot -> grounding -> freshness -> coordinate action/ABSTAIN foundation accepted and merged.
-- Stage 25.2: first public semantic-first internal vision escalation accepted and merged in PR #77.
+## 4. Browser foundation already accepted
 
-Stage 25.2 final target-tested production-code HEAD:
+Stage 25/25.1/25.2 established:
 
-`41ef3f4032ae9169d940b3a04e5bdfe75170ca85`
+- semantic/accessibility structure before pixels;
+- local LFM2.5-VL-450M F16 only on the reviewed visual fallback path;
+- model proposal is not authorization;
+- stale/unpromoted/ambiguous evidence fails closed;
+- 0 false clicks in accepted Stage 25.2 target test.
 
-Final target evidence with normal Chrome workload open:
-
-```text
-semantic_hits = 2
-visual_hits = 1
-correct_abstains = 2
-false_clicks = 0
-errors = 0
-semantic_cases_started_vlm = 0
-acceptance_pass = true
-minimum observed free physical RAM = 1.04 GB
-SAFETY_STOP = false
-VISION_RUNTIME_RUNNING_AFTER_TEST = false
-CHROME_RUNNING_AFTER_TEST = true
-TEST_EXIT_CODE = 0
-```
-
-### Stage 25.2 routing invariant
+Accepted local visual baseline:
 
 ```text
-fresh accessibility snapshot
-  -> exact enabled button: semantic click; VLM stays stopped
-  -> same-name buttons with exactly one enabled + disabled alternatives: semantic click
-  -> disabled/non-button/ambiguous exact semantic evidence: ABSTAIN; VLM stays stopped
-  -> zero exact candidates:
-       same Playwright page/session screenshot
-       -> reviewed F16 text-labeled visual grounder
-       -> deterministic authorization
-       -> freshness proof
-       -> one coordinate click OR ABSTAIN
+llama.cpp b10448 / ad1de39e0
+LFM2.5-VL-450M F16
+F16 mmproj
+CPU 8 threads
+ctx 2048
 ```
 
-`targetText` is the authorization anchor. Planner `target`, free-form `instruction` and planner-supplied `kind` cannot redirect visual authorization.
+## 5. Procedural substrate direction
 
-## Active development priority — Stage 26 Procedural Memory
-
-Read, in order:
-
-1. `project-context/STAGE26_PROCEDURAL_MEMORY.md`
-2. `project-context/STAGE26_1A_OPENADAPT_QUALIFICATION.md`
-3. `project-context/CURRENT_STATE.md`
-4. `project-context/ROADMAP.md`
-
-### Stage 26.0 — UI-Mate analysis — DONE
-
-Official `Tencent/UI-Mate` remains the workflow-guidance reference: rich demonstration evidence is reduced to compact current-subtask guidance while live state remains authoritative. UI-Mate is **not** adopted as a second planner/agent.
-
-### Stage 26.1A — OpenAdapt core qualification — TARGET PASS
-
-Broader upstream research found that `OpenAdaptAI/openadapt-flow` + `openadapt-capture` already implement much of the previously planned project-owned recorder/compiler/skill-store/lifecycle substrate.
-
-Pinned and target-tested:
+Target-qualified upstreams:
 
 ```text
 openadapt-flow 1.31.0
@@ -110,142 +103,198 @@ openadapt-capture 1.2.2
 commit bcf12942d61d66b64d94e645e9124273a5cc5963
 ```
 
-Real Windows target result on qualification-code HEAD `f8e8f606db845821b8fa24c09f9032015fb0e79e`:
+Use Flow `Workflow`/`ProgramGraph`; adapt upstream lifecycle under project candidate-first trust; reuse Capture/Windows mechanics where qualified. Do not build duplicate generic recorder/compiler/skill-store/actuator components without a measured blocker.
+
+## 6. Stage 26.1B Capture — accepted
+
+Exact accepted qualification head:
+
+`7a9daa9329d81994833c22b4ca2e321927527dcc`
+
+Evidence:
+
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\capture-qualification\capture-20260818-194033\result.json`
+
+Capture is no longer the next unresolved gate.
+
+## 7. Stage 26.1C executor — accepted on target / PR #83
+
+Exact accepted head:
+
+`4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`
+
+Accepted boundary:
 
 ```text
-Python 3.12.10
-exact Flow/Capture commit verification = PASS
-PHASE_B_PASS=True
-PHASE_C_TUTORIAL_PASS=True
-PROBE_ERROR=<null>
-ERROR=<null>
-STAGE26_1A_PREFLIGHT_RESULT=PASSED
-TEST_EXIT_CODE=0
-Chrome processes before/after = 15/15
+loopback/auth
+legacy generic exec absent/disabled
+typed bounded actions
+stale frame/context refusal
+focus/fingerprint checks
+bounded keyboard/pointer/scroll
+layout-independent Unicode typing
+FALSE_ACTION_COUNT=0
+UNRELATED_WINDOW_ACTION_COUNT=0
 ```
 
-Result artifact:
+No new project-owned Windows actuator is justified without later measured evidence.
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\openadapt-qualification\qualification-20260818-170434\result.json`
+## 8. Stage 26.1D latency baseline — accepted benchmark / PR #84
 
-Current decisions:
-
-- Flow compiler + `Workflow`/`ProgramGraph`: **ADOPT** behind project boundaries;
-- `SkillLibrary` + learn/teach lifecycle: **ADAPT**, keeping stricter project candidate-first trust;
-- Capture: **continue real Windows qualification; do not write our own recorder first**;
-- Windows backend/agent: **security A/B required**;
-- local LFM2.5-VL F16: candidate adapter through OpenAdapt's narrow proposal-only `Grounder` seam;
-- OpenAdapt Desktop: Stage 27 distribution/cockpit reference only for now.
-
-No OpenAdapt dependency has been integrated into production `semantic-projection` or the installed product path yet.
-
-## Next active step — Stage 26.1B real bounded Windows Capture qualification
-
-Use a harmless bounded test window first.
-
-Prove:
-
-- capture starts/stops in the interactive user session;
-- selected window scope is respected;
-- click, typing, key and scroll evidence are captured;
-- UIA evidence is retained when exposed;
-- capture converts to Flow recording input;
-- compile/replay succeeds or explicitly refuses;
-- false actions = 0;
-- unrelated-window actions = 0;
-- raw artifacts remain only in the explicit local qualification directory;
-- cleanup succeeds and unrelated user applications remain untouched.
-
-Do not preselect a fixed application list. Concrete local programs/capabilities are chosen later from real tasks and evidence.
-
-## Then — Stage 26.1C executor A/B + F16 seam
-
-Compare:
+Warm action sequence:
 
 ```text
-A. OpenAdapt typed WindowsBackend + hardened local interactive-session agent
-B. OpenAdapt IR/runtime + narrower native/project-owned actuator
+p50 = 183606.855 ms
+p95 = 185567.403 ms
 ```
 
-The pinned OpenAdapt server has bounded typed `/input`, `/input/guarded`, `/uia/find` and `/uia/act` routes; legacy `/execute_windows` is disabled by default. Product acceptance must still prove generic exec cannot be enabled/reached in our configuration and review process/session/auth/blast-radius boundaries.
+Exact upstream source inspection identified repeated desktop-wide UIA traversal as the dominant blocker.
 
-Then prototype local F16 as a proposal-only OpenAdapt Grounder. Identity/risk/freshness/effect checks remain authoritative.
+## 9. Stage 26.1E window-scoped UIA — accepted on target / PR #85
 
-## Stage 26.2 — ChatGPT procedural integration
+Exact accepted head:
 
-After upstream capability gates, integrate accepted components behind the existing ChatGPT-only planner boundary.
+`66390aca1dadf57c4f11568ec311ad6fcdbd7596`
 
-A procedure is memory/evidence, not a second planner and not authorization. Current state outranks remembered history. Bootstrap procedures must follow project candidate policy rather than silently becoming trusted.
-
-## Stage 26.3 — Windows desktop surface — REQUIRED / DO NOT DROP
-
-This remains a separate required product stage:
+Accepted resolution path:
 
 ```text
-native/deterministic UI observation first
-  -> screen capture where needed
-  -> bounded local visual grounding where needed
-  -> reviewed keyboard/mouse action
-  -> verification / ABSTAIN
+expected PID
+ -> bounded EnumWindows
+ -> same-process HWNDs only
+ -> exact UIA WindowControl
+ -> native FindAll inside the bound window only
+ -> existing candidate/fingerprint semantics
+ -> independent re-resolution before act
 ```
 
-Productize whichever Windows observation/actuation combination wins qualification. Specific local programs are chosen later from actual tasks.
+Physical result:
 
-## Stage 26.4 — human demonstration transferable-skill acceptance
+```text
+WINDOW_BINDING_PASS=True
+PREFLIGHT_CANDIDATE_COUNT=1
+PREFLIGHT_FINGERPRINT_PRESENT=True
+WINDOW_SCOPED_FIND_CALLS=97
+WINDOW_NAME_MATCH_COUNT=97
+DESKTOP_FALLBACK_CALLS=0
+WINDOW_BINDING_FAILURES=0
+WINDOW_BINDING_AMBIGUITIES=0
+FALSE_ACTION_COUNT=0
+UNRELATED_WINDOW_ACTION_COUNT=0
+p50=3323.570 ms
+p95=3720.061 ms
+speedup=55.244x p50 / 49.883x p95
+```
 
-After desktop surface acceptance, record a real user demonstration, compile it through the accepted procedural substrate, apply project trust policy, verify completion/effects and re-apply it to a related changed task/state.
+Do not call this “100% Windows accuracy”. It is 97/97 controlled fixture evidence for the exercised role+name path. `AutomationId`, custom controls, multiple real applications/windows and visual fallback still need separate evidence.
 
-## Stage 26.5 — public contract decision
+## 10. Immediate critical path
 
-Only after Windows desktop surface exists, decide explicitly whether the current five public tool names remain sufficient or a small number of new truthful public tools is required.
+### A. Land the stacked qualification PRs safely
 
-Until that decision:
+```text
+verify exact #83 -> merge only on explicit authorization
+ -> retarget #84 to main
+ -> inspect resulting diff + CI
+ -> merge only on explicit authorization
+ -> retarget #85 to main
+ -> inspect resulting diff + CI
+ -> merge only on explicit authorization
+```
 
-- current accepted public tool names remain the same five;
-- procedural components stay internal/non-agentic unless a truthful Chat-facing boundary is separately designed and accepted;
-- do not hide workflow execution behind misleading existing tool semantics;
-- do not add a generic opaque `workflow_execute`/`tool_invoke` equivalent.
+Do not blindly merge the stack.
 
-## Stage 27 / 28
+### B. Retarget authoritative docs sync
 
-Stage 27 is distribution/maintenance hardening. Before recreating installer/cockpit/sidecar infrastructure, evaluate reusable OpenAdapt Desktop patterns against the exact Flow runtime selected by this project.
+After #85 is in `main`, retarget the docs-sync PR to `main`, inspect that only intended documentation remains and re-run CI before merge.
 
-Stage 28 is clean-user product E2E + first stable release.
+### C. Stage 26.2A — Production Windows Runtime Foundation
 
-## Residual risks that remain explicit
+Move accepted qualification mechanisms into a maintained runtime boundary:
 
-- repeated-row/tiny/icon-only automatic visual promotion is incomplete;
-- screenshot and coordinate click remain a narrow non-atomic TOCTOU boundary;
-- PID-bound loopback is not cryptographic endpoint authentication;
-- DNS/rebinding/redirect browser isolation is incomplete;
-- Python/model/OpenAdapt packaging is not release-grade;
-- raw demonstration retention/redaction/encryption policy is not product-accepted;
-- OpenAdapt Capture is not yet target-qualified for real Windows recording;
-- Windows executor authority boundary is not accepted yet;
-- F16 OpenAdapt adapter is not implemented yet;
-- Windows desktop surface and arbitrary human demo capture are not product-accepted yet;
-- no stable release exists yet.
+```text
+interactive session identity
+application/process identity
+PID/HWND exact-window binding
+window-scoped UIA
+typed guarded execution
+stale/focus/fingerprint safety
+verifier foundation
+lifecycle/health/logging
+```
 
-## Non-negotiable product boundary
+Verifier foundation is required here:
 
-- ordinary ChatGPT remains the planner/intelligence;
-- local models are bounded perception/extraction backends, never a second planner;
-- remembered procedures are bounded guidance/evidence, never a second planner;
-- do not duplicate accepted upstream mechanisms without a demonstrated blocker;
-- prefer semantic/native structure over vision whenever deterministic structure exists;
-- visual grounding must fail closed;
-- raw capture is sensitive by default and not safe-to-sync automatically;
-- keep the public tool surface small and truthful;
-- preserve single-owner/fail-closed lifecycle guarantees;
+```text
+observe before
+ -> authorize
+ -> act
+ -> observe after
+ -> PASS | FAIL | UNKNOWN
+```
+
+Action delivery alone never means success.
+
+### D. Stage 26.2B — DesktopState/observation
+
+Canonical state must carry identity, coordinate space, freshness/provenance, control fingerprints and screenshot/frame digests. Observation is not authorization.
+
+### E. Stage 26.2C — native desktop F16 Grounder
+
+Do not reuse the browser CSS/Playwright viewport adapter as native Windows coordinates. Create a dedicated window-pixel proposal seam.
+
+### F. Stage 26.2D — semantic/UIA -> vision routing + accuracy suite
+
+Before broad desktop claims, exercise duplicates, disabled/hidden controls, wrong process/window, overlays, focus changes, stale/recreated windows, `AutomationId`, role+name, weak/custom controls, UIA-missing visual fallback and visual ambiguity/ABSTAIN.
+
+### G. Stage 26.2E — one real application E2E
+
+Choose one medium-complexity real user app from task/evidence with disposable data, deterministic postcondition and rollback. Names such as VS Code, OriginPro or Reaper are candidates, not fixed architecture.
+
+### H. Stage 26.3 / 26.4
+
+Only after real desktop E2E:
+
+```text
+Verified Procedure Runtime
+ -> candidate-first trust
+ -> advanced postcondition verifiers
+ -> Human Demo -> transferable verified candidate skill
+```
+
+## 11. Optional/parallel directions
+
+### Specialized local reasoning
+
+Procedure-state datasets and TRM/STARM/FPRM/small-model benchmarks are optional research. They start only after real verified data and a measured need such as excessive ChatGPT escalation/decision latency. They are not prerequisites for Stage 27/28.
+
+### Multi-Chat / Codex orchestration
+
+Keep it as a separate upper-layer controller over ChatGPT/Codex. It must not enter Windows executor/procedure safety core and is not a release prerequisite.
+
+## 12. Public contract decision
+
+Only after the Windows desktop surface exists, make a separate ADR deciding whether the current five tools remain sufficient or a few truthful coarse desktop/procedure tools are required.
+
+Never hide desktop control behind misleading `web_interact`, and never add a generic `tool_invoke`/`run_anything`/opaque workflow dispatcher.
+
+## 13. Stage 27 / 28
+
+Stage 27: installer/update/repair/doctor/uninstall/rollback/restart recovery/key rotation/artifact validation/lifecycle UI.
+
+Stage 28: clean-user E2E and first stable release without git checkout or developer-only Python/PowerShell setup.
+
+## 14. Non-negotiable rules
+
+- ChatGPT is the only general planner/intelligence;
+- semantic/native structure before pixels where reliable;
+- model/procedure proposal is not authorization;
+- current observed state outranks remembered history;
+- verification controls completion;
+- stale/ambiguous/UNKNOWN fails closed;
+- never persist private chain-of-thought;
+- raw desktop capture is sensitive local data;
+- generic Windows code execution remains disabled/unreachable;
+- preserve credential isolation, Windows junction/root containment and browser network residual-risk tracking;
+- release-grade Python/model/OpenAdapt reproducibility is required before stable distribution;
 - use the user only for irreducible target-machine or ordinary-Chat UI gates.
-
-## Source-of-truth order
-
-When documents disagree:
-
-1. current code, tests and exact current CI/target evidence;
-2. this file and `CURRENT_STATE.md`;
-3. `STAGE26_1A_OPENADAPT_QUALIFICATION.md` and `STAGE26_PROCEDURAL_MEMORY.md`;
-4. `ARCHITECTURE.md`, `DECISIONS.md`, `ROADMAP.md`, `KNOWN_ISSUES.md`;
-5. `DEVELOPMENT_PRINCIPLES.md` and current capability contracts;
-6. Stage 25/25.1 research, dated handoffs and older README revisions.

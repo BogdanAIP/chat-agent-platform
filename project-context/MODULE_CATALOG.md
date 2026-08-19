@@ -1,30 +1,33 @@
 # Module / Capability Catalog
 
-Status synchronized after merged Stage 25.2, Stage 26 architecture activation and Stage 26.1A OpenAdapt core qualification on 2026-08-18.
+Status synchronized through the physically accepted Stage 26.1E qualification stack. This branch is stacked on PR #85 and does not imply #83/#84/#85 are already in `main`.
 
-This is a **current capability-status catalog**, not a fixed list of future applications. Historical candidate research remains in Git history and dated Stage 23/25 documents.
+This is a current capability-status catalog, not a fixed list of future applications.
 
 ## Repository-state rule
 
-Resolve live `main` before new work. Stable milestones used for acceptance evidence:
+Resolve live `main` before work. Stable acceptance heads may remain on open PR branches until explicitly landed.
 
-- Stage 25.2 runtime/code baseline: `2a410476ef849fd6d9c172703a004b1befcbcfb1` (#77);
-- Stage 26 architecture/context activation: `04dccfd30eb06a82899e2771f6d53ab4c8387128` (#78);
-- Stage 26.1A target-tested qualification code: `f8e8f606db845821b8fa24c09f9032015fb0e79e` (#80 branch before docs-only descendants).
+Current accepted stacked Windows heads:
 
-Live `main` may be newer because of later integration/docs commits.
+```text
+Stage 26.1C / PR #83 = 4bf08dd9b8d1ff010f14723f9bb0384b97334a2b
+Stage 26.1D / PR #84 = 114e865090d39d218418958c40cf359b5f6808da
+Stage 26.1E / PR #85 = 66390aca1dadf57c4f11568ec311ad6fcdbd7596
+```
 
 ## Status meanings
 
-- **PRODUCT-ACCEPTED** — real ordinary-Chat/product path accepted for its scoped contract.
-- **ACCEPTED-INFRASTRUCTURE** — accepted internal runtime/lifecycle component; not necessarily public product identity.
-- **ACCEPTED-SPECIALIST** — bounded local specialist backend accepted behind a focused internal boundary.
-- **QUALIFIED-UPSTREAM** — exact pinned upstream component passed the stated qualification gate but is not yet integrated into the installed product path.
-- **ADAPT-CANDIDATE** — upstream mechanism is reusable but project policy/security wrapping remains required.
-- **DIAGNOSTIC** — useful internal testing/lifecycle infrastructure, not the promoted Chat-facing contract.
-- **ACTIVE-DESIGN** — current architecture/design work, not product-accepted.
-- **FUTURE-SCOPED-GATE** — explicit future capability boundary requiring its own measured acceptance.
-- **TASK-SELECTED-CANDIDATE** — choose a concrete implementation later from the actual task and evidence.
+- **PRODUCT-ACCEPTED** — accepted normal product/ordinary-Chat path for the scoped contract.
+- **ACCEPTED-INFRASTRUCTURE** — accepted internal runtime/lifecycle foundation.
+- **ACCEPTED-SPECIALIST** — bounded specialist backend accepted behind a focused boundary.
+- **TARGET-QUALIFIED** — exact component/path physically passed its target qualification but is not yet integrated into the normal product runtime.
+- **ADAPT-CANDIDATE** — reusable upstream mechanism that still needs project integration/policy wrapping.
+- **DIAGNOSTIC** — internal testing/lifecycle infrastructure only.
+- **ACTIVE-INTEGRATION** — next product-integration work after target qualification.
+- **FUTURE-SCOPED-GATE** — future capability needing explicit evidence.
+- **OPTIONAL-RESEARCH** — useful only if later data/measurements justify it; not release-critical.
+- **PARALLEL-TRACK** — separate layer not on the core release path.
 
 ## Current catalog
 
@@ -32,23 +35,31 @@ Live `main` may be newer because of later integration/docs commits.
 |---|---|---|---|
 | Chat reachability | OpenAI Secure MCP Tunnel + official tunnel-client | PRODUCT-ACCEPTED | Normal ordinary-Chat reachability. |
 | Public semantic transport | direct stdio secure semantic launcher -> semantic-projection | PRODUCT-ACCEPTED | Normal public path. |
-| Internal MCP aggregation/lifecycle | 1MCP lines retained internally | ACCEPTED-INFRASTRUCTURE / DIAGNOSTIC | Useful for diagnostics/adaptive lifecycle; not normal public semantic hop. |
-| Windows manager ownership | shared authoritative owner + installed/source coordination | ACCEPTED-INFRASTRUCTURE | One owner; ambiguous/foreign runtime state fails closed. |
-| Scoped files | official MCP Filesystem behind semantic projection | PRODUCT-ACCEPTED | `workspace_read` / `workspace_write`; scope/root policy remains explicit. |
-| Browser | pinned Playwright MCP behind semantic projection | PRODUCT-ACCEPTED | `web_open` / `web_observe` / `web_interact`. |
-| Semantic capability projection | project-owned deterministic five-tool compatibility boundary | PRODUCT-ACCEPTED | Small truthful public surface; not planner/gateway/workflow engine. |
-| Local visual grounding | llama.cpp + LFM2.5-VL-450M F16 behind focused vision runtime/grounder | ACCEPTED-SPECIALIST | Stage 25/25.1/25.2 accepted target path; model/runtime remains replaceable. |
-| Browser semantic→vision escalation | Stage 25.2 internal fallback inside `web_interact` | PRODUCT-ACCEPTED | Zero-exact-candidate promoted text-labeled miss only; ambiguity/disabled/non-button ABSTAIN without VLM. |
-| Procedural compiler + IR | OpenAdapt Flow 1.31.0 `Workflow` / `ProgramGraph` | QUALIFIED-UPSTREAM | ADOPT behind project boundaries; do not build a competing project compiler/IR without a measured blocker. |
-| Procedural version/lifecycle | OpenAdapt `SkillLibrary` + learn/teach/regression machinery | ADAPT-CANDIDATE | Reuse upstream internals, but apply project candidate-first trust policy instead of upstream immediate-active bootstrap. |
-| Human/desktop recorder candidate | OpenAdapt Capture 1.2.2 + Flow capture adapter | QUALIFIED-UPSTREAM / NEXT TARGET GATE | Exact package install/import passed; Stage 26.1B must prove bounded real Windows capture before adoption. |
-| Windows execution candidate | OpenAdapt typed WindowsBackend + in-session agent | ADAPT-CANDIDATE | Typed/guarded/UIA routes exist; legacy arbitrary exec disabled by default; security A/B still required. |
-| F16 procedural grounding seam | existing accepted LFM2.5-VL F16 adapted to OpenAdapt `Grounder` protocol | ADAPT-CANDIDATE | Proposal-only local adapter after capture qualification; no new Chat-facing vision tool. |
-| Windows desktop surface | productized winning native/typed observation + bounded screen/vision + reviewed keyboard/mouse | FUTURE-SCOPED-GATE | Explicit Stage 26.3. Must not be forgotten or inferred from browser/OpenAdapt qualification. |
-| Human demonstration transfer | accepted capture + qualified compiler + project trust policy + variant-task verification | FUTURE-SCOPED-GATE | Stage 26.4; not product-accepted until real demonstration transfer passes. |
-| Future local programs/capabilities | implementation chosen from real user task + evidence | TASK-SELECTED-CANDIDATE | No fixed future application list in active roadmap/catalog. |
-| Distribution/cockpit reference | OpenAdapt Desktop Tauri/frozen-sidecar/installer patterns | ADAPT-CANDIDATE | Stage 27 reference only; pinned Desktop embeds a different Flow version from qualified runtime. |
-| Distribution/maintenance | installer/update/repair/doctor/uninstall/rollback/restart recovery | FUTURE-SCOPED-GATE | Stage 27; evaluate qualified/reusable Desktop patterns before rebuilding equivalents. |
+| Internal MCP aggregation/lifecycle | 1MCP | ACCEPTED-INFRASTRUCTURE / DIAGNOSTIC | Internal diagnostics/adaptive lifecycle; not normal public semantic hop. |
+| Windows manager ownership | one authoritative runtime owner + installed/source coordination | ACCEPTED-INFRASTRUCTURE | Ambiguous/foreign ownership fails closed. |
+| Scoped files | official Filesystem backend behind semantic projection | PRODUCT-ACCEPTED | `workspace_read` / `workspace_write`. |
+| Browser | pinned Playwright path behind semantic projection | PRODUCT-ACCEPTED | `web_open` / `web_observe` / `web_interact`. |
+| Semantic capability projection | deterministic five-tool compatibility boundary | PRODUCT-ACCEPTED | Small truthful surface; not planner/gateway/workflow engine. |
+| Local visual grounding | llama.cpp + LFM2.5-VL-450M F16 | ACCEPTED-SPECIALIST | Local/on-demand/perception-only; replaceable. |
+| Browser semantic->vision routing | Stage 25.2 internal escalation | PRODUCT-ACCEPTED | Semantic first; reviewed zero-exact-candidate visual path only. |
+| Procedural compiler + IR | OpenAdapt Flow 1.31.0 `Workflow` / `ProgramGraph` | TARGET-QUALIFIED | ADOPT behind project policy boundaries. |
+| Procedural lifecycle | OpenAdapt `SkillLibrary` + learn/teach/regression internals | ADAPT-CANDIDATE | Reuse mechanics; project trust stays candidate-first. |
+| Human/desktop capture | OpenAdapt Capture 1.2.2 + Flow adapter | TARGET-QUALIFIED | Stage 26.1B physically accepted; production procedure integration still later. |
+| Typed Windows executor | pinned OpenAdapt `WindowsBackend` + hardened interactive-session agent | TARGET-QUALIFIED | Stage 26.1C physically accepted; legacy generic exec excluded; no replacement actuator without blocker. |
+| Window-scoped Windows UI resolution | PID -> Win32 HWND -> exact window -> bounded native UIA FindAll | TARGET-QUALIFIED | Stage 26.1E physically accepted; remove desktop-wide traversal in production integration. |
+| Production Windows runtime | maintained session/observation/actuation/safety/verification/lifecycle boundary | ACTIVE-INTEGRATION | Next main engineering layer after stacked PR landing/docs sync. |
+| Desktop observation | canonical `DesktopState` with identity/freshness/provenance | ACTIVE-INTEGRATION | Build after Windows runtime foundation. |
+| Runtime verifier foundation | before/after observation + expected-effect PASS/FAIL/UNKNOWN | ACTIVE-INTEGRATION | Must exist before real-application E2E; delivery is not success. |
+| Desktop F16 Grounder | native/window pixel-space adapter | ADAPT-CANDIDATE | Separate from browser CSS viewport; proposal-only. |
+| Windows semantic/UIA->vision router | deterministic structure first, bounded visual fallback | FUTURE-SCOPED-GATE | Must pass adversarial accuracy suite before broad desktop claims. |
+| Real application Windows E2E | one medium-complexity user application + disposable artifact | FUTURE-SCOPED-GATE | Select from real task/evidence, not a permanently fixed app list. |
+| Verified Procedure Runtime | ProgramGraph + live state + authorization + verifier | FUTURE-SCOPED-GATE | Only after real desktop E2E. |
+| Human demonstration transfer | Capture -> candidate procedure -> changed-state verified replay | FUTURE-SCOPED-GATE | Not blind macro replay. |
+| Procedure-state dataset | structured verified state-transition examples | OPTIONAL-RESEARCH | Not a Stage 27/28 prerequisite. |
+| Specialized local reasoning | generic `SpecializedReasoningBackend` | OPTIONAL-RESEARCH | Only if data and measured escalation/latency need justify it. |
+| Multi-Chat/Codex orchestration | upper-layer controller over Chat/Codex sessions | PARALLEL-TRACK | Keep outside Windows/procedure safety core; not release prerequisite. |
+| Distribution/cockpit reference | OpenAdapt Desktop packaging/Tauri/sidecar patterns | ADAPT-CANDIDATE | Stage 27 reference; verify runtime-version compatibility. |
+| Distribution/maintenance | installer/update/repair/doctor/uninstall/rollback/restart recovery | FUTURE-SCOPED-GATE | Stage 27. |
 
 ## Current public surface
 
@@ -60,99 +71,68 @@ web_observe
 web_interact
 ```
 
-This count is an accepted current contract, not a permanent dogma. The explicit decision point for any expansion is after Windows desktop surface exists and is accepted. Any change then requires a separate ADR, truthful schemas and ordinary-Chat acceptance.
+This is an accepted current contract, not permanent dogma. After the Windows desktop surface exists, a separate ADR decides whether a few truthful coarse desktop/procedure capabilities are required.
 
-Do not preserve the count by hiding unrelated desktop/workflow operations behind current tool names. Do not add a generic opaque dispatcher as a renamed `tool_invoke`.
+Never preserve the count by hiding native desktop actions behind `web_interact`, and never add a generic opaque `tool_invoke` equivalent.
 
-## Accepted Stage 25.2 evidence
+## Stage 26.1B Capture evidence
 
-Accepted Stage 25.2 runtime/code milestone:
+Accepted target qualification head:
 
-`2a410476ef849fd6d9c172703a004b1befcbcfb1`.
+`7a9daa9329d81994833c22b4ca2e321927527dcc`
 
-Final target-tested production-code HEAD:
+Evidence:
 
-`41ef3f4032ae9169d940b3a04e5bdfe75170ca85`.
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\capture-qualification\capture-20260818-194033\result.json`
 
-```text
-semantic_hits = 2
-visual_hits = 1
-correct_abstains = 2
-false_clicks = 0
-errors = 0
-semantic_cases_started_vlm = 0
-acceptance_pass = true
-VISION_RUNTIME_RUNNING_AFTER_TEST = false
-CHROME_RUNNING_AFTER_TEST = true
-TEST_EXIT_CODE = 0
-```
+Key accepted properties: interactive-session capture, bounded selected-window evidence, raw UIA evidence retention, Flow compile success, zero foreign structural-window evidence, explicit refusal of unaccepted native replay, local artifact containment and cleanup.
 
-Earlier Stage 25 runtime/model candidate rankings are historical research, not the current path.
+## Stage 26.1C executor evidence
 
-## Stage 26 qualified upstream evidence
+Exact physically accepted head:
 
-### Tencent/UI-Mate
+`4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`
 
-Still used as a workflow-guidance reference: rich annotated demonstration trajectory -> compact current-subtask guidance -> live state remains authoritative. UI-Mate is not promoted as the product planner/model.
+Accepted: authenticated loopback agent, legacy exec absent/disabled, typed actions, stale frame/context refusal, focus/fingerprint binding, bounded keyboard/pointer/scroll, layout-independent Unicode typing, zero false/unrelated-window actions.
 
-### OpenAdapt Flow/Capture
+## Stage 26.1D / 26.1E performance evidence
 
-Target-tested exact pins:
+Baseline:
 
 ```text
-openadapt-flow 1.31.0
-commit d7f58d9f35c8369f16a9b378f23952d425334ad7
-
-openadapt-capture 1.2.2
-commit bcf12942d61d66b64d94e645e9124273a5cc5963
+p50 = 183606.855 ms
+p95 = 185567.403 ms
 ```
 
-Qualification-code HEAD:
-
-`f8e8f606db845821b8fa24c09f9032015fb0e79e`.
-
-Real target evidence:
+Window-scoped resolver:
 
 ```text
-Python 3.12.10
-exact installed commit verification = PASS
-PHASE_B_PASS=True
-PHASE_C_TUTORIAL_PASS=True
-PROBE_ERROR=<null>
-ERROR=<null>
-TEST_EXIT_CODE=0
-Chrome process count 15 -> 15
+WINDOW_SCOPED_FIND_CALLS=97
+WINDOW_NAME_MATCH_COUNT=97
+DESKTOP_FALLBACK_CALLS=0
+WINDOW_BINDING_FAILURES=0
+WINDOW_BINDING_AMBIGUITIES=0
+FALSE_ACTION_COUNT=0
+UNRELATED_WINDOW_ACTION_COUNT=0
+p50=3323.570 ms
+p95=3720.061 ms
+p50 speedup=55.244x
+p95 speedup=49.883x
 ```
 
-Result artifact:
-
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\openadapt-qualification\qualification-20260818-170434\result.json`
-
-The earlier assumption that Stage 26.1 should first implement project-owned raw schemas/compiler/store has been superseded. Reuse/adapt qualified upstream mechanisms before writing replacements.
-
-## Next capability gate
-
-Stage 26.1B is **real bounded Windows Capture qualification** using a harmless test window. It must prove window scope, click/type/key/scroll evidence, UIA evidence where available, conversion/compile/replay or bounded refusal, zero false/unrelated-window actions, local artifact containment and cleanup.
-
-After that, Stage 26.1C performs the Windows executor security A/B and local F16 Grounder adapter qualification.
+The 97/97 result is controlled fixture evidence for the exercised role+name path, not global Windows accuracy.
 
 ## Candidate selection rule for future capabilities
 
-When an actual user task requires a new local capability:
-
 ```text
-actual task and consequence class
-  -> identify deterministic/native/API/MCP/qualified-upstream options
-  -> prefer maintained upstream component
-  -> scope/reduce surface
-  -> target-machine benchmark
-  -> security/negative tests
-  -> focused project adapter only for measured gap
-  -> ordinary-Chat/public-contract review if exported
+actual task + consequence class
+ -> deterministic/native/API/MCP/qualified-upstream candidates
+ -> prefer mature maintained upstream
+ -> reduce/scope authority
+ -> target-machine benchmark
+ -> negative/security tests
+ -> focused project adapter only for a measured gap
+ -> public-contract review only if exported
 ```
 
-Do not promote a backend merely because it appears in an old catalog or prior conversation.
-
-## Historical evidence note
-
-Older sections/files that discuss Stage 24 semantic projection as experimental, superseded Stage 25 runtime/model candidate lines, a fixed future application list, or a Stage 26 plan that assumes project-owned recorder/compiler/skill-store implementation are historical research. They do not override `START_HERE.md`, `CURRENT_STATE.md`, `STAGE26_1A_OPENADAPT_QUALIFICATION.md`, `STAGE26_PROCEDURAL_MEMORY.md`, `ROADMAP.md` or this synchronized catalog.
+Do not promote a backend merely because it appeared in an older plan.
