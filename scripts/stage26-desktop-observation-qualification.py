@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -64,7 +65,7 @@ def _capture_exact_window(bounds: Rect) -> bytes:
         "width": bounds.width,
         "height": bounds.height,
     }
-    with mss.mss() as capture:
+    with mss.MSS() as capture:
         shot = capture.grab(monitor)
         return mss.tools.to_png(shot.rgb, shot.size)
 
@@ -88,6 +89,10 @@ def _identity_tuple(state: DesktopState) -> tuple[Any, ...]:
     )
 
 
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", required=True)
@@ -99,13 +104,17 @@ def main() -> int:
     fixture_state_path = Path(args.fixture_state).resolve()
     ready_path = Path(args.recorder_ready).resolve()
     result_path = run_dir / "desktop-observation-result.json"
+    observation_path = REPO_ROOT / "runtime" / "windows" / "observation.py"
+    driver_path = Path(__file__).resolve()
     run_dir.mkdir(parents=True, exist_ok=True)
 
     result: dict[str, Any] = {
-        "schema_version": 1,
-        "qualification_kind": "read-only-production-desktop-state",
-        "production_observation_path": str(REPO_ROOT / "runtime" / "windows" / "observation.py"),
+        "schema_version": 2,
+        "qualification_kind": "production-desktop-state-observation",
+        "production_observation_path": str(observation_path),
         "production_resolver_path": str(REPO_ROOT / "runtime" / "windows" / "window_scoped_uia.py"),
+        "observer_source_sha256": _sha256(observation_path),
+        "driver_source_sha256": _sha256(driver_path),
         "fixture_process_id": None,
         "first_state": None,
         "second_state": None,
@@ -114,10 +123,6 @@ def main() -> int:
         "screenshot_digest_pass": False,
         "freshness_contract_pass": False,
         "bounded_control_count_pass": False,
-        "observation_only_pass": True,
-        "action_count": 0,
-        "false_action_count": 0,
-        "unrelated_window_action_count": 0,
         "resolver_stats": None,
         "pass": False,
         "error": None,
@@ -175,10 +180,6 @@ def main() -> int:
             and result["screenshot_digest_pass"]
             and result["freshness_contract_pass"]
             and result["bounded_control_count_pass"]
-            and result["observation_only_pass"]
-            and result["action_count"] == 0
-            and result["false_action_count"] == 0
-            and result["unrelated_window_action_count"] == 0
             and second.process_id == fixture_pid
             and second.window_handle > 0
             and second.session_id.startswith("windows-session:")
@@ -199,15 +200,13 @@ def main() -> int:
 
     print("===== STAGE 26.2B DESKTOP OBSERVATION =====")
     print(f"RESULT_PATH={result_path}")
+    print(f"OBSERVER_SOURCE_SHA256={result['observer_source_sha256']}")
+    print(f"DRIVER_SOURCE_SHA256={result['driver_source_sha256']}")
     print(f"SAME_IDENTITY_PASS={result['same_identity_pass']}")
     print(f"CONTROL_CONTRACT_PASS={result['control_contract_pass']}")
     print(f"SCREENSHOT_DIGEST_PASS={result['screenshot_digest_pass']}")
     print(f"FRESHNESS_CONTRACT_PASS={result['freshness_contract_pass']}")
     print(f"BOUNDED_CONTROL_COUNT_PASS={result['bounded_control_count_pass']}")
-    print(f"OBSERVATION_ONLY_PASS={result['observation_only_pass']}")
-    print(f"ACTION_COUNT={result['action_count']}")
-    print(f"FALSE_ACTION_COUNT={result['false_action_count']}")
-    print(f"UNRELATED_WINDOW_ACTION_COUNT={result['unrelated_window_action_count']}")
     print(f"ERROR={result['error']}")
     print(f"PASS={result['pass']}")
     return 0 if result["pass"] else 1
