@@ -1,72 +1,77 @@
 # Known Issues
 
-Only unresolved issues for the current architecture are listed here. Historical Stage 25 candidate/runtime problems that were superseded by accepted Stage 25.2 evidence are not active blockers.
+Only unresolved issues for the current architecture are listed here. Closed/superseded qualification findings are kept at the end for historical clarity.
 
-1. **Present-target visual capability is intentionally limited.** Stage 25 baseline remains 3/5 present-target HIT because repeated-row and tiny-indicator classes are deliberately blocked. Stage 25.2 public escalation is narrow; repeated-row/tiny/icon-only classes are not automatically promoted.
+1. **Present-target browser visual capability remains intentionally limited.** Stage 25 baseline is still 3/5 because repeated-row/tiny classes are deliberately blocked rather than promoted unsafely.
 
-2. **Freshness verification is not atomic with coordinate click.** The viewport is re-captured and must satisfy deterministic freshness checks before coordinate action, but screenshot and click remain separate MCP calls. A narrow TOCTOU window remains.
+2. **Browser screenshot -> coordinate action is not atomic.** Freshness is rechecked before click, but capture and action remain separate calls with a narrow TOCTOU window.
 
-3. **Loopback vision endpoint ownership is PID-checked but not cryptographically authenticated.** A same-user race around process/port reuse remains theoretically possible after ownership verification.
+3. **Loopback vision endpoint ownership is PID-checked, not cryptographically authenticated.** A same-user process/port race remains theoretically possible.
 
-4. **Browser network policy is not a complete DNS/redirect sandbox.** Direct literal private/link-local/metadata/non-public destinations are blocked while loopback remains available. DNS resolution/rebinding and redirect policy remain residual work.
+4. **Browser network policy is not a complete DNS/redirect sandbox.** Literal private/link-local/metadata targets are blocked while DNS rebinding/redirect/private-network isolation remains residual work.
 
-5. **Vision Python/model dependency reproducibility is not release-grade.** Stable distribution still needs an explicit artifact/hash/update policy for Python/runtime/model assets.
+5. **Python/model/OpenAdapt dependency reproducibility is not release-grade.** Stable distribution needs exact artifact/hash/update policy rather than user-global environments.
 
 6. **Pinned semantic npm graph includes deprecated transitive `glob@10.5.0`.** Keep this as a dedicated dependency follow-up with the full locked acceptance matrix.
 
-7. **The generic adaptive Chat-facing contract is not product-accepted.** Adaptive 1MCP remains internal diagnostic/lifecycle infrastructure; generic `tool_schema`/`tool_invoke` is not the ordinary-Chat product surface.
+7. **Generic adaptive Chat-facing actions are not product-accepted.** 1MCP remains internal; generic `tool_schema`/`tool_invoke` is not the ordinary-Chat product contract.
 
-8. **Large typed action surfaces can be truncated in the tested Chat app.** Keep the Chat-facing surface small and truthful; measured historical behavior is not a universal hard-coded limit.
+8. **Large exported action surfaces can be truncated in the tested Chat app.** Keep the public surface small and truthful; historical truncation is not a universal numeric hard limit.
 
-9. **Chat action snapshots require explicit Refresh/review when exported tool definitions change.** Stage 26 foundation should avoid public schema changes until a truthful boundary is needed and accepted.
+9. **Exported Chat action definitions require explicit Refresh/review.** Do not change the public contract casually during Windows runtime integration.
 
-10. **OpenAI safety can block composite workflows independently of app permission mode.** Treat a pre-MCP product block separately from local backend failure.
+10. **OpenAI product safety may block a composite workflow before MCP invocation.** Distinguish pre-MCP product blocks from local backend failures.
 
-11. **Authorization policy is not yet accepted for future Windows desktop/consequential capability classes.** Stage 25.2 browser-click authorization must not be generalized automatically to desktop actions.
+11. **Authorization policy is not yet accepted for broad Windows desktop consequence classes.** Stage 26.1C proves a bounded harmless executor seam; it does not grant arbitrary desktop authority.
 
-12. **Runtime-key rotation/repair/uninstall are not first-class manager flows yet.** These remain Stage 27 distribution/maintenance work.
+12. **Runtime-key rotation/repair/uninstall are not first-class manager flows yet.** Stage 27 work remains.
 
-13. **Procedural-memory upstream core is qualified but not integrated into the product path.** OpenAdapt Flow/Capture passed exact-source install/import and model-free tutorial verification on the target Windows machine, but no OpenAdapt dependency is yet part of production `semantic-projection` or installed runtime.
+13. **OpenAdapt procedural substrate is target-qualified but not integrated into the product path.** Flow/Capture mechanics are accepted upstream candidates; normal `semantic-projection` does not yet run verified procedures.
 
-14. **The first compiled procedure must not silently become product-trusted.** Upstream `SkillLibrary.create_skill()` marks bootstrap v1 active; Chat Agent Platform keeps a stricter candidate-first product policy. A thin policy adapter still needs implementation/acceptance before integration.
+14. **First compiled procedure must not silently become product-trusted.** Project policy remains candidate-first even if an upstream bootstrap version is active internally.
 
-15. **Human demonstration privacy/retention is unresolved.** Raw desktop capture may contain everything visible or typed. Long-lived storage/sync is not accepted until deletion, encryption and redaction policy is defined and tested.
+15. **Human demonstration privacy/retention is unresolved.** Raw desktop capture may expose visible/typed sensitive data. Long-lived sync/storage is not accepted until deletion, encryption and redaction policy is defined and tested.
 
-16. **Private reasoning must not enter procedural memory.** Store structured/user-visible intent summaries and operational evidence only, never private chain-of-thought.
+16. **Private reasoning must never enter procedural memory.** Store structured/user-visible goals, observed state, transitions, receipts and verification only.
 
-17. **OpenAdapt Capture has not yet passed the real bounded Windows capture gate.** Package install/symbol checks passed, but Stage 26.1B still must prove window-scoped recording, action classes, UIA evidence, conversion/compile/replay or bounded refusal, zero unrelated-window actions and clean local artifact containment.
+17. **Accepted Windows executor/resolver are still qualification assets, not production runtime.** Stage 26.1C and 26.1E passed on target, but the accepted seams still need extraction into a maintained `runtime/windows` capability boundary with lifecycle/health/logging.
 
-18. **Windows executor authority boundary is not accepted yet.** The pinned OpenAdapt server has bounded typed `/input`, `/input/guarded`, `/uia/find` and `/uia/act` routes and disables legacy `/execute_windows` by default. The project still must compare this agent boundary with a narrower actuator and prove generic exec is disabled/unreachable in product configuration.
+18. **The 97/97 Stage 26.1E fixture result is not global Windows accuracy.** It proves the exercised role+name path on one controlled WinForms fixture. `AutomationId`, custom controls, multiple applications/windows and weaker accessibility providers require separate evidence.
 
-19. **F16 -> OpenAdapt Grounder adapter is not implemented yet.** The seam looks compatible and proposal-only, but it needs a real adapter test proving local/on-demand lifecycle, no screenshot egress, and preservation of identity/risk/freshness/effect gates.
+19. **`AutomationId` path is implemented but not physically exercised by the accepted Stage 26.1E benchmark.** Add explicit physical coverage in the Windows accuracy suite before claiming broad structural resolution reliability.
 
-20. **Windows desktop surface is not product-accepted yet.** Native/deterministic UI observation, screen capture, bounded vision and reviewed keyboard/mouse actuation need their own scoped acceptance before arbitrary local desktop workflows can be claimed.
+20. **Desktop verifier foundation is not implemented in product runtime.** Executor delivery must not be treated as task completion; before real-application E2E the runtime needs before/after observation and PASS/FAIL/UNKNOWN effect verification.
 
-21. **Arbitrary human “show me once” transfer is not accepted yet.** Capture and compiler candidates exist upstream, but Stage 26.4 still must prove real demonstration -> compiled procedure -> project trust gate -> variant-task reuse with current-state priority.
+21. **Canonical `DesktopState` does not yet exist.** Production observation still needs explicit session/application/window identity, coordinate space, freshness/provenance and control fingerprints.
 
-22. **The post-desktop public contract is intentionally undecided.** Current accepted public tool names remain five. After Windows desktop surface exists, a separate ADR and ordinary-Chat acceptance must decide whether new truthful tool names are required or the same small-semantic philosophy can continue. Do not overload existing tools or add a generic opaque dispatcher merely to avoid this decision.
+22. **Desktop F16 Grounder is not implemented.** The accepted browser visual path is CSS/Playwright viewport-specific and must not be falsely reused for native Windows pixel coordinates.
 
-23. **Concrete future local programs/capabilities are intentionally not preselected.** Choose them from actual user tasks and evidence when desktop/capability benchmarking begins.
+23. **Windows semantic/UIA -> vision routing is not accepted.** A separate adversarial suite must cover duplicates, disabled/hidden controls, wrong window/process, overlays, focus changes, stale/recreated windows, structural-path variants and visual ambiguity/ABSTAIN.
 
-24. **OpenAdapt Desktop is not the qualified runtime baseline.** Its pinned packaging lane embeds a different Flow version from the target-qualified Flow 1.31.0. Reuse its Tauri/sidecar/installer ideas only after Stage 27 compatibility review.
+24. **No real-application Windows E2E has passed yet.** Qualification fixtures are not sufficient evidence for VS Code, OriginPro, Reaper or arbitrary real applications/custom controls.
 
-25. **Python/OpenAdapt packaging is not release-grade.** Qualification used isolated Python 3.12 because Flow 1.31.0 currently declares Python `<3.13`. Stage 27 must own exact Python/upstream artifact/hash/update policy instead of relying on user global environments.
+25. **Arbitrary human “show me once” transfer is not accepted.** Capture/compiler candidates exist, but candidate trust, verifier-controlled replay and related changed-task reuse still require product evidence.
 
-26. **Repository metadata may still contain historical wording.** Current code and authoritative `project-context` docs override stale descriptive metadata.
+26. **Public desktop/procedure contract is intentionally undecided.** Current five tools remain accepted. After desktop capability exists, use an ADR; do not overload `web_interact` or add a generic workflow dispatcher.
 
-27. **No first stable release exists.** Browser semantic→vision is accepted, but Procedural Memory integration, Windows desktop capability, distribution/maintenance hardening and clean-user product E2E remain incomplete.
+27. **Concrete future local programs are intentionally not preselected.** Pick the first real application from actual task/evidence and a safe deterministic test artifact.
+
+28. **OpenAdapt Desktop is not the qualified runtime baseline.** Its packaging ideas may be useful in Stage 27, but version/runtime compatibility must be checked against the exact qualified Flow line.
+
+29. **The Stage 26.1C/D/E PR chain is still stacked and unmerged.** #83 is based on `main`, #84 on #83, #85 on #84. Each downstream PR must be retargeted to `main` after its predecessor lands and its resulting diff/CI rechecked; do not blindly merge the stack.
+
+30. **Specialized tiny reasoning is intentionally not committed to the release path.** TRM/STARM/FPRM or another model is only justified after real verified procedure-state data and measured ChatGPT-escalation/latency need exist.
+
+31. **Multi-Chat/Codex orchestration is a separate parallel layer.** It is not part of Windows executor safety or a Stage 27/28 prerequisite.
+
+32. **No first stable release exists.** Windows production runtime, desktop observation/grounder/routing, real-app E2E, verified procedural reuse, distribution hardening and clean-user release gates remain incomplete.
 
 ## Closed / superseded findings
 
-- Stage 25.1 PR #74 was squash-merged after full review and real target acceptance.
-- Stage 25.2 PR #77 was squash-merged to `main` as `2a410476ef849fd6d9c172703a004b1befcbcfb1`.
-- Final Stage 25.2 target-tested production-code HEAD `41ef3f4032ae9169d940b3a04e5bdfe75170ca85` passed the public semantic→real-F16 gate: 2 semantic HIT, 1 visual HIT, 2 correct ABSTAIN, 0 false clicks, 0 errors, `semantic_cases_started_vlm=0`, `acceptance_pass=true`, `TEST_EXIT_CODE=0`.
-- Final Stage 25.2 cleanup is proved: runtime stopped, Chrome remained running, minimum observed free physical RAM was 1.04 GB and no safety stop occurred.
-- Semantic click authorization requires an enabled button; disabled/non-button exact matches ABSTAIN without VLM.
-- Planner-controlled visual redirection is closed at the router boundary: `targetText` is the authorization anchor; planner `target`, free-form `instruction` and planner-supplied `kind` do not choose another visual target.
-- Semantic ambiguity and generic semantic click errors do not trigger vision.
-- Safe ABSTAIN is a no-action result rather than a backend error.
-- Installed semantic bootstrap/source drift, lockfile application, prepared-target expiry/cap, descendant stdio/buffering, junction containment, credential scrub, CodeQL coverage and literal private-network blocking remain regression-tested foundations.
-- Earlier Stage 25 runtime/model candidate rankings are historical research; accepted target path is the measured llama.cpp + LFM2.5-VL-450M F16 configuration above.
-- The assumption that Stage 26 must first build its own recorder/compiler/skill store from scratch is superseded. Pinned OpenAdapt Flow/Capture passed exact-source qualification on Windows; reuse/adapt qualified upstream mechanisms before writing replacements.
-- An early Stage 26.1A target failure caused by missing `requests` was a qualification-harness defect: the probe imported `WindowsBackend` while installing Flow only with `[browser]`. The pinned package correctly declares `requests` in `[windows]`; after installing `[browser,windows]` the exact target rerun passed.
+- Stage 25.1 and Stage 25.2 browser semantic/vision foundations are merged and accepted; historical candidate-runtime comparisons no longer define the active path.
+- The assumption that Stage 26 must build its own recorder/compiler/skill store from scratch is superseded by exact OpenAdapt Flow/Capture qualification.
+- **OpenAdapt Capture real bounded Windows qualification is no longer an open issue.** Stage 26.1B passed on target at `7a9daa9329d81994833c22b4ca2e321927527dcc`; evidence is `capture-20260818-194033\result.json`.
+- **Windows executor authority qualification is no longer an open issue for the bounded tested seam.** Stage 26.1C exact head `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b` passed loopback/auth/legacy-route/schema/stale-context/fingerprint/focus/input/cleanup gates with zero false/unrelated-window actions. Broad product authorization still remains separate issue #11 above.
+- Stage 26.1D measured the ~184 s warm UIA cycle and isolated desktop-wide traversal as the dominant blocker.
+- **Desktop-wide UIA traversal is no longer the accepted Windows resolution path.** Stage 26.1E exact head `66390aca1dadf57c4f11568ec311ad6fcdbd7596` passed 97 window-scoped resolutions with zero desktop fallback/binding failures/ambiguities/false actions and reduced action p50/p95 to 3.324/3.720 s (~55x/~50x speedup).
+- Earlier Stage 26.1E diagnostic failures (`19d5884...`, `ace6f1eb...`, `1e7f2de...`, `e4cdc43b...`) were qualification discoveries and remained fail-closed with no false/unrelated-window actions; they are not accepted product failures.
