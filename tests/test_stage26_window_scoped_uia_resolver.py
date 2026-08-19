@@ -70,6 +70,16 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertIn("resolver.stats.desktop_fallback_calls == 0", self.driver)
         self.assertIn("$result.resolver_stats.desktop_fallback_calls -eq 0", self.harness)
 
+    def test_performance_gate_is_derived_from_physical_stage1d_baseline(self):
+        self.assertIn("BASELINE_ACTION_P50_MS = 183606.855", self.driver)
+        self.assertIn("BASELINE_ACTION_P95_MS = 185567.403", self.driver)
+        self.assertIn("MINIMUM_SPEEDUP = 10.0", self.driver)
+        self.assertIn("minimum_speedup_pass", self.driver)
+        self.assertIn("and speedup_pass", self.driver)
+        self.assertIn("$result.baseline_comparison.minimum_speedup_pass", self.harness)
+        self.assertIn("P50_SPEEDUP", self.harness)
+        self.assertIn("P95_SPEEDUP", self.harness)
+
     def test_stage1d_persistent_environment_is_reused_not_reinstalled(self):
         self.assertIn("hot-runtime-env", self.harness)
         self.assertIn("environment_reused = $true", self.harness)
