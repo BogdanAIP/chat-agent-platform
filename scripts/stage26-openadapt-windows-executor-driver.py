@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import json
 import secrets
 import threading
 import time
 import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -14,12 +16,20 @@ import requests
 
 from openadapt_flow.backend import StructuralResolutionRefused
 from openadapt_flow.backends.windows_backend import WindowsBackend
-from openadapt_flow.backends.win_agent.server import AgentConfig, create_server
+from openadapt_flow.backends.win_agent.server import (
+    AgentConfig,
+    _perform_input as upstream_perform_input,
+    create_server,
+)
 from openadapt_flow.ir import StructuralLocator
 
 
 FIXTURE_WINDOW_NAME = "Stage 26 capture qualification fixture"
 EXPECTED_TEXT = "CAPTURE_OK"
+KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_UNICODE = 0x0004
+INPUT_KEYBOARD = 1
+_MAX_TEXT_CHARS = 65_536
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -104,6 +114,123 @@ def _post_empty(
     )
 
 
+def _delivery_receipt(operation: str) -> dict[str, Any]:
+    return {
+        "status": "delivered",
+        "receipt_id": secrets.token_hex(12),
+        "operation": operation,
+        "native": False,
+        "target_fingerprint": None,
+        "delivered_at": datetime.now(timezone.utc).isoformat(),
+        "outcome_verified": False,
+    }
+
+
+def _send_unicode_text(text: str, interval_s: float) -> None:
+    """Type exact Unicode text with Win32 SendInput, independent of layout.
+
+    This is the deliberately narrow project-owned fallback justified by the
+    real Windows qualification where pinned PyAutoGUI 0.9.54, under the
+    operator's active non-US layout, delivered only "_" for "CAPTURE_OK".
+    It does not change keyboard layout, use clipboard, start a process, or
+    expose a generic command channel.
+    """
+
+    if not text:
+        return
+    if not isinstance(interval_s, (int, float)) or isinstance(interval_s, bool):
+        raise ValueError("interval_s must be numeric")
+    if not 0 <= float(interval_s) <= 1:
+        raise ValueError("interval_s must be between 0 and 1")
+
+    from ctypes import wintypes
+
+    ULONG_PTR = ctypes.c_size_t
+
+    class KEYBDINPUT(ctypes.Structure):
+        _fields_ = [
+            ("wVk", wintypes.WORD),
+            ("wScan", wintypes.WORD),
+            ("dwFlags", wintypes.DWORD),
+            ("time", wintypes.DWORD),
+            ("dwExtraInfo", ULONG_PTR),
+        ]
+
+    class INPUTUNION(ctypes.Union):
+        _fields_ = [("ki", KEYBDINPUT)]
+
+    class INPUT(ctypes.Structure):
+        _anonymous_ = ("u",)
+        _fields_ = [("type", wintypes.DWORD), ("u", INPUTUNION)]
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
+    user32.SendInput.restype = wintypes.UINT
+
+    for character in text:
+        encoded = character.encode("utf-16-le")
+        code_units = [
+            int.from_bytes(encoded[index : index + 2], "little")
+            for index in range(0, len(encoded), 2)
+        ]
+        inputs: list[INPUT] = []
+        for code_unit in code_units:
+            inputs.append(
+                INPUT(
+                    type=INPUT_KEYBOARD,
+                    ki=KEYBDINPUT(
+                        wVk=0,
+                        wScan=code_unit,
+                        dwFlags=KEYEVENTF_UNICODE,
+                        time=0,
+                        dwExtraInfo=0,
+                    ),
+                )
+            )
+            inputs.append(
+                INPUT(
+                    type=INPUT_KEYBOARD,
+                    ki=KEYBDINPUT(
+                        wVk=0,
+                        wScan=code_unit,
+                        dwFlags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
+                        time=0,
+                        dwExtraInfo=0,
+                    ),
+                )
+            )
+        batch = (INPUT * len(inputs))(*inputs)
+        ctypes.set_last_error(0)
+        sent = int(user32.SendInput(len(inputs), batch, ctypes.sizeof(INPUT)))
+        if sent != len(inputs):
+            error = ctypes.get_last_error()
+            raise OSError(error, f"SendInput delivered {sent}/{len(inputs)} events")
+        if interval_s:
+            time.sleep(float(interval_s))
+
+
+def _qualification_input(payload: dict[str, Any]) -> dict[str, Any]:
+    """Override only text delivery; all other typed actions stay upstream."""
+
+    if payload.get("action") != "type_text":
+        return upstream_perform_input(payload)
+
+    allowed = {"action", "text", "interval_s"}
+    if set(payload) - allowed or "text" not in payload:
+        raise ValueError("invalid type_text fields")
+    text = payload.get("text")
+    interval = payload.get("interval_s", 0.05)
+    if not isinstance(text, str) or len(text) > _MAX_TEXT_CHARS:
+        raise ValueError("text exceeds the bounded string contract")
+    if isinstance(interval, bool) or not isinstance(interval, (int, float)):
+        raise ValueError("interval_s must be numeric")
+    if not 0 <= float(interval) <= 1:
+        raise ValueError("interval_s must be between 0 and 1")
+
+    _send_unicode_text(text, float(interval))
+    return _delivery_receipt("physical_type_text")
+
+
 def _structural(role: str, name: str) -> StructuralLocator:
     return StructuralLocator(
         role=role,
@@ -120,7 +247,7 @@ def _resolve_unique(backend: WindowsBackend, locator: StructuralLocator):
         )
     if handle.candidate_count != 1 or not handle.target_fingerprint:
         raise RuntimeError(
-            f"UIA target was not uniquely fingerprinted: "
+            "UIA target was not uniquely fingerprinted: "
             f"role={locator.role!r} name={locator.name!r}"
         )
     return handle
@@ -322,6 +449,7 @@ def main() -> int:
         "guarded_coordinate_pass": False,
         "guarded_scroll_pass": False,
         "fixture_sequence_pass": False,
+        "layout_independent_text_input_pass": False,
         "unrelated_window_action_count": 0,
         "false_action_count": 0,
         "legacy_exec_enabled": False,
@@ -339,8 +467,6 @@ def main() -> int:
     delivered: list[str] = []
 
     try:
-        # Product-candidate construction path: no upstream CLI argument parsing,
-        # no passthrough flags, loopback only, per-run bearer auth, legacy exec off.
         config = AgentConfig(
             host="127.0.0.1",
             port=0,
@@ -348,7 +474,10 @@ def main() -> int:
             allow_legacy_exec=False,
         )
         result["legacy_exec_enabled"] = bool(config.allow_legacy_exec)
-        server = create_server(config)
+
+        # Upstream baseline is create_server(config); only the bounded typed
+        # text input function is substituted after a measured layout blocker.
+        server = create_server(config, input_fn=_qualification_input)
         host, port = server.server_address[:2]
         result["agent_bind_host"] = str(host)
         result["agent_port"] = int(port)
@@ -371,21 +500,10 @@ def main() -> int:
             isinstance(capabilities, list) and "legacy_exec" not in capabilities
         )
 
-        # These two paths reject before win_agent reads a request body. Keep
-        # them zero-length so Windows cannot turn unread inbound bytes into a
-        # connection reset that hides the intended 401/404 status.
-        unauthorized = _post_empty(
-            base_url,
-            "/input",
-            token=None,
-        )
+        unauthorized = _post_empty(base_url, "/input", token=None)
         result["unauthorized_input_401_pass"] = unauthorized.status_code == 401
 
-        legacy = _post_empty(
-            base_url,
-            "/execute_windows",
-            token=token,
-        )
+        legacy = _post_empty(base_url, "/execute_windows", token=token)
         result["legacy_route_404_pass"] = legacy.status_code == 404
 
         command_field = _post(
@@ -509,11 +627,15 @@ def main() -> int:
             ),
         )
         delivered.append(type_receipt.operation)
-        _wait_state(fixture_state_path, "text_ok")
-        result["guarded_keyboard_pass"] = (
+        text_state = _wait_state(fixture_state_path, "text_ok")
+        result["layout_independent_text_input_pass"] = (
+            text_state.get("text_value") == EXPECTED_TEXT
+        )
+        type_receipt_ok = (
             type_receipt.operation == "physical_type_text"
             and type_receipt.native is False
             and type_receipt.outcome_verified is False
+            and result["layout_independent_text_input_pass"]
         )
 
         textbox_handle = _resolve_unique(backend, textbox)
@@ -528,6 +650,12 @@ def main() -> int:
         )
         delivered.append(press_receipt.operation)
         _wait_state(fixture_state_path, "enter_pressed")
+        press_receipt_ok = (
+            press_receipt.operation == "physical_press"
+            and press_receipt.native is False
+            and press_receipt.outcome_verified is False
+        )
+        result["guarded_keyboard_pass"] = bool(type_receipt_ok and press_receipt_ok)
 
         row = _structural("listitem", "Qualification row 01")
         row_handle = _resolve_unique(backend, row)
@@ -569,10 +697,7 @@ def main() -> int:
             and state.get("finish_clicked")
             and state.get("text_value") == EXPECTED_TEXT
         )
-        result["delivered_operations"] = delivered
 
-        # All pointer/native targets are fixture-window UIA locators. Keyboard
-        # input is additionally focus-bound to the fixture textbox.
         result["unrelated_window_action_count"] = 0
         result["false_action_count"] = 0
 
@@ -591,6 +716,7 @@ def main() -> int:
                 "stale_context_refusal_pass",
                 "uia_unique_target_pass",
                 "fingerprint_bound_action_pass",
+                "layout_independent_text_input_pass",
                 "guarded_keyboard_pass",
                 "guarded_coordinate_pass",
                 "guarded_scroll_pass",
@@ -606,6 +732,12 @@ def main() -> int:
         result["error"] = f"{type(exc).__name__}: {exc}"
         result["traceback"] = traceback.format_exc()
     finally:
+        result["delivered_operations"] = list(delivered)
+        if fixture_state_path.is_file():
+            try:
+                result["fixture_state"] = _read_json(fixture_state_path)
+            except Exception:
+                pass
         if server is not None:
             try:
                 server.shutdown()
@@ -638,6 +770,7 @@ def main() -> int:
         "stale_context_refusal_pass",
         "uia_unique_target_pass",
         "fingerprint_bound_action_pass",
+        "layout_independent_text_input_pass",
         "guarded_keyboard_pass",
         "guarded_coordinate_pass",
         "guarded_scroll_pass",
@@ -647,6 +780,7 @@ def main() -> int:
         "legacy_exec_enabled",
         "windows_backend_allow_legacy_exec",
         "delivered_operations",
+        "fixture_state",
         "error",
         "pass",
     ):
