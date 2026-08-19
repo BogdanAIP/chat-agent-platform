@@ -1,32 +1,32 @@
 # Module / Capability Catalog
 
-Status synchronized through the physically accepted Stage 26.1E qualification stack. This branch is stacked on PR #85 and does not imply #83/#84/#85 are already in `main`.
+Status synchronized through the physically accepted Stage 26.2B DesktopState work. Resolve live `main` and relevant PR heads before work.
 
-This is a current capability-status catalog, not a fixed list of future applications.
-
-## Repository-state rule
-
-Resolve live `main` before work. Stable acceptance heads may remain on open PR branches until explicitly landed.
-
-Current accepted stacked Windows heads:
+Current integration line:
 
 ```text
-Stage 26.1C / PR #83 = 4bf08dd9b8d1ff010f14723f9bb0384b97334a2b
-Stage 26.1D / PR #84 = 114e865090d39d218418958c40cf359b5f6808da
-Stage 26.1E / PR #85 = 66390aca1dadf57c4f11568ec311ad6fcdbd7596
+main = d044926846d9c2e198c906ff5174308da0974b03
+```
+
+Current open accepted work:
+
+```text
+#88 Stage 26.2B Desktop Observation / DesktopState
+physical runtime head = dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a
+ready for review; not merged
 ```
 
 ## Status meanings
 
 - **PRODUCT-ACCEPTED** — accepted normal product/ordinary-Chat path for the scoped contract.
-- **ACCEPTED-INFRASTRUCTURE** — accepted internal runtime/lifecycle foundation.
+- **ACCEPTED-INFRASTRUCTURE** — accepted maintained internal runtime/lifecycle foundation.
 - **ACCEPTED-SPECIALIST** — bounded specialist backend accepted behind a focused boundary.
-- **TARGET-QUALIFIED** — exact component/path physically passed its target qualification but is not yet integrated into the normal product runtime.
+- **TARGET-QUALIFIED** — exact component/path physically passed target qualification but is not yet in `main`/normal product path.
 - **ADAPT-CANDIDATE** — reusable upstream mechanism that still needs project integration/policy wrapping.
 - **DIAGNOSTIC** — internal testing/lifecycle infrastructure only.
-- **ACTIVE-INTEGRATION** — next product-integration work after target qualification.
+- **ACTIVE-INTEGRATION** — current product-integration work.
 - **FUTURE-SCOPED-GATE** — future capability needing explicit evidence.
-- **OPTIONAL-RESEARCH** — useful only if later data/measurements justify it; not release-critical.
+- **OPTIONAL-RESEARCH** — only if later data/measurements justify it; not release-critical.
 - **PARALLEL-TRACK** — separate layer not on the core release path.
 
 ## Current catalog
@@ -36,7 +36,7 @@ Stage 26.1E / PR #85 = 66390aca1dadf57c4f11568ec311ad6fcdbd7596
 | Chat reachability | OpenAI Secure MCP Tunnel + official tunnel-client | PRODUCT-ACCEPTED | Normal ordinary-Chat reachability. |
 | Public semantic transport | direct stdio secure semantic launcher -> semantic-projection | PRODUCT-ACCEPTED | Normal public path. |
 | Internal MCP aggregation/lifecycle | 1MCP | ACCEPTED-INFRASTRUCTURE / DIAGNOSTIC | Internal diagnostics/adaptive lifecycle; not normal public semantic hop. |
-| Windows manager ownership | one authoritative runtime owner + installed/source coordination | ACCEPTED-INFRASTRUCTURE | Ambiguous/foreign ownership fails closed. |
+| Windows manager ownership | authoritative runtime owner + installed/source coordination | ACCEPTED-INFRASTRUCTURE | Ambiguous/foreign ownership fails closed. |
 | Scoped files | official Filesystem backend behind semantic projection | PRODUCT-ACCEPTED | `workspace_read` / `workspace_write`. |
 | Browser | pinned Playwright path behind semantic projection | PRODUCT-ACCEPTED | `web_open` / `web_observe` / `web_interact`. |
 | Semantic capability projection | deterministic five-tool compatibility boundary | PRODUCT-ACCEPTED | Small truthful surface; not planner/gateway/workflow engine. |
@@ -44,20 +44,20 @@ Stage 26.1E / PR #85 = 66390aca1dadf57c4f11568ec311ad6fcdbd7596
 | Browser semantic->vision routing | Stage 25.2 internal escalation | PRODUCT-ACCEPTED | Semantic first; reviewed zero-exact-candidate visual path only. |
 | Procedural compiler + IR | OpenAdapt Flow 1.31.0 `Workflow` / `ProgramGraph` | TARGET-QUALIFIED | ADOPT behind project policy boundaries. |
 | Procedural lifecycle | OpenAdapt `SkillLibrary` + learn/teach/regression internals | ADAPT-CANDIDATE | Reuse mechanics; project trust stays candidate-first. |
-| Human/desktop capture | OpenAdapt Capture 1.2.2 + Flow adapter | TARGET-QUALIFIED | Stage 26.1B physically accepted; production procedure integration still later. |
-| Typed Windows executor | pinned OpenAdapt `WindowsBackend` + hardened interactive-session agent | TARGET-QUALIFIED | Stage 26.1C physically accepted; legacy generic exec excluded; no replacement actuator without blocker. |
-| Window-scoped Windows UI resolution | PID -> Win32 HWND -> exact window -> bounded native UIA FindAll | TARGET-QUALIFIED | Stage 26.1E physically accepted; remove desktop-wide traversal in production integration. |
-| Production Windows runtime | maintained session/observation/actuation/safety/verification/lifecycle boundary | ACTIVE-INTEGRATION | Next main engineering layer after stacked PR landing/docs sync. |
-| Desktop observation | canonical `DesktopState` with identity/freshness/provenance | ACTIVE-INTEGRATION | Build after Windows runtime foundation. |
-| Runtime verifier foundation | before/after observation + expected-effect PASS/FAIL/UNKNOWN | ACTIVE-INTEGRATION | Must exist before real-application E2E; delivery is not success. |
-| Desktop F16 Grounder | native/window pixel-space adapter | ADAPT-CANDIDATE | Separate from browser CSS viewport; proposal-only. |
-| Windows semantic/UIA->vision router | deterministic structure first, bounded visual fallback | FUTURE-SCOPED-GATE | Must pass adversarial accuracy suite before broad desktop claims. |
-| Real application Windows E2E | one medium-complexity user application + disposable artifact | FUTURE-SCOPED-GATE | Select from real task/evidence, not a permanently fixed app list. |
+| Human/desktop capture | OpenAdapt Capture 1.2.2 + Flow adapter | TARGET-QUALIFIED | Stage 26.1B physically accepted; procedure integration remains later. |
+| Typed Windows executor | pinned OpenAdapt `WindowsBackend` + hardened agent + production wrapper | ACCEPTED-INFRASTRUCTURE | Stage 26.1C accepted and Stage 26.2A promoted into maintained runtime; no generic exec. |
+| Window-scoped Windows UI resolution | PID -> Win32 HWND -> exact window -> bounded native UIA FindAll | ACCEPTED-INFRASTRUCTURE | Stage 26.1E accepted and promoted by Stage 26.2A. |
+| Runtime verifier foundation | before/after evidence + `PASS|FAIL|UNKNOWN` | ACCEPTED-INFRASTRUCTURE | Delivery is not success; UNKNOWN does not silently advance. |
+| Production Windows runtime | `runtime/windows` bounded observation/actuation/verification foundation | ACCEPTED-INFRASTRUCTURE | Stage 26.2A merged #87. |
+| Desktop observation | canonical read-only `DesktopState` | TARGET-QUALIFIED | Stage 26.2B physically accepted on #88; land separately when authorized. |
+| Desktop F16 Grounder | native exact-window pixel-space adapter | ACTIVE-INTEGRATION | Next after #88; separate from browser CSS viewport and proposal-only. |
+| Windows UIA->vision router | deterministic structure first, bounded visual fallback | FUTURE-SCOPED-GATE | Must pass adversarial accuracy suite before broad desktop claims. |
+| Real application Windows E2E | one medium-complexity user app + disposable artifact | FUTURE-SCOPED-GATE | Select from real task/evidence; deterministic postcondition and rollback. |
 | Verified Procedure Runtime | ProgramGraph + live state + authorization + verifier | FUTURE-SCOPED-GATE | Only after real desktop E2E. |
 | Human demonstration transfer | Capture -> candidate procedure -> changed-state verified replay | FUTURE-SCOPED-GATE | Not blind macro replay. |
 | Procedure-state dataset | structured verified state-transition examples | OPTIONAL-RESEARCH | Not a Stage 27/28 prerequisite. |
-| Specialized local reasoning | generic `SpecializedReasoningBackend` | OPTIONAL-RESEARCH | Only if data and measured escalation/latency need justify it. |
-| Multi-Chat/Codex orchestration | upper-layer controller over Chat/Codex sessions | PARALLEL-TRACK | Keep outside Windows/procedure safety core; not release prerequisite. |
+| Specialized local reasoning | generic `SpecializedReasoningBackend` | OPTIONAL-RESEARCH | Only if real data and measured escalation/latency need justify it. |
+| Multi-Chat/Codex orchestration | upper-layer controller over Chat/Codex sessions | PARALLEL-TRACK | Keep outside Windows/procedure safety core. |
 | Distribution/cockpit reference | OpenAdapt Desktop packaging/Tauri/sidecar patterns | ADAPT-CANDIDATE | Stage 27 reference; verify runtime-version compatibility. |
 | Distribution/maintenance | installer/update/repair/doctor/uninstall/rollback/restart recovery | FUTURE-SCOPED-GATE | Stage 27. |
 
@@ -71,56 +71,78 @@ web_observe
 web_interact
 ```
 
-This is an accepted current contract, not permanent dogma. After the Windows desktop surface exists, a separate ADR decides whether a few truthful coarse desktop/procedure capabilities are required.
+After a real Windows desktop surface exists, a separate ADR decides whether a few truthful coarse desktop/procedure capabilities are required. Never hide native desktop actions behind `web_interact` and never add a generic opaque `tool_invoke` equivalent.
 
-Never preserve the count by hiding native desktop actions behind `web_interact`, and never add a generic opaque `tool_invoke` equivalent.
+## Accepted Windows evidence
 
-## Stage 26.1B Capture evidence
-
-Accepted target qualification head:
-
-`7a9daa9329d81994833c22b4ca2e321927527dcc`
-
-Evidence:
-
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\capture-qualification\capture-20260818-194033\result.json`
-
-Key accepted properties: interactive-session capture, bounded selected-window evidence, raw UIA evidence retention, Flow compile success, zero foreign structural-window evidence, explicit refusal of unaccepted native replay, local artifact containment and cleanup.
-
-## Stage 26.1C executor evidence
-
-Exact physically accepted head:
-
-`4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`
-
-Accepted: authenticated loopback agent, legacy exec absent/disabled, typed actions, stale frame/context refusal, focus/fingerprint binding, bounded keyboard/pointer/scroll, layout-independent Unicode typing, zero false/unrelated-window actions.
-
-## Stage 26.1D / 26.1E performance evidence
-
-Baseline:
+### Stage 26.1B Capture
 
 ```text
-p50 = 183606.855 ms
-p95 = 185567.403 ms
+head = 7a9daa9329d81994833c22b4ca2e321927527dcc
 ```
 
-Window-scoped resolver:
+Interactive-session capture, bounded selected-window evidence, raw UIA retention, Flow compile, zero foreign structural-window evidence, explicit refusal of unaccepted replay and clean local artifact handling were accepted.
+
+### Stage 26.1C executor
 
 ```text
-WINDOW_SCOPED_FIND_CALLS=97
-WINDOW_NAME_MATCH_COUNT=97
+physical head = 4bf08dd9b8d1ff010f14723f9bb0384b97334a2b
+```
+
+Authenticated loopback, legacy exec absent/disabled, typed actions, stale frame/context refusal, focus/fingerprint binding, bounded keyboard/pointer/scroll, layout-independent Unicode typing, zero false/unrelated-window actions.
+
+### Stage 26.1D / 26.1E performance
+
+```text
+baseline p50 = 183606.855 ms
+baseline p95 = 185567.403 ms
+window-scoped p50 = 3323.570 ms
+window-scoped p95 = 3720.061 ms
+97 scoped resolutions
+0 Desktop fallback
+0 binding failures/ambiguities
+0 false/unrelated-window actions
+```
+
+The 97/97 result is controlled WinForms role+name evidence, not global Windows accuracy.
+
+### Stage 26.2A production runtime
+
+```text
+physical head = 6ae5c3a9e624c8c341857c025625b203b796b41c
+merged main = d044926846d9c2e198c906ff5174308da0974b03
+production p50 = 3410.031 ms
+production p95 = 3630.583 ms
+```
+
+Production-owned runtime preserved the accepted safety/performance behavior.
+
+### Stage 26.2B DesktopState
+
+```text
+physical runtime head = dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a
+PR = #88 open
+```
+
+```text
+SAME_IDENTITY_PASS=True
+CONTROL_CONTRACT_PASS=True
+SCREENSHOT_DIGEST_PASS=True
+FRESHNESS_CONTRACT_PASS=True
+BOUNDED_CONTROL_COUNT_PASS=True
+OBSERVATION_ONLY_PASS=True
+WINDOW_ENUM_CALLS=2
+WINDOW_NAME_MATCH_COUNT=2
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
+ACTION_COUNT=0
 FALSE_ACTION_COUNT=0
 UNRELATED_WINDOW_ACTION_COUNT=0
-p50=3323.570 ms
-p95=3720.061 ms
-p50 speedup=55.244x
-p95 speedup=49.883x
+PASS=True
 ```
 
-The 97/97 result is controlled fixture evidence for the exercised role+name path, not global Windows accuracy.
+This proves bounded read-only DesktopState observation on the controlled WinForms fixture. It does not prove cross-application UIA coverage or desktop VLM accuracy.
 
 ## Candidate selection rule for future capabilities
 
