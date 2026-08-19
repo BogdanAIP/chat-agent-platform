@@ -8,7 +8,7 @@ from openadapt_flow.backends.win_agent import server as upstream
 
 TREE_SCOPE_DESCENDANTS = 4
 _MAX_DIRECT_CANDIDATES = 8
-_MAX_WINDOW_CANDIDATES = 32
+_MAX_WINDOW_CONTROL_SCAN = 512
 _MAX_ENUM_WINDOWS = 4096
 
 
@@ -96,13 +96,7 @@ class WindowScopedUiaResolver:
         return controls
 
     def _find_target_windows(self, auto: Any, window_name: str) -> list[Any]:
-        """Bind one top-level HWND without traversing the desktop UIA tree.
-
-        Qualification supplies the fixture PID before the first structural
-        lookup. EnumWindows observes only top-level HWNDs, filters by that PID
-        using GetWindowThreadProcessId, and converts only same-process HWNDs to
-        UIA controls. Exact normalized UIA WindowControl Name is then checked.
-        """
+        """Bind one top-level HWND without traversing the desktop UIA tree."""
 
         if self.expected_process_id is None:
             self.stats.window_binding_failures += 1
@@ -189,7 +183,7 @@ class WindowScopedUiaResolver:
             self.stats.window_binding_failures += 1
         if len(matches) > 1:
             self.stats.window_binding_ambiguities += 1
-        return matches[:_MAX_WINDOW_CANDIDATES]
+        return matches
 
     def _direct_find_candidates(
         self,
@@ -210,7 +204,6 @@ class WindowScopedUiaResolver:
         control_conditions: list[Any] = []
         automation_id = locator.get("automation_id")
         role = locator.get("role")
-        name = locator.get("name")
 
         if isinstance(automation_id, str) and automation_id:
             self.stats.automation_id_condition_calls += 1
@@ -221,6 +214,11 @@ class WindowScopedUiaResolver:
                 )
             )
         else:
+            # Provider-tolerant fallback: native search narrows by control type
+            # inside the already-bound window. Exact normalized Name remains a
+            # hard check in the upstream candidate comparison below. This
+            # avoids relying on raw UIA NameProperty matching after the physical
+            # WinForms top-level NameProperty mismatch was observed.
             self.stats.role_name_condition_calls += 1
 
         control_type = self._role_control_type(auto, role)
@@ -229,13 +227,6 @@ class WindowScopedUiaResolver:
                 client.CreatePropertyCondition(
                     auto.PropertyId.ControlTypeProperty,
                     control_type,
-                )
-            )
-        if isinstance(name, str) and name:
-            control_conditions.append(
-                client.CreatePropertyCondition(
-                    auto.PropertyId.NameProperty,
-                    name,
                 )
             )
 
@@ -251,7 +242,7 @@ class WindowScopedUiaResolver:
             controls = self._controls_from_element_array(
                 auto,
                 control_elements,
-                limit=_MAX_DIRECT_CANDIDATES + 1,
+                limit=_MAX_WINDOW_CONTROL_SCAN,
             )
             for control in controls:
                 candidate = upstream._candidate(control)
@@ -267,6 +258,9 @@ class WindowScopedUiaResolver:
                 if len(found) >= _MAX_DIRECT_CANDIDATES:
                     truncated = True
                     return found, truncated
+
+            if int(control_elements.Length) > _MAX_WINDOW_CONTROL_SCAN:
+                truncated = True
 
         return found, truncated
 
