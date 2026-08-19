@@ -114,17 +114,17 @@ CONTROL_CONTRACT_PASS=True
 SCREENSHOT_DIGEST_PASS=True
 FRESHNESS_CONTRACT_PASS=True
 BOUNDED_CONTROL_COUNT_PASS=True
-OBSERVATION_ONLY_PASS=True
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-ACTION_COUNT=0
-FALSE_ACTION_COUNT=0
-UNRELATED_WINDOW_ACTION_COUNT=0
+CHROME_SURVIVAL_PASS=True
+FIXTURE_CLEANUP_PASS=True
 PASS=True
 ```
 
 DesktopState is evidence only. Observation fingerprints are not executor authorization. Screenshot bytes are not retained in DesktopState.
+
+Self-review corrected the first qualification reporting: `ACTION_COUNT=0` and related values were constants, not instrumented counters, so they are excluded from physical evidence. Read-only behavior is established by direct code review plus CI source-boundary tests proving the observer/driver expose no executor or actuation channel.
 
 ## Current critical path
 
