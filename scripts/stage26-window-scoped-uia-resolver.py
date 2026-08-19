@@ -9,6 +9,7 @@ from openadapt_flow.backends.win_agent import server as upstream
 TREE_SCOPE_CHILDREN = 2
 TREE_SCOPE_DESCENDANTS = 4
 _MAX_DIRECT_CANDIDATES = 8
+_MAX_WINDOW_CANDIDATES = 32
 
 
 @dataclass
@@ -56,6 +57,31 @@ class WindowScopedUiaResolver:
         }
         return mapping.get(role or "")
 
+    @staticmethod
+    def _controls_from_element_array(
+        auto: Any,
+        elements: Any,
+        *,
+        limit: int,
+    ) -> list[Any]:
+        """Wrap a native IUIAutomationElementArray as uiautomation Controls.
+
+        ``uiautomation.Control`` intentionally does not expose FindAll; its
+        ``Element`` property is the raw IUIAutomationElement. Native FindAll
+        therefore returns an IUIAutomationElementArray whose entries must be
+        wrapped back into Control objects before using OpenAdapt's candidate
+        and fingerprint helpers.
+        """
+
+        length = int(elements.Length)
+        controls: list[Any] = []
+        for index in range(min(length, limit)):
+            raw = elements.GetElement(index)
+            control = auto.Control.CreateControlFromElement(raw)
+            if control is not None:
+                controls.append(control)
+        return controls
+
     def _direct_find_candidates(
         self,
         locator: dict[str, Any],
@@ -83,7 +109,15 @@ class WindowScopedUiaResolver:
                 ),
             ],
         )
-        windows = root.FindAll(TREE_SCOPE_CHILDREN, window_condition)
+        window_elements = root.Element.FindAll(
+            TREE_SCOPE_CHILDREN,
+            window_condition,
+        )
+        windows = self._controls_from_element_array(
+            auto,
+            window_elements,
+            limit=_MAX_WINDOW_CANDIDATES,
+        )
         if not windows:
             return [], False
 
@@ -124,7 +158,15 @@ class WindowScopedUiaResolver:
         truncated = False
 
         for window in windows:
-            controls = window.FindAll(TREE_SCOPE_DESCENDANTS, condition)
+            control_elements = window.Element.FindAll(
+                TREE_SCOPE_DESCENDANTS,
+                condition,
+            )
+            controls = self._controls_from_element_array(
+                auto,
+                control_elements,
+                limit=_MAX_DIRECT_CANDIDATES + 1,
+            )
             for control in controls:
                 candidate = upstream._candidate(control)
                 if candidate is None:
