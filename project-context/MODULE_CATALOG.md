@@ -112,19 +112,21 @@ CONTROL_CONTRACT_PASS=True
 SCREENSHOT_DIGEST_PASS=True
 FRESHNESS_CONTRACT_PASS=True
 BOUNDED_CONTROL_COUNT_PASS=True
-OBSERVATION_ONLY_PASS=True
 WINDOW_ENUM_CALLS=2
 WINDOW_NAME_MATCH_COUNT=2
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-ACTION_COUNT=0
-FALSE_ACTION_COUNT=0
-UNRELATED_WINDOW_ACTION_COUNT=0
+CHROME_PROCESS_COUNT_BEFORE=11
+CHROME_PROCESS_COUNT_AFTER=11
+CHROME_SURVIVAL_PASS=True
+FIXTURE_CLEANUP_PASS=True
 PASS=True
 ```
 
-This proves bounded read-only DesktopState observation on the controlled WinForms fixture. It does not prove cross-application UIA coverage or desktop VLM accuracy.
+This proves bounded DesktopState observation on the controlled WinForms fixture. It does not prove cross-application UIA coverage or desktop VLM accuracy.
+
+The initial qualification also printed `ACTION_COUNT=0` and related values that were constants rather than instrumented measurements. Self-review removed them from acceptance evidence and from future harness output. Read-only behavior is instead established by direct code review and CI source-boundary tests proving no executor/actuation channel exists in the observer/driver path.
 
 ## Merge rule
 
