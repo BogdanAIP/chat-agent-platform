@@ -63,7 +63,7 @@ For qualification the fixture publishes its exact PID before structural work beg
 2. filters those HWNDs by the exact expected process id with `GetWindowThreadProcessId`;
 3. converts only same-process HWNDs to UIA controls with `uiautomation.ControlFromHandle`;
 4. requires `WindowControl` and exact normalized UIA window Name;
-5. only after the exact window is bound, performs native UIA property-condition `FindAll(TreeScope.Descendants, ...)` inside that window.
+5. only after the exact window is bound, performs native UIA `FindAll(TreeScope.Descendants, ...)` inside that window.
 
 This removes desktop UIA traversal entirely from the optimized path and narrows observation before UIA conversion to the target process.
 
@@ -71,17 +71,18 @@ Window enumeration is bounded. An absent process context, enumeration truncation
 
 ## Native target search strategy
 
-Inside the bound window the target condition uses:
+Inside the bound window:
 
-- `AutomationIdProperty` when supplied;
-- exact control type for role;
-- exact Name when supplied.
+- if `AutomationId` is supplied, native UIA conditions use exact `AutomationIdProperty` plus the expected control type;
+- when `AutomationId` is absent, native UIA narrows by exact control type only, then the pinned upstream candidate layer performs the exact normalized `Name`, role, window-name and fingerprint checks.
+
+This provider-tolerant fallback is deliberate. The physical WinForms qualification proved that raw UIA `NameProperty` equality cannot be assumed to behave identically to the normalized `Control.Name` value used by the accepted upstream candidate model. The fallback therefore avoids another raw `NameProperty` dependency while still scanning only one already-bound target window. The per-window native result scan is bounded at 512 controls.
 
 The project-owned resolver contains no manual `GetChildren()` DFS and no Desktop `GetRootControl()` search.
 
 Native `IUIAutomationElementArray` values returned by `FindAll` are converted with the same shape used by `uiautomation`: `Length`, `GetElement(index)`, then `Control.CreateControlFromElement(...)`.
 
-Each `/uia/act` still performs a fresh window binding and fresh target lookup. No HWND/control cache is introduced in this stage. The pinned upstream implementation still compares the expected target fingerprint immediately before action.
+Each `/uia/act` still performs a fresh PID/HWND window binding and fresh target lookup. No HWND/control cache is introduced in this stage. The pinned upstream implementation still compares the expected target fingerprint immediately before action.
 
 If a locator has no `window_name`, the qualification-only resolver can fall back to pinned upstream behavior, but physical Stage 26.1E requires:
 
@@ -89,7 +90,7 @@ If a locator has no `window_name`, the qualification-only resolver can fall back
 
 ## Non-actuating preflight
 
-Before cycle 1, the benchmark now binds the exact fixture PID and performs one structural lookup of the Start button without actuating it.
+Before cycle 1, the benchmark binds the exact fixture PID and performs one structural lookup of the Start button without actuating it.
 
 Required preflight evidence:
 
@@ -111,9 +112,7 @@ If preflight fails, the benchmark stops before any cycle action. Diagnostic coun
 
 ## AutomationId path
 
-When a locator carries `AutomationId`, Stage 26.1E adds a native `AutomationIdProperty` condition. When it does not, exact role/control-type + Name conditions are used inside the already-bound target window.
-
-The current Stage 26 fixture primarily tests the role+name path. The benchmark records both `AUTOMATION_ID_CONDITION_CALLS` and `ROLE_NAME_CONDITION_CALLS` so later application fixtures can prove the stronger AutomationId path separately.
+The current Stage 26 fixture primarily tests the role+normalized-name fallback. Later fixtures with stable `AutomationId` values can prove the stronger direct AutomationId path separately. The benchmark records both `AUTOMATION_ID_CONDITION_CALLS` and `ROLE_NAME_CONDITION_CALLS`.
 
 ## Benchmark relationship
 
