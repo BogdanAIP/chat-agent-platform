@@ -103,4 +103,12 @@ Correctness/safety gates remain hard:
 - Chrome survival;
 - fixture-owned cleanup only.
 
-Performance is measured against the Stage 26.1D physical baseline. This first optimized run is used to quantify the speedup before introducing handle caching or VLM grounding. No production Chat semantic surface changes in this stage.
+Performance is compared directly with the Stage 26.1D physical baseline:
+
+- baseline action p50: `183606.855 ms`;
+- baseline action p95: `185567.403 ms`;
+- minimum Stage 26.1E improvement gate: `10x` on both p50 and p95.
+
+The `10x` gate is only the minimum evidence that this resolver change meaningfully removes the measured bottleneck. It is not the final production interactive-latency budget; after the optimized physical numbers exist, the project can set a stricter UX target and decide whether any additional caching is warranted.
+
+No production Chat semantic surface changes in this stage.
