@@ -33,9 +33,11 @@ function Invoke-VisionRuntimeJson {
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][ValidateSet('Start','Stop','Status','Touch')][string]$Action
     )
-    $raw = @(& $Path -Action $Action 2>&1)
-    if ($LASTEXITCODE -ne 0) {
-        throw "Vision runtime $Action failed: $($raw -join [Environment]::NewLine)"
+    try {
+        $raw = @(& $Path -Action $Action 2>&1)
+    }
+    catch {
+        throw "Vision runtime $Action failed: $($_.Exception.Message)"
     }
     return (($raw -join [Environment]::NewLine) | ConvertFrom-Json)
 }
