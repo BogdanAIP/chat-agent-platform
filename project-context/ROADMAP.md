@@ -32,6 +32,10 @@ web_interact
 
 Any desktop/public-contract change waits for an explicit post-desktop ADR.
 
+## Current operating constraint
+
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources for development, review, orchestration or execution unless the user explicitly re-enables them later.
+
 ---
 
 # Completed foundation
@@ -150,10 +154,6 @@ Authoritative roadmap/architecture/current-state context was synchronized before
 
 ## Stage 26.2A — Production Windows Runtime Foundation — ACCEPTED / MERGED #87
 
-Current `main` after #87:
-
-`d044926846d9c2e198c906ff5174308da0974b03`
-
 Maintained runtime owns:
 
 ```text
@@ -179,7 +179,7 @@ p50=3410.031 ms
 p95=3630.583 ms
 ```
 
-Verifier foundation exists here:
+Verifier foundation:
 
 ```text
 observe before
@@ -191,9 +191,9 @@ observe before
 
 Executor delivery is never equivalent to task success.
 
-## Stage 26.2B — Desktop Observation / DesktopState — PHYSICALLY ACCEPTED / PR #88 OPEN
+## Stage 26.2B — Desktop Observation / DesktopState — ACCEPTED
 
-Exact physically tested runtime head:
+Introduced by PR #88. Exact physically tested runtime head:
 
 `dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
 
@@ -223,23 +223,7 @@ FIXTURE_CLEANUP_PASS=True
 PASS=True
 ```
 
-Canonical `DesktopState` carries at least:
-
-```text
-session/application/process identity
-process/window generation identity
-window title/handle/bounds
-screen_physical_px coordinate space
-bounded controls[]
-focused control
-visible text
-observation-only control fingerprints
-screenshot digest
-frame digest
-observed_at
-provenance/freshness evidence
-observed capabilities
-```
+Canonical DesktopState carries session/application/process/window identity, native physical coordinate space, bounded controls, focused control, visible text, observation-only fingerprints, screenshot/frame digests, observed-at timestamp, provenance/freshness evidence and observed capabilities.
 
 Observation and observation fingerprints are evidence, never action authorization. Screenshot bytes are not retained by DesktopState.
 
@@ -283,7 +267,8 @@ Acceptance must prove:
 - model lifecycle stays local/on-demand;
 - no action is executed inside the Grounder;
 - ambiguity can return `None`/ABSTAIN;
-- browser and desktop coordinate contracts remain explicitly separate.
+- browser and desktop coordinate contracts remain explicitly separate;
+- use current `mss.MSS` API rather than the deprecated `mss.mss` path seen in the Stage 26.2B qualification warning.
 
 ---
 
@@ -320,17 +305,7 @@ UIA missing -> vision
 vision ambiguity -> ABSTAIN
 ```
 
-Metrics:
-
-```text
-target resolution success
-false-action rate
-unrelated-window action rate
-safe-abstain behavior
-p50/p95 latency
-```
-
-Do not convert fixture success into global desktop accuracy.
+Metrics include target resolution success, false-action rate, unrelated-window action rate, safe-abstain behavior and p50/p95 latency. Do not convert fixture success into global desktop accuracy.
 
 ---
 
@@ -415,17 +390,7 @@ Acceptance is not blind macro replay. Vary filename/window order/modest layout w
 
 ## Stage 26.5R — Procedure-State Dataset
 
-Collect structured, non-chain-of-thought examples:
-
-```text
-goal
-procedure graph
-current state
-available transitions
-selected transition
-result
-verification
-```
+Collect structured, non-chain-of-thought examples: goal, procedure graph, current state, available transitions, selected transition, result and verification.
 
 ## Stage 26.6R — SpecializedReasoningBackend benchmark
 
@@ -435,16 +400,17 @@ A tiny model proposes; authorization/executor/verifier remain authoritative.
 
 ---
 
-# Parallel Track M — Multi-Chat / Codex orchestration
+# Parallel Track M — multi-chat orchestration
 
-Separate upper layer, not part of Windows/procedure safety core and not a release prerequisite.
+Separate upper layer, not part of Windows/procedure safety core and not a release prerequisite. Under the current operating constraint, it may coordinate ordinary ChatGPT sessions only; Codex and Work resources are disabled unless the user explicitly re-enables them.
 
-```text
-Multi-Chat Controller
- -> ChatGPT research/planning/review chats
- -> Codex coding tasks where useful
- -> Chat Agent Platform as local hands/infrastructure
-```
+---
+
+# Merge policy
+
+A logically complete branch with reviewed intended diff, passing required physical/CI gates and satisfied applicable review/acceptance checks should be merged without waiting for a separate merge command.
+
+Do not auto-merge when there is an unresolved finding, conflict, ambiguous scope, failed/skipped required test, or unavailable required review evidence. Surface the blocker instead.
 
 ---
 
