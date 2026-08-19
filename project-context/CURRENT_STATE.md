@@ -4,29 +4,9 @@
 
 Always resolve live `main` and relevant PR heads before new work. Do not treat a documentation SHA as permanently current.
 
-Current integration line after the accepted stack was landed:
+## Operating constraint
 
-```text
-main = d044926846d9c2e198c906ff5174308da0974b03
-```
-
-Merged into `main`:
-
-```text
-#83 Stage 26.1C hardened typed Windows executor
-#84 Stage 26.1D warm Windows latency baseline
-#85 Stage 26.1E PID/HWND window-scoped UIA
-#86 authoritative roadmap/context synchronization
-#87 Stage 26.2A production Windows runtime foundations
-```
-
-Current open work:
-
-```text
-#88 Stage 26.2B Desktop Observation / DesktopState
-physical runtime head = dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a
-state = open, ready for review, not merged
-```
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources for development, review, orchestration or execution unless the user explicitly re-enables them later.
 
 ## Product boundary
 
@@ -72,19 +52,7 @@ CPU 8 threads
 ctx 2048
 ```
 
-Stage 25.2 real target evidence remains:
-
-```text
-semantic_hits=2
-visual_hits=1
-correct_abstains=2
-false_clicks=0
-errors=0
-semantic_cases_started_vlm=0
-acceptance_pass=true
-```
-
-Vision is proposal-only and only starts on the reviewed zero-exact-candidate browser path.
+Stage 25.2 target evidence remains 2 semantic HIT, 1 visual HIT, 2 correct ABSTAIN, 0 false clicks and 0 errors. Vision is proposal-only and starts only on the reviewed zero-exact-candidate browser path.
 
 ---
 
@@ -104,10 +72,6 @@ Flow `Workflow`/`ProgramGraph` is adopted behind project boundaries; `SkillLibra
 Exact target-tested qualification head:
 
 `7a9daa9329d81994833c22b4ca2e321927527dcc`
-
-Evidence:
-
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\capture-qualification\capture-20260818-194033\result.json`
 
 ## Stage 26.1C — hardened typed Windows executor — ACCEPTED / MERGED #83
 
@@ -152,14 +116,7 @@ Physical accepted runtime head before landing:
 
 `6ae5c3a9e624c8c341857c025625b203b796b41c`
 
-Merged `main` tree preserves the accepted production content. Maintained runtime now includes:
-
-```text
-runtime/windows/
-  actuation.py
-  verifier.py
-  window_scoped_uia.py
-```
+Maintained runtime includes bounded actuation, verifier foundation and PID/HWND window-scoped UIA.
 
 Physical production benchmark:
 
@@ -176,9 +133,9 @@ p95=3630.583 ms
 
 Verifier foundation is `PASS | FAIL | UNKNOWN`; action delivery is not task completion.
 
-## Stage 26.2B — Desktop Observation / DesktopState — PHYSICALLY ACCEPTED / PR #88 OPEN
+## Stage 26.2B — Desktop Observation / DesktopState — ACCEPTED
 
-Exact physically tested runtime head:
+Introduced by PR #88. Exact physically tested runtime head:
 
 `dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
 
@@ -208,7 +165,7 @@ FIXTURE_CLEANUP_PASS=True
 PASS=True
 ```
 
-`DesktopState` is evidence only. Observation/control fingerprints are not executor authorization. Screenshot bytes are not retained in the state; the state carries a digest/freshness/provenance boundary.
+`DesktopState` is evidence only. Observation/control fingerprints are not executor authorization. Screenshot bytes are not retained in the state; the state carries digest/freshness/provenance evidence.
 
 Scope remains controlled WinForms read-only observation. Real-app coverage, broader AutomationId/custom-control coverage and desktop VLM remain separate future evidence.
 
@@ -216,21 +173,22 @@ Scope remains controlled WinForms read-only observation. Real-app coverage, broa
 
 # Current critical path
 
-1. land #88 only on explicit merge authorization after final docs-only descendant CI is green;
-2. Stage 26.2C — native desktop LFM2.5-VL Grounder;
-3. Stage 26.2D — deterministic UIA -> vision routing plus adversarial accuracy suite;
-4. Stage 26.2E — one real medium-complexity application E2E with deterministic postcondition/rollback;
-5. Stage 26.3 — Verified Procedure Runtime;
-6. Stage 26.4 — Human Demo -> transferable candidate skill;
-7. Stage 27/28 — distribution, clean-user E2E and stable release.
+1. Stage 26.2C — native desktop LFM2.5-VL Grounder;
+2. Stage 26.2D — deterministic UIA -> vision routing plus adversarial accuracy suite;
+3. Stage 26.2E — one real medium-complexity application E2E with deterministic postcondition/rollback;
+4. Stage 26.3 — Verified Procedure Runtime;
+5. Stage 26.4 — Human Demo -> transferable candidate skill;
+6. Stage 27/28 — distribution, clean-user E2E and stable release.
 
 ## Stage 26.2C next boundary
 
 Do not reuse browser CSS/Playwright coordinates as native Windows coordinates. The desktop Grounder must consume an exact-window image and return only a proposal bound to window/frame/coordinate-space evidence. It never authorizes a click or task completion.
 
-## Stage 26.2D accuracy rule
+## Merge policy
 
-Before broad desktop claims, exercise duplicates, disabled/hidden targets, wrong process/window, overlays, focus changes, stale/recreated windows, AutomationId, role+name, weak/custom controls, UIA-missing visual fallback and visual ambiguity -> ABSTAIN.
+When a branch is logically complete, intended diff is reviewed, required physical/CI tests pass, and applicable review/acceptance checks are satisfied, merge it without waiting for a separate merge command.
+
+If there is an unresolved finding, conflict, ambiguous scope, failed/skipped required test or unavailable required review evidence, stop and surface the blocker.
 
 ---
 
@@ -238,7 +196,7 @@ Before broad desktop claims, exercise duplicates, disabled/hidden targets, wrong
 
 Procedure-state datasets and TRM/STARM/FPRM/small-model experiments remain optional research after real verified data and measured need. They are not Stage 27/28 prerequisites.
 
-Multi-Chat/Codex orchestration remains a separate upper layer, outside Windows/procedure safety core.
+Multi-chat orchestration remains a separate upper layer. Under the current operating constraint it must not use Codex or Work resources.
 
 ---
 
