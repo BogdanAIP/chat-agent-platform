@@ -75,9 +75,12 @@ class GrounderProposal:
     coordinate_space: str
     frame_digest: str
     screenshot_digest: str
-    window_instance: str
+    session_id: str
+    application_identity: str
     process_id: int
+    process_generation: str
     window_handle: int
+    window_instance: str
     uia_evidence_digest: str | None
     method: str
     consistency_iou: float | None
@@ -97,9 +100,12 @@ class GrounderProposal:
             "coordinate_space": self.coordinate_space,
             "frame_digest": self.frame_digest,
             "screenshot_digest": self.screenshot_digest,
-            "window_instance": self.window_instance,
+            "session_id": self.session_id,
+            "application_identity": self.application_identity,
             "process_id": self.process_id,
+            "process_generation": self.process_generation,
             "window_handle": self.window_handle,
+            "window_instance": self.window_instance,
             "uia_evidence_digest": self.uia_evidence_digest,
             "method": self.method,
             "consistency_iou": self.consistency_iou,
@@ -319,9 +325,12 @@ def locate_desktop_target(
         coordinate_space=SCREEN_COORDINATE_SPACE,
         frame_digest=desktop_state.frame_digest,
         screenshot_digest=desktop_state.screenshot_digest,
-        window_instance=desktop_state.window_instance,
+        session_id=desktop_state.session_id,
+        application_identity=desktop_state.application_identity,
         process_id=desktop_state.process_id,
+        process_generation=desktop_state.process_generation,
         window_handle=desktop_state.window_handle,
+        window_instance=desktop_state.window_instance,
         uia_evidence_digest=evidence_digest,
         method=str(row.get("method") or "native_bbox_450m_inventory_zoom"),
         consistency_iou=consistency_iou,
