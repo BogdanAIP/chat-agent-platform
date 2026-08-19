@@ -201,7 +201,7 @@ Evidence:
 
 `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-observation-qualification\observation-20260819-184904\result.json`
 
-Accepted read-only result:
+Physically measured result:
 
 ```text
 SAME_IDENTITY_PASS=True
@@ -209,15 +209,13 @@ CONTROL_CONTRACT_PASS=True
 SCREENSHOT_DIGEST_PASS=True
 FRESHNESS_CONTRACT_PASS=True
 BOUNDED_CONTROL_COUNT_PASS=True
-OBSERVATION_ONLY_PASS=True
 WINDOW_ENUM_CALLS=2
 WINDOW_NAME_MATCH_COUNT=2
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-ACTION_COUNT=0
-FALSE_ACTION_COUNT=0
-UNRELATED_WINDOW_ACTION_COUNT=0
+CHROME_PROCESS_COUNT_BEFORE=11
+CHROME_PROCESS_COUNT_AFTER=11
 CHROME_SURVIVAL_PASS=True
 FIXTURE_CLEANUP_PASS=True
 PASS=True
@@ -226,6 +224,8 @@ PASS=True
 Canonical DesktopState carries session/application/process/window identity, native physical coordinate space, bounded controls, focused control, visible text, observation-only fingerprints, screenshot/frame digests, observed-at timestamp, provenance/freshness evidence and observed capabilities.
 
 Observation and observation fingerprints are evidence, never action authorization. Screenshot bytes are not retained by DesktopState.
+
+Self-review corrected the first qualification reporting: `OBSERVATION_ONLY_PASS=True` and `ACTION_COUNT=0` / related fields were constants in the harness, not instrumented measurements, so they are excluded from physical acceptance. The read-only claim is supported separately by code review and CI source-boundary tests that show the observer and driver expose no executor/actuation channel. Future qualification output binds observer/driver SHA-256 and reports only derived measurements.
 
 Scope: controlled WinForms read-only evidence only. Cross-application UIA coverage and desktop VLM accuracy remain future gates.
 
@@ -259,16 +259,9 @@ confidence
 
 The Grounder never returns authority such as `click`, `continue workflow` or `task complete`.
 
-Acceptance must prove:
+Acceptance must prove exact-window pixels only; correct native coordinate transform; stale/wrong-window refusal; local/on-demand model lifecycle; zero actuation inside the Grounder; ambiguity -> None/ABSTAIN; and explicit separation from browser coordinate contracts.
 
-- exact-window pixels only;
-- proposal coordinates transform correctly to physical screen coordinates;
-- stale/wrong-window frames fail closed;
-- model lifecycle stays local/on-demand;
-- no action is executed inside the Grounder;
-- ambiguity can return `None`/ABSTAIN;
-- browser and desktop coordinate contracts remain explicitly separate;
-- use current `mss.MSS` API rather than the deprecated `mss.mss` path seen in the Stage 26.2B qualification warning.
+Use current `mss.MSS` API rather than the deprecated `mss.mss` path seen in the original Stage 26.2B qualification run.
 
 ---
 
@@ -286,24 +279,7 @@ native/UIA exact evidence
       -> action OR ABSTAIN
 ```
 
-Adversarial coverage before broad claims:
-
-```text
-duplicate labels
-disabled control
-hidden control
-wrong process/window
-same/similar window title
-overlay
-focus change
-stale frame
-window movement/recreation
-AutomationId path
-role+name path
-custom/weak UIA
-UIA missing -> vision
-vision ambiguity -> ABSTAIN
-```
+Adversarial coverage before broad claims includes duplicate labels, disabled/hidden controls, wrong process/window, same/similar titles, overlays, focus changes, stale/recreated windows, AutomationId, role+name, custom/weak UIA, UIA-missing visual fallback and visual ambiguity -> ABSTAIN.
 
 Metrics include target resolution success, false-action rate, unrelated-window action rate, safe-abstain behavior and p50/p95 latency. Do not convert fixture success into global desktop accuracy.
 
@@ -388,21 +364,13 @@ Acceptance is not blind macro replay. Vary filename/window order/modest layout w
 
 # Optional Research Track R — not release-critical
 
-## Stage 26.5R — Procedure-State Dataset
-
-Collect structured, non-chain-of-thought examples: goal, procedure graph, current state, available transitions, selected transition, result and verification.
-
-## Stage 26.6R — SpecializedReasoningBackend benchmark
-
-Only if measurements show a real need such as excessive ChatGPT escalation or local decision latency. Compare deterministic baseline with useful small-model families such as TRM/STARM/FPRM/future recursive approaches.
-
-A tiny model proposes; authorization/executor/verifier remain authoritative.
+Procedure-state datasets and SpecializedReasoningBackend experiments begin only if real verified data and measurements justify them. Compare deterministic baseline with useful small-model families such as TRM/STARM/FPRM/future recursive approaches. A tiny model proposes; authorization/executor/verifier remain authoritative.
 
 ---
 
 # Parallel Track M — multi-chat orchestration
 
-Separate upper layer, not part of Windows/procedure safety core and not a release prerequisite. Under the current operating constraint, it may coordinate ordinary ChatGPT sessions only; Codex and Work resources are disabled unless the user explicitly re-enables them.
+Separate upper layer, not part of Windows/procedure safety core and not a release prerequisite. Under the current operating constraint it may coordinate ordinary ChatGPT sessions only; Codex and Work resources are disabled unless the user explicitly re-enables them.
 
 ---
 
