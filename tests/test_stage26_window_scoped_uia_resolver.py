@@ -75,7 +75,8 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertIn("environment_reused = $true", self.harness)
         self.assertIn("Stage 26.1D persistent benchmark environment is missing", self.harness)
         self.assertNotIn("pip install", self.harness)
-        self.assertNotIn("venv", self.harness.split("$pythonExe =", 1)[1].split("try {", 1)[0].lower().replace("$venvdir", ""))
+        self.assertNotIn("'-m', 'venv'", self.harness)
+        self.assertNotIn("RebuildEnvironment", self.harness)
 
     def test_no_generic_execution_or_production_chat_surface(self):
         combined = "\n".join((self.resolver, self.driver, self.harness))
