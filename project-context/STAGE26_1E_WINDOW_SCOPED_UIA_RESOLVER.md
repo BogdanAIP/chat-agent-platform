@@ -43,32 +43,75 @@ Everything else remains pinned upstream or already accepted Stage 26.1C behavior
 - layout-independent text input;
 - physical guarded click/press/scroll.
 
-## Native search strategy
+## Physical failure history and corrected window binding
 
-For a locator that includes `window_name`:
+The first physical Stage 26.1E head used `Control.FindAll(...)`, but `uiautomation==2.0.29` exposes native `FindAll` on the wrapped COM `Element`, not on `Control`. That run failed before target conditions were evaluated.
 
-1. obtain the UIA root;
-2. use native UIA property conditions to find exact top-level `WindowControl` matches with that Name, searching only `TreeScope.Children` of Desktop;
-3. build native property conditions for the target:
-   - `AutomationId` when supplied;
-   - exact control type for role;
-   - exact Name when supplied;
-4. call native `FindAll(TreeScope.Descendants, condition)` on the matching window only;
-5. pass each result through the pinned upstream candidate/fingerprint function;
-6. preserve exact ambiguity handling;
-7. on `/uia/act`, perform the same fresh window-scoped lookup again and let pinned upstream compare the expected fingerprint before action.
+The second physical head corrected the raw COM adapter to `control.Element.FindAll(...)`, but exact UIA `NameProperty` matching on Desktop `TreeScope.Children` still returned no top-level fixture window. The evidence was again fail-fast and non-actuating:
 
-The project-owned resolver contains no manual `GetChildren()` DFS.
+- `WINDOW_SCOPED_FIND_CALLS=1`;
+- `AUTOMATION_ID_CONDITION_CALLS=0`;
+- `ROLE_NAME_CONDITION_CALLS=0`;
+- `UNRELATED_WINDOW_ACTION_COUNT=0`;
+- `FALSE_ACTION_COUNT=0`.
 
-If a locator has no `window_name`, the qualification-only resolver can fall back to pinned upstream behavior, but the Stage 26.1E physical benchmark requires:
+Stage 26.1E therefore no longer uses Desktop UIA search to bind the target window.
+
+For qualification the fixture publishes its exact PID before structural work begins. The resolver now:
+
+1. enumerates only top-level HWNDs with Win32 `EnumWindows`;
+2. filters those HWNDs by the exact expected process id with `GetWindowThreadProcessId`;
+3. converts only same-process HWNDs to UIA controls with `uiautomation.ControlFromHandle`;
+4. requires `WindowControl` and exact normalized UIA window Name;
+5. only after the exact window is bound, performs native UIA property-condition `FindAll(TreeScope.Descendants, ...)` inside that window.
+
+This removes desktop UIA traversal entirely from the optimized path and narrows observation before UIA conversion to the target process.
+
+Window enumeration is bounded. An absent process context, enumeration truncation, no exact window match, or ambiguous binding fails closed before any action.
+
+## Native target search strategy
+
+Inside the bound window the target condition uses:
+
+- `AutomationIdProperty` when supplied;
+- exact control type for role;
+- exact Name when supplied.
+
+The project-owned resolver contains no manual `GetChildren()` DFS and no Desktop `GetRootControl()` search.
+
+Native `IUIAutomationElementArray` values returned by `FindAll` are converted with the same shape used by `uiautomation`: `Length`, `GetElement(index)`, then `Control.CreateControlFromElement(...)`.
+
+Each `/uia/act` still performs a fresh window binding and fresh target lookup. No HWND/control cache is introduced in this stage. The pinned upstream implementation still compares the expected target fingerprint immediately before action.
+
+If a locator has no `window_name`, the qualification-only resolver can fall back to pinned upstream behavior, but physical Stage 26.1E requires:
 
 `DESKTOP_FALLBACK_CALLS=0`
 
-All eight structural resolution calls per benchmark cycle must take the window-scoped path.
+## Non-actuating preflight
+
+Before cycle 1, the benchmark now binds the exact fixture PID and performs one structural lookup of the Start button without actuating it.
+
+Required preflight evidence:
+
+- `WINDOW_BINDING_PASS=True`;
+- `PREFLIGHT_CANDIDATE_COUNT=1`;
+- `PREFLIGHT_FINGERPRINT_PRESENT=True`;
+- zero window-binding failures;
+- zero window-binding ambiguities.
+
+If preflight fails, the benchmark stops before any cycle action. Diagnostic counters report:
+
+- `WINDOW_ENUM_CALLS`;
+- `WINDOW_ENUM_HANDLES_SEEN`;
+- `PROCESS_WINDOW_HANDLES_SEEN`;
+- `WINDOW_UIA_CONVERTIBLE_COUNT`;
+- `WINDOW_NAME_MATCH_COUNT`;
+- `WINDOW_BINDING_FAILURES`;
+- `WINDOW_BINDING_AMBIGUITIES`.
 
 ## AutomationId path
 
-When a locator carries `AutomationId`, Stage 26.1E adds a native `AutomationIdProperty` condition. When it does not, exact role/control-type + Name conditions are used inside the already-scoped target window.
+When a locator carries `AutomationId`, Stage 26.1E adds a native `AutomationIdProperty` condition. When it does not, exact role/control-type + Name conditions are used inside the already-bound target window.
 
 The current Stage 26 fixture primarily tests the role+name path. The benchmark records both `AUTOMATION_ID_CONDITION_CALLS` and `ROLE_NAME_CONDITION_CALLS` so later application fixtures can prove the stronger AutomationId path separately.
 
@@ -86,18 +129,22 @@ Stage 26.1E reuses the Stage 26.1D fixture and the exact same seven-operation cy
 
 Default run remains two warm-up cycles plus ten measured cycles in one persistent executor and one persistent fixture.
 
-The persistent Stage 26.1D environment is reused. Stage 26.1E deliberately does not reinstall Python dependencies, so the next physical output directly answers whether UIA resolution itself became fast.
+The persistent Stage 26.1D environment is reused. Stage 26.1E deliberately does not reinstall Python dependencies.
 
 ## Acceptance evidence
 
 Correctness/safety gates remain hard:
 
 - exact pinned environment;
+- preflight window binding pass;
+- exact fixture process scope;
 - agent process reused;
 - fixture process reused;
 - expected operation sequence on every measured cycle;
-- expected `8 * total_cycles` window-scoped structural resolution calls;
+- expected `(8 * total_cycles) + 1` optimized structural resolution calls, including preflight;
 - `DESKTOP_FALLBACK_CALLS=0`;
+- `WINDOW_BINDING_FAILURES=0`;
+- `WINDOW_BINDING_AMBIGUITIES=0`;
 - `UNRELATED_WINDOW_ACTION_COUNT=0`;
 - `FALSE_ACTION_COUNT=0`;
 - Chrome survival;
@@ -109,6 +156,6 @@ Performance is compared directly with the Stage 26.1D physical baseline:
 - baseline action p95: `185567.403 ms`;
 - minimum Stage 26.1E improvement gate: `10x` on both p50 and p95.
 
-The `10x` gate is only the minimum evidence that this resolver change meaningfully removes the measured bottleneck. It is not the final production interactive-latency budget; after the optimized physical numbers exist, the project can set a stricter UX target and decide whether any additional caching is warranted.
+The `10x` gate is only the minimum evidence that this resolver change meaningfully removes the measured bottleneck. It is not the final production interactive-latency budget.
 
 No production Chat semantic surface changes in this stage.
