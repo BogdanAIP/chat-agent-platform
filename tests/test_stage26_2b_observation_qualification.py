@@ -24,15 +24,22 @@ class DesktopObservationQualificationBoundaryTests(unittest.TestCase):
         self.assertNotIn("WindowsBackend(", self.driver)
         self.assertNotIn("create_server(", self.driver)
 
-    def test_driver_is_read_only_and_hard_gates_zero_actions(self):
-        self.assertIn('"action_count": 0', self.driver)
-        self.assertIn('"false_action_count": 0', self.driver)
-        self.assertIn('"unrelated_window_action_count": 0', self.driver)
-        self.assertIn('result["action_count"] == 0', self.driver)
-        self.assertIn('result["false_action_count"] == 0', self.driver)
-        self.assertIn('result["unrelated_window_action_count"] == 0', self.driver)
-        for token in ("act_structural", "act_guarded", "bounded_input", "send_unicode_text"):
+    def test_driver_has_no_action_channel_and_no_fake_action_counters(self):
+        for token in (
+            "act_structural",
+            "act_guarded",
+            "bounded_input",
+            "send_unicode_text",
+            "runtime.windows.actuation",
+            "WindowsBackend(",
+        ):
             self.assertNotIn(token, self.driver)
+        self.assertNotIn('"action_count"', self.driver)
+        self.assertNotIn('"false_action_count"', self.driver)
+        self.assertNotIn('"unrelated_window_action_count"', self.driver)
+        self.assertNotIn('"observation_only_pass"', self.driver)
+        self.assertIn('"observer_source_sha256"', self.driver)
+        self.assertIn('"driver_source_sha256"', self.driver)
 
     def test_exact_window_screenshot_is_bounded_by_observed_rect(self):
         self.assertIn('"left": bounds.left', self.driver)
@@ -40,13 +47,21 @@ class DesktopObservationQualificationBoundaryTests(unittest.TestCase):
         self.assertIn('"width": bounds.width', self.driver)
         self.assertIn('"height": bounds.height', self.driver)
         self.assertIn("mss.tools.to_png", self.driver)
+        self.assertIn("with mss.MSS() as capture:", self.driver)
+        self.assertNotIn("with mss.mss() as capture:", self.driver)
         self.assertIn('screenshot_source="mss_exact_bound_window"', self.driver)
 
     def test_harness_uses_production_observer_and_no_executor_asset(self):
         self.assertIn("runtime\\windows\\observation.py", self.harness)
         self.assertIn("runtime\\windows\\window_scoped_uia.py", self.harness)
         self.assertNotIn("runtime\\windows\\actuation.py", self.harness)
-        self.assertIn("Read-only fixture observation", self.harness)
+        self.assertIn("no executor or actuation module is invoked", self.harness)
+        self.assertIn("Read-only source-boundary enforcement is covered by CI/review", self.harness)
+        self.assertIn("OBSERVER_SOURCE_SHA256", self.harness)
+        self.assertIn("DRIVER_SOURCE_SHA256", self.harness)
+        self.assertNotIn("ACTION_COUNT", self.harness)
+        self.assertNotIn("FALSE_ACTION_COUNT", self.harness)
+        self.assertNotIn("UNRELATED_WINDOW_ACTION_COUNT", self.harness)
         self.assertIn("STAGE26_2B_DESKTOP_OBSERVATION_RESULT", self.harness)
 
     def test_ci_parses_current_stage26_harnesses(self):
