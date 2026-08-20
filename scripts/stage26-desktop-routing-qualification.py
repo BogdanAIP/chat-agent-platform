@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import hashlib
 import json
 import secrets
@@ -25,7 +26,11 @@ from openadapt_flow.backends.win_agent.server import AgentConfig, create_server
 from runtime.local_vision_adapter.native_bbox import NativeBBoxLoopbackClient
 from runtime.windows.actuation import bounded_input
 from runtime.windows.grounder import ground_desktop_target
-from runtime.windows.observation import Rect, observe_bound_window
+from runtime.windows.native_point_guard import (
+    NativePointGuardError,
+    require_foreground_hit_target,
+)
+from runtime.windows.observation import ControlObservation, Rect, observe_bound_window
 from runtime.windows.routing import (
     DesktopClickRequest,
     ObservedDesktopFrame,
@@ -89,6 +94,15 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _control_center(control: ControlObservation) -> tuple[int, int]:
+    if control.bounds is None:
+        raise RuntimeError("target control has no bounds")
+    return (
+        int(round((control.bounds.left + control.bounds.right) / 2.0)),
+        int(round((control.bounds.top + control.bounds.bottom) / 2.0)),
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", required=True)
@@ -100,17 +114,20 @@ def main() -> int:
     fixture_state_path = Path(args.fixture_state).resolve()
     ready_path = Path(args.recorder_ready).resolve()
     result_path = run_dir / "desktop-routing-result.json"
-    router_path = REPO_ROOT / "runtime" / "windows" / "routing.py"
-    observer_path = REPO_ROOT / "runtime" / "windows" / "observation.py"
-    grounder_path = REPO_ROOT / "runtime" / "windows" / "grounder.py"
-    actuation_path = REPO_ROOT / "runtime" / "windows" / "actuation.py"
+    windows_dir = REPO_ROOT / "runtime" / "windows"
+    router_path = windows_dir / "routing.py"
+    guard_path = windows_dir / "native_point_guard.py"
+    observer_path = windows_dir / "observation.py"
+    grounder_path = windows_dir / "grounder.py"
+    actuation_path = windows_dir / "actuation.py"
     driver_path = Path(__file__).resolve()
     run_dir.mkdir(parents=True, exist_ok=True)
 
     result: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "qualification_kind": "windows-structure-first-vision-routing",
         "router_source_sha256": _sha256(router_path),
+        "native_point_guard_source_sha256": _sha256(guard_path),
         "observer_source_sha256": _sha256(observer_path),
         "grounder_source_sha256": _sha256(grounder_path),
         "actuation_source_sha256": _sha256(actuation_path),
@@ -119,6 +136,9 @@ def main() -> int:
         "agent_loopback_pass": False,
         "agent_auth_required_pass": False,
         "legacy_capability_absent_pass": False,
+        "native_point_guard_preflight_pass": False,
+        "native_point_guard_wrong_window_refusal_pass": False,
+        "native_point_guard_delivery_pass": False,
         "vision_disabled_probe": None,
         "role_conflict_probe": None,
         "positive_route": None,
@@ -166,11 +186,7 @@ def main() -> int:
             token=token,
             allow_legacy_exec=False,
         )
-        server = create_server(
-            config,
-            input_fn=bounded_input,
-            uia_fn=resolver.perform,
-        )
+        server = create_server(config, input_fn=bounded_input, uia_fn=resolver.perform)
         host, port = server.server_address[:2]
         result["agent_loopback_pass"] = str(host) == "127.0.0.1" and int(port) > 0
         if not result["agent_loopback_pass"]:
@@ -199,6 +215,28 @@ def main() -> int:
             require_tls=False,
             allow_legacy_exec=False,
         )
+
+        preflight_state = observe_bound_window(resolver, FIXTURE_WINDOW_NAME)
+        start_controls = tuple(
+            control
+            for control in preflight_state.controls
+            if control.name == TARGET_UIA_NAME and control.role == "button"
+        )
+        if len(start_controls) != 1:
+            raise RuntimeError("preflight could not identify exactly one start-button UIA control")
+        preflight_x, preflight_y = _control_center(start_controls[0])
+        require_foreground_hit_target(preflight_state, preflight_x, preflight_y)
+        result["native_point_guard_preflight_pass"] = True
+        try:
+            require_foreground_hit_target(
+                replace(preflight_state, window_handle=preflight_state.window_handle + 1),
+                preflight_x,
+                preflight_y,
+            )
+        except NativePointGuardError:
+            result["native_point_guard_wrong_window_refusal_pass"] = True
+        if not result["native_point_guard_wrong_window_refusal_pass"]:
+            raise RuntimeError("native point guard did not reject wrong-window authority")
 
         screenshot_index = 0
 
@@ -245,21 +283,22 @@ def main() -> int:
         def execute_coordinate(request, proposal, state):
             result["coordinate_executor_calls"] += 1
             assert backend is not None
-            return execute_guarded_coordinate_click_with_backend(
+            receipt = execute_guarded_coordinate_click_with_backend(
                 backend,
                 request,
                 proposal,
                 state,
             )
+            result["native_point_guard_delivery_pass"] = True
+            return receipt
 
-        disabled_request = DesktopClickRequest(
-            window_name=FIXTURE_WINDOW_NAME,
-            target_text=TARGET_VISIBLE_TEXT,
-            role="button",
-            vision_fallback=VISION_FALLBACK_DISABLED,
-        )
         disabled_result = route_desktop_click(
-            request=disabled_request,
+            request=DesktopClickRequest(
+                window_name=FIXTURE_WINDOW_NAME,
+                target_text=TARGET_VISIBLE_TEXT,
+                role="button",
+                vision_fallback=VISION_FALLBACK_DISABLED,
+            ),
             observe=observe,
             ground=ground,
             execute_structural=execute_structural,
@@ -271,14 +310,13 @@ def main() -> int:
             and disabled_result.reason == "vision-fallback-not-promoted"
         )
 
-        role_conflict_request = DesktopClickRequest(
-            window_name=FIXTURE_WINDOW_NAME,
-            target_text=TARGET_UIA_NAME,
-            role="link",
-            vision_fallback=VISION_FALLBACK_ZERO_EXACT,
-        )
         role_conflict_result = route_desktop_click(
-            request=role_conflict_request,
+            request=DesktopClickRequest(
+                window_name=FIXTURE_WINDOW_NAME,
+                target_text=TARGET_UIA_NAME,
+                role="link",
+                vision_fallback=VISION_FALLBACK_ZERO_EXACT,
+            ),
             observe=observe,
             ground=ground,
             execute_structural=execute_structural,
@@ -307,14 +345,13 @@ def main() -> int:
             and before_positive.get("finish_clicked") is False
         )
 
-        positive_request = DesktopClickRequest(
-            window_name=FIXTURE_WINDOW_NAME,
-            target_text=TARGET_VISIBLE_TEXT,
-            role="button",
-            vision_fallback=VISION_FALLBACK_ZERO_EXACT,
-        )
         positive = route_desktop_click(
-            request=positive_request,
+            request=DesktopClickRequest(
+                window_name=FIXTURE_WINDOW_NAME,
+                target_text=TARGET_VISIBLE_TEXT,
+                role="button",
+                vision_fallback=VISION_FALLBACK_ZERO_EXACT,
+            ),
             observe=observe,
             ground=ground,
             execute_structural=execute_structural,
@@ -364,6 +401,9 @@ def main() -> int:
             result["agent_loopback_pass"]
             and result["agent_auth_required_pass"]
             and result["legacy_capability_absent_pass"]
+            and result["native_point_guard_preflight_pass"]
+            and result["native_point_guard_wrong_window_refusal_pass"]
+            and result["native_point_guard_delivery_pass"]
             and result["negative_zero_action_pass"]
             and result["positive_visual_route_pass"]
             and result["fresh_reobservation_pass"]
@@ -399,26 +439,33 @@ def main() -> int:
 
     print("===== STAGE 26.2D WINDOWS VISION ROUTING =====")
     print(f"RESULT_PATH={result_path}")
-    print(f"ROUTER_SOURCE_SHA256={result['router_source_sha256']}")
-    print(f"OBSERVER_SOURCE_SHA256={result['observer_source_sha256']}")
-    print(f"GROUNDER_SOURCE_SHA256={result['grounder_source_sha256']}")
-    print(f"ACTUATION_SOURCE_SHA256={result['actuation_source_sha256']}")
-    print(f"DRIVER_SOURCE_SHA256={result['driver_source_sha256']}")
-    print(f"AGENT_LOOPBACK_PASS={result['agent_loopback_pass']}")
-    print(f"AGENT_AUTH_REQUIRED_PASS={result['agent_auth_required_pass']}")
-    print(f"LEGACY_CAPABILITY_ABSENT_PASS={result['legacy_capability_absent_pass']}")
-    print(f"VISION_DISABLED_ABSTAIN_PASS={result['vision_disabled_abstain_pass']}")
-    print(f"ROLE_CONFLICT_ABSTAIN_PASS={result['role_conflict_abstain_pass']}")
-    print(f"NEGATIVE_ZERO_ACTION_PASS={result['negative_zero_action_pass']}")
-    print(f"POSITIVE_VISUAL_ROUTE_PASS={result['positive_visual_route_pass']}")
-    print(f"FRESH_REOBSERVATION_PASS={result['fresh_reobservation_pass']}")
-    print(f"GUARDED_CLICK_RECEIPT_PASS={result['guarded_click_receipt_pass']}")
-    print(f"FIXTURE_START_POSTCONDITION_PASS={result['fixture_start_postcondition_pass']}")
-    print(f"FIXTURE_NO_EXTRA_MUTATION_PASS={result['fixture_no_extra_mutation_pass']}")
-    print(f"SINGLE_ACTION_PASS={result['single_action_pass']}")
-    print(f"STRUCTURAL_EXECUTOR_CALLS={result['structural_executor_calls']}")
-    print(f"COORDINATE_EXECUTOR_CALLS={result['coordinate_executor_calls']}")
-    print(f"GROUNDER_CALLS={result['grounder_calls']}")
+    for key in (
+        "router_source_sha256",
+        "native_point_guard_source_sha256",
+        "observer_source_sha256",
+        "grounder_source_sha256",
+        "actuation_source_sha256",
+        "driver_source_sha256",
+        "agent_loopback_pass",
+        "agent_auth_required_pass",
+        "legacy_capability_absent_pass",
+        "native_point_guard_preflight_pass",
+        "native_point_guard_wrong_window_refusal_pass",
+        "native_point_guard_delivery_pass",
+        "vision_disabled_abstain_pass",
+        "role_conflict_abstain_pass",
+        "negative_zero_action_pass",
+        "positive_visual_route_pass",
+        "fresh_reobservation_pass",
+        "guarded_click_receipt_pass",
+        "fixture_start_postcondition_pass",
+        "fixture_no_extra_mutation_pass",
+        "single_action_pass",
+        "structural_executor_calls",
+        "coordinate_executor_calls",
+        "grounder_calls",
+    ):
+        print(f"{key.upper()}={result[key]}")
     print(f"SCREENSHOT_SHA256_JSON={json.dumps(result['screenshot_sha256'], separators=(',', ':'))}")
     if result.get("resolver_stats") is not None:
         for key in sorted(result["resolver_stats"]):
