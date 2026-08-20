@@ -1,6 +1,6 @@
 # Module / Capability Catalog
 
-Status synchronized through accepted Stage 26.2B DesktopState work. Resolve live `main` and relevant PR heads before work.
+Status synchronized through accepted Stage 26.2C Desktop Grounder work. Resolve live `main` and relevant PR heads before work.
 
 ## Operating constraint
 
@@ -40,8 +40,8 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 | Runtime verifier foundation | before/after evidence + `PASS|FAIL|UNKNOWN` | ACCEPTED-INFRASTRUCTURE | Delivery is not success; UNKNOWN does not silently advance. |
 | Production Windows runtime | `runtime/windows` bounded observation/actuation/verification foundation | ACCEPTED-INFRASTRUCTURE | Stage 26.2A merged #87. |
 | Desktop observation | canonical read-only `DesktopState` | ACCEPTED-INFRASTRUCTURE | Stage 26.2B accepted; introduced by #88 with exact physical runtime evidence. |
-| Desktop F16 Grounder | native exact-window pixel-space adapter | ACTIVE-INTEGRATION | Next stage; separate from browser CSS viewport and proposal-only. |
-| Windows UIA->vision router | deterministic structure first, bounded visual fallback | FUTURE-SCOPED-GATE | Must pass adversarial accuracy suite before broad desktop claims. |
+| Desktop F16 Grounder | native exact-window pixel-space proposal adapter | ACCEPTED-SPECIALIST | Stage 26.2C physically accepted on controlled WinForms target; proposal-only, frame-bound, no action authority. |
+| Windows UIA->vision router | deterministic structure first, bounded visual fallback | ACTIVE-INTEGRATION | Stage 26.2D next; must pass freshness/authorization and adversarial accuracy gates before promotion. |
 | Real application Windows E2E | one medium-complexity user app + disposable artifact | FUTURE-SCOPED-GATE | Select from real task/evidence; deterministic postcondition and rollback. |
 | Verified Procedure Runtime | ProgramGraph + live state + authorization + verifier | FUTURE-SCOPED-GATE | Only after real desktop E2E. |
 | Human demonstration transfer | Capture -> candidate procedure -> changed-state verified replay | FUTURE-SCOPED-GATE | Not blind macro replay. |
@@ -127,6 +127,40 @@ PASS=True
 This proves bounded DesktopState observation on the controlled WinForms fixture. It does not prove cross-application UIA coverage or desktop VLM accuracy.
 
 The initial qualification also printed `ACTION_COUNT=0` and related values that were constants rather than instrumented measurements. Self-review removed them from acceptance evidence and from future harness output. Read-only behavior is instead established by direct code review and CI source-boundary tests proving no executor/actuation channel exists in the observer/driver path.
+
+### Stage 26.2C Desktop Grounder
+
+Exact physically accepted runtime head:
+
+`eadf8ff5a873936441891a66b616c83c62736152`
+
+Physical result:
+
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-grounder-qualification\grounder-20260820-050054\result.json`
+
+```text
+POSITIVE_GROUNDER_STATUS=proposal
+POSITIVE_GROUNDER_REASON=grounder-accepted-ordinal-alias-proposal-only
+POSITIVE_INVENTORY_LABELS_JSON=["Benchmark start","Guarded list click + scroll"]
+POSITIVE_PASS2_DETECTION_COUNT=1
+TARGET_POINT_INSIDE_UIA_PASS=True
+SAME_FRAME_BINDING_PASS=True
+COORDINATE_CONTRACT_PASS=True
+TARGET_EVIDENCE_BINDING_PASS=True
+ABSENT_TARGET_ABSTAIN_PASS=True
+STALE_FRAME_REJECTION_PASS=True
+PROPOSAL_ONLY_CONTRACT_PASS=True
+DESKTOP_FALLBACK_CALLS=0
+WINDOW_BINDING_FAILURES=0
+WINDOW_BINDING_AMBIGUITIES=0
+VISION_RESTORED_PASS=True
+FIXTURE_CLEANUP_PASS=True
+PASS=True
+```
+
+Physical evidence establishes only the observed target behavior: the rendered fixture label was `1. Benchmark start`, while the VLM inventory read the intended button as `Benchmark start`, and the bounded ordinal-prefix policy recovered a unique proposal whose point fell inside independent UIA bounds. Synthetic unit tests separately define policy boundaries such as ambiguity -> ABSTAIN and no broad fuzzy matching; those synthetic cases are not physical observations.
+
+This remains controlled WinForms evidence, not general desktop accuracy. Stage 26.2D must add deterministic structure-first routing, fresh same-window/same-frame authorization and adversarial coverage before any coordinate action path is promoted.
 
 ## Merge rule
 
