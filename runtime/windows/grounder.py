@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Any, Sequence
@@ -23,6 +24,7 @@ WINDOW_COORDINATE_SPACE = "window_physical_px"
 SCREEN_COORDINATE_SPACE = "screen_physical_px"
 MAX_TARGET_TEXT_CHARS = 512
 MAX_UIA_EVIDENCE = 32
+_ORDINAL_PREFIX_RE = re.compile(r"^\s*\d{1,2}\s*[.)]\s+")
 
 
 class DesktopGrounderError(RuntimeError):
@@ -200,6 +202,32 @@ def _clean_target_text(value: str) -> str:
     return cleaned
 
 
+def _normalize_visual_label(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def _ordinal_stripped_alias(value: str) -> str | None:
+    stripped = _ORDINAL_PREFIX_RE.sub("", value, count=1)
+    cleaned = " ".join(stripped.split())
+    original = " ".join(value.split())
+    if not cleaned or cleaned == original:
+        return None
+    return cleaned
+
+
+def _select_ordinal_alias(target_text: str, inventory_labels: Sequence[str]) -> tuple[str | None, bool]:
+    alias = _ordinal_stripped_alias(target_text)
+    if alias is None:
+        return None, False
+    wanted = _normalize_visual_label(alias)
+    matches = tuple(
+        label for label in inventory_labels if _normalize_visual_label(label) == wanted
+    )
+    if len(matches) == 1:
+        return matches[0], False
+    return None, len(matches) > 1
+
+
 def _uia_evidence_digest(items: Sequence[ControlObservation] | None) -> str | None:
     if items is None:
         return None
@@ -318,6 +346,31 @@ def _translate_region(region: GrounderRegion, state: DesktopState) -> GrounderRe
     )
 
 
+def _run_grounder_case(
+    *,
+    client: NativeBBoxLoopbackClient,
+    source: Image.Image,
+    target_text: str,
+) -> tuple[dict[str, Any], GrounderDiagnostics]:
+    case = {
+        "id": "production-desktop-grounding",
+        "kind": "desktop_exact_window",
+        "instruction": (
+            "Locate the visible Windows UI element whose exact readable label is "
+            f"{target_text!r} in this exact application window."
+        ),
+        "target_text": target_text,
+        "bbox": None,
+    }
+    try:
+        row = run_native_bbox_zoom_case(client=client, source=source, case=case)
+    except (VisionProviderError, ValueError, OSError) as exc:
+        raise DesktopGrounderError(f"desktop-grounder-failed:{type(exc).__name__}") from exc
+    if row.get("parse_error"):
+        raise DesktopGrounderError("desktop-grounder-provider-or-parse-error")
+    return row, _diagnostics_from_row(row)
+
+
 def ground_desktop_target(
     *,
     client: NativeBBoxLoopbackClient,
@@ -328,9 +381,10 @@ def ground_desktop_target(
 ) -> DesktopGroundingResult:
     """Return an explicit proposal/abstain result bound to one DesktopState frame.
 
-    The model remains non-authorizing.  Abstention preserves the exact grounding
-    decision and bounded diagnostic labels/counts so routing and qualification do
-    not need to guess why the local VLM refused a target.
+    The model remains non-authorizing.  Exact inventory matching is attempted
+    first.  If and only if it reports inventory-absent, one bounded desktop UI
+    alias may remove a leading ordinal like ``1.`` or ``2)``.  The alias must
+    correspond to exactly one inventory label; ambiguity remains fail-closed.
     """
 
     if not isinstance(client, NativeBBoxLoopbackClient):
@@ -342,26 +396,33 @@ def ground_desktop_target(
     source = _decode_exact_window_png(window_png, desktop_state)
     evidence_digest = _uia_evidence_digest(uia_evidence)
 
-    case = {
-        "id": "production-desktop-grounding",
-        "kind": "desktop_exact_window",
-        "instruction": (
-            "Locate the visible Windows UI element whose exact readable label is "
-            f"{cleaned_target!r} in this exact application window."
-        ),
-        "target_text": cleaned_target,
-        "bbox": None,
-    }
+    row, diagnostics = _run_grounder_case(
+        client=client,
+        source=source,
+        target_text=cleaned_target,
+    )
+    ordinal_alias_used = False
 
-    try:
-        row = run_native_bbox_zoom_case(client=client, source=source, case=case)
-    except (VisionProviderError, ValueError, OSError) as exc:
-        raise DesktopGrounderError(f"desktop-grounder-failed:{type(exc).__name__}") from exc
+    if diagnostics.decision == "inventory-absent":
+        alias_label, alias_ambiguous = _select_ordinal_alias(
+            cleaned_target,
+            diagnostics.inventory_labels,
+        )
+        if alias_ambiguous:
+            return DesktopGroundingResult(
+                status="abstain",
+                reason="grounder-ordinal-alias-ambiguous",
+                proposal=None,
+                diagnostics=diagnostics,
+            )
+        if alias_label is not None:
+            row, diagnostics = _run_grounder_case(
+                client=client,
+                source=source,
+                target_text=alias_label,
+            )
+            ordinal_alias_used = True
 
-    if row.get("parse_error"):
-        raise DesktopGrounderError("desktop-grounder-provider-or-parse-error")
-
-    diagnostics = _diagnostics_from_row(row)
     abstain_decisions = {
         "inventory-absent",
         "inventory-ambiguous",
@@ -372,9 +433,10 @@ def ground_desktop_target(
         "inconsistent-pass2",
     }
     if diagnostics.decision in abstain_decisions:
+        prefix = "grounder-ordinal-alias-" if ordinal_alias_used else "grounder-"
         return DesktopGroundingResult(
             status="abstain",
-            reason=f"grounder-{diagnostics.decision}",
+            reason=f"{prefix}{diagnostics.decision}",
             proposal=None,
             diagnostics=diagnostics,
         )
@@ -397,6 +459,10 @@ def ground_desktop_target(
     ):
         raise DesktopGrounderError("accepted-grounder-point-outside-proposed-region")
 
+    proposal_method = diagnostics.method
+    if ordinal_alias_used:
+        proposal_method = f"{proposal_method}+desktop_ordinal_alias"
+
     proposal = GrounderProposal(
         schema_version=SCHEMA_VERSION,
         target_text=cleaned_target,
@@ -415,7 +481,7 @@ def ground_desktop_target(
         window_handle=desktop_state.window_handle,
         window_instance=desktop_state.window_instance,
         uia_evidence_digest=evidence_digest,
-        method=diagnostics.method,
+        method=proposal_method,
         consistency_iou=diagnostics.consistency_iou,
         confidence=None,
         confidence_basis="uncalibrated-model-proposal",
@@ -423,7 +489,11 @@ def ground_desktop_target(
     )
     return DesktopGroundingResult(
         status="proposal",
-        reason="grounder-accepted-proposal-only",
+        reason=(
+            "grounder-accepted-ordinal-alias-proposal-only"
+            if ordinal_alias_used
+            else "grounder-accepted-proposal-only"
+        ),
         proposal=proposal,
         diagnostics=diagnostics,
     )
