@@ -279,6 +279,32 @@ def _point_inside_region(region: GrounderRegion, x: float, y: float) -> bool:
     )
 
 
+def _proposal_uia_point_authorized(
+    proposal: GrounderProposal,
+    state: DesktopState,
+    request: DesktopClickRequest,
+) -> bool:
+    """Use known UIA at the proposed point as a constraint, never as a guess.
+
+    Visual-only custom/weak-UIA targets remain possible when no current control
+    of the requested role covers the point. If matching-role UIA evidence does
+    exist there, it must identify exactly one currently actionable control.
+    """
+
+    if request.role is None:
+        return False
+    matches = tuple(
+        control
+        for control in state.controls
+        if control.bounds is not None
+        and _role_matches(control, request)
+        and _point_inside(control.bounds, proposal.screen_point.x, proposal.screen_point.y)
+    )
+    if not matches:
+        return True
+    return len(matches) == 1 and _is_actionable(matches[0])
+
+
 def _proposal_matches_state(
     proposal: GrounderProposal,
     state: DesktopState,
@@ -335,6 +361,7 @@ def _proposal_matches_state(
         )
         and _point_inside(state.window_bounds, proposal.screen_region.left, proposal.screen_region.top)
         and _point_inside(state.window_bounds, proposal.screen_region.right, proposal.screen_region.bottom)
+        and _proposal_uia_point_authorized(proposal, state, request)
     )
 
 
@@ -399,6 +426,8 @@ def route_desktop_click(
         return _abstain(initial=initial.state, reason=classification)
     if request.vision_fallback != VISION_FALLBACK_ZERO_EXACT:
         return _abstain(initial=initial.state, reason="vision-fallback-not-promoted")
+    if request.role is None:
+        return _abstain(initial=initial.state, reason="vision-role-required")
 
     visual = observe(True)
     _validate_frame(visual, require_screenshot=True, max_age_seconds=max_observation_age_seconds)
@@ -559,7 +588,6 @@ def execute_guarded_coordinate_click_with_backend(
     last: Exception | None = None
     for _ in range(attempts):
         try:
-            # Reject focus changes or foreign overlays before arming mutation.
             require_foreground_hit_target(state, x, y)
         except NativePointGuardError as exc:
             raise DesktopRoutingError("native-point-guard-refused") from exc
@@ -568,8 +596,6 @@ def execute_guarded_coordinate_click_with_backend(
             backend.arm_guarded_coordinate(x, y)
             frame = backend.screenshot()
             try:
-                # Re-check after arming/screenshot so an overlay appearing in
-                # that interval still cancels the armed point before delivery.
                 require_foreground_hit_target(state, x, y)
             except NativePointGuardError as exc:
                 backend.cancel_guarded_coordinate()
