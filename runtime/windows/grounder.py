@@ -10,6 +10,7 @@ from PIL import Image, UnidentifiedImageError
 
 from runtime.local_vision_adapter.native_bbox import (
     NativeBBoxLoopbackClient,
+    parse_native_bbox_response,
     run_native_bbox_zoom_case,
 )
 from runtime.local_vision_adapter.provider import VisionProviderError
@@ -64,6 +65,34 @@ class GrounderRegion:
 
 
 @dataclass(frozen=True)
+class GrounderDiagnostics:
+    decision: str
+    method: str
+    inventory_detection_count: int | None
+    inventory_match_count: int | None
+    inventory_labels: tuple[str, ...]
+    pass1_detection_count: int | None
+    pass2_detection_count: int | None
+    pass2_labels: tuple[str, ...]
+    consistency_iou: float | None
+    latency_seconds: float | None
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "decision": self.decision,
+            "method": self.method,
+            "inventory_detection_count": self.inventory_detection_count,
+            "inventory_match_count": self.inventory_match_count,
+            "inventory_labels": list(self.inventory_labels),
+            "pass1_detection_count": self.pass1_detection_count,
+            "pass2_detection_count": self.pass2_detection_count,
+            "pass2_labels": list(self.pass2_labels),
+            "consistency_iou": self.consistency_iou,
+            "latency_seconds": self.latency_seconds,
+        }
+
+
+@dataclass(frozen=True)
 class GrounderProposal:
     schema_version: int
     target_text: str
@@ -112,6 +141,22 @@ class GrounderProposal:
             "confidence": self.confidence,
             "confidence_basis": self.confidence_basis,
             "latency_seconds": self.latency_seconds,
+        }
+
+
+@dataclass(frozen=True)
+class DesktopGroundingResult:
+    status: str  # "proposal" | "abstain"
+    reason: str
+    proposal: GrounderProposal | None
+    diagnostics: GrounderDiagnostics
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "reason": self.reason,
+            "proposal": self.proposal.to_mapping() if self.proposal is not None else None,
+            "diagnostics": self.diagnostics.to_mapping(),
         }
 
 
@@ -186,6 +231,42 @@ def _float_or_none(value: object) -> float | None:
     return converted
 
 
+def _int_or_none(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise DesktopGrounderError("grounder returned malformed count evidence")
+    return value
+
+
+def _diagnostic_labels(value: object, *, max_items: int) -> tuple[str, ...]:
+    if not isinstance(value, str) or not value.strip():
+        return ()
+    try:
+        detections = parse_native_bbox_response(value, max_items=max_items)
+    except VisionProviderError:
+        return ()
+    return tuple(detection.label for detection in detections)
+
+
+def _diagnostics_from_row(row: dict[str, Any]) -> GrounderDiagnostics:
+    decision = row.get("decision")
+    if not isinstance(decision, str) or not decision:
+        raise DesktopGrounderError("desktop-grounder-missing-decision")
+    return GrounderDiagnostics(
+        decision=decision,
+        method=str(row.get("method") or "native_bbox_450m_inventory_zoom"),
+        inventory_detection_count=_int_or_none(row.get("inventory_detection_count")),
+        inventory_match_count=_int_or_none(row.get("inventory_match_count")),
+        inventory_labels=_diagnostic_labels(row.get("inventory_response"), max_items=16),
+        pass1_detection_count=_int_or_none(row.get("pass1_detection_count")),
+        pass2_detection_count=_int_or_none(row.get("pass2_detection_count")),
+        pass2_labels=_diagnostic_labels(row.get("pass2_response"), max_items=8),
+        consistency_iou=_float_or_none(row.get("coarse_refined_iou")),
+        latency_seconds=_float_or_none(row.get("latency_seconds")),
+    )
+
+
 def _region_from_row(value: object, *, width: int, height: int) -> GrounderRegion:
     if not isinstance(value, dict):
         raise DesktopGrounderError("accepted-grounder-result-missing-region")
@@ -237,19 +318,19 @@ def _translate_region(region: GrounderRegion, state: DesktopState) -> GrounderRe
     )
 
 
-def locate_desktop_target(
+def ground_desktop_target(
     *,
     client: NativeBBoxLoopbackClient,
     window_png: bytes,
     target_text: str,
     desktop_state: DesktopState,
     uia_evidence: Sequence[ControlObservation] | None = None,
-) -> GrounderProposal | None:
-    """Return a proposal bound to one exact DesktopState frame, or abstain.
+) -> DesktopGroundingResult:
+    """Return an explicit proposal/abstain result bound to one DesktopState frame.
 
-    This function never authorizes or executes a Windows action.  The local VLM
-    only proposes a region/point.  Any caller that later wants to mutate state
-    must independently re-observe, re-resolve and authorize the target.
+    The model remains non-authorizing.  Abstention preserves the exact grounding
+    decision and bounded diagnostic labels/counts so routing and qualification do
+    not need to guess why the local VLM refused a target.
     """
 
     if not isinstance(client, NativeBBoxLoopbackClient):
@@ -280,7 +361,7 @@ def locate_desktop_target(
     if row.get("parse_error"):
         raise DesktopGrounderError("desktop-grounder-provider-or-parse-error")
 
-    decision = row.get("decision")
+    diagnostics = _diagnostics_from_row(row)
     abstain_decisions = {
         "inventory-absent",
         "inventory-ambiguous",
@@ -290,9 +371,14 @@ def locate_desktop_target(
         "ambiguous-pass2",
         "inconsistent-pass2",
     }
-    if decision in abstain_decisions:
-        return None
-    if decision != "accepted":
+    if diagnostics.decision in abstain_decisions:
+        return DesktopGroundingResult(
+            status="abstain",
+            reason=f"grounder-{diagnostics.decision}",
+            proposal=None,
+            diagnostics=diagnostics,
+        )
+    if diagnostics.decision != "accepted":
         raise DesktopGrounderError("desktop-grounder-returned-unknown-decision")
 
     window_point = _point_from_row(
@@ -311,10 +397,7 @@ def locate_desktop_target(
     ):
         raise DesktopGrounderError("accepted-grounder-point-outside-proposed-region")
 
-    consistency_iou = _float_or_none(row.get("coarse_refined_iou"))
-    latency_seconds = _float_or_none(row.get("latency_seconds"))
-
-    return GrounderProposal(
+    proposal = GrounderProposal(
         schema_version=SCHEMA_VERSION,
         target_text=cleaned_target,
         window_point=window_point,
@@ -332,9 +415,34 @@ def locate_desktop_target(
         window_handle=desktop_state.window_handle,
         window_instance=desktop_state.window_instance,
         uia_evidence_digest=evidence_digest,
-        method=str(row.get("method") or "native_bbox_450m_inventory_zoom"),
-        consistency_iou=consistency_iou,
+        method=diagnostics.method,
+        consistency_iou=diagnostics.consistency_iou,
         confidence=None,
         confidence_basis="uncalibrated-model-proposal",
-        latency_seconds=latency_seconds,
+        latency_seconds=diagnostics.latency_seconds,
     )
+    return DesktopGroundingResult(
+        status="proposal",
+        reason="grounder-accepted-proposal-only",
+        proposal=proposal,
+        diagnostics=diagnostics,
+    )
+
+
+def locate_desktop_target(
+    *,
+    client: NativeBBoxLoopbackClient,
+    window_png: bytes,
+    target_text: str,
+    desktop_state: DesktopState,
+    uia_evidence: Sequence[ControlObservation] | None = None,
+) -> GrounderProposal | None:
+    """Compatibility wrapper returning only the proposal or ``None`` on abstain."""
+
+    return ground_desktop_target(
+        client=client,
+        window_png=window_png,
+        target_text=target_text,
+        desktop_state=desktop_state,
+        uia_evidence=uia_evidence,
+    ).proposal
