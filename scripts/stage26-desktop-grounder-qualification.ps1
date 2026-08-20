@@ -78,7 +78,7 @@ $visionStatusBefore = $null
 $visionStatusDuring = $null
 
 $result = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     project_head = $null
     production_grounder_path = $grounderPath
     production_observation_path = $observationPath
@@ -99,6 +99,10 @@ $result = [ordered]@{
     observer_source_sha256 = $null
     grounder_source_sha256 = $null
     driver_source_sha256 = $null
+    screenshot_path = $null
+    screenshot_sha256 = $null
+    positive_grounding = $null
+    absent_grounding = $null
     proposal = $null
     resolver_stats = $null
     fixture_pid = $null
@@ -182,6 +186,10 @@ try {
     $result.observer_source_sha256 = [string]$driver.observer_source_sha256
     $result.grounder_source_sha256 = [string]$driver.grounder_source_sha256
     $result.driver_source_sha256 = [string]$driver.driver_source_sha256
+    $result.screenshot_path = [string]$driver.screenshot_path
+    $result.screenshot_sha256 = [string]$driver.screenshot_sha256
+    $result.positive_grounding = $driver.positive_grounding
+    $result.absent_grounding = $driver.absent_grounding
     $result.proposal = $driver.proposal
     $result.resolver_stats = $driver.resolver_stats
     $result.driver_error = $driver.error
@@ -230,7 +238,7 @@ finally {
         if ($null -eq $result.error) { $result.error = "Vision runtime restore failed: $($_.Exception.Message)" }
     }
     $result.vision_restored_pass = $visionRestored
-    $result | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $resultPath -Encoding utf8
+    $result | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $resultPath -Encoding utf8
 }
 
 Write-Host ''
@@ -243,6 +251,22 @@ Write-Flag 'VISION_PORT' $result.vision_port
 Write-Flag 'VISION_STARTED_BY_HARNESS' $result.vision_started_by_harness
 Write-Flag 'VISION_READY_PASS' $result.vision_ready_pass
 Write-Flag 'VISION_RESTORED_PASS' $result.vision_restored_pass
+Write-Flag 'EXACT_WINDOW_PNG' $result.screenshot_path
+Write-Flag 'SCREENSHOT_SHA256' $result.screenshot_sha256
+if ($null -ne $result.positive_grounding) {
+    Write-Flag 'POSITIVE_GROUNDER_STATUS' $result.positive_grounding.status
+    Write-Flag 'POSITIVE_GROUNDER_REASON' $result.positive_grounding.reason
+    Write-Flag 'POSITIVE_DECISION' $result.positive_grounding.diagnostics.decision
+    Write-Flag 'POSITIVE_INVENTORY_DETECTION_COUNT' $result.positive_grounding.diagnostics.inventory_detection_count
+    Write-Flag 'POSITIVE_INVENTORY_MATCH_COUNT' $result.positive_grounding.diagnostics.inventory_match_count
+    Write-Flag 'POSITIVE_INVENTORY_LABELS_JSON' (($result.positive_grounding.diagnostics.inventory_labels | ConvertTo-Json -Compress))
+    Write-Flag 'POSITIVE_PASS2_DETECTION_COUNT' $result.positive_grounding.diagnostics.pass2_detection_count
+    Write-Flag 'POSITIVE_PASS2_LABELS_JSON' (($result.positive_grounding.diagnostics.pass2_labels | ConvertTo-Json -Compress))
+}
+if ($null -ne $result.absent_grounding) {
+    Write-Flag 'ABSENT_GROUNDER_STATUS' $result.absent_grounding.status
+    Write-Flag 'ABSENT_GROUNDER_REASON' $result.absent_grounding.reason
+}
 Write-Flag 'SAME_FRAME_BINDING_PASS' $result.same_frame_binding_pass
 Write-Flag 'COORDINATE_CONTRACT_PASS' $result.coordinate_contract_pass
 Write-Flag 'TARGET_POINT_INSIDE_UIA_PASS' $result.target_point_inside_uia_pass
