@@ -17,6 +17,10 @@ DEFAULT_MAX_OBSERVATION_AGE_SECONDS = 5.0
 VISION_FALLBACK_DISABLED = "disabled"
 VISION_FALLBACK_ZERO_EXACT = "zero-exact-candidate"
 _ALLOWED_VISION_POLICIES = {VISION_FALLBACK_DISABLED, VISION_FALLBACK_ZERO_EXACT}
+_ACCEPTED_GROUNDER_REASONS = {
+    "grounder-accepted-proposal-only",
+    "grounder-accepted-ordinal-alias-proposal-only",
+}
 
 
 class DesktopRoutingError(RuntimeError):
@@ -284,12 +288,7 @@ def _proposal_uia_point_authorized(
     state: DesktopState,
     request: DesktopClickRequest,
 ) -> bool:
-    """Use known UIA at the proposed point as a constraint, never as a guess.
-
-    Visual-only custom/weak-UIA targets remain possible when no current control
-    of the requested role covers the point. If matching-role UIA evidence does
-    exist there, it must identify exactly one currently actionable control.
-    """
+    """Use known UIA at the proposed point as a constraint, never as a guess."""
 
     if request.role is None:
         return False
@@ -303,6 +302,27 @@ def _proposal_uia_point_authorized(
     if not matches:
         return True
     return len(matches) == 1 and _is_actionable(matches[0])
+
+
+def _grounding_result_authorized(grounding: DesktopGroundingResult) -> bool:
+    proposal = grounding.proposal
+    diagnostics = grounding.diagnostics
+    if grounding.status != "proposal" or proposal is None:
+        return False
+    if grounding.reason not in _ACCEPTED_GROUNDER_REASONS:
+        return False
+    iou = diagnostics.consistency_iou
+    if iou is None or not math.isfinite(iou) or iou <= 0.0:
+        return False
+    if proposal.consistency_iou is None or not math.isfinite(proposal.consistency_iou):
+        return False
+    return bool(
+        diagnostics.decision == "accepted"
+        and diagnostics.inventory_match_count == 1
+        and diagnostics.pass1_detection_count == 1
+        and diagnostics.pass2_detection_count == 1
+        and abs(proposal.consistency_iou - iou) < 1e-9
+    )
 
 
 def _proposal_matches_state(
@@ -389,9 +409,8 @@ def route_desktop_click(
     """Route one click through structure first, then explicitly promoted vision.
 
     Vision is never authorization. A visual proposal is executable only after
-    fresh exact-window re-observation proves the same process/window/frame.
-    Structural ambiguity, non-actionable controls, role conflicts and supplied
-    AutomationId misses never escalate to vision. Delivery is not completion.
+    independent grounding evidence and fresh exact-window re-observation prove
+    the same target/process/window/frame. Delivery is not task completion.
     """
 
     request = _validate_request(request)
@@ -446,6 +465,13 @@ def route_desktop_click(
             initial=initial.state,
             reason=f"vision-{grounding.reason}",
             route="vision",
+        )
+    if not _grounding_result_authorized(grounding):
+        return _abstain(
+            initial=initial.state,
+            reason="vision-grounder-evidence-not-authorized",
+            route="vision",
+            proposal=grounding.proposal,
         )
     proposal = grounding.proposal
     if not _proposal_matches_state(
@@ -569,13 +595,7 @@ def execute_guarded_coordinate_click_with_backend(
     *,
     attempts: int = 12,
 ) -> Mapping[str, Any]:
-    """Deliver one guarded point click after native foreground/hit-test checks.
-
-    Exact-window routing authorization happens before this helper. Here a Win32
-    guard additionally proves that the authorized top-level HWND is foreground
-    and is the root window physically under the proposed point. The already
-    accepted backend frame guard then binds actual delivery to a fresh frame.
-    """
+    """Deliver one guarded point click after native foreground/hit-test checks."""
 
     from openadapt_flow.backend import StructuralResolutionRefused
     from .native_point_guard import NativePointGuardError, require_foreground_hit_target
