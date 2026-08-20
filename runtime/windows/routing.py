@@ -98,18 +98,13 @@ def _validate_request(request: DesktopClickRequest) -> DesktopClickRequest:
     target = " ".join(request.target_text.split())
     if not target or len(target) > MAX_TARGET_TEXT_CHARS:
         raise DesktopRoutingError("target_text length is invalid")
-    if request.role is not None and (
-        not isinstance(request.role, str) or not request.role.strip()
+    for name, value in (
+        ("role", request.role),
+        ("automation_id", request.automation_id),
+        ("structural_name", request.structural_name),
     ):
-        raise DesktopRoutingError("role must be non-empty text when supplied")
-    if request.automation_id is not None and (
-        not isinstance(request.automation_id, str) or not request.automation_id.strip()
-    ):
-        raise DesktopRoutingError("automation_id must be non-empty text when supplied")
-    if request.structural_name is not None and (
-        not isinstance(request.structural_name, str) or not request.structural_name.strip()
-    ):
-        raise DesktopRoutingError("structural_name must be non-empty text when supplied")
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise DesktopRoutingError(f"{name} must be non-empty text when supplied")
     if request.vision_fallback not in _ALLOWED_VISION_POLICIES:
         raise DesktopRoutingError("unknown vision_fallback policy")
     return request
@@ -130,9 +125,7 @@ def _require_recent(state: DesktopState, *, max_age_seconds: float) -> None:
         raise DesktopRoutingError("max observation age must be numeric")
     if not 0 < float(max_age_seconds) <= 30.0:
         raise DesktopRoutingError("max observation age is outside the bounded contract")
-    observed = _parse_observed_at(state.observed_at)
-    current = datetime.now(timezone.utc)
-    age = (current - observed).total_seconds()
+    age = (datetime.now(timezone.utc) - _parse_observed_at(state.observed_at)).total_seconds()
     if age < -2.0 or age > float(max_age_seconds):
         raise DesktopRoutingError("desktop-state-not-fresh")
 
@@ -192,7 +185,6 @@ def _name_matches(control: ControlObservation, request: DesktopClickRequest) -> 
 
 
 def _is_actionable(control: ControlObservation) -> bool:
-    # Unknown visibility/enabled state is not sufficient authority for mutation.
     return control.visible is True and control.enabled is True and control.bounds is not None
 
 
@@ -201,7 +193,6 @@ def _structural_classification(
     request: DesktopClickRequest,
 ) -> tuple[str, ControlObservation | None]:
     controls = state.controls
-
     if request.automation_id is not None:
         matches = tuple(control for control in controls if control.automation_id == request.automation_id)
         if not matches:
@@ -271,7 +262,7 @@ def _validate_receipt(receipt: Mapping[str, Any], *, expected_route: str) -> Map
 
 
 def _point_inside(bounds: Rect, x: float, y: float) -> bool:
-    return (
+    return bool(
         math.isfinite(x)
         and math.isfinite(y)
         and float(bounds.left) <= x <= float(bounds.right)
@@ -280,7 +271,7 @@ def _point_inside(bounds: Rect, x: float, y: float) -> bool:
 
 
 def _point_inside_region(region: GrounderRegion, x: float, y: float) -> bool:
-    return (
+    return bool(
         math.isfinite(x)
         and math.isfinite(y)
         and region.left <= x <= region.right
@@ -299,11 +290,11 @@ def _proposal_matches_state(
     top = float(state.window_bounds.top)
     width = float(state.window_bounds.width)
     height = float(state.window_bounds.height)
-    translated_point = (
+    translated_point = bool(
         abs(proposal.screen_point.x - (proposal.window_point.x + left)) < 1e-6
         and abs(proposal.screen_point.y - (proposal.window_point.y + top)) < 1e-6
     )
-    translated_region = (
+    translated_region = bool(
         abs(proposal.screen_region.left - (proposal.window_region.left + left)) < 1e-6
         and abs(proposal.screen_region.top - (proposal.window_region.top + top)) < 1e-6
         and abs(proposal.screen_region.right - (proposal.window_region.right + left)) < 1e-6
@@ -342,16 +333,8 @@ def _proposal_matches_state(
             proposal.screen_point.x,
             proposal.screen_point.y,
         )
-        and _point_inside(
-            state.window_bounds,
-            proposal.screen_region.left,
-            proposal.screen_region.top,
-        )
-        and _point_inside(
-            state.window_bounds,
-            proposal.screen_region.right,
-            proposal.screen_region.bottom,
-        )
+        and _point_inside(state.window_bounds, proposal.screen_region.left, proposal.screen_region.top)
+        and _point_inside(state.window_bounds, proposal.screen_region.right, proposal.screen_region.bottom)
     )
 
 
@@ -378,18 +361,17 @@ def route_desktop_click(
 ) -> DesktopRoutingResult:
     """Route one click through structure first, then explicitly promoted vision.
 
-    Vision is never authorization. A visual proposal is executable only when a
-    new exact-window observation has the same process/window identity and the
-    same frame/screenshot digests. Structural ambiguity, disabled/hidden
-    controls, role conflicts and AutomationId misses do not escalate to vision.
-    Delivery is not task completion and the returned receipt must say so.
+    Vision is never authorization. A visual proposal is executable only after
+    fresh exact-window re-observation proves the same process/window/frame.
+    Structural ambiguity, non-actionable controls, role conflicts and supplied
+    AutomationId misses never escalate to vision. Delivery is not completion.
     """
 
     request = _validate_request(request)
     initial = observe(False)
     _validate_frame(initial, require_screenshot=False, max_age_seconds=max_observation_age_seconds)
 
-    classification, control = _structural_classification(initial.state, request)
+    classification, _ = _structural_classification(initial.state, request)
     if classification == "structural-exact":
         fresh = observe(False)
         _validate_frame(fresh, require_screenshot=False, max_age_seconds=max_observation_age_seconds)
@@ -554,18 +536,20 @@ def execute_guarded_coordinate_click_with_backend(
     backend: object,
     _request: DesktopClickRequest,
     proposal: GrounderProposal,
-    _state: DesktopState,
+    state: DesktopState,
     *,
     attempts: int = 12,
 ) -> Mapping[str, Any]:
-    """Execute one physically guarded coordinate click from an authorized proposal.
+    """Deliver one guarded point click after native foreground/hit-test checks.
 
-    The router has already re-observed the exact window. This second boundary
-    reuses the physically accepted Stage 26.1C guarded-coordinate mechanism,
-    binding the click to a fresh backend screenshot immediately before delivery.
+    Exact-window routing authorization happens before this helper. Here a Win32
+    guard additionally proves that the authorized top-level HWND is foreground
+    and is the root window physically under the proposed point. The already
+    accepted backend frame guard then binds actual delivery to a fresh frame.
     """
 
     from openadapt_flow.backend import StructuralResolutionRefused
+    from .native_point_guard import NativePointGuardError, require_foreground_hit_target
 
     x = int(round(proposal.screen_point.x))
     y = int(round(proposal.screen_point.y))
@@ -575,10 +559,27 @@ def execute_guarded_coordinate_click_with_backend(
     last: Exception | None = None
     for _ in range(attempts):
         try:
+            # Reject focus changes or foreign overlays before arming mutation.
+            require_foreground_hit_target(state, x, y)
+        except NativePointGuardError as exc:
+            raise DesktopRoutingError("native-point-guard-refused") from exc
+
+        try:
             backend.arm_guarded_coordinate(x, y)
             frame = backend.screenshot()
+            try:
+                # Re-check after arming/screenshot so an overlay appearing in
+                # that interval still cancels the armed point before delivery.
+                require_foreground_hit_target(state, x, y)
+            except NativePointGuardError as exc:
+                backend.cancel_guarded_coordinate()
+                raise DesktopRoutingError("native-point-guard-refused") from exc
             digest = hashlib.sha256(frame).hexdigest()
-            receipt = backend.act_guarded_coordinate(x, y, expected_frame_sha256=digest)
+            receipt = backend.act_guarded_coordinate(
+                x,
+                y,
+                expected_frame_sha256=digest,
+            )
             return _receipt_mapping(receipt)
         except StructuralResolutionRefused as exc:
             last = exc
