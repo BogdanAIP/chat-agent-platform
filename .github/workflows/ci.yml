@@ -47,7 +47,8 @@ jobs:
             'scripts/stage26-windows-hot-runtime-fixture.ps1',
             'scripts/stage26-windows-hot-runtime-benchmark.ps1',
             'scripts/stage26-window-scoped-uia-benchmark.ps1',
-            'scripts/stage26-desktop-observation-qualification.ps1'
+            'scripts/stage26-desktop-observation-qualification.ps1',
+            'scripts/stage26-desktop-grounder-qualification.ps1'
           )) {
             $tokens = $null
             $errors = $null
