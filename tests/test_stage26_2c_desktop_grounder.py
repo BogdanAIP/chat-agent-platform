@@ -188,6 +188,65 @@ class DesktopGrounderContractTests(unittest.TestCase):
         self.assertEqual(outcome.diagnostics.pass2_labels, ())
         self.assertEqual(transport.calls, 2)
 
+    def test_leading_ordinal_alias_can_recover_one_inventory_label(self):
+        image = _png()
+        state = _state(image)
+        client, transport = _client(
+            [
+                '[{"label":"Save","bbox":[0.10,0.20,0.30,0.40]}]',
+                '[{"label":"Save","bbox":[0.10,0.20,0.30,0.40]}]',
+                '[{"label":"Save","bbox":[0.25,0.25,0.75,0.75]}]',
+            ]
+        )
+        outcome = ground_desktop_target(
+            client=client,
+            window_png=image,
+            target_text="1. Save",
+            desktop_state=state,
+        )
+        self.assertEqual(outcome.status, "proposal")
+        self.assertEqual(outcome.reason, "grounder-accepted-ordinal-alias-proposal-only")
+        self.assertEqual(outcome.diagnostics.decision, "accepted")
+        self.assertEqual(outcome.diagnostics.inventory_match_count, 1)
+        self.assertEqual(transport.calls, 3)
+        self.assertIsNotNone(outcome.proposal)
+        assert outcome.proposal is not None
+        self.assertEqual(outcome.proposal.target_text, "1. Save")
+        self.assertTrue(outcome.proposal.method.endswith("+desktop_ordinal_alias"))
+
+    def test_ordinal_alias_ambiguity_remains_fail_closed(self):
+        image = _png()
+        state = _state(image)
+        client, transport = _client(
+            ['[{"label":"Save","bbox":[0.10,0.20,0.30,0.40]},{"label":"Save","bbox":[0.50,0.20,0.70,0.40]}]']
+        )
+        outcome = ground_desktop_target(
+            client=client,
+            window_png=image,
+            target_text="2) Save",
+            desktop_state=state,
+        )
+        self.assertEqual(outcome.status, "abstain")
+        self.assertEqual(outcome.reason, "grounder-ordinal-alias-ambiguous")
+        self.assertIsNone(outcome.proposal)
+        self.assertEqual(transport.calls, 1)
+
+    def test_ordinal_alias_is_not_general_fuzzy_matching(self):
+        image = _png()
+        state = _state(image)
+        client, transport = _client(
+            ['[{"label":"Save","bbox":[0.10,0.20,0.30,0.40]}]']
+        )
+        outcome = ground_desktop_target(
+            client=client,
+            window_png=image,
+            target_text="1. Save now",
+            desktop_state=state,
+        )
+        self.assertEqual(outcome.status, "abstain")
+        self.assertEqual(outcome.reason, "grounder-inventory-absent")
+        self.assertEqual(transport.calls, 1)
+
     def test_stale_or_wrong_frame_is_rejected_before_model_call(self):
         image = _png()
         state = replace(_state(image), screenshot_digest="0" * 64)
@@ -277,6 +336,12 @@ class DesktopGrounderSourceBoundaryTests(unittest.TestCase):
         self.assertIn("MAX_UIA_EVIDENCE = 32", self.source)
         self.assertIn("inventory_labels", self.source)
         self.assertNotIn("inventory_response=", self.source)
+
+    def test_ordinal_alias_is_narrow_and_ambiguity_fail_closed(self):
+        self.assertIn('_ORDINAL_PREFIX_RE = re.compile(r"^\\s*\\d{1,2}\\s*[.)]\\s+")', self.source)
+        self.assertIn("grounder-ordinal-alias-ambiguous", self.source)
+        self.assertNotIn("levenshtein", self.source.casefold())
+        self.assertNotIn("difflib", self.source.casefold())
 
 
 if __name__ == "__main__":
