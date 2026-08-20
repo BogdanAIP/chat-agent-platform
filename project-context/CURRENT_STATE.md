@@ -21,7 +21,7 @@ ordinary ChatGPT
   -> focused local capabilities
 ```
 
-Current public semantic tool names remain exactly:
+Current public semantic tools remain exactly:
 
 ```text
 workspace_read
@@ -31,7 +31,7 @@ web_observe
 web_interact
 ```
 
-1MCP remains internal diagnostic/adaptive/aggregation infrastructure. Local Windows components may observe, execute bounded actions, verify effects and later reuse procedures, but they must not become a second autonomous planner or expose generic code execution.
+1MCP remains internal diagnostic/adaptive/aggregation infrastructure. Generic Windows code execution remains disabled/unreachable.
 
 ---
 
@@ -52,7 +52,7 @@ CPU 8 threads
 ctx 2048
 ```
 
-Stage 25.2 target evidence remains 2 semantic HIT, 1 visual HIT, 2 correct ABSTAIN, 0 false clicks and 0 errors. Vision is proposal-only and starts only on the reviewed zero-exact-candidate browser path.
+Stage 25.2 remains structure-first; local vision is proposal-only and starts only on the reviewed zero-exact-candidate browser path.
 
 ---
 
@@ -67,17 +67,11 @@ openadapt-capture 1.2.2 @ bcf12942d61d66b64d94e645e9124273a5cc5963
 
 ## Stage 26.1B — bounded Windows Capture — ACCEPTED
 
-Exact target-tested qualification head:
-
-`7a9daa9329d81994833c22b4ca2e321927527dcc`
+Physical qualification head: `7a9daa9329d81994833c22b4ca2e321927527dcc`.
 
 ## Stage 26.1C — hardened typed Windows executor — ACCEPTED / MERGED #83
 
-Physical accepted head:
-
-`4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`
-
-Accepted: authenticated loopback agent, legacy generic exec absent/disabled, bounded typed actions, stale frame/context refusal, focus/fingerprint gates, guarded keyboard/pointer/scroll, layout-independent Unicode typing, zero false and unrelated-window actions.
+Physical accepted head: `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`.
 
 ## Stage 26.1D — warm latency baseline — ACCEPTED / MERGED #84
 
@@ -90,9 +84,7 @@ Desktop-wide UIA traversal was the dominant blocker.
 
 ## Stage 26.1E — window-scoped UIA — ACCEPTED / MERGED #85
 
-Physical accepted head:
-
-`66390aca1dadf57c4f11568ec311ad6fcdbd7596`
+Physical accepted head: `66390aca1dadf57c4f11568ec311ad6fcdbd7596`.
 
 ```text
 WINDOW_SCOPED_FIND_CALLS=97
@@ -106,34 +98,17 @@ p50=3323.570 ms
 p95=3720.061 ms
 ```
 
-This is controlled WinForms role+name evidence, not a claim of universal Windows accuracy.
+Controlled WinForms evidence only; not universal Windows accuracy.
 
 ## Stage 26.2A — Production Windows Runtime Foundation — ACCEPTED / MERGED #87
 
-Physical accepted runtime head before landing:
+Physical accepted runtime head: `6ae5c3a9e624c8c341857c025625b203b796b41c`.
 
-`6ae5c3a9e624c8c341857c025625b203b796b41c`
+Maintained runtime owns bounded actuation, verifier foundation and PID/HWND window-scoped UIA. Production benchmark preserved zero false/unrelated-window actions with about 3.410 s p50 / 3.631 s p95.
 
-Maintained runtime includes bounded actuation, verifier foundation and PID/HWND window-scoped UIA.
+## Stage 26.2B — Desktop Observation / DesktopState — ACCEPTED / MERGED #88
 
-Physical production benchmark:
-
-```text
-WINDOW_SCOPED_FIND_CALLS=97
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-FALSE_ACTION_COUNT=0
-UNRELATED_WINDOW_ACTION_COUNT=0
-p50=3410.031 ms
-p95=3630.583 ms
-```
-
-Verifier foundation is `PASS | FAIL | UNKNOWN`; action delivery is not task completion.
-
-## Stage 26.2B — Desktop Observation / DesktopState — ACCEPTED
-
-Introduced by PR #88. Exact physically tested runtime head:
+Exact physically tested runtime head:
 
 `dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
 
@@ -141,70 +116,122 @@ Evidence:
 
 `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-observation-qualification\observation-20260819-184904\result.json`
 
-Physically measured result:
-
 ```text
 SAME_IDENTITY_PASS=True
 CONTROL_CONTRACT_PASS=True
 SCREENSHOT_DIGEST_PASS=True
 FRESHNESS_CONTRACT_PASS=True
 BOUNDED_CONTROL_COUNT_PASS=True
-WINDOW_ENUM_CALLS=2
-WINDOW_NAME_MATCH_COUNT=2
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-CHROME_PROCESS_COUNT_BEFORE=11
-CHROME_PROCESS_COUNT_AFTER=11
 CHROME_SURVIVAL_PASS=True
 FIXTURE_CLEANUP_PASS=True
 PASS=True
 ```
 
-`DesktopState` is evidence only. Observation/control fingerprints are not executor authorization. Screenshot bytes are not retained in the state; the state carries digest/freshness/provenance evidence.
+`DesktopState` is evidence only; observation fingerprints are not action authorization. Screenshot bytes are not retained in the state.
 
-Self-review correction: the first qualification output also contained `ACTION_COUNT=0` and related fields, but those were declarative constants rather than instrumented counters. They are excluded from physical acceptance. The read-only boundary is established by direct code review plus CI source-boundary tests showing the observer and driver expose no executor/actuation channel.
+## Stage 26.2C — Native Desktop LFM2.5-VL Grounder — ACCEPTED
 
-Scope remains controlled WinForms read-only observation. Real-app coverage, broader AutomationId/custom-control coverage and desktop VLM remain separate future evidence.
+Introduced by PR #89. Exact physically accepted runtime head:
+
+`eadf8ff5a873936441891a66b616c83c62736152`
+
+Physical result:
+
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-grounder-qualification\grounder-20260820-050054\result.json`
+
+Exact-window screenshot:
+
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-grounder-qualification\grounder-20260820-050054\exact-window.png`
+
+Screenshot SHA-256:
+
+`b32ea145964c64de783077ed43ebc70839fab882bfd83c24931ee0f7fee8d95a`
+
+Accepted evidence:
+
+```text
+VISION_READY_PASS=True
+VISION_RESTORED_PASS=True
+POSITIVE_GROUNDER_STATUS=proposal
+POSITIVE_GROUNDER_REASON=grounder-accepted-ordinal-alias-proposal-only
+POSITIVE_DECISION=accepted
+POSITIVE_INVENTORY_DETECTION_COUNT=2
+POSITIVE_INVENTORY_MATCH_COUNT=1
+POSITIVE_INVENTORY_LABELS_JSON=["Benchmark start","Guarded list click + scroll"]
+POSITIVE_PASS2_DETECTION_COUNT=1
+POSITIVE_PASS2_LABELS_JSON=["Benchmark start"]
+SAME_FRAME_BINDING_PASS=True
+COORDINATE_CONTRACT_PASS=True
+TARGET_POINT_INSIDE_UIA_PASS=True
+TARGET_EVIDENCE_BINDING_PASS=True
+ABSENT_TARGET_ABSTAIN_PASS=True
+STALE_FRAME_REJECTION_PASS=True
+PROPOSAL_ONLY_CONTRACT_PASS=True
+DESKTOP_FALLBACK_CALLS=0
+WINDOW_BINDING_FAILURES=0
+WINDOW_BINDING_AMBIGUITIES=0
+FIXTURE_CLEANUP_PASS=True
+PASS=True
+```
+
+The local VLM detected the intended button as `Benchmark start` while the rendered fixture label was `1. Benchmark start`. Desktop matching therefore uses exact match first and a narrowly bounded ordinal-prefix alias only after `inventory-absent`; the alias must identify exactly one already-observed inventory label. General fuzzy matching is not used.
+
+Grounder output is proposal-only. It carries exact frame/window/process/coordinate evidence and explicit bounded abstain diagnostics. It does not authorize clicks, continuation or task completion.
+
+Scope remains one controlled WinForms fixture. Cross-application accuracy and action routing are not yet accepted.
 
 ---
 
 # Current critical path
 
-1. Stage 26.2C — native desktop LFM2.5-VL Grounder;
-2. Stage 26.2D — deterministic UIA -> vision routing plus adversarial accuracy suite;
-3. Stage 26.2E — one real medium-complexity application E2E with deterministic postcondition/rollback;
-4. Stage 26.3 — Verified Procedure Runtime;
-5. Stage 26.4 — Human Demo -> transferable candidate skill;
-6. Stage 27/28 — distribution, clean-user E2E and stable release.
+1. **Stage 26.2D — deterministic UIA -> vision routing + freshness authorization + adversarial accuracy suite**;
+2. Stage 26.2E — one real medium-complexity application E2E with deterministic postcondition/rollback;
+3. Stage 26.3 — Verified Procedure Runtime;
+4. Stage 26.4 — Human Demo -> transferable candidate skill;
+5. Stage 27/28 — distribution, clean-user E2E and stable release.
 
-## Stage 26.2C next boundary
+## Stage 26.2D boundary
 
-Do not reuse browser CSS/Playwright coordinates as native Windows coordinates. The desktop Grounder must consume an exact-window image and return only a proposal bound to window/frame/coordinate-space evidence. It never authorizes a click or task completion.
+Required routing remains:
+
+```text
+native/UIA structure first
+ -> exact safe element => deterministic path
+ -> promoted unresolved miss only
+      -> same-session exact-window screenshot
+      -> Stage 26.2C Grounder proposal
+      -> deterministic same-window / same-frame / target authorization
+      -> one bounded action OR ABSTAIN
+```
+
+Semantic ambiguity must not automatically escalate to vision. Current observation must be fresh before action. Model proposal is never authorization.
+
+Adversarial coverage must include duplicate labels, disabled/hidden controls, wrong process/window, stale/recreated windows, overlays/focus change, AutomationId, role+name, custom/weak UIA, UIA-missing visual fallback and visual ambiguity -> ABSTAIN. Measure false-action and unrelated-window rates explicitly.
 
 ## Merge policy
 
-When a branch is logically complete, intended diff is reviewed, required physical/CI tests pass, and applicable review/acceptance checks are satisfied, merge it without waiting for a separate merge command.
+When a branch is logically complete, intended diff is reviewed, required physical/CI tests pass and applicable review/acceptance checks are satisfied, merge it without waiting for a separate merge command.
 
-If there is an unresolved finding, conflict, ambiguous scope, failed/skipped required test or unavailable required review evidence, stop and surface the blocker.
+Stop instead on unresolved findings, conflict, ambiguous scope or failed/skipped required evidence.
 
 ---
 
 # Optional / parallel work
 
-Procedure-state datasets and TRM/STARM/FPRM/small-model experiments remain optional research after real verified data and measured need. They are not Stage 27/28 prerequisites.
-
-Multi-chat orchestration remains a separate upper layer. Under the current operating constraint it must not use Codex or Work resources.
+Procedure-state datasets and TRM/STARM/FPRM/small-model experiments remain optional research after real verified data and measured need. Multi-chat orchestration remains a separate upper layer and must not use Codex/Work under the current constraint.
 
 ---
 
 # Residual risks
 
 - fixture results are not cross-application accuracy evidence;
-- desktop Grounder/routing is not yet implemented;
+- UIA -> vision authorization/routing is not yet accepted;
 - real application Windows E2E is not accepted;
 - procedural runtime/product trust adapter is not integrated;
-- screenshot -> coordinate action will remain a narrow freshness/TOCTOU boundary that must fail closed;
+- screenshot -> coordinate action remains a narrow freshness/TOCTOU boundary that must fail closed;
 - browser DNS/rebinding/private-network isolation remains incomplete;
 - Python/model/OpenAdapt packaging is not release-grade;
 - raw demonstration retention/redaction/encryption policy is not accepted;
