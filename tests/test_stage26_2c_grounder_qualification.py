@@ -18,10 +18,13 @@ class DesktopGrounderQualificationBoundaryTests(unittest.TestCase):
 
     def test_driver_uses_production_observer_grounder_and_exact_window_capture(self):
         self.assertIn("observe_bound_window", self.driver)
-        self.assertIn("locate_desktop_target", self.driver)
+        self.assertIn("ground_desktop_target", self.driver)
         self.assertIn("NativeBBoxLoopbackClient", self.driver)
         self.assertIn("with mss.MSS() as capture:", self.driver)
         self.assertIn('screenshot_source="mss_exact_bound_window"', self.driver)
+        self.assertIn('screenshot_path = run_dir / "exact-window.png"', self.driver)
+        self.assertIn("screenshot_path.write_bytes(screenshot)", self.driver)
+        self.assertIn('"screenshot_sha256"', self.driver)
         self.assertIn('"grounder_source_sha256"', self.driver)
         self.assertIn('"observer_source_sha256"', self.driver)
 
@@ -31,6 +34,16 @@ class DesktopGrounderQualificationBoundaryTests(unittest.TestCase):
         self.assertIn("control.name == TARGET_UIA_NAME", self.driver)
         self.assertIn("target_text=TARGET_VISIBLE_TEXT", self.driver)
         self.assertNotIn('TARGET_TEXT = "Stage 26 start button"', self.driver)
+
+    def test_driver_preserves_positive_and_absent_diagnostics_without_early_abort(self):
+        self.assertIn('"positive_grounding": None', self.driver)
+        self.assertIn('"absent_grounding": None', self.driver)
+        self.assertIn('result["positive_grounding"] = positive.to_mapping()', self.driver)
+        self.assertIn('result["absent_grounding"] = absent.to_mapping()', self.driver)
+        self.assertIn("POSITIVE_GROUNDER_REASON=", self.driver)
+        self.assertIn("POSITIVE_INVENTORY_LABELS_JSON=", self.driver)
+        self.assertIn("POSITIVE_PASS2_LABELS_JSON=", self.driver)
+        self.assertNotIn('raise RuntimeError("grounder abstained on the expected visible target")', self.driver)
 
     def test_driver_has_no_action_channel(self):
         for token in (
@@ -47,8 +60,10 @@ class DesktopGrounderQualificationBoundaryTests(unittest.TestCase):
         self.assertNotIn('"unrelated_window_action_count"', self.driver)
 
     def test_driver_requires_positive_target_absent_and_stale_frame_gates(self):
+        self.assertIn('positive.status == "proposal"', self.driver)
         self.assertIn('"target_point_inside_uia_pass"', self.driver)
         self.assertIn('"absent_target_abstain_pass"', self.driver)
+        self.assertIn('absent.status == "abstain"', self.driver)
         self.assertIn('"stale_frame_rejection_pass"', self.driver)
         self.assertIn("screenshot-digest-mismatch", self.driver)
 
