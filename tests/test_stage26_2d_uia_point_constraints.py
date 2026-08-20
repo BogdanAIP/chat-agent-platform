@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import datetime, timezone
 from io import BytesIO
 import unittest
@@ -30,7 +29,13 @@ def _png() -> bytes:
     return buffer.getvalue()
 
 
-def _state(*, enabled: bool | None = True, visible: bool | None = True, screenshot: bool):
+def _state(
+    *,
+    role: str = "button",
+    enabled: bool | None = True,
+    visible: bool | None = True,
+    screenshot: bool,
+):
     png = _png() if screenshot else None
     return ObservedDesktopFrame(
         state=build_desktop_state(
@@ -44,9 +49,9 @@ def _state(*, enabled: bool | None = True, visible: bool | None = True, screensh
             window_bounds=Rect(100, 50, 500, 350),
             controls=[
                 {
-                    "role": "button",
+                    "role": role,
                     "name": "Accessible name differs",
-                    "automation_id": "button1",
+                    "automation_id": "control1",
                     "bounds": {"left": 140, "top": 110, "right": 260, "bottom": 170},
                     "enabled": enabled,
                     "visible": visible,
@@ -120,15 +125,18 @@ class _Sequence:
 
 
 class UiaPointConstraintTests(unittest.TestCase):
+    def _request(self, *, role: str | None = "button") -> DesktopClickRequest:
+        return DesktopClickRequest(
+            window_name="Fixture",
+            target_text="Rendered visual target",
+            role=role,
+            vision_fallback=VISION_FALLBACK_ZERO_EXACT,
+        )
+
     def test_visual_fallback_requires_explicit_role(self):
         initial = _state(screenshot=False)
         result = route_desktop_click(
-            request=DesktopClickRequest(
-                window_name="Fixture",
-                target_text="Rendered visual target",
-                role=None,
-                vision_fallback=VISION_FALLBACK_ZERO_EXACT,
-            ),
+            request=self._request(role=None),
             observe=_Sequence([initial]),
             ground=lambda *_args: (_ for _ in ()).throw(AssertionError("grounder must not run")),
             execute_structural=lambda *_args: (_ for _ in ()).throw(AssertionError("no action")),
@@ -148,12 +156,7 @@ class UiaPointConstraintTests(unittest.TestCase):
             raise AssertionError("disabled UIA evidence must block action")
 
         result = route_desktop_click(
-            request=DesktopClickRequest(
-                window_name="Fixture",
-                target_text="Rendered visual target",
-                role="button",
-                vision_fallback=VISION_FALLBACK_ZERO_EXACT,
-            ),
+            request=self._request(),
             observe=_Sequence([initial, visual]),
             ground=lambda frame, *_args: _outcome(frame),
             execute_structural=lambda *_args: (_ for _ in ()).throw(AssertionError("no structural action")),
@@ -167,12 +170,7 @@ class UiaPointConstraintTests(unittest.TestCase):
         initial = _state(enabled=None, screenshot=False)
         visual = _state(enabled=None, screenshot=True)
         result = route_desktop_click(
-            request=DesktopClickRequest(
-                window_name="Fixture",
-                target_text="Rendered visual target",
-                role="button",
-                vision_fallback=VISION_FALLBACK_ZERO_EXACT,
-            ),
+            request=self._request(),
             observe=_Sequence([initial, visual]),
             ground=lambda frame, *_args: _outcome(frame),
             execute_structural=lambda *_args: (_ for _ in ()).throw(AssertionError("no structural action")),
@@ -182,23 +180,30 @@ class UiaPointConstraintTests(unittest.TestCase):
         self.assertEqual(result.reason, "vision-proposal-evidence-mismatch")
 
     def test_no_same_role_uia_at_point_keeps_weak_uia_visual_path_possible(self):
-        initial = _state(screenshot=False)
-        visual = _state(screenshot=True)
-        # Change the observed control to another role, leaving the visual point
-        # without same-role UIA authority rather than treating foreign structure
-        # as permission or prohibition.
-        initial_state = replace(
-            initial.state,
-            controls=tuple(replace(control, role="text") for control in initial.state.controls),
+        initial = _state(role="text", screenshot=False)
+        visual = _state(role="text", screenshot=True)
+        fresh = _state(role="text", screenshot=True)
+        coordinate_calls = 0
+
+        def execute_coordinate(*_args):
+            nonlocal coordinate_calls
+            coordinate_calls += 1
+            return {
+                "status": "delivered",
+                "operation": "physical_click",
+                "outcome_verified": False,
+            }
+
+        result = route_desktop_click(
+            request=self._request(),
+            observe=_Sequence([initial, visual, fresh]),
+            ground=lambda frame, *_args: _outcome(frame),
+            execute_structural=lambda *_args: (_ for _ in ()).throw(AssertionError("no structural action")),
+            execute_coordinate=execute_coordinate,
         )
-        visual_state = replace(
-            visual.state,
-            controls=tuple(replace(control, role="text") for control in visual.state.controls),
-        )
-        # Rebuilding frame digests is outside this synthetic policy test, so use
-        # a no-op role that does not cover the point instead.
-        self.assertNotEqual(initial_state.controls[0].role, "button")
-        self.assertNotEqual(visual_state.controls[0].role, "button")
+        self.assertEqual(result.status, "delivered")
+        self.assertEqual(result.route, "vision")
+        self.assertEqual(coordinate_calls, 1)
 
 
 if __name__ == "__main__":
