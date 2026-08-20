@@ -45,6 +45,7 @@ function Invoke-VisionRuntimeJson {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $driverPath = Join-Path $PSScriptRoot 'stage26-desktop-routing-qualification.py'
 $routerPath = Join-Path $repoRoot 'runtime\windows\routing.py'
+$guardPath = Join-Path $repoRoot 'runtime\windows\native_point_guard.py'
 $grounderPath = Join-Path $repoRoot 'runtime\windows\grounder.py'
 $observationPath = Join-Path $repoRoot 'runtime\windows\observation.py'
 $actuationPath = Join-Path $repoRoot 'runtime\windows\actuation.py'
@@ -52,8 +53,8 @@ $resolverPath = Join-Path $repoRoot 'runtime\windows\window_scoped_uia.py'
 $fixturePath = Join-Path $PSScriptRoot 'stage26-windows-hot-runtime-fixture.ps1'
 $visionRuntimePath = Join-Path $PSScriptRoot 'local-vision-runtime.ps1'
 foreach ($required in @(
-    $driverPath, $routerPath, $grounderPath, $observationPath, $actuationPath,
-    $resolverPath, $fixturePath, $visionRuntimePath
+    $driverPath, $routerPath, $guardPath, $grounderPath, $observationPath,
+    $actuationPath, $resolverPath, $fixturePath, $visionRuntimePath
 )) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Required Stage 26.2D asset is missing: $required"
@@ -81,9 +82,10 @@ $visionStartedByHarness = $false
 $visionRestored = $false
 
 $result = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     project_head = $null
     production_router_path = $routerPath
+    production_native_point_guard_path = $guardPath
     production_grounder_path = $grounderPath
     production_observation_path = $observationPath
     production_actuation_path = $actuationPath
@@ -97,6 +99,9 @@ $result = [ordered]@{
     agent_loopback_pass = $false
     agent_auth_required_pass = $false
     legacy_capability_absent_pass = $false
+    native_point_guard_preflight_pass = $false
+    native_point_guard_wrong_window_refusal_pass = $false
+    native_point_guard_delivery_pass = $false
     vision_disabled_abstain_pass = $false
     role_conflict_abstain_pass = $false
     negative_zero_action_pass = $false
@@ -110,6 +115,7 @@ $result = [ordered]@{
     coordinate_executor_calls = $null
     grounder_calls = $null
     router_source_sha256 = $null
+    native_point_guard_source_sha256 = $null
     observer_source_sha256 = $null
     grounder_source_sha256 = $null
     actuation_source_sha256 = $null
@@ -131,6 +137,7 @@ try {
     Write-Host ''
     Write-Host '===== STAGE 26.2D WINDOWS VISION ROUTING QUALIFICATION =====' -ForegroundColor Cyan
     Write-Host 'One guarded visual fallback click after fresh exact-window re-observation.' -ForegroundColor Yellow
+    Write-Host 'Foreground/hit-test guard is checked before any coordinate mutation.' -ForegroundColor Yellow
     Write-Host 'Do not move, cover, click or type into the fixture during the run.' -ForegroundColor Yellow
 
     $visionStatusBefore = Invoke-VisionRuntimeJson -Path $visionRuntimePath -Action 'Status'
@@ -191,17 +198,19 @@ try {
     $result.driver_pass = [bool]$driver.pass
     foreach ($name in @(
         'agent_loopback_pass', 'agent_auth_required_pass', 'legacy_capability_absent_pass',
-        'vision_disabled_abstain_pass', 'role_conflict_abstain_pass', 'negative_zero_action_pass',
-        'positive_visual_route_pass', 'fresh_reobservation_pass', 'guarded_click_receipt_pass',
+        'native_point_guard_preflight_pass', 'native_point_guard_wrong_window_refusal_pass',
+        'native_point_guard_delivery_pass', 'vision_disabled_abstain_pass',
+        'role_conflict_abstain_pass', 'negative_zero_action_pass', 'positive_visual_route_pass',
+        'fresh_reobservation_pass', 'guarded_click_receipt_pass',
         'fixture_start_postcondition_pass', 'fixture_no_extra_mutation_pass', 'single_action_pass'
     )) {
         $result[$name] = [bool]$driver.$name
     }
     foreach ($name in @(
         'structural_executor_calls', 'coordinate_executor_calls', 'grounder_calls',
-        'router_source_sha256', 'observer_source_sha256', 'grounder_source_sha256',
-        'actuation_source_sha256', 'driver_source_sha256', 'screenshot_paths',
-        'screenshot_sha256', 'resolver_stats'
+        'router_source_sha256', 'native_point_guard_source_sha256', 'observer_source_sha256',
+        'grounder_source_sha256', 'actuation_source_sha256', 'driver_source_sha256',
+        'screenshot_paths', 'screenshot_sha256', 'resolver_stats'
     )) {
         $result[$name] = $driver.$name
     }
@@ -259,12 +268,13 @@ Write-Host '===== STAGE 26.2D WINDOWS VISION ROUTING RESULT =====' -ForegroundCo
 foreach ($name in @(
     'RESULT_PATH','PROJECT_HEAD','VISION_PROFILE','VISION_PORT','VISION_STARTED_BY_HARNESS',
     'VISION_READY_PASS','VISION_RESTORED_PASS','AGENT_LOOPBACK_PASS','AGENT_AUTH_REQUIRED_PASS',
-    'LEGACY_CAPABILITY_ABSENT_PASS','VISION_DISABLED_ABSTAIN_PASS','ROLE_CONFLICT_ABSTAIN_PASS',
-    'NEGATIVE_ZERO_ACTION_PASS','POSITIVE_VISUAL_ROUTE_PASS','FRESH_REOBSERVATION_PASS',
-    'GUARDED_CLICK_RECEIPT_PASS','FIXTURE_START_POSTCONDITION_PASS',
-    'FIXTURE_NO_EXTRA_MUTATION_PASS','SINGLE_ACTION_PASS','STRUCTURAL_EXECUTOR_CALLS',
-    'COORDINATE_EXECUTOR_CALLS','GROUNDER_CALLS','FIXTURE_KILLED','FIXTURE_CLEANUP_PASS',
-    'DRIVER_ERROR','ERROR'
+    'LEGACY_CAPABILITY_ABSENT_PASS','NATIVE_POINT_GUARD_PREFLIGHT_PASS',
+    'NATIVE_POINT_GUARD_WRONG_WINDOW_REFUSAL_PASS','NATIVE_POINT_GUARD_DELIVERY_PASS',
+    'VISION_DISABLED_ABSTAIN_PASS','ROLE_CONFLICT_ABSTAIN_PASS','NEGATIVE_ZERO_ACTION_PASS',
+    'POSITIVE_VISUAL_ROUTE_PASS','FRESH_REOBSERVATION_PASS','GUARDED_CLICK_RECEIPT_PASS',
+    'FIXTURE_START_POSTCONDITION_PASS','FIXTURE_NO_EXTRA_MUTATION_PASS','SINGLE_ACTION_PASS',
+    'STRUCTURAL_EXECUTOR_CALLS','COORDINATE_EXECUTOR_CALLS','GROUNDER_CALLS',
+    'NATIVE_POINT_GUARD_SOURCE_SHA256','FIXTURE_KILLED','FIXTURE_CLEANUP_PASS','DRIVER_ERROR','ERROR'
 )) {
     switch ($name) {
         'RESULT_PATH' { Write-Flag $name $resultPath }
@@ -288,6 +298,9 @@ $accepted = [bool](
     $result.agent_loopback_pass -and
     $result.agent_auth_required_pass -and
     $result.legacy_capability_absent_pass -and
+    $result.native_point_guard_preflight_pass -and
+    $result.native_point_guard_wrong_window_refusal_pass -and
+    $result.native_point_guard_delivery_pass -and
     $result.vision_disabled_abstain_pass -and
     $result.role_conflict_abstain_pass -and
     $result.negative_zero_action_pass -and
