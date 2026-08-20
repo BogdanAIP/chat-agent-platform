@@ -82,7 +82,7 @@ $visionStartedByHarness = $false
 $visionRestored = $false
 
 $result = [ordered]@{
-    schema_version = 2
+    schema_version = 3
     project_head = $null
     production_router_path = $routerPath
     production_native_point_guard_path = $guardPath
@@ -105,6 +105,9 @@ $result = [ordered]@{
     vision_disabled_abstain_pass = $false
     role_conflict_abstain_pass = $false
     negative_zero_action_pass = $false
+    positive_route_status = $null
+    positive_route_reason = $null
+    positive_consistency_iou = $null
     positive_visual_route_pass = $false
     fresh_reobservation_pass = $false
     guarded_click_receipt_pass = $false
@@ -207,6 +210,7 @@ try {
         $result[$name] = [bool]$driver.$name
     }
     foreach ($name in @(
+        'positive_route_status', 'positive_route_reason', 'positive_consistency_iou',
         'structural_executor_calls', 'coordinate_executor_calls', 'grounder_calls',
         'router_source_sha256', 'native_point_guard_source_sha256', 'observer_source_sha256',
         'grounder_source_sha256', 'actuation_source_sha256', 'driver_source_sha256',
@@ -271,6 +275,7 @@ foreach ($name in @(
     'LEGACY_CAPABILITY_ABSENT_PASS','NATIVE_POINT_GUARD_PREFLIGHT_PASS',
     'NATIVE_POINT_GUARD_WRONG_WINDOW_REFUSAL_PASS','NATIVE_POINT_GUARD_DELIVERY_PASS',
     'VISION_DISABLED_ABSTAIN_PASS','ROLE_CONFLICT_ABSTAIN_PASS','NEGATIVE_ZERO_ACTION_PASS',
+    'POSITIVE_ROUTE_STATUS','POSITIVE_ROUTE_REASON','POSITIVE_CONSISTENCY_IOU',
     'POSITIVE_VISUAL_ROUTE_PASS','FRESH_REOBSERVATION_PASS','GUARDED_CLICK_RECEIPT_PASS',
     'FIXTURE_START_POSTCONDITION_PASS','FIXTURE_NO_EXTRA_MUTATION_PASS','SINGLE_ACTION_PASS',
     'STRUCTURAL_EXECUTOR_CALLS','COORDINATE_EXECUTOR_CALLS','GROUNDER_CALLS',
