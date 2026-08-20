@@ -7,7 +7,7 @@ import math
 import time
 from typing import Any, Callable, Mapping, Protocol
 
-from .grounder import DesktopGroundingResult, GrounderProposal
+from .grounder import DesktopGroundingResult, GrounderProposal, GrounderRegion
 from .observation import ControlObservation, DesktopState, Rect
 
 
@@ -125,18 +125,13 @@ def _parse_observed_at(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def _require_recent(
-    state: DesktopState,
-    *,
-    max_age_seconds: float,
-    now: datetime | None = None,
-) -> None:
+def _require_recent(state: DesktopState, *, max_age_seconds: float) -> None:
     if isinstance(max_age_seconds, bool) or not isinstance(max_age_seconds, (int, float)):
         raise DesktopRoutingError("max observation age must be numeric")
     if not 0 < float(max_age_seconds) <= 30.0:
         raise DesktopRoutingError("max observation age is outside the bounded contract")
     observed = _parse_observed_at(state.observed_at)
-    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    current = datetime.now(timezone.utc)
     age = (current - observed).total_seconds()
     if age < -2.0 or age > float(max_age_seconds):
         raise DesktopRoutingError("desktop-state-not-fresh")
@@ -208,11 +203,7 @@ def _structural_classification(
     controls = state.controls
 
     if request.automation_id is not None:
-        matches = tuple(
-            control
-            for control in controls
-            if control.automation_id == request.automation_id
-        )
+        matches = tuple(control for control in controls if control.automation_id == request.automation_id)
         if not matches:
             return "automation-id-miss", None
         if len(matches) > 1:
@@ -262,11 +253,7 @@ def _abstain(
     )
 
 
-def _validate_receipt(
-    receipt: Mapping[str, Any],
-    *,
-    expected_route: str,
-) -> Mapping[str, Any]:
+def _validate_receipt(receipt: Mapping[str, Any], *, expected_route: str) -> Mapping[str, Any]:
     if not isinstance(receipt, Mapping):
         raise DesktopRoutingError("executor returned an invalid receipt")
     if receipt.get("status") != "delivered":
@@ -292,9 +279,48 @@ def _point_inside(bounds: Rect, x: float, y: float) -> bool:
     )
 
 
-def _proposal_matches_state(proposal: GrounderProposal, state: DesktopState) -> bool:
+def _point_inside_region(region: GrounderRegion, x: float, y: float) -> bool:
+    return (
+        math.isfinite(x)
+        and math.isfinite(y)
+        and region.left <= x <= region.right
+        and region.top <= y <= region.bottom
+    )
+
+
+def _proposal_matches_state(
+    proposal: GrounderProposal,
+    state: DesktopState,
+    request: DesktopClickRequest,
+    *,
+    require_uia_evidence: bool,
+) -> bool:
+    left = float(state.window_bounds.left)
+    top = float(state.window_bounds.top)
+    width = float(state.window_bounds.width)
+    height = float(state.window_bounds.height)
+    translated_point = (
+        abs(proposal.screen_point.x - (proposal.window_point.x + left)) < 1e-6
+        and abs(proposal.screen_point.y - (proposal.window_point.y + top)) < 1e-6
+    )
+    translated_region = (
+        abs(proposal.screen_region.left - (proposal.window_region.left + left)) < 1e-6
+        and abs(proposal.screen_region.top - (proposal.window_region.top + top)) < 1e-6
+        and abs(proposal.screen_region.right - (proposal.window_region.right + left)) < 1e-6
+        and abs(proposal.screen_region.bottom - (proposal.window_region.bottom + top)) < 1e-6
+    )
+    local_region_valid = bool(
+        0.0 <= proposal.window_region.left < proposal.window_region.right <= width
+        and 0.0 <= proposal.window_region.top < proposal.window_region.bottom <= height
+        and _point_inside_region(
+            proposal.window_region,
+            proposal.window_point.x,
+            proposal.window_point.y,
+        )
+    )
     return bool(
-        proposal.session_id == state.session_id
+        _normalize_text(proposal.target_text) == _normalize_text(request.target_text)
+        and proposal.session_id == state.session_id
         and proposal.application_identity == state.application_identity
         and proposal.process_id == state.process_id
         and proposal.process_generation == state.process_generation
@@ -304,8 +330,15 @@ def _proposal_matches_state(proposal: GrounderProposal, state: DesktopState) -> 
         and proposal.screenshot_digest == state.screenshot_digest
         and proposal.image_coordinate_space == "window_physical_px"
         and proposal.coordinate_space == "screen_physical_px"
-        and _point_inside(
-            state.window_bounds,
+        and proposal.confidence is None
+        and proposal.confidence_basis == "uncalibrated-model-proposal"
+        and (not require_uia_evidence or bool(proposal.uia_evidence_digest))
+        and translated_point
+        and translated_region
+        and local_region_valid
+        and _point_inside(state.window_bounds, proposal.screen_point.x, proposal.screen_point.y)
+        and _point_inside_region(
+            proposal.screen_region,
             proposal.screen_point.x,
             proposal.screen_point.y,
         )
@@ -329,8 +362,7 @@ def _bounded_uia_evidence(
     relevant = tuple(
         control
         for control in state.controls
-        if control.visible is not False
-        and (request.role is None or _role_matches(control, request))
+        if control.visible is not False and (request.role is None or _role_matches(control, request))
     )
     return relevant[:32]
 
@@ -346,29 +378,21 @@ def route_desktop_click(
 ) -> DesktopRoutingResult:
     """Route one click through structure first, then explicitly promoted vision.
 
-    Vision is never authorization.  A visual proposal is executable only when
-    a new exact-window observation has the same process/window identity and the
-    same frame/screenshot digests.  Structural ambiguity, disabled/hidden
+    Vision is never authorization. A visual proposal is executable only when a
+    new exact-window observation has the same process/window identity and the
+    same frame/screenshot digests. Structural ambiguity, disabled/hidden
     controls, role conflicts and AutomationId misses do not escalate to vision.
     Delivery is not task completion and the returned receipt must say so.
     """
 
     request = _validate_request(request)
     initial = observe(False)
-    _validate_frame(
-        initial,
-        require_screenshot=False,
-        max_age_seconds=max_observation_age_seconds,
-    )
+    _validate_frame(initial, require_screenshot=False, max_age_seconds=max_observation_age_seconds)
 
     classification, control = _structural_classification(initial.state, request)
     if classification == "structural-exact":
         fresh = observe(False)
-        _validate_frame(
-            fresh,
-            require_screenshot=False,
-            max_age_seconds=max_observation_age_seconds,
-        )
+        _validate_frame(fresh, require_screenshot=False, max_age_seconds=max_observation_age_seconds)
         if not _same_window(initial.state, fresh.state):
             return _abstain(initial=initial.state, reason="window-changed-before-structural-action")
         fresh_classification, fresh_control = _structural_classification(fresh.state, request)
@@ -391,27 +415,19 @@ def route_desktop_click(
 
     if classification != "structural-miss":
         return _abstain(initial=initial.state, reason=classification)
-
     if request.vision_fallback != VISION_FALLBACK_ZERO_EXACT:
         return _abstain(initial=initial.state, reason="vision-fallback-not-promoted")
 
     visual = observe(True)
-    _validate_frame(
-        visual,
-        require_screenshot=True,
-        max_age_seconds=max_observation_age_seconds,
-    )
+    _validate_frame(visual, require_screenshot=True, max_age_seconds=max_observation_age_seconds)
     if not _same_window(initial.state, visual.state):
         return _abstain(initial=initial.state, reason="window-changed-before-vision")
     visual_classification, _ = _structural_classification(visual.state, request)
     if visual_classification != "structural-miss":
         return _abstain(initial=initial.state, reason="structure-changed-before-vision")
 
-    grounding = ground(
-        visual,
-        request,
-        _bounded_uia_evidence(visual.state, request),
-    )
+    uia_evidence = _bounded_uia_evidence(visual.state, request)
+    grounding = ground(visual, request, uia_evidence)
     if not isinstance(grounding, DesktopGroundingResult):
         raise DesktopRoutingError("grounder returned an invalid result")
     if grounding.status != "proposal" or grounding.proposal is None:
@@ -421,7 +437,12 @@ def route_desktop_click(
             route="vision",
         )
     proposal = grounding.proposal
-    if not _proposal_matches_state(proposal, visual.state):
+    if not _proposal_matches_state(
+        proposal,
+        visual.state,
+        request,
+        require_uia_evidence=bool(uia_evidence),
+    ):
         return _abstain(
             initial=initial.state,
             reason="vision-proposal-evidence-mismatch",
@@ -430,11 +451,7 @@ def route_desktop_click(
         )
 
     fresh = observe(True)
-    _validate_frame(
-        fresh,
-        require_screenshot=True,
-        max_age_seconds=max_observation_age_seconds,
-    )
+    _validate_frame(fresh, require_screenshot=True, max_age_seconds=max_observation_age_seconds)
     if not _same_window(visual.state, fresh.state):
         return _abstain(
             initial=initial.state,
@@ -464,7 +481,12 @@ def route_desktop_click(
             route="vision",
             proposal=proposal,
         )
-    if not _proposal_matches_state(proposal, fresh.state):
+    if not _proposal_matches_state(
+        proposal,
+        fresh.state,
+        request,
+        require_uia_evidence=bool(uia_evidence),
+    ):
         return _abstain(
             initial=initial.state,
             reason="vision-proposal-stale",
@@ -512,11 +534,7 @@ def execute_structural_click_with_backend(
     _control: ControlObservation,
     _state: DesktopState,
 ) -> Mapping[str, Any]:
-    """Execute one independently re-resolved native UIA click.
-
-    Imports are lazy so ordinary observation/runtime use does not inherit the
-    OpenAdapt backend dependency merely by importing this module.
-    """
+    """Execute one independently re-resolved native UIA click."""
 
     from openadapt_flow.ir import StructuralLocator
 
@@ -542,10 +560,9 @@ def execute_guarded_coordinate_click_with_backend(
 ) -> Mapping[str, Any]:
     """Execute one physically guarded coordinate click from an authorized proposal.
 
-    The router has already re-observed the exact window.  This second boundary
+    The router has already re-observed the exact window. This second boundary
     reuses the physically accepted Stage 26.1C guarded-coordinate mechanism,
-    which binds the actual click to a fresh backend screenshot immediately
-    before delivery.
+    binding the click to a fresh backend screenshot immediately before delivery.
     """
 
     from openadapt_flow.backend import StructuralResolutionRefused
@@ -561,11 +578,7 @@ def execute_guarded_coordinate_click_with_backend(
             backend.arm_guarded_coordinate(x, y)
             frame = backend.screenshot()
             digest = hashlib.sha256(frame).hexdigest()
-            receipt = backend.act_guarded_coordinate(
-                x,
-                y,
-                expected_frame_sha256=digest,
-            )
+            receipt = backend.act_guarded_coordinate(x, y, expected_frame_sha256=digest)
             return _receipt_mapping(receipt)
         except StructuralResolutionRefused as exc:
             last = exc
