@@ -124,7 +124,7 @@ def main() -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     result: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "qualification_kind": "windows-structure-first-vision-routing",
         "router_source_sha256": _sha256(router_path),
         "native_point_guard_source_sha256": _sha256(guard_path),
@@ -142,6 +142,9 @@ def main() -> int:
         "vision_disabled_probe": None,
         "role_conflict_probe": None,
         "positive_route": None,
+        "positive_route_status": None,
+        "positive_route_reason": None,
+        "positive_consistency_iou": None,
         "vision_disabled_abstain_pass": False,
         "role_conflict_abstain_pass": False,
         "negative_zero_action_pass": False,
@@ -358,16 +361,27 @@ def main() -> int:
             execute_coordinate=execute_coordinate,
         )
         result["positive_route"] = positive.to_mapping()
+        result["positive_route_status"] = positive.status
+        result["positive_route_reason"] = positive.reason
         proposal = positive.proposal
+        result["positive_consistency_iou"] = (
+            proposal.consistency_iou if proposal is not None else None
+        )
         result["positive_visual_route_pass"] = bool(
             positive.status == "delivered"
             and positive.route == "vision"
             and positive.reason == "vision-zero-exact-delivered"
             and proposal is not None
         )
+        if not result["positive_visual_route_pass"]:
+            raise RuntimeError(
+                "positive visual route did not deliver: "
+                f"status={positive.status} reason={positive.reason} "
+                f"consistency_iou={result['positive_consistency_iou']}"
+            )
+
         result["fresh_reobservation_pass"] = bool(
-            proposal is not None
-            and positive.authorized_frame_digest == proposal.frame_digest
+            positive.authorized_frame_digest == proposal.frame_digest
             and len(result["screenshot_sha256"]) >= 2
             and result["screenshot_sha256"][-1] == proposal.screenshot_digest
             and result["screenshot_sha256"][-2] == proposal.screenshot_digest
@@ -455,6 +469,9 @@ def main() -> int:
         "vision_disabled_abstain_pass",
         "role_conflict_abstain_pass",
         "negative_zero_action_pass",
+        "positive_route_status",
+        "positive_route_reason",
+        "positive_consistency_iou",
         "positive_visual_route_pass",
         "fresh_reobservation_pass",
         "guarded_click_receipt_pass",
