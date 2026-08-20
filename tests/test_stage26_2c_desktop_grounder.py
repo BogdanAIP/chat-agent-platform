@@ -10,6 +10,7 @@ from PIL import Image
 from runtime.local_vision_adapter.native_bbox import NativeBBoxLoopbackClient
 from runtime.windows.grounder import (
     DesktopGrounderError,
+    ground_desktop_target,
     locate_desktop_target,
 )
 from runtime.windows.observation import Rect, build_desktop_state
@@ -81,20 +82,29 @@ class DesktopGrounderContractTests(unittest.TestCase):
             ]
         )
 
-        proposal = locate_desktop_target(
+        outcome = ground_desktop_target(
             client=client,
             window_png=image,
             target_text="Save",
             desktop_state=state,
             uia_evidence=[state.controls[0]],
         )
+        proposal = outcome.proposal
 
+        self.assertEqual(outcome.status, "proposal")
+        self.assertEqual(outcome.reason, "grounder-accepted-proposal-only")
+        self.assertEqual(outcome.diagnostics.decision, "accepted")
+        self.assertEqual(outcome.diagnostics.inventory_labels, ("Save",))
+        self.assertEqual(outcome.diagnostics.pass2_labels, ("Save",))
         self.assertIsNotNone(proposal)
         assert proposal is not None
         self.assertEqual(transport.calls, 2)
         self.assertEqual(proposal.frame_digest, state.frame_digest)
         self.assertEqual(proposal.screenshot_digest, state.screenshot_digest)
         self.assertEqual(proposal.window_instance, state.window_instance)
+        self.assertEqual(proposal.session_id, state.session_id)
+        self.assertEqual(proposal.application_identity, state.application_identity)
+        self.assertEqual(proposal.process_generation, state.process_generation)
         self.assertEqual(proposal.image_coordinate_space, "window_physical_px")
         self.assertEqual(proposal.coordinate_space, "screen_physical_px")
         self.assertAlmostEqual(proposal.screen_point.x, proposal.window_point.x + 100.0)
@@ -103,38 +113,80 @@ class DesktopGrounderContractTests(unittest.TestCase):
         self.assertIsNone(proposal.confidence)
         self.assertEqual(proposal.confidence_basis, "uncalibrated-model-proposal")
 
-    def test_absent_inventory_abstains_without_refinement_call(self):
+    def test_absent_inventory_preserves_reason_and_labels(self):
         image = _png()
         state = _state(image)
         client, transport = _client(
             ['[{"label":"Other","bbox":[0.10,0.20,0.30,0.40]}]']
         )
 
-        result = locate_desktop_target(
+        outcome = ground_desktop_target(
             client=client,
             window_png=image,
             target_text="Save",
             desktop_state=state,
         )
 
-        self.assertIsNone(result)
+        self.assertEqual(outcome.status, "abstain")
+        self.assertEqual(outcome.reason, "grounder-inventory-absent")
+        self.assertIsNone(outcome.proposal)
+        self.assertEqual(outcome.diagnostics.decision, "inventory-absent")
+        self.assertEqual(outcome.diagnostics.inventory_detection_count, 1)
+        self.assertEqual(outcome.diagnostics.inventory_match_count, 0)
+        self.assertEqual(outcome.diagnostics.inventory_labels, ("Other",))
         self.assertEqual(transport.calls, 1)
 
-    def test_ambiguous_inventory_abstains(self):
-        image = _png()
-        state = _state(image)
-        client, transport = _client(
-            ['[{"label":"Save","bbox":[0.1,0.1,0.2,0.2]},{"label":"Save","bbox":[0.5,0.5,0.6,0.6]}]']
+        compat_client, _ = _client(
+            ['[{"label":"Other","bbox":[0.10,0.20,0.30,0.40]}]']
         )
         self.assertIsNone(
             locate_desktop_target(
-                client=client,
+                client=compat_client,
                 window_png=image,
                 target_text="Save",
                 desktop_state=state,
             )
         )
+
+    def test_ambiguous_inventory_preserves_reason(self):
+        image = _png()
+        state = _state(image)
+        client, transport = _client(
+            ['[{"label":"Save","bbox":[0.1,0.1,0.2,0.2]},{"label":"Save","bbox":[0.5,0.5,0.6,0.6]}]']
+        )
+        outcome = ground_desktop_target(
+            client=client,
+            window_png=image,
+            target_text="Save",
+            desktop_state=state,
+        )
+        self.assertEqual(outcome.status, "abstain")
+        self.assertEqual(outcome.reason, "grounder-inventory-ambiguous")
+        self.assertEqual(outcome.diagnostics.inventory_match_count, 2)
+        self.assertEqual(outcome.diagnostics.inventory_labels, ("Save", "Save"))
         self.assertEqual(transport.calls, 1)
+
+    def test_refinement_abstain_preserves_pass2_diagnostics(self):
+        image = _png()
+        state = _state(image)
+        client, transport = _client(
+            [
+                '[{"label":"Save","bbox":[0.10,0.20,0.30,0.40]}]',
+                '[]',
+            ]
+        )
+        outcome = ground_desktop_target(
+            client=client,
+            window_png=image,
+            target_text="Save",
+            desktop_state=state,
+        )
+        self.assertEqual(outcome.status, "abstain")
+        self.assertEqual(outcome.reason, "grounder-refinement-abstain")
+        self.assertEqual(outcome.diagnostics.inventory_match_count, 1)
+        self.assertEqual(outcome.diagnostics.pass2_detection_count, 0)
+        self.assertEqual(outcome.diagnostics.pass2_labels, ())
+        self.assertEqual(transport.calls, 2)
 
     def test_stale_or_wrong_frame_is_rejected_before_model_call(self):
         image = _png()
@@ -142,7 +194,7 @@ class DesktopGrounderContractTests(unittest.TestCase):
         client, transport = _client([])
 
         with self.assertRaisesRegex(DesktopGrounderError, "screenshot-digest-mismatch"):
-            locate_desktop_target(
+            ground_desktop_target(
                 client=client,
                 window_png=image,
                 target_text="Save",
@@ -168,7 +220,7 @@ class DesktopGrounderContractTests(unittest.TestCase):
         )
         client, transport = _client([])
         with self.assertRaisesRegex(DesktopGrounderError, "dimensions"):
-            locate_desktop_target(
+            ground_desktop_target(
                 client=client,
                 window_png=image,
                 target_text="Save",
@@ -181,7 +233,7 @@ class DesktopGrounderContractTests(unittest.TestCase):
         state = _state(image)
         client, transport = _client([])
         with self.assertRaisesRegex(DesktopGrounderError, "bounded limit"):
-            locate_desktop_target(
+            ground_desktop_target(
                 client=client,
                 window_png=image,
                 target_text="Save",
@@ -209,7 +261,7 @@ class DesktopGrounderSourceBoundaryTests(unittest.TestCase):
             "shell=True",
         ):
             self.assertNotIn(token, self.source)
-        self.assertIn("never authorizes or executes a Windows action", self.source)
+        self.assertIn("The model remains non-authorizing", self.source)
 
     def test_desktop_coordinates_are_explicitly_not_browser_css_coordinates(self):
         self.assertIn('WINDOW_COORDINATE_SPACE = "window_physical_px"', self.source)
@@ -219,6 +271,12 @@ class DesktopGrounderSourceBoundaryTests(unittest.TestCase):
     def test_browser_production_policy_is_not_reused_as_windows_authorization(self):
         self.assertNotIn("production_policy", self.source)
         self.assertNotIn("authorize_native_grounding", self.source)
+
+    def test_abstention_is_explicit_and_bounded(self):
+        self.assertIn('status: str  # "proposal" | "abstain"', self.source)
+        self.assertIn("MAX_UIA_EVIDENCE = 32", self.source)
+        self.assertIn("inventory_labels", self.source)
+        self.assertNotIn("inventory_response=", self.source)
 
 
 if __name__ == "__main__":
