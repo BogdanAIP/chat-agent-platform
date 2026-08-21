@@ -344,6 +344,33 @@ Acceptance requires live re-resolution and verifier-controlled progression, not 
 
 ---
 
+# Cross-cutting Track T — Transport Reliability / Self-Healing Supervisor — PLANNED / HIGH PRIORITY
+
+The accepted direct semantic transport needs an independent user-context supervisor so hosted ordinary-Chat capability does not depend on repeated manual PowerShell diagnosis/restart.
+
+Target boundary:
+
+```text
+persistent tunnel id
+ -> layered local / MCP / OpenAI-control / ChatGPT-route health
+ -> failure-specific recovery
+ -> bounded fast retry
+ -> indefinite low-rate re-probe for still-recoverable outages
+ -> truthful blocked state for auth / permission / conclusive resource loss
+```
+
+The supervisor remains lifecycle/operations infrastructure. It is not the general planner and not the deterministic procedure Control Plane.
+
+Normal recovery keeps the existing `tunnel_*` id, does not automatically create/delete/rotate remote tunnel resources and does not require a long-lived `OPENAI_ADMIN_KEY`.
+
+Before custom implementation, review the latest stable official `openai/tunnel-client` release and reuse qualified upstream lifecycle/supervision features when they satisfy the contract.
+
+Canonical planned contract: `TRANSPORT_SUPERVISOR.md` / ADR-030.
+
+This track may proceed independently of procedure-runtime implementation, but future hosted physical acceptance should not treat local `/readyz` alone as proof that the ChatGPT route is healthy.
+
+---
+
 # Optional Research Track R — Specialized reasoning
 
 Procedure-state datasets and small structured reasoning experiments begin only when real verified state-transition data exists and measurements justify them.
