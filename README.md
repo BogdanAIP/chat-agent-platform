@@ -4,10 +4,10 @@
 
 Ключевая архитектурная граница:
 
-- **ordinary ChatGPT** — единственный текущий общий интеллект/планировщик: понимает цель, выбирает стратегию, адаптируется к новым ситуациям;
-- **локальный deterministic Control Plane** — ведёт состояние исполнения, выбранный `ProgramGraph`, права, checkpoints, verifier/postconditions, bounded recovery и может продолжать заранее определённые безопасные переходы без обращения к ChatGPT после каждого клика;
+- **ordinary ChatGPT** — единственный текущий общий интеллект/планировщик: понимает цель, выбирает стратегию и процедуру, адаптируется к новым ситуациям;
+- **локальный deterministic Control Plane** — ведёт состояние исполнения, выбранный `ProgramGraph`, права, checkpoints, verifier/postconditions, bounded recovery/budgets и может продолжать заранее определённые безопасные переходы без обращения к ChatGPT после каждого клика;
 - локальные VLM/другие specialist models — только bounded proposal/evidence;
-- будущий локальный общий planner сохранён как отдельное optional research-направление, но не входит в текущий release path.
+- будущий локальный общий planner сохранён как optional Track P, но не входит в текущий release path.
 
 Для продолжения разработки сначала читайте:
 
@@ -113,7 +113,7 @@ openadapt-capture 1.2.2 @ bcf12942d61d66b64d94e645e9124273a5cc5963
 
 ### Windows
 
-К настоящему моменту приняты и слиты:
+Приняты/слиты:
 
 ```text
 #83 Stage 26.1C hardened typed executor
@@ -126,45 +126,64 @@ openadapt-capture 1.2.2 @ bcf12942d61d66b64d94e645e9124273a5cc5963
 #90 Stage 26.2D structure-first UIA -> vision routing
 ```
 
-`main` после #90 и при старте Stage 26.2E:
+Stage 26.2E — первый real-application E2E — **физически принят** на exact runtime/qualification head:
 
-`42d4130d59e23e2c2b1771ac428467efe27a4b98`
+`457db0b634f2e47f53d41e359a238840fa3ca2ee`
 
-Exact physically accepted Stage 26.2D head:
+Физический результат:
 
-`1c74713edcd6321d5583a39234929169e68b5ac1`
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448`
 
-Stage 26.2D доказал один controlled WinForms visual-fallback click после fresh request/UIA/process/window/frame/native-guard authorization. Это не глобальная Windows accuracy.
+Изолированный VS Code gate доказал:
 
-## Текущая работа — Stage 26.2E
+- exact Code.exe PID/HWND/process generation + DesktopState;
+- реальный Monaco keyboard target как hidden/zero-size focused `textbox` с exact randomized filename;
+- fresh same-window/same-focused-fingerprint recheck;
+- отдельный top-level native foreground/root guard;
+- one-shot window-scoped hidden-focus guard внутри guarded request;
+- deliberate verifier mismatch -> ABSTAIN / zero action;
+- ровно один guarded Unicode action;
+- independent saved-file SHA-256 postcondition;
+- only expected artifact;
+- freshly revalidated cleanup, natural CLI exit `0`, TEMP rollback.
 
-Активная ветка:
+Это первая физическая real-app победа, но не глобальная Windows accuracy.
 
-`chat/stage26-2e-vscode-real-app-e2e`
+## Текущая работа — Stage 26.3
 
-Первый real-app gate использует **изолированный VS Code** только как qualification application:
+**Verified Procedure Runtime / deterministic Control Plane integration.**
 
-- специально помеченный root под `%TEMP%`;
-- isolated user-data/extensions;
-- один disposable `.txt`;
-- exact Code.exe PID/HWND/DesktopState;
-- fresh focused-editor identity непосредственно перед мутацией;
-- native foreground/point guard;
-- deliberate verifier mismatch -> ABSTAIN без действия;
-- ровно одна guarded Unicode delivery;
-- независимый exact size/SHA-256 postcondition;
-- workspace содержит только ожидаемый artifact;
-- natural CLI/window exit + TEMP cleanup + rollback.
+Теперь задача не в том, чтобы снова вручную запускать single-action PowerShell harness. Первый acceptance 26.3 должен убрать пользователя из роли промежуточного оператора команд.
 
-VS Code не становится постоянной архитектурной зависимостью.
+```text
+user states ONE goal
+ -> ordinary ChatGPT chooses a bounded known procedure + parameters
+ -> local deterministic Control Plane
+      TaskState / exact ProgramGraph version
+      observe current state
+      authorize one known transition
+      execute typed/scoped capability
+      re-observe + verify
+      checkpoint + advance
+      repeat while known/permitted and within budgets
+ -> verified completion
+    OR deterministic ABSTAIN/escalation
+```
+
+Первый физический E2E Stage 26.3 должен иметь **несколько independently authorized+verified transitions** и не требовать промежуточного PowerShell copy/paste от пользователя.
+
+Если состояние стало stale/ambiguous/UNKNOWN или потребовалась новая стратегия, локальный runtime обязан остановиться и вернуть escalation в ChatGPT, а не импровизировать.
+
+Generic shell/Python/`tool_invoke` для достижения «автономности» запрещён. Control Plane может вызывать только заранее разрешённые typed/scoped capability transitions.
 
 ## Roadmap
 
 ```text
-26.2E real application E2E
- -> 26.3 Verified Procedure Runtime / deterministic Control Plane integration
+26.2E real application E2E — ACCEPTED
+ -> 26.3 Verified Procedure Runtime / deterministic Control Plane — ACTIVE
     -> 26.3A candidate-first procedural trust
     -> 26.3B advanced verifier/postcondition library
+    -> checkpoint/recovery/budget mechanics
  -> 26.4 Human Demo -> transferable verified candidate skill
  -> 27 Distribution & Maintenance
  -> 28 Clean User E2E / stable release
