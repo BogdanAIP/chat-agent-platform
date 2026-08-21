@@ -13,6 +13,32 @@ function Write-Flag {
     Write-Host ("{0}={1}" -f $Name, $rendered)
 }
 
+function Test-DisposableRoot {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
+    $candidate = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+    if ([string]::Equals($candidate, $tempRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+    $prefix = $tempRoot + '\'
+    if (-not $candidate.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+    return ([IO.Path]::GetFileName($candidate) -like 'chat-agent-stage26e-vscode-*')
+}
+
+function Remove-DisposableRoot {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-DisposableRoot -Path $Path)) {
+        throw "Refusing recursive cleanup outside the bounded Stage 26.2E TEMP root: $Path"
+    }
+    if (Test-Path -LiteralPath $Path) {
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+    }
+}
+
 function Resolve-VSCodeExecutable {
     $candidates = [System.Collections.Generic.List[string]]::new()
 
@@ -71,10 +97,12 @@ New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
 $codeExe = Resolve-VSCodeExecutable
 $result = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     qualification_kind = 'real-application-vscode-disposable-text-edit'
     project_head = $null
     code_exe = $codeExe
+    app_root = $appRoot
+    temp_containment_pass = $false
     application_discovery_pass = $false
     driver_pass = $false
     isolated_profile_pass = $false
@@ -113,6 +141,11 @@ $result = [ordered]@{
 
 try {
     $result.project_head = (& git.exe -C $repoRoot rev-parse HEAD 2>$null | Select-Object -Last 1).Trim()
+    $result.temp_containment_pass = Test-DisposableRoot -Path $appRoot
+    if (-not $result.temp_containment_pass) {
+        throw 'Generated Stage 26.2E application root is outside the bounded TEMP namespace.'
+    }
+
     $result.application_discovery_pass = [bool](
         $codeExe -and
         (Test-Path -LiteralPath $codeExe -PathType Leaf) -and
@@ -140,13 +173,13 @@ try {
     $driver = Get-Content -LiteralPath $driverResultPath -Raw -Encoding utf8 | ConvertFrom-Json
     $result.driver_pass = [bool]$driver.pass
     foreach ($name in @(
-        'isolated_profile_pass', 'disposable_workspace_pass', 'window_binding_pass',
-        'desktop_observation_pass', 'focused_editor_precondition_pass', 'native_point_guard_pass',
-        'agent_loopback_pass', 'agent_auth_required_pass', 'legacy_capability_absent_pass',
-        'mismatch_probe_zero_action_pass', 'guarded_keyboard_delivery_pass',
-        'current_state_verification_pass', 'completion_verification_pass',
-        'workspace_expected_only_pass', 'application_cleanup_pass', 'app_root_cleanup_pass',
-        'rollback_pass'
+        'temp_containment_pass', 'isolated_profile_pass', 'disposable_workspace_pass',
+        'window_binding_pass', 'desktop_observation_pass', 'focused_editor_precondition_pass',
+        'native_point_guard_pass', 'agent_loopback_pass', 'agent_auth_required_pass',
+        'legacy_capability_absent_pass', 'mismatch_probe_zero_action_pass',
+        'guarded_keyboard_delivery_pass', 'current_state_verification_pass',
+        'completion_verification_pass', 'workspace_expected_only_pass',
+        'application_cleanup_pass', 'app_root_cleanup_pass', 'rollback_pass'
     )) {
         $result[$name] = [bool]$driver.$name
     }
@@ -168,8 +201,13 @@ catch {
     $result.error = $_.Exception.Message
 }
 finally {
-    if (Test-Path -LiteralPath $appRoot) {
-        try { Remove-Item -LiteralPath $appRoot -Recurse -Force -ErrorAction Stop } catch {}
+    try {
+        Remove-DisposableRoot -Path $appRoot
+    }
+    catch {
+        if ($null -eq $result.error) {
+            $result.error = "Outer disposable-root cleanup failed: $($_.Exception.Message)"
+        }
     }
     $result.app_root_cleanup_pass = -not (Test-Path -LiteralPath $appRoot)
     $result.rollback_pass = [bool](
@@ -182,15 +220,16 @@ finally {
 Write-Host ''
 Write-Host '===== STAGE 26.2E VS CODE REAL APPLICATION E2E RESULT =====' -ForegroundColor Cyan
 foreach ($name in @(
-    'RESULT_PATH','PROJECT_HEAD','CODE_EXE','APPLICATION_DISCOVERY_PASS','DRIVER_PASS',
-    'ISOLATED_PROFILE_PASS','DISPOSABLE_WORKSPACE_PASS','WINDOW_BINDING_PASS',
-    'DESKTOP_OBSERVATION_PASS','FOCUSED_EDITOR_PRECONDITION_PASS','NATIVE_POINT_GUARD_PASS',
-    'AGENT_LOOPBACK_PASS','AGENT_AUTH_REQUIRED_PASS','LEGACY_CAPABILITY_ABSENT_PASS',
-    'BASELINE_VERIFICATION_STATUS','MISMATCH_PROBE_VERIFICATION_STATUS','MISMATCH_PROBE_DECISION',
-    'MISMATCH_PROBE_ZERO_ACTION_PASS','GUARDED_KEYBOARD_DELIVERY_PASS','KEYBOARD_ACTION_COUNT',
-    'CURRENT_STATE_VERIFICATION_PASS','COMPLETION_VERIFICATION_STATUS','COMPLETION_VERIFICATION_PASS',
-    'WORKSPACE_EXPECTED_ONLY_PASS','APPLICATION_CLEANUP_PASS','APP_ROOT_CLEANUP_PASS','ROLLBACK_PASS',
-    'DRIVER_SOURCE_SHA256','OBSERVATION_SOURCE_SHA256','ACTUATION_SOURCE_SHA256','VERIFIER_SOURCE_SHA256',
+    'RESULT_PATH','PROJECT_HEAD','CODE_EXE','APP_ROOT','TEMP_CONTAINMENT_PASS',
+    'APPLICATION_DISCOVERY_PASS','DRIVER_PASS','ISOLATED_PROFILE_PASS','DISPOSABLE_WORKSPACE_PASS',
+    'WINDOW_BINDING_PASS','DESKTOP_OBSERVATION_PASS','FOCUSED_EDITOR_PRECONDITION_PASS',
+    'NATIVE_POINT_GUARD_PASS','AGENT_LOOPBACK_PASS','AGENT_AUTH_REQUIRED_PASS',
+    'LEGACY_CAPABILITY_ABSENT_PASS','BASELINE_VERIFICATION_STATUS',
+    'MISMATCH_PROBE_VERIFICATION_STATUS','MISMATCH_PROBE_DECISION','MISMATCH_PROBE_ZERO_ACTION_PASS',
+    'GUARDED_KEYBOARD_DELIVERY_PASS','KEYBOARD_ACTION_COUNT','CURRENT_STATE_VERIFICATION_PASS',
+    'COMPLETION_VERIFICATION_STATUS','COMPLETION_VERIFICATION_PASS','WORKSPACE_EXPECTED_ONLY_PASS',
+    'APPLICATION_CLEANUP_PASS','APP_ROOT_CLEANUP_PASS','ROLLBACK_PASS','DRIVER_SOURCE_SHA256',
+    'OBSERVATION_SOURCE_SHA256','ACTUATION_SOURCE_SHA256','VERIFIER_SOURCE_SHA256',
     'NATIVE_POINT_GUARD_SOURCE_SHA256','RESOLVER_SOURCE_SHA256','DRIVER_ERROR','ERROR'
 )) {
     switch ($name) {
@@ -205,6 +244,7 @@ if ($null -ne $result.resolver_stats) {
 }
 
 $accepted = [bool](
+    $result.temp_containment_pass -and
     $result.application_discovery_pass -and
     $result.driver_pass -and
     $result.isolated_profile_pass -and
