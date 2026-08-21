@@ -48,12 +48,13 @@ function Invoke-BoundedManagerProcess {
     )
 
     $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
+    $captureOutput = ($Action -eq 'Status')
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $pwsh
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
+    $startInfo.RedirectStandardOutput = $captureOutput
+    $startInfo.RedirectStandardError = $captureOutput
 
     foreach ($argument in @(
         '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
@@ -70,8 +71,8 @@ function Invoke-BoundedManagerProcess {
             throw "Manager $Action could not be started."
         }
 
-        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $stdoutTask = if ($captureOutput) { $process.StandardOutput.ReadToEndAsync() } else { $null }
+        $stderrTask = if ($captureOutput) { $process.StandardError.ReadToEndAsync() } else { $null }
         $timeoutMilliseconds = [int]($TimeoutSeconds * 1000)
 
         if (-not $process.WaitForExit($timeoutMilliseconds)) {
@@ -83,8 +84,8 @@ function Invoke-BoundedManagerProcess {
         $process.WaitForExit()
         return [pscustomobject]@{
             exit_code = $process.ExitCode
-            stdout = $stdoutTask.GetAwaiter().GetResult()
-            stderr = $stderrTask.GetAwaiter().GetResult()
+            stdout = if ($captureOutput) { $stdoutTask.GetAwaiter().GetResult() } else { '' }
+            stderr = if ($captureOutput) { $stderrTask.GetAwaiter().GetResult() } else { '' }
         }
     }
     finally {
