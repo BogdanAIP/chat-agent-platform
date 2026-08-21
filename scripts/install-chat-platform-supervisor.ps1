@@ -24,10 +24,12 @@ $ManagerMutexTimeoutMilliseconds = 30000
 $LocalRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'
 $AppScriptsDir = Join-Path $LocalRoot 'app\scripts'
 $StateDir = Join-Path $LocalRoot 'state'
+$BackupDir = Join-Path $StateDir 'transport-supervisor-backup'
 $InstalledManager = Join-Path $AppScriptsDir 'chat-platform.ps1'
 $InstalledDirectController = Join-Path $AppScriptsDir 'semantic-direct-controller.ps1'
 $InstalledSupervisor = Join-Path $AppScriptsDir 'chat-platform-supervisor.ps1'
 $InstalledHealthHelper = Join-Path $AppScriptsDir 'tunnel-reliability-health.ps1'
+$DirectControllerBackup = Join-Path $BackupDir 'semantic-direct-controller.ps1'
 
 $SourceDirectController = Join-Path $PSScriptRoot 'semantic-direct-controller.ps1'
 $SourceSupervisor = Join-Path $PSScriptRoot 'chat-platform-supervisor.ps1'
@@ -107,14 +109,8 @@ function Assert-PowerShellParses {
     }
 }
 
-function Install-SupervisorAssets {
-    if (-not (Test-Path -LiteralPath $InstalledManager -PathType Leaf)) {
-        throw "Installed Chat Agent Platform manager is missing: $InstalledManager. Run bootstrap first."
-    }
-
-    foreach ($source in @($SourceDirectController, $SourceSupervisor, $SourceHealthHelper)) {
-        Assert-PowerShellParses -Path $source
-    }
+function Invoke-WithManagerMutex {
+    param([Parameter(Mandatory)] [scriptblock]$Body)
 
     $mutex = New-Object System.Threading.Mutex($false, $ManagerMutexName)
     $acquired = $false
@@ -128,16 +124,65 @@ function Install-SupervisorAssets {
         if (-not $acquired) {
             throw 'Another Chat Agent Platform lifecycle operation is still running.'
         }
-
-        Copy-VerifiedFile -Source $SourceDirectController -Destination $InstalledDirectController
-        Copy-VerifiedFile -Source $SourceSupervisor -Destination $InstalledSupervisor
-        Copy-VerifiedFile -Source $SourceHealthHelper -Destination $InstalledHealthHelper
+        & $Body
     }
     finally {
         if ($acquired) {
             try { $mutex.ReleaseMutex() } catch {}
         }
         $mutex.Dispose()
+    }
+}
+
+function Backup-InstalledDirectControllerIfNeeded {
+    if (-not (Test-Path -LiteralPath $InstalledDirectController -PathType Leaf)) {
+        return
+    }
+    if (Test-Path -LiteralPath $DirectControllerBackup -PathType Leaf) {
+        return
+    }
+
+    $installedHash = (Get-FileHash -LiteralPath $InstalledDirectController -Algorithm SHA256).Hash
+    $sourceHash = (Get-FileHash -LiteralPath $SourceDirectController -Algorithm SHA256).Hash
+    if ($installedHash -eq $sourceHash) {
+        return
+    }
+
+    New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
+    Copy-VerifiedFile -Source $InstalledDirectController -Destination $DirectControllerBackup
+    Write-Host "TRANSPORT_SUPERVISOR_CONTROLLER_BACKUP=$DirectControllerBackup"
+}
+
+function Restore-DirectControllerBackupIfPresent {
+    if (-not (Test-Path -LiteralPath $DirectControllerBackup -PathType Leaf)) {
+        return $false
+    }
+
+    Copy-VerifiedFile -Source $DirectControllerBackup -Destination $InstalledDirectController
+    Remove-Item -LiteralPath $DirectControllerBackup -Force
+    if (Test-Path -LiteralPath $BackupDir -PathType Container) {
+        $remaining = @(Get-ChildItem -LiteralPath $BackupDir -Force -ErrorAction SilentlyContinue)
+        if ($remaining.Count -eq 0) {
+            Remove-Item -LiteralPath $BackupDir -Force -ErrorAction SilentlyContinue
+        }
+    }
+    return $true
+}
+
+function Install-SupervisorAssets {
+    if (-not (Test-Path -LiteralPath $InstalledManager -PathType Leaf)) {
+        throw "Installed Chat Agent Platform manager is missing: $InstalledManager. Run bootstrap first."
+    }
+
+    foreach ($source in @($SourceDirectController, $SourceSupervisor, $SourceHealthHelper)) {
+        Assert-PowerShellParses -Path $source
+    }
+
+    Invoke-WithManagerMutex {
+        Backup-InstalledDirectControllerIfNeeded
+        Copy-VerifiedFile -Source $SourceDirectController -Destination $InstalledDirectController
+        Copy-VerifiedFile -Source $SourceSupervisor -Destination $InstalledSupervisor
+        Copy-VerifiedFile -Source $SourceHealthHelper -Destination $InstalledHealthHelper
     }
 
     foreach ($pair in @(
@@ -204,9 +249,16 @@ function Uninstall-Supervisor {
     if ($null -ne (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
     }
-    Remove-Item -LiteralPath $InstalledSupervisor -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $InstalledHealthHelper -Force -ErrorAction SilentlyContinue
+
+    $restored = $false
+    Invoke-WithManagerMutex {
+        $script:restored = Restore-DirectControllerBackupIfPresent
+        Remove-Item -LiteralPath $InstalledSupervisor -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $InstalledHealthHelper -Force -ErrorAction SilentlyContinue
+    }
+
     Write-Host 'TRANSPORT_SUPERVISOR_INSTALL=removed'
+    Write-Host "TRANSPORT_SUPERVISOR_CONTROLLER_RESTORED=$restored"
 }
 
 New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
