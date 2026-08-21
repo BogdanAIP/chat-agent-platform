@@ -36,6 +36,18 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         self.assertIn("extensions_root = app_root / \"extensions\"", self.driver)
         self.assertIn("shell=False", self.driver)
 
+    def test_driver_enforces_temp_containment_before_recursive_delete(self) -> None:
+        for required in (
+            "tempfile.gettempdir()",
+            "app_root.is_relative_to(temp_root)",
+            'app_root.name.startswith("chat-agent-stage26e-vscode-")',
+            "_require_disposable_root(app_root)",
+            "_remove_disposable_root(app_root)",
+        ):
+            self.assertIn(required, self.driver)
+        self.assertNotIn("shutil.rmtree(app_root)\n", self.driver.replace("        shutil.rmtree(app_root)\n", ""))
+        self.assertIn('result["temp_containment_pass"]', self.driver)
+
     def test_driver_reuses_accepted_windows_guards_and_verifier(self) -> None:
         for required in (
             "observe_bound_window",
@@ -91,14 +103,22 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
     def test_completion_is_independent_file_evidence_not_delivery_receipt(self) -> None:
         self.assertIn("completion = verify_expected_fields(", self.driver)
         self.assertIn('result["completion_verification_pass"] = completion.passed', self.driver)
+        self.assertIn('result["completion_artifact_evidence"] = after_artifact', self.driver)
         self.assertIn('receipt.outcome_verified is False', self.driver)
         self.assertIn("workspace_snapshot = _workspace_snapshot(workspace_root)", self.driver)
         self.assertIn('result["workspace_expected_only_pass"]', self.driver)
 
-    def test_cleanup_is_exact_window_close_plus_disposable_root_removal(self) -> None:
+    def test_single_measured_mutation_is_the_only_delivery_claim(self) -> None:
+        self.assertIn('"keyboard_action_count": 0', self.driver)
+        self.assertIn('result["keyboard_action_count"] += 1', self.driver)
+        self.assertIn('result["keyboard_action_count"] == 1', self.driver)
+        self.assertNotIn('"false_action_count": 0', self.driver)
+        self.assertNotIn('"unrelated_window_action_count": 0', self.driver)
+
+    def test_cleanup_is_exact_window_close_plus_guarded_disposable_root_removal(self) -> None:
         self.assertIn("PostMessageW", self.driver)
         self.assertIn("WM_CLOSE", self.driver)
-        self.assertIn("shutil.rmtree(app_root)", self.driver)
+        self.assertIn("_remove_disposable_root(app_root)", self.driver)
         self.assertIn('result["rollback_pass"]', self.driver)
         self.assertNotIn("TerminateProcess", self.driver)
 
