@@ -6,7 +6,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from runtime.control_plane.verified_workspace_artifact import (
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from runtime.control_plane.verified_workspace_artifact import (  # noqa: E402
     run_verified_workspace_artifact,
 )
 
