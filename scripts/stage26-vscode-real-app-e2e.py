@@ -35,6 +35,9 @@ WM_CLOSE = 0x0010
 EXPECTED_EXECUTABLE = "code.exe"
 FOCUSED_EDITOR_ROLES = {"textbox", "document", "pane", "custom", "group", "edit"}
 QUALIFICATION_PREFIX = "chat-agent-stage26e-vscode-"
+READINESS_TIMEOUT_SECONDS = 20.0
+READINESS_INTERVAL_SECONDS = 0.75
+READINESS_STABLE_SAMPLES = 2
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -271,6 +274,112 @@ def _focused_diagnostics(state: DesktopState) -> list[dict[str, Any]]:
     ][:8]
 
 
+def _wait_safe_focused_editor_state(
+    resolver: WindowScopedUiaResolver,
+    window_title: str,
+    *,
+    expected_hwnd: int,
+    expected_pid: int,
+    expected_process_generation: str,
+    unique_filename: str,
+    timeout: float,
+    evidence: list[dict[str, Any]],
+) -> tuple[DesktopState, ControlObservation]:
+    """Wait read-only for two stable safe focused-editor observations.
+
+    Real Electron/Chromium accessibility can rebuild its UIA tree after the
+    first observation. Transient observation failures therefore reset the
+    stability streak, but exact PID/HWND/process-generation changes fail
+    immediately. This helper never authorizes or performs application input.
+    """
+
+    deadline = time.monotonic() + timeout
+    stable_count = 0
+    previous_state: DesktopState | None = None
+    previous_focused: ControlObservation | None = None
+    attempt = 0
+
+    while time.monotonic() < deadline:
+        attempt += 1
+        try:
+            state = observe_bound_window(resolver, window_title)
+        except Exception as exc:
+            stable_count = 0
+            previous_state = None
+            previous_focused = None
+            evidence.append(
+                {
+                    "attempt": attempt,
+                    "status": "observation_error",
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "stable_count": stable_count,
+                }
+            )
+            if time.monotonic() < deadline:
+                time.sleep(READINESS_INTERVAL_SECONDS)
+            continue
+
+        if state.window_handle != expected_hwnd or state.process_id != expected_pid:
+            raise RuntimeError("VS Code readiness exact PID/HWND identity changed")
+        if state.executable_name.casefold() != EXPECTED_EXECUTABLE:
+            raise RuntimeError("VS Code readiness process is not Code.exe")
+        if state.process_generation != expected_process_generation:
+            raise RuntimeError("VS Code readiness process generation changed")
+
+        focused = _focused_editor_control(state, unique_filename)
+        if focused is None:
+            stable_count = 0
+            previous_state = None
+            previous_focused = None
+        elif (
+            previous_state is not None
+            and previous_focused is not None
+            and _same_window_identity(previous_state, state)
+            and previous_focused.observation_fingerprint
+            == focused.observation_fingerprint
+        ):
+            stable_count += 1
+            previous_state = state
+            previous_focused = focused
+        else:
+            stable_count = 1
+            previous_state = state
+            previous_focused = focused
+
+        focus_evidence = state.freshness_evidence.get("focus_evidence")
+        evidence.append(
+            {
+                "attempt": attempt,
+                "status": "observed",
+                "control_count": len(state.controls),
+                "focus_evidence": (
+                    dict(focus_evidence) if isinstance(focus_evidence, dict) else {}
+                ),
+                "focused_controls": _focused_diagnostics(state),
+                "safe_editor": (
+                    {
+                        "role": focused.role,
+                        "name": focused.name,
+                        "observation_fingerprint": focused.observation_fingerprint,
+                    }
+                    if focused is not None
+                    else None
+                ),
+                "stable_count": stable_count,
+            }
+        )
+
+        if focused is not None and stable_count >= READINESS_STABLE_SAMPLES:
+            return state, focused
+
+        if time.monotonic() < deadline:
+            time.sleep(READINESS_INTERVAL_SECONDS)
+
+    raise TimeoutError(
+        "timed out waiting for two stable safe focused-editor observations"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", required=True)
@@ -300,7 +409,7 @@ def main() -> int:
     marker_bytes = marker.encode("utf-8")
 
     result: dict[str, Any] = {
-        "schema_version": 5,
+        "schema_version": 6,
         "qualification_kind": "real-application-vscode-disposable-text-edit",
         "code_exe": str(code_exe),
         "temp_root": str(_temp_root()),
@@ -319,6 +428,7 @@ def main() -> int:
         "focused_editor_role": None,
         "focused_editor_name": None,
         "focused_editor_fingerprint": None,
+        "readiness_evidence": [],
         "fresh_pre_action_state_pass": False,
         "fresh_pre_action_focused_fingerprint": None,
         "focused_control_diagnostics": None,
@@ -390,6 +500,7 @@ def main() -> int:
             "workbench.startupEditor": "none",
             "window.restoreWindows": "none",
             "editor.accessibilitySupport": "on",
+            "chat.disableAIFeatures": True,
             "security.workspace.trust.enabled": False,
             "extensions.autoCheckUpdates": False,
             "extensions.autoUpdate": False,
@@ -458,11 +569,29 @@ def main() -> int:
         result["bound_window_handle"] = bound_hwnd
         resolver.set_expected_process_id(window_pid)
 
-        before_state = observe_bound_window(resolver, window_title)
-        bound_process_generation = before_state.process_generation
+        (
+            _bound_session_id,
+            _bound_application_identity,
+            bound_executable_name,
+            bound_process_generation,
+        ) = _query_process_identity(window_pid)
+        if bound_executable_name.casefold() != EXPECTED_EXECUTABLE:
+            raise RuntimeError("bound VS Code qualification process is not Code.exe")
+
+        before_state, focused = _wait_safe_focused_editor_state(
+            resolver,
+            window_title,
+            expected_hwnd=bound_hwnd,
+            expected_pid=window_pid,
+            expected_process_generation=bound_process_generation,
+            unique_filename=unique_filename,
+            timeout=min(timeout, READINESS_TIMEOUT_SECONDS),
+            evidence=result["readiness_evidence"],
+        )
         result["window_binding_pass"] = bool(
             before_state.window_handle == bound_hwnd
             and before_state.process_id == window_pid
+            and before_state.process_generation == bound_process_generation
             and before_state.executable_name.casefold() == EXPECTED_EXECUTABLE
         )
         result["desktop_observation_pass"] = bool(
@@ -473,11 +602,6 @@ def main() -> int:
         )
         if not result["window_binding_pass"] or not result["desktop_observation_pass"]:
             raise RuntimeError("VS Code DesktopState binding/observation failed")
-
-        focused = _focused_editor_control(before_state, unique_filename)
-        if focused is None:
-            result["focused_control_diagnostics"] = _focused_diagnostics(before_state)
-            raise RuntimeError("VS Code editor did not expose one safe focused editor control")
         result["focused_editor_precondition_pass"] = True
         result["focused_editor_role"] = focused.role
         result["focused_editor_name"] = focused.name
@@ -741,6 +865,7 @@ def main() -> int:
         "focused_editor_role",
         "focused_editor_name",
         "focused_editor_fingerprint",
+        "readiness_evidence",
         "focused_control_diagnostics",
         "fresh_pre_action_state_pass",
         "fresh_pre_action_focused_fingerprint",
