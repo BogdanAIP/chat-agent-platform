@@ -112,6 +112,9 @@ $result = [ordered]@{
     focused_editor_precondition_pass = $false
     fresh_pre_action_state_pass = $false
     native_point_guard_pass = $false
+    keyboard_focus_guard_mode = $null
+    keyboard_focus_guard_armed_pass = $false
+    keyboard_focus_guard_pass = $false
     agent_loopback_pass = $false
     agent_auth_required_pass = $false
     legacy_capability_absent_pass = $false
@@ -201,20 +204,23 @@ try {
     foreach ($name in @(
         'temp_containment_pass', 'isolated_profile_pass', 'disposable_workspace_pass',
         'window_binding_pass', 'desktop_observation_pass', 'focused_editor_precondition_pass',
-        'fresh_pre_action_state_pass', 'native_point_guard_pass', 'agent_loopback_pass',
-        'agent_auth_required_pass', 'legacy_capability_absent_pass', 'mismatch_probe_zero_action_pass',
-        'guarded_keyboard_delivery_pass', 'completion_verification_pass',
-        'current_state_verification_pass', 'workspace_expected_only_pass',
-        'cleanup_revalidation_pass', 'application_cleanup_pass', 'cli_process_exit_pass',
-        'forced_cli_cleanup', 'app_root_cleanup_pass', 'rollback_pass'
+        'fresh_pre_action_state_pass', 'native_point_guard_pass',
+        'keyboard_focus_guard_armed_pass', 'keyboard_focus_guard_pass',
+        'agent_loopback_pass', 'agent_auth_required_pass', 'legacy_capability_absent_pass',
+        'mismatch_probe_zero_action_pass', 'guarded_keyboard_delivery_pass',
+        'completion_verification_pass', 'current_state_verification_pass',
+        'workspace_expected_only_pass', 'cleanup_revalidation_pass',
+        'application_cleanup_pass', 'cli_process_exit_pass', 'forced_cli_cleanup',
+        'app_root_cleanup_pass', 'rollback_pass'
     )) {
         $result[$name] = [bool]$driver.$name
     }
     foreach ($name in @(
-        'baseline_verification_status', 'mismatch_probe_verification_status',
-        'mismatch_probe_decision', 'keyboard_action_count', 'completion_verification_status',
-        'cleanup_match_count', 'cleanup_validated_match_count', 'failure_window_cleanup_count',
-        'cli_process_returncode', 'resolver_stats'
+        'keyboard_focus_guard_mode', 'baseline_verification_status',
+        'mismatch_probe_verification_status', 'mismatch_probe_decision',
+        'keyboard_action_count', 'completion_verification_status',
+        'cleanup_match_count', 'cleanup_validated_match_count',
+        'failure_window_cleanup_count', 'cli_process_returncode', 'resolver_stats'
     )) {
         $result[$name] = $driver.$name
     }
@@ -256,7 +262,8 @@ foreach ($name in @(
     'RESULT_PATH','PROJECT_HEAD','CODE_EXE','APP_ROOT','TEMP_CONTAINMENT_PASS',
     'APPLICATION_DISCOVERY_PASS','DRIVER_PASS','ISOLATED_PROFILE_PASS','DISPOSABLE_WORKSPACE_PASS',
     'WINDOW_BINDING_PASS','DESKTOP_OBSERVATION_PASS','FOCUSED_EDITOR_PRECONDITION_PASS',
-    'FRESH_PRE_ACTION_STATE_PASS','NATIVE_POINT_GUARD_PASS','AGENT_LOOPBACK_PASS',
+    'FRESH_PRE_ACTION_STATE_PASS','NATIVE_POINT_GUARD_PASS','KEYBOARD_FOCUS_GUARD_MODE',
+    'KEYBOARD_FOCUS_GUARD_ARMED_PASS','KEYBOARD_FOCUS_GUARD_PASS','AGENT_LOOPBACK_PASS',
     'AGENT_AUTH_REQUIRED_PASS','LEGACY_CAPABILITY_ABSENT_PASS','BASELINE_VERIFICATION_STATUS',
     'MISMATCH_PROBE_VERIFICATION_STATUS','MISMATCH_PROBE_DECISION','MISMATCH_PROBE_ZERO_ACTION_PASS',
     'GUARDED_KEYBOARD_DELIVERY_PASS','KEYBOARD_ACTION_COUNT','COMPLETION_VERIFICATION_STATUS',
@@ -289,6 +296,8 @@ $accepted = [bool](
     $result.focused_editor_precondition_pass -and
     $result.fresh_pre_action_state_pass -and
     $result.native_point_guard_pass -and
+    $result.keyboard_focus_guard_armed_pass -and
+    $result.keyboard_focus_guard_pass -and
     $result.agent_loopback_pass -and
     $result.agent_auth_required_pass -and
     $result.legacy_capability_absent_pass -and
