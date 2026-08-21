@@ -29,6 +29,7 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
             '"--goto"',
             '"security.workspace.trust.enabled": False',
             '"files.autoSave": "afterDelay"',
+            '"editor.accessibilitySupport": "on"',
         ):
             self.assertIn(required, self.driver)
         self.assertIn("workspace_root = app_root / \"workspace\"", self.driver)
