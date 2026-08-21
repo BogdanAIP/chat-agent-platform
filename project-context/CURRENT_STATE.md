@@ -2,24 +2,33 @@
 
 ## Repository-state rule
 
-Always resolve live `main` and relevant PR heads before new work. Do not treat a documentation SHA as permanently current.
+Always resolve live `main` and relevant PR heads before new work. Exact code/tests/current CI/physical evidence outrank prose.
 
 ## Operating constraint
 
-Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources for development, review, orchestration or execution unless the user explicitly re-enables them later.
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources unless the user explicitly re-enables them.
 
 ## Product boundary
 
-Ordinary ChatGPT remains the only general planner/intelligence layer.
+Ordinary ChatGPT is the only **current general planner/intelligence**. The local platform has a deterministic execution **Control Plane**, not a second current general-planning brain.
 
 ```text
 ordinary ChatGPT
-  -> OpenAI Secure MCP Tunnel
+  task interpretation / strategy / adaptation
+        |
+        v
+OpenAI Secure MCP Tunnel
   -> official tunnel-client
   -> secure semantic launcher
   -> direct stdio semantic-projection
-  -> focused local capabilities
+        |
+        v
+local deterministic execution Control Plane + focused capabilities
 ```
+
+The Control Plane may keep TaskState/checkpoints, advance a selected verified procedure through already-defined transitions, authorize each consequence, verify effects, apply bounded retry/recovery/resource budgets and escalate. It must ABSTAIN/escalate when current evidence does not uniquely match an allowed transition or new strategy is required.
+
+A true local planner is future optional Track P, not current production architecture and not a Stage 27/28 prerequisite. See `CONTROL_PLANE.md`.
 
 Current public semantic tools remain exactly:
 
@@ -31,15 +40,13 @@ web_observe
 web_interact
 ```
 
-1MCP remains internal diagnostic/adaptive/aggregation infrastructure. Generic Windows code execution remains disabled/unreachable.
-
 ---
 
 # Accepted foundation
 
 ## Stage 24 / 24.1 — semantic surface and direct tunnel — ACCEPTED
 
-Five public semantic tools, Windows lifecycle and direct stdio semantic tunnel are accepted foundations.
+Five public semantic tools, Windows lifecycle and direct stdio semantic tunnel are accepted foundations. 1MCP remains internal diagnostic/adaptive/aggregation infrastructure.
 
 ## Stage 25 / 25.1 / 25.2 — browser semantic + local vision — ACCEPTED
 
@@ -52,7 +59,7 @@ CPU 8 threads
 ctx 2048
 ```
 
-Stage 25.2 remains structure-first; local vision is proposal-only and starts only on the reviewed zero-exact-candidate browser path.
+Vision remains structure-first, proposal-only and behind deterministic authorization.
 
 ---
 
@@ -80,20 +87,17 @@ p50 = 183606.855 ms
 p95 = 185567.403 ms
 ```
 
-Desktop-wide UIA traversal was the dominant blocker.
-
 ## Stage 26.1E — window-scoped UIA — ACCEPTED / MERGED #85
 
 Physical accepted head: `66390aca1dadf57c4f11568ec311ad6fcdbd7596`.
 
 ```text
 WINDOW_SCOPED_FIND_CALLS=97
-WINDOW_NAME_MATCH_COUNT=97
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-FALSE_ACTION_COUNT=0
 UNRELATED_WINDOW_ACTION_COUNT=0
+FALSE_ACTION_COUNT=0
 p50=3323.570 ms
 p95=3720.061 ms
 ```
@@ -104,7 +108,7 @@ Controlled WinForms evidence only; not universal Windows accuracy.
 
 Physical accepted runtime head: `6ae5c3a9e624c8c341857c025625b203b796b41c`.
 
-Maintained runtime owns bounded actuation, verifier foundation and PID/HWND window-scoped UIA. Production benchmark preserved zero false/unrelated-window actions with about 3.410 s p50 / 3.631 s p95.
+Maintained `runtime/windows/` owns bounded actuation, verifier foundation and PID/HWND window-scoped UIA.
 
 ## Stage 26.2B — Desktop Observation / DesktopState — ACCEPTED / MERGED #88
 
@@ -112,140 +116,190 @@ Exact physically tested runtime head:
 
 `dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
 
-Evidence:
+DesktopState is bounded read-only evidence carrying session/application/process/window identity, native coordinate space, UIA controls, frame/screenshot digests, provenance and freshness inputs. Observation is not authorization.
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-observation-qualification\observation-20260819-184904\result.json`
+## Stage 26.2C — Native Desktop LFM2.5-VL Grounder — ACCEPTED / MERGED #89
 
-```text
-SAME_IDENTITY_PASS=True
-CONTROL_CONTRACT_PASS=True
-SCREENSHOT_DIGEST_PASS=True
-FRESHNESS_CONTRACT_PASS=True
-BOUNDED_CONTROL_COUNT_PASS=True
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-CHROME_SURVIVAL_PASS=True
-FIXTURE_CLEANUP_PASS=True
-PASS=True
-```
-
-`DesktopState` is evidence only; observation fingerprints are not action authorization. Screenshot bytes are not retained in the state.
-
-## Stage 26.2C — Native Desktop LFM2.5-VL Grounder — ACCEPTED
-
-Introduced by PR #89. Exact physically accepted runtime head:
+Exact physically accepted runtime head:
 
 `eadf8ff5a873936441891a66b616c83c62736152`
 
-Physical result:
+Grounder remains proposal-only and exact-window/evidence-bound.
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-grounder-qualification\grounder-20260820-050054\result.json`
+## Stage 26.2D — deterministic UIA -> vision routing — ACCEPTED / MERGED #90
 
-Exact-window screenshot:
+Integration merge before 26.2E:
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-grounder-qualification\grounder-20260820-050054\exact-window.png`
+`main = 42d4130d59e23e2c2b1771ac428467efe27a4b98`
 
-Screenshot SHA-256:
+Exact physically accepted PR head:
 
-`b32ea145964c64de783077ed43ebc70839fab882bfd83c24931ee0f7fee8d95a`
+`1c74713edcd6321d5583a39234929169e68b5ac1`
 
-Accepted evidence:
+This physically proves one controlled structure-first visual-fallback path with deterministic evidence authorization, fresh same-window checks, native foreground/hit-test guard and one guarded click. It is not general application accuracy.
+
+## Stage 26.2E — first real application E2E — ACCEPTED / PR #91
+
+Exact physically accepted qualification head:
+
+`457db0b634f2e47f53d41e359a238840fa3ca2ee`
+
+Physical result directory:
+
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448`
+
+Accepted task: isolated VS Code + one disposable `.txt` under a specifically prefixed `%TEMP%` root.
+
+Key physical evidence:
 
 ```text
-VISION_READY_PASS=True
-VISION_RESTORED_PASS=True
-POSITIVE_GROUNDER_STATUS=proposal
-POSITIVE_GROUNDER_REASON=grounder-accepted-ordinal-alias-proposal-only
-POSITIVE_DECISION=accepted
-POSITIVE_INVENTORY_DETECTION_COUNT=2
-POSITIVE_INVENTORY_MATCH_COUNT=1
-POSITIVE_INVENTORY_LABELS_JSON=["Benchmark start","Guarded list click + scroll"]
-POSITIVE_PASS2_DETECTION_COUNT=1
-POSITIVE_PASS2_LABELS_JSON=["Benchmark start"]
-SAME_FRAME_BINDING_PASS=True
-COORDINATE_CONTRACT_PASS=True
-TARGET_POINT_INSIDE_UIA_PASS=True
-TARGET_EVIDENCE_BINDING_PASS=True
-ABSENT_TARGET_ABSTAIN_PASS=True
-STALE_FRAME_REJECTION_PASS=True
-PROPOSAL_ONLY_CONTRACT_PASS=True
+PROJECT_HEAD=457db0b634f2e47f53d41e359a238840fa3ca2ee
+WINDOW_BINDING_PASS=True
+DESKTOP_OBSERVATION_PASS=True
+FOCUSED_EDITOR_PRECONDITION_PASS=True
+FOCUSED_EDITOR_ROLE=textbox
+FRESH_PRE_ACTION_STATE_PASS=True
+NATIVE_POINT_GUARD_PASS=True
+KEYBOARD_FOCUS_GUARD_MODE=window_scoped_focused_observation_fingerprint
+KEYBOARD_FOCUS_GUARD_ARMED_PASS=True
+KEYBOARD_FOCUS_GUARD_PASS=True
+MISMATCH_PROBE_VERIFICATION_STATUS=fail
+MISMATCH_PROBE_DECISION=abstain
+MISMATCH_PROBE_ZERO_ACTION_PASS=True
+GUARDED_KEYBOARD_DELIVERY_PASS=True
+KEYBOARD_ACTION_COUNT=1
+COMPLETION_VERIFICATION_STATUS=pass
+COMPLETION_VERIFICATION_PASS=True
+CURRENT_STATE_VERIFICATION_PASS=True
+WORKSPACE_EXPECTED_ONLY_PASS=True
+KEYBOARD_FOCUS_GUARD_ARMS=1
+KEYBOARD_FOCUS_GUARD_CALLS=1
+KEYBOARD_FOCUS_GUARD_PASSES=1
+KEYBOARD_FOCUS_GUARD_FAILURES=0
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-FIXTURE_CLEANUP_PASS=True
-PASS=True
+CLEANUP_REVALIDATION_PASS=True
+APPLICATION_CLEANUP_PASS=True
+CLI_PROCESS_RETURNCODE=0
+CLI_PROCESS_EXIT_PASS=True
+FORCED_CLI_CLEANUP=False
+APP_ROOT_CLEANUP_PASS=True
+ROLLBACK_PASS=True
+STAGE26_2E_REAL_APPLICATION_E2E_RESULT=PASSED
+QUALIFICATION_EXIT_CODE=0
 ```
 
-The local VLM detected the intended button as `Benchmark start` while the rendered fixture label was `1. Benchmark start`. Desktop matching therefore uses exact match first and a narrowly bounded ordinal-prefix alias only after `inventory-absent`; the alias must identify exactly one already-observed inventory label. General fuzzy matching is not used.
+Important real-app finding: Monaco's true keyboard target is an intentionally hidden `textbox` with zero geometry. Production authorization now binds the exact hidden focused observation fingerprint inside the exact PID/HWND/process-generation window. The top-level point guard remains a separate foreground/root-window guard and is not treated as Monaco control geometry.
 
-Grounder output is proposal-only. It carries exact frame/window/process/coordinate evidence and explicit bounded abstain diagnostics. It does not authorize clicks, continuation or task completion.
+This proves one real VS Code text-edit task with independent postcondition and rollback. It does not prove universal desktop accuracy.
 
-Scope remains one controlled WinForms fixture. Cross-application accuracy and action routing are not yet accepted.
+---
+
+# Active release-critical work
+
+## Stage 26.3 — Verified Procedure Runtime / deterministic execution Control Plane — ACTIVE
+
+The next problem is no longer “can the Windows runtime perform one safe real-app action?” That is now physically accepted.
+
+The next problem is **autonomous verified progression of a known procedure without using the user as a PowerShell operator**.
+
+Target flow:
+
+```text
+user gives one goal to ordinary ChatGPT
+ -> ChatGPT selects an allowed known procedure + parameters
+ -> local deterministic Control Plane
+      load ProgramGraph
+      bind TaskState/checkpoint
+      observe current state
+      select exactly one permitted known transition
+      authorize action from current evidence
+      execute bounded capability
+      re-observe
+      verify postcondition
+      checkpoint + advance
+      repeat while state remains known/permitted
+ -> verified completion
+    OR ABSTAIN/escalation to ChatGPT
+```
+
+The first end-to-end Stage 26.3 acceptance should specifically remove intermediate manual command entry. One user goal should be enough to initiate a bounded known procedure; the platform should continue deterministic transitions and return completion/evidence or a truthful escalation.
+
+### Stage 26.3A — candidate-first procedural trust
+
+A successful trajectory may become a project CANDIDATE, but never permanent trust from one demonstration alone:
+
+```text
+DEMO / successful trajectory
+ -> CAPTURE
+ -> COMPILE
+ -> CANDIDATE
+ -> replay / regression / variant evidence
+ -> trusted reusable
+ -> stale / quarantined / disabled / rollback as evidence degrades
+```
+
+### Stage 26.3B — advanced verifier/postcondition library
+
+Expand deterministic completion evidence for UI, files/artifacts, process/window/application state, browser state and structured outputs.
+
+### Stage 26.3C — checkpoints / bounded recovery / budgets
+
+Longer procedures require explicit checkpoints, retry ceilings, safe known recovery branches, action/time/resource budgets and deterministic escalation reasons.
+
+## Stage 26.4 — Human Demo -> transferable verified candidate skill
+
+Human demonstration transfer follows only after the verified procedure runtime is accepted. Live re-resolution and verifier-controlled progression are required; macro replay is insufficient.
 
 ---
 
 # Current critical path
 
-1. **Stage 26.2D — deterministic UIA -> vision routing + freshness authorization + adversarial accuracy suite**;
-2. Stage 26.2E — one real medium-complexity application E2E with deterministic postcondition/rollback;
-3. Stage 26.3 — Verified Procedure Runtime;
-4. Stage 26.4 — Human Demo -> transferable candidate skill;
-5. Stage 27/28 — distribution, clean-user E2E and stable release.
-
-## Stage 26.2D boundary
-
-Required routing remains:
-
 ```text
-native/UIA structure first
- -> exact safe element => deterministic path
- -> promoted unresolved miss only
-      -> same-session exact-window screenshot
-      -> Stage 26.2C Grounder proposal
-      -> deterministic same-window / same-frame / target authorization
-      -> one bounded action OR ABSTAIN
+Stage 26.2E real application E2E — ACCEPTED
+ -> Stage 26.3 Verified Procedure Runtime / deterministic execution Control Plane — ACTIVE
+    -> 26.3A candidate-first procedural trust
+    -> 26.3B advanced verifier/postcondition library
+    -> checkpoint / bounded recovery / resource-budget integration
+ -> Stage 26.4 Human Demo -> transferable verified candidate skill
+ -> Stage 27 distribution/maintenance
+ -> Stage 28 clean-user E2E / stable release
 ```
 
-Semantic ambiguity must not automatically escalate to vision. Current observation must be fresh before action. Model proposal is never authorization.
+The deterministic Control Plane is not a second current general planner. It progresses only selected known procedure transitions under current-state authorization and verification. Novel strategy remains with ChatGPT.
 
-Adversarial coverage must include duplicate labels, disabled/hidden controls, wrong process/window, stale/recreated windows, overlays/focus change, AutomationId, role+name, custom/weak UIA, UIA-missing visual fallback and visual ambiguity -> ABSTAIN. Measure false-action and unrelated-window rates explicitly.
+Future optional Track P may later evaluate a local planner in shadow/bounded/general modes after verified procedure-state data and measured need. It remains behind the same authorization/verifier boundary.
 
 ## Merge policy
 
-When a branch is logically complete, intended diff is reviewed, required physical/CI tests pass and applicable review/acceptance checks are satisfied, merge it without waiting for a separate merge command.
+When a branch is logically complete, intended diff is reviewed, required physical/CI tests pass and applicable acceptance gates are satisfied, merge it without waiting for a separate merge command.
 
-Stop instead on unresolved findings, conflict, ambiguous scope or failed/skipped required evidence.
-
----
-
-# Optional / parallel work
-
-Procedure-state datasets and TRM/STARM/FPRM/small-model experiments remain optional research after real verified data and measured need. Multi-chat orchestration remains a separate upper layer and must not use Codex/Work under the current constraint.
+Stop on unresolved findings, conflict, ambiguous scope or failed/skipped required evidence.
 
 ---
 
 # Residual risks
 
-- fixture results are not cross-application accuracy evidence;
-- UIA -> vision authorization/routing is not yet accepted;
-- real application Windows E2E is not accepted;
-- procedural runtime/product trust adapter is not integrated;
-- screenshot -> coordinate action remains a narrow freshness/TOCTOU boundary that must fail closed;
-- browser DNS/rebinding/private-network isolation remains incomplete;
+- one real VS Code task is not broad real-application coverage;
+- `AutomationId` still lacks dedicated accepted physical coverage across real applications;
+- Verified Procedure Runtime/Control Plane is not yet integrated or physically accepted;
+- ordinary Chat -> local autonomous procedure execution without intermediate user commands is not yet physically accepted;
+- browser DNS/rebinding/redirect/private-network isolation remains incomplete;
 - Python/model/OpenAdapt packaging is not release-grade;
 - raw demonstration retention/redaction/encryption policy is not accepted;
+- future local planner has not been researched against verified procedure-state data;
 - no stable release exists.
 
 # Non-negotiable rules
 
-- ordinary ChatGPT is the only general planner/intelligence;
+- ordinary ChatGPT is the only current general planner/intelligence;
+- deterministic Control Plane may advance only already-defined authorized+verified procedure transitions;
+- new strategy/ambiguity/stale/UNKNOWN -> ABSTAIN/escalate;
 - semantic/native structure before pixels where reliable;
-- model/procedure proposal is not authorization;
-- observation is not authorization;
+- model/procedure/observation proposal is not authorization;
 - current observed state outranks remembered procedure;
 - action delivery is not task completion;
-- stale/uncertain/UNKNOWN evidence causes zero mutation;
 - never persist private chain-of-thought;
 - raw capture is sensitive local data;
 - generic Windows code execution remains disabled/unreachable;

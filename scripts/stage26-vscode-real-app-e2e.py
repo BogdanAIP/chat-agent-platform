@@ -1,0 +1,957 @@
+from __future__ import annotations
+
+import argparse
+import ctypes
+import hashlib
+import json
+import secrets
+import shutil
+import subprocess
+import tempfile
+import threading
+import time
+import traceback
+from pathlib import Path
+from typing import Any, Callable
+
+import requests
+
+from openadapt_flow.backends.windows_backend import WindowsBackend
+from openadapt_flow.backends.win_agent.server import AgentConfig, create_server
+
+from runtime.windows.actuation import bounded_input
+from runtime.windows.native_point_guard import require_foreground_hit_target
+from runtime.windows.observation import (
+    ControlObservation,
+    DesktopState,
+    _query_process_identity,
+    observe_bound_window,
+)
+from runtime.windows.verifier import VerificationStatus, verify_expected_fields
+from runtime.windows.window_scoped_uia import WindowScopedUiaResolver
+
+
+WM_CLOSE = 0x0010
+EXPECTED_EXECUTABLE = "code.exe"
+QUALIFICATION_PREFIX = "chat-agent-stage26e-vscode-"
+READINESS_TIMEOUT_SECONDS = 20.0
+READINESS_INTERVAL_SECONDS = 0.75
+READINESS_STABLE_SAMPLES = 2
+TRANSIENT_UIA_REBUILD_HRESULT = -2147220991
+KEYBOARD_FOCUS_GUARD_MODE = "window_scoped_focused_observation_fingerprint"
+
+
+def _sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _artifact_evidence(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {"exists": False, "size": None, "sha256": None}
+    data = path.read_bytes()
+    return {"exists": True, "size": len(data), "sha256": _sha256_bytes(data)}
+
+
+def _workspace_snapshot(root: Path) -> dict[str, str]:
+    if not root.is_dir():
+        return {}
+    return {
+        path.relative_to(root).as_posix(): _sha256_bytes(path.read_bytes())
+        for path in sorted(item for item in root.rglob("*") if item.is_file())
+    }
+
+
+def _temp_root() -> Path:
+    return Path(tempfile.gettempdir()).resolve()
+
+
+def _require_disposable_root(app_root: Path) -> None:
+    temp_root = _temp_root()
+    resolved = app_root.resolve()
+    if resolved == temp_root or not resolved.is_relative_to(temp_root):
+        raise RuntimeError("Stage 26.2E app root must be a child of the OS TEMP directory")
+    if not resolved.name.startswith(QUALIFICATION_PREFIX):
+        raise RuntimeError("Stage 26.2E app root does not have the qualification prefix")
+
+
+def _remove_disposable_root(app_root: Path) -> None:
+    _require_disposable_root(app_root)
+    if app_root.exists():
+        shutil.rmtree(app_root)
+
+
+def _wait_until(
+    predicate: Callable[[], bool],
+    *,
+    timeout: float,
+    label: str,
+    interval: float = 0.05,
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(interval)
+    raise TimeoutError(f"timed out waiting for {label}")
+
+
+def _enum_visible_windows() -> list[dict[str, Any]]:
+    if not hasattr(ctypes, "WinDLL"):
+        raise RuntimeError("real application qualification requires Windows")
+
+    from ctypes import wintypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    user32.EnumWindows.argtypes = [callback_type, wintypes.LPARAM]
+    user32.EnumWindows.restype = wintypes.BOOL
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.IsWindowVisible.restype = wintypes.BOOL
+    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
+    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+
+    windows: list[dict[str, Any]] = []
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        length = int(user32.GetWindowTextLengthW(hwnd))
+        if length <= 0:
+            return True
+        buffer = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buffer, length + 1)
+        title = buffer.value.strip()
+        if not title:
+            return True
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if int(pid.value) > 0:
+            windows.append({"hwnd": int(hwnd), "pid": int(pid.value), "title": title})
+        return True
+
+    callback_fn = callback_type(callback)
+    if not user32.EnumWindows(callback_fn, 0):
+        raise OSError(ctypes.get_last_error(), "EnumWindows failed")
+    return windows
+
+
+def _matching_vscode_windows(unique_filename: str) -> list[dict[str, Any]]:
+    needle = unique_filename.casefold()
+    return [row for row in _enum_visible_windows() if needle in str(row["title"]).casefold()]
+
+
+def _validated_cleanup_matches(
+    unique_filename: str,
+    *,
+    expected_hwnd: int | None = None,
+    expected_pid: int | None = None,
+    expected_process_generation: str | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    matches = _matching_vscode_windows(unique_filename)
+    validated: list[dict[str, Any]] = []
+    for row in matches:
+        hwnd = int(row["hwnd"])
+        pid = int(row["pid"])
+        if expected_hwnd is not None and hwnd != expected_hwnd:
+            continue
+        if expected_pid is not None and pid != expected_pid:
+            continue
+        try:
+            _session_id, _application_identity, executable_name, process_generation = (
+                _query_process_identity(pid)
+            )
+        except Exception:
+            continue
+        if executable_name.casefold() != EXPECTED_EXECUTABLE:
+            continue
+        if (
+            expected_process_generation is not None
+            and process_generation != expected_process_generation
+        ):
+            continue
+        validated.append(row)
+    return matches, validated
+
+
+def _wait_unique_vscode_window(unique_filename: str, timeout: float) -> dict[str, Any]:
+    selected: dict[str, Any] | None = None
+
+    def ready() -> bool:
+        nonlocal selected
+        matches = _matching_vscode_windows(unique_filename)
+        if len(matches) != 1:
+            return False
+        selected = matches[0]
+        return True
+
+    _wait_until(ready, timeout=timeout, label="one isolated VS Code window")
+    assert selected is not None
+    return selected
+
+
+def _post_close(hwnd: int) -> None:
+    from ctypes import wintypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    user32.PostMessageW.restype = wintypes.BOOL
+    if not user32.PostMessageW(hwnd, WM_CLOSE, 0, 0):
+        raise OSError(ctypes.get_last_error(), "PostMessageW(WM_CLOSE) failed")
+
+
+def _same_window_identity(before: DesktopState, after: DesktopState) -> bool:
+    return (
+        before.session_id == after.session_id
+        and before.application_identity == after.application_identity
+        and before.executable_name.casefold() == after.executable_name.casefold()
+        and before.process_id == after.process_id
+        and before.process_generation == after.process_generation
+        and before.window_handle == after.window_handle
+        and before.window_instance == after.window_instance
+        and before.window_title == after.window_title
+    )
+
+
+def _focused_editor_control(state: DesktopState, unique_filename: str) -> ControlObservation | None:
+    """Return the exact current Monaco keyboard input identity.
+
+    VS Code/Monaco intentionally focuses a hidden accessibility input. On the
+    qualified Windows build it is a textbox whose accessible Name is the exact
+    randomized file name. Hidden/zero-size geometry is therefore expected and
+    is not used for keyboard-target authorization.
+    """
+
+    if not state.focused_control:
+        return None
+    matches = [
+        control
+        for control in state.controls
+        if control.observation_fingerprint == state.focused_control
+    ]
+    if len(matches) != 1:
+        return None
+    control = matches[0]
+    if control.enabled is not True or control.focused is not True:
+        return None
+    if control.role.casefold() != "textbox":
+        return None
+    if control.name.casefold() != unique_filename.casefold():
+        return None
+    return control
+
+
+def _window_guard_point(state: DesktopState) -> tuple[int, int]:
+    """Return a point used only for exact top-level foreground/hit-root guards."""
+
+    bounds = state.window_bounds
+    if bounds.width <= 0 or bounds.height <= 0:
+        raise RuntimeError("bound VS Code window has no positive geometry")
+    return (
+        int(round((bounds.left + bounds.right) / 2.0)),
+        int(round((bounds.top + bounds.bottom) / 2.0)),
+    )
+
+
+def _verification_decision(status: VerificationStatus) -> str:
+    return "continue" if status is VerificationStatus.PASS else "abstain"
+
+
+def _focused_diagnostics(state: DesktopState) -> list[dict[str, Any]]:
+    return [
+        {
+            "role": item.role,
+            "name": item.name,
+            "automation_id": item.automation_id,
+            "bounds": item.bounds.to_mapping() if item.bounds is not None else None,
+            "visible": item.visible,
+            "enabled": item.enabled,
+            "focused": item.focused,
+            "observation_fingerprint": item.observation_fingerprint,
+        }
+        for item in state.controls
+        if item.focused is True
+    ][:8]
+
+
+def _is_transient_uia_rebuild_error(exc: Exception) -> bool:
+    """Recognize only the physically observed Chromium UIA rebuild COM failure."""
+
+    hresult = getattr(exc, "hresult", None)
+    if hresult is None and exc.args and isinstance(exc.args[0], int):
+        hresult = exc.args[0]
+    return type(exc).__name__ == "COMError" and hresult == TRANSIENT_UIA_REBUILD_HRESULT
+
+
+def _wait_safe_focused_editor_state(
+    resolver: WindowScopedUiaResolver,
+    window_title: str,
+    *,
+    expected_hwnd: int,
+    expected_pid: int,
+    expected_process_generation: str,
+    unique_filename: str,
+    timeout: float,
+    evidence: list[dict[str, Any]],
+) -> tuple[DesktopState, ControlObservation]:
+    """Wait read-only for two stable exact Monaco focused-input observations."""
+
+    deadline = time.monotonic() + timeout
+    stable_count = 0
+    previous_state: DesktopState | None = None
+    previous_focused: ControlObservation | None = None
+    attempt = 0
+
+    while time.monotonic() < deadline:
+        attempt += 1
+        try:
+            state = observe_bound_window(resolver, window_title)
+        except Exception as exc:
+            if not _is_transient_uia_rebuild_error(exc):
+                raise
+            stable_count = 0
+            previous_state = None
+            previous_focused = None
+            evidence.append(
+                {
+                    "attempt": attempt,
+                    "status": "observation_error",
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "stable_count": stable_count,
+                }
+            )
+            if time.monotonic() < deadline:
+                time.sleep(READINESS_INTERVAL_SECONDS)
+            continue
+
+        if state.window_handle != expected_hwnd or state.process_id != expected_pid:
+            raise RuntimeError("VS Code readiness exact PID/HWND identity changed")
+        if state.executable_name.casefold() != EXPECTED_EXECUTABLE:
+            raise RuntimeError("VS Code readiness process is not Code.exe")
+        if state.process_generation != expected_process_generation:
+            raise RuntimeError("VS Code readiness process generation changed")
+
+        focused = _focused_editor_control(state, unique_filename)
+        if focused is None:
+            stable_count = 0
+            previous_state = None
+            previous_focused = None
+        elif (
+            previous_state is not None
+            and previous_focused is not None
+            and _same_window_identity(previous_state, state)
+            and previous_focused.observation_fingerprint == focused.observation_fingerprint
+        ):
+            stable_count += 1
+            previous_state = state
+            previous_focused = focused
+        else:
+            stable_count = 1
+            previous_state = state
+            previous_focused = focused
+
+        focus_evidence = state.freshness_evidence.get("focus_evidence")
+        evidence.append(
+            {
+                "attempt": attempt,
+                "status": "observed",
+                "control_count": len(state.controls),
+                "focus_evidence": (
+                    dict(focus_evidence) if isinstance(focus_evidence, dict) else {}
+                ),
+                "focused_controls": _focused_diagnostics(state),
+                "safe_editor": (
+                    {
+                        "role": focused.role,
+                        "name": focused.name,
+                        "observation_fingerprint": focused.observation_fingerprint,
+                    }
+                    if focused is not None
+                    else None
+                ),
+                "stable_count": stable_count,
+            }
+        )
+
+        if focused is not None and stable_count >= READINESS_STABLE_SAMPLES:
+            return state, focused
+
+        if time.monotonic() < deadline:
+            time.sleep(READINESS_INTERVAL_SECONDS)
+
+    raise TimeoutError("timed out waiting for two stable safe focused-editor observations")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run-dir", required=True)
+    parser.add_argument("--app-root", required=True)
+    parser.add_argument("--code-exe", required=True)
+    parser.add_argument("--timeout-seconds", type=float, default=90.0)
+    args = parser.parse_args()
+
+    run_dir = Path(args.run_dir).resolve()
+    app_root = Path(args.app_root).resolve()
+    code_exe = Path(args.code_exe).resolve()
+    timeout = float(args.timeout_seconds)
+    if not 1.0 <= timeout <= 180.0:
+        raise ValueError("timeout-seconds must be between 1 and 180")
+
+    result_path = run_dir / "vscode-real-app-result.json"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    _require_disposable_root(app_root)
+
+    workspace_root = app_root / "workspace"
+    user_data_root = app_root / "user-data"
+    extensions_root = app_root / "extensions"
+    user_settings_dir = user_data_root / "User"
+    unique_filename = f"chat-agent-stage26e-{secrets.token_hex(6)}.txt"
+    target_file = workspace_root / unique_filename
+    marker = f"CHAT_AGENT_STAGE26E_OK_{secrets.token_hex(8)}"
+    marker_bytes = marker.encode("utf-8")
+
+    result: dict[str, Any] = {
+        "schema_version": 7,
+        "qualification_kind": "real-application-vscode-disposable-text-edit",
+        "code_exe": str(code_exe),
+        "temp_root": str(_temp_root()),
+        "app_root": str(app_root),
+        "temp_containment_pass": False,
+        "application_discovery_pass": False,
+        "isolated_profile_pass": False,
+        "disposable_workspace_pass": False,
+        "preexisting_target_window_count": None,
+        "window_title": None,
+        "window_process_id": None,
+        "bound_window_handle": None,
+        "window_binding_pass": False,
+        "desktop_observation_pass": False,
+        "focused_editor_precondition_pass": False,
+        "focused_editor_role": None,
+        "focused_editor_name": None,
+        "focused_editor_fingerprint": None,
+        "readiness_evidence": [],
+        "fresh_pre_action_state_pass": False,
+        "fresh_pre_action_focused_fingerprint": None,
+        "focused_control_diagnostics": None,
+        "native_point_guard_pass": False,
+        "window_guard_point": None,
+        "keyboard_focus_guard_mode": KEYBOARD_FOCUS_GUARD_MODE,
+        "keyboard_focus_guard_armed_pass": False,
+        "keyboard_focus_guard_pass": False,
+        "agent_loopback_pass": False,
+        "agent_auth_required_pass": False,
+        "legacy_capability_absent_pass": False,
+        "baseline_artifact_evidence": None,
+        "baseline_verification_status": None,
+        "mismatch_probe_verification_status": None,
+        "mismatch_probe_decision": None,
+        "mismatch_probe_zero_action_pass": False,
+        "guarded_keyboard_delivery_pass": False,
+        "keyboard_action_count": 0,
+        "completion_artifact_evidence": None,
+        "completion_verification_status": None,
+        "completion_verification_pass": False,
+        "current_state_verification_pass": False,
+        "workspace_expected_only_pass": False,
+        "workspace_snapshot": None,
+        "cleanup_match_count": 0,
+        "cleanup_validated_match_count": 0,
+        "cleanup_revalidation_pass": False,
+        "application_cleanup_pass": False,
+        "failure_window_cleanup_count": 0,
+        "cli_process_returncode": None,
+        "cli_process_exit_pass": False,
+        "forced_cli_cleanup": False,
+        "app_root_cleanup_pass": False,
+        "rollback_pass": False,
+        "resolver_stats": None,
+        "pass": False,
+        "error": None,
+        "traceback": None,
+    }
+
+    resolver = WindowScopedUiaResolver()
+    server = None
+    server_thread: threading.Thread | None = None
+    cli_process: subprocess.Popen[bytes] | None = None
+    bound_hwnd: int | None = None
+    bound_pid: int | None = None
+    bound_process_generation: str | None = None
+
+    try:
+        temp_root = _temp_root()
+        result["temp_containment_pass"] = bool(
+            app_root != temp_root
+            and app_root.is_relative_to(temp_root)
+            and app_root.name.startswith(QUALIFICATION_PREFIX)
+        )
+        if not result["temp_containment_pass"]:
+            raise RuntimeError("disposable qualification root is outside TEMP")
+
+        result["application_discovery_pass"] = bool(
+            code_exe.is_file() and code_exe.name.casefold() == EXPECTED_EXECUTABLE
+        )
+        if not result["application_discovery_pass"]:
+            raise RuntimeError("VS Code executable was not resolved to Code.exe")
+
+        _remove_disposable_root(app_root)
+        workspace_root.mkdir(parents=True, exist_ok=False)
+        user_settings_dir.mkdir(parents=True, exist_ok=False)
+        extensions_root.mkdir(parents=True, exist_ok=False)
+        target_file.write_bytes(b"")
+        settings = {
+            "files.autoSave": "afterDelay",
+            "files.autoSaveDelay": 100,
+            "workbench.startupEditor": "none",
+            "window.restoreWindows": "none",
+            "editor.accessibilitySupport": "on",
+            "chat.disableAIFeatures": True,
+            "security.workspace.trust.enabled": False,
+            "extensions.autoCheckUpdates": False,
+            "extensions.autoUpdate": False,
+            "update.mode": "none",
+        }
+        (user_settings_dir / "settings.json").write_text(
+            json.dumps(settings, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        result["isolated_profile_pass"] = bool(
+            user_data_root.is_dir()
+            and extensions_root.is_dir()
+            and user_data_root.is_relative_to(app_root)
+            and extensions_root.is_relative_to(app_root)
+        )
+        result["disposable_workspace_pass"] = bool(
+            workspace_root.is_dir()
+            and target_file.is_file()
+            and workspace_root.is_relative_to(app_root)
+            and target_file.is_relative_to(workspace_root)
+        )
+
+        baseline = _artifact_evidence(target_file)
+        result["baseline_artifact_evidence"] = baseline
+        baseline_verify = verify_expected_fields(
+            before={},
+            after=baseline,
+            expectation={"exists": True, "size": 0, "sha256": _sha256_bytes(b"")},
+        )
+        result["baseline_verification_status"] = baseline_verify.status.value
+        if not baseline_verify.passed:
+            raise RuntimeError("disposable baseline artifact verification failed")
+
+        preexisting = _matching_vscode_windows(unique_filename)
+        result["preexisting_target_window_count"] = len(preexisting)
+        if preexisting:
+            raise RuntimeError("unique VS Code qualification title already exists")
+
+        cli_process = subprocess.Popen(
+            [
+                str(code_exe),
+                "--wait",
+                "--new-window",
+                "--disable-extensions",
+                "--user-data-dir",
+                str(user_data_root),
+                "--extensions-dir",
+                str(extensions_root),
+                "--goto",
+                f"{target_file}:1:1",
+            ],
+            cwd=str(workspace_root),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            shell=False,
+        )
+
+        window = _wait_unique_vscode_window(unique_filename, timeout)
+        bound_hwnd = int(window["hwnd"])
+        window_pid = int(window["pid"])
+        bound_pid = window_pid
+        window_title = str(window["title"])
+        result["window_title"] = window_title
+        result["window_process_id"] = window_pid
+        result["bound_window_handle"] = bound_hwnd
+        resolver.set_expected_process_id(window_pid)
+
+        (
+            _bound_session_id,
+            _bound_application_identity,
+            bound_executable_name,
+            bound_process_generation,
+        ) = _query_process_identity(window_pid)
+        if bound_executable_name.casefold() != EXPECTED_EXECUTABLE:
+            raise RuntimeError("bound VS Code qualification process is not Code.exe")
+
+        before_state, focused = _wait_safe_focused_editor_state(
+            resolver,
+            window_title,
+            expected_hwnd=bound_hwnd,
+            expected_pid=window_pid,
+            expected_process_generation=bound_process_generation,
+            unique_filename=unique_filename,
+            timeout=min(timeout, READINESS_TIMEOUT_SECONDS),
+            evidence=result["readiness_evidence"],
+        )
+        result["window_binding_pass"] = bool(
+            before_state.window_handle == bound_hwnd
+            and before_state.process_id == window_pid
+            and before_state.process_generation == bound_process_generation
+            and before_state.executable_name.casefold() == EXPECTED_EXECUTABLE
+        )
+        result["desktop_observation_pass"] = bool(
+            before_state.controls
+            and before_state.window_bounds.width > 0
+            and before_state.window_bounds.height > 0
+            and before_state.window_instance
+        )
+        if not result["window_binding_pass"] or not result["desktop_observation_pass"]:
+            raise RuntimeError("VS Code DesktopState binding/observation failed")
+
+        result["focused_editor_precondition_pass"] = True
+        result["focused_editor_role"] = focused.role
+        result["focused_editor_name"] = focused.name
+        result["focused_editor_fingerprint"] = focused.observation_fingerprint
+
+        initial_guard_point = _window_guard_point(before_state)
+        require_foreground_hit_target(before_state, *initial_guard_point)
+        result["native_point_guard_pass"] = True
+        result["window_guard_point"] = list(initial_guard_point)
+
+        token = secrets.token_urlsafe(32)
+        server = create_server(
+            AgentConfig(host="127.0.0.1", port=0, token=token, allow_legacy_exec=False),
+            input_fn=bounded_input,
+            uia_fn=resolver.perform,
+        )
+        host, port = server.server_address[:2]
+        result["agent_loopback_pass"] = str(host) == "127.0.0.1" and int(port) > 0
+        server_thread = threading.Thread(
+            target=server.serve_forever,
+            name="stage26-2e-vscode-win-agent",
+            daemon=True,
+        )
+        server_thread.start()
+        base_url = f"http://127.0.0.1:{int(port)}"
+        health = requests.get(f"{base_url}/health", timeout=10.0)
+        health.raise_for_status()
+        health_data = health.json()
+        result["agent_auth_required_pass"] = health_data.get("auth_required") is True
+        result["legacy_capability_absent_pass"] = "legacy_exec" not in (
+            health_data.get("capabilities") or []
+        )
+        if not all(
+            bool(result[name])
+            for name in (
+                "agent_loopback_pass",
+                "agent_auth_required_pass",
+                "legacy_capability_absent_pass",
+            )
+        ):
+            raise RuntimeError("real-app Windows agent security precondition failed")
+
+        backend = WindowsBackend(
+            server_url=base_url,
+            auth_token=token,
+            require_tls=False,
+            allow_legacy_exec=False,
+        )
+
+        mismatch = verify_expected_fields(
+            before={},
+            after=baseline,
+            expectation={"exists": True, "size": 0, "sha256": "0" * 64},
+        )
+        result["mismatch_probe_verification_status"] = mismatch.status.value
+        result["mismatch_probe_decision"] = _verification_decision(mismatch.status)
+        result["mismatch_probe_zero_action_pass"] = bool(
+            result["mismatch_probe_decision"] == "abstain"
+            and result["keyboard_action_count"] == 0
+        )
+        if not result["mismatch_probe_zero_action_pass"]:
+            raise RuntimeError("recoverable mismatch probe did not fail closed before mutation")
+
+        action_state = observe_bound_window(resolver, window_title)
+        action_focused = _focused_editor_control(action_state, unique_filename)
+        result["fresh_pre_action_focused_fingerprint"] = (
+            action_focused.observation_fingerprint if action_focused is not None else None
+        )
+        result["fresh_pre_action_state_pass"] = bool(
+            _same_window_identity(before_state, action_state)
+            and action_focused is not None
+            and action_focused.observation_fingerprint == focused.observation_fingerprint
+        )
+        if not result["fresh_pre_action_state_pass"] or action_focused is None:
+            result["focused_control_diagnostics"] = _focused_diagnostics(action_state)
+            raise RuntimeError("focused editor/window changed before guarded keyboard mutation")
+
+        action_point = _window_guard_point(action_state)
+        require_foreground_hit_target(action_state, *action_point)
+        result["window_guard_point"] = list(action_point)
+
+        resolver.arm_focused_keyboard_target(
+            window_title=window_title,
+            window_handle=action_state.window_handle,
+            process_generation=action_state.process_generation,
+            focused_fingerprint=action_focused.observation_fingerprint,
+            role=action_focused.role,
+            name=action_focused.name,
+        )
+        result["keyboard_focus_guard_armed_pass"] = True
+        try:
+            backend.arm_guarded_keyboard(*action_point)
+            frame = backend.guarded_keyboard_frame()
+            frame_digest = _sha256_bytes(frame)
+            receipt = backend.type_text_guarded(marker, expected_frame_sha256=frame_digest)
+        finally:
+            resolver.cancel_focused_keyboard_target()
+
+        result["keyboard_focus_guard_pass"] = bool(
+            resolver.stats.keyboard_focus_guard_arms == 1
+            and resolver.stats.keyboard_focus_guard_calls == 1
+            and resolver.stats.keyboard_focus_guard_passes == 1
+            and resolver.stats.keyboard_focus_guard_failures == 0
+        )
+        if not result["keyboard_focus_guard_pass"]:
+            raise RuntimeError("window-scoped focused keyboard target guard did not pass exactly once")
+
+        result["keyboard_action_count"] += 1
+        result["guarded_keyboard_delivery_pass"] = bool(
+            receipt.operation == "physical_type_text"
+            and receipt.native is False
+            and receipt.outcome_verified is False
+        )
+        if not result["guarded_keyboard_delivery_pass"]:
+            raise RuntimeError("guarded VS Code text delivery receipt failed contract")
+
+        expected_after = {
+            "exists": True,
+            "size": len(marker_bytes),
+            "sha256": _sha256_bytes(marker_bytes),
+        }
+        _wait_until(
+            lambda: _artifact_evidence(target_file) == expected_after,
+            timeout=10.0,
+            label="VS Code autosave postcondition",
+        )
+        after_artifact = _artifact_evidence(target_file)
+        result["completion_artifact_evidence"] = after_artifact
+        completion = verify_expected_fields(
+            before=baseline,
+            after=after_artifact,
+            expectation=expected_after,
+        )
+        result["completion_verification_status"] = completion.status.value
+        result["completion_verification_pass"] = completion.passed
+
+        after_state = observe_bound_window(resolver, window_title)
+        result["current_state_verification_pass"] = _same_window_identity(
+            before_state, after_state
+        )
+        workspace_snapshot = _workspace_snapshot(workspace_root)
+        result["workspace_snapshot"] = workspace_snapshot
+        result["workspace_expected_only_pass"] = workspace_snapshot == {
+            unique_filename: expected_after["sha256"]
+        }
+        result["resolver_stats"] = vars(resolver.stats).copy()
+
+        result["pass"] = bool(
+            result["temp_containment_pass"]
+            and result["application_discovery_pass"]
+            and result["isolated_profile_pass"]
+            and result["disposable_workspace_pass"]
+            and result["preexisting_target_window_count"] == 0
+            and result["window_binding_pass"]
+            and result["desktop_observation_pass"]
+            and result["focused_editor_precondition_pass"]
+            and result["fresh_pre_action_state_pass"]
+            and result["native_point_guard_pass"]
+            and result["keyboard_focus_guard_armed_pass"]
+            and result["keyboard_focus_guard_pass"]
+            and result["agent_loopback_pass"]
+            and result["agent_auth_required_pass"]
+            and result["legacy_capability_absent_pass"]
+            and result["baseline_verification_status"] == VerificationStatus.PASS.value
+            and result["mismatch_probe_verification_status"] == VerificationStatus.FAIL.value
+            and result["mismatch_probe_zero_action_pass"]
+            and result["guarded_keyboard_delivery_pass"]
+            and result["keyboard_action_count"] == 1
+            and result["completion_verification_pass"]
+            and result["current_state_verification_pass"]
+            and result["workspace_expected_only_pass"]
+            and resolver.stats.desktop_fallback_calls == 0
+            and resolver.stats.window_binding_failures == 0
+            and resolver.stats.window_binding_ambiguities == 0
+            and resolver.stats.keyboard_focus_guard_arms == 1
+            and resolver.stats.keyboard_focus_guard_calls == 1
+            and resolver.stats.keyboard_focus_guard_passes == 1
+            and resolver.stats.keyboard_focus_guard_failures == 0
+        )
+    except BaseException as exc:
+        result["error"] = f"{type(exc).__name__}: {exc}"
+        result["traceback"] = traceback.format_exc()
+        result["resolver_stats"] = vars(resolver.stats).copy()
+    finally:
+        resolver.cancel_focused_keyboard_target()
+        if server is not None:
+            try:
+                server.shutdown()
+            except Exception:
+                pass
+            try:
+                server.server_close()
+            except Exception:
+                pass
+        if server_thread is not None:
+            server_thread.join(timeout=5.0)
+
+        try:
+            if (
+                bound_hwnd is not None
+                and bound_pid is not None
+                and bound_process_generation is not None
+            ):
+                cleanup_matches, validated_matches = _validated_cleanup_matches(
+                    unique_filename,
+                    expected_hwnd=bound_hwnd,
+                    expected_pid=bound_pid,
+                    expected_process_generation=bound_process_generation,
+                )
+            else:
+                cleanup_matches, validated_matches = _validated_cleanup_matches(unique_filename)
+
+            result["cleanup_match_count"] = len(cleanup_matches)
+            result["cleanup_validated_match_count"] = len(validated_matches)
+            result["failure_window_cleanup_count"] = len(cleanup_matches)
+
+            if not cleanup_matches:
+                result["cleanup_revalidation_pass"] = True
+                result["application_cleanup_pass"] = True
+            elif len(cleanup_matches) == 1 and len(validated_matches) == 1:
+                result["cleanup_revalidation_pass"] = True
+                _post_close(int(validated_matches[0]["hwnd"]))
+                _wait_until(
+                    lambda: not _matching_vscode_windows(unique_filename),
+                    timeout=15.0,
+                    label="revalidated isolated VS Code window close",
+                )
+                result["application_cleanup_pass"] = True
+            else:
+                result["cleanup_revalidation_pass"] = False
+                result["application_cleanup_pass"] = False
+                if result["error"] is None:
+                    result["error"] = (
+                        "VS Code cleanup identity was not uniquely revalidated; refusing WM_CLOSE"
+                    )
+        except Exception as exc:
+            result["cleanup_revalidation_pass"] = False
+            result["application_cleanup_pass"] = False
+            if result["error"] is None:
+                result["error"] = (
+                    f"VS Code cleanup revalidation failed: {type(exc).__name__}: {exc}"
+                )
+
+        if cli_process is not None:
+            try:
+                returncode = int(cli_process.wait(timeout=10.0))
+                result["cli_process_returncode"] = returncode
+                result["cli_process_exit_pass"] = returncode == 0
+                if returncode != 0 and result["error"] is None:
+                    result["error"] = f"VS Code CLI exited naturally with nonzero code {returncode}"
+            except subprocess.TimeoutExpired:
+                result["forced_cli_cleanup"] = True
+                cli_process.terminate()
+                try:
+                    cli_process.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    cli_process.kill()
+                    cli_process.wait(timeout=5.0)
+                result["cli_process_returncode"] = cli_process.poll()
+                result["cli_process_exit_pass"] = False
+                if result["error"] is None:
+                    result["error"] = "VS Code CLI did not exit naturally after qualification window close"
+
+        try:
+            _remove_disposable_root(app_root)
+            result["app_root_cleanup_pass"] = not app_root.exists()
+            result["rollback_pass"] = bool(
+                result["cleanup_revalidation_pass"]
+                and result["application_cleanup_pass"]
+                and result["cli_process_exit_pass"]
+                and result["cli_process_returncode"] == 0
+                and not result["forced_cli_cleanup"]
+                and result["app_root_cleanup_pass"]
+            )
+        except Exception:
+            result["app_root_cleanup_pass"] = False
+            result["rollback_pass"] = False
+
+        result["pass"] = bool(result["pass"] and result["rollback_pass"])
+        result_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    print("===== STAGE 26.2E VS CODE REAL APPLICATION E2E =====")
+    print(f"RESULT_PATH={result_path}")
+    for key in (
+        "temp_containment_pass",
+        "application_discovery_pass",
+        "isolated_profile_pass",
+        "disposable_workspace_pass",
+        "preexisting_target_window_count",
+        "window_title",
+        "window_process_id",
+        "bound_window_handle",
+        "window_binding_pass",
+        "desktop_observation_pass",
+        "focused_editor_precondition_pass",
+        "focused_editor_role",
+        "focused_editor_name",
+        "focused_editor_fingerprint",
+        "readiness_evidence",
+        "focused_control_diagnostics",
+        "fresh_pre_action_state_pass",
+        "fresh_pre_action_focused_fingerprint",
+        "native_point_guard_pass",
+        "window_guard_point",
+        "keyboard_focus_guard_mode",
+        "keyboard_focus_guard_armed_pass",
+        "keyboard_focus_guard_pass",
+        "agent_loopback_pass",
+        "agent_auth_required_pass",
+        "legacy_capability_absent_pass",
+        "baseline_verification_status",
+        "mismatch_probe_verification_status",
+        "mismatch_probe_decision",
+        "mismatch_probe_zero_action_pass",
+        "guarded_keyboard_delivery_pass",
+        "keyboard_action_count",
+        "completion_verification_status",
+        "completion_verification_pass",
+        "current_state_verification_pass",
+        "workspace_expected_only_pass",
+        "cleanup_match_count",
+        "cleanup_validated_match_count",
+        "cleanup_revalidation_pass",
+        "application_cleanup_pass",
+        "failure_window_cleanup_count",
+        "cli_process_returncode",
+        "cli_process_exit_pass",
+        "forced_cli_cleanup",
+        "app_root_cleanup_pass",
+        "rollback_pass",
+        "resolver_stats",
+        "error",
+        "pass",
+    ):
+        print(f"{key.upper()}={result.get(key)}")
+    return 0 if result["pass"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

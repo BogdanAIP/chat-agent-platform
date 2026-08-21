@@ -34,23 +34,46 @@ class ResolverStats:
     window_name_match_count: int = 0
     window_binding_failures: int = 0
     window_binding_ambiguities: int = 0
+    keyboard_focus_guard_arms: int = 0
+    keyboard_focus_guard_calls: int = 0
+    keyboard_focus_guard_passes: int = 0
+    keyboard_focus_guard_failures: int = 0
     last_failure_stage: str | None = None
     last_failure_detail: str | None = None
 
 
-class WindowScopedUiaResolver:
-    """Bound structural UIA lookup to one exact process/window.
+@dataclass(frozen=True)
+class _ArmedKeyboardFocus:
+    window_title: str
+    window_handle: int
+    process_generation: str
+    focused_fingerprint: str
+    role: str
+    name: str
 
-    This promotes the physically accepted Stage 26.1E resolver into runtime
-    code.  Window binding uses Win32 top-level HWND enumeration narrowed by the
-    expected process id before UIA conversion.  Target lookup remains native
-    UIA FindAll inside the exact bound window.  Upstream candidate/fingerprint
+
+class WindowScopedUiaResolver:
+    """Bound structural UIA lookup and guarded keyboard focus to one window.
+
+    Window binding uses Win32 top-level HWND enumeration narrowed by the
+    expected process id before UIA conversion. Target lookup remains native
+    UIA FindAll inside the exact bound window. Upstream candidate/fingerprint
     semantics and independent /uia/act re-resolution remain authoritative.
+
+    Keyboard input has one additional opt-in guard for applications such as
+    Monaco where the true focused input is intentionally hidden and therefore
+    cannot be recovered through ControlFromPoint. The caller arms one exact
+    DesktopState focused-control fingerprint. The next focused-at-point request
+    consumes that arm and performs a completely fresh, window-scoped
+    observation. The screen point remains a top-level window/context guard; it
+    is never treated as geometry for the hidden focused control.
     """
 
     def __init__(self) -> None:
         self.stats = ResolverStats()
         self.expected_process_id: int | None = None
+        self._keyboard_focus_lock = threading.RLock()
+        self._armed_keyboard_focus: _ArmedKeyboardFocus | None = None
 
     def set_expected_process_id(self, process_id: int) -> None:
         if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
@@ -58,6 +81,62 @@ class WindowScopedUiaResolver:
         if self.expected_process_id is not None and self.expected_process_id != process_id:
             raise ValueError("expected process id is already bound")
         self.expected_process_id = process_id
+
+    def arm_focused_keyboard_target(
+        self,
+        *,
+        window_title: str,
+        window_handle: int,
+        process_generation: str,
+        focused_fingerprint: str,
+        role: str,
+        name: str,
+    ) -> None:
+        """Arm one fresh exact focused-control identity for keyboard delivery."""
+
+        if self.expected_process_id is None:
+            raise ValueError("expected process id must be bound before keyboard focus")
+        normalized_title = self._normalize_name(window_title)
+        normalized_name = self._normalize_name(name)
+        normalized_role = str(role or "").casefold()
+        fingerprint = str(focused_fingerprint or "").casefold()
+        if not normalized_title:
+            raise ValueError("keyboard focus window title is required")
+        if isinstance(window_handle, bool) or not isinstance(window_handle, int) or window_handle <= 0:
+            raise ValueError("keyboard focus window handle must be positive")
+        if not process_generation:
+            raise ValueError("keyboard focus process generation is required")
+        if (
+            len(fingerprint) != 64
+            or any(char not in "0123456789abcdef" for char in fingerprint)
+        ):
+            raise ValueError("keyboard focus fingerprint must be lowercase SHA-256")
+        if not normalized_role or not normalized_name:
+            raise ValueError("keyboard focus role and name are required")
+
+        arm = _ArmedKeyboardFocus(
+            window_title=normalized_title,
+            window_handle=window_handle,
+            process_generation=str(process_generation),
+            focused_fingerprint=fingerprint,
+            role=normalized_role,
+            name=normalized_name,
+        )
+        with self._keyboard_focus_lock:
+            if self._armed_keyboard_focus is not None:
+                raise RuntimeError("keyboard focus guard is already armed")
+            self._armed_keyboard_focus = arm
+            self.stats.keyboard_focus_guard_arms += 1
+
+    def cancel_focused_keyboard_target(self) -> None:
+        with self._keyboard_focus_lock:
+            self._armed_keyboard_focus = None
+
+    def _consume_focused_keyboard_target(self) -> _ArmedKeyboardFocus | None:
+        with self._keyboard_focus_lock:
+            armed = self._armed_keyboard_focus
+            self._armed_keyboard_focus = None
+            return armed
 
     @staticmethod
     def _normalize_name(value: object) -> str:
@@ -326,8 +405,84 @@ class WindowScopedUiaResolver:
             )
         return found, truncated
 
+    def _perform_armed_keyboard_focus(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        upstream = _upstream()
+        armed = self._consume_focused_keyboard_target()
+        if armed is None:
+            self.stats.delegated_uia_calls += 1
+            return upstream._perform_uia("focused-at-point", payload)
+
+        self.stats.keyboard_focus_guard_calls += 1
+        data = upstream._exact_object(
+            payload,
+            required=frozenset({"x", "y"}),
+            label="focused-at-point",
+        )
+        x = upstream._bounded_int(data["x"], "x")
+        y = upstream._bounded_int(data["y"], "y")
+
+        try:
+            from .observation import observe_bound_window
+
+            state = observe_bound_window(self, armed.window_title)
+        except upstream.AgentRequestError:
+            self.stats.keyboard_focus_guard_failures += 1
+            raise
+        except Exception as exc:
+            self.stats.keyboard_focus_guard_failures += 1
+            self._record_failure(
+                "keyboard_focus_observation",
+                f"{type(exc).__name__}: {exc}",
+            )
+            raise upstream.AgentRequestError(
+                503,
+                "uia_unavailable",
+                "window-scoped keyboard focus is unavailable",
+            ) from exc
+
+        bounds = state.window_bounds
+        matches = [
+            control
+            for control in state.controls
+            if control.observation_fingerprint == armed.focused_fingerprint
+        ]
+        valid = bool(
+            state.process_id == self.expected_process_id
+            and state.window_handle == armed.window_handle
+            and state.process_generation == armed.process_generation
+            and state.window_title == armed.window_title
+            and bounds.left <= x < bounds.right
+            and bounds.top <= y < bounds.bottom
+            and state.focused_control == armed.focused_fingerprint
+            and len(matches) == 1
+            and matches[0].focused is True
+            and matches[0].enabled is True
+            and matches[0].role.casefold() == armed.role
+            and self._normalize_name(matches[0].name) == armed.name
+        )
+        if not valid:
+            self.stats.keyboard_focus_guard_failures += 1
+            self._record_failure(
+                "keyboard_focus_guard",
+                "fresh focused control/window identity did not match the armed target",
+            )
+            return {"status": "ok", "focused": False}
+
+        self.stats.keyboard_focus_guard_passes += 1
+        self._clear_failure()
+        return {
+            "status": "ok",
+            "focused": True,
+            "target_fingerprint": armed.focused_fingerprint,
+        }
+
     def perform(self, operation: str, payload: dict[str, Any]) -> dict[str, Any]:
         upstream = _upstream()
+        if operation == "focused-at-point":
+            return self._perform_armed_keyboard_focus(payload)
         if operation not in {"find", "act"}:
             self.stats.delegated_uia_calls += 1
             return upstream._perform_uia(operation, payload)
@@ -350,7 +505,7 @@ class WindowScopedUiaResolver:
         try:
             with auto.UIAutomationInitializerInThread():
                 # Pinned upstream routes structural resolution through one
-                # module-global helper.  Serialize this narrow replacement so
+                # module-global helper. Serialize this narrow replacement so
                 # concurrent calls cannot observe another resolver instance.
                 with _PATCH_LOCK:
                     original = upstream._find_candidates

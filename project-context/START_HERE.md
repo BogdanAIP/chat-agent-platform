@@ -1,29 +1,56 @@
 # Start Here — authoritative continuation guide
 
-Use this file first in a fresh ordinary ChatGPT session.
+Use this file first in a fresh ordinary ChatGPT session after resolving live repository state.
 
 ## Resolve live repository state first
 
-Never treat a documentation SHA as permanently current. Resolve live `main`, then inspect any active PR heads relevant to the task.
+Never treat a documentation SHA as permanently current. Resolve live `main`, then inspect open PR heads relevant to the task.
 
 ## Read current authoritative context
 
-1. `project-context/CURRENT_STATE.md`
-2. `project-context/ROADMAP.md`
+1. `project-context/CONTINUATION_CONTEXT.md`
+2. `project-context/CURRENT_STATE.md`
 3. `project-context/ARCHITECTURE.md`
-4. `project-context/MODULE_CATALOG.md`
-5. `project-context/KNOWN_ISSUES.md`
-6. stage-specific accepted documents as needed
+4. `project-context/CONTROL_PLANE.md`
+5. `project-context/ROADMAP.md`
+6. `project-context/DOCUMENT_STATUS.md`
+7. `project-context/MODULE_CATALOG.md`
+8. `project-context/KNOWN_ISSUES.md`
+9. active Stage 26.3 contract/design: `project-context/STAGE26_PROCEDURAL_MEMORY.md`
+10. accepted Stage 26.2E evidence: `project-context/STAGE26_2E_REAL_APPLICATION_E2E.md` when exact real-app details are needed
 
 When documents disagree, exact code/tests/current CI/physical target evidence outrank prose.
 
+`DOCUMENT_STATUS.md` classifies every `project-context/*.md` file. Historical stage/research files may preserve old `ACTIVE`, `CURRENT`, `NEXT` and old stage-numbering text; those phrases are historical when the status map says so and must not override live context.
+
 ## Current operating constraint
 
-Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources for development, review, orchestration or execution unless the user explicitly re-enables them later.
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources unless the user explicitly re-enables them later.
 
-## Product boundary
+## Planner / Control Plane boundary
 
-Ordinary ChatGPT remains the only general planner/intelligence layer.
+Ordinary ChatGPT is the **only current general planner/intelligence**.
+
+The local platform implements a **deterministic execution Control Plane** that owns:
+
+```text
+TaskState
+selected ProgramGraph/procedure state
+capability policy + authorization
+checkpoints
+verifier/postconditions
+bounded retry/recovery
+resource/action/time budgets
+escalation reason
+```
+
+That Control Plane may continue a known, already-selected procedure through multiple current-state-authorized and verified transitions without asking ChatGPT after every low-level action. It must escalate when the environment requires a new strategy or is stale/unknown/ambiguous/incompatible.
+
+This is not a second general planner. See `CONTROL_PLANE.md`.
+
+A future local general planner remains optional Track P and starts shadow/proposal-only after verified procedure-state data and measured need exist.
+
+## Normal path and public contract
 
 ```text
 ordinary ChatGPT
@@ -44,105 +71,78 @@ web_observe
 web_interact
 ```
 
-1MCP remains internal diagnostic/adaptive/aggregation infrastructure. Local components may observe, execute bounded actions, verify effects, reuse procedures and run bounded specialist perception, but they must not become a second universal planner or expose generic hidden execution.
+1MCP remains internal diagnostic/adaptive/aggregation infrastructure. `semantic-projection` is not the procedure Control Plane and may not become an opaque workflow dispatcher.
 
-## Accepted browser foundation
+Any new Stage 26.3 procedure-facing surface must be a dedicated truthful typed contract/ADR. Generic shell/Python/`tool_invoke` execution remains forbidden.
 
-Stage 25.2 remains semantic/native first. Local LFM2.5-VL-450M F16 starts only on the reviewed zero-exact-candidate browser path, is proposal-only and remains behind deterministic target/freshness authorization.
+## Accepted Windows foundation
 
-```text
-llama.cpp b10448 / ad1de39e0
-LFM2.5-VL-450M F16
-CPU 8 threads
-ctx 2048
-```
-
-## Accepted Windows state
-
-### Stage 26.1A / 26.1B
+Accepted/merged through Stage 26.2D:
 
 ```text
-openadapt-flow 1.31.0 @ d7f58d9f35c8369f16a9b378f23952d425334ad7
-openadapt-capture 1.2.2 @ bcf12942d61d66b64d94e645e9124273a5cc5963
-Capture qualification head = 7a9daa9329d81994833c22b4ca2e321927527dcc
+#83 26.1C typed executor
+#84 26.1D latency baseline
+#85 26.1E window-scoped UIA
+#86 context synchronization
+#87 26.2A production Windows runtime
+#88 26.2B DesktopState
+#89 26.2C native Desktop Grounder
+#90 26.2D deterministic structure-first vision routing
 ```
 
-### Stage 26.1C–26.1E — merged
+Stage 26.2E real-app E2E is physically accepted on exact runtime/qualification head:
 
-#83 executor accepted; #84 latency baseline measured; #85 window-scoped UIA accepted. Controlled Stage 26.1E evidence: 97 scoped resolutions, zero Desktop fallback/binding failures/ambiguities/false/unrelated-window actions, about 3.324 s p50 / 3.720 s p95.
-
-### Stage 26.2A — Production Windows Runtime Foundation — merged #87
-
-Maintained `runtime/windows/` owns bounded actuation, PID/HWND window-scoped UIA and verifier foundation. Physical production benchmark preserved zero false/unrelated-window actions and about 3.410 s p50 / 3.631 s p95.
-
-### Stage 26.2B — Desktop Observation / DesktopState — merged #88
-
-Exact physically tested runtime head:
-
-`dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
-
-DesktopState is bounded read-only evidence carrying session/application/process/window identity, native coordinate space, controls, frame/screenshot digests, provenance and freshness inputs. It is not authorization.
-
-### Stage 26.2C — Native Desktop LFM2.5-VL Grounder — accepted
-
-Introduced by PR #89. Exact physically accepted runtime head:
-
-`eadf8ff5a873936441891a66b616c83c62736152`
+`457db0b634f2e47f53d41e359a238840fa3ca2ee`
 
 Physical evidence directory:
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-grounder-qualification\grounder-20260820-050054`
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448`
 
-Key acceptance:
+It proved one isolated VS Code task with exact hidden Monaco keyboard focus identity, one-shot window-scoped focus authorization, one guarded Unicode delivery, independent file postcondition and full rollback. This is real-app evidence, not broad desktop accuracy.
+
+## Active work — Stage 26.3 Verified Procedure Runtime
+
+The next acceptance target is no longer another single-action script. It is autonomous verified progression of an already-known bounded procedure.
+
+Required first vertical slice:
 
 ```text
-POSITIVE_GROUNDER_STATUS=proposal
-POSITIVE_GROUNDER_REASON=grounder-accepted-ordinal-alias-proposal-only
-POSITIVE_INVENTORY_MATCH_COUNT=1
-POSITIVE_PASS2_DETECTION_COUNT=1
-SAME_FRAME_BINDING_PASS=True
-COORDINATE_CONTRACT_PASS=True
-TARGET_POINT_INSIDE_UIA_PASS=True
-TARGET_EVIDENCE_BINDING_PASS=True
-ABSENT_TARGET_ABSTAIN_PASS=True
-STALE_FRAME_REJECTION_PASS=True
-PROPOSAL_ONLY_CONTRACT_PASS=True
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-VISION_RESTORED_PASS=True
-FIXTURE_CLEANUP_PASS=True
-PASS=True
+ONE user goal
+ -> ordinary ChatGPT selects the known procedure + parameters
+ -> local deterministic Control Plane executes multiple transitions
+ -> each transition is authorized from current evidence
+ -> each transition has a verifier/postcondition
+ -> checkpoints/budgets prevent blind continuation
+ -> NO intermediate PowerShell copy/paste by the user
+ -> verified completion OR deterministic ABSTAIN/escalation
 ```
 
-The model read `1. Benchmark start` as `Benchmark start`. Desktop matching therefore uses exact match first and only a narrowly bounded leading ordinal alias (`N.` / `N)`) when exactly one already-observed inventory label matches. General fuzzy matching is forbidden. Grounder output is proposal-only and never authorizes an action.
+The user should not be treated as a routine command relay. Ask the user to act only when the currently available Chat/local tool surface genuinely cannot perform an irreducible target-machine or permission step.
 
 ## Current critical path
 
 ```text
-Stage 26.2D UIA -> vision routing + freshness authorization + adversarial accuracy suite
- -> Stage 26.2E real application E2E
- -> Stage 26.3 Verified Procedure Runtime
- -> Stage 26.4 Human Demo -> transferable verified candidate skill
- -> Stage 27/28 distribution and clean-user release
+26.2E real application E2E — ACCEPTED
+ -> 26.3 Verified Procedure Runtime / deterministic Control Plane integration — ACTIVE
+    -> 26.3A candidate-first procedural trust
+    -> 26.3B advanced verifier/postconditions
+    -> checkpoint/recovery/budget mechanics as required
+ -> 26.4 Human Demo -> transferable verified candidate skill
+ -> 27/28 distribution and clean-user release
 ```
 
-Stage 26.2D must preserve structure-before-pixels, escalate only on a promoted unresolved miss, re-observe before action and keep stale/ambiguous evidence fail-closed. Fixture success is not general Windows accuracy.
+Future local planner/offline autonomy is **not deleted from the roadmap**; it is Track P after verified data/need, not a prerequisite for the current stable release.
 
 ## Merge policy
 
-Once a branch is logically complete, intended diff is verified, required physical/CI tests pass and the applicable review/acceptance gate passes, merge it without waiting for a separate merge command. Stop instead on unresolved findings, conflicts, ambiguous scope or failed/skipped required evidence.
-
-## Optional/parallel directions
-
-- Procedure-state dataset + TRM/STARM/FPRM/small-model experiments are optional research only after real verified data and measured need.
-- Multi-chat orchestration is a separate upper layer and must not use Codex or Work resources under the current constraint.
+Once a branch is logically complete, intended diff is verified, required physical/CI tests pass and applicable acceptance gates pass, merge it without waiting for a separate merge command. Stop on unresolved finding, conflict, ambiguous scope or failed/skipped required evidence.
 
 ## Non-negotiable rules
 
-- ChatGPT is the only general planner/intelligence;
-- semantic/native structure before pixels where reliable;
-- model/procedure/observation proposal is not authorization;
+- ordinary ChatGPT is the only current general planner/intelligence;
+- deterministic local execution Control Plane is allowed/desired;
+- no current local general planner/autonomous strategy brain;
+- model/procedure/planner/observation proposal is not authorization;
 - current observed state outranks remembered history;
 - verification controls completion;
 - stale/ambiguous/UNKNOWN fails closed;

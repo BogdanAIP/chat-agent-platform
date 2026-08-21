@@ -158,8 +158,18 @@ class Stage26WindowScopedUiaResolverTests(unittest.TestCase):
         self.assertIn('payload.get("action") != "type_text"', self.actuation)
         self.assertIn("return _perform_input(payload)", self.actuation)
         self.assertIn("physical_type_text", self.actuation)
-        for forbidden in ("clipboard", "subprocess", "os.system", "shell=True"):
-            self.assertNotIn(forbidden, self.actuation)
+        source = self.actuation.casefold()
+        for forbidden in (
+            "win32clipboard",
+            "pyperclip",
+            "openclipboard",
+            "setclipboarddata",
+            "cf_unicodetext",
+            "subprocess",
+            "os.system",
+            "shell=true",
+        ):
+            self.assertNotIn(forbidden, source)
 
     def test_performance_gate_is_derived_from_physical_stage1d_baseline(self):
         self.assertIn("BASELINE_ACTION_P50_MS = 183606.855", self.driver)

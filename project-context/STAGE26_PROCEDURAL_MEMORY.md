@@ -1,57 +1,101 @@
-# Stage 26 — Procedural Memory / Demo2Workflow
+# Stage 26 — Verified Procedural Execution / Demo2Workflow
 
-Status: **ACTIVE / CORE UPSTREAM QUALIFICATION ACCEPTED / PRODUCT INTEGRATION NOT YET COMPLETE**
+## Status
 
-Stage 26.0 (UI-Mate analysis + authoritative contract/context synchronization) is **DONE** through PR #78.
+**ACTIVE STAGE 26.3 CONTRACT / DESIGN.**
 
-Stage 26.1A (OpenAdapt core qualification) has a target PASS on qualification-code HEAD:
+Stage 26.2E real-app E2E is physically accepted on exact runtime/qualification head:
 
-`f8e8f606db845821b8fa24c09f9032015fb0e79e`.
+`457db0b634f2e47f53d41e359a238840fa3ca2ee`
 
-The next active gate is **Stage 26.1B — real bounded Windows Capture qualification**.
+Older revisions of this document described 26.1B as next and treated 26.3 as the future Windows desktop surface. That chronology is historical and superseded.
 
-This document is the authoritative design contract after merged Stage 25.2. It does not declare a working end-user teach-by-demonstration feature.
+Current sequence:
+
+```text
+26.1A/B OpenAdapt core + Capture qualification — accepted
+26.1C-E Windows executor/UIA qualification — accepted
+26.2A-D production Windows observation/grounding/routing — accepted/merged
+26.2E real application E2E — accepted physically / PR #91
+26.3 Verified Procedure Runtime / deterministic Control Plane — ACTIVE
+26.4 Human Demo -> transferable verified candidate skill
+```
 
 ## Goal
 
-Let ordinary ChatGPT reuse previously successful procedures without adding a second planner or turning local execution into blind macro replay.
+Let ordinary ChatGPT use previously successful procedures without either extreme:
+
+- ChatGPT micromanaging every deterministic low-level action; or
+- a second current local general planner freely deciding what to do.
+
+The first Stage 26.3 user-value target is explicit: **stop using the user as the routine relay who copies PowerShell commands between Chat and the local machine.**
+
+Target split:
 
 ```text
-current user task
-  -> ordinary ChatGPT remains the only planner/intelligence
-  -> relevant prior procedure may be supplied as bounded guidance
-  -> current observed state remains authoritative
-  -> deterministic/semantic capabilities are preferred
-  -> bounded perception is used only where needed
-  -> completion/effects are verified
-  -> act / continue / HALT / ABSTAIN
+user
+  states goal once
+       |
+       v
+ordinary ChatGPT
+  general task understanding / strategy / procedure applicability / parameters
+       |
+       | selected goal / procedure / parameters
+       v
+local deterministic execution Control Plane
+  TaskState
+  ProgramGraph current node
+  capability policy / authorization
+  checkpoints
+  verifier/postconditions
+  bounded retry/recovery
+  budgets / escalation
+       |
+       v
+accepted Files / Browser / Windows capabilities
+       |
+       v
+observe -> authorize -> act -> verify -> checkpoint
+       |
+       +-> next known transition
+       +-> ABSTAIN/escalate to ChatGPT on novel state
 ```
 
-A stored procedure is advice and evidence, not an autonomous agent and not authorization to perform an action.
+A procedure is not mere passive advice, but it is also not authority. Once ChatGPT selects an applicable procedure, the Control Plane may progress through predeclared transitions only when current state, action scope and postcondition all validate.
 
-## Upstream references
+Canonical Control Plane contract: `CONTROL_PLANE.md`.
 
-### Tencent/UI-Mate — workflow-guidance reference
+## First Stage 26.3 physical acceptance
 
-Technical analysis was performed against public `Tencent/UI-Mate` commit:
-
-`d2b2e0aede83eeacfb1bc86f66503acbc4a6738a`.
-
-UI-Mate is useful primarily for the separation between:
+The first vertical slice must prove the boundary that Stage 26.2E did not:
 
 ```text
-rich demonstration trajectory
-        ↓
-compact current-subtask guidance
-        ↓
-live state remains authoritative
+ONE user goal
+ -> ordinary ChatGPT chooses one bounded known procedure + parameters
+ -> local Control Plane creates TaskState
+ -> transition 1: observe / authorize / act / verify / checkpoint
+ -> transition 2+: observe / authorize / act / verify / checkpoint
+ -> final verifier proves completion
+ -> result/evidence returns to Chat
 ```
 
-We do **not** adopt UI-Mate as a second GUI planner or require its 9B/27B checkpoints.
+Acceptance requires **no intermediate PowerShell copy/paste by the user**.
 
-### OpenAdapt Flow/Capture — procedural-engine candidate
+A target-machine permission/setup action may still require the user only when the actual Chat/local tool surface cannot perform that irreducible step itself. Such a setup action must not be confused with routine procedure execution.
 
-Broader research found a much closer implementation match than the original Stage 26 design assumed.
+Negative physical acceptance must prove:
+
+```text
+unexpected / stale / ambiguous / incompatible intermediate state
+ -> no unauthorized next action
+ -> explicit deterministic ABSTAIN/escalation reason
+```
+
+The acceptance task should be disposable, strongly isolated and independently verifiable. Prefer a procedure with at least two real transitions but harmless consequences, for example an isolated real-app artifact flow where each intermediate state has a deterministic verifier.
+
+Do **not** satisfy this requirement by adding arbitrary shell/Python execution. The Control Plane may invoke only typed/scoped capabilities explicitly allowed by the selected procedure and current authorization evidence.
+
+## Qualified upstream substrate
 
 Pinned and target-tested:
 
@@ -63,339 +107,285 @@ openadapt-capture 1.2.2
 commit bcf12942d61d66b64d94e645e9124273a5cc5963
 ```
 
-License: MIT for both pinned projects.
+Use/adapt:
 
-Exact qualification details: `project-context/STAGE26_1A_OPENADAPT_QUALIFICATION.md`.
+- Flow compiler + `Workflow` / `ProgramGraph`;
+- Capture;
+- SkillLibrary version/provenance/regression/learn/teach mechanics;
+- accepted Windows backend mechanics where still applicable.
 
-Real target evidence:
+Do not build a competing generic recorder/compiler/skill framework unless an actual blocker is demonstrated.
 
-```text
-Python 3.12.10
-exact Flow/Capture source commit verification = PASS
-PHASE_B_PASS=True
-PHASE_C_TUTORIAL_PASS=True
-PROBE_ERROR=<null>
-ERROR=<null>
-STAGE26_1A_PREFLIGHT_RESULT=PASSED
-TEST_EXIT_CODE=0
-Chrome processes before/after = 15/15
-```
+## UI-Mate relationship
 
-Result artifact:
+Tencent/UI-Mate remains a useful demonstration-guided workflow/state reference. The project adopts the idea that rich trajectories can become compact reusable state/procedure evidence, not its full local GUI-planner architecture.
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\openadapt-qualification\qualification-20260818-170434\result.json`
+The current default general planner remains ordinary ChatGPT.
 
-The tested Flow tutorial is model-free; upstream's lifecycle contract requires production `VERIFIED` outcome, effect evidence, digest-bound receipt and `model_calls=0`.
+## Procedure trust
 
-## What changed after broader upstream research
-
-The pre-qualification Stage 26 plan said the project would implement its own:
-
-- raw recorder;
-- Demo Compiler;
-- compiled-skill IR;
-- versioned skill store;
-- learning/repair lifecycle.
-
-That is no longer the default plan.
-
-OpenAdapt already provides substantial implementations of those boundaries. The project should now **reuse and adapt qualified upstream mechanisms first**, writing project-owned replacements only where a concrete integration/security/product requirement cannot be met.
-
-## Current component decisions
-
-### Flow compiler + `Workflow` / `ProgramGraph` — ADOPT
-
-Use the pinned Flow compiler/IR as the upstream procedural-program substrate behind project boundaries.
-
-Relevant properties already present upstream:
-
-- `Workflow` / `ProgramGraph` state-machine IR;
-- semantic/structural locators as first-class evidence;
-- retained visual/OCR/geometry evidence as fallback;
-- typed actions, parameters, predicates, guards, loops, branches and subflows;
-- current-state re-observation during replay;
-- stale/ambiguous structural refusal;
-- postconditions and stronger effect verification;
-- model-free deterministic paths.
-
-Do not build a competing project IR/compiler before an actual blocker is demonstrated.
-
-### `SkillLibrary` + learn/teach lifecycle — ADAPT
-
-Reuse upstream version/provenance/regression infrastructure, but apply project trust policy at the boundary.
-
-Upstream already provides:
+Project trust stays stricter than any upstream bootstrap shortcut:
 
 ```text
-candidate
-active
-superseded
-rolled_back
+new demonstration / compiled procedure
+ -> project CANDIDATE
+ -> same/near-state replay evidence
+ -> regression/variant evidence
+ -> trusted reusable
+ -> stale / quarantined / disabled / rollback
 ```
 
-plus parent-version provenance, source trace ids, held-out/regression/canary gates and HALT -> teach -> learn -> promote/refuse flows.
+One demonstration never becomes permanent product trust automatically.
 
-Project adaptation is required because upstream `SkillLibrary.create_skill()` makes the bootstrap version immediately `active`. Chat Agent Platform keeps the stricter rule:
-
-```text
-new demonstration / first compiled procedure
-        ↓
-project CANDIDATE
-        ↓
-verification / variant reuse / policy gate
-        ↓
-trusted reusable status
-```
-
-A thin policy adapter is preferred over reimplementing the library.
-
-### OpenAdapt Capture — CONTINUE QUALIFICATION
-
-Do not build a new recorder first.
-
-Upstream design already supports:
-
-- mouse/keyboard/screen capture;
-- Windows UIA evidence at action time where available;
-- window-scoped capture;
-- conversion into Flow's compile-ready recording format;
-- local-only operation.
-
-But real target Phase D still has to prove those claims in our environment before adoption.
-
-### Windows backend/agent — ADAPT / SECURITY A/B REQUIRED
-
-The pinned server is safer than the early research impression suggested:
-
-- legacy `/execute_windows` arbitrary Python route is **disabled by default**;
-- default production-facing routes are bounded typed operations;
-- `/input/guarded` binds input to live frame/context/focus checks;
-- `/uia/find` and `/uia/act` can refuse stale/ambiguous targets;
-- delivery receipts distinguish action delivery from outcome verification.
-
-Even so, the agent is a separate interactive-session authority boundary. Compare:
-
-```text
-A. OpenAdapt typed WindowsBackend + hardened local interactive-session agent
-B. OpenAdapt IR/runtime + narrower native/project-owned actuator
-```
-
-No product decision until this A/B covers authority, authentication, process/session ownership, stale/focus/frame binding and blast radius.
-
-### Local LFM2.5-VL F16 — ADAPT through OpenAdapt Grounder seam
-
-The pinned OpenAdapt `Grounder` contract is narrow:
-
-```text
-current PNG + intent + optional OCR label
-  -> GrounderMatch proposal OR None
-```
-
-A grounder proposal is not authorization; upstream identity/risk gates remain authoritative. This is compatible with the already accepted local LFM2.5-VL-450M F16 runtime.
-
-The F16 adapter must remain:
-
-- local;
-- on-demand;
-- unloadable;
-- proposal-only;
-- behind freshness/identity/risk/effect checks;
-- invisible as a new public Chat vision tool.
-
-### OpenAdapt Desktop — REFERENCE / ADAPT LATER
-
-OpenAdapt Desktop overlaps later Stage 27 work with a Tauri cockpit, frozen Python sidecar and installer packaging lane.
-
-Its pinned build currently embeds a different Flow version from the qualified Flow runtime, so it is not the execution baseline. Before Stage 27 builds equivalent distribution infrastructure from scratch, evaluate which Desktop packaging/lifecycle patterns can be reused safely.
-
-## Architectural split after qualification
-
-```text
-ordinary ChatGPT
-  planner / task understanding / procedure applicability / adaptation
-        |
-        | bounded procedure context or invocation of an accepted deterministic routine
-        v
-qualified procedural substrate
-  OpenAdapt compiler + Workflow/ProgramGraph
-  adapted SkillLibrary/trust policy
-  accepted capture source
-  accepted verifier/effect contracts
-        |
-        v
-accepted capability layer
-  current browser/files semantic capabilities
-  future accepted Windows desktop surface
-  local F16 only as bounded perception proposal
-```
-
-The procedural substrate must not decide the user's goal. Retrieval may rank candidate skills; selection remains non-authorizing guidance to ChatGPT.
-
-## Procedural-memory data principles
-
-### Raw traces
-
-Raw traces may contain:
-
-- task/session identifiers;
-- ordered user-visible/structured actions;
-- before/after observable state;
-- semantic/structural evidence;
-- screenshots or capture artifacts;
-- result/effect evidence;
-- abstain/error classifications.
-
-Do **not** persist private chain-of-thought.
-
-Raw capture is sensitive by default. A desktop recording may contain everything visible or typed. Long-lived retention/sync is forbidden until project policy covers deletion, encryption and redaction.
-
-### Compiled procedures
-
-Do not require procedures to be literally coordinate-free if the qualified upstream IR retains pixels as **fallback evidence**. The product invariant is stronger and more precise:
-
-> A stored procedure must never rely on blind replay of historical absolute coordinates as its authority or primary identity mechanism.
-
-Structural/native/semantic evidence comes first where available. Pixel/template/geometry evidence may remain inside a compiled bundle as bounded fallback evidence subject to live-state re-resolution, freshness, risk and verification gates.
-
-### Trust lifecycle
-
-Project policy remains candidate-first even when upstream primitives expose an `active` bootstrap state.
-
-Use measured operational evidence rather than invented model-confidence values as a substitute for outcomes.
-
-### Completion semantics
-
-ChatGPT may propose that a subtask is complete, but workflow progress or task success must be supported by applicable verifier/effect evidence.
-
-```text
-ChatGPT proposes completion
-  -> deterministic/native verifier or system-of-record effect where possible
-       PASS -> advance
-       FAIL -> remain / recover
-       UNKNOWN -> observe again / HALT / ABSTAIN / user input
-```
+Procedure trust and action authorization are separate.
 
 ## Current-state priority
 
 ```text
 current observed state
-  > verifier/effect criteria / current goal
-  > prior successful procedure evidence
-  > raw historical action sequence
+ > verifier/postcondition criteria + current goal
+ > trusted procedure evidence
+ > historical low-level action sequence
 ```
 
-A remembered procedure must be abandoned or adapted when it conflicts with current state.
+A remembered procedure must be adapted by ChatGPT or abandoned when current state no longer matches a permitted deterministic branch.
 
-## Stage 26 implementation order
+## Compiled procedure evidence
 
-### 26.0 — UI-Mate analysis + authoritative contract/context sync — DONE
+Compiled procedures may retain:
 
-PR #78 established the high-level procedural-memory architecture and synchronized cross-chat source-of-truth documents.
+- semantic/native/UIA locators;
+- structural predicates;
+- bounded visual/OCR/template/geometry evidence;
+- abstract actions/transitions;
+- expected postconditions;
+- recovery branches;
+- provenance/version metadata.
 
-### 26.1A — OpenAdapt core qualification — ACCEPTED ON TARGET
+They must not use blind historical absolute-coordinate replay as authority or primary identity.
 
-Target-tested qualification-code HEAD:
+## Minimum procedure schema for 26.3A
 
-`f8e8f606db845821b8fa24c09f9032015fb0e79e`.
-
-Result: Flow compiler/IR is an adoption candidate, lifecycle is an adaptation candidate, and writing project-owned recorder/compiler/store first is no longer justified.
-
-### 26.1B — Real bounded Windows Capture qualification — NEXT
-
-Use a harmless bounded fixture first.
-
-Acceptance:
-
-1. recording starts/stops in the interactive user session;
-2. one selected window is scoped correctly;
-3. click, typing, key and scroll evidence are captured;
-4. UIA evidence is retained when exposed;
-5. capture converts to Flow recording input;
-6. compile/replay succeeds or explicitly refuses;
-7. false actions = 0;
-8. unrelated-window actions = 0;
-9. raw artifacts remain in the explicit local qualification directory;
-10. cleanup succeeds and normal user applications remain untouched.
-
-### 26.1C — Windows executor A/B + F16 adapter
-
-After capture/compiler acceptance:
-
-- compare the typed OpenAdapt Windows agent with a narrower actuator boundary;
-- prove legacy arbitrary exec cannot be used in the proposed product configuration;
-- prototype local F16 through the Grounder seam;
-- rerun stale/ambiguous/freshness/false-action acceptance.
-
-### 26.2 — ChatGPT procedural integration + variant-task dogfood
-
-Integrate accepted upstream mechanisms behind the existing ChatGPT-only planner boundary.
-
-Acceptance must prove:
-
-- ChatGPT owns applicability/task reasoning;
-- current state overrides history;
-- procedure retrieval cannot authorize actions;
-- bootstrap procedures follow project candidate policy;
-- verifier/effect evidence controls completion;
-- a related changed task is handled without blind replay;
-- an incompatible procedure HALTs/ABSTAINS rather than forcing execution.
-
-### 26.3 — Windows desktop surface — REQUIRED / DO NOT DROP
-
-**Do not lose this stage.**
-
-Productize the winning Windows observation/actuation/verification combination:
+The project-owned trust/progression seam should define at least:
 
 ```text
-native/deterministic UI observation first
-  -> screen capture where needed
-  -> bounded local visual grounding where needed
-  -> reviewed keyboard/mouse action
-  -> verification / ABSTAIN
+procedure_id
+procedure_version
+procedure_status = candidate | trusted | quarantined | disabled
+parameter_schema
+start_state_predicate
+transitions[]
+  transition_id
+  from_node
+  to_node
+  required_current_evidence
+  capability_id / typed action template
+  action_parameters
+  verifier/postcondition
+  allowed_recovery_branch
+  retry_budget
+completion_verifier
+rollback metadata / policy
+provenance + trust evidence
 ```
 
-Specific local programs/capabilities are **not preselected in the roadmap**. Choose them later from actual user tasks and evidence.
+Exact naming may differ if the qualified OpenAdapt structures already supply equivalent fields, but the semantics must remain explicit and testable.
 
-### 26.4 — Human demonstration capture + transferable skill acceptance
+## Deterministic procedure progression
 
-After the desktop surface is accepted, record a real user demonstration, compile it through the qualified substrate, apply project trust policy, verify completion/effects and re-apply it to a related changed task/state.
-
-### 26.5 — Public contract decision
-
-Only after Windows desktop surface exists, make an explicit ADR deciding whether ordinary Chat needs any new public tool names or whether the same small-semantic-surface philosophy can continue with a few coarse truthful capabilities.
-
-Until that decision:
+After ChatGPT selects a procedure:
 
 ```text
-workspace_read
-workspace_write
-web_open
-web_observe
-web_interact
+load exact procedure version
+ -> validate procedure status / scope / parameters
+ -> create/resume TaskState
+ -> observe live state
+ -> match exactly one permitted transition
+ -> check procedure/capability trust/scope
+ -> authorize current action
+ -> execute bounded capability
+ -> observe result
+ -> verify explicit effect
+ -> persist checkpoint
+ -> advance node
 ```
 
-remain the accepted public tools.
+This loop may repeat locally while every state remains known/permitted and budgets allow.
 
-Do not hide workflow CRUD/execution behind misleading existing tool semantics and do not add a generic opaque `workflow_execute`/`tool_invoke` equivalent by default.
+### Mandatory escalation conditions
 
-## Acceptance gates before procedural memory is product-accepted
+Stop local progression and return a structured escalation/ABSTAIN reason when:
+
+- no transition matches current state;
+- incompatible multiple transitions match;
+- current evidence is stale/ambiguous/UNKNOWN;
+- capability scope/consequence is not authorized;
+- expected effect FAILs and no predeclared safe recovery branch applies;
+- recovery/retry/action/time/resource budget is exhausted;
+- procedure assumptions are materially invalid;
+- continuing requires a new semantic strategy or user-goal interpretation.
+
+The Control Plane does not improvise a new workflow to avoid escalation.
+
+## TaskState / checkpoint minimum
+
+Longer procedures require explicit state rather than hidden conversational memory.
+
+Checkpoint should record at least:
+
+```text
+task_id
+user-visible goal summary
+selected procedure + exact version
+bound parameters
+current ProgramGraph node
+verified completed transitions
+current observation/evidence references
+authorized capability scope
+pending verifier criteria
+last delivery receipt
+last verification result
+retry/recovery counters
+action/time/resource budget state
+rollback metadata
+escalation reason
+```
+
+Never persist private chain-of-thought.
+
+Recovery is permitted only through known bounded recovery branches or a fresh ChatGPT decision.
+
+## Completion semantics
+
+Neither ChatGPT, a local model, a stored procedure nor a future planner may assert completion as authority.
+
+```text
+before
+ -> authorized action
+ -> delivery
+ -> after
+ -> verifier
+      PASS -> checkpoint/advance/complete
+      FAIL -> bounded recovery or stop
+      UNKNOWN -> observe/ABSTAIN/escalate
+```
+
+Prefer deterministic/native/system-of-record evidence where available.
+
+For the first autonomous physical acceptance, the final postcondition must be independently observable from the local procedure runtime and must not rely only on an action receipt or Chat's claim.
+
+## Procedural data/privacy
+
+Raw trajectories may include actions, current state, structural evidence, screenshots, result/effect evidence and error/abstain classifications.
+
+Never persist private chain-of-thought.
+
+Raw desktop capture is sensitive local data. Long-term arbitrary capture requires explicit storage ownership, retention/expiry, redaction, secret filtering, deletion, encryption and export/sync policy.
+
+## Specialist perception
+
+Local LFM2.5-VL F16 remains proposal-only. It can help ground a current transition target when deterministic structure is insufficient, but cannot select procedure, authorize action or declare completion.
+
+## Stage 26.3 implementation target
+
+### 26.3A — candidate-first trust adapter + core TaskState/progression
+
+Implement the smallest integration around qualified OpenAdapt structures:
+
+- exact procedure version loading;
+- project CANDIDATE/trust wrapper;
+- structured TaskState;
+- current node + permitted transition resolution;
+- current-state precedence;
+- per-transition capability authorization;
+- per-transition verifier/postcondition;
+- deterministic escalation reasons;
+- no new general planner.
+
+The first selected acceptance procedure may be hand-authored/compiled as a known candidate to prove the runtime. Human Demo -> general candidate compilation is Stage 26.4; 26.3 should not wait for arbitrary demonstration transfer.
+
+### 26.3B — advanced verifier/postcondition library
+
+Expand beyond current top-level-field verifier:
+
+- file existence/hash/content;
+- application/window/process state;
+- UI state/selected/focused/enabled values;
+- browser state;
+- artifact creation/export;
+- structured output;
+- rollback/cleanup evidence.
+
+### Checkpoint/recovery/budget requirement
+
+Whether implemented in a separate 26.3C PR or folded into A/B, Stage 26.3 is incomplete without:
+
+- persistent checkpoints;
+- retry ceilings;
+- bounded known recovery branches;
+- action/time/resource budgets;
+- deterministic escalation.
+
+## Ordinary-Chat integration requirement
+
+Stage 26.3 is not product-accepted merely because a local Python/PowerShell harness can drive the runtime.
+
+The physical end-to-end gate must ultimately originate from an ordinary ChatGPT goal through the project's connected local capability path. The test must demonstrate that Chat receives completion/evidence or escalation without asking the user to relay each local command.
+
+If the Chat-facing tool/plugin surface needed for this is unavailable in the current Chat session, that is an integration/setup blocker to fix or expose; it is not acceptable to substitute repeated manual command entry and call the autonomy gate passed.
+
+## Stage 26.4 — Human Demo -> transferable skill
+
+After 26.3:
+
+```text
+human demonstration
+ -> Capture
+ -> structured trajectory
+ -> ProgramGraph
+ -> project CANDIDATE
+ -> verifier-controlled replay
+ -> changed-state/task replay
+```
+
+Acceptance is not blind macro reproduction. It must prove live re-resolution and safe behavior when the new state differs.
+
+## Public contract relationship
+
+Procedure/control-plane machinery must not be hidden inside `semantic-projection` or misleadingly exposed as `web_interact`.
+
+The current five public tools remain until a dedicated ADR adds truthful desktop/procedure capabilities and passes ordinary-Chat acceptance.
+
+Likely Stage 26.3 integration need: a small truthful typed procedure surface that accepts a procedure identity/goal parameters and returns structured task state/evidence/escalation, without exposing generic command execution. Exact schema requires a dedicated ADR based on the first vertical slice.
+
+## Future local planner — Track P
+
+A local general planner remains a deliberate future direction, not a forbidden concept.
+
+It is deferred until verified procedure-state data and measured need exist. First research mode is shadow/proposal-only; later bounded subtask planning may be evaluated; optional general local mode requires parity/safety/resource evidence.
+
+Even a future planner remains above the deterministic Control Plane and cannot self-authorize actions or bypass verifier gates.
+
+Read `ROADMAP.md` and `CONTROL_PLANE.md`.
+
+## Acceptance gates before verified procedures are product-accepted
 
 1. no blind historical coordinate replay as authority;
-2. current state overrides prior procedure history;
-3. one success/one demonstration does not silently become product-trusted;
-4. secrets/private reasoning are not persisted into reusable skill metadata;
-5. raw capture retention/redaction/encryption policy is explicit;
+2. current state overrides remembered procedure;
+3. one success/demo does not silently become product-trusted;
+4. private reasoning/secrets are excluded from reusable state;
+5. raw capture privacy policy is explicit before arbitrary long-term storage;
 6. malformed/stale/incompatible procedure fails closed;
-7. completion requires verifier/effect evidence, not only model assertion;
-8. retrieval cannot authorize an action by itself;
-9. same/near-same tasks can reuse a procedure without increasing false actions;
-10. variant tasks demonstrate adaptation/re-resolution rather than blind replay;
-11. incompatible demonstrations do not force execution;
-12. versioning, rollback/quarantine/stale/disable behavior is deterministic;
-13. no second planner/model runtime is introduced into the product path;
-14. Windows desktop authority boundary is explicitly accepted;
-15. legacy generic code execution is disabled/unreachable in the product configuration.
-
-## Repository-state continuation rule
-
-Milestone SHAs in documentation are stable historical acceptance references. They are not a substitute for resolving live `main` before new work.
+7. completion requires verifier/effect evidence;
+8. retrieval/selection cannot authorize an action;
+9. deterministic local progression only follows predeclared transitions;
+10. unknown/novel strategy escalates to ChatGPT;
+11. recovery/retry is bounded;
+12. checkpoint/provenance/versioning/rollback are deterministic;
+13. generic Windows code execution remains disabled/unreachable;
+14. no current second general planner is introduced;
+15. future planner research remains proposal-only until explicitly accepted;
+16. first physical Stage 26.3 E2E starts from one user goal and requires no intermediate PowerShell copy/paste;
+17. multiple transitions must each be independently current-state-authorized and verified;
+18. final completion must be independently verified;
+19. an unexpected intermediate state must cause zero unauthorized continuation and structured ABSTAIN/escalation.

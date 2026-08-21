@@ -7,6 +7,7 @@ from pathlib import Path
 from runtime.windows.observation import (
     MAX_OBSERVED_CONTROLS,
     Rect,
+    _global_focus_match,
     build_desktop_state,
 )
 
@@ -58,6 +59,68 @@ def _state(*, controls=None, screenshot_png=None, screenshot_source=None, genera
         screenshot_source=screenshot_source,
         observed_at=FIXED_TIME,
     )
+
+
+class _FakeElements:
+    def __init__(self, values):
+        self._values = list(values)
+        self.Length = len(self._values)
+
+    def GetElement(self, index):
+        return self._values[index]
+
+
+class _FakeAutomationClient:
+    def __init__(self, focused, *, compare_error=False):
+        self.focused = focused
+        self.compare_error = compare_error
+
+    def GetFocusedElement(self):
+        return self.focused
+
+    def CompareElements(self, left, right):
+        if self.compare_error:
+            raise RuntimeError("compare failed")
+        return left is right
+
+
+class GlobalFocusBindingTests(unittest.TestCase):
+    def test_global_focus_is_accepted_only_for_exact_bound_descendant(self):
+        first = object()
+        focused = object()
+        third = object()
+        elements = _FakeElements([first, focused, third])
+
+        index, status = _global_focus_match(
+            _FakeAutomationClient(focused),
+            elements,
+        )
+
+        self.assertEqual(index, 1)
+        self.assertEqual(status, "exact_descendant")
+
+    def test_global_focus_outside_bound_subtree_is_rejected(self):
+        elements = _FakeElements([object(), object()])
+
+        index, status = _global_focus_match(
+            _FakeAutomationClient(object()),
+            elements,
+        )
+
+        self.assertIsNone(index)
+        self.assertEqual(status, "outside_bound_window")
+
+    def test_global_focus_compare_error_fails_closed(self):
+        focused = object()
+        elements = _FakeElements([focused])
+
+        index, status = _global_focus_match(
+            _FakeAutomationClient(focused, compare_error=True),
+            elements,
+        )
+
+        self.assertIsNone(index)
+        self.assertEqual(status, "compare_error")
 
 
 class DesktopObservationContractTests(unittest.TestCase):
@@ -185,6 +248,15 @@ class DesktopObservationSourceBoundaryTests(unittest.TestCase):
         self.assertIn("resolver._find_target_windows(auto, window_name)", self.source)
         self.assertNotIn("GetRootControl", self.source)
         self.assertIn("MAX_OBSERVED_CONTROLS = MAX_WINDOW_CONTROL_SCAN", self.source)
+
+    def test_global_focus_is_identity_matched_inside_bound_subtree(self):
+        helper_start = self.source.index("def _global_focus_match")
+        helper_end = self.source.index("\ndef observe_bound_window", helper_start)
+        helper = self.source[helper_start:helper_end]
+        self.assertIn("client.GetFocusedElement()", helper)
+        self.assertIn("client.CompareElements(", helper)
+        self.assertIn('"outside_bound_window"', helper)
+        self.assertNotIn("GetRootElement", helper)
 
     def test_observer_has_no_action_or_generic_exec_channel(self):
         forbidden = (
