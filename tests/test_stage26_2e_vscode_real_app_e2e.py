@@ -30,11 +30,12 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
             '"security.workspace.trust.enabled": False',
             '"files.autoSave": "afterDelay"',
             '"editor.accessibilitySupport": "on"',
+            '"chat.disableAIFeatures": True',
         ):
             self.assertIn(required, self.driver)
-        self.assertIn("workspace_root = app_root / \"workspace\"", self.driver)
-        self.assertIn("user_data_root = app_root / \"user-data\"", self.driver)
-        self.assertIn("extensions_root = app_root / \"extensions\"", self.driver)
+        self.assertIn('workspace_root = app_root / "workspace"', self.driver)
+        self.assertIn('user_data_root = app_root / "user-data"', self.driver)
+        self.assertIn('extensions_root = app_root / "extensions"', self.driver)
         self.assertIn("shell=False", self.driver)
 
     def test_driver_enforces_temp_containment_before_recursive_delete(self) -> None:
@@ -67,31 +68,84 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
             self.assertIn(required, self.driver)
         self.assertEqual(self.driver.count("backend.type_text_guarded("), 1)
 
-    def test_editor_target_requires_focused_enabled_visible_name_evidence(self) -> None:
+    def test_editor_target_is_exact_hidden_monaco_keyboard_identity(self) -> None:
         helper_start = self.driver.index("def _focused_editor_control")
-        helper_end = self.driver.index("\ndef _control_center", helper_start)
+        helper_end = self.driver.index("\ndef _window_guard_point", helper_start)
         helper = self.driver[helper_start:helper_end]
         for required in (
-            "control.visible is not True",
+            "state.focused_control",
+            "control.observation_fingerprint == state.focused_control",
             "control.enabled is not True",
             "control.focused is not True",
+            'control.role.casefold() != "textbox"',
+            "control.name.casefold() != unique_filename.casefold()",
+        ):
+            self.assertIn(required, helper)
+        for forbidden in (
+            "control.visible is not True",
+            "control.bounds",
             "FOCUSED_EDITOR_ROLES",
-            "filename in name",
             '"text editor" in name',
             '"editor content" in name',
         ):
-            self.assertIn(required, helper)
-        self.assertNotIn('role != "textbox"', helper)
+            self.assertNotIn(forbidden, helper)
+
+    def test_window_point_is_only_derived_from_bound_window_geometry(self) -> None:
+        helper_start = self.driver.index("def _window_guard_point")
+        helper_end = self.driver.index("\ndef _verification_decision", helper_start)
+        helper = self.driver[helper_start:helper_end]
+        self.assertIn("bounds = state.window_bounds", helper)
+        self.assertIn("bounds.width <= 0 or bounds.height <= 0", helper)
+        self.assertIn("bounds.left + bounds.right", helper)
+        self.assertIn("bounds.top + bounds.bottom", helper)
+        self.assertNotIn("ControlObservation", helper)
+        self.assertNotIn("ControlFromPoint", helper)
 
     def test_fresh_same_focused_editor_is_required_immediately_before_typing(self) -> None:
         self.assertIn("action_state = observe_bound_window(resolver, window_title)", self.driver)
         self.assertIn("action_focused = _focused_editor_control(action_state, unique_filename)", self.driver)
         self.assertIn("_same_window_identity(before_state, action_state)", self.driver)
-        self.assertIn("action_focused.observation_fingerprint == focused.observation_fingerprint", self.driver)
+        self.assertIn(
+            "action_focused.observation_fingerprint == focused.observation_fingerprint",
+            self.driver,
+        )
         self.assertIn('result["fresh_pre_action_state_pass"]', self.driver)
         fresh_index = self.driver.index("action_state = observe_bound_window")
         type_index = self.driver.index("backend.type_text_guarded(")
         self.assertLess(fresh_index, type_index)
+
+    def test_exact_hidden_focus_is_armed_before_guarded_keyboard_request(self) -> None:
+        arm = self.driver.index("resolver.arm_focused_keyboard_target(")
+        backend_arm = self.driver.index("backend.arm_guarded_keyboard(")
+        frame = self.driver.index("backend.guarded_keyboard_frame()")
+        type_index = self.driver.index("backend.type_text_guarded(")
+        cancel = self.driver.index("resolver.cancel_focused_keyboard_target()", arm)
+        self.assertLess(arm, backend_arm)
+        self.assertLess(backend_arm, frame)
+        self.assertLess(frame, type_index)
+        self.assertGreater(cancel, type_index)
+        for required in (
+            "window_title=window_title",
+            "window_handle=action_state.window_handle",
+            "process_generation=action_state.process_generation",
+            "focused_fingerprint=action_focused.observation_fingerprint",
+            "role=action_focused.role",
+            "name=action_focused.name",
+            'result["keyboard_focus_guard_armed_pass"] = True',
+        ):
+            self.assertIn(required, self.driver)
+
+    def test_keyboard_focus_guard_must_pass_exactly_once(self) -> None:
+        for required in (
+            "resolver.stats.keyboard_focus_guard_arms == 1",
+            "resolver.stats.keyboard_focus_guard_calls == 1",
+            "resolver.stats.keyboard_focus_guard_passes == 1",
+            "resolver.stats.keyboard_focus_guard_failures == 0",
+            'result["keyboard_focus_guard_pass"]',
+            'result["keyboard_focus_guard_armed_pass"]',
+            'KEYBOARD_FOCUS_GUARD_MODE = "window_scoped_focused_observation_fingerprint"',
+        ):
+            self.assertIn(required, self.driver)
 
     def test_real_app_gate_has_no_hidden_extra_action_channel(self) -> None:
         forbidden = (
@@ -136,7 +190,7 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         self.assertIn("completion = verify_expected_fields(", self.driver)
         self.assertIn('result["completion_verification_pass"] = completion.passed', self.driver)
         self.assertIn('result["completion_artifact_evidence"] = after_artifact', self.driver)
-        self.assertIn('receipt.outcome_verified is False', self.driver)
+        self.assertIn("receipt.outcome_verified is False", self.driver)
         self.assertIn("workspace_snapshot = _workspace_snapshot(workspace_root)", self.driver)
         self.assertIn('result["workspace_expected_only_pass"]', self.driver)
 
@@ -170,8 +224,11 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         self.assertIn('result["failure_window_cleanup_count"] = len(cleanup_matches)', self.driver)
         self.assertIn('len(cleanup_matches) == 1 and len(validated_matches) == 1', self.driver)
         self.assertIn('_post_close(int(validated_matches[0]["hwnd"]))', self.driver)
-        self.assertIn('"VS Code cleanup identity was not uniquely revalidated; refusing WM_CLOSE"', self.driver)
-        self.assertNotIn('_post_close(bound_hwnd)', self.driver)
+        self.assertIn(
+            '"VS Code cleanup identity was not uniquely revalidated; refusing WM_CLOSE"',
+            self.driver,
+        )
+        self.assertNotIn("_post_close(bound_hwnd)", self.driver)
 
     def test_harness_discovers_code_without_touching_user_workspace(self) -> None:
         self.assertIn("Resolve-VSCodeExecutable", self.harness)
