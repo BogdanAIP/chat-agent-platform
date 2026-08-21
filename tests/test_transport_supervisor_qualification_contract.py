@@ -40,6 +40,11 @@ class TransportSupervisorQualificationContractTests(unittest.TestCase):
         self.assertLess(start_supervisor_index, fault_index)
         self.assertIn("unexpectedly left a supervisor process running", SOURCE)
 
+    def test_powershell_installer_invocation_does_not_depend_on_lastexitcode(self):
+        self.assertIn("& $Installer -NoStart", SOURCE)
+        self.assertIn("& $Installer -Uninstall", SOURCE)
+        self.assertNotIn("$LASTEXITCODE", SOURCE)
+
     def test_acceptance_requires_new_tunnel_pid_same_supervisor_and_ready_runtime(self):
         for marker in (
             "TRANSPORT_SUPERVISOR_QUALIFICATION_RESULT",
