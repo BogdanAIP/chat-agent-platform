@@ -98,6 +98,7 @@ class DocumentationConsistencyTests(unittest.TestCase):
         stage = (CONTEXT / "STAGE26_2E_REAL_APPLICATION_E2E.md").read_text(encoding="utf-8")
         required = [
             "FRESH_PRE_ACTION_STATE_PASS=True",
+            "CLI_PROCESS_RETURNCODE=0",
             "CLI_PROCESS_EXIT_PASS=True",
             "FORCED_CLI_CLEANUP=False",
             "same focused-editor observation fingerprint",
