@@ -118,7 +118,19 @@ No constant `false_action_count=0` or `unrelated_window_action_count=0` is accep
 
 ## Rollback and process cleanup
 
-The exact qualification window is closed with `WM_CLOSE`; the harness does not use `SetForegroundWindow`, `taskkill` or a generic process-execution endpoint as the normal success path.
+The qualification window may be closed with `WM_CLOSE`, but a cached numeric HWND is **never** sufficient cleanup authority by itself. Immediately before `WM_CLOSE`, the driver re-enumerates current visible windows by the run's randomized qualification filename and freshly validates the candidate process as `Code.exe`. When a bound HWND/PID/process-generation identity is available, those values constrain the fresh match as well.
+
+`WM_CLOSE` is permitted only when cleanup has exactly one current matching qualification window and exactly one freshly validated candidate. A missing, changed or ambiguous identity fails closed rather than posting to a stale/reused HWND. The harness does not use `SetForegroundWindow`, `taskkill` or a generic process-execution endpoint as the normal success path.
+
+Cleanup evidence includes:
+
+```text
+CLEANUP_MATCH_COUNT=<observed current randomized-title matches>
+CLEANUP_VALIDATED_MATCH_COUNT=<freshly identity-validated matches>
+CLEANUP_REVALIDATION_PASS=True
+```
+
+If the qualification window has already disappeared, zero current randomized-title matches is a valid no-window-to-close cleanup state. If a candidate still exists, success requires a unique freshly validated candidate before `WM_CLOSE`.
 
 The VS Code CLI process started with `--wait` must exit **naturally with exit code `0`** after the exact qualification window closes. A process merely disappearing is not enough evidence for `CLI_PROCESS_EXIT_PASS=True`.
 
@@ -131,13 +143,14 @@ CLI_PROCESS_EXIT_PASS=False
 
 and the qualification must remain FAILED. The driver records `CLI_PROCESS_RETURNCODE` separately; acceptance requires it to equal `0`.
 
-If the run fails before an exact `bound_hwnd` is established but one or more windows containing the randomized qualification filename were created, failure cleanup may send `WM_CLOSE` only to those randomized qualification windows. `FAILURE_WINDOW_CLEANUP_COUNT` records that diagnostic cleanup. It never changes a failed run into a PASS.
+`FAILURE_WINDOW_CLEANUP_COUNT` records how many current randomized-title matches were observed during cleanup diagnostics. It never changes a failed run into a PASS and does not authorize closing a candidate that failed fresh identity validation.
 
 After window/process cleanup, the specifically prefixed TEMP application root is recursively removed. Python and PowerShell independently validate TEMP containment before recursive cleanup.
 
 Acceptance requires:
 
 ```text
+CLEANUP_REVALIDATION_PASS=True
 APPLICATION_CLEANUP_PASS=True
 CLI_PROCESS_RETURNCODE=0
 CLI_PROCESS_EXIT_PASS=True
@@ -176,6 +189,7 @@ WORKSPACE_EXPECTED_ONLY_PASS=True
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
+CLEANUP_REVALIDATION_PASS=True
 APPLICATION_CLEANUP_PASS=True
 CLI_PROCESS_RETURNCODE=0
 CLI_PROCESS_EXIT_PASS=True
