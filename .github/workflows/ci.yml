@@ -49,7 +49,8 @@ jobs:
             'scripts/stage26-window-scoped-uia-benchmark.ps1',
             'scripts/stage26-desktop-observation-qualification.ps1',
             'scripts/stage26-desktop-grounder-qualification.ps1',
-            'scripts/stage26-desktop-routing-qualification.ps1'
+            'scripts/stage26-desktop-routing-qualification.ps1',
+            'scripts/stage26-vscode-real-app-e2e.ps1'
           )) {
             $tokens = $null
             $errors = $null
