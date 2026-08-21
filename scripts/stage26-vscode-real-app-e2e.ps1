@@ -97,7 +97,7 @@ New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
 $codeExe = Resolve-VSCodeExecutable
 $result = [ordered]@{
-    schema_version = 4
+    schema_version = 5
     qualification_kind = 'real-application-vscode-disposable-text-edit'
     project_head = $null
     code_exe = $codeExe
@@ -125,6 +125,9 @@ $result = [ordered]@{
     completion_verification_pass = $false
     current_state_verification_pass = $false
     workspace_expected_only_pass = $false
+    cleanup_match_count = $null
+    cleanup_validated_match_count = $null
+    cleanup_revalidation_pass = $false
     application_cleanup_pass = $false
     failure_window_cleanup_count = 0
     cli_process_returncode = $null
@@ -202,15 +205,16 @@ try {
         'agent_auth_required_pass', 'legacy_capability_absent_pass', 'mismatch_probe_zero_action_pass',
         'guarded_keyboard_delivery_pass', 'completion_verification_pass',
         'current_state_verification_pass', 'workspace_expected_only_pass',
-        'application_cleanup_pass', 'cli_process_exit_pass', 'forced_cli_cleanup',
-        'app_root_cleanup_pass', 'rollback_pass'
+        'cleanup_revalidation_pass', 'application_cleanup_pass', 'cli_process_exit_pass',
+        'forced_cli_cleanup', 'app_root_cleanup_pass', 'rollback_pass'
     )) {
         $result[$name] = [bool]$driver.$name
     }
     foreach ($name in @(
         'baseline_verification_status', 'mismatch_probe_verification_status',
         'mismatch_probe_decision', 'keyboard_action_count', 'completion_verification_status',
-        'failure_window_cleanup_count', 'cli_process_returncode', 'resolver_stats'
+        'cleanup_match_count', 'cleanup_validated_match_count', 'failure_window_cleanup_count',
+        'cli_process_returncode', 'resolver_stats'
     )) {
         $result[$name] = $driver.$name
     }
@@ -235,6 +239,7 @@ finally {
     }
     $result.app_root_cleanup_pass = -not (Test-Path -LiteralPath $appRoot)
     $result.rollback_pass = [bool](
+        $result.cleanup_revalidation_pass -and
         $result.application_cleanup_pass -and
         $result.cli_process_exit_pass -and
         $null -ne $result.cli_process_returncode -and
@@ -256,6 +261,7 @@ foreach ($name in @(
     'MISMATCH_PROBE_VERIFICATION_STATUS','MISMATCH_PROBE_DECISION','MISMATCH_PROBE_ZERO_ACTION_PASS',
     'GUARDED_KEYBOARD_DELIVERY_PASS','KEYBOARD_ACTION_COUNT','COMPLETION_VERIFICATION_STATUS',
     'COMPLETION_VERIFICATION_PASS','CURRENT_STATE_VERIFICATION_PASS','WORKSPACE_EXPECTED_ONLY_PASS',
+    'CLEANUP_MATCH_COUNT','CLEANUP_VALIDATED_MATCH_COUNT','CLEANUP_REVALIDATION_PASS',
     'APPLICATION_CLEANUP_PASS','FAILURE_WINDOW_CLEANUP_COUNT','CLI_PROCESS_RETURNCODE','CLI_PROCESS_EXIT_PASS',
     'FORCED_CLI_CLEANUP','APP_ROOT_CLEANUP_PASS','ROLLBACK_PASS','DRIVER_SOURCE_SHA256',
     'OBSERVATION_SOURCE_SHA256','ACTUATION_SOURCE_SHA256','VERIFIER_SOURCE_SHA256',
@@ -296,6 +302,7 @@ $accepted = [bool](
     $result.completion_verification_pass -and
     $result.current_state_verification_pass -and
     $result.workspace_expected_only_pass -and
+    $result.cleanup_revalidation_pass -and
     $result.application_cleanup_pass -and
     $result.cli_process_exit_pass -and
     $null -ne $result.cli_process_returncode -and
