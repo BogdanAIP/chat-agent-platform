@@ -58,15 +58,14 @@ A status/planning phrase inside a file classified below as historical describes 
 | `VISION.md` | CURRENT PRODUCT DIRECTION | Long-term product direction; subordinate to architecture/roadmap on exact stage status. |
 | `HANDOFF_TEMPLATE.md` | CURRENT PROCESS TEMPLATE | Required future handoff fields. |
 | `KNOWN_ISSUES.md` | CURRENT ISSUE INDEX | Current unresolved issues + explicitly closed history. |
-| `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT PROCEDURAL DESIGN | Rewritten to current 26.3 deterministic Control Plane architecture. |
 
 ## Active stage contract
 
 | File | Status | Use |
 |---|---|---|
-| `STAGE26_2E_REAL_APPLICATION_E2E.md` | ACTIVE STAGE CONTRACT | Exact isolated VS Code real-app qualification until 26.2E closes. |
+| `STAGE26_PROCEDURAL_MEMORY.md` | ACTIVE STAGE 26.3 CONTRACT / DESIGN | Verified Procedure Runtime / deterministic Control Plane, candidate-first procedural trust and progression invariants. |
 
-When 26.2E closes, change its status here to `ACCEPTED HISTORICAL EVIDENCE` and name the next active stage contract.
+The first Stage 26.3 physical vertical slice must remove intermediate user command entry: one user goal -> ordinary Chat procedure selection -> local deterministic multi-transition execution -> verified completion or ABSTAIN/escalation.
 
 ## Accepted foundation documents — historical evidence
 
@@ -88,6 +87,7 @@ The files below preserve stage-specific evidence/design from their own time. The
 | `STAGE26_2B_DESKTOP_OBSERVATION.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #88. |
 | `STAGE26_2C_DESKTOP_GROUNDER.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #89. |
 | `STAGE26_2D_WINDOWS_VISION_ROUTING.md` | ACCEPTED HISTORICAL STAGE | **Its opening ACTIVE/qualification-required label is historical.** Exact physical head `1c74713edcd6321d5583a39234929169e68b5ac1` passed and #90 merged. |
+| `STAGE26_2E_REAL_APPLICATION_E2E.md` | ACCEPTED HISTORICAL EVIDENCE | Exact physical runtime/qualification head `457db0b634f2e47f53d41e359a238840fa3ca2ee` passed the isolated VS Code real-app gate with one guarded Unicode action, independent file verification and full rollback. |
 
 Exact physical data inside historical documents remains valid only for the scoped code/head/test it names. Do not reinterpret synthetic cases as physical evidence.
 
