@@ -4,28 +4,47 @@
 
 Resolve live `main` and relevant open PR heads before new work. Historical acceptance SHAs are evidence, not substitutes for the current integration line.
 
-At the start of Stage 26.2E, Stage 26.2D had been merged as PR #90 and `main` was `42d4130d59e23e2c2b1771ac428467efe27a4b98`.
+At the start of Stage 26.2E, Stage 26.2D had been merged as PR #90 and `main` was:
+
+`42d4130d59e23e2c2b1771ac428467efe27a4b98`
 
 ## Product boundary
 
-`chat-agent-platform` is the local execution, perception, verification and procedural-support layer around ordinary ChatGPT.
+`chat-agent-platform` is the local capability and deterministic execution-support layer around ordinary ChatGPT.
 
 ```text
 ordinary ChatGPT
-  = general intelligence / task interpretation / strategy / adaptation
+  = current general intelligence
+  + task interpretation
+  + strategy
+  + procedure selection
+  + adaptation / escalation
 
 local platform
   = scoped capabilities
   + deterministic/native observation
   + bounded specialist perception
-  + deterministic authorization
+  + deterministic execution Control Plane
+  + authorization
   + guarded execution
   + verification
-  + non-agentic procedural memory
-  + optional specialist reasoning proposals later
+  + checkpoints / bounded recovery
+  + procedural memory
 ```
 
-Never add a second universal planner, autonomous workflow brain, generic local agent or unbounded hidden execution channel.
+### General planner vs Control Plane
+
+The repository intentionally distinguishes two roles:
+
+**General planner** means open-ended semantic strategy: interpreting the user's goal, choosing materially different approaches, adapting to novel state and inventing a new strategy. Ordinary ChatGPT is the only **current** general planner.
+
+**Deterministic Control Plane** means execution state/policy machinery for an already-selected bounded goal/procedure: `TaskState`, `ProgramGraph` progression, authorization, checkpoints, verifier/postconditions, retry/recovery ceilings and resource budgets.
+
+The Control Plane may autonomously advance an already-defined transition when current evidence uniquely matches it and all authorization/postcondition gates pass. It must ABSTAIN/escalate to ChatGPT instead of inventing a new transition when the live state is novel, stale, ambiguous, incompatible or requires new strategy.
+
+Canonical detail: `project-context/CONTROL_PLANE.md`.
+
+A future local general planner is a separate optional Track P; it is not part of the current release-critical architecture and even if later accepted remains above the same deterministic Control Plane authority boundary.
 
 ## Accepted ordinary-Chat path
 
@@ -35,7 +54,7 @@ ordinary ChatGPT
   -> official tunnel-client
   -> direct stdio secure semantic launcher
   -> semantic-projection
-  -> focused task-active backends/adapters
+  -> focused task-active capabilities
 ```
 
 Current accepted public tool names remain exactly:
@@ -52,22 +71,24 @@ web_interact
 
 ## Semantic projection rule
 
-`semantic-projection` is a deterministic compatibility boundary. It may map one truthful semantic request to one reviewed capability action or a small bounded deterministic sequence. It must not:
+`semantic-projection` is a deterministic compatibility boundary. It may map one truthful semantic request to one reviewed capability action or a small bounded deterministic sequence. It is **not** the local Control Plane.
+
+It must not:
 
 - decide user goals;
-- run hidden plans;
+- run hidden open-ended plans;
 - become procedural memory;
 - become a generic model/tool gateway;
 - expose a disguised `tool_invoke`;
 - hide native desktop/workflow consequence classes behind misleading web semantics.
 
-The public contract is reconsidered only through a dedicated ADR after real desktop capability evidence.
+A separate post-desktop/public-contract ADR decides whether truthful desktop/procedure capabilities need new public names.
 
 ---
 
-# Capability authority and procedural trust
+# Authority, trust and state
 
-Capability authority and procedure trust are different state machines.
+Capability authority and procedure trust are separate state machines:
 
 ```text
 capability:
@@ -81,54 +102,53 @@ new/demo
  -> stale / quarantined / disabled / rollback
 ```
 
-A trusted procedure still does not authorize historical actions. Priority remains:
+A trusted procedure is not blanket action authority.
+
+Execution priority:
 
 ```text
 current observed state
  > current goal / verifier criteria
- > trusted procedural evidence
- > raw historical action sequence
+ > trusted procedure evidence
+ > historical action sequence
 ```
+
+The future Control Plane must preserve this priority at every transition.
 
 ---
 
 # Browser grounding — accepted Stage 25.2
-
-Deterministic semantic structure is preferred whenever reliable evidence exists.
 
 ```text
 web_interact(click)
  -> fresh accessibility snapshot
       -> exact enabled promoted semantic target
            -> semantic action; VLM stopped
-      -> disabled/non-button/unresolved semantic ambiguity
+      -> disabled/non-button/unresolved ambiguity
            -> ABSTAIN; VLM stopped
-      -> reviewed zero-exact visual path
+      -> reviewed bounded visual path
            -> same-session screenshot
            -> local F16 proposal
            -> deterministic target/freshness authorization
            -> one coordinate action OR ABSTAIN
 ```
 
-`targetText` remains an authorization anchor. Planner free-form text cannot silently redirect the visual target.
-
-Accepted target-laptop specialist:
+Accepted specialist baseline:
 
 ```text
 llama.cpp b10448 / ad1de39e0
-LFM2.5-VL-450M F16
-F16 mmproj
+LFM2.5-VL-450M F16 + F16 mmproj
 CPU 8 threads
 ctx 2048
 ```
 
-The model perceives/proposes only. It never plans, authorizes or declares task completion.
+The model perceives/proposes only. It never grants authority or task completion.
 
 ---
 
-# Procedural substrate — qualified upstream direction
+# Procedural substrate
 
-Pinned target-tested upstreams:
+Pinned target-qualified upstreams:
 
 ```text
 openadapt-flow 1.31.0
@@ -143,23 +163,30 @@ Reuse/adapt:
 ```text
 Flow compiler + Workflow/ProgramGraph
 Capture
-SkillLibrary/learn/teach mechanics
+SkillLibrary/learn/teach lifecycle mechanics
 Windows typed backend/agent mechanics
 ```
 
-The repository owns the project policy/integration boundary instead of duplicating a generic recorder/compiler/skill engine. First demonstration remains CANDIDATE, never automatic permanent trust.
+The repository owns focused integration/policy/checkpoint seams rather than duplicating a generic recorder/compiler/agent framework.
 
-Blind historical absolute-coordinate replay is never authority or primary identity. Preferred procedure resolution later remains:
+A stored procedure may retain native/semantic/UIA and bounded visual/template/geometry evidence, but blind historical absolute-coordinate replay is never authority or primary identity.
+
+Preferred future procedure execution:
 
 ```text
-live native/semantic/UIA evidence
- -> deterministic re-resolution
- -> bounded visual/template/geometry fallback where permitted
- -> identity/risk/freshness checks
+ChatGPT selects applicable procedure
+ -> Control Plane loads exact version + TaskState
+ -> live state observation
+ -> exactly one permitted transition
+ -> current capability authorization
  -> action
  -> observed effect verification
- -> ABSTAIN on unresolved state
+ -> checkpoint / advance
+ -> repeat while known
+ -> ABSTAIN/escalate on novel or incompatible state
 ```
+
+This is stronger than treating a procedure as mere passive advice, but it is still not a second planner.
 
 ---
 
@@ -180,17 +207,14 @@ runtime/windows/
 
 ## Typed Windows execution
 
-Stage 26.1C physically accepted the hardened typed Windows executor; Stage 26.2A promoted the maintained runtime.
-
-Core invariants:
+Accepted invariants include:
 
 ```text
 127.0.0.1 only
 ephemeral authenticated agent
 legacy arbitrary exec absent/disabled
 typed bounded input only
-stale frame refusal
-stale context refusal
+stale frame/context refusal
 focus-bound keyboard
 UIA unique target
 fingerprint-bound structural action
@@ -203,74 +227,23 @@ Delivery receipts keep `outcome_verified=false`.
 
 ## Window-scoped UIA
 
-Stage 26.1E accepted:
+Stage 26.1E accepted PID -> bounded Win32 HWND -> same-process exact window -> native UIA FindAll inside the bound window only. Controlled evidence: 97 scoped resolutions, zero Desktop fallback/binding failures/ambiguities, p50 3323.570 ms / p95 3720.061 ms. This is not global Windows accuracy.
 
-```text
-expected process id
- -> Win32 EnumWindows
- -> discard non-target PID HWNDs before UIA conversion
- -> ControlFromHandle only for same-process HWNDs
- -> exact normalized top-level WindowControl name
- -> native FindAll(TreeScope.Descendants, condition) inside bound window only
- -> bounded candidate/fingerprint generation
- -> independent fresh re-resolution before structural actuation
-```
+## DesktopState — Stage 26.2B
 
-Physical controlled fixture evidence:
-
-```text
-97 scoped resolutions
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-p50=3323.570 ms
-p95=3720.061 ms
-```
-
-This is not global Windows accuracy.
-
-## DesktopState observation — Stage 26.2B
-
-Canonical state explicitly carries:
-
-```text
-session_id
-application_identity
-executable_name
-process_id
-process_generation
-window_handle
-window_instance
-window_title/window_bounds
-screen physical coordinate space
-focused control
-bounded controls[]
-visible text
-observed capabilities
-screenshot digest
-frame digest
-observed_at
-observation source/provenance
-freshness evidence
-```
-
-Screenshot bytes are not stored in DesktopState. Observation fingerprints are evidence, not action fingerprints or authority.
+Canonical state carries session/application/process generation/window identity, physical coordinate space, focused control, bounded controls, visible text, observed capabilities, frame/screenshot digests, provenance and freshness evidence. Observation fingerprints are evidence, not executor authority.
 
 ## Verifier foundation
-
-Capability lifecycle:
 
 ```text
 before = observe()
 authorized = authorize(before, requested_action)
 delivery = act(authorized)
 after = observe()
-verification = verify(before, after, explicit_expected_effect)
+verification = verify(before, after, expected_effect)
 ```
 
 `delivery != success`.
-
-Verifier results:
 
 ```text
 PASS
@@ -278,37 +251,13 @@ FAIL
 UNKNOWN
 ```
 
-FAIL/UNKNOWN never silently advance a workflow.
+FAIL/UNKNOWN never silently advance a procedure.
 
-## Native desktop Grounder — Stage 26.2C
+## Native Grounder — Stage 26.2C
 
-The native Windows visual adapter is separate from browser CSS/viewport coordinates.
+Exact-window proposal/ABSTAIN only. The controlled physical `1. Benchmark start` -> `Benchmark start` mismatch is handled by one narrowly bounded ordinal-prefix alias after inventory-absent; no general fuzzy matching.
 
-```text
-exact current-window PNG
- + target text
- + DesktopState/window identity
- + bounded optional UIA evidence
- -> Grounder proposal OR ABSTAIN
-```
-
-Proposal binds to window/process/frame/screenshot/coordinate evidence. It never outputs action authority.
-
-The physically observed controlled fixture read `1. Benchmark start` as `Benchmark start`. Accepted label policy is:
-
-```text
-exact label first
- -> inventory-absent only
-      -> remove one leading ordinal N. / N)
-      -> exactly one already-observed inventory label => continue
-      -> zero/multiple => ABSTAIN
-```
-
-No broad fuzzy matching.
-
-## Structure-first Windows visual routing — Stage 26.2D
-
-Exact accepted architecture:
+## Structure-first Windows routing — Stage 26.2D
 
 ```text
 current DesktopState/UIA
@@ -318,91 +267,90 @@ current DesktopState/UIA
 
  -> explicitly promoted structural miss only
       -> current exact-window screenshot
-      -> Stage 26.2C Grounder proposal
-      -> deterministic grounder evidence gate
+      -> Grounder proposal
+      -> deterministic proposal/evidence gate
       -> request/role/UIA/process/window/frame/coordinate binding
       -> fresh exact-window re-observation
-      -> unchanged screenshot/frame/structure
       -> native foreground + WindowFromPoint/root HWND/PID guard
-      -> accepted backend guarded frame gate
-      -> one physical click OR ABSTAIN
+      -> guarded backend frame gate
+      -> one bounded action OR ABSTAIN
 ```
 
-Known same-role UIA under a visual proposal point constrains authorization: if present it must be uniquely actionable. Weak/missing same-role UIA can leave the bounded visual path possible; it does not itself grant authority.
+Exact physically accepted head:
 
-Action authorization is stricter than proposal acceptance: Stage 26.2D requires unique inventory/refinement evidence and positive coarse/refined consistency IoU before a visual proposal can reach execution.
+`1c74713edcd6321d5583a39234929169e68b5ac1`
 
-Stage 26.2D physical acceptance (`1c74713edcd6321d5583a39234929169e68b5ac1`) proved one real guarded visual-fallback click with fresh identical screenshots, native wrong-window refusal, no-promotion/role-conflict refusal and one coordinate delivery. This remains controlled WinForms evidence.
+This proves one controlled WinForms path, not general desktop accuracy.
 
 ---
 
 # Current gate — Stage 26.2E real application E2E
 
-Before procedural integration, the production Windows capability must complete one real medium-complexity application task with a disposable artifact, deterministic postcondition and rollback.
-
-The current qualification candidate is isolated VS Code, selected because it supports a real application boundary while keeping user data outside the test.
+The current qualification application is isolated VS Code, selected as one real medium-complexity app with a strong disposable boundary.
 
 ```text
 specifically prefixed TEMP root
- -> isolated VS Code --user-data-dir / --extensions-dir
+ -> isolated VS Code user-data/extensions
  -> unique empty disposable .txt
- -> exact unique Code.exe top-level window
- -> PID/HWND/DesktopState binding
- -> focused editor + native point guard
- -> deliberate verifier mismatch => ABSTAIN, zero action
- -> exactly one guarded Unicode text delivery
+ -> exact unique Code.exe PID/HWND/DesktopState
+ -> focused editor precondition
+ -> deliberate verifier mismatch => FAIL -> ABSTAIN, zero action
+ -> fresh pre-action DesktopState
+ -> same window + same focused-editor observation fingerprint
+ -> native foreground/hit-test guard
+ -> exactly one guarded Unicode delivery
  -> independent autosaved file size/SHA-256 verification
- -> same current window identity
+ -> current same-window identity
  -> workspace contains only expected artifact
- -> close exact qualification window
+ -> WM_CLOSE
+ -> natural CLI exit
  -> remove isolated TEMP root
  -> rollback PASS
 ```
 
-No user project/profile/settings are part of the task. Recursive cleanup is permitted only after both Python and PowerShell independently prove the application root is a specifically prefixed child of the OS TEMP directory.
+Forced CLI terminate/kill is cleanup-only and makes acceptance fail.
 
-Read `project-context/STAGE26_2E_REAL_APPLICATION_E2E.md`.
-
-A successful VS Code run proves one real application E2E only, not universal Windows accuracy.
+Read `STAGE26_2E_REAL_APPLICATION_E2E.md`.
 
 ---
 
-# Verified Procedure Runtime — after Stage 26.2E
+# Stage 26.3 — Verified Procedure Runtime / Control Plane integration
 
-Do not create a second local general planner.
+After 26.2E, build the deterministic execution Control Plane around accepted components rather than another agent brain.
+
+Core responsibilities:
 
 ```text
-ordinary ChatGPT
- -> decide whether a known procedure is relevant
- -> load ProgramGraph
- -> observe current state
- -> resolve one applicable abstract transition
- -> deterministic authorization
- -> bounded execution
- -> observe effect
- -> verify
- -> advance / recover / ABSTAIN
+TaskState
+ProgramGraph state/version
+procedure trust state
+current evidence references/digests
+capability scope
+transition authorization
+checkpoints
+postconditions/verifier
+bounded retries/recovery branches
+resource/action/time budgets
+escalation reason
 ```
 
-Retrieval/procedure selection is non-authorizing.
+A known procedure may progress through multiple verified transitions without a ChatGPT round trip after every action. A new strategy is never invented locally; unknown/incompatible state escalates.
 
 ## Candidate-first trust
 
 ```text
-human demo/new procedure
- -> Capture
- -> compile ProgramGraph
+new/demo
  -> CANDIDATE
  -> replay/regression/variant evidence
  -> trusted reusable
- -> stale/quarantined/disabled as evidence degrades
+ -> stale/quarantined/disabled/rollback
 ```
 
 ## Advanced verifier library
 
-Expand postconditions for UI state, filesystem, window/app state, browser state, artifact existence and structured outputs.
+Expand postconditions across UI, files, applications/windows, browser state, artifacts and structured outputs.
 
-## Human demonstration transfer
+## Human demonstration transfer — Stage 26.4
 
 ```text
 human demonstration
@@ -413,17 +361,23 @@ human demonstration
  -> changed-state/task replay
 ```
 
-One demonstration is evidence, not blind macro authority.
-
 ---
 
-# Optional specialized reasoning
+# Optional specialist reasoning
 
-Only after real verified procedure-state data exists and measurements show need may the platform evaluate a `SpecializedReasoningBackend`. It receives structured state/goal/procedure evidence and returns proposal/confidence/abstain only. It never authorizes or actuates.
+A future `SpecializedReasoningBackend` may receive structured goal/state/procedure evidence and return proposal/confidence/ABSTAIN only. It remains non-authorizing and is not a general planner.
+
+# Future local planner — Track P
+
+A local general planner is retained for future offline/autonomy research after real verified procedure-state data and measured need exist.
+
+Progression is shadow/proposal-only -> bounded subtask planning -> optional general local mode. It remains behind the same deterministic Control Plane authorization/verifier boundary and never silently replaces ChatGPT as default.
+
+See `ROADMAP.md` and `CONTROL_PLANE.md`.
 
 # Multi-chat orchestration
 
-Separate upper layer, not part of Windows runtime/procedure safety core. Under the current operating constraint it must not use Codex or Work resources. It is not a release prerequisite.
+Separate upper layer, not part of Windows/procedure safety core and not a release prerequisite. Under the current constraint do not use Codex/Work unless explicitly re-enabled.
 
 ---
 
@@ -431,23 +385,21 @@ Separate upper layer, not part of Windows runtime/procedure safety core. Under t
 
 - tunnel reachability remains outbound from the user machine;
 - normal semantic transport remains direct stdio;
-- tunnel secrets stay outside repository content;
-- child backends receive credentials only when needed;
-- filesystem roots account for Windows junction/link escape;
-- browser DNS/rebinding/redirect/private-network isolation remains residual work;
+- tunnel secrets stay outside repository/procedure content;
 - local inference is bounded, on-demand and non-authorizing;
-- raw desktop demonstrations are sensitive local data and not safe-to-sync by default;
-- private chain-of-thought is never procedural-memory data;
+- planner/model/procedure output never bypasses deterministic authorization;
+- raw desktop demonstrations are sensitive local data;
+- private chain-of-thought is never procedural/task memory;
 - generic Windows code execution remains disabled/unreachable;
 - stale, ambiguous or incompatible state fails closed;
 - artifact/model/Python/OpenAdapt reproducibility must become release-grade before stable distribution.
 
 ## Windows manager
 
-Public manager/tray owns lifecycle/configuration/diagnostics only. It does not plan user tasks or become procedure memory.
+Manager/tray owns lifecycle/configuration/diagnostics only. It is neither the general planner nor the procedure Control Plane.
 
 # Ownership rule
 
-The repository owns thin integration assets: pinned configs, lifecycle/bootstrap, deterministic compatibility adapters, project trust/policy wrappers, focused missing-boundary adapters, tests and authoritative context.
+The repository owns thin integration assets: pinned configs, lifecycle/bootstrap, deterministic compatibility adapters, project trust/policy/checkpoint wrappers, focused missing-boundary adapters, tests and authoritative context.
 
-It does not own a generic AI gateway, autonomous workflow brain, generic workflow engine, general model-serving platform, duplicate OpenAdapt implementation or replacement Windows actuator while accepted upstream mechanisms cover those needs.
+It does not own a generic AI gateway, unrestricted autonomous workflow brain, generic model-serving platform or duplicate OpenAdapt implementation while qualified upstream mechanisms cover those needs.
