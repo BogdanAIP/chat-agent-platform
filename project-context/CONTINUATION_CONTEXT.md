@@ -10,15 +10,19 @@ This file is intentionally compact. Resolve live GitHub state before acting beca
 
 - Use ordinary ChatGPT + GitHub + the project's local/connected tools.
 - Do **not** use Codex or ChatGPT Work resources unless the user explicitly re-enables them.
-- Ordinary ChatGPT remains the only general planner/intelligence layer.
-- Do not add a second autonomous planner/control-plane brain or generic hidden dispatcher.
+- Ordinary ChatGPT is the **only current general planner/intelligence**.
+- A **deterministic local execution Control Plane is part of the target architecture**; it is not a second planner.
+- The Control Plane owns TaskState, selected ProgramGraph progression, authorization, checkpoints, verifier/postconditions, bounded recovery and resource budgets.
+- A known selected procedure may advance through several independently authorized/verified transitions without returning to ChatGPT after every low-level action.
+- Novel strategy, stale/ambiguous/UNKNOWN/incompatible state -> ABSTAIN/escalate to ChatGPT.
 - Current public semantic tools remain exactly `workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`.
-- Model/procedure/observation output is evidence/proposal, never authorization by itself.
+- Model/procedure/planner/observation output is evidence/proposal, never authorization by itself.
 - Current state outranks remembered/history state.
 - Delivery is not completion; explicit verification controls completion.
-- Stale/ambiguous/UNKNOWN evidence fails closed with zero mutation.
 - Generic Windows code execution remains disabled/unreachable.
 - When a branch is logically complete, intended diff is reviewed, required physical/CI gates pass and no unresolved issue remains, merge it without waiting for a separate `сливай` command.
+
+Canonical architecture distinction: `project-context/CONTROL_PLANE.md`.
 
 ## Current integration line at this snapshot
 
@@ -34,84 +38,61 @@ Physical evidence directory:
 
 `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-routing-qualification\routing-20260820-085625`
 
-Key Stage 26.2D evidence:
-
-```text
-NATIVE_POINT_GUARD_PREFLIGHT_PASS=True
-NATIVE_POINT_GUARD_WRONG_WINDOW_REFUSAL_PASS=True
-NATIVE_POINT_GUARD_DELIVERY_PASS=True
-VISION_DISABLED_ABSTAIN_PASS=True
-ROLE_CONFLICT_ABSTAIN_PASS=True
-NEGATIVE_ZERO_ACTION_PASS=True
-POSITIVE_ROUTE_STATUS=delivered
-POSITIVE_ROUTE_REASON=vision-zero-exact-delivered
-POSITIVE_CONSISTENCY_IOU=0.34455881673798816
-FRESH_REOBSERVATION_PASS=True
-GUARDED_CLICK_RECEIPT_PASS=True
-FIXTURE_START_POSTCONDITION_PASS=True
-FIXTURE_NO_EXTRA_MUTATION_PASS=True
-SINGLE_ACTION_PASS=True
-STRUCTURAL_EXECUTOR_CALLS=0
-COORDINATE_EXECUTOR_CALLS=1
-GROUNDER_CALLS=1
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-PASS=True
-```
-
-The two exact-window screenshots around inference had the same SHA-256:
-
-`f318c355d0f180968c030cbd25b23947791cb146d5ba8b5a11a1ad7b5e87012f`
+Stage 26.2D proved one controlled structure-first Windows visual-fallback action with current request/UIA/process/window/frame evidence, fresh re-observation, native foreground/hit-test guard, one bounded delivery and correct fail-closed negative cases. It is not broad Windows-app accuracy.
 
 ## Active work
 
 **Stage 26.2E — first real application E2E**
 
-Active branch at this snapshot:
+Active branch:
 
 `chat/stage26-2e-vscode-real-app-e2e`
 
-This stage deliberately uses an isolated VS Code qualification task, not a new agent planner.
-
-The test creates only disposable data under:
+The test uses only:
 
 `%TEMP%\chat-agent-stage26e-vscode-<guid>`
 
-It launches VS Code with isolated `--user-data-dir`, `--extensions-dir`, disabled extensions, and one unique empty `.txt` file. It may perform exactly one guarded Unicode text delivery after exact PID/HWND/focused-control/native-point guards pass. Completion is independently verified from the saved file size/SHA-256 and the workspace must contain only that expected artifact. A deliberate wrong verifier expectation must map to ABSTAIN before action. Then the exact qualification window and the isolated TEMP root must be cleaned up.
+with isolated VS Code user-data/extensions and one unique empty `.txt`.
 
-Current branch assets include:
+The one allowed mutation is guarded Unicode text delivery. Before it, the driver requires exact Code.exe PID/HWND/DesktopState, focused editor, native guard and a deliberate verifier mismatch -> FAIL -> ABSTAIN with zero action. Immediately before typing it must take a **fresh DesktopState** proving the same window identity and **the same focused-editor observation fingerprint**, then rerun the native foreground/hit-test guard.
 
-```text
-scripts/stage26-vscode-real-app-e2e.py
-scripts/stage26-vscode-real-app-e2e.ps1
-tests/test_stage26_2e_vscode_real_app_e2e.py
-project-context/STAGE26_2E_REAL_APPLICATION_E2E.md
-project-context/CONTINUATION_CONTEXT.md
-```
+Completion requires exact autosaved file size/SHA-256, same current window identity, workspace containing only the expected artifact, exact qualification-window cleanup, **natural CLI exit**, TEMP cleanup and rollback. Forced CLI terminate/kill is cleanup-only and must fail acceptance.
 
-CI must parse the new PowerShell harness and run the source/contract tests. A physical GUI qualification has **not yet been accepted** at the time this snapshot was written.
+A physical GUI qualification has **not yet been accepted** at this snapshot.
 
-Read `project-context/STAGE26_2E_REAL_APPLICATION_E2E.md` for the exact acceptance contract.
+Read `STAGE26_2E_REAL_APPLICATION_E2E.md` for the exact gate.
 
 ## Correct roadmap after 26.2E
 
 ```text
 26.2E real application E2E
- -> 26.3 Verified Procedure Runtime
+ -> 26.3 Verified Procedure Runtime / deterministic Control Plane integration
     -> 26.3A candidate-first procedural trust
-    -> 26.3B advanced verifier/postcondition library
+    -> 26.3B advanced verifier/postconditions
+    -> checkpoint/recovery/budget mechanics as required
  -> 26.4 Human Demo -> transferable verified candidate skill
  -> 27 distribution/maintenance
  -> 28 clean-user E2E/stable release
 ```
 
-Do **not** replace Stage 26.3 with a local generic `Agent Control Plane`/Planner. That earlier idea conflicts with the repository architecture. Procedure runtime is non-agentic support for ordinary ChatGPT: load applicable ProgramGraph, observe current state, resolve a bounded next transition, authorize, execute, verify, then advance/recover/ABSTAIN.
+Do **not** replace 26.3 with a local general LLM planner. 26.3 is where the deterministic local Control Plane is integrated around ProgramGraph/live state/authorization/verifier.
+
+## Future local planner
+
+The local planner idea is retained deliberately as **Track P — Local Planner / Offline Autonomy** after verified procedure-state data and measured need exist.
+
+```text
+P0 shadow/proposal-only
+ -> P1 bounded subtask planner
+ -> P2 optional local general-planner mode
+```
+
+It is not current release-critical work. Even a future planner remains above the same deterministic Control Plane authorization/verifier layer and cannot grant itself authority.
 
 ## Fresh-chat startup procedure
 
-1. Resolve live `main`.
-2. Inspect open PRs, especially the Stage 26.2E branch/PR if still active.
-3. Read this file, `CURRENT_STATE.md`, `ROADMAP.md`, `ARCHITECTURE.md`, `STAGE26_2E_REAL_APPLICATION_E2E.md`.
-4. Prefer exact code/tests/current CI/physical evidence over stale prose.
+1. Resolve live `main` and open PR heads.
+2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `ROADMAP.md` and the active stage document.
+3. Treat older stage documents as historical evidence if their `current`/`next` wording conflicts with live state.
+4. Prefer exact code/tests/current CI/physical evidence over prose.
 5. Continue the current release-critical stage instead of restarting architecture discussion.
