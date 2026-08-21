@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This file prevents older stage/research documents from overriding the live architecture simply because they contain words such as `ACTIVE`, `CURRENT`, `NEXT`, or an old stage number.
+This file prevents older stage/research documents from overriding the live architecture simply because they contain words such as `ACTIVE`, `CURRENT`, `NEXT`, `DRAFT`, `rerun required`, or an old future-stage number.
 
 Before using any document as current architecture, resolve live GitHub state and apply this status map.
 
@@ -18,7 +18,7 @@ current code/tests/CI/physical evidence
  > old research/handoffs
 ```
 
-`ACTIVE`, `NEXT`, or `CURRENT` text inside a file classified below as historical describes the time that document was written. It is **not** a live roadmap instruction.
+A status/planning phrase inside a file classified below as historical describes the time that document/revision was written. It is **not** a live roadmap instruction.
 
 ## Root documents
 
@@ -29,79 +29,79 @@ current code/tests/CI/physical evidence
 | `SECURITY.md` | CURRENT SECURITY OVERVIEW | Repository/product security boundary. |
 | `LICENSE` | AUTHORITATIVE LEGAL | MIT license. |
 
+`.github/PULL_REQUEST_TEMPLATE.md` is a current process template and must track architecture/document-consistency checks.
+
 ## Authoritative live context
 
 | File | Status | Use |
 |---|---|---|
-| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Fast current continuation after resolving live GitHub state. |
+| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Fast continuation after resolving live GitHub state. |
 | `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and current operating constraints. |
 | `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted evidence, active gate, residual risks. |
 | `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Current component/layer boundaries. |
-| `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General-planner vs deterministic local execution Control Plane vs future local planner. |
-| `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence + optional/future research tracks. |
-| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which files may define current state vs historical evidence. |
+| `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution Control Plane vs future planner. |
+| `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence + optional/future tracks. |
+| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which documents can define current state. |
 
 ## Current policy / design governance
 
 | File | Status | Use |
 |---|---|---|
 | `CONSTRAINTS.md` | CURRENT POLICY | Hard project constraints. |
-| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing current development; Git history retains superseded ADR detail. |
+| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing current development. |
 | `DEVELOPMENT_PRINCIPLES.md` | CURRENT POLICY | Development/acceptance principles. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Detailed trust/authorization/privacy boundaries. |
 | `COST_POLICY.md` | CURRENT POLICY | Baseline cost/subscription constraints. |
 | `MODULE_CATALOG.md` | CURRENT CATALOG | Accepted/current/future capability status. |
-| `MODULE_SELECTION_POLICY.md` | CURRENT POLICY | How future components are selected/promoted. |
-| `TYPED_CAPABILITY_PROJECTION.md` | ACCEPTED CURRENT FOUNDATION | Current five-tool semantic-projection contract and relationship to the separate Control Plane. |
+| `MODULE_SELECTION_POLICY.md` | CURRENT POLICY | Selection/promotion rules. |
+| `TYPED_CAPABILITY_PROJECTION.md` | ACCEPTED CURRENT FOUNDATION | Five-tool semantic projection + separation from procedure Control Plane. |
 | `VISION.md` | CURRENT PRODUCT DIRECTION | Long-term product direction; subordinate to architecture/roadmap on exact stage status. |
-| `HANDOFF_TEMPLATE.md` | CURRENT PROCESS TEMPLATE | What a future handoff must state. |
-| `KNOWN_ISSUES.md` | CURRENT ISSUE INDEX | Only unresolved current architecture issues plus explicitly closed history. |
+| `HANDOFF_TEMPLATE.md` | CURRENT PROCESS TEMPLATE | Required future handoff fields. |
+| `KNOWN_ISSUES.md` | CURRENT ISSUE INDEX | Current unresolved issues + explicitly closed history. |
+| `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT PROCEDURAL DESIGN | Rewritten to current 26.3 deterministic Control Plane architecture. |
 
 ## Active stage contract
 
 | File | Status | Use |
 |---|---|---|
-| `STAGE26_2E_REAL_APPLICATION_E2E.md` | ACTIVE STAGE CONTRACT | Exact isolated VS Code real-app qualification contract until Stage 26.2E closes. |
+| `STAGE26_2E_REAL_APPLICATION_E2E.md` | ACTIVE STAGE CONTRACT | Exact isolated VS Code real-app qualification until 26.2E closes. |
 
-When 26.2E closes, change its status in this map to `ACCEPTED HISTORICAL EVIDENCE` and name the next active stage contract.
+When 26.2E closes, change its status here to `ACCEPTED HISTORICAL EVIDENCE` and name the next active stage contract.
 
 ## Accepted foundation documents — historical evidence
 
-The following preserve exact stage-specific decisions/evidence. Their old `NEXT`, `ACTIVE`, `CURRENT`, future-stage numbering, or implementation-order text is **historical** and cannot override live context:
+The files below preserve stage-specific evidence/design from their own time. Their old planning/status prose cannot override live context.
 
-| File | Status |
-|---|---|
-| `BRIDGE_ACCEPTANCE.md` | ACCEPTED HISTORICAL FOUNDATION |
-| `DIRECT_SEMANTIC_TUNNEL.md` | ACCEPTED HISTORICAL FOUNDATION |
-| `STAGE22_LEGACY_REDUCTION.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE24_LEAST_PRIVILEGE.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE25_1_VISION_INTEGRATION.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE26_1A_OPENADAPT_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE26_1B_OPENADAPT_CAPTURE_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE26_1C_WINDOWS_EXECUTOR_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE26_1D_WINDOWS_HOT_RUNTIME_BENCHMARK.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE26_1E_WINDOW_SCOPED_UIA_RESOLVER.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE26_2B_DESKTOP_OBSERVATION.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE26_2C_DESKTOP_GROUNDER.md` | ACCEPTED HISTORICAL STAGE |
-| `STAGE26_2D_WINDOWS_VISION_ROUTING.md` | ACCEPTED HISTORICAL STAGE |
+| File | Status | Important note |
+|---|---|---|
+| `BRIDGE_ACCEPTANCE.md` | ACCEPTED HISTORICAL FOUNDATION | Evidence log intentionally points current architecture elsewhere. |
+| `DIRECT_SEMANTIC_TUNNEL.md` | ACCEPTED HISTORICAL FOUNDATION | Stage 24.1 transport decision/evidence. |
+| `STAGE22_LEGACY_REDUCTION.md` | ACCEPTED HISTORICAL STAGE | References the then-current 1MCP architecture; direct stdio later became normal public path. |
+| `STAGE24_LEAST_PRIVILEGE.md` | ACCEPTED HISTORICAL STAGE | Opening “current Stage 24” wording is historical. |
+| `STAGE25_1_VISION_INTEGRATION.md` | ACCEPTED HISTORICAL STAGE | Accepted Stage 25.1 evidence. |
+| `STAGE26_1A_OPENADAPT_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | “product integration not started” describes that stage, not current state. |
+| `STAGE26_1B_OPENADAPT_CAPTURE_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Accepted capture evidence. |
+| `STAGE26_1C_WINDOWS_EXECUTOR_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | **Its opening DRAFT/rerun-required label is an old intermediate revision.** Final accepted physical head is `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`; #83 merged. |
+| `STAGE26_1D_WINDOWS_HOT_RUNTIME_BENCHMARK.md` | ACCEPTED HISTORICAL STAGE | Physical benchmark evidence. |
+| `STAGE26_1E_WINDOW_SCOPED_UIA_RESOLVER.md` | ACCEPTED HISTORICAL STAGE | Physical resolver evidence. |
+| `STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME.md` | ACCEPTED HISTORICAL STAGE | **Its opening ACTIVE/DRAFT label is historical.** Stage 26.2A was accepted/merged as #87. |
+| `STAGE26_2B_DESKTOP_OBSERVATION.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #88. |
+| `STAGE26_2C_DESKTOP_GROUNDER.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #89. |
+| `STAGE26_2D_WINDOWS_VISION_ROUTING.md` | ACCEPTED HISTORICAL STAGE | **Its opening ACTIVE/qualification-required label is historical.** Exact physical head `1c74713edcd6321d5583a39234929169e68b5ac1` passed and #90 merged. |
 
-Exact physical evidence in these files remains valid for the scoped code/head it names. Only their old planning/status prose is historical.
+Exact physical data inside historical documents remains valid only for the scoped code/head/test it names. Do not reinterpret synthetic cases as physical evidence.
 
 ## Research / superseded planning documents
 
-These are useful references but must not define current architecture/status:
-
 | File | Status | Notes |
 |---|---|---|
-| `ACTIVE_VISUAL_GROUNDING.md` | HISTORICAL RESEARCH / STAGE 25 DESIGN | Old model/profile/status sections are superseded by accepted Stage 25.2 + later architecture. |
-| `LOCAL_SPECIALIST_INFERENCE.md` | HISTORICAL RESEARCH / SPECIALIST TRACK | Specialist/tiny-model research reference; current specialist/planner boundaries are in `CONTROL_PLANE.md`/`ROADMAP.md`. |
-| `STAGE25_MODEL_PROFILES.md` | HISTORICAL RESEARCH | Old candidate/model profiles; not current selected runtime. |
-| `STAGE25_TARGET_BENCHMARKS.md` | HISTORICAL EVIDENCE/RESEARCH | Preserve measurements; do not use as current roadmap. |
-| `STAGE25_CHAT_HANDOFF_2026-08-17.md` | HISTORICAL HANDOFF | Dated snapshot only. |
-| `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT PROCEDURAL DESIGN | Rewritten/synchronized to current 26.3/Control Plane architecture; older Git revisions are superseded. |
+| `ACTIVE_VISUAL_GROUNDING.md` | HISTORICAL RESEARCH / STAGE 25 DESIGN | Opening ACTIVE wording and old 3B/Mark-Grid implementation order are historical; accepted target later became 450M F16 bounded specialist path. |
+| `LOCAL_SPECIALIST_INFERENCE.md` | HISTORICAL RESEARCH / SPECIALIST TRACK | Opening ACTIVE/PROVISIONAL and LM Studio candidate discussion are historical. Current specialist/planner boundary is `CONTROL_PLANE.md`/`MODULE_CATALOG.md`. |
+| `STAGE25_MODEL_PROFILES.md` | HISTORICAL RESEARCH | Opening active benchmark wording and old 3B profile are not current selected runtime. |
+| `STAGE25_TARGET_BENCHMARKS.md` | HISTORICAL EVIDENCE/RESEARCH | Preserve measurements; opening ACTIVE EVIDENCE is date-scoped. |
+| `STAGE25_CHAT_HANDOFF_2026-08-17.md` | HISTORICAL HANDOFF | Its “active development handoff for next conversation” is explicitly obsolete. |
 
-## Architecture terminology that all future docs must preserve
+## Architecture terminology all future docs must preserve
 
 ### Current general planner
 
@@ -109,7 +109,7 @@ These are useful references but must not define current architecture/status:
 ordinary ChatGPT
 ```
 
-Owns open-ended user-goal interpretation, strategy, procedure selection and novel-state adaptation.
+Owns open-ended goal interpretation, strategy, procedure selection and novel-state adaptation.
 
 ### Deterministic local execution Control Plane
 
@@ -148,4 +148,4 @@ Any architecture-changing PR must audit/update this map when it:
 - promotes a research track into the release-critical roadmap;
 - changes the public Chat-facing capability surface.
 
-Do not “fix” historical physical evidence to match new architecture language. Preserve evidence and update its classification/current authority instead.
+Do not rewrite historical physical evidence merely to make old prose look current. Preserve evidence and make its authority/status explicit here and in current context.
