@@ -41,9 +41,15 @@ class Stage262ECleanupRevalidationTests(unittest.TestCase):
             'len(cleanup_matches) == 1 and len(validated_matches) == 1',
             'result["cleanup_revalidation_pass"] = False',
             '"VS Code cleanup identity was not uniquely revalidated; refusing WM_CLOSE"',
-            'and result["cleanup_revalidation_pass"]',
+            'result["cleanup_revalidation_pass"]',
         ):
             self.assertIn(required, self.driver)
+
+        rollback_start = self.driver.index('result["rollback_pass"] = bool(')
+        rollback_end = self.driver.index("\n            )", rollback_start)
+        rollback = self.driver[rollback_start:rollback_end]
+        self.assertIn('result["cleanup_revalidation_pass"]', rollback)
+        self.assertIn('result["application_cleanup_pass"]', rollback)
 
     def test_harness_requires_cleanup_revalidation_for_acceptance(self) -> None:
         for required in (
