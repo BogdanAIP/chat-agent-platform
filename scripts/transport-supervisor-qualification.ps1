@@ -39,24 +39,81 @@ function Write-Result {
     Write-Host "$Name=$Value"
 }
 
-function Invoke-ManagerStatus {
-    $output = @(
-        & pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $Manager -Action Status -NoNotify 2>&1
+function Invoke-BoundedManagerProcess {
+    param(
+        [ValidateSet('Start', 'Stop', 'Status')]
+        [string]$Action,
+        [ValidateRange(5, 300)]
+        [int]$TimeoutSeconds
     )
-    if ($LASTEXITCODE -ne 0) {
-        throw "Manager status failed: $($output -join ' ')"
+
+    $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $pwsh
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    foreach ($argument in @(
+        '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
+        '-File', $Manager, '-Action', $Action, '-NoNotify'
+    )) {
+        $startInfo.ArgumentList.Add([string]$argument)
     }
-    return ($output | Out-String | ConvertFrom-Json -ErrorAction Stop)
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+
+    try {
+        if (-not $process.Start()) {
+            throw "Manager $Action could not be started."
+        }
+
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $timeoutMilliseconds = [int]($TimeoutSeconds * 1000)
+
+        if (-not $process.WaitForExit($timeoutMilliseconds)) {
+            try { $process.Kill($true) } catch {}
+            try { $process.WaitForExit(5000) | Out-Null } catch {}
+            throw "Manager $Action timed out after $TimeoutSeconds seconds."
+        }
+
+        $process.WaitForExit()
+        return [pscustomobject]@{
+            exit_code = $process.ExitCode
+            stdout = $stdoutTask.GetAwaiter().GetResult()
+            stderr = $stderrTask.GetAwaiter().GetResult()
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
+function Invoke-ManagerStatus {
+    $result = Invoke-BoundedManagerProcess -Action Status -TimeoutSeconds 30
+    if ([int]$result.exit_code -ne 0) {
+        $diagnostic = (([string]$result.stderr + "`n" + [string]$result.stdout).Trim())
+        throw "Manager status failed: $diagnostic"
+    }
+    try {
+        return ([string]$result.stdout | ConvertFrom-Json -ErrorAction Stop)
+    }
+    catch {
+        throw "Manager status returned invalid JSON: $([string]$result.stdout)"
+    }
 }
 
 function Invoke-ManagerMutation {
     param([ValidateSet('Start', 'Stop')] [string]$Action)
 
-    $output = @(
-        & pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $Manager -Action $Action -NoNotify 2>&1
-    )
-    if ($LASTEXITCODE -ne 0) {
-        throw "Manager $Action failed: $($output -join ' ')"
+    $timeoutSeconds = if ($Action -eq 'Start') { 150 } else { 60 }
+    $result = Invoke-BoundedManagerProcess -Action $Action -TimeoutSeconds $timeoutSeconds
+    if ([int]$result.exit_code -ne 0) {
+        $diagnostic = (([string]$result.stderr + "`n" + [string]$result.stdout).Trim())
+        throw "Manager $Action failed: $diagnostic"
     }
 }
 
