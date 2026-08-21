@@ -55,7 +55,8 @@ class Stage26OpenAdaptQualificationContractTests(unittest.TestCase):
 
         for required in (
             "Ordinary ChatGPT remains the only planner/intelligence",
-            "ADOPT / ADAPT / REJECT",
+            "Decision: ADOPT",
+            "Decision: ADAPT",
             "HALT/ABSTAIN",
             "raw capture",
             "F16",
