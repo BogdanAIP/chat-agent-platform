@@ -54,11 +54,11 @@ Focused Filesystem/Playwright/1MCP candidates and selection rules accepted.
 
 ## Stage 24 / 24.1 — Windows lifecycle + stable semantic surface + direct tunnel — DONE
 
-1MCP remains internal diagnostic/adaptive/aggregation infrastructure; the normal public path is direct semantic-projection.
+1MCP remains internal diagnostic/adaptive/aggregation infrastructure; normal public path is direct semantic-projection.
 
 ## Stage 25 / 25.1 / 25.2 — browser semantic + local vision — DONE
 
-Accepted visual baseline:
+Accepted local visual baseline:
 
 ```text
 llama.cpp b10448 / ad1de39e0
@@ -67,13 +67,13 @@ CPU 8 threads
 ctx 2048
 ```
 
-Stage 25.2 accepted target result: 2 semantic HIT, 1 visual HIT, 2 correct ABSTAIN, 0 false clicks, 0 errors. Vision remains proposal-only and starts only on the reviewed zero-exact-candidate browser path.
+Structure first, specialist proposal only, deterministic authorization, ABSTAIN on unresolved evidence.
 
 ---
 
 # Stage 26 — Windows capability + verified procedural memory — ACTIVE
 
-The active order is production Windows capability first, then real-app evidence, then procedural integration.
+The required order is capability -> real application evidence -> verified procedures. Do not insert a second local planner.
 
 ## Stage 26.0 — UI-Mate analysis + procedural architecture — DONE
 
@@ -116,15 +116,11 @@ p50=3323.570 ms
 p95=3720.061 ms
 ```
 
-Controlled WinForms role+name evidence only; not universal Windows accuracy.
-
 ## Stage 26.1F — land qualification stack — DONE
 
-#83 -> #84 -> #85 safely landed.
+#83 -> #84 -> #85 landed.
 
 ## Stage 26.1G — authoritative context synchronization — DONE / MERGED #86
-
-Authoritative roadmap/architecture/current-state context synchronized before production Windows work.
 
 ## Stage 26.2A — Production Windows Runtime Foundation — ACCEPTED / MERGED #87
 
@@ -132,145 +128,104 @@ Maintained runtime owns bounded actuation, verifier foundation and PID/HWND wind
 
 Physical production head: `6ae5c3a9e624c8c341857c025625b203b796b41c`.
 
-Production benchmark preserved zero false/unrelated-window actions with about 3.410 s p50 / 3.631 s p95.
-
 ## Stage 26.2B — Desktop Observation / DesktopState — ACCEPTED / MERGED #88
 
 Exact physically tested runtime head:
 
 `dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
 
-Canonical DesktopState carries session/application/process/window identity, native physical coordinate space, bounded controls, focused control, visible text, observation-only fingerprints, screenshot/frame digests, observed-at timestamp, provenance/freshness evidence and observed capabilities.
+Observation is read-only evidence, not authorization.
 
-Observation and observation fingerprints are evidence, never action authorization.
+## Stage 26.2C — Native Desktop LFM2.5-VL Grounder — ACCEPTED / MERGED #89
 
-## Stage 26.2C — Native Desktop LFM2.5-VL Grounder — ACCEPTED
-
-Introduced by PR #89. Exact physically accepted runtime head:
+Exact physically accepted runtime head:
 
 `eadf8ff5a873936441891a66b616c83c62736152`
 
-Physical result directory:
+Grounder remains exact-window proposal/ABSTAIN only. The physically observed `1. Benchmark start` -> `Benchmark start` case is handled by one bounded ordinal-prefix alias after inventory-absent; no general fuzzy matching exists.
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-grounder-qualification\grounder-20260820-050054`
+## Stage 26.2D — deterministic UIA -> vision routing + adversarial authorization — ACCEPTED / MERGED #90
 
-Key result:
+Integration main after merge:
 
-```text
-POSITIVE_GROUNDER_STATUS=proposal
-POSITIVE_GROUNDER_REASON=grounder-accepted-ordinal-alias-proposal-only
-POSITIVE_DECISION=accepted
-POSITIVE_INVENTORY_MATCH_COUNT=1
-POSITIVE_PASS2_DETECTION_COUNT=1
-SAME_FRAME_BINDING_PASS=True
-COORDINATE_CONTRACT_PASS=True
-TARGET_POINT_INSIDE_UIA_PASS=True
-TARGET_EVIDENCE_BINDING_PASS=True
-ABSENT_TARGET_ABSTAIN_PASS=True
-STALE_FRAME_REJECTION_PASS=True
-PROPOSAL_ONLY_CONTRACT_PASS=True
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-VISION_RESTORED_PASS=True
-FIXTURE_CLEANUP_PASS=True
-PASS=True
-```
+`42d4130d59e23e2c2b1771ac428467efe27a4b98`
 
-Accepted desktop label policy:
+Exact physically accepted head:
 
-```text
-exact inventory label first
- -> if inventory-absent only:
-      remove one leading UI ordinal N. / N)
-      -> exactly one already-observed inventory label => continue
-      -> zero or multiple => ABSTAIN
-```
+`1c74713edcd6321d5583a39234929169e68b5ac1`
 
-There is no general fuzzy/Levenshtein/similarity matching. The Grounder returns only a bounded proposal/ABSTAIN with full frame/window/process/coordinate evidence and never authorizes an action.
-
-This remains controlled WinForms evidence, not general desktop accuracy.
-
----
-
-# NEXT — Stage 26.2D: deterministic UIA -> vision routing + adversarial accuracy suite
-
-Required routing:
+Accepted route:
 
 ```text
 native/UIA structure first
- -> exact safe element => deterministic path
- -> promoted unresolved miss only
-      -> current same-session exact-window image
+ -> exact safe structural target => deterministic UIA action
+ -> explicitly promoted structural miss only
+      -> exact current-window screenshot
       -> Stage 26.2C Grounder proposal
-      -> re-observe current state
-      -> deterministic same-window / same-frame / target authorization
-      -> one bounded action OR ABSTAIN
+      -> request/UIA/process/window/frame/coordinate evidence gate
+      -> fresh exact-window re-observation
+      -> foreground + WindowFromPoint/root-HWND/PID guard
+      -> accepted guarded-coordinate backend frame gate
+      -> one physical click OR ABSTAIN
 ```
 
-Semantic ambiguity must not automatically escalate to vision. The Grounder proposes; Stage 26.2D authorization decides whether a proposal is still fresh, uniquely bound and safe to execute.
+Physical evidence includes one real guarded visual-fallback click, correct refusal without vision promotion, correct role-conflict refusal, wrong-window native point-guard refusal, identical pre/post inference screenshots, `POSITIVE_CONSISTENCY_IOU=0.34455881673798816`, one coordinate executor call, zero structural executor calls, zero Desktop fallback/binding failures/ambiguities and clean fixture/runtime restore.
 
-Required freshness/identity binding includes at least:
-
-```text
-session_id
-application_identity
-process_id
-process_generation
-window_handle
-window_instance
-frame_digest / screenshot_digest
-coordinate space
-current target evidence
-```
-
-Adversarial coverage before broad claims includes:
-
-- duplicate labels and ordinal aliases;
-- disabled/hidden controls;
-- wrong process/window and same/similar titles;
-- window movement/recreation and stale frame/context;
-- overlays and focus changes;
-- AutomationId and role+name;
-- custom/weak UIA;
-- UIA-missing visual fallback;
-- visual ambiguity -> ABSTAIN;
-- target disappears between proposal and action;
-- unrelated-window mutation must remain zero.
-
-Metrics include resolution success, false-action rate, unrelated-window action rate, correct safe-abstain behavior and p50/p95 latency. Do not convert fixture success into global desktop accuracy.
+This remains controlled WinForms evidence, not broad application accuracy.
 
 ---
 
-# Stage 26.2E — first real application E2E
+# NEXT — Stage 26.2E: first real application E2E
 
-Use one real medium-complexity user application with a disposable artifact, deterministic postcondition and clean rollback. Candidate names such as VS Code, OriginPro or Reaper are examples, not architecture.
+Active branch at this snapshot:
 
-Acceptance:
+`chat/stage26-2e-vscode-real-app-e2e`
+
+Qualification candidate: isolated VS Code with one disposable text file under a specifically prefixed TEMP root.
+
+Required physical contract:
 
 ```text
-false actions = 0
-unrelated-window actions = 0
-current-state verification = PASS
-completion verification = PASS
-recoverable mismatch = ABSTAIN rather than blind continuation
+new isolated TEMP root
+ -> isolated VS Code user-data/extensions
+ -> unique empty .txt artifact
+ -> exact unique Code.exe PID/HWND/window binding
+ -> DesktopState + focused editor evidence
+ -> native foreground/hit-test guard
+ -> deliberate wrong verifier expectation => FAIL -> ABSTAIN, zero action
+ -> exactly one guarded Unicode text delivery
+ -> independent saved-file size/SHA-256 verification
+ -> same current window identity
+ -> workspace contains only expected artifact
+ -> close exact qualification window
+ -> remove isolated TEMP root
+ -> rollback PASS
 ```
+
+No user workspace, normal VS Code profile, extensions, settings or project files are part of the test.
+
+The first physical run should fail closed if VS Code exposes a different UIA focus shape than expected; adjust only from observed evidence.
+
+Acceptance requires current-state verification, completion verification and rollback. A delivery receipt never proves completion.
+
+Read `project-context/STAGE26_2E_REAL_APPLICATION_E2E.md`.
 
 ---
 
 # Stage 26.3 — Verified Procedure Runtime
 
-Only after real Windows application E2E:
+Only after Stage 26.2E real-application acceptance:
 
 ```text
-ChatGPT
- -> choose applicable procedure
+ordinary ChatGPT
+ -> decide whether a known procedure is relevant
  -> load ProgramGraph
  -> observe current state
- -> resolve next abstract transition
- -> authorization
- -> execution
- -> verify effect
+ -> resolve one applicable abstract transition
+ -> deterministic authorization
+ -> bounded execution
+ -> observe effect
+ -> verifier
  -> advance / recover / ABSTAIN
 ```
 
@@ -282,6 +237,8 @@ current observed state
  > trusted procedural evidence
  > raw historical action sequence
 ```
+
+Retrieval/procedure selection is non-authorizing. The runtime is procedural support for ordinary ChatGPT, not another planner.
 
 ## Stage 26.3A — candidate-first procedural trust
 
@@ -299,51 +256,51 @@ One demonstration never becomes permanent trust automatically.
 
 ## Stage 26.3B — advanced verifier/postcondition library
 
-Expand Stage 26.2A verifier foundation for UI state, files, windows, applications, browser state, artifacts and structured outputs.
+Expand the verifier foundation for UI state, files, windows, applications, browser state, artifacts and structured outputs.
 
 ---
 
 # Stage 26.4 — Human Demo -> Transferable Skill
 
-Human demonstration -> Capture -> structured trajectory -> ProgramGraph -> project CANDIDATE -> verified changed-state replay. Acceptance is not blind macro replay.
+Human demonstration -> Capture -> structured trajectory -> ProgramGraph -> project CANDIDATE -> verified replay -> changed-state/task replay.
+
+One demonstration is evidence, not blind macro authority.
 
 ---
 
 # Optional Research Track R — not release-critical
 
-Procedure-state datasets and SpecializedReasoningBackend experiments begin only if real verified data and measurements justify them. A tiny model proposes; authorization/executor/verifier remain authoritative.
+Procedure-state datasets and SpecializedReasoningBackend experiments begin only if real verified data and measurements justify them. Any tiny model proposes; authorization/executor/verifier remain authoritative.
 
 # Parallel Track M — multi-chat orchestration
 
-Separate upper layer, not part of Windows/procedure safety core and not a release prerequisite. Under the current constraint it may coordinate ordinary ChatGPT sessions only; Codex and Work are disabled unless explicitly re-enabled.
-
----
-
-# Merge policy
-
-A logically complete branch with reviewed intended diff, passing required physical/CI gates and satisfied applicable review/acceptance checks should be merged without waiting for a separate merge command.
-
-Do not auto-merge on unresolved finding, conflict, ambiguous scope or failed/skipped required evidence.
+Separate upper layer, not part of Windows/procedure safety core and not a release prerequisite. Under the current constraint it may coordinate ordinary ChatGPT sessions only; Codex and Work remain disabled unless explicitly re-enabled.
 
 ---
 
 # Public MCP contract — post-desktop ADR
 
-Only after the Windows desktop surface exists decide whether the five current tools remain sufficient or a few truthful coarse desktop/procedure capabilities are needed. Never hide native desktop actions behind `web_interact` and never add generic `tool_invoke`/`run_anything`/opaque workflow execution.
+After real desktop evidence decide whether the five current tools remain sufficient or a few truthful coarse desktop/procedure capabilities are needed. Never hide native desktop actions behind `web_interact`; never add generic `tool_invoke`/`run_anything`/opaque workflow execution.
 
 # Stage 27 — Distribution & Maintenance
 
-Installer/update/repair/doctor/uninstall/rollback/restart recovery/key rotation/artifact validation/lifecycle UI. Release-grade Python/model/OpenAdapt reproducibility is required here.
+Installer/update/repair/doctor/uninstall/rollback/restart recovery/key rotation/artifact validation/lifecycle UI. Release-grade Python/model/OpenAdapt reproducibility is required.
 
 # Stage 28 — Clean User E2E / first stable release
 
-Fresh-user flow must work without git checkout or developer-only Python/PowerShell setup.
+Fresh-user flow without git checkout or developer-only Python/PowerShell setup.
 
 ---
 
+# Merge policy
+
+A logically complete branch with reviewed intended diff, passing required physical/CI gates and satisfied applicable acceptance checks should be merged without waiting for a separate merge command.
+
+Do not auto-merge on unresolved finding, conflict, ambiguous scope or failed/skipped required evidence.
+
 # Cross-cutting invariants
 
-- ChatGPT is the only general planner/intelligence;
+- ordinary ChatGPT is the only general planner/intelligence;
 - semantic/native structure before pixels where reliable;
 - observation is not authorization;
 - model/procedure proposal is not authorization;
