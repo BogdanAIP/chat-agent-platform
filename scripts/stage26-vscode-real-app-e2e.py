@@ -262,7 +262,7 @@ def main() -> int:
     marker_bytes = marker.encode("utf-8")
 
     result: dict[str, Any] = {
-        "schema_version": 3,
+        "schema_version": 4,
         "qualification_kind": "real-application-vscode-disposable-text-edit",
         "code_exe": str(code_exe),
         "temp_root": str(_temp_root()),
@@ -302,6 +302,8 @@ def main() -> int:
         "workspace_expected_only_pass": False,
         "workspace_snapshot": None,
         "application_cleanup_pass": False,
+        "failure_window_cleanup_count": 0,
+        "cli_process_returncode": None,
         "cli_process_exit_pass": False,
         "forced_cli_cleanup": False,
         "app_root_cleanup_pass": False,
@@ -603,12 +605,28 @@ def main() -> int:
             except Exception:
                 result["application_cleanup_pass"] = False
         else:
-            result["application_cleanup_pass"] = not _matching_vscode_windows(unique_filename)
+            try:
+                failure_matches = _matching_vscode_windows(unique_filename)
+                result["failure_window_cleanup_count"] = len(failure_matches)
+                for row in failure_matches:
+                    _post_close(int(row["hwnd"]))
+                if failure_matches:
+                    _wait_until(
+                        lambda: not _matching_vscode_windows(unique_filename),
+                        timeout=15.0,
+                        label="failed qualification VS Code window cleanup",
+                    )
+                result["application_cleanup_pass"] = not _matching_vscode_windows(unique_filename)
+            except Exception:
+                result["application_cleanup_pass"] = False
 
         if cli_process is not None:
             try:
-                cli_process.wait(timeout=10.0)
-                result["cli_process_exit_pass"] = True
+                returncode = int(cli_process.wait(timeout=10.0))
+                result["cli_process_returncode"] = returncode
+                result["cli_process_exit_pass"] = returncode == 0
+                if returncode != 0 and result["error"] is None:
+                    result["error"] = f"VS Code CLI exited naturally with nonzero code {returncode}"
             except subprocess.TimeoutExpired:
                 result["forced_cli_cleanup"] = True
                 cli_process.terminate()
@@ -617,7 +635,10 @@ def main() -> int:
                 except subprocess.TimeoutExpired:
                     cli_process.kill()
                     cli_process.wait(timeout=5.0)
-                result["cli_process_exit_pass"] = cli_process.poll() is not None
+                result["cli_process_returncode"] = cli_process.poll()
+                result["cli_process_exit_pass"] = False
+                if result["error"] is None:
+                    result["error"] = "VS Code CLI did not exit naturally after qualification window close"
 
         try:
             _remove_disposable_root(app_root)
@@ -625,6 +646,7 @@ def main() -> int:
             result["rollback_pass"] = bool(
                 result["application_cleanup_pass"]
                 and result["cli_process_exit_pass"]
+                and result["cli_process_returncode"] == 0
                 and not result["forced_cli_cleanup"]
                 and result["app_root_cleanup_pass"]
             )
@@ -672,6 +694,8 @@ def main() -> int:
         "current_state_verification_pass",
         "workspace_expected_only_pass",
         "application_cleanup_pass",
+        "failure_window_cleanup_count",
+        "cli_process_returncode",
         "cli_process_exit_pass",
         "forced_cli_cleanup",
         "app_root_cleanup_pass",
