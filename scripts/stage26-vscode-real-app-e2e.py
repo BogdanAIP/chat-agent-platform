@@ -33,12 +33,12 @@ from runtime.windows.window_scoped_uia import WindowScopedUiaResolver
 
 WM_CLOSE = 0x0010
 EXPECTED_EXECUTABLE = "code.exe"
-FOCUSED_EDITOR_ROLES = {"textbox", "document", "pane", "custom", "group", "edit"}
 QUALIFICATION_PREFIX = "chat-agent-stage26e-vscode-"
 READINESS_TIMEOUT_SECONDS = 20.0
 READINESS_INTERVAL_SECONDS = 0.75
 READINESS_STABLE_SAMPLES = 2
 TRANSIENT_UIA_REBUILD_HRESULT = -2147220991
+KEYBOARD_FOCUS_GUARD_MODE = "window_scoped_focused_observation_fingerprint"
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -217,6 +217,14 @@ def _same_window_identity(before: DesktopState, after: DesktopState) -> bool:
 
 
 def _focused_editor_control(state: DesktopState, unique_filename: str) -> ControlObservation | None:
+    """Return the exact current Monaco keyboard input identity.
+
+    VS Code/Monaco intentionally focuses a hidden accessibility input. On the
+    qualified Windows build it is a textbox whose accessible Name is the exact
+    randomized file name. Hidden/zero-size geometry is therefore expected and
+    is not used for keyboard-target authorization.
+    """
+
     if not state.focused_control:
         return None
     matches = [
@@ -227,30 +235,24 @@ def _focused_editor_control(state: DesktopState, unique_filename: str) -> Contro
     if len(matches) != 1:
         return None
     control = matches[0]
-    if control.bounds is None or control.bounds.width <= 0 or control.bounds.height <= 0:
+    if control.enabled is not True or control.focused is not True:
         return None
-    if control.visible is not True or control.enabled is not True or control.focused is not True:
+    if control.role.casefold() != "textbox":
         return None
-    if control.role.casefold() not in FOCUSED_EDITOR_ROLES:
-        return None
-
-    name = control.name.casefold()
-    filename = unique_filename.casefold()
-    if not (
-        filename in name
-        or "text editor" in name
-        or "editor content" in name
-    ):
+    if control.name.casefold() != unique_filename.casefold():
         return None
     return control
 
 
-def _control_center(control: ControlObservation) -> tuple[int, int]:
-    if control.bounds is None:
-        raise RuntimeError("focused editor control has no bounds")
+def _window_guard_point(state: DesktopState) -> tuple[int, int]:
+    """Return a point used only for exact top-level foreground/hit-root guards."""
+
+    bounds = state.window_bounds
+    if bounds.width <= 0 or bounds.height <= 0:
+        raise RuntimeError("bound VS Code window has no positive geometry")
     return (
-        int(round((control.bounds.left + control.bounds.right) / 2.0)),
-        int(round((control.bounds.top + control.bounds.bottom) / 2.0)),
+        int(round((bounds.left + bounds.right) / 2.0)),
+        int(round((bounds.top + bounds.bottom) / 2.0)),
     )
 
 
@@ -281,10 +283,7 @@ def _is_transient_uia_rebuild_error(exc: Exception) -> bool:
     hresult = getattr(exc, "hresult", None)
     if hresult is None and exc.args and isinstance(exc.args[0], int):
         hresult = exc.args[0]
-    return (
-        type(exc).__name__ == "COMError"
-        and hresult == TRANSIENT_UIA_REBUILD_HRESULT
-    )
+    return type(exc).__name__ == "COMError" and hresult == TRANSIENT_UIA_REBUILD_HRESULT
 
 
 def _wait_safe_focused_editor_state(
@@ -298,13 +297,7 @@ def _wait_safe_focused_editor_state(
     timeout: float,
     evidence: list[dict[str, Any]],
 ) -> tuple[DesktopState, ControlObservation]:
-    """Wait read-only for two stable safe focused-editor observations.
-
-    Real Electron/Chromium accessibility can rebuild its UIA tree after the
-    first observation. Transient observation failures therefore reset the
-    stability streak, but exact PID/HWND/process-generation changes fail
-    immediately. This helper never authorizes or performs application input.
-    """
+    """Wait read-only for two stable exact Monaco focused-input observations."""
 
     deadline = time.monotonic() + timeout
     stable_count = 0
@@ -350,8 +343,7 @@ def _wait_safe_focused_editor_state(
             previous_state is not None
             and previous_focused is not None
             and _same_window_identity(previous_state, state)
-            and previous_focused.observation_fingerprint
-            == focused.observation_fingerprint
+            and previous_focused.observation_fingerprint == focused.observation_fingerprint
         ):
             stable_count += 1
             previous_state = state
@@ -390,9 +382,7 @@ def _wait_safe_focused_editor_state(
         if time.monotonic() < deadline:
             time.sleep(READINESS_INTERVAL_SECONDS)
 
-    raise TimeoutError(
-        "timed out waiting for two stable safe focused-editor observations"
-    )
+    raise TimeoutError("timed out waiting for two stable safe focused-editor observations")
 
 
 def main() -> int:
@@ -424,7 +414,7 @@ def main() -> int:
     marker_bytes = marker.encode("utf-8")
 
     result: dict[str, Any] = {
-        "schema_version": 6,
+        "schema_version": 7,
         "qualification_kind": "real-application-vscode-disposable-text-edit",
         "code_exe": str(code_exe),
         "temp_root": str(_temp_root()),
@@ -448,6 +438,10 @@ def main() -> int:
         "fresh_pre_action_focused_fingerprint": None,
         "focused_control_diagnostics": None,
         "native_point_guard_pass": False,
+        "window_guard_point": None,
+        "keyboard_focus_guard_mode": KEYBOARD_FOCUS_GUARD_MODE,
+        "keyboard_focus_guard_armed_pass": False,
+        "keyboard_focus_guard_pass": False,
         "agent_loopback_pass": False,
         "agent_auth_required_pass": False,
         "legacy_capability_absent_pass": False,
@@ -617,13 +611,16 @@ def main() -> int:
         )
         if not result["window_binding_pass"] or not result["desktop_observation_pass"]:
             raise RuntimeError("VS Code DesktopState binding/observation failed")
+
         result["focused_editor_precondition_pass"] = True
         result["focused_editor_role"] = focused.role
         result["focused_editor_name"] = focused.name
         result["focused_editor_fingerprint"] = focused.observation_fingerprint
-        initial_focus_point = _control_center(focused)
-        require_foreground_hit_target(before_state, *initial_focus_point)
+
+        initial_guard_point = _window_guard_point(before_state)
+        require_foreground_hit_target(before_state, *initial_guard_point)
         result["native_point_guard_pass"] = True
+        result["window_guard_point"] = list(initial_guard_point)
 
         token = secrets.token_urlsafe(32)
         server = create_server(
@@ -644,7 +641,9 @@ def main() -> int:
         health.raise_for_status()
         health_data = health.json()
         result["agent_auth_required_pass"] = health_data.get("auth_required") is True
-        result["legacy_capability_absent_pass"] = "legacy_exec" not in (health_data.get("capabilities") or [])
+        result["legacy_capability_absent_pass"] = "legacy_exec" not in (
+            health_data.get("capabilities") or []
+        )
         if not all(
             bool(result[name])
             for name in (
@@ -690,12 +689,36 @@ def main() -> int:
             result["focused_control_diagnostics"] = _focused_diagnostics(action_state)
             raise RuntimeError("focused editor/window changed before guarded keyboard mutation")
 
-        action_point = _control_center(action_focused)
+        action_point = _window_guard_point(action_state)
         require_foreground_hit_target(action_state, *action_point)
-        backend.arm_guarded_keyboard(*action_point)
-        frame = backend.guarded_keyboard_frame()
-        frame_digest = _sha256_bytes(frame)
-        receipt = backend.type_text_guarded(marker, expected_frame_sha256=frame_digest)
+        result["window_guard_point"] = list(action_point)
+
+        resolver.arm_focused_keyboard_target(
+            window_title=window_title,
+            window_handle=action_state.window_handle,
+            process_generation=action_state.process_generation,
+            focused_fingerprint=action_focused.observation_fingerprint,
+            role=action_focused.role,
+            name=action_focused.name,
+        )
+        result["keyboard_focus_guard_armed_pass"] = True
+        try:
+            backend.arm_guarded_keyboard(*action_point)
+            frame = backend.guarded_keyboard_frame()
+            frame_digest = _sha256_bytes(frame)
+            receipt = backend.type_text_guarded(marker, expected_frame_sha256=frame_digest)
+        finally:
+            resolver.cancel_focused_keyboard_target()
+
+        result["keyboard_focus_guard_pass"] = bool(
+            resolver.stats.keyboard_focus_guard_arms == 1
+            and resolver.stats.keyboard_focus_guard_calls == 1
+            and resolver.stats.keyboard_focus_guard_passes == 1
+            and resolver.stats.keyboard_focus_guard_failures == 0
+        )
+        if not result["keyboard_focus_guard_pass"]:
+            raise RuntimeError("window-scoped focused keyboard target guard did not pass exactly once")
+
         result["keyboard_action_count"] += 1
         result["guarded_keyboard_delivery_pass"] = bool(
             receipt.operation == "physical_type_text"
@@ -710,7 +733,6 @@ def main() -> int:
             "size": len(marker_bytes),
             "sha256": _sha256_bytes(marker_bytes),
         }
-
         _wait_until(
             lambda: _artifact_evidence(target_file) == expected_after,
             timeout=10.0,
@@ -727,7 +749,9 @@ def main() -> int:
         result["completion_verification_pass"] = completion.passed
 
         after_state = observe_bound_window(resolver, window_title)
-        result["current_state_verification_pass"] = _same_window_identity(before_state, after_state)
+        result["current_state_verification_pass"] = _same_window_identity(
+            before_state, after_state
+        )
         workspace_snapshot = _workspace_snapshot(workspace_root)
         result["workspace_snapshot"] = workspace_snapshot
         result["workspace_expected_only_pass"] = workspace_snapshot == {
@@ -746,6 +770,8 @@ def main() -> int:
             and result["focused_editor_precondition_pass"]
             and result["fresh_pre_action_state_pass"]
             and result["native_point_guard_pass"]
+            and result["keyboard_focus_guard_armed_pass"]
+            and result["keyboard_focus_guard_pass"]
             and result["agent_loopback_pass"]
             and result["agent_auth_required_pass"]
             and result["legacy_capability_absent_pass"]
@@ -760,12 +786,17 @@ def main() -> int:
             and resolver.stats.desktop_fallback_calls == 0
             and resolver.stats.window_binding_failures == 0
             and resolver.stats.window_binding_ambiguities == 0
+            and resolver.stats.keyboard_focus_guard_arms == 1
+            and resolver.stats.keyboard_focus_guard_calls == 1
+            and resolver.stats.keyboard_focus_guard_passes == 1
+            and resolver.stats.keyboard_focus_guard_failures == 0
         )
     except BaseException as exc:
         result["error"] = f"{type(exc).__name__}: {exc}"
         result["traceback"] = traceback.format_exc()
         result["resolver_stats"] = vars(resolver.stats).copy()
     finally:
+        resolver.cancel_focused_keyboard_target()
         if server is not None:
             try:
                 server.shutdown()
@@ -820,7 +851,9 @@ def main() -> int:
             result["cleanup_revalidation_pass"] = False
             result["application_cleanup_pass"] = False
             if result["error"] is None:
-                result["error"] = f"VS Code cleanup revalidation failed: {type(exc).__name__}: {exc}"
+                result["error"] = (
+                    f"VS Code cleanup revalidation failed: {type(exc).__name__}: {exc}"
+                )
 
         if cli_process is not None:
             try:
@@ -885,6 +918,10 @@ def main() -> int:
         "fresh_pre_action_state_pass",
         "fresh_pre_action_focused_fingerprint",
         "native_point_guard_pass",
+        "window_guard_point",
+        "keyboard_focus_guard_mode",
+        "keyboard_focus_guard_armed_pass",
+        "keyboard_focus_guard_pass",
         "agent_loopback_pass",
         "agent_auth_required_pass",
         "legacy_capability_absent_pass",
