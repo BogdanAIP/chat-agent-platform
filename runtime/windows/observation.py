@@ -238,6 +238,7 @@ def build_desktop_state(
     screenshot_png: bytes | bytearray | memoryview | None = None,
     screenshot_source: str | None = None,
     observed_at: str | None = None,
+    focus_evidence: Mapping[str, Any] | None = None,
 ) -> DesktopState:
     """Build one deterministic, non-authorizing desktop evidence snapshot.
 
@@ -304,7 +305,10 @@ def build_desktop_state(
         EvidenceProvenance(
             source="uia_structure",
             captured_at=observed_at,
-            details={"control_count": len(control_items)},
+            details={
+                "control_count": len(control_items),
+                "focus_evidence": dict(focus_evidence or {}),
+            },
         ),
     ]
 
@@ -345,6 +349,7 @@ def build_desktop_state(
         "window_instance": window_instance,
         "structural_control_count": len(control_items),
         "screenshot_digest": screenshot_digest,
+        "focus_evidence": dict(focus_evidence or {}),
     }
 
     return DesktopState(
@@ -467,6 +472,48 @@ def _role_from_control_type(control_type_name: str) -> str:
     return mapping.get(control_type_name, control_type_name.removesuffix("Control").casefold())
 
 
+def _global_focus_match(
+    client: Any,
+    elements: Any,
+) -> tuple[int | None, str]:
+    """Match global UIA focus only against the already bounded window subtree.
+
+    GetFocusedElement is global desktop evidence, so it is never trusted by
+    itself.  A positive result is accepted only when CompareElements proves
+    exact identity with one descendant returned by FindAll on the bound
+    PID/HWND window.  Outside-window, ambiguous, and comparison-error states
+    remain non-authorizing evidence.
+    """
+
+    try:
+        focused_element = client.GetFocusedElement()
+    except Exception:
+        return None, "unavailable"
+    if focused_element is None:
+        return None, "none"
+
+    matched_index: int | None = None
+    for index in range(int(elements.Length)):
+        try:
+            same = bool(
+                client.CompareElements(
+                    focused_element,
+                    elements.GetElement(index),
+                )
+            )
+        except Exception:
+            return None, "compare_error"
+        if not same:
+            continue
+        if matched_index is not None:
+            return None, "ambiguous"
+        matched_index = index
+
+    if matched_index is None:
+        return None, "outside_bound_window"
+    return matched_index, "exact_descendant"
+
+
 def observe_bound_window(
     resolver: WindowScopedUiaResolver,
     window_name: str,
@@ -539,19 +586,27 @@ def observe_bound_window(
                 "window UIA observation exceeds the bounded control ceiling",
             )
 
-        controls = resolver._controls_from_element_array(
-            auto,
-            elements,
-            limit=MAX_OBSERVED_CONTROLS,
-        )
+        global_focus_index, global_focus_status = _global_focus_match(client, elements)
         raw_controls: list[dict[str, Any]] = []
-        for control in controls:
+        property_focused_indices: list[int] = []
+        materialized_indices: set[int] = set()
+        for index in range(int(elements.Length)):
+            raw_element = elements.GetElement(index)
+            control = auto.Control.CreateControlFromElement(raw_element)
+            if control is None:
+                continue
+            materialized_indices.add(index)
             control_type = str(control_value(control, "ControlTypeName", "") or "")
             bounds = _rect_from_value(control_value(control, "BoundingRectangle", None))
             offscreen = control_value(control, "IsOffscreen", None)
             visible = None if offscreen is None else not bool(offscreen)
             if bounds is not None and (bounds.width == 0 or bounds.height == 0):
                 visible = False
+            property_focused = _optional_bool(
+                control_value(control, "HasKeyboardFocus", None)
+            )
+            if property_focused is True:
+                property_focused_indices.append(index)
             raw_controls.append(
                 {
                     "role": _role_from_control_type(control_type),
@@ -560,9 +615,62 @@ def observe_bound_window(
                     "bounds": bounds.to_mapping() if bounds is not None else None,
                     "enabled": _optional_bool(control_value(control, "IsEnabled", None)),
                     "visible": visible,
-                    "focused": _optional_bool(control_value(control, "HasKeyboardFocus", None)),
+                    "focused": property_focused,
+                    "_source_index": index,
                 }
             )
+
+        if len(property_focused_indices) > 1:
+            raise upstream.AgentRequestError(
+                409,
+                "focus_not_unique",
+                "multiple descendants reported HasKeyboardFocus in the bound window",
+            )
+        if global_focus_status == "ambiguous":
+            raise upstream.AgentRequestError(
+                409,
+                "focus_not_unique",
+                "global UIA focus matched multiple descendants of the bound window",
+            )
+        if global_focus_status == "exact_descendant":
+            if global_focus_index not in materialized_indices:
+                raise upstream.AgentRequestError(
+                    409,
+                    "focus_unmaterialized",
+                    "focused descendant could not be represented as a control observation",
+                )
+            if (
+                property_focused_indices
+                and property_focused_indices != [global_focus_index]
+            ):
+                raise upstream.AgentRequestError(
+                    409,
+                    "focus_evidence_conflict",
+                    "GetFocusedElement conflicts with descendant HasKeyboardFocus evidence",
+                )
+            for item in raw_controls:
+                item["focused"] = item["_source_index"] == global_focus_index
+        elif global_focus_status == "outside_bound_window" and property_focused_indices:
+            raise upstream.AgentRequestError(
+                409,
+                "focus_evidence_conflict",
+                "bound-window HasKeyboardFocus conflicts with global focus outside the window",
+            )
+
+        focus_evidence = {
+            "global_uia_status": global_focus_status,
+            "global_uia_exact_descendant_index": global_focus_index,
+            "has_keyboard_focus_indices": list(property_focused_indices),
+            "selected_source": (
+                "get_focused_element_exact_descendant"
+                if global_focus_status == "exact_descendant"
+                else "has_keyboard_focus"
+                if property_focused_indices
+                else "none"
+            ),
+        }
+        for item in raw_controls:
+            item.pop("_source_index", None)
 
     session_id, application_identity, executable_name, process_generation = (
         _query_process_identity(process_id)
@@ -579,4 +687,5 @@ def observe_bound_window(
         controls=raw_controls,
         screenshot_png=screenshot_png,
         screenshot_source=screenshot_source,
+        focus_evidence=focus_evidence,
     )
