@@ -23,6 +23,15 @@ class TransportSupervisorQualificationContractTests(unittest.TestCase):
         self.assertIn("-Action Status -TimeoutSeconds 30", SOURCE)
         self.assertIn("if ($Action -eq 'Start') { 150 } else { 60 }", SOURCE)
 
+    def test_manager_mutations_do_not_wait_on_inheritable_redirected_pipes(self):
+        self.assertIn("$captureOutput = ($Action -eq 'Status')", SOURCE)
+        self.assertIn("$startInfo.RedirectStandardOutput = $captureOutput", SOURCE)
+        self.assertIn("$startInfo.RedirectStandardError = $captureOutput", SOURCE)
+        self.assertIn("$stdoutTask = if ($captureOutput)", SOURCE)
+        self.assertIn("$stderrTask = if ($captureOutput)", SOURCE)
+        self.assertIn("stdout = if ($captureOutput)", SOURCE)
+        self.assertIn("stderr = if ($captureOutput)", SOURCE)
+
     def test_fault_injection_kills_only_the_resolved_owned_tunnel_pid(self):
         self.assertIn("Stop-Process -Id $oldTunnelPid -Force -ErrorAction Stop", SOURCE)
         self.assertNotIn("Stop-Process -Name", SOURCE)
