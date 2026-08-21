@@ -28,6 +28,8 @@ class TransportSupervisorQualificationContractTests(unittest.TestCase):
             "RUNTIME_READY_AFTER_RECOVERY",
             "HEALTH_CODE_AFTER_RECOVERY",
             "OPENAI_CONTROL_READY_AFTER_RECOVERY",
+            "DESIRED_STATE_BEFORE",
+            "DESIRED_STATE_RESTORED",
             "RESULT_DIR",
         ):
             self.assertIn(marker, SOURCE)
@@ -42,6 +44,15 @@ class TransportSupervisorQualificationContractTests(unittest.TestCase):
         self.assertIn("PrivateMemorySize64", SOURCE)
         self.assertIn("supervisor-after-recovery.json", SOURCE)
         self.assertIn("recovery-after-recovery.json", SOURCE)
+        self.assertIn("failure.json", SOURCE)
+
+    def test_failure_uninstalls_qualification_assets_and_restores_desired_state(self):
+        self.assertIn("& $Installer -Uninstall", SOURCE)
+        self.assertIn("if ($desiredStateBefore -eq 'running')", SOURCE)
+        self.assertIn("Invoke-ManagerMutation -Action Stop", SOURCE)
+        self.assertIn("Invoke-ManagerMutation -Action Start", SOURCE)
+        self.assertIn("desired_state_before", SOURCE)
+        self.assertIn("desired_state_restored", SOURCE)
 
     def test_first_gate_does_not_disable_network_sleep_or_reboot_machine(self):
         forbidden = (
