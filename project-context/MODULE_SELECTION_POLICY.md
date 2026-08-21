@@ -2,14 +2,37 @@
 
 ## Product rule
 
-The baseline Chat-to-Local product must work with **zero new mandatory SaaS subscriptions** beyond the user's chosen ChatGPT access. A module/capability must be technically good enough, maintainable, secure enough for its intended scope and economically sane.
+The baseline Chat-to-Local product must work with **zero new mandatory SaaS subscriptions** beyond the user's chosen ChatGPT access. A module/capability must be good enough, maintainable, secure enough for its intended scope and economically sane.
+
+## Architecture boundary for selection
+
+Candidate components must fit one of these roles rather than blur them:
+
+```text
+ordinary ChatGPT
+  current general planner / strategy / adaptation
+
+local deterministic Control Plane
+  task/procedure state / policy / authorization / checkpoint / verifier / bounded recovery
+
+focused capabilities
+  Files / Browser / Windows / future devices/apps
+
+specialist models
+  bounded perception or structured proposal only
+
+future local general planner
+  optional Track P research only
+```
+
+Do not reject useful deterministic state/policy machinery merely because it is called a Control Plane. Do reject components that silently become an unrestricted second general planner or opaque execution gateway.
 
 ## Selection order
 
 1. official/vendor local MCP or mature official local runtime/API;
-2. mature open-source MCP/runtime with acceptable license/maintenance;
+2. mature open-source MCP/runtime/procedural component with acceptable license/maintenance;
 3. official/vendor local API/CLI behind the smallest focused typed adapter;
-4. mature generic local automation/native OS capability as fallback;
+4. mature generic local automation/native OS capability;
 5. bounded visual automation where deterministic/native structure is insufficient;
 6. paid API/SaaS only for genuinely remote/expensive capabilities explicitly chosen by the user.
 
@@ -19,41 +42,40 @@ Do not implement a custom adapter merely because it is possible. Do not adopt a 
 
 A candidate cannot become supported/default until applicable gates pass:
 
-- **Quality:** reliable enough for the target operation; structured/native API preferred over pixels/coordinates where possible.
-- **Cost:** no hidden mandatory recurring SaaS dependency in the baseline path.
-- **License:** compatible and recorded.
-- **Maintenance:** upstream not clearly abandoned.
-- **Security:** scopes/disabled tools/allowlists or another measured containment mechanism exist.
-- **Locality/privacy:** local data stays local unless the operation explicitly needs external access.
-- **Supply/pinning:** tested published version or immutable source/release pin exists.
-- **Evidence:** install/start/health/tool-call/task behavior tested before promotion.
-- **Lifecycle:** predictable start/stop/cleanup and no permanent residence unless measured need.
-- **Chat admission:** locally healthy capability is not public-product accepted until the actual Chat-facing typed boundary is admitted where required.
-- **Recovery:** failure/ABSTAIN/retry/rollback semantics are explicit for consequential operations.
+- **Quality:** reliable enough for the intended operation;
+- **Cost:** no hidden mandatory recurring SaaS dependency in the baseline path;
+- **License:** compatible and recorded;
+- **Maintenance:** upstream not clearly abandoned;
+- **Security:** scopes/allowlists/negative tests or another measured containment mechanism exist;
+- **Locality/privacy:** local data stays local unless the operation explicitly requires external access;
+- **Supply/pinning:** tested version/source/release pin exists;
+- **Evidence:** install/start/health/task behavior tested before promotion;
+- **Lifecycle:** predictable start/stop/cleanup;
+- **Chat admission:** public Chat capability changes require real Chat-facing acceptance where applicable;
+- **Recovery:** failure/ABSTAIN/retry/rollback semantics are explicit;
+- **Authority:** model/procedure/planner output cannot directly bypass deterministic capability authorization.
 
 ## Task-selected future capabilities
 
-Do **not** maintain a fixed roadmap list of future local programs as if those choices were already architecture decisions.
-
-When an actual user task needs a new capability:
+Do not maintain a fixed permanent future application list.
 
 ```text
 actual task
-  -> consequence/scope analysis
-  -> native/API/MCP candidates
-  -> upstream quality/license/maintenance check
-  -> smallest truthful surface
-  -> target-machine benchmark
-  -> security/negative tests
-  -> focused adapter only for a measured gap
-  -> public-contract review if exported to Chat
+ -> consequence/scope analysis
+ -> native/API/MCP/qualified-upstream candidates
+ -> quality/license/maintenance check
+ -> smallest truthful surface
+ -> target-machine benchmark
+ -> security/negative tests
+ -> focused adapter for measured gap only
+ -> public-contract review if exported
 ```
 
-Old catalog entries/research conversations are candidate history, not promotion orders.
+Old research/catalog entries are candidate history, not promotion orders.
 
-## Chat-facing typed surface rule
+## Chat-facing typed surface
 
-Current accepted public tool names are exactly:
+Current accepted public tools:
 
 ```text
 workspace_read
@@ -63,75 +85,94 @@ web_observe
 web_interact
 ```
 
-Adding a backend should normally change local capability implementation/evidence, not create another ChatGPT app/plugin.
+Adding a backend should normally change local implementation/evidence rather than require another ChatGPT app/plugin.
 
-Do not expose hundreds of unrelated tools. Prefer concrete truthful semantics. Generic adaptive `tool_schema`/`tool_invoke` remains diagnostic infrastructure, not the ordinary-Chat product surface.
+Do not expose hundreds of raw tools. Generic adaptive `tool_schema`/`tool_invoke` remains diagnostic infrastructure, not the ordinary-Chat product surface.
 
-If a focused projection/facade is required, it must:
+A focused projection/facade must be deterministic, typed, scope-preserving and non-planning.
 
-- expose exact typed operations rather than arbitrary nested dispatch;
-- remain small and deterministic;
-- preserve scope/consequence boundaries;
-- not become planner/workflow brain/general gateway;
-- be justified by measured product behavior and acceptance.
+The current count of five is not permanent. A later ADR may add truthful desktop/procedure capabilities. Never overload current tools merely to preserve the count.
 
-The current count of five is not a permanent limit. After Windows desktop surface exists, make an explicit ADR and ordinary-Chat acceptance decision about whether a few new truthful public capabilities are required. Do not overload current tools merely to preserve the count.
+## Deterministic Control Plane selection rule
+
+Stage 26.3 needs a local deterministic execution Control Plane, but the project should still reuse upstream mechanisms rather than build a generic workflow platform.
+
+Prefer:
+
+```text
+qualified ProgramGraph / procedural IR
+ + project-owned thin TaskState
+ + project-owned consequence/scope policy
+ + accepted capability authorization
+ + project-owned checkpoint/recovery/budget state
+ + accepted/expanded verifier
+```
+
+A Control Plane component is acceptable when it deterministically advances predeclared state transitions. It is not acceptable if it becomes an arbitrary LLM workflow brain, unrestricted tool dispatcher or hidden general scheduler with self-granted authority.
 
 ## Local specialist model/runtime rule
 
-A local model is a capability backend, not the Chat planner.
+A specialist model is a capability backend, not the current general planner.
 
-Use:
+Use measured capability match, target hardware/resource evidence, predictable load/unload, replaceable identity, local-only inference where suitable and deterministic authorization around output.
 
-- measured capability match;
-- hardware/resource evidence on the actual machine;
-- highest-quality tested variant fitting RAM/latency guardrails;
-- predictable load/JIT/unload lifecycle;
-- replaceable runtime/model identity;
-- local-only inference by default where suitable;
-- deterministic authorization around model output.
-
-Current accepted target-laptop vision path is llama.cpp + LFM2.5-VL-450M F16 behind the focused Stage 25/25.2 runtime/grounder. Earlier LM Studio/larger-model candidate rankings are historical research and should not be used as current selection policy.
-
-Future model/runtime changes require measured improvement/compatibility evidence.
+Current accepted target vision path is llama.cpp + LFM2.5-VL-450M F16. Future specialist model changes require measured improvement/compatibility evidence.
 
 ## Procedural-memory selection rule
 
-Procedural memory is not a replacement for capability selection.
+Procedural memory is not a replacement for capability policy.
 
-A retrieved skill may say how a task previously succeeded, but:
+A selected procedure may drive deterministic progression after ChatGPT chooses it, but:
 
-- it cannot select/authorize a backend by itself;
-- current capability scope still applies;
-- current observed state outranks remembered milestones;
-- one success creates at most a candidate skill;
-- completion/promotion require verifier/evidence rules;
+- procedure selection is non-authorizing;
+- every transition uses current capability scope;
+- current state outranks remembered milestones;
+- one success creates at most a CANDIDATE;
+- promotion requires replay/regression/variant evidence;
+- completion requires verifier/postcondition evidence;
 - imported/upstream workflows receive no implicit local trust.
 
-Use upstream procedural implementations as references/components only when they fit the ChatGPT-only planner boundary. Do not add a dedicated large local GUI-agent model merely because an upstream reference uses one.
+Use OpenAdapt Flow/Capture mechanics where qualified; do not add a dedicated large local GUI-agent model merely because another project uses one.
 
-## Windows desktop selection rule
+## Windows desktop rule
 
-Stage 26.3 desktop surface should prefer:
+The desktop foundation is already accepted through Stage 26.2D. For new Windows application/capability work prefer:
 
 ```text
-native/deterministic UI information
-  -> focused application API/MCP when task-specific and stronger
-  -> bounded screen/vision evidence
-  -> reviewed keyboard/mouse fallback
+native/deterministic UI/API evidence
+ -> focused application API/MCP when stronger
+ -> bounded local screen/vision evidence
+ -> reviewed guarded keyboard/mouse fallback
 ```
 
-The exact implementation/components are selected from real tasks and target-machine evidence when this stage begins.
+Stage 26.2E is the real-app gate. Stage 26.3 integrates procedure progression/control-plane state, not the first Windows desktop surface.
+
+## Future local planner selection rule — Track P
+
+A future local general planner must not be chosen from model marketing or parameter count.
+
+Earliest prerequisites:
+
+- verified procedure-state data from 26.3/26.4;
+- a measured need such as offline operation, planning latency, parallelism or deployment/privacy constraints;
+- a benchmark baseline against ordinary ChatGPT manager behavior.
+
+Promotion order:
+
+```text
+P0 shadow/proposal-only
+ -> P1 explicitly bounded subtask planner
+ -> P2 optional local general-planner mode
+```
+
+At every phase the deterministic Control Plane remains authoritative for capability policy, action authorization and verification.
+
+Measure task completion, false-action proposal rate, recovery quality, escalation rate, latency/RAM and comparable task/action/compute budgets where practical.
 
 ## Paid layer
 
-Paid services are optional accelerators, never hidden prerequisites.
-
-- no automatic purchase/subscription;
-- no unknown-cost execution;
-- no paid dependency for ordinary local file/browser/desktop/procedural-memory work when adequate local/open-source capability exists;
-- prefer pay-per-use only for genuinely expensive remote work explicitly chosen by the user.
+Paid services are optional accelerators, never hidden prerequisites. No automatic purchase/subscription, unknown-cost execution or paid requirement for ordinary local files/browser/desktop/procedural work when adequate local/open-source capability exists.
 
 ## Adapter rule
 
-When a strong local API exists but no acceptable MCP does, write the smallest useful typed adapter. It must not grow into another planner, workflow engine, generic gateway, secret store, policy platform or bespoke model-serving framework.
+When a strong local API exists but no acceptable MCP does, write the smallest useful typed adapter. It must not grow into another general planner, generic gateway, unrestricted workflow engine, secret store or bespoke model-serving framework.
