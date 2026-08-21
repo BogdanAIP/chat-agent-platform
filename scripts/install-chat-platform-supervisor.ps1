@@ -250,12 +250,12 @@ function Uninstall-Supervisor {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
     }
 
-    $restored = $false
-    Invoke-WithManagerMutex {
-        $script:restored = Restore-DirectControllerBackupIfPresent
+    $restored = [bool](Invoke-WithManagerMutex {
+        $didRestore = Restore-DirectControllerBackupIfPresent
         Remove-Item -LiteralPath $InstalledSupervisor -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $InstalledHealthHelper -Force -ErrorAction SilentlyContinue
-    }
+        return $didRestore
+    })
 
     Write-Host 'TRANSPORT_SUPERVISOR_INSTALL=removed'
     Write-Host "TRANSPORT_SUPERVISOR_CONTROLLER_RESTORED=$restored"
