@@ -24,7 +24,7 @@ This file is intentionally compact. Resolve live GitHub state before acting beca
 
 Canonical architecture distinction: `project-context/CONTROL_PLANE.md`.
 
-## Accepted Windows integration line before 26.3
+## Accepted Windows integration through Stage 26.2E
 
 Stages through 26.2D were merged as PRs #83–#90. Stage 26.2E is physically accepted on PR #91.
 
