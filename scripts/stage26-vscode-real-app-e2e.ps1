@@ -97,7 +97,7 @@ New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
 $codeExe = Resolve-VSCodeExecutable
 $result = [ordered]@{
-    schema_version = 3
+    schema_version = 4
     qualification_kind = 'real-application-vscode-disposable-text-edit'
     project_head = $null
     code_exe = $codeExe
@@ -126,6 +126,8 @@ $result = [ordered]@{
     current_state_verification_pass = $false
     workspace_expected_only_pass = $false
     application_cleanup_pass = $false
+    failure_window_cleanup_count = 0
+    cli_process_returncode = $null
     cli_process_exit_pass = $false
     forced_cli_cleanup = $false
     app_root_cleanup_pass = $false
@@ -190,7 +192,7 @@ try {
     foreach ($name in @(
         'baseline_verification_status', 'mismatch_probe_verification_status',
         'mismatch_probe_decision', 'keyboard_action_count', 'completion_verification_status',
-        'resolver_stats'
+        'failure_window_cleanup_count', 'cli_process_returncode', 'resolver_stats'
     )) {
         $result[$name] = $driver.$name
     }
@@ -217,6 +219,8 @@ finally {
     $result.rollback_pass = [bool](
         $result.application_cleanup_pass -and
         $result.cli_process_exit_pass -and
+        $null -ne $result.cli_process_returncode -and
+        [int]$result.cli_process_returncode -eq 0 -and
         -not $result.forced_cli_cleanup -and
         $result.app_root_cleanup_pass
     )
@@ -234,10 +238,10 @@ foreach ($name in @(
     'MISMATCH_PROBE_VERIFICATION_STATUS','MISMATCH_PROBE_DECISION','MISMATCH_PROBE_ZERO_ACTION_PASS',
     'GUARDED_KEYBOARD_DELIVERY_PASS','KEYBOARD_ACTION_COUNT','COMPLETION_VERIFICATION_STATUS',
     'COMPLETION_VERIFICATION_PASS','CURRENT_STATE_VERIFICATION_PASS','WORKSPACE_EXPECTED_ONLY_PASS',
-    'APPLICATION_CLEANUP_PASS','CLI_PROCESS_EXIT_PASS','FORCED_CLI_CLEANUP','APP_ROOT_CLEANUP_PASS',
-    'ROLLBACK_PASS','DRIVER_SOURCE_SHA256','OBSERVATION_SOURCE_SHA256','ACTUATION_SOURCE_SHA256',
-    'VERIFIER_SOURCE_SHA256','NATIVE_POINT_GUARD_SOURCE_SHA256','RESOLVER_SOURCE_SHA256',
-    'DRIVER_ERROR','ERROR'
+    'APPLICATION_CLEANUP_PASS','FAILURE_WINDOW_CLEANUP_COUNT','CLI_PROCESS_RETURNCODE','CLI_PROCESS_EXIT_PASS',
+    'FORCED_CLI_CLEANUP','APP_ROOT_CLEANUP_PASS','ROLLBACK_PASS','DRIVER_SOURCE_SHA256',
+    'OBSERVATION_SOURCE_SHA256','ACTUATION_SOURCE_SHA256','VERIFIER_SOURCE_SHA256',
+    'NATIVE_POINT_GUARD_SOURCE_SHA256','RESOLVER_SOURCE_SHA256','DRIVER_ERROR','ERROR'
 )) {
     switch ($name) {
         'RESULT_PATH' { Write-Flag $name $resultPath }
@@ -276,6 +280,8 @@ $accepted = [bool](
     $result.workspace_expected_only_pass -and
     $result.application_cleanup_pass -and
     $result.cli_process_exit_pass -and
+    $null -ne $result.cli_process_returncode -and
+    [int]$result.cli_process_returncode -eq 0 -and
     -not $result.forced_cli_cleanup -and
     $result.app_root_cleanup_pass -and
     $result.rollback_pass -and
