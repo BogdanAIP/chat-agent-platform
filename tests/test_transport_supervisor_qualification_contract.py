@@ -20,6 +20,18 @@ class TransportSupervisorQualificationContractTests(unittest.TestCase):
         self.assertNotIn("Stop-Process -Name", SOURCE)
         self.assertNotIn("taskkill", SOURCE.lower())
 
+    def test_baseline_is_prepared_before_supervisor_is_started(self):
+        self.assertIn("& $Installer -NoStart", SOURCE)
+        self.assertIn("Start-QualificationSupervisor", SOURCE)
+        install_index = SOURCE.index("& $Installer -NoStart")
+        reset_index = SOURCE.index("Invoke-ManagerMutation -Action Stop", install_index)
+        start_supervisor_index = SOURCE.index("Start-QualificationSupervisor", reset_index)
+        fault_index = SOURCE.index("Stop-Process -Id $oldTunnelPid", start_supervisor_index)
+        self.assertLess(install_index, reset_index)
+        self.assertLess(reset_index, start_supervisor_index)
+        self.assertLess(start_supervisor_index, fault_index)
+        self.assertIn("unexpectedly left a supervisor process running", SOURCE)
+
     def test_acceptance_requires_new_tunnel_pid_same_supervisor_and_ready_runtime(self):
         for marker in (
             "TRANSPORT_SUPERVISOR_QUALIFICATION_RESULT",
@@ -53,6 +65,15 @@ class TransportSupervisorQualificationContractTests(unittest.TestCase):
         self.assertIn("Invoke-ManagerMutation -Action Start", SOURCE)
         self.assertIn("desired_state_before", SOURCE)
         self.assertIn("desired_state_restored", SOURCE)
+
+    def test_stopped_desired_state_stops_supervisor_around_manager_stop(self):
+        block_start = SOURCE.index("if ($desiredStateBefore -eq 'stopped')")
+        block = SOURCE[block_start : SOURCE.index("$summary = [ordered]@{", block_start)]
+        self.assertIn("Stop-QualificationSupervisor", block)
+        self.assertIn("Invoke-ManagerMutation -Action Stop", block)
+        self.assertIn("Start-QualificationSupervisor", block)
+        self.assertLess(block.index("Stop-QualificationSupervisor"), block.index("Invoke-ManagerMutation -Action Stop"))
+        self.assertLess(block.index("Invoke-ManagerMutation -Action Stop"), block.index("Start-QualificationSupervisor"))
 
     def test_first_gate_does_not_disable_network_sleep_or_reboot_machine(self):
         forbidden = (
