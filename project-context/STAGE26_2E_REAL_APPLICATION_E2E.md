@@ -120,7 +120,7 @@ No constant `false_action_count=0` or `unrelated_window_action_count=0` is accep
 
 The exact qualification window is closed with `WM_CLOSE`; the harness does not use `SetForegroundWindow`, `taskkill` or a generic process-execution endpoint as the normal success path.
 
-The VS Code CLI process started with `--wait` must exit naturally after the exact qualification window closes.
+The VS Code CLI process started with `--wait` must exit **naturally with exit code `0`** after the exact qualification window closes. A process merely disappearing is not enough evidence for `CLI_PROCESS_EXIT_PASS=True`.
 
 If the CLI fails to exit, terminate/kill may be used only as **failure cleanup** to avoid leaving the test process behind. That fallback must set:
 
@@ -129,7 +129,9 @@ FORCED_CLI_CLEANUP=True
 CLI_PROCESS_EXIT_PASS=False
 ```
 
-and the qualification must remain FAILED.
+and the qualification must remain FAILED. The driver records `CLI_PROCESS_RETURNCODE` separately; acceptance requires it to equal `0`.
+
+If the run fails before an exact `bound_hwnd` is established but one or more windows containing the randomized qualification filename were created, failure cleanup may send `WM_CLOSE` only to those randomized qualification windows. `FAILURE_WINDOW_CLEANUP_COUNT` records that diagnostic cleanup. It never changes a failed run into a PASS.
 
 After window/process cleanup, the specifically prefixed TEMP application root is recursively removed. Python and PowerShell independently validate TEMP containment before recursive cleanup.
 
@@ -137,6 +139,7 @@ Acceptance requires:
 
 ```text
 APPLICATION_CLEANUP_PASS=True
+CLI_PROCESS_RETURNCODE=0
 CLI_PROCESS_EXIT_PASS=True
 FORCED_CLI_CLEANUP=False
 APP_ROOT_CLEANUP_PASS=True
@@ -174,6 +177,7 @@ DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
 APPLICATION_CLEANUP_PASS=True
+CLI_PROCESS_RETURNCODE=0
 CLI_PROCESS_EXIT_PASS=True
 FORCED_CLI_CLEANUP=False
 APP_ROOT_CLEANUP_PASS=True
