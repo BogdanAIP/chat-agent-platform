@@ -166,11 +166,29 @@ try {
     Write-Host 'It may type one unique marker into that disposable file after all guards pass.' -ForegroundColor Yellow
     Write-Host 'Do not switch windows, type, click, or cover the isolated VS Code window during the run.' -ForegroundColor Yellow
 
-    & $pythonExe $driverPath `
-        '--run-dir' $runDir `
-        '--app-root' $appRoot `
-        '--code-exe' $codeExe
-    $driverExit = $LASTEXITCODE
+    $previousPythonPath = [Environment]::GetEnvironmentVariable('PYTHONPATH', 'Process')
+    try {
+        $env:PYTHONPATH = if ([string]::IsNullOrWhiteSpace($previousPythonPath)) {
+            $repoRoot
+        }
+        else {
+            $repoRoot + [IO.Path]::PathSeparator + $previousPythonPath
+        }
+
+        & $pythonExe $driverPath `
+            '--run-dir' $runDir `
+            '--app-root' $appRoot `
+            '--code-exe' $codeExe
+        $driverExit = $LASTEXITCODE
+    }
+    finally {
+        if ($null -eq $previousPythonPath) {
+            Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:PYTHONPATH = $previousPythonPath
+        }
+    }
 
     if (-not (Test-Path -LiteralPath $driverResultPath -PathType Leaf)) {
         throw 'Stage 26.2E driver result is missing.'
