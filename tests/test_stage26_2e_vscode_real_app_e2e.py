@@ -40,7 +40,7 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         for required in (
             "tempfile.gettempdir()",
             "app_root.is_relative_to(temp_root)",
-            'app_root.name.startswith("chat-agent-stage26e-vscode-")',
+            "QUALIFICATION_PREFIX",
             "_require_disposable_root(app_root)",
             "_remove_disposable_root(app_root)",
         ):
@@ -65,6 +65,32 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         ):
             self.assertIn(required, self.driver)
         self.assertEqual(self.driver.count("backend.type_text_guarded("), 1)
+
+    def test_editor_target_requires_focused_enabled_visible_name_evidence(self) -> None:
+        helper_start = self.driver.index("def _focused_editor_control")
+        helper_end = self.driver.index("\ndef _control_center", helper_start)
+        helper = self.driver[helper_start:helper_end]
+        for required in (
+            "control.visible is not True",
+            "control.enabled is not True",
+            "control.focused is not True",
+            "FOCUSED_EDITOR_ROLES",
+            "filename in name",
+            '"text editor" in name',
+            '"editor content" in name',
+        ):
+            self.assertIn(required, helper)
+        self.assertNotIn('role != "textbox"', helper)
+
+    def test_fresh_same_focused_editor_is_required_immediately_before_typing(self) -> None:
+        self.assertIn("action_state = observe_bound_window(resolver, window_title)", self.driver)
+        self.assertIn("action_focused = _focused_editor_control(action_state, unique_filename)", self.driver)
+        self.assertIn("_same_window_identity(before_state, action_state)", self.driver)
+        self.assertIn("action_focused.observation_fingerprint == focused.observation_fingerprint", self.driver)
+        self.assertIn('result["fresh_pre_action_state_pass"]', self.driver)
+        fresh_index = self.driver.index("action_state = observe_bound_window")
+        type_index = self.driver.index("backend.type_text_guarded(")
+        self.assertLess(fresh_index, type_index)
 
     def test_real_app_gate_has_no_hidden_extra_action_channel(self) -> None:
         forbidden = (
@@ -120,10 +146,13 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         self.assertNotIn('"false_action_count": 0', self.driver)
         self.assertNotIn('"unrelated_window_action_count": 0', self.driver)
 
-    def test_cleanup_is_exact_window_close_plus_guarded_disposable_root_removal(self) -> None:
+    def test_cleanup_requires_natural_cli_exit_for_acceptance(self) -> None:
         self.assertIn("PostMessageW", self.driver)
         self.assertIn("WM_CLOSE", self.driver)
         self.assertIn("_remove_disposable_root(app_root)", self.driver)
+        self.assertIn('result["cli_process_exit_pass"] = True', self.driver)
+        self.assertIn('result["forced_cli_cleanup"] = True', self.driver)
+        self.assertIn('and not result["forced_cli_cleanup"]', self.driver)
         self.assertIn('result["rollback_pass"]', self.driver)
         self.assertNotIn("TerminateProcess", self.driver)
 
@@ -145,13 +174,16 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         self.assertIn("Remove-DisposableRoot -Path $appRoot", self.harness)
         self.assertIn("$result.temp_containment_pass", self.harness)
 
-    def test_harness_requires_verification_and_rollback_for_acceptance(self) -> None:
+    def test_harness_requires_verification_fresh_focus_and_rollback_for_acceptance(self) -> None:
         for required in (
             "$result.temp_containment_pass",
-            "$result.current_state_verification_pass",
+            "$result.fresh_pre_action_state_pass",
             "$result.completion_verification_pass",
+            "$result.current_state_verification_pass",
             "$result.workspace_expected_only_pass",
             "$result.application_cleanup_pass",
+            "$result.cli_process_exit_pass",
+            "-not $result.forced_cli_cleanup",
             "$result.app_root_cleanup_pass",
             "$result.rollback_pass",
         ):
