@@ -97,7 +97,7 @@ New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
 $codeExe = Resolve-VSCodeExecutable
 $result = [ordered]@{
-    schema_version = 2
+    schema_version = 3
     qualification_kind = 'real-application-vscode-disposable-text-edit'
     project_head = $null
     code_exe = $codeExe
@@ -110,6 +110,7 @@ $result = [ordered]@{
     window_binding_pass = $false
     desktop_observation_pass = $false
     focused_editor_precondition_pass = $false
+    fresh_pre_action_state_pass = $false
     native_point_guard_pass = $false
     agent_loopback_pass = $false
     agent_auth_required_pass = $false
@@ -120,11 +121,13 @@ $result = [ordered]@{
     mismatch_probe_zero_action_pass = $false
     guarded_keyboard_delivery_pass = $false
     keyboard_action_count = $null
-    current_state_verification_pass = $false
     completion_verification_status = $null
     completion_verification_pass = $false
+    current_state_verification_pass = $false
     workspace_expected_only_pass = $false
     application_cleanup_pass = $false
+    cli_process_exit_pass = $false
+    forced_cli_cleanup = $false
     app_root_cleanup_pass = $false
     rollback_pass = $false
     driver_source_sha256 = (Get-FileHash -LiteralPath $driverPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -175,11 +178,12 @@ try {
     foreach ($name in @(
         'temp_containment_pass', 'isolated_profile_pass', 'disposable_workspace_pass',
         'window_binding_pass', 'desktop_observation_pass', 'focused_editor_precondition_pass',
-        'native_point_guard_pass', 'agent_loopback_pass', 'agent_auth_required_pass',
-        'legacy_capability_absent_pass', 'mismatch_probe_zero_action_pass',
-        'guarded_keyboard_delivery_pass', 'current_state_verification_pass',
-        'completion_verification_pass', 'workspace_expected_only_pass',
-        'application_cleanup_pass', 'app_root_cleanup_pass', 'rollback_pass'
+        'fresh_pre_action_state_pass', 'native_point_guard_pass', 'agent_loopback_pass',
+        'agent_auth_required_pass', 'legacy_capability_absent_pass', 'mismatch_probe_zero_action_pass',
+        'guarded_keyboard_delivery_pass', 'completion_verification_pass',
+        'current_state_verification_pass', 'workspace_expected_only_pass',
+        'application_cleanup_pass', 'cli_process_exit_pass', 'forced_cli_cleanup',
+        'app_root_cleanup_pass', 'rollback_pass'
     )) {
         $result[$name] = [bool]$driver.$name
     }
@@ -212,6 +216,8 @@ finally {
     $result.app_root_cleanup_pass = -not (Test-Path -LiteralPath $appRoot)
     $result.rollback_pass = [bool](
         $result.application_cleanup_pass -and
+        $result.cli_process_exit_pass -and
+        -not $result.forced_cli_cleanup -and
         $result.app_root_cleanup_pass
     )
     $result | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $resultPath -Encoding utf8
@@ -223,14 +229,15 @@ foreach ($name in @(
     'RESULT_PATH','PROJECT_HEAD','CODE_EXE','APP_ROOT','TEMP_CONTAINMENT_PASS',
     'APPLICATION_DISCOVERY_PASS','DRIVER_PASS','ISOLATED_PROFILE_PASS','DISPOSABLE_WORKSPACE_PASS',
     'WINDOW_BINDING_PASS','DESKTOP_OBSERVATION_PASS','FOCUSED_EDITOR_PRECONDITION_PASS',
-    'NATIVE_POINT_GUARD_PASS','AGENT_LOOPBACK_PASS','AGENT_AUTH_REQUIRED_PASS',
-    'LEGACY_CAPABILITY_ABSENT_PASS','BASELINE_VERIFICATION_STATUS',
+    'FRESH_PRE_ACTION_STATE_PASS','NATIVE_POINT_GUARD_PASS','AGENT_LOOPBACK_PASS',
+    'AGENT_AUTH_REQUIRED_PASS','LEGACY_CAPABILITY_ABSENT_PASS','BASELINE_VERIFICATION_STATUS',
     'MISMATCH_PROBE_VERIFICATION_STATUS','MISMATCH_PROBE_DECISION','MISMATCH_PROBE_ZERO_ACTION_PASS',
-    'GUARDED_KEYBOARD_DELIVERY_PASS','KEYBOARD_ACTION_COUNT','CURRENT_STATE_VERIFICATION_PASS',
-    'COMPLETION_VERIFICATION_STATUS','COMPLETION_VERIFICATION_PASS','WORKSPACE_EXPECTED_ONLY_PASS',
-    'APPLICATION_CLEANUP_PASS','APP_ROOT_CLEANUP_PASS','ROLLBACK_PASS','DRIVER_SOURCE_SHA256',
-    'OBSERVATION_SOURCE_SHA256','ACTUATION_SOURCE_SHA256','VERIFIER_SOURCE_SHA256',
-    'NATIVE_POINT_GUARD_SOURCE_SHA256','RESOLVER_SOURCE_SHA256','DRIVER_ERROR','ERROR'
+    'GUARDED_KEYBOARD_DELIVERY_PASS','KEYBOARD_ACTION_COUNT','COMPLETION_VERIFICATION_STATUS',
+    'COMPLETION_VERIFICATION_PASS','CURRENT_STATE_VERIFICATION_PASS','WORKSPACE_EXPECTED_ONLY_PASS',
+    'APPLICATION_CLEANUP_PASS','CLI_PROCESS_EXIT_PASS','FORCED_CLI_CLEANUP','APP_ROOT_CLEANUP_PASS',
+    'ROLLBACK_PASS','DRIVER_SOURCE_SHA256','OBSERVATION_SOURCE_SHA256','ACTUATION_SOURCE_SHA256',
+    'VERIFIER_SOURCE_SHA256','NATIVE_POINT_GUARD_SOURCE_SHA256','RESOLVER_SOURCE_SHA256',
+    'DRIVER_ERROR','ERROR'
 )) {
     switch ($name) {
         'RESULT_PATH' { Write-Flag $name $resultPath }
@@ -252,6 +259,7 @@ $accepted = [bool](
     $result.window_binding_pass -and
     $result.desktop_observation_pass -and
     $result.focused_editor_precondition_pass -and
+    $result.fresh_pre_action_state_pass -and
     $result.native_point_guard_pass -and
     $result.agent_loopback_pass -and
     $result.agent_auth_required_pass -and
@@ -262,11 +270,13 @@ $accepted = [bool](
     $result.mismatch_probe_zero_action_pass -and
     $result.guarded_keyboard_delivery_pass -and
     [int]$result.keyboard_action_count -eq 1 -and
-    $result.current_state_verification_pass -and
     [string]$result.completion_verification_status -eq 'pass' -and
     $result.completion_verification_pass -and
+    $result.current_state_verification_pass -and
     $result.workspace_expected_only_pass -and
     $result.application_cleanup_pass -and
+    $result.cli_process_exit_pass -and
+    -not $result.forced_cli_cleanup -and
     $result.app_root_cleanup_pass -and
     $result.rollback_pass -and
     $null -eq $result.error
