@@ -108,7 +108,7 @@ Controlled WinForms evidence only; not universal Windows accuracy.
 
 Physical accepted runtime head: `6ae5c3a9e624c8c341857c025625b203b796b41c`.
 
-Maintained `runtime/windows/` owns bounded actuation, verifier foundation and PID/HWND window-scoped UIA. Production benchmark preserved zero false/unrelated-window actions with about 3.410 s p50 / 3.631 s p95.
+Maintained `runtime/windows/` owns bounded actuation, verifier foundation and PID/HWND window-scoped UIA.
 
 ## Stage 26.2B — Desktop Observation / DesktopState — ACCEPTED / MERGED #88
 
@@ -124,32 +124,11 @@ Exact physically accepted runtime head:
 
 `eadf8ff5a873936441891a66b616c83c62736152`
 
-Physical result:
-
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-grounder-qualification\grounder-20260820-050054\result.json`
-
-Key evidence:
-
-```text
-POSITIVE_GROUNDER_STATUS=proposal
-POSITIVE_GROUNDER_REASON=grounder-accepted-ordinal-alias-proposal-only
-POSITIVE_INVENTORY_MATCH_COUNT=1
-POSITIVE_PASS2_DETECTION_COUNT=1
-SAME_FRAME_BINDING_PASS=True
-COORDINATE_CONTRACT_PASS=True
-TARGET_POINT_INSIDE_UIA_PASS=True
-TARGET_EVIDENCE_BINDING_PASS=True
-ABSENT_TARGET_ABSTAIN_PASS=True
-STALE_FRAME_REJECTION_PASS=True
-PROPOSAL_ONLY_CONTRACT_PASS=True
-PASS=True
-```
-
-The physical result proves only the observed fixture behavior. The rendered `1. Benchmark start` was read by the model as `Benchmark start`; a narrowly bounded ordinal-prefix alias recovered one unique already-observed inventory label. General fuzzy matching is forbidden.
+Grounder remains proposal-only and exact-window/evidence-bound.
 
 ## Stage 26.2D — deterministic UIA -> vision routing — ACCEPTED / MERGED #90
 
-Integration merge:
+Integration merge before 26.2E:
 
 `main = 42d4130d59e23e2c2b1771ac428467efe27a4b98`
 
@@ -157,75 +136,129 @@ Exact physically accepted PR head:
 
 `1c74713edcd6321d5583a39234929169e68b5ac1`
 
-Physical evidence directory:
+This physically proves one controlled structure-first visual-fallback path with deterministic evidence authorization, fresh same-window checks, native foreground/hit-test guard and one guarded click. It is not general application accuracy.
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-routing-qualification\routing-20260820-085625`
+## Stage 26.2E — first real application E2E — ACCEPTED / PR #91
 
-Key evidence:
+Exact physically accepted qualification head:
+
+`457db0b634f2e47f53d41e359a238840fa3ca2ee`
+
+Physical result directory:
+
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448`
+
+Accepted task: isolated VS Code + one disposable `.txt` under a specifically prefixed `%TEMP%` root.
+
+Key physical evidence:
 
 ```text
-NATIVE_POINT_GUARD_PREFLIGHT_PASS=True
-NATIVE_POINT_GUARD_WRONG_WINDOW_REFUSAL_PASS=True
-NATIVE_POINT_GUARD_DELIVERY_PASS=True
-VISION_DISABLED_ABSTAIN_PASS=True
-ROLE_CONFLICT_ABSTAIN_PASS=True
-NEGATIVE_ZERO_ACTION_PASS=True
-POSITIVE_ROUTE_STATUS=delivered
-POSITIVE_ROUTE_REASON=vision-zero-exact-delivered
-POSITIVE_CONSISTENCY_IOU=0.34455881673798816
-FRESH_REOBSERVATION_PASS=True
-GUARDED_CLICK_RECEIPT_PASS=True
-FIXTURE_START_POSTCONDITION_PASS=True
-FIXTURE_NO_EXTRA_MUTATION_PASS=True
-SINGLE_ACTION_PASS=True
-STRUCTURAL_EXECUTOR_CALLS=0
-COORDINATE_EXECUTOR_CALLS=1
-GROUNDER_CALLS=1
+PROJECT_HEAD=457db0b634f2e47f53d41e359a238840fa3ca2ee
+WINDOW_BINDING_PASS=True
+DESKTOP_OBSERVATION_PASS=True
+FOCUSED_EDITOR_PRECONDITION_PASS=True
+FOCUSED_EDITOR_ROLE=textbox
+FRESH_PRE_ACTION_STATE_PASS=True
+NATIVE_POINT_GUARD_PASS=True
+KEYBOARD_FOCUS_GUARD_MODE=window_scoped_focused_observation_fingerprint
+KEYBOARD_FOCUS_GUARD_ARMED_PASS=True
+KEYBOARD_FOCUS_GUARD_PASS=True
+MISMATCH_PROBE_VERIFICATION_STATUS=fail
+MISMATCH_PROBE_DECISION=abstain
+MISMATCH_PROBE_ZERO_ACTION_PASS=True
+GUARDED_KEYBOARD_DELIVERY_PASS=True
+KEYBOARD_ACTION_COUNT=1
+COMPLETION_VERIFICATION_STATUS=pass
+COMPLETION_VERIFICATION_PASS=True
+CURRENT_STATE_VERIFICATION_PASS=True
+WORKSPACE_EXPECTED_ONLY_PASS=True
+KEYBOARD_FOCUS_GUARD_ARMS=1
+KEYBOARD_FOCUS_GUARD_CALLS=1
+KEYBOARD_FOCUS_GUARD_PASSES=1
+KEYBOARD_FOCUS_GUARD_FAILURES=0
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-PASS=True
+CLEANUP_REVALIDATION_PASS=True
+APPLICATION_CLEANUP_PASS=True
+CLI_PROCESS_RETURNCODE=0
+CLI_PROCESS_EXIT_PASS=True
+FORCED_CLI_CLEANUP=False
+APP_ROOT_CLEANUP_PASS=True
+ROLLBACK_PASS=True
+STAGE26_2E_REAL_APPLICATION_E2E_RESULT=PASSED
+QUALIFICATION_EXIT_CODE=0
 ```
 
-Two exact-window screenshots around inference had identical SHA-256:
+Important real-app finding: Monaco's true keyboard target is an intentionally hidden `textbox` with zero geometry. Production authorization now binds the exact hidden focused observation fingerprint inside the exact PID/HWND/process-generation window. The top-level point guard remains a separate foreground/root-window guard and is not treated as Monaco control geometry.
 
-`f318c355d0f180968c030cbd25b23947791cb146d5ba8b5a11a1ad7b5e87012f`
-
-This physically proves one structure-first visual-fallback path through VLM proposal, deterministic evidence authorization, fresh same-window frame checks, native foreground/hit-test guard and one guarded click. It is still controlled WinForms evidence, not general application accuracy.
+This proves one real VS Code text-edit task with independent postcondition and rollback. It does not prove universal desktop accuracy.
 
 ---
 
 # Active release-critical work
 
-## Stage 26.2E — first real application E2E — ACTIVE
+## Stage 26.3 — Verified Procedure Runtime / deterministic execution Control Plane — ACTIVE
 
-Active branch at this snapshot:
+The next problem is no longer “can the Windows runtime perform one safe real-app action?” That is now physically accepted.
 
-`chat/stage26-2e-vscode-real-app-e2e`
+The next problem is **autonomous verified progression of a known procedure without using the user as a PowerShell operator**.
 
-The qualification candidate is an isolated VS Code window with a new disposable `.txt` file under a specifically prefixed `%TEMP%` root, isolated `--user-data-dir`, isolated extensions directory and extensions disabled.
+Target flow:
 
-The physical gate may perform exactly one guarded Unicode text delivery after exact PID/HWND/DesktopState/focused-editor/native-point guards pass. A deliberately wrong verifier expectation must map to ABSTAIN before any action. Immediately before typing, a fresh DesktopState must preserve the same exact window identity and focused-editor observation fingerprint. Completion is independently verified from the saved file size/SHA-256; the workspace must contain only the expected artifact. The exact qualification window is closed with `WM_CLOSE`; success additionally requires the `--wait` CLI to exit naturally with return code `0`, with `FORCED_CLI_CLEANUP=False`, before the disposable TEMP root is considered rolled back.
+```text
+user gives one goal to ordinary ChatGPT
+ -> ChatGPT selects an allowed known procedure + parameters
+ -> local deterministic Control Plane
+      load ProgramGraph
+      bind TaskState/checkpoint
+      observe current state
+      select exactly one permitted known transition
+      authorize action from current evidence
+      execute bounded capability
+      re-observe
+      verify postcondition
+      checkpoint + advance
+      repeat while state remains known/permitted
+ -> verified completion
+    OR ABSTAIN/escalation to ChatGPT
+```
 
-If the run fails before a bound HWND is established, cleanup is limited to windows carrying that run's randomized qualification filename. Forced CLI terminate/kill is cleanup only and can never satisfy `CLI_PROCESS_EXIT_PASS`.
+The first end-to-end Stage 26.3 acceptance should specifically remove intermediate manual command entry. One user goal should be enough to initiate a bounded known procedure; the platform should continue deterministic transitions and return completion/evidence or a truthful escalation.
 
-Read:
+### Stage 26.3A — candidate-first procedural trust
 
-`project-context/STAGE26_2E_REAL_APPLICATION_E2E.md`
+A successful trajectory may become a project CANDIDATE, but never permanent trust from one demonstration alone:
 
-A physical VS Code qualification has not yet been accepted.
+```text
+DEMO / successful trajectory
+ -> CAPTURE
+ -> COMPILE
+ -> CANDIDATE
+ -> replay / regression / variant evidence
+ -> trusted reusable
+ -> stale / quarantined / disabled / rollback as evidence degrades
+```
 
-### CI integrity finding fixed in this PR
+### Stage 26.3B — advanced verifier/postcondition library
 
-Self-review found that the Windows `ci` PowerShell step could report success even when `python -m unittest` returned nonzero, because a later successful native command overwrote `$LASTEXITCODE`. The workflow now checks native-command exit codes explicitly and throws on failure. The previously hidden test failures were corrected without weakening production safety contracts. Exact-head CI must pass with this repaired propagation before the physical gate is considered ready.
+Expand deterministic completion evidence for UI, files/artifacts, process/window/application state, browser state and structured outputs.
+
+### Stage 26.3C — checkpoints / bounded recovery / budgets
+
+Longer procedures require explicit checkpoints, retry ceilings, safe known recovery branches, action/time/resource budgets and deterministic escalation reasons.
+
+## Stage 26.4 — Human Demo -> transferable verified candidate skill
+
+Human demonstration transfer follows only after the verified procedure runtime is accepted. Live re-resolution and verifier-controlled progression are required; macro replay is insufficient.
 
 ---
 
 # Current critical path
 
 ```text
-Stage 26.2E real application E2E
- -> Stage 26.3 Verified Procedure Runtime / deterministic execution Control Plane
+Stage 26.2E real application E2E — ACCEPTED
+ -> Stage 26.3 Verified Procedure Runtime / deterministic execution Control Plane — ACTIVE
     -> 26.3A candidate-first procedural trust
     -> 26.3B advanced verifier/postcondition library
     -> checkpoint / bounded recovery / resource-budget integration
@@ -248,10 +281,10 @@ Stop on unresolved findings, conflict, ambiguous scope or failed/skipped require
 
 # Residual risks
 
-- one controlled WinForms routing PASS is not broad real-application evidence;
-- Stage 26.2E physical real-app E2E is not yet accepted;
+- one real VS Code task is not broad real-application coverage;
 - `AutomationId` still lacks dedicated accepted physical coverage across real applications;
-- Verified Procedure Runtime/Control Plane product trust adapter is not integrated;
+- Verified Procedure Runtime/Control Plane is not yet integrated or physically accepted;
+- ordinary Chat -> local autonomous procedure execution without intermediate user commands is not yet physically accepted;
 - browser DNS/rebinding/redirect/private-network isolation remains incomplete;
 - Python/model/OpenAdapt packaging is not release-grade;
 - raw demonstration retention/redaction/encryption policy is not accepted;
