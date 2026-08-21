@@ -159,11 +159,18 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         self.assertIn('result["rollback_pass"]', self.driver)
         self.assertNotIn("TerminateProcess", self.driver)
 
-    def test_failure_before_binding_closes_only_randomized_qualification_windows(self) -> None:
-        self.assertIn("failure_matches = _matching_vscode_windows(unique_filename)", self.driver)
-        self.assertIn('result["failure_window_cleanup_count"] = len(failure_matches)', self.driver)
-        self.assertIn('_post_close(int(row["hwnd"]))', self.driver)
-        self.assertIn("failed qualification VS Code window cleanup", self.driver)
+    def test_failure_cleanup_is_randomized_and_freshly_revalidated(self) -> None:
+        helper_start = self.driver.index("def _validated_cleanup_matches")
+        helper_end = self.driver.index("\ndef _wait_unique_vscode_window", helper_start)
+        helper = self.driver[helper_start:helper_end]
+        self.assertIn("matches = _matching_vscode_windows(unique_filename)", helper)
+        self.assertIn("_query_process_identity(pid)", helper)
+        self.assertIn("executable_name.casefold() != EXPECTED_EXECUTABLE", helper)
+        self.assertIn('result["failure_window_cleanup_count"] = len(cleanup_matches)', self.driver)
+        self.assertIn('len(cleanup_matches) == 1 and len(validated_matches) == 1', self.driver)
+        self.assertIn('_post_close(int(validated_matches[0]["hwnd"]))', self.driver)
+        self.assertIn('"VS Code cleanup identity was not uniquely revalidated; refusing WM_CLOSE"', self.driver)
+        self.assertNotIn('_post_close(bound_hwnd)', self.driver)
 
     def test_harness_discovers_code_without_touching_user_workspace(self) -> None:
         self.assertIn("Resolve-VSCodeExecutable", self.harness)
@@ -190,6 +197,7 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
             "$result.completion_verification_pass",
             "$result.current_state_verification_pass",
             "$result.workspace_expected_only_pass",
+            "$result.cleanup_revalidation_pass",
             "$result.application_cleanup_pass",
             "$result.cli_process_exit_pass",
             "$null -ne $result.cli_process_returncode",
