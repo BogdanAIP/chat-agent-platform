@@ -15,6 +15,14 @@ class TransportSupervisorQualificationContractTests(unittest.TestCase):
         self.assertIn("semantic-direct-health.url", SOURCE)
         self.assertIn("tunnel-client.exe", SOURCE)
 
+    def test_manager_calls_are_time_bounded_and_kill_only_the_test_process_tree_on_timeout(self):
+        self.assertIn("function Invoke-BoundedManagerProcess", SOURCE)
+        self.assertIn("WaitForExit($timeoutMilliseconds)", SOURCE)
+        self.assertIn("$process.Kill($true)", SOURCE)
+        self.assertIn("Manager $Action timed out after $TimeoutSeconds seconds", SOURCE)
+        self.assertIn("-Action Status -TimeoutSeconds 30", SOURCE)
+        self.assertIn("if ($Action -eq 'Start') { 150 } else { 60 }", SOURCE)
+
     def test_fault_injection_kills_only_the_resolved_owned_tunnel_pid(self):
         self.assertIn("Stop-Process -Id $oldTunnelPid -Force -ErrorAction Stop", SOURCE)
         self.assertNotIn("Stop-Process -Name", SOURCE)
