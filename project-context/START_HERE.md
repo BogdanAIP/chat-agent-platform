@@ -13,13 +13,14 @@ Never treat a documentation SHA as permanently current. Resolve live `main`, the
 3. `project-context/ARCHITECTURE.md`
 4. `project-context/CONTROL_PLANE.md`
 5. `project-context/ROADMAP.md`
-6. `project-context/MODULE_CATALOG.md`
-7. `project-context/KNOWN_ISSUES.md`
-8. active stage document as needed
+6. `project-context/DOCUMENT_STATUS.md`
+7. `project-context/MODULE_CATALOG.md`
+8. `project-context/KNOWN_ISSUES.md`
+9. active stage document as needed
 
 When documents disagree, exact code/tests/current CI/physical target evidence outrank prose.
 
-Historical stage/research documents preserve evidence and may contain old `current`/`next` wording. They must not override the files above.
+`DOCUMENT_STATUS.md` classifies every `project-context/*.md` file. Historical stage/research files may preserve old `ACTIVE`, `CURRENT`, `NEXT` and old stage-numbering text; those phrases are historical when the status map says so and must not override live context.
 
 ## Current operating constraint
 
@@ -46,7 +47,7 @@ That Control Plane may continue a known, already-selected procedure through mult
 
 This is not a second general planner. See `CONTROL_PLANE.md`.
 
-A future local general planner remains in optional Track P and starts shadow/proposal-only after verified procedure-state data and measured need exist.
+A future local general planner remains optional Track P and starts shadow/proposal-only after verified procedure-state data and measured need exist.
 
 ## Normal path and public contract
 
@@ -106,11 +107,11 @@ Active branch at this snapshot:
 
 `chat/stage26-2e-vscode-real-app-e2e`
 
-Qualification application: isolated VS Code with only a specifically prefixed TEMP root, isolated user-data/extensions and one disposable `.txt`.
+Qualification application: isolated VS Code with a specifically prefixed TEMP root, isolated user-data/extensions and one disposable `.txt`.
 
 Before the one allowed guarded Unicode delivery, the driver requires exact Code.exe PID/HWND/DesktopState, focused-editor evidence, deliberate verifier mismatch -> ABSTAIN with zero action, then **fresh pre-action DesktopState with the same exact window identity and the same focused-editor observation fingerprint**, followed by the native foreground/hit-test guard.
 
-Completion requires exact autosaved file size/SHA-256, same current window identity, workspace containing only the expected artifact, exact-window cleanup, **natural CLI exit** and TEMP-root rollback. Forced CLI terminate/kill is cleanup-only and makes acceptance fail.
+Completion requires exact autosaved file size/SHA-256, same current window identity, workspace containing only the expected file, exact-window cleanup, **natural CLI exit** and TEMP-root rollback. Forced CLI terminate/kill is cleanup-only and makes acceptance fail.
 
 Read `STAGE26_2E_REAL_APPLICATION_E2E.md` before changing this gate.
 
@@ -130,9 +131,7 @@ Future local planner/offline autonomy is **not deleted from the roadmap**; it is
 
 ## Merge policy
 
-Once a branch is logically complete, intended diff is verified, required physical/CI tests pass and applicable acceptance gates pass, merge it without waiting for a separate merge command.
-
-Stop on unresolved finding, conflict, ambiguous scope or failed/skipped required evidence.
+Once a branch is logically complete, intended diff is verified, required physical/CI tests pass and applicable acceptance gates pass, merge it without waiting for a separate merge command. Stop on unresolved finding, conflict, ambiguous scope or failed/skipped required evidence.
 
 ## Non-negotiable rules
 
