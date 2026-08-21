@@ -8,6 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 RESOLVER = ROOT / "runtime" / "windows" / "window_scoped_uia.py"
 DRIVER = ROOT / "scripts" / "stage26-vscode-real-app-e2e.py"
+HARNESS = ROOT / "scripts" / "stage26-vscode-real-app-e2e.ps1"
 
 
 class Stage262EHiddenFocusKeyboardGuardTests(unittest.TestCase):
@@ -15,6 +16,7 @@ class Stage262EHiddenFocusKeyboardGuardTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.resolver = RESOLVER.read_text(encoding="utf-8")
         cls.driver = DRIVER.read_text(encoding="utf-8")
+        cls.harness = HARNESS.read_text(encoding="utf-8")
         ast.parse(cls.resolver, filename=str(RESOLVER))
         ast.parse(cls.driver, filename=str(DRIVER))
 
@@ -113,6 +115,20 @@ class Stage262EHiddenFocusKeyboardGuardTests(unittest.TestCase):
         self.assertIn("require_foreground_hit_target(action_state, *action_point)", self.driver)
         self.assertIn("backend.arm_guarded_keyboard(*action_point)", self.driver)
         self.assertNotIn("_control_center", self.driver)
+
+    def test_outer_harness_independently_requires_hidden_focus_guard(self) -> None:
+        for required in (
+            "keyboard_focus_guard_mode = $null",
+            "keyboard_focus_guard_armed_pass = $false",
+            "keyboard_focus_guard_pass = $false",
+            "'keyboard_focus_guard_armed_pass', 'keyboard_focus_guard_pass'",
+            "'KEYBOARD_FOCUS_GUARD_MODE'",
+            "'KEYBOARD_FOCUS_GUARD_ARMED_PASS'",
+            "'KEYBOARD_FOCUS_GUARD_PASS'",
+            "$result.keyboard_focus_guard_armed_pass -and",
+            "$result.keyboard_focus_guard_pass -and",
+        ):
+            self.assertIn(required, self.harness)
 
 
 if __name__ == "__main__":
