@@ -2,7 +2,11 @@
 
 ## Status
 
-**AUTHORITATIVE PROCEDURAL DESIGN; implementation resumes at Stage 26.3 after Stage 26.2E real-app acceptance.**
+**ACTIVE STAGE 26.3 CONTRACT / DESIGN.**
+
+Stage 26.2E real-app E2E is physically accepted on exact runtime/qualification head:
+
+`457db0b634f2e47f53d41e359a238840fa3ca2ee`
 
 Older revisions of this document described 26.1B as next and treated 26.3 as the future Windows desktop surface. That chronology is historical and superseded.
 
@@ -12,8 +16,8 @@ Current sequence:
 26.1A/B OpenAdapt core + Capture qualification — accepted
 26.1C-E Windows executor/UIA qualification — accepted
 26.2A-D production Windows observation/grounding/routing — accepted/merged
-26.2E real application E2E — active
-26.3 Verified Procedure Runtime / deterministic Control Plane — next after 26.2E
+26.2E real application E2E — accepted physically / PR #91
+26.3 Verified Procedure Runtime / deterministic Control Plane — ACTIVE
 26.4 Human Demo -> transferable verified candidate skill
 ```
 
@@ -24,11 +28,17 @@ Let ordinary ChatGPT use previously successful procedures without either extreme
 - ChatGPT micromanaging every deterministic low-level action; or
 - a second current local general planner freely deciding what to do.
 
+The first Stage 26.3 user-value target is explicit: **stop using the user as the routine relay who copies PowerShell commands between Chat and the local machine.**
+
 Target split:
 
 ```text
+user
+  states goal once
+       |
+       v
 ordinary ChatGPT
-  general task understanding / strategy / procedure applicability / adaptation
+  general task understanding / strategy / procedure applicability / parameters
        |
        | selected goal / procedure / parameters
        v
@@ -54,6 +64,36 @@ observe -> authorize -> act -> verify -> checkpoint
 A procedure is not mere passive advice, but it is also not authority. Once ChatGPT selects an applicable procedure, the Control Plane may progress through predeclared transitions only when current state, action scope and postcondition all validate.
 
 Canonical Control Plane contract: `CONTROL_PLANE.md`.
+
+## First Stage 26.3 physical acceptance
+
+The first vertical slice must prove the boundary that Stage 26.2E did not:
+
+```text
+ONE user goal
+ -> ordinary ChatGPT chooses one bounded known procedure + parameters
+ -> local Control Plane creates TaskState
+ -> transition 1: observe / authorize / act / verify / checkpoint
+ -> transition 2+: observe / authorize / act / verify / checkpoint
+ -> final verifier proves completion
+ -> result/evidence returns to Chat
+```
+
+Acceptance requires **no intermediate PowerShell copy/paste by the user**.
+
+A target-machine permission/setup action may still require the user only when the actual Chat/local tool surface cannot perform that irreducible step itself. Such a setup action must not be confused with routine procedure execution.
+
+Negative physical acceptance must prove:
+
+```text
+unexpected / stale / ambiguous / incompatible intermediate state
+ -> no unauthorized next action
+ -> explicit deterministic ABSTAIN/escalation reason
+```
+
+The acceptance task should be disposable, strongly isolated and independently verifiable. Prefer a procedure with at least two real transitions but harmless consequences, for example an isolated real-app artifact flow where each intermediate state has a deterministic verifier.
+
+Do **not** satisfy this requirement by adding arbitrary shell/Python execution. The Control Plane may invoke only typed/scoped capabilities explicitly allowed by the selected procedure and current authorization evidence.
 
 ## Qualified upstream substrate
 
@@ -124,12 +164,40 @@ Compiled procedures may retain:
 
 They must not use blind historical absolute-coordinate replay as authority or primary identity.
 
+## Minimum procedure schema for 26.3A
+
+The project-owned trust/progression seam should define at least:
+
+```text
+procedure_id
+procedure_version
+procedure_status = candidate | trusted | quarantined | disabled
+parameter_schema
+start_state_predicate
+transitions[]
+  transition_id
+  from_node
+  to_node
+  required_current_evidence
+  capability_id / typed action template
+  action_parameters
+  verifier/postcondition
+  allowed_recovery_branch
+  retry_budget
+completion_verifier
+rollback metadata / policy
+provenance + trust evidence
+```
+
+Exact naming may differ if the qualified OpenAdapt structures already supply equivalent fields, but the semantics must remain explicit and testable.
+
 ## Deterministic procedure progression
 
 After ChatGPT selects a procedure:
 
 ```text
 load exact procedure version
+ -> validate procedure status / scope / parameters
  -> create/resume TaskState
  -> observe live state
  -> match exactly one permitted transition
@@ -142,7 +210,7 @@ load exact procedure version
  -> advance node
 ```
 
-This loop may repeat locally while every state remains known/permitted.
+This loop may repeat locally while every state remains known/permitted and budgets allow.
 
 ### Mandatory escalation conditions
 
@@ -159,7 +227,7 @@ Stop local progression and return a structured escalation/ABSTAIN reason when:
 
 The Control Plane does not improvise a new workflow to avoid escalation.
 
-## Checkpoints and recovery
+## TaskState / checkpoint minimum
 
 Longer procedures require explicit state rather than hidden conversational memory.
 
@@ -167,7 +235,9 @@ Checkpoint should record at least:
 
 ```text
 task_id
-selected procedure + version
+user-visible goal summary
+selected procedure + exact version
+bound parameters
 current ProgramGraph node
 verified completed transitions
 current observation/evidence references
@@ -176,9 +246,12 @@ pending verifier criteria
 last delivery receipt
 last verification result
 retry/recovery counters
+action/time/resource budget state
 rollback metadata
 escalation reason
 ```
+
+Never persist private chain-of-thought.
 
 Recovery is permitted only through known bounded recovery branches or a fresh ChatGPT decision.
 
@@ -198,6 +271,8 @@ before
 ```
 
 Prefer deterministic/native/system-of-record evidence where available.
+
+For the first autonomous physical acceptance, the final postcondition must be independently observable from the local procedure runtime and must not rely only on an action receipt or Chat's claim.
 
 ## Procedural data/privacy
 
@@ -222,8 +297,12 @@ Implement the smallest integration around qualified OpenAdapt structures:
 - structured TaskState;
 - current node + permitted transition resolution;
 - current-state precedence;
+- per-transition capability authorization;
+- per-transition verifier/postcondition;
 - deterministic escalation reasons;
 - no new general planner.
+
+The first selected acceptance procedure may be hand-authored/compiled as a known candidate to prove the runtime. Human Demo -> general candidate compilation is Stage 26.4; 26.3 should not wait for arbitrary demonstration transfer.
 
 ### 26.3B — advanced verifier/postcondition library
 
@@ -247,6 +326,14 @@ Whether implemented in a separate 26.3C PR or folded into A/B, Stage 26.3 is inc
 - action/time/resource budgets;
 - deterministic escalation.
 
+## Ordinary-Chat integration requirement
+
+Stage 26.3 is not product-accepted merely because a local Python/PowerShell harness can drive the runtime.
+
+The physical end-to-end gate must ultimately originate from an ordinary ChatGPT goal through the project's connected local capability path. The test must demonstrate that Chat receives completion/evidence or escalation without asking the user to relay each local command.
+
+If the Chat-facing tool/plugin surface needed for this is unavailable in the current Chat session, that is an integration/setup blocker to fix or expose; it is not acceptable to substitute repeated manual command entry and call the autonomy gate passed.
+
 ## Stage 26.4 — Human Demo -> transferable skill
 
 After 26.3:
@@ -268,6 +355,8 @@ Acceptance is not blind macro reproduction. It must prove live re-resolution and
 Procedure/control-plane machinery must not be hidden inside `semantic-projection` or misleadingly exposed as `web_interact`.
 
 The current five public tools remain until a dedicated ADR adds truthful desktop/procedure capabilities and passes ordinary-Chat acceptance.
+
+Likely Stage 26.3 integration need: a small truthful typed procedure surface that accepts a procedure identity/goal parameters and returns structured task state/evidence/escalation, without exposing generic command execution. Exact schema requires a dedicated ADR based on the first vertical slice.
 
 ## Future local planner — Track P
 
@@ -295,4 +384,8 @@ Read `ROADMAP.md` and `CONTROL_PLANE.md`.
 12. checkpoint/provenance/versioning/rollback are deterministic;
 13. generic Windows code execution remains disabled/unreachable;
 14. no current second general planner is introduced;
-15. future planner research remains proposal-only until explicitly accepted.
+15. future planner research remains proposal-only until explicitly accepted;
+16. first physical Stage 26.3 E2E starts from one user goal and requires no intermediate PowerShell copy/paste;
+17. multiple transitions must each be independently current-state-authorized and verified;
+18. final completion must be independently verified;
+19. an unexpected intermediate state must cause zero unauthorized continuation and structured ABSTAIN/escalation.
