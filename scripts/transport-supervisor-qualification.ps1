@@ -26,6 +26,7 @@ $HealthUrlFile = Join-Path $LocalRoot 'state\semantic-direct-health.url'
 $SupervisorStateFile = Join-Path $LocalRoot 'state\supervisor.json'
 $RecoveryStateFile = Join-Path $LocalRoot 'state\supervisor-recovery.json'
 $TunnelExe = Join-Path $LocalRoot 'bin\tunnel-client.exe'
+$TaskName = 'Chat Agent Platform Transport Supervisor'
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $LocalRoot 'transport-supervisor-qualification'
@@ -94,6 +95,46 @@ function Get-ExactSupervisorProcesses {
     )
 }
 
+function Wait-ForExactSupervisor {
+    param(
+        [ValidateSet('Running', 'Stopped')]
+        [string]$State,
+        [ValidateRange(1, 60)]
+        [int]$TimeoutSeconds = 15
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $count = @(Get-ExactSupervisorProcesses).Count
+        if ($State -eq 'Running' -and $count -eq 1) { return $true }
+        if ($State -eq 'Stopped' -and $count -eq 0) { return $true }
+        Start-Sleep -Milliseconds 250
+    }
+    return $false
+}
+
+function Start-QualificationSupervisor {
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+    if ([string]$task.TaskName -ne $TaskName) {
+        throw 'Qualification supervisor Scheduled Task is unavailable.'
+    }
+
+    Start-ScheduledTask -TaskName $TaskName
+    if (-not (Wait-ForExactSupervisor -State Running -TimeoutSeconds 15)) {
+        throw 'Qualification supervisor did not start as exactly one process.'
+    }
+}
+
+function Stop-QualificationSupervisor {
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($null -ne $task) {
+        try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch {}
+    }
+    if (-not (Wait-ForExactSupervisor -State Stopped -TimeoutSeconds 15)) {
+        throw 'Qualification supervisor did not stop before desired-state restoration.'
+    }
+}
+
 function Save-JsonEvidence {
     param([Parameter(Mandatory)] [string]$Name, [Parameter(Mandatory)] $Value)
     $Value | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $RunDir "$Name.json") -Encoding utf8
@@ -113,13 +154,22 @@ if ([string]$preInstallStatus.settings.profile -notin @('semantic', 'semantic-di
 
 $installAttempted = $false
 $qualificationPassed = $false
+$supervisorStarted = $false
 
 try {
     Write-Host '===== TRANSPORT SUPERVISOR: INSTALL QUALIFICATION BUILD =====' -ForegroundColor Cyan
     $installAttempted = $true
-    & $Installer
+
+    # Install/register first, but deliberately do not start the supervisor yet.
+    # The baseline lifecycle mutation must run without the supervisor competing
+    # for the public manager mutex. This prevents a qualification-only race.
+    & $Installer -NoStart
     if ($LASTEXITCODE -ne 0) {
         throw "Supervisor installer failed with exit code $LASTEXITCODE."
+    }
+
+    if (@(Get-ExactSupervisorProcesses).Count -ne 0) {
+        throw 'Qualification installer -NoStart unexpectedly left a supervisor process running.'
     }
 
     $baseline = Invoke-ManagerStatus
@@ -145,6 +195,10 @@ try {
         throw 'Baseline direct semantic runtime did not become runtime-ready before fault injection.'
     }
     Save-JsonEvidence -Name 'healthy-baseline' -Value $healthy
+
+    Write-Host 'Starting supervisor only after the direct semantic baseline is healthy...' -ForegroundColor Yellow
+    Start-QualificationSupervisor
+    $supervisorStarted = $true
 
     $supervisors = @(Get-ExactSupervisorProcesses)
     if ($supervisors.Count -ne 1) {
@@ -231,7 +285,13 @@ try {
 
     $desiredStateRestored = 'running'
     if ($desiredStateBefore -eq 'stopped') {
+        # Stop the qualification supervisor before the explicit lifecycle
+        # mutation, then restart it in idle mode after the owner is removed.
+        Stop-QualificationSupervisor
+        $supervisorStarted = $false
         Invoke-ManagerMutation -Action Stop
+        Start-QualificationSupervisor
+        $supervisorStarted = $true
         $desiredStateRestored = 'stopped'
     }
 
@@ -275,6 +335,7 @@ catch {
             schema_version = 1
             result = 'FAILED'
             desired_state_before = $desiredStateBefore
+            supervisor_started = $supervisorStarted
             error_type = $failure.Exception.GetType().Name
             error_message = $failure.Exception.Message
             failed_at = (Get-Date).ToUniversalTime().ToString('o')
