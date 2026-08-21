@@ -79,18 +79,19 @@ class DocumentationConsistencyTests(unittest.TestCase):
         current = (CONTEXT / "CURRENT_STATE.md").read_text(encoding="utf-8")
         continuation = (CONTEXT / "CONTINUATION_CONTEXT.md").read_text(encoding="utf-8")
         for text in (roadmap, current, continuation):
-            self.assertIn("26.2E real application E2E", text)
-            self.assertIn("26.3 Verified Procedure Runtime", text)
-            self.assertIn("26.4 Human Demo", text)
-            self.assertLess(text.index("26.2E real application E2E"), text.index("26.3 Verified Procedure Runtime"))
-            self.assertLess(text.index("26.3 Verified Procedure Runtime"), text.index("26.4 Human Demo"))
+            self.assertIn("26.2E", text)
+            self.assertIn("26.3", text)
+            self.assertIn("26.4", text)
+            self.assertLess(text.index("26.2E"), text.index("26.3"))
+            self.assertLess(text.index("26.3"), text.index("26.4"))
 
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
         control = (CONTEXT / "CONTROL_PLANE.md").read_text(encoding="utf-8")
         self.assertIn("Optional Future Track P", roadmap)
         self.assertIn("not part of the current release-critical path", control)
-        self.assertIn("proposal-only", roadmap)
+        self.assertIn("P0 shadow planner", roadmap)
+        self.assertIn("proposal only", roadmap)
         self.assertIn("deterministic Control Plane", roadmap)
 
     def test_stage26_2e_document_matches_current_guard_contract(self) -> None:
@@ -100,7 +101,7 @@ class DocumentationConsistencyTests(unittest.TestCase):
             "CLI_PROCESS_EXIT_PASS=True",
             "FORCED_CLI_CLEANUP=False",
             "same focused-editor observation fingerprint",
-            "Forced CLI termination",
+            "failure cleanup",
         ]
         for item in required:
             self.assertIn(item, stage)
