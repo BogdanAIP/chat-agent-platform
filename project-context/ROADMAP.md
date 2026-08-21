@@ -142,10 +142,6 @@ Grounder remains exact-window proposal/ABSTAIN only. No broad fuzzy matching.
 
 ## 26.2D — deterministic UIA -> vision routing — ACCEPTED / MERGED #90
 
-Integration main after merge:
-
-`42d4130d59e23e2c2b1771ac428467efe27a4b98`
-
 Exact physically accepted head:
 
 `1c74713edcd6321d5583a39234929169e68b5ac1`
@@ -167,62 +163,83 @@ native/UIA structure first
 
 Physical evidence proves one controlled WinForms fallback path, not universal Windows accuracy.
 
----
+## 26.2E — first real application E2E — ACCEPTED / PR #91
 
-# NEXT — 26.2E: first real application E2E
+Exact physically accepted runtime/qualification head:
 
-Active branch at this snapshot:
+`457db0b634f2e47f53d41e359a238840fa3ca2ee`
 
-`chat/stage26-2e-vscode-real-app-e2e`
+Accepted physical result:
 
-Qualification application: isolated VS Code with a disposable text artifact under a specifically prefixed OS TEMP root.
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448`
 
-Required gate includes:
+The isolated VS Code task passed the full contract:
 
 ```text
-TEMP containment
- -> isolated VS Code user-data/extensions
- -> unique Code.exe PID/HWND/DesktopState
- -> safe focused editor evidence
- -> deliberate verifier mismatch => FAIL -> ABSTAIN with zero mutation
- -> fresh pre-action DesktopState + same focused-editor fingerprint
- -> native foreground/hit-test guard
- -> exactly one guarded Unicode text delivery
- -> independent exact saved-file size/SHA-256 verification
- -> same window identity
- -> workspace contains only expected artifact
- -> WM_CLOSE exact window
- -> natural CLI exit
+exact TEMP-contained profile/workspace
+ -> exact Code.exe PID/HWND/process generation
+ -> production DesktopState
+ -> exact hidden Monaco textbox identity
+ -> deliberate verifier mismatch => FAIL -> ABSTAIN / zero action
+ -> fresh same-window/same-focused-fingerprint state
+ -> top-level native foreground/root guard
+ -> one-shot window-scoped hidden-focus guard
+ -> exactly one guarded Unicode delivery
+ -> exact saved-file SHA-256 postcondition
+ -> same current window identity
+ -> only expected workspace artifact
+ -> freshly revalidated WM_CLOSE cleanup
+ -> natural CLI exit 0
  -> TEMP cleanup / rollback
 ```
 
-Forced CLI termination may be used only for cleanup after failure and must make acceptance red.
+Key accepted counters:
 
-Read `STAGE26_2E_REAL_APPLICATION_E2E.md`.
+```text
+KEYBOARD_FOCUS_GUARD_ARMS=1
+KEYBOARD_FOCUS_GUARD_CALLS=1
+KEYBOARD_FOCUS_GUARD_PASSES=1
+KEYBOARD_FOCUS_GUARD_FAILURES=0
+KEYBOARD_ACTION_COUNT=1
+DESKTOP_FALLBACK_CALLS=0
+WINDOW_BINDING_FAILURES=0
+WINDOW_BINDING_AMBIGUITIES=0
+STAGE26_2E_REAL_APPLICATION_E2E_RESULT=PASSED
+QUALIFICATION_EXIT_CODE=0
+```
+
+Real VS Code/Monaco taught an important invariant: the real keyboard target may be an intentionally hidden/zero-size accessibility input. Semantic focus identity and top-level native window geometry are separate evidence channels; point-to-control identity is not required for hidden focused inputs.
+
+Read `STAGE26_2E_REAL_APPLICATION_E2E.md` for accepted evidence.
 
 ---
 
-# Stage 26.3 — Verified Procedure Runtime / deterministic Control Plane integration
+# NEXT / ACTIVE — Stage 26.3: Verified Procedure Runtime / deterministic Control Plane integration
 
-Only after the real-app gate is accepted.
+The real-app single-action gate is accepted. The next release-critical target is **verified multi-transition procedure execution without making the user operate PowerShell between steps**.
 
 Target runtime:
 
 ```text
-ordinary ChatGPT
- -> choose goal / applicable procedure / parameters
+user
+ -> states one goal once
+ -> ordinary ChatGPT
+      understand goal
+      choose applicable known procedure
+      bind parameters
  -> deterministic local Control Plane
       load ProgramGraph
-      bind TaskState/checkpoint
+      create/bind TaskState
       observe current state
-      resolve exactly one permitted transition
-      authorize current action
+      resolve exactly one permitted known transition
+      authorize action from current evidence
       execute bounded capability
-      observe effect
+      re-observe effect
       verify postcondition
       checkpoint + advance
-      repeat while state remains known/permitted
-      ABSTAIN/escalate when new strategy is needed
+      repeat while state remains known/permitted and budgets allow
+ -> verified completion
+    OR deterministic ABSTAIN/escalation to ChatGPT
 ```
 
 The Control Plane may continue known transitions autonomously. It must never invent a new strategy or treat procedure/model output as authority.
@@ -235,6 +252,29 @@ current observed state
  > trusted procedure evidence
  > historical action sequence
 ```
+
+## First Stage 26.3 end-to-end acceptance
+
+The first vertical slice must explicitly test the autonomy boundary that Stage 26.2E did not test:
+
+```text
+ONE user goal
+ -> no intermediate PowerShell copy/paste
+ -> ordinary Chat selects a bounded known procedure
+ -> local Control Plane performs multiple independently authorized+verified transitions
+ -> final postcondition is independently verified
+ -> result/evidence returned to Chat
+```
+
+Negative acceptance must also prove:
+
+```text
+unexpected / stale / ambiguous intermediate state
+ -> zero unauthorized continuation
+ -> deterministic ABSTAIN/escalation
+```
+
+This is **not** “ChatGPT gets arbitrary shell access”. Generic Windows code execution remains disabled. The procedure runtime can invoke only typed/scoped capability transitions already authorized by the active ProgramGraph and current evidence.
 
 ## 26.3A — candidate-first procedural trust
 
@@ -249,6 +289,18 @@ DEMO / successful trajectory
 ```
 
 One demonstration never becomes permanent trust automatically.
+
+Initial 26.3A implementation should define at minimum:
+
+- immutable procedure/program identity/version;
+- explicit transition ids;
+- required current-state evidence;
+- capability/action template;
+- parameter schema;
+- verifier/postcondition per transition;
+- checkpoint state;
+- failure/ABSTAIN reason;
+- candidate/trusted/quarantined/disabled lifecycle evidence.
 
 ## 26.3B — advanced verifier/postcondition library
 
@@ -330,8 +382,6 @@ P2 optional local general-planner mode
    -> never silently replaces ChatGPT default
 ```
 
-Required comparison metrics include task completion, false-action proposal rate, recovery quality, latency/RAM, escalation rate and equivalent task/action/compute budgets where practical.
-
 Even in P2 the planner stays **above** the same policy/authorization/verifier Control Plane. No planner can grant itself execution authority.
 
 # Parallel Track M — multi-chat orchestration
@@ -343,6 +393,8 @@ Separate upper layer, not the Windows/procedure safety core and not a release pr
 # Public contract review
 
 The current five tools remain accepted until a dedicated ADR changes them. Desktop/procedure capability must use truthful semantics; never hide native desktop actions behind `web_interact` or add generic `tool_invoke`/`run_anything`/opaque workflow execution.
+
+Stage 26.3 may require a dedicated typed semantic procedure surface. Any public-surface change requires its own explicit contract/ADR and must not expose arbitrary command execution.
 
 # Stage 27 — Distribution & Maintenance
 
