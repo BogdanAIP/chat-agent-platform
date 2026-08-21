@@ -1,4 +1,4 @@
-# Security Policy — Bridge
+# Security Policy — Bridge and Execution Control Plane
 
 ## Trust boundaries
 
@@ -6,20 +6,26 @@ Normal public path:
 
 ```text
 ordinary ChatGPT
-  -> OpenAI Secure MCP Tunnel
-  -> official tunnel-client
-  -> direct stdio secure semantic launcher
-  -> semantic-projection
-  -> selected focused backend(s)/adapters
+ -> OpenAI Secure MCP Tunnel
+ -> official tunnel-client
+ -> direct stdio secure semantic launcher
+ -> semantic-projection
+ -> focused capability adapters
 ```
 
 1MCP remains internal/diagnostic where useful; it is not the normal public semantic hop.
 
-The tunnel provides authenticated reachability. It is not a substitute for backend-level scope, truthful tool semantics, capability authorization, procedural-memory trust or product-level safety review.
+The tunnel provides authenticated reachability. It is not a substitute for capability scope, action authorization, procedure trust, deterministic execution-state control or verifier evidence.
+
+## Terminology: two different “control planes”
+
+The OpenAI tunnel ecosystem uses `CONTROL_PLANE_API_KEY` for Secure MCP Tunnel infrastructure. That credential/name is **unrelated** to the project's planned local deterministic **execution Control Plane**.
+
+Never infer that possession of a tunnel/control-plane key grants local action authority.
 
 ## Security objective
 
-Control consequence, scope and lifetime without making legitimate workflows impossible.
+Control consequence, scope, lifetime and progression without making legitimate workflows impossible.
 
 Capability lifecycle:
 
@@ -27,27 +33,71 @@ Capability lifecycle:
 AVAILABLE -> ACTIVE -> AUTHORIZED
 ```
 
-- **AVAILABLE:** backend/capability is locally approved/known;
-- **ACTIVE:** required process/runtime is running for the task;
-- **AUTHORIZED:** the requested action is within accepted local scope plus applicable product/user policy.
-
-Procedural-memory trust is separate. The project boundary remains candidate-first even if an upstream library uses different internal names:
+Procedure trust lifecycle:
 
 ```text
-new / learned procedure
-  -> project CANDIDATE
-  -> verification / regression / variant evidence
-  -> trusted reusable status
-  -> stale / quarantine / disable / rollback as needed
+new/demo
+ -> project CANDIDATE
+ -> replay/regression/variant evidence
+ -> trusted reusable
+ -> stale/quarantine/disable/rollback
 ```
 
-An upstream `active` status is **not** automatically equivalent to product trust or action authorization.
+Capability authorization and procedure trust remain separate.
+
+## Deterministic local execution Control Plane
+
+The target Control Plane is a security boundary, not a second general planner.
+
+It may own:
+
+- structured TaskState;
+- selected procedure/ProgramGraph version and current node;
+- current evidence references/digests;
+- allowed outgoing transitions;
+- capability scope and consequence policy;
+- current action authorization;
+- checkpoints/rollback metadata;
+- verifier/postconditions;
+- retry/recovery ceilings;
+- time/action/resource budgets;
+- escalation reason.
+
+A known selected procedure may continue locally through repeated:
+
+```text
+observe current state
+ -> exactly one permitted transition
+ -> authorize current action
+ -> act
+ -> observe result
+ -> verify explicit postcondition
+ -> checkpoint / advance
+```
+
+The Control Plane must stop with zero further mutation and escalate when:
+
+- current state is stale/ambiguous/UNKNOWN;
+- no known transition matches;
+- incompatible multiple transitions match;
+- authorization scope is absent;
+- postcondition FAIL/UNKNOWN cannot be resolved by an explicitly defined bounded recovery branch;
+- retry/resource budget is exhausted;
+- continuing requires a new strategy.
+
+It must never invent a new user goal or infer broad authority from a procedure/model/planner request.
+
+## General planner boundary
+
+Ordinary ChatGPT is the only **current general planner/intelligence**. It interprets user goals, chooses strategy/procedure and handles novel-state adaptation.
+
+A future local planner may only enter through optional Track P research. Its output is still non-authorizing proposal data. It remains above the same deterministic Control Plane and cannot bypass capability policy/verifier gates.
+
+Initial future planner research must be shadow/proposal-only before any bounded planning authority is considered.
 
 ## Chat-facing tool semantics
 
-Prefer concrete typed actions with truthful schemas and side-effect semantics.
-
-Current accepted public tool names are exactly:
+Current accepted public tool names:
 
 ```text
 workspace_read
@@ -57,213 +107,135 @@ web_observe
 web_interact
 ```
 
-The generic adaptive `tool_invoke` boundary is not the accepted ordinary-Chat product surface. `semantic-projection` must remain deterministic and non-agentic; it cannot become a hidden workflow engine, generic desktop dispatcher or arbitrary server/tool selector.
+Generic adaptive `tool_invoke` is not the ordinary-Chat product surface. `semantic-projection` must remain deterministic and truthful; it cannot become the procedure Control Plane, hidden planner, generic desktop dispatcher or arbitrary server/tool selector.
 
-After a future Windows desktop surface exists, any public-contract expansion requires a separate architecture decision/schema review/ordinary-Chat acceptance. Do not overload harmless-looking existing tools with unrelated desktop/workflow consequence classes merely to preserve the number five.
+A public desktop/procedure surface requires its own ADR/schema/review/ordinary-Chat acceptance.
 
-## Browser semantic→vision authorization — ACCEPTED
+## Browser semantic -> vision authorization — ACCEPTED
 
-Stage 25.2 browser interaction is semantic-first:
+Stage 25.2 remains structure-first. Model output is untrusted evidence. Only reviewed visual fallback classes reach deterministic authorization/freshness before one coordinate action or ABSTAIN.
 
-```text
-fresh accessibility evidence
-  -> exact enabled button -> semantic action
-  -> disabled/non-button/unresolved ambiguity -> ABSTAIN, no VLM
-  -> reviewed zero-exact-candidate miss only
-       -> same-session capture
-       -> bounded local F16 grounding
-       -> deterministic authorization
-       -> freshness proof
-       -> one coordinate action OR ABSTAIN
-```
+Browser screenshot -> coordinate action remains a narrow non-atomic TOCTOU residual boundary.
 
-Security rules:
+## Windows capability security — ACCEPTED THROUGH STAGE 26.2D FOR BOUNDED CONTRACTS
 
-- `targetText` is the authorization anchor;
-- planner-supplied `kind`, alternate `target` or free-form instruction cannot redirect visual authorization;
-- generic semantic click errors do not trigger vision;
-- uncertain/stale/unpromoted visual evidence causes zero page mutation;
-- local model output is untrusted evidence and never self-authorizes an action;
-- screenshot→click remains a narrow non-atomic TOCTOU residual boundary.
+The old statement that product acceptance of the Windows agent is still pending Stage 26.1C is obsolete.
 
-## Procedural-memory security — Stage 26
+Accepted foundations now include:
 
-A remembered workflow can carry sensitive operational context and can bias future actions. Treat it as a distinct security/privacy boundary.
+- bounded authenticated typed executor;
+- legacy generic `/execute_windows` disabled/unreachable;
+- exact PID/HWND window-scoped UIA;
+- DesktopState evidence;
+- native exact-window F16 Grounder proposal-only;
+- deterministic structure-first UIA -> vision routing;
+- fresh process/window/frame/target evidence;
+- native foreground + WindowFromPoint/root-HWND/PID guard;
+- delivery receipts separate from completion.
 
-Stage 26.1A qualified OpenAdapt Flow/Capture as upstream candidates on exact target-tested pins, but qualification does **not** grant production authority. No OpenAdapt dependency is product-integrated merely because install/tutorial verification passed.
+Stage 26.2D exact physically accepted head:
+
+`1c74713edcd6321d5583a39234929169e68b5ac1`
+
+This is controlled fixture evidence, not universal Windows authorization.
+
+## Stage 26.2E real-app security gate — ACTIVE
+
+The isolated VS Code qualification uses one specifically prefixed TEMP root and no user profile/project.
+
+Before its one guarded Unicode delivery it requires:
+
+- exact disposable containment;
+- unique Code.exe PID/HWND/DesktopState;
+- enabled/visible focused editor evidence;
+- deliberate verifier mismatch -> FAIL -> ABSTAIN with zero action;
+- **fresh pre-action DesktopState with same exact window and focused-editor fingerprint**;
+- native foreground/hit-test guard;
+- authenticated loopback agent with legacy exec absent.
+
+After action it requires exact saved artifact hash/size, same current window identity, expected-only workspace, natural CLI/window exit and rollback. Forced process cleanup is allowed only after a failure and cannot convert the run to PASS.
+
+## Procedural-memory security
 
 ### No private chain-of-thought persistence
 
-Do not record or persist private model reasoning. Procedural traces may contain only data needed for execution/verification such as:
+Store only execution-relevant structured/user-visible state: goal summaries, procedure/version IDs, observations, actions/receipts, postconditions, verification and provenance.
 
-- user-visible/structured intent summaries;
-- bounded tool/capability actions;
-- structured observations/state fingerprints;
-- outcome classifications;
-- explicit completion/verification evidence;
-- reviewed metadata needed for versioning/applicability.
+Never persist hidden model reasoning.
 
 ### Raw demonstration retention
 
-Raw desktop capture may contain everything visible or typed. It is sensitive local data by default.
+Raw desktop capture is sensitive by default. Long-term arbitrary demo storage requires explicit:
 
-Before arbitrary demonstrations are stored long term, define and test:
-
-- explicit storage location and ownership;
-- retention/expiry behavior;
-- screenshot/text redaction rules;
-- secret/credential filtering;
-- path/content minimization;
-- deletion and disable semantics;
+- location/ownership;
+- retention/expiry;
+- screenshot/text redaction;
+- secret filtering;
+- deletion/disable semantics;
 - encryption-at-rest policy;
-- backup/export/sync policy if later supported.
+- backup/export/sync policy.
 
-Raw capture must remain inside the explicitly selected local qualification/product directory unless a later reviewed export path is added. Raw screenshots should not automatically become permanent reusable-skill content.
+### Compiled procedure evidence
 
-### Compiled-procedure evidence rule
+A compiled procedure may retain structural/native evidence and bounded pixel/template/OCR/geometry evidence, but blind historical absolute-coordinate replay is never authority or primary identity.
 
-A compiled procedure may retain structural/native evidence and bounded pixel/template/OCR/geometry evidence, but it must not use blind historical absolute-coordinate replay as authority or primary identity.
+### Skill poisoning/trust resistance
 
-Preferred authorization/evidence order:
-
-```text
-live structural/native/semantic evidence
-  -> deterministic re-resolution
-  -> bounded OCR/template/geometry/visual fallback when allowed
-  -> identity/risk/freshness checks
-  -> scoped action
-  -> postcondition/effect verification
-  -> HALT/ABSTAIN on unresolved state
-```
-
-Historical pixel evidence is evidence, not authority.
-
-### Skill trust and poisoning resistance
-
-- one successful run/demonstration creates at most a project candidate;
-- upstream `SkillLibrary.create_skill()` immediate-active bootstrap must be wrapped by stricter product policy;
+- one successful demonstration creates at most CANDIDATE;
 - candidate retrieval is non-authorizing;
-- promotion/trust requires measured re-application/verification policy;
-- malformed, incompatible or stale procedures fail closed;
-- version changes preserve provenance and prior evidence rather than silently overwriting trust history;
-- a remembered milestone cannot override contradictory current observed state;
+- promotion requires measured replay/regression/variant evidence;
+- malformed/incompatible/stale procedures fail closed;
+- version/provenance history is preserved;
 - imported/upstream procedures receive no implicit local authorization.
 
-### Completion integrity
+## Completion integrity
 
-A model/Chat completion report is not enough to advance workflow state. Use deterministic/native verification or stronger system-of-record effect evidence where available. UNKNOWN should cause further observation/HALT/ABSTAIN/user input rather than optimistic advancement.
+A model, ChatGPT, procedure or future planner saying “done” is not enough.
 
-## OpenAdapt Windows-agent security — explicit qualification boundary
-
-The pinned OpenAdapt server has materially safer default behavior than the legacy WAA contract alone suggests:
-
-- bounded typed `/input` and `/input/guarded` routes;
-- `/uia/find`, `/uia/act`, `/uia/locator-at`, `/uia/text-at-point` structural routes;
-- frame/context/focus stale checks on guarded input;
-- action-delivery receipts separated from outcome verification;
-- legacy arbitrary-Python `/execute_windows` route **disabled by default**.
-
-However, product acceptance is still pending because the server runs with interactive-session authority.
-
-Before adoption, Stage 26.1C must compare:
+Use deterministic/native/system-of-record postcondition evidence where practical:
 
 ```text
-A. OpenAdapt typed WindowsBackend + hardened local interactive-session agent
-B. OpenAdapt IR/runtime + narrower native/project-owned actuator
+PASS -> checkpoint / advance
+FAIL -> bounded recovery or stop
+UNKNOWN -> observe / ABSTAIN / escalation
 ```
 
-The selected product configuration must prove:
+## F16 / specialist grounding security
 
-1. callable authority is bounded to accepted operation classes;
-2. process/session ownership is known;
-3. loopback/authentication boundary is explicit;
-4. stale frame/focus/context is refused before mutation;
-5. ambiguous UIA targets refuse rather than pick a candidate;
-6. before/after and delivery/effect evidence are preserved;
-7. blast radius is understood if the local caller is compromised;
-8. legacy `/execute_windows` cannot be enabled or reached through normal product configuration;
-9. no generic Python/command execution surface is exposed to ordinary ChatGPT.
-
-A qualification fixture passing does not imply arbitrary Windows application support.
-
-## F16 / local grounding security
-
-The accepted local LFM2.5-VL-450M F16 remains bounded perception, not a second planner.
-
-For future OpenAdapt integration, use the narrow `Grounder` seam only:
+Local LFM2.5-VL-450M F16 remains bounded perception only:
 
 ```text
-current PNG + intent + optional OCR label
-  -> proposed match OR None
+current PNG + bounded target evidence
+ -> proposed match OR ABSTAIN
 ```
 
-Requirements:
-
-- local-only by default; no screenshot egress;
-- focused/on-demand lifecycle and deterministic unload;
-- model proposal never authorizes an action;
-- identity/risk/freshness/effect checks remain authoritative;
-- no new public Chat vision tool is introduced merely for the adapter.
-
-## Windows desktop surface security — future explicit product gate
-
-Stage 26.3 must not inherit browser-click or OpenAdapt-fixture authorization by analogy.
-
-Before promotion, separately review:
-
-1. native/deterministic UI observation scope;
-2. screen capture scope/privacy;
-3. bounded vision fallback;
-4. keyboard/mouse action classes;
-5. focus/window identity and stale-screen handling;
-6. irreversible/external consequences and confirmation policy;
-7. before/after verification;
-8. process/window ownership where applicable;
-9. demonstration recording boundaries;
-10. recovery/HALT/ABSTAIN behavior.
-
-Concrete local programs/capabilities are chosen from real tasks at that time; no fixed future application list is security policy.
+It never plans, grants authority or declares completion.
 
 ## Secrets
 
-- `CONTROL_PLANE_API_KEY` stays local and is never repository content.
-- Long-lived runtime principal uses only permissions required by tunnel runtime unless a separate admin operation explicitly requires more.
-- Manager stores runtime key via DPAPI `CurrentUser`; plaintext exists only as needed for child startup.
-- Tunnel IDs and runtime secrets remain local operational configuration.
-- Never commit secrets or copy them into workflow/skill metadata, logs, screenshots or documentation.
-- If exposure is suspected, rotate first.
-- Child backends must not inherit tunnel credentials unless explicitly required.
+- tunnel runtime keys stay local and out of repository/procedure/task-state content;
+- child backends receive credentials only when explicitly needed;
+- never copy secrets into procedure metadata, screenshots, logs or docs;
+- rotate suspected exposed secrets first.
 
 ## Workspace/files security
 
-- workspace paths remain rooted/scoped;
-- containment accounts for Windows links/junctions, not only lexical traversal;
-- writes remain within accepted roots/capability scope;
-- procedural memory must not broaden a previously scoped path simply because an older trajectory referenced it.
+- workspace paths remain scoped/rooted;
+- containment includes Windows junction/link escape checks;
+- procedure history cannot broaden current file scope.
 
 ## Browser network boundary
 
-Current policy blocks direct literal private/link-local/metadata/non-public destinations while preserving reviewed loopback use. This is **not** a complete DNS/rebinding/redirect sandbox. Do not describe it as one. A stronger boundary remains a future decision if consequences require it.
+Current policy is not a complete DNS/rebinding/redirect/private-network sandbox. Do not describe it as one.
 
 ## Bootstrap/lifecycle integrity
 
-Accepted bootstrap/manager must preserve:
+Manager/tray owns lifecycle/configuration/diagnostics only. It must not become the general planner or the procedure Control Plane.
 
-- official reviewed tunnel-client artifact path and integrity checks;
-- one authoritative installed/source manager owner;
-- fail-closed ambiguous/foreign runtime state;
-- clean startup rollback and deterministic stop/recovery;
-- secure installed semantic dependency closure;
-- no tunnel-key inheritance into semantic core/downstream children without need.
+The procedure Control Plane must not own tunnel credentials merely because both systems use the phrase “control plane”.
 
-Manager/tray owns lifecycle/configuration/diagnostics only. Procedural memory may have storage/state components, but the manager must not become an independent planner or authorization brain.
+## Chat permission / OpenAI safety behavior
 
-## Chat permission and OpenAI safety behavior
+App permission mode is an additional control, not the only boundary. Distinguish pre-MCP product safety blocks from local backend failures.
 
-App permission mode is an additional user/product control, not the only security boundary. OpenAI safety can block a composite workflow even when local typed calls are healthy. Distinguish pre-MCP product blocking from backend failure.
-
-Prefer scopes, reversible workspaces, backups/git/rollback and bounded tools. Reserve confirmation for genuinely consequential/hard-to-reverse effects where practical; do not force approval for every low-risk action.
-
-## External fallback paths
-
-Historical public/Yandex/Tailscale routes are not active security architecture. Do not extend them without a new measured requirement and review.
+Prefer scoped reversible operations; reserve confirmation for genuinely consequential/hard-to-reverse effects where practical.
