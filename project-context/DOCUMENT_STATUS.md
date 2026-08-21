@@ -56,6 +56,7 @@ A status/planning phrase inside a file classified below as historical describes 
 | `MODULE_SELECTION_POLICY.md` | CURRENT POLICY | Selection/promotion rules. |
 | `TYPED_CAPABILITY_PROJECTION.md` | ACCEPTED CURRENT FOUNDATION | Five-tool semantic projection + separation from procedure Control Plane. |
 | `TRANSPORT_SUPERVISOR.md` | PLANNED CROSS-CUTTING RELIABILITY DESIGN | Self-healing Secure MCP Tunnel lifecycle, layered health, bounded recovery and Windows persistence plan; not accepted runtime yet. |
+| `TRANSPORT_SUPERVISOR_IMPLEMENTATION_NOTES.md` | ACTIVE QUALIFICATION NOTES | Branch-scoped first implementation slice and physical-gate scope; subordinate to the canonical design and not accepted evidence until qualification passes. |
 | `VISION.md` | CURRENT PRODUCT DIRECTION | Long-term product direction; subordinate to architecture/roadmap on exact stage status. |
 | `HANDOFF_TEMPLATE.md` | CURRENT PROCESS TEMPLATE | Required future handoff fields. |
 | `KNOWN_ISSUES.md` | CURRENT ISSUE INDEX | Current unresolved issues + explicitly closed history. |
