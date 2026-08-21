@@ -22,13 +22,13 @@ Only unresolved issues for the current architecture are listed here. Closed/supe
 
 10. **OpenAI product safety may block a composite workflow before MCP invocation.** Distinguish pre-MCP product blocks from local backend failures.
 
-11. **Authorization policy is not accepted for arbitrary Windows consequence classes.** Stage 26.2D proves one bounded controlled path, not universal desktop authority.
+11. **Authorization policy is not accepted for arbitrary Windows consequence classes.** Stage 26.2E proves one harmless isolated real-app text edit, not universal desktop authority.
 
 12. **Runtime-key rotation/repair/uninstall are not first-class manager flows yet.** Stage 27 remains.
 
-13. **OpenAdapt procedural substrate is target-qualified but not integrated into the normal product path.** Stage 26.3 must integrate ProgramGraph/procedure state through the deterministic Control Plane after 26.2E.
+13. **OpenAdapt procedural substrate is target-qualified but not integrated into the normal product path.** Stage 26.3 must integrate ProgramGraph/procedure state through the deterministic Control Plane.
 
-14. **Deterministic local execution Control Plane is architectural direction, not yet product code.** TaskState, ProgramGraph progression, checkpoint/recovery/budget state and integrated transition authorization remain to be implemented/tested in Stage 26.3.
+14. **Deterministic local execution Control Plane is architectural direction, not yet accepted product runtime.** TaskState, ProgramGraph progression, checkpoint/recovery/budget state and integrated transition authorization remain to be implemented/tested in Stage 26.3.
 
 15. **First compiled procedure must not silently become product-trusted.** Candidate-first policy remains mandatory even if upstream bootstrap state uses different terminology.
 
@@ -40,13 +40,13 @@ Only unresolved issues for the current architecture are listed here. Closed/supe
 
 19. **`AutomationId` lacks dedicated accepted physical coverage across real applications.** Do not claim broad structural reliability from synthetic tests alone.
 
-20. **No real-application Windows E2E has passed yet.** Stage 26.2E is active. Stage 26.2D fixture evidence is not equivalent to real VS Code/OriginPro/Reaper/custom-app evidence.
+20. **One real-application E2E is not broad Windows coverage.** Stage 26.2E physically passed isolated VS Code, but OriginPro/Reaper/custom apps and other control shapes remain separately unqualified.
 
 21. **Arbitrary human “show me once” transfer is not accepted.** Capture/compiler candidates exist; candidate trust, verifier-controlled replay and changed-task reuse remain Stage 26.4 work.
 
 22. **Public desktop/procedure contract is intentionally undecided.** Current five tools remain accepted; use a dedicated ADR rather than overload `web_interact` or add a generic workflow dispatcher.
 
-23. **The first real application is a qualification choice, not an architectural dependency.** Stage 26.2E uses isolated VS Code because it offers a medium-complexity real app plus a disposable artifact/profile boundary.
+23. **VS Code is a qualification choice, not an architectural dependency.** Stage 26.2E used isolated VS Code because it offers a medium-complexity real app plus a disposable artifact/profile boundary.
 
 24. **OpenAdapt Desktop is not the qualified runtime baseline.** Packaging ideas may be useful in Stage 27 after version/runtime compatibility review.
 
@@ -56,15 +56,15 @@ Only unresolved issues for the current architecture are listed here. Closed/supe
 
 27. **Multi-chat orchestration is a separate parallel layer.** It is not Windows/procedure safety core. Codex/Work remain disabled under the current operating constraint.
 
-28. **No first stable release exists.** Real-app E2E, deterministic procedure Control Plane, verified reuse, distribution hardening and clean-user release gates remain incomplete.
+28. **No first stable release exists.** Deterministic procedure Control Plane, verified reuse, distribution hardening and clean-user release gates remain incomplete.
 
-29. **Stage 26.2E VS Code UIA focus shape is not yet physically accepted on the target machine.** The harness must fail before mutation if the expected focused editor evidence is absent.
+29. **Ordinary Chat -> local verified procedure execution without intermediate user command relay is not yet physically accepted.** This is now the first Stage 26.3 end-to-end acceptance target.
 
-30. **Stage 26.2E has a same-HWND focus TOCTOU risk unless fresh state is rechecked.** Current branch code addresses this by requiring a fresh pre-action DesktopState with the same exact window identity and same focused-editor observation fingerprint immediately before guarded typing. This is not accepted until the target run passes.
+30. **Stage 26.3 must not gain autonomy by exposing arbitrary shell/Python execution.** The Control Plane may invoke only typed/scoped capability transitions allowed by the selected ProgramGraph and authorized by current evidence.
 
 31. **Stage 26.2E guarded-input evidence covers one harmless text mutation only.** It is not authority for arbitrary editing, file operations or application commands.
 
-32. **Stage 26.2E forced CLI cleanup cannot be treated as success.** The qualification requires natural CLI exit after exact-window `WM_CLOSE`; terminate/kill is cleanup-only after failure.
+32. **The accepted hidden-focus guard is proven on VS Code/Monaco only.** Other applications with hidden focused accessibility inputs need their own evidence before reusing app-specific identity assumptions.
 
 ## Closed / superseded findings
 
@@ -77,6 +77,10 @@ Only unresolved issues for the current architecture are listed here. Closed/supe
 - The old issue that executor/resolver were only qualification assets is closed by 26.2A (#87).
 - The old issue that canonical DesktopState did not exist is closed by 26.2B (#88).
 - The old issue that native Desktop Grounder did not exist is closed by 26.2C (#89).
-- The old issue that deterministic Windows UIA -> vision routing was absent is closed for the bounded controlled-fixture contract by 26.2D (#90). Broad real-app evidence remains issue #20.
+- The old issue that deterministic Windows UIA -> vision routing was absent is closed for the bounded controlled-fixture contract by 26.2D (#90).
+- The old issue that **no real-application Windows E2E had passed** is closed by Stage 26.2E physical acceptance on exact head `457db0b634f2e47f53d41e359a238840fa3ca2ee`.
+- The old issue that the target VS Code focused UIA shape was unknown is closed: accepted evidence shows an exact hidden/zero-size focused `textbox` named by the randomized qualification filename.
+- The old same-HWND pre-action focus concern is closed for the accepted VS Code contract by fresh DesktopState fingerprint comparison plus the one-shot window-scoped hidden-focus guard inside the guarded request.
+- Stage 26.2E forced CLI cleanup remains forbidden for success; the accepted run exited naturally with code `0`, `FORCED_CLI_CLEANUP=False`, and full rollback.
 - The old stacked/unmerged #83/#84/#85 issue is closed; those PRs landed safely.
 - The earlier proposal to insert a **local general Agent Planner** immediately after 26.2D is superseded from the current release path. The useful part of that idea has been retained as the **deterministic execution Control Plane** for Stage 26.3, while a true local general planner remains future Track P research rather than being deleted forever.
