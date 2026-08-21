@@ -21,6 +21,7 @@ $Installer = Join-Path $PSScriptRoot 'install-chat-platform-supervisor.ps1'
 $LocalRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'
 $Manager = Join-Path $LocalRoot 'app\scripts\chat-platform.ps1'
 $Supervisor = Join-Path $LocalRoot 'app\scripts\chat-platform-supervisor.ps1'
+$OwnerFile = Join-Path $LocalRoot 'state\manager-owner.json'
 $HealthUrlFile = Join-Path $LocalRoot 'state\semantic-direct-health.url'
 $SupervisorStateFile = Join-Path $LocalRoot 'state\supervisor.json'
 $RecoveryStateFile = Join-Path $LocalRoot 'state\supervisor-recovery.json'
@@ -98,150 +99,210 @@ function Save-JsonEvidence {
     $Value | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $RunDir "$Name.json") -Encoding utf8
 }
 
-Write-Host '===== TRANSPORT SUPERVISOR: INSTALL QUALIFICATION BUILD =====' -ForegroundColor Cyan
-& $Installer
-if ($LASTEXITCODE -ne 0) {
-    throw "Supervisor installer failed with exit code $LASTEXITCODE."
-}
-
 if (-not (Test-Path -LiteralPath $Manager -PathType Leaf)) {
     throw "Installed manager is missing: $Manager"
 }
 
-$baseline = Invoke-ManagerStatus
-Save-JsonEvidence -Name 'manager-before-start' -Value $baseline
+$desiredStateBefore = if (Test-Path -LiteralPath $OwnerFile -PathType Leaf) { 'running' } else { 'stopped' }
+$preInstallStatus = Invoke-ManagerStatus
+Save-JsonEvidence -Name 'manager-pre-install' -Value $preInstallStatus
 
-if ([string]$baseline.settings.profile -notin @('semantic', 'semantic-direct')) {
-    throw "Physical supervisor qualification requires the configured semantic/direct profile. Current profile=$($baseline.settings.profile)"
+if ([string]$preInstallStatus.settings.profile -notin @('semantic', 'semantic-direct')) {
+    throw "Physical supervisor qualification requires the configured semantic/direct profile. Current profile=$($preInstallStatus.settings.profile)"
 }
 
-if (-not [bool]$baseline.runtime_ready) {
-    Write-Host 'Resetting an unhealthy/stopped semantic runtime before the fault-injection baseline...' -ForegroundColor Yellow
-    Invoke-ManagerMutation -Action Stop
-    Invoke-ManagerMutation -Action Start
-}
+$installAttempted = $false
+$qualificationPassed = $false
 
-$readyDeadline = (Get-Date).AddSeconds(90)
-$healthy = $null
-while ((Get-Date) -lt $readyDeadline) {
-    $candidate = Invoke-ManagerStatus
-    if ([bool]$candidate.runtime_ready -and [int]$candidate.tunnel_process_count -eq 1) {
-        $healthy = $candidate
-        break
+try {
+    Write-Host '===== TRANSPORT SUPERVISOR: INSTALL QUALIFICATION BUILD =====' -ForegroundColor Cyan
+    $installAttempted = $true
+    & $Installer
+    if ($LASTEXITCODE -ne 0) {
+        throw "Supervisor installer failed with exit code $LASTEXITCODE."
     }
-    Start-Sleep -Seconds 1
-}
-if ($null -eq $healthy) {
-    throw 'Baseline direct semantic runtime did not become runtime-ready before fault injection.'
-}
-Save-JsonEvidence -Name 'healthy-baseline' -Value $healthy
 
-$supervisors = @(Get-ExactSupervisorProcesses)
-if ($supervisors.Count -ne 1) {
-    throw "Expected exactly one supervisor process; found $($supervisors.Count)."
-}
+    $baseline = Invoke-ManagerStatus
+    Save-JsonEvidence -Name 'manager-before-start' -Value $baseline
 
-$tunnelProcesses = @(Get-DirectTunnelProcesses)
-if ($tunnelProcesses.Count -ne 1) {
-    throw "Expected exactly one direct tunnel process; found $($tunnelProcesses.Count)."
-}
-$oldTunnelPid = [int]$tunnelProcesses[0].ProcessId
-$oldSupervisorPid = [int]$supervisors[0].ProcessId
+    if (-not [bool]$baseline.runtime_ready) {
+        Write-Host 'Resetting an unhealthy/stopped semantic runtime before the fault-injection baseline...' -ForegroundColor Yellow
+        Invoke-ManagerMutation -Action Stop
+        Invoke-ManagerMutation -Action Start
+    }
 
-Write-Host "Injecting owned tunnel-client process failure PID=$oldTunnelPid" -ForegroundColor Yellow
-Stop-Process -Id $oldTunnelPid -Force -ErrorAction Stop
-
-$recovered = $null
-$newTunnelPid = $null
-$deadline = (Get-Date).AddSeconds($RecoveryTimeoutSeconds)
-while ((Get-Date) -lt $deadline) {
-    Start-Sleep -Seconds 1
-    try {
-        $status = Invoke-ManagerStatus
-        $currentTunnel = @(Get-DirectTunnelProcesses)
-        $currentSupervisor = @(Get-ExactSupervisorProcesses)
-        if (
-            [bool]$status.runtime_ready -and
-            $currentTunnel.Count -eq 1 -and
-            [int]$currentTunnel[0].ProcessId -ne $oldTunnelPid -and
-            $currentSupervisor.Count -eq 1 -and
-            [int]$currentSupervisor[0].ProcessId -eq $oldSupervisorPid
-        ) {
-            $recovered = $status
-            $newTunnelPid = [int]$currentTunnel[0].ProcessId
+    $readyDeadline = (Get-Date).AddSeconds(90)
+    $healthy = $null
+    while ((Get-Date) -lt $readyDeadline) {
+        $candidate = Invoke-ManagerStatus
+        if ([bool]$candidate.runtime_ready -and [int]$candidate.tunnel_process_count -eq 1) {
+            $healthy = $candidate
             break
         }
+        Start-Sleep -Seconds 1
+    }
+    if ($null -eq $healthy) {
+        throw 'Baseline direct semantic runtime did not become runtime-ready before fault injection.'
+    }
+    Save-JsonEvidence -Name 'healthy-baseline' -Value $healthy
+
+    $supervisors = @(Get-ExactSupervisorProcesses)
+    if ($supervisors.Count -ne 1) {
+        throw "Expected exactly one supervisor process; found $($supervisors.Count)."
+    }
+
+    $tunnelProcesses = @(Get-DirectTunnelProcesses)
+    if ($tunnelProcesses.Count -ne 1) {
+        throw "Expected exactly one direct tunnel process; found $($tunnelProcesses.Count)."
+    }
+    $oldTunnelPid = [int]$tunnelProcesses[0].ProcessId
+    $oldSupervisorPid = [int]$supervisors[0].ProcessId
+
+    Write-Host "Injecting owned tunnel-client process failure PID=$oldTunnelPid" -ForegroundColor Yellow
+    Stop-Process -Id $oldTunnelPid -Force -ErrorAction Stop
+
+    $recovered = $null
+    $newTunnelPid = $null
+    $deadline = (Get-Date).AddSeconds($RecoveryTimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 1
+        try {
+            $status = Invoke-ManagerStatus
+            $currentTunnel = @(Get-DirectTunnelProcesses)
+            $currentSupervisor = @(Get-ExactSupervisorProcesses)
+            if (
+                [bool]$status.runtime_ready -and
+                $currentTunnel.Count -eq 1 -and
+                [int]$currentTunnel[0].ProcessId -ne $oldTunnelPid -and
+                $currentSupervisor.Count -eq 1 -and
+                [int]$currentSupervisor[0].ProcessId -eq $oldSupervisorPid
+            ) {
+                $recovered = $status
+                $newTunnelPid = [int]$currentTunnel[0].ProcessId
+                break
+            }
+        }
+        catch {}
+    }
+
+    if ($null -eq $recovered) {
+        if (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) {
+            Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $RunDir 'supervisor-failure.json') -Force
+        }
+        throw "Supervisor did not recover the killed direct tunnel within $RecoveryTimeoutSeconds seconds."
+    }
+
+    Save-JsonEvidence -Name 'manager-after-recovery' -Value $recovered
+    if (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) {
+        Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $RunDir 'supervisor-after-recovery.json') -Force
+    }
+    if (Test-Path -LiteralPath $RecoveryStateFile -PathType Leaf) {
+        Copy-Item -LiteralPath $RecoveryStateFile -Destination (Join-Path $RunDir 'recovery-after-recovery.json') -Force
+    }
+
+    $resourceRows = @()
+    foreach ($process in @(Get-ExactSupervisorProcesses)) {
+        $p = Get-Process -Id ([int]$process.ProcessId) -ErrorAction Stop
+        $resourceRows += [pscustomobject]@{
+            role = 'supervisor'
+            pid = $p.Id
+            working_set_bytes = $p.WorkingSet64
+            private_memory_bytes = $p.PrivateMemorySize64
+            cpu_seconds = $p.CPU
+        }
+    }
+    foreach ($process in @(Get-DirectTunnelProcesses)) {
+        $p = Get-Process -Id ([int]$process.ProcessId) -ErrorAction Stop
+        $resourceRows += [pscustomobject]@{
+            role = 'tunnel-client'
+            pid = $p.Id
+            working_set_bytes = $p.WorkingSet64
+            private_memory_bytes = $p.PrivateMemorySize64
+            cpu_seconds = $p.CPU
+        }
+    }
+    $resourceRows | Export-Csv -LiteralPath (Join-Path $RunDir 'resources.csv') -NoTypeInformation -Encoding utf8
+
+    $currentSupervisors = @(Get-ExactSupervisorProcesses)
+    $supervisorPidStable = (
+        $currentSupervisors.Count -eq 1 -and
+        [int]$currentSupervisors[0].ProcessId -eq $oldSupervisorPid
+    )
+
+    $desiredStateRestored = 'running'
+    if ($desiredStateBefore -eq 'stopped') {
+        Invoke-ManagerMutation -Action Stop
+        $desiredStateRestored = 'stopped'
+    }
+
+    $summary = [ordered]@{
+        schema_version = 1
+        result = 'PASSED'
+        repo_head = (git -C $RepoRoot rev-parse HEAD).Trim()
+        run_dir = $RunDir
+        desired_state_before = $desiredStateBefore
+        desired_state_restored = $desiredStateRestored
+        old_supervisor_pid = $oldSupervisorPid
+        old_tunnel_pid = $oldTunnelPid
+        new_tunnel_pid = $newTunnelPid
+        tunnel_pid_changed = ($newTunnelPid -ne $oldTunnelPid)
+        supervisor_pid_stable = $supervisorPidStable
+        runtime_ready_after_recovery = [bool]$recovered.runtime_ready
+        health_code_after_recovery = [string]$recovered.health_code
+        openai_control_ready_after_recovery = [bool]$recovered.openai_ready
+        completed_at = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    Save-JsonEvidence -Name 'summary' -Value $summary
+
+    $qualificationPassed = $true
+
+    Write-Result 'TRANSPORT_SUPERVISOR_QUALIFICATION_RESULT' 'PASSED'
+    Write-Result 'OLD_TUNNEL_PID' $oldTunnelPid
+    Write-Result 'NEW_TUNNEL_PID' $newTunnelPid
+    Write-Result 'TUNNEL_PID_CHANGED' $summary['tunnel_pid_changed']
+    Write-Result 'SUPERVISOR_PID_STABLE' $summary['supervisor_pid_stable']
+    Write-Result 'RUNTIME_READY_AFTER_RECOVERY' $summary['runtime_ready_after_recovery']
+    Write-Result 'HEALTH_CODE_AFTER_RECOVERY' $summary['health_code_after_recovery']
+    Write-Result 'OPENAI_CONTROL_READY_AFTER_RECOVERY' $summary['openai_control_ready_after_recovery']
+    Write-Result 'DESIRED_STATE_BEFORE' $summary['desired_state_before']
+    Write-Result 'DESIRED_STATE_RESTORED' $summary['desired_state_restored']
+    Write-Result 'RESULT_DIR' $RunDir
+}
+catch {
+    $failure = $_
+    try {
+        [ordered]@{
+            schema_version = 1
+            result = 'FAILED'
+            desired_state_before = $desiredStateBefore
+            error_type = $failure.Exception.GetType().Name
+            error_message = $failure.Exception.Message
+            failed_at = (Get-Date).ToUniversalTime().ToString('o')
+        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $RunDir 'failure.json') -Encoding utf8
     }
     catch {}
-}
 
-if ($null -eq $recovered) {
-    if (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) {
-        Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $RunDir 'supervisor-failure.json') -Force
+    if ($installAttempted -and -not $qualificationPassed) {
+        try {
+            & $Installer -Uninstall | Out-Host
+        }
+        catch {
+            Write-Warning "Qualification rollback could not uninstall supervisor assets: $($_.Exception.Message)"
+        }
+
+        try {
+            if ($desiredStateBefore -eq 'running') {
+                Invoke-ManagerMutation -Action Stop
+                Invoke-ManagerMutation -Action Start
+            }
+            else {
+                Invoke-ManagerMutation -Action Stop
+            }
+        }
+        catch {
+            Write-Warning "Qualification rollback could not restore the pre-test desired state: $($_.Exception.Message)"
+        }
     }
-    throw "Supervisor did not recover the killed direct tunnel within $RecoveryTimeoutSeconds seconds."
-}
 
-Save-JsonEvidence -Name 'manager-after-recovery' -Value $recovered
-if (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) {
-    Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $RunDir 'supervisor-after-recovery.json') -Force
+    throw $failure
 }
-if (Test-Path -LiteralPath $RecoveryStateFile -PathType Leaf) {
-    Copy-Item -LiteralPath $RecoveryStateFile -Destination (Join-Path $RunDir 'recovery-after-recovery.json') -Force
-}
-
-$resourceRows = @()
-foreach ($process in @(Get-ExactSupervisorProcesses)) {
-    $p = Get-Process -Id ([int]$process.ProcessId) -ErrorAction Stop
-    $resourceRows += [pscustomobject]@{
-        role = 'supervisor'
-        pid = $p.Id
-        working_set_bytes = $p.WorkingSet64
-        private_memory_bytes = $p.PrivateMemorySize64
-        cpu_seconds = $p.CPU
-    }
-}
-foreach ($process in @(Get-DirectTunnelProcesses)) {
-    $p = Get-Process -Id ([int]$process.ProcessId) -ErrorAction Stop
-    $resourceRows += [pscustomobject]@{
-        role = 'tunnel-client'
-        pid = $p.Id
-        working_set_bytes = $p.WorkingSet64
-        private_memory_bytes = $p.PrivateMemorySize64
-        cpu_seconds = $p.CPU
-    }
-}
-$resourceRows | Export-Csv -LiteralPath (Join-Path $RunDir 'resources.csv') -NoTypeInformation -Encoding utf8
-
-$currentSupervisors = @(Get-ExactSupervisorProcesses)
-$supervisorPidStable = (
-    $currentSupervisors.Count -eq 1 -and
-    [int]$currentSupervisors[0].ProcessId -eq $oldSupervisorPid
-)
-
-$summary = [ordered]@{
-    schema_version = 1
-    result = 'PASSED'
-    repo_head = (git -C $RepoRoot rev-parse HEAD).Trim()
-    run_dir = $RunDir
-    old_supervisor_pid = $oldSupervisorPid
-    old_tunnel_pid = $oldTunnelPid
-    new_tunnel_pid = $newTunnelPid
-    tunnel_pid_changed = ($newTunnelPid -ne $oldTunnelPid)
-    supervisor_pid_stable = $supervisorPidStable
-    runtime_ready_after_recovery = [bool]$recovered.runtime_ready
-    health_code_after_recovery = [string]$recovered.health_code
-    openai_control_ready_after_recovery = [bool]$recovered.openai_ready
-    completed_at = (Get-Date).ToUniversalTime().ToString('o')
-}
-Save-JsonEvidence -Name 'summary' -Value $summary
-
-Write-Result 'TRANSPORT_SUPERVISOR_QUALIFICATION_RESULT' 'PASSED'
-Write-Result 'OLD_TUNNEL_PID' $oldTunnelPid
-Write-Result 'NEW_TUNNEL_PID' $newTunnelPid
-Write-Result 'TUNNEL_PID_CHANGED' $summary['tunnel_pid_changed']
-Write-Result 'SUPERVISOR_PID_STABLE' $summary['supervisor_pid_stable']
-Write-Result 'RUNTIME_READY_AFTER_RECOVERY' $summary['runtime_ready_after_recovery']
-Write-Result 'HEALTH_CODE_AFTER_RECOVERY' $summary['health_code_after_recovery']
-Write-Result 'OPENAI_CONTROL_READY_AFTER_RECOVERY' $summary['openai_control_ready_after_recovery']
-Write-Result 'RESULT_DIR' $RunDir
