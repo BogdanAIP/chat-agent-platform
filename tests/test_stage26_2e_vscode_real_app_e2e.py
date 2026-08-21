@@ -45,7 +45,12 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
             "_remove_disposable_root(app_root)",
         ):
             self.assertIn(required, self.driver)
-        self.assertNotIn("shutil.rmtree(app_root)\n", self.driver.replace("        shutil.rmtree(app_root)\n", ""))
+        self.assertEqual(self.driver.count("shutil.rmtree(app_root)"), 1)
+        helper_start = self.driver.index("def _remove_disposable_root")
+        helper_end = self.driver.index("\ndef _wait_until", helper_start)
+        helper = self.driver[helper_start:helper_end]
+        self.assertIn("_require_disposable_root(app_root)", helper)
+        self.assertIn("shutil.rmtree(app_root)", helper)
         self.assertIn('result["temp_containment_pass"]', self.driver)
 
     def test_driver_reuses_accepted_windows_guards_and_verifier(self) -> None:
@@ -131,8 +136,18 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         self.assertNotIn("Desktop\\", self.harness)
         self.assertNotIn("taskkill", self.harness.casefold())
 
+    def test_harness_recursive_cleanup_is_temp_prefix_guarded(self) -> None:
+        self.assertIn("function Test-DisposableRoot", self.harness)
+        self.assertIn("function Remove-DisposableRoot", self.harness)
+        self.assertIn("[IO.Path]::GetTempPath()", self.harness)
+        self.assertIn("chat-agent-stage26e-vscode-*", self.harness)
+        self.assertEqual(self.harness.count("Remove-Item -LiteralPath $Path -Recurse -Force"), 1)
+        self.assertIn("Remove-DisposableRoot -Path $appRoot", self.harness)
+        self.assertIn("$result.temp_containment_pass", self.harness)
+
     def test_harness_requires_verification_and_rollback_for_acceptance(self) -> None:
         for required in (
+            "$result.temp_containment_pass",
             "$result.current_state_verification_pass",
             "$result.completion_verification_pass",
             "$result.workspace_expected_only_pass",
