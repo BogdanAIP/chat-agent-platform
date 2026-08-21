@@ -64,13 +64,17 @@ jobs:
         shell: pwsh
         run: |
           python --version
+          if ($LASTEXITCODE -ne 0) { throw "python --version failed with exit code $LASTEXITCODE" }
           python -m pip install --disable-pip-version-check --no-input -r requirements-stage25-vision.txt
+          if ($LASTEXITCODE -ne 0) { throw "vision dependency install failed with exit code $LASTEXITCODE" }
 
       - name: Run Python controller and vision contract tests
         shell: pwsh
         run: |
           python -m unittest discover -s tests -p "test_*.py"
+          if ($LASTEXITCODE -ne 0) { throw "Python unit/contract tests failed with exit code $LASTEXITCODE" }
           python ./scripts/stage25-grounding-benchmark.py --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Stage 25 grounding benchmark import/help smoke failed with exit code $LASTEXITCODE" }
 
       - name: Verify Stage 25 grounding browser fixture
         shell: pwsh
