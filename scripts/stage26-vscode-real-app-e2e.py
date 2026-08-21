@@ -29,30 +29,27 @@ from runtime.windows.window_scoped_uia import WindowScopedUiaResolver
 WM_CLOSE = 0x0010
 EXPECTED_EXECUTABLE = "code.exe"
 FOCUSED_EDITOR_ROLES = {"textbox", "document", "pane", "custom", "group", "edit"}
+QUALIFICATION_PREFIX = "chat-agent-stage26e-vscode-"
 
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _read_bytes(path: Path) -> bytes:
-    return path.read_bytes()
-
-
 def _artifact_evidence(path: Path) -> dict[str, Any]:
     if not path.is_file():
         return {"exists": False, "size": None, "sha256": None}
-    data = _read_bytes(path)
+    data = path.read_bytes()
     return {"exists": True, "size": len(data), "sha256": _sha256_bytes(data)}
 
 
 def _workspace_snapshot(root: Path) -> dict[str, str]:
-    rows: dict[str, str] = {}
     if not root.is_dir():
-        return rows
-    for path in sorted(item for item in root.rglob("*") if item.is_file()):
-        rows[path.relative_to(root).as_posix()] = _sha256_bytes(path.read_bytes())
-    return rows
+        return {}
+    return {
+        path.relative_to(root).as_posix(): _sha256_bytes(path.read_bytes())
+        for path in sorted(item for item in root.rglob("*") if item.is_file())
+    }
 
 
 def _temp_root() -> Path:
@@ -64,7 +61,7 @@ def _require_disposable_root(app_root: Path) -> None:
     resolved = app_root.resolve()
     if resolved == temp_root or not resolved.is_relative_to(temp_root):
         raise RuntimeError("Stage 26.2E app root must be a child of the OS TEMP directory")
-    if not resolved.name.startswith("chat-agent-stage26e-vscode-"):
+    if not resolved.name.startswith(QUALIFICATION_PREFIX):
         raise RuntimeError("Stage 26.2E app root does not have the qualification prefix")
 
 
@@ -129,8 +126,7 @@ def _enum_visible_windows() -> list[dict[str, Any]]:
 
     callback_fn = callback_type(callback)
     if not user32.EnumWindows(callback_fn, 0):
-        error = ctypes.get_last_error()
-        raise OSError(error, "EnumWindows failed")
+        raise OSError(ctypes.get_last_error(), "EnumWindows failed")
     return windows
 
 
@@ -162,8 +158,7 @@ def _post_close(hwnd: int) -> None:
     user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
     user32.PostMessageW.restype = wintypes.BOOL
     if not user32.PostMessageW(hwnd, WM_CLOSE, 0, 0):
-        error = ctypes.get_last_error()
-        raise OSError(error, "PostMessageW(WM_CLOSE) failed")
+        raise OSError(ctypes.get_last_error(), "PostMessageW(WM_CLOSE) failed")
 
 
 def _same_window_identity(before: DesktopState, after: DesktopState) -> bool:
@@ -194,12 +189,16 @@ def _focused_editor_control(state: DesktopState, unique_filename: str) -> Contro
         return None
     if control.visible is not True or control.enabled is not True or control.focused is not True:
         return None
-    role = control.role.casefold()
-    if role not in FOCUSED_EDITOR_ROLES:
+    if control.role.casefold() not in FOCUSED_EDITOR_ROLES:
         return None
+
     name = control.name.casefold()
     filename = unique_filename.casefold()
-    if role != "textbox" and filename not in name and "text editor" not in name:
+    if not (
+        filename in name
+        or "text editor" in name
+        or "editor content" in name
+    ):
         return None
     return control
 
@@ -217,6 +216,23 @@ def _verification_decision(status: VerificationStatus) -> str:
     return "continue" if status is VerificationStatus.PASS else "abstain"
 
 
+def _focused_diagnostics(state: DesktopState) -> list[dict[str, Any]]:
+    return [
+        {
+            "role": item.role,
+            "name": item.name,
+            "automation_id": item.automation_id,
+            "bounds": item.bounds.to_mapping() if item.bounds is not None else None,
+            "visible": item.visible,
+            "enabled": item.enabled,
+            "focused": item.focused,
+            "observation_fingerprint": item.observation_fingerprint,
+        }
+        for item in state.controls
+        if item.focused is True
+    ][:8]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", required=True)
@@ -229,6 +245,9 @@ def main() -> int:
     app_root = Path(args.app_root).resolve()
     code_exe = Path(args.code_exe).resolve()
     timeout = float(args.timeout_seconds)
+    if not 1.0 <= timeout <= 180.0:
+        raise ValueError("timeout-seconds must be between 1 and 180")
+
     result_path = run_dir / "vscode-real-app-result.json"
     run_dir.mkdir(parents=True, exist_ok=True)
     _require_disposable_root(app_root)
@@ -243,7 +262,7 @@ def main() -> int:
     marker_bytes = marker.encode("utf-8")
 
     result: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "qualification_kind": "real-application-vscode-disposable-text-edit",
         "code_exe": str(code_exe),
         "temp_root": str(_temp_root()),
@@ -262,6 +281,9 @@ def main() -> int:
         "focused_editor_role": None,
         "focused_editor_name": None,
         "focused_editor_fingerprint": None,
+        "fresh_pre_action_state_pass": False,
+        "fresh_pre_action_focused_fingerprint": None,
+        "focused_control_diagnostics": None,
         "native_point_guard_pass": False,
         "agent_loopback_pass": False,
         "agent_auth_required_pass": False,
@@ -273,13 +295,15 @@ def main() -> int:
         "mismatch_probe_zero_action_pass": False,
         "guarded_keyboard_delivery_pass": False,
         "keyboard_action_count": 0,
-        "current_state_verification_pass": False,
+        "completion_artifact_evidence": None,
         "completion_verification_status": None,
         "completion_verification_pass": False,
-        "completion_artifact_evidence": None,
+        "current_state_verification_pass": False,
         "workspace_expected_only_pass": False,
         "workspace_snapshot": None,
         "application_cleanup_pass": False,
+        "cli_process_exit_pass": False,
+        "forced_cli_cleanup": False,
         "app_root_cleanup_pass": False,
         "rollback_pass": False,
         "resolver_stats": None,
@@ -299,7 +323,7 @@ def main() -> int:
         result["temp_containment_pass"] = bool(
             app_root != temp_root
             and app_root.is_relative_to(temp_root)
-            and app_root.name.startswith("chat-agent-stage26e-vscode-")
+            and app_root.name.startswith(QUALIFICATION_PREFIX)
         )
         if not result["temp_containment_pass"]:
             raise RuntimeError("disposable qualification root is outside TEMP")
@@ -404,25 +428,14 @@ def main() -> int:
 
         focused = _focused_editor_control(before_state, unique_filename)
         if focused is None:
-            focused_rows = [
-                {
-                    "role": item.role,
-                    "name": item.name,
-                    "visible": item.visible,
-                    "enabled": item.enabled,
-                    "focused": item.focused,
-                }
-                for item in before_state.controls
-                if item.focused is True
-            ]
-            result["focused_control_diagnostics"] = focused_rows[:8]
+            result["focused_control_diagnostics"] = _focused_diagnostics(before_state)
             raise RuntimeError("VS Code editor did not expose one safe focused editor control")
         result["focused_editor_precondition_pass"] = True
         result["focused_editor_role"] = focused.role
         result["focused_editor_name"] = focused.name
         result["focused_editor_fingerprint"] = focused.observation_fingerprint
-        focus_point = _control_center(focused)
-        require_foreground_hit_target(before_state, *focus_point)
+        initial_focus_point = _control_center(focused)
+        require_foreground_hit_target(before_state, *initial_focus_point)
         result["native_point_guard_pass"] = True
 
         token = secrets.token_urlsafe(32)
@@ -470,13 +483,29 @@ def main() -> int:
         result["mismatch_probe_verification_status"] = mismatch.status.value
         result["mismatch_probe_decision"] = _verification_decision(mismatch.status)
         result["mismatch_probe_zero_action_pass"] = bool(
-            result["mismatch_probe_decision"] == "abstain" and result["keyboard_action_count"] == 0
+            result["mismatch_probe_decision"] == "abstain"
+            and result["keyboard_action_count"] == 0
         )
         if not result["mismatch_probe_zero_action_pass"]:
             raise RuntimeError("recoverable mismatch probe did not fail closed before mutation")
 
-        require_foreground_hit_target(before_state, *focus_point)
-        backend.arm_guarded_keyboard(*focus_point)
+        action_state = observe_bound_window(resolver, window_title)
+        action_focused = _focused_editor_control(action_state, unique_filename)
+        result["fresh_pre_action_focused_fingerprint"] = (
+            action_focused.observation_fingerprint if action_focused is not None else None
+        )
+        result["fresh_pre_action_state_pass"] = bool(
+            _same_window_identity(before_state, action_state)
+            and action_focused is not None
+            and action_focused.observation_fingerprint == focused.observation_fingerprint
+        )
+        if not result["fresh_pre_action_state_pass"] or action_focused is None:
+            result["focused_control_diagnostics"] = _focused_diagnostics(action_state)
+            raise RuntimeError("focused editor/window changed before guarded keyboard mutation")
+
+        action_point = _control_center(action_focused)
+        require_foreground_hit_target(action_state, *action_point)
+        backend.arm_guarded_keyboard(*action_point)
         frame = backend.guarded_keyboard_frame()
         frame_digest = _sha256_bytes(frame)
         receipt = backend.type_text_guarded(marker, expected_frame_sha256=frame_digest)
@@ -495,10 +524,11 @@ def main() -> int:
             "sha256": _sha256_bytes(marker_bytes),
         }
 
-        def artifact_saved() -> bool:
-            return _artifact_evidence(target_file) == expected_after
-
-        _wait_until(artifact_saved, timeout=10.0, label="VS Code autosave postcondition")
+        _wait_until(
+            lambda: _artifact_evidence(target_file) == expected_after,
+            timeout=10.0,
+            label="VS Code autosave postcondition",
+        )
         after_artifact = _artifact_evidence(target_file)
         result["completion_artifact_evidence"] = after_artifact
         completion = verify_expected_fields(
@@ -527,6 +557,7 @@ def main() -> int:
             and result["window_binding_pass"]
             and result["desktop_observation_pass"]
             and result["focused_editor_precondition_pass"]
+            and result["fresh_pre_action_state_pass"]
             and result["native_point_guard_pass"]
             and result["agent_loopback_pass"]
             and result["agent_auth_required_pass"]
@@ -536,8 +567,8 @@ def main() -> int:
             and result["mismatch_probe_zero_action_pass"]
             and result["guarded_keyboard_delivery_pass"]
             and result["keyboard_action_count"] == 1
-            and result["current_state_verification_pass"]
             and result["completion_verification_pass"]
+            and result["current_state_verification_pass"]
             and result["workspace_expected_only_pass"]
             and resolver.stats.desktop_fallback_calls == 0
             and resolver.stats.window_binding_failures == 0
@@ -577,31 +608,35 @@ def main() -> int:
         if cli_process is not None:
             try:
                 cli_process.wait(timeout=10.0)
+                result["cli_process_exit_pass"] = True
             except subprocess.TimeoutExpired:
+                result["forced_cli_cleanup"] = True
                 cli_process.terminate()
                 try:
                     cli_process.wait(timeout=5.0)
                 except subprocess.TimeoutExpired:
                     cli_process.kill()
                     cli_process.wait(timeout=5.0)
+                result["cli_process_exit_pass"] = cli_process.poll() is not None
 
         try:
             _remove_disposable_root(app_root)
             result["app_root_cleanup_pass"] = not app_root.exists()
             result["rollback_pass"] = bool(
-                result["application_cleanup_pass"] and result["app_root_cleanup_pass"]
+                result["application_cleanup_pass"]
+                and result["cli_process_exit_pass"]
+                and not result["forced_cli_cleanup"]
+                and result["app_root_cleanup_pass"]
             )
         except Exception:
             result["app_root_cleanup_pass"] = False
             result["rollback_pass"] = False
 
-        result["pass"] = bool(
-            result["pass"]
-            and result["application_cleanup_pass"]
-            and result["app_root_cleanup_pass"]
-            and result["rollback_pass"]
+        result["pass"] = bool(result["pass"] and result["rollback_pass"])
+        result_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2),
+            encoding="utf-8",
         )
-        result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print("===== STAGE 26.2E VS CODE REAL APPLICATION E2E =====")
     print(f"RESULT_PATH={result_path}")
@@ -620,6 +655,8 @@ def main() -> int:
         "focused_editor_role",
         "focused_editor_name",
         "focused_editor_fingerprint",
+        "fresh_pre_action_state_pass",
+        "fresh_pre_action_focused_fingerprint",
         "native_point_guard_pass",
         "agent_loopback_pass",
         "agent_auth_required_pass",
@@ -630,11 +667,13 @@ def main() -> int:
         "mismatch_probe_zero_action_pass",
         "guarded_keyboard_delivery_pass",
         "keyboard_action_count",
-        "current_state_verification_pass",
         "completion_verification_status",
         "completion_verification_pass",
+        "current_state_verification_pass",
         "workspace_expected_only_pass",
         "application_cleanup_pass",
+        "cli_process_exit_pass",
+        "forced_cli_cleanup",
         "app_root_cleanup_pass",
         "rollback_pass",
         "resolver_stats",
