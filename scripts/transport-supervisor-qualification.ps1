@@ -47,6 +47,17 @@ function Invoke-ManagerStatus {
     return ($output | Out-String | ConvertFrom-Json -ErrorAction Stop)
 }
 
+function Invoke-ManagerMutation {
+    param([ValidateSet('Start', 'Stop')] [string]$Action)
+
+    $output = @(
+        & pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $Manager -Action $Action -NoNotify 2>&1
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Manager $Action failed: $($output -join ' ')"
+    }
+}
+
 function Get-DirectTunnelProcesses {
     if (-not (Test-Path -LiteralPath $TunnelExe -PathType Leaf)) { return @() }
     $expectedExe = [System.IO.Path]::GetFullPath($TunnelExe)
@@ -105,11 +116,9 @@ if ([string]$baseline.settings.profile -notin @('semantic', 'semantic-direct')) 
 }
 
 if (-not [bool]$baseline.runtime_ready) {
-    Write-Host 'Starting configured semantic runtime...' -ForegroundColor Yellow
-    & pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $Manager -Action Start -NoNotify
-    if ($LASTEXITCODE -ne 0) {
-        throw "Manager Start failed with exit code $LASTEXITCODE."
-    }
+    Write-Host 'Resetting an unhealthy/stopped semantic runtime before the fault-injection baseline...' -ForegroundColor Yellow
+    Invoke-ManagerMutation -Action Stop
+    Invoke-ManagerMutation -Action Start
 }
 
 $readyDeadline = (Get-Date).AddSeconds(90)
@@ -204,6 +213,12 @@ foreach ($process in @(Get-DirectTunnelProcesses)) {
 }
 $resourceRows | Export-Csv -LiteralPath (Join-Path $RunDir 'resources.csv') -NoTypeInformation -Encoding utf8
 
+$currentSupervisors = @(Get-ExactSupervisorProcesses)
+$supervisorPidStable = (
+    $currentSupervisors.Count -eq 1 -and
+    [int]$currentSupervisors[0].ProcessId -eq $oldSupervisorPid
+)
+
 $summary = [ordered]@{
     schema_version = 1
     result = 'PASSED'
@@ -213,7 +228,7 @@ $summary = [ordered]@{
     old_tunnel_pid = $oldTunnelPid
     new_tunnel_pid = $newTunnelPid
     tunnel_pid_changed = ($newTunnelPid -ne $oldTunnelPid)
-    supervisor_pid_stable = (@(Get-ExactSupervisorProcesses).Count -eq 1 -and [int]@(Get-ExactSupervisorProcesses)[0].ProcessId -eq $oldSupervisorPid)
+    supervisor_pid_stable = $supervisorPidStable
     runtime_ready_after_recovery = [bool]$recovered.runtime_ready
     health_code_after_recovery = [string]$recovered.health_code
     openai_control_ready_after_recovery = [bool]$recovered.openai_ready
@@ -224,9 +239,9 @@ Save-JsonEvidence -Name 'summary' -Value $summary
 Write-Result 'TRANSPORT_SUPERVISOR_QUALIFICATION_RESULT' 'PASSED'
 Write-Result 'OLD_TUNNEL_PID' $oldTunnelPid
 Write-Result 'NEW_TUNNEL_PID' $newTunnelPid
-Write-Result 'TUNNEL_PID_CHANGED' $summary.tunnel_pid_changed
-Write-Result 'SUPERVISOR_PID_STABLE' $summary.supervisor_pid_stable
-Write-Result 'RUNTIME_READY_AFTER_RECOVERY' $summary.runtime_ready_after_recovery
-Write-Result 'HEALTH_CODE_AFTER_RECOVERY' $summary.health_code_after_recovery
-Write-Result 'OPENAI_CONTROL_READY_AFTER_RECOVERY' $summary.openai_control_ready_after_recovery
+Write-Result 'TUNNEL_PID_CHANGED' $summary['tunnel_pid_changed']
+Write-Result 'SUPERVISOR_PID_STABLE' $summary['supervisor_pid_stable']
+Write-Result 'RUNTIME_READY_AFTER_RECOVERY' $summary['runtime_ready_after_recovery']
+Write-Result 'HEALTH_CODE_AFTER_RECOVERY' $summary['health_code_after_recovery']
+Write-Result 'OPENAI_CONTROL_READY_AFTER_RECOVERY' $summary['openai_control_ready_after_recovery']
 Write-Result 'RESULT_DIR' $RunDir
