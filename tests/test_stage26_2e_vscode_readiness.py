@@ -31,9 +31,10 @@ class Stage262EVSCodeReadinessTests(unittest.TestCase):
             "focused is not None and stable_count >= READINESS_STABLE_SAMPLES",
             self.helper,
         )
+        normalized = " ".join(self.helper.split())
         self.assertIn(
-            "previous_focused.observation_fingerprint\n            == focused.observation_fingerprint",
-            self.helper,
+            "previous_focused.observation_fingerprint == focused.observation_fingerprint",
+            normalized,
         )
 
     def test_transient_observation_error_resets_stability_without_authorizing(self) -> None:
