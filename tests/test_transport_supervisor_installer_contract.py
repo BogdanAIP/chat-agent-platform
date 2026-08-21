@@ -7,6 +7,12 @@ INSTALLER = ROOT / "scripts" / "install-chat-platform-supervisor.ps1"
 SOURCE = INSTALLER.read_text(encoding="utf-8")
 
 
+def function_block(start_name: str, next_marker: str) -> str:
+    start = SOURCE.index(start_name)
+    end = SOURCE.index(next_marker, start)
+    return SOURCE[start:end]
+
+
 class TransportSupervisorInstallerRollbackTests(unittest.TestCase):
     def test_existing_direct_controller_is_backed_up_before_qualification_replace(self):
         self.assertIn("transport-supervisor-backup", SOURCE)
@@ -23,23 +29,23 @@ class TransportSupervisorInstallerRollbackTests(unittest.TestCase):
             "Copy-VerifiedFile -Source $DirectControllerBackup -Destination $InstalledDirectController",
             SOURCE,
         )
-        uninstall = SOURCE[
-            SOURCE.index("function Uninstall-Supervisor") :
-            SOURCE.index("New-Item -ItemType Directory")
-        ]
+        uninstall = function_block(
+            "function Uninstall-Supervisor",
+            "New-Item -ItemType Directory",
+        )
         self.assertNotIn("Remove-Item -LiteralPath $InstalledDirectController", uninstall)
 
     def test_backup_and_restore_share_public_manager_mutation_mutex(self):
         self.assertIn("function Invoke-WithManagerMutex", SOURCE)
         self.assertIn("Local\\ChatAgentPlatformControllerOperation", SOURCE)
-        install = SOURCE[
-            SOURCE.index("function Install-SupervisorAssets") :
-            SOURCE.index("function Register-SupervisorTask")
-        ]
-        uninstall = SOURCE[
-            SOURCE.index("function Uninstall-Supervisor") :
-            SOURCE.index("New-Item -ItemType Directory")
-        ]
+        install = function_block(
+            "function Install-SupervisorAssets",
+            "function Register-SupervisorTask",
+        )
+        uninstall = function_block(
+            "function Uninstall-Supervisor",
+            "New-Item -ItemType Directory",
+        )
         self.assertIn("Invoke-WithManagerMutex", install)
         self.assertIn("Invoke-WithManagerMutex", uninstall)
 
