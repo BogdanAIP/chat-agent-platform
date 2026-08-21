@@ -13,8 +13,9 @@ This repository is designed to be continued safely from a fresh ordinary ChatGPT
 7. `project-context/DOCUMENT_STATUS.md`
 8. `project-context/MODULE_CATALOG.md`
 9. `project-context/KNOWN_ISSUES.md`
-10. active stage document, currently `project-context/STAGE26_2E_REAL_APPLICATION_E2E.md`
-11. older stage/research documents only as historical evidence when `DOCUMENT_STATUS.md` classifies them that way
+10. active Stage 26.3 contract/design, currently `project-context/STAGE26_PROCEDURAL_MEMORY.md`
+11. accepted Stage 26.2E evidence in `project-context/STAGE26_2E_REAL_APPLICATION_E2E.md` when exact real-app details are needed
+12. older stage/research documents only as historical evidence when `DOCUMENT_STATUS.md` classifies them that way
 
 ## Source-of-truth order
 
@@ -37,7 +38,7 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 
 ## Current architecture boundary
 
-Ordinary ChatGPT is the **only current general planner/intelligence layer**. The local platform is expected to own a **deterministic execution Control Plane** for state, selected procedure progression, authorization, verification, checkpoints, bounded recovery and resource budgets.
+Ordinary ChatGPT is the **only current general planner/intelligence layer**. The local platform owns a **deterministic execution Control Plane** for state, selected procedure progression, authorization, verification, checkpoints, bounded recovery and resource budgets.
 
 ```text
 ordinary ChatGPT
@@ -82,11 +83,13 @@ ordinary ChatGPT
 
 1MCP remains internal replaceable diagnostic/adaptive/aggregation infrastructure. `semantic-projection` remains a deterministic truthful capability boundary; it is not the procedure Control Plane.
 
+Any Stage 26.3 public procedure surface must be introduced explicitly through a dedicated truthful typed contract/ADR. Never hide Windows/procedure consequences behind `web_interact`, generic `tool_invoke`, shell/Python execution or an opaque workflow dispatcher.
+
 ## Non-negotiable invariants
 
 - ordinary ChatGPT is the only **current general** planner/intelligence;
-- a focused deterministic local execution Control Plane is allowed/desired and is the Stage 26.3 direction;
-- no current second local general planner/autonomous workflow brain;
+- a focused deterministic local execution Control Plane is allowed/desired and is the active Stage 26.3 direction;
+- no current second local general planner/autonomous strategy brain;
 - model/procedure/planner output never self-authorizes an action;
 - observation is not authorization;
 - current observed state outranks remembered procedure;
@@ -111,21 +114,21 @@ Accepted/merged through Stage 26.2D:
 #90 26.2D deterministic structure-first UIA -> vision routing
 ```
 
-Integration `main` when 26.2E started:
+Stage 26.2E real-app E2E is physically accepted on exact runtime/qualification head:
 
-`42d4130d59e23e2c2b1771ac428467efe27a4b98`
+`457db0b634f2e47f53d41e359a238840fa3ca2ee`
 
-Exact physically accepted Stage 26.2D head:
+Accepted result:
 
-`1c74713edcd6321d5583a39234929169e68b5ac1`
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448`
 
-This remains bounded controlled-WinForms evidence, not universal Windows accuracy.
+It proved one isolated real VS Code text-edit task with exact hidden Monaco focus identity, one-shot window-scoped focused keyboard guard, exactly one guarded Unicode delivery, independent file SHA-256 verification and full rollback. It is not universal Windows accuracy.
 
 ## Current critical path
 
 ```text
-26.2E real application E2E
- -> 26.3 Verified Procedure Runtime / deterministic Control Plane integration
+26.2E real application E2E — ACCEPTED
+ -> 26.3 Verified Procedure Runtime / deterministic Control Plane integration — ACTIVE
     -> 26.3A candidate-first procedural trust
     -> 26.3B advanced verifier/postconditions
     -> checkpoint/recovery/budget mechanics as required
@@ -133,7 +136,17 @@ This remains bounded controlled-WinForms evidence, not universal Windows accurac
  -> 27/28 release work
 ```
 
-While 26.2E is active, branch `chat/stage26-2e-vscode-real-app-e2e` uses isolated VS Code + one disposable TEMP artifact. Read its stage document before changing the physical contract.
+The first Stage 26.3 physical vertical slice must specifically prove:
+
+```text
+one user goal
+ -> ordinary ChatGPT selects a bounded known procedure
+ -> local Control Plane executes multiple current-state-authorized + verified transitions
+ -> no intermediate PowerShell copy/paste by the user
+ -> verified completion OR deterministic ABSTAIN/escalation
+```
+
+The user must no longer be treated as a routine command relay. Use the user only for irreducible target-machine/ordinary-Chat permission/setup gates that the available tool surface genuinely cannot perform itself.
 
 ## Future local planner
 
@@ -155,4 +168,5 @@ Do not auto-merge on unresolved finding, conflict, ambiguous scope or failed/ski
 - never invent measured counters;
 - keep `main` as integration line and never force-push it;
 - use the user only for irreducible target-machine/ordinary-Chat gates;
+- actively reduce manual user command relay when the platform has enough capability to do the work itself;
 - keep continuation/architecture/control-plane/document-status docs synchronized at architecture-changing points.
