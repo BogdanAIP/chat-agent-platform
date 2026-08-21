@@ -220,10 +220,10 @@ try {
     # Install/register first, but deliberately do not start the supervisor yet.
     # The baseline lifecycle mutation must run without the supervisor competing
     # for the public manager mutex. This prevents a qualification-only race.
+    # This is a PowerShell script invocation: with ErrorActionPreference=Stop,
+    # failures propagate as terminating errors. Do not inspect LASTEXITCODE here;
+    # it is a native-process status variable and may be unset under StrictMode.
     & $Installer -NoStart
-    if ($LASTEXITCODE -ne 0) {
-        throw "Supervisor installer failed with exit code $LASTEXITCODE."
-    }
 
     if (@(Get-ExactSupervisorProcesses).Count -ne 0) {
         throw 'Qualification installer -NoStart unexpectedly left a supervisor process running.'
