@@ -38,6 +38,7 @@ QUALIFICATION_PREFIX = "chat-agent-stage26e-vscode-"
 READINESS_TIMEOUT_SECONDS = 20.0
 READINESS_INTERVAL_SECONDS = 0.75
 READINESS_STABLE_SAMPLES = 2
+TRANSIENT_UIA_REBUILD_HRESULT = -2147220991
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -274,6 +275,18 @@ def _focused_diagnostics(state: DesktopState) -> list[dict[str, Any]]:
     ][:8]
 
 
+def _is_transient_uia_rebuild_error(exc: Exception) -> bool:
+    """Recognize only the physically observed Chromium UIA rebuild COM failure."""
+
+    hresult = getattr(exc, "hresult", None)
+    if hresult is None and exc.args and isinstance(exc.args[0], int):
+        hresult = exc.args[0]
+    return (
+        type(exc).__name__ == "COMError"
+        and hresult == TRANSIENT_UIA_REBUILD_HRESULT
+    )
+
+
 def _wait_safe_focused_editor_state(
     resolver: WindowScopedUiaResolver,
     window_title: str,
@@ -304,6 +317,8 @@ def _wait_safe_focused_editor_state(
         try:
             state = observe_bound_window(resolver, window_title)
         except Exception as exc:
+            if not _is_transient_uia_rebuild_error(exc):
+                raise
             stable_count = 0
             previous_state = None
             previous_focused = None
