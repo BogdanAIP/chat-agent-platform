@@ -7,6 +7,7 @@ import json
 import secrets
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import traceback
@@ -19,7 +20,7 @@ from openadapt_flow.backends.windows_backend import WindowsBackend
 from openadapt_flow.backends.win_agent.server import AgentConfig, create_server
 
 from runtime.windows.actuation import bounded_input
-from runtime.windows.native_point_guard import NativePointGuardError, require_foreground_hit_target
+from runtime.windows.native_point_guard import require_foreground_hit_target
 from runtime.windows.observation import ControlObservation, DesktopState, observe_bound_window
 from runtime.windows.verifier import VerificationStatus, verify_expected_fields
 from runtime.windows.window_scoped_uia import WindowScopedUiaResolver
@@ -54,6 +55,25 @@ def _workspace_snapshot(root: Path) -> dict[str, str]:
     return rows
 
 
+def _temp_root() -> Path:
+    return Path(tempfile.gettempdir()).resolve()
+
+
+def _require_disposable_root(app_root: Path) -> None:
+    temp_root = _temp_root()
+    resolved = app_root.resolve()
+    if resolved == temp_root or not resolved.is_relative_to(temp_root):
+        raise RuntimeError("Stage 26.2E app root must be a child of the OS TEMP directory")
+    if not resolved.name.startswith("chat-agent-stage26e-vscode-"):
+        raise RuntimeError("Stage 26.2E app root does not have the qualification prefix")
+
+
+def _remove_disposable_root(app_root: Path) -> None:
+    _require_disposable_root(app_root)
+    if app_root.exists():
+        shutil.rmtree(app_root)
+
+
 def _wait_until(
     predicate: Callable[[], bool],
     *,
@@ -76,7 +96,8 @@ def _enum_visible_windows() -> list[dict[str, Any]]:
     from ctypes import wintypes
 
     user32 = ctypes.WinDLL("user32", use_last_error=True)
-    user32.EnumWindows.argtypes = [ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM), wintypes.LPARAM]
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    user32.EnumWindows.argtypes = [callback_type, wintypes.LPARAM]
     user32.EnumWindows.restype = wintypes.BOOL
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
     user32.IsWindowVisible.restype = wintypes.BOOL
@@ -88,7 +109,6 @@ def _enum_visible_windows() -> list[dict[str, Any]]:
     user32.GetWindowThreadProcessId.restype = wintypes.DWORD
 
     windows: list[dict[str, Any]] = []
-    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
     def callback(hwnd: int, _lparam: int) -> bool:
         if not user32.IsWindowVisible(hwnd):
@@ -211,6 +231,7 @@ def main() -> int:
     timeout = float(args.timeout_seconds)
     result_path = run_dir / "vscode-real-app-result.json"
     run_dir.mkdir(parents=True, exist_ok=True)
+    _require_disposable_root(app_root)
 
     workspace_root = app_root / "workspace"
     user_data_root = app_root / "user-data"
@@ -222,20 +243,25 @@ def main() -> int:
     marker_bytes = marker.encode("utf-8")
 
     result: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "qualification_kind": "real-application-vscode-disposable-text-edit",
         "code_exe": str(code_exe),
+        "temp_root": str(_temp_root()),
+        "app_root": str(app_root),
+        "temp_containment_pass": False,
         "application_discovery_pass": False,
         "isolated_profile_pass": False,
         "disposable_workspace_pass": False,
         "preexisting_target_window_count": None,
         "window_title": None,
         "window_process_id": None,
+        "bound_window_handle": None,
         "window_binding_pass": False,
         "desktop_observation_pass": False,
         "focused_editor_precondition_pass": False,
         "focused_editor_role": None,
         "focused_editor_name": None,
+        "focused_editor_fingerprint": None,
         "native_point_guard_pass": False,
         "agent_loopback_pass": False,
         "agent_auth_required_pass": False,
@@ -250,11 +276,12 @@ def main() -> int:
         "current_state_verification_pass": False,
         "completion_verification_status": None,
         "completion_verification_pass": False,
+        "completion_artifact_evidence": None,
         "workspace_expected_only_pass": False,
         "workspace_snapshot": None,
-        "rollback_pass": False,
         "application_cleanup_pass": False,
         "app_root_cleanup_pass": False,
+        "rollback_pass": False,
         "resolver_stats": None,
         "pass": False,
         "error": None,
@@ -268,14 +295,22 @@ def main() -> int:
     bound_hwnd: int | None = None
 
     try:
+        temp_root = _temp_root()
+        result["temp_containment_pass"] = bool(
+            app_root != temp_root
+            and app_root.is_relative_to(temp_root)
+            and app_root.name.startswith("chat-agent-stage26e-vscode-")
+        )
+        if not result["temp_containment_pass"]:
+            raise RuntimeError("disposable qualification root is outside TEMP")
+
         result["application_discovery_pass"] = bool(
             code_exe.is_file() and code_exe.name.casefold() == EXPECTED_EXECUTABLE
         )
         if not result["application_discovery_pass"]:
             raise RuntimeError("VS Code executable was not resolved to Code.exe")
 
-        if app_root.exists():
-            shutil.rmtree(app_root)
+        _remove_disposable_root(app_root)
         workspace_root.mkdir(parents=True, exist_ok=False)
         user_settings_dir.mkdir(parents=True, exist_ok=False)
         extensions_root.mkdir(parents=True, exist_ok=False)
@@ -294,9 +329,17 @@ def main() -> int:
             json.dumps(settings, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        result["isolated_profile_pass"] = user_data_root.is_dir() and extensions_root.is_dir()
-        result["disposable_workspace_pass"] = (
-            workspace_root.is_dir() and target_file.is_file() and app_root.parent == Path(args.app_root).resolve().parent
+        result["isolated_profile_pass"] = bool(
+            user_data_root.is_dir()
+            and extensions_root.is_dir()
+            and user_data_root.is_relative_to(app_root)
+            and extensions_root.is_relative_to(app_root)
+        )
+        result["disposable_workspace_pass"] = bool(
+            workspace_root.is_dir()
+            and target_file.is_file()
+            and workspace_root.is_relative_to(app_root)
+            and target_file.is_relative_to(workspace_root)
         )
 
         baseline = _artifact_evidence(target_file)
@@ -341,6 +384,7 @@ def main() -> int:
         window_title = str(window["title"])
         result["window_title"] = window_title
         result["window_process_id"] = window_pid
+        result["bound_window_handle"] = bound_hwnd
         resolver.set_expected_process_id(window_pid)
 
         before_state = observe_bound_window(resolver, window_title)
@@ -376,6 +420,7 @@ def main() -> int:
         result["focused_editor_precondition_pass"] = True
         result["focused_editor_role"] = focused.role
         result["focused_editor_name"] = focused.name
+        result["focused_editor_fingerprint"] = focused.observation_fingerprint
         focus_point = _control_center(focused)
         require_foreground_hit_target(before_state, *focus_point)
         result["native_point_guard_pass"] = True
@@ -455,6 +500,7 @@ def main() -> int:
 
         _wait_until(artifact_saved, timeout=10.0, label="VS Code autosave postcondition")
         after_artifact = _artifact_evidence(target_file)
+        result["completion_artifact_evidence"] = after_artifact
         completion = verify_expected_fields(
             before=baseline,
             after=after_artifact,
@@ -473,7 +519,8 @@ def main() -> int:
         result["resolver_stats"] = vars(resolver.stats).copy()
 
         result["pass"] = bool(
-            result["application_discovery_pass"]
+            result["temp_containment_pass"]
+            and result["application_discovery_pass"]
             and result["isolated_profile_pass"]
             and result["disposable_workspace_pass"]
             and result["preexisting_target_window_count"] == 0
@@ -539,8 +586,7 @@ def main() -> int:
                     cli_process.wait(timeout=5.0)
 
         try:
-            if app_root.exists():
-                shutil.rmtree(app_root)
+            _remove_disposable_root(app_root)
             result["app_root_cleanup_pass"] = not app_root.exists()
             result["rollback_pass"] = bool(
                 result["application_cleanup_pass"] and result["app_root_cleanup_pass"]
@@ -560,17 +606,20 @@ def main() -> int:
     print("===== STAGE 26.2E VS CODE REAL APPLICATION E2E =====")
     print(f"RESULT_PATH={result_path}")
     for key in (
+        "temp_containment_pass",
         "application_discovery_pass",
         "isolated_profile_pass",
         "disposable_workspace_pass",
         "preexisting_target_window_count",
         "window_title",
         "window_process_id",
+        "bound_window_handle",
         "window_binding_pass",
         "desktop_observation_pass",
         "focused_editor_precondition_pass",
         "focused_editor_role",
         "focused_editor_name",
+        "focused_editor_fingerprint",
         "native_point_guard_pass",
         "agent_loopback_pass",
         "agent_auth_required_pass",
