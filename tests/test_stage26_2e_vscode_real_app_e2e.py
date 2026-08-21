@@ -146,15 +146,24 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
         self.assertNotIn('"false_action_count": 0', self.driver)
         self.assertNotIn('"unrelated_window_action_count": 0', self.driver)
 
-    def test_cleanup_requires_natural_cli_exit_for_acceptance(self) -> None:
+    def test_cleanup_requires_natural_zero_cli_exit_for_acceptance(self) -> None:
         self.assertIn("PostMessageW", self.driver)
         self.assertIn("WM_CLOSE", self.driver)
         self.assertIn("_remove_disposable_root(app_root)", self.driver)
-        self.assertIn('result["cli_process_exit_pass"] = True', self.driver)
+        self.assertIn('result["cli_process_returncode"] = returncode', self.driver)
+        self.assertIn('result["cli_process_exit_pass"] = returncode == 0', self.driver)
         self.assertIn('result["forced_cli_cleanup"] = True', self.driver)
+        self.assertIn('result["cli_process_exit_pass"] = False', self.driver)
+        self.assertIn('and result["cli_process_returncode"] == 0', self.driver)
         self.assertIn('and not result["forced_cli_cleanup"]', self.driver)
         self.assertIn('result["rollback_pass"]', self.driver)
         self.assertNotIn("TerminateProcess", self.driver)
+
+    def test_failure_before_binding_closes_only_randomized_qualification_windows(self) -> None:
+        self.assertIn("failure_matches = _matching_vscode_windows(unique_filename)", self.driver)
+        self.assertIn('result["failure_window_cleanup_count"] = len(failure_matches)', self.driver)
+        self.assertIn('_post_close(int(row["hwnd"]))', self.driver)
+        self.assertIn("failed qualification VS Code window cleanup", self.driver)
 
     def test_harness_discovers_code_without_touching_user_workspace(self) -> None:
         self.assertIn("Resolve-VSCodeExecutable", self.harness)
@@ -183,6 +192,8 @@ class Stage262EVSCodeRealAppContractTests(unittest.TestCase):
             "$result.workspace_expected_only_pass",
             "$result.application_cleanup_pass",
             "$result.cli_process_exit_pass",
+            "$null -ne $result.cli_process_returncode",
+            "[int]$result.cli_process_returncode -eq 0",
             "-not $result.forced_cli_cleanup",
             "$result.app_root_cleanup_pass",
             "$result.rollback_pass",
