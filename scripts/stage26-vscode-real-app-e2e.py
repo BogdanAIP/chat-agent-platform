@@ -21,7 +21,12 @@ from openadapt_flow.backends.win_agent.server import AgentConfig, create_server
 
 from runtime.windows.actuation import bounded_input
 from runtime.windows.native_point_guard import require_foreground_hit_target
-from runtime.windows.observation import ControlObservation, DesktopState, observe_bound_window
+from runtime.windows.observation import (
+    ControlObservation,
+    DesktopState,
+    _query_process_identity,
+    observe_bound_window,
+)
 from runtime.windows.verifier import VerificationStatus, verify_expected_fields
 from runtime.windows.window_scoped_uia import WindowScopedUiaResolver
 
@@ -133,6 +138,39 @@ def _enum_visible_windows() -> list[dict[str, Any]]:
 def _matching_vscode_windows(unique_filename: str) -> list[dict[str, Any]]:
     needle = unique_filename.casefold()
     return [row for row in _enum_visible_windows() if needle in str(row["title"]).casefold()]
+
+
+def _validated_cleanup_matches(
+    unique_filename: str,
+    *,
+    expected_hwnd: int | None = None,
+    expected_pid: int | None = None,
+    expected_process_generation: str | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    matches = _matching_vscode_windows(unique_filename)
+    validated: list[dict[str, Any]] = []
+    for row in matches:
+        hwnd = int(row["hwnd"])
+        pid = int(row["pid"])
+        if expected_hwnd is not None and hwnd != expected_hwnd:
+            continue
+        if expected_pid is not None and pid != expected_pid:
+            continue
+        try:
+            _session_id, _application_identity, executable_name, process_generation = (
+                _query_process_identity(pid)
+            )
+        except Exception:
+            continue
+        if executable_name.casefold() != EXPECTED_EXECUTABLE:
+            continue
+        if (
+            expected_process_generation is not None
+            and process_generation != expected_process_generation
+        ):
+            continue
+        validated.append(row)
+    return matches, validated
 
 
 def _wait_unique_vscode_window(unique_filename: str, timeout: float) -> dict[str, Any]:
@@ -262,7 +300,7 @@ def main() -> int:
     marker_bytes = marker.encode("utf-8")
 
     result: dict[str, Any] = {
-        "schema_version": 4,
+        "schema_version": 5,
         "qualification_kind": "real-application-vscode-disposable-text-edit",
         "code_exe": str(code_exe),
         "temp_root": str(_temp_root()),
@@ -301,6 +339,9 @@ def main() -> int:
         "current_state_verification_pass": False,
         "workspace_expected_only_pass": False,
         "workspace_snapshot": None,
+        "cleanup_match_count": 0,
+        "cleanup_validated_match_count": 0,
+        "cleanup_revalidation_pass": False,
         "application_cleanup_pass": False,
         "failure_window_cleanup_count": 0,
         "cli_process_returncode": None,
@@ -319,6 +360,8 @@ def main() -> int:
     server_thread: threading.Thread | None = None
     cli_process: subprocess.Popen[bytes] | None = None
     bound_hwnd: int | None = None
+    bound_pid: int | None = None
+    bound_process_generation: str | None = None
 
     try:
         temp_root = _temp_root()
@@ -407,6 +450,7 @@ def main() -> int:
         window = _wait_unique_vscode_window(unique_filename, timeout)
         bound_hwnd = int(window["hwnd"])
         window_pid = int(window["pid"])
+        bound_pid = window_pid
         window_title = str(window["title"])
         result["window_title"] = window_title
         result["window_process_id"] = window_pid
@@ -414,6 +458,7 @@ def main() -> int:
         resolver.set_expected_process_id(window_pid)
 
         before_state = observe_bound_window(resolver, window_title)
+        bound_process_generation = before_state.process_generation
         result["window_binding_pass"] = bool(
             before_state.window_handle == bound_hwnd
             and before_state.process_id == window_pid
@@ -593,32 +638,49 @@ def main() -> int:
         if server_thread is not None:
             server_thread.join(timeout=5.0)
 
-        if bound_hwnd is not None:
-            try:
-                _post_close(bound_hwnd)
+        try:
+            if (
+                bound_hwnd is not None
+                and bound_pid is not None
+                and bound_process_generation is not None
+            ):
+                cleanup_matches, validated_matches = _validated_cleanup_matches(
+                    unique_filename,
+                    expected_hwnd=bound_hwnd,
+                    expected_pid=bound_pid,
+                    expected_process_generation=bound_process_generation,
+                )
+            else:
+                cleanup_matches, validated_matches = _validated_cleanup_matches(unique_filename)
+
+            result["cleanup_match_count"] = len(cleanup_matches)
+            result["cleanup_validated_match_count"] = len(validated_matches)
+            result["failure_window_cleanup_count"] = len(cleanup_matches)
+
+            if not cleanup_matches:
+                result["cleanup_revalidation_pass"] = True
+                result["application_cleanup_pass"] = True
+            elif len(cleanup_matches) == 1 and len(validated_matches) == 1:
+                result["cleanup_revalidation_pass"] = True
+                _post_close(int(validated_matches[0]["hwnd"]))
                 _wait_until(
                     lambda: not _matching_vscode_windows(unique_filename),
                     timeout=15.0,
-                    label="isolated VS Code window close",
+                    label="revalidated isolated VS Code window close",
                 )
                 result["application_cleanup_pass"] = True
-            except Exception:
+            else:
+                result["cleanup_revalidation_pass"] = False
                 result["application_cleanup_pass"] = False
-        else:
-            try:
-                failure_matches = _matching_vscode_windows(unique_filename)
-                result["failure_window_cleanup_count"] = len(failure_matches)
-                for row in failure_matches:
-                    _post_close(int(row["hwnd"]))
-                if failure_matches:
-                    _wait_until(
-                        lambda: not _matching_vscode_windows(unique_filename),
-                        timeout=15.0,
-                        label="failed qualification VS Code window cleanup",
+                if result["error"] is None:
+                    result["error"] = (
+                        "VS Code cleanup identity was not uniquely revalidated; refusing WM_CLOSE"
                     )
-                result["application_cleanup_pass"] = not _matching_vscode_windows(unique_filename)
-            except Exception:
-                result["application_cleanup_pass"] = False
+        except Exception as exc:
+            result["cleanup_revalidation_pass"] = False
+            result["application_cleanup_pass"] = False
+            if result["error"] is None:
+                result["error"] = f"VS Code cleanup revalidation failed: {type(exc).__name__}: {exc}"
 
         if cli_process is not None:
             try:
@@ -644,7 +706,8 @@ def main() -> int:
             _remove_disposable_root(app_root)
             result["app_root_cleanup_pass"] = not app_root.exists()
             result["rollback_pass"] = bool(
-                result["application_cleanup_pass"]
+                result["cleanup_revalidation_pass"]
+                and result["application_cleanup_pass"]
                 and result["cli_process_exit_pass"]
                 and result["cli_process_returncode"] == 0
                 and not result["forced_cli_cleanup"]
@@ -693,6 +756,9 @@ def main() -> int:
         "completion_verification_pass",
         "current_state_verification_pass",
         "workspace_expected_only_pass",
+        "cleanup_match_count",
+        "cleanup_validated_match_count",
+        "cleanup_revalidation_pass",
         "application_cleanup_pass",
         "failure_window_cleanup_count",
         "cli_process_returncode",
