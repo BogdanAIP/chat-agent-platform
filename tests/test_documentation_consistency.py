@@ -89,7 +89,7 @@ class DocumentationConsistencyTests(unittest.TestCase):
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
         control = (CONTEXT / "CONTROL_PLANE.md").read_text(encoding="utf-8")
         self.assertIn("Optional Future Track P", roadmap)
-        self.assertIn("not in the current release-critical path", control)
+        self.assertIn("not part of the current release-critical path", control)
         self.assertIn("proposal-only", roadmap)
         self.assertIn("deterministic Control Plane", roadmap)
 
