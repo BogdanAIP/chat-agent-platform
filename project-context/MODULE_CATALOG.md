@@ -1,6 +1,6 @@
 # Module / Capability Catalog
 
-Status synchronized through accepted Stage 26.2C Desktop Grounder work. Resolve live `main` and relevant PR heads before work.
+Status synchronized through accepted Stage 26.2D Windows vision routing and active Stage 26.2E real-application qualification. Resolve live `main` and relevant PR heads before work.
 
 ## Operating constraint
 
@@ -31,7 +31,7 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 | Browser | pinned Playwright path behind semantic projection | PRODUCT-ACCEPTED | `web_open` / `web_observe` / `web_interact`. |
 | Semantic capability projection | deterministic five-tool compatibility boundary | PRODUCT-ACCEPTED | Small truthful surface; not planner/gateway/workflow engine. |
 | Local visual grounding | llama.cpp + LFM2.5-VL-450M F16 | ACCEPTED-SPECIALIST | Local/on-demand/perception-only; replaceable. |
-| Browser semantic->vision routing | Stage 25.2 internal escalation | PRODUCT-ACCEPTED | Semantic first; reviewed zero-exact-candidate visual path only. |
+| Browser semantic->vision routing | Stage 25.2 internal escalation | PRODUCT-ACCEPTED | Semantic first; reviewed bounded visual path only. |
 | Procedural compiler + IR | OpenAdapt Flow 1.31.0 `Workflow` / `ProgramGraph` | TARGET-QUALIFIED | ADOPT behind project policy boundaries. |
 | Procedural lifecycle | OpenAdapt `SkillLibrary` + learn/teach/regression internals | ADAPT-CANDIDATE | Reuse mechanics; project trust stays candidate-first. |
 | Human/desktop capture | OpenAdapt Capture 1.2.2 + Flow adapter | TARGET-QUALIFIED | Stage 26.1B physically accepted; procedure integration remains later. |
@@ -39,10 +39,11 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 | Window-scoped Windows UI resolution | PID -> Win32 HWND -> exact window -> bounded native UIA FindAll | ACCEPTED-INFRASTRUCTURE | Stage 26.1E accepted and promoted by Stage 26.2A. |
 | Runtime verifier foundation | before/after evidence + `PASS|FAIL|UNKNOWN` | ACCEPTED-INFRASTRUCTURE | Delivery is not success; UNKNOWN does not silently advance. |
 | Production Windows runtime | `runtime/windows` bounded observation/actuation/verification foundation | ACCEPTED-INFRASTRUCTURE | Stage 26.2A merged #87. |
-| Desktop observation | canonical read-only `DesktopState` | ACCEPTED-INFRASTRUCTURE | Stage 26.2B accepted; introduced by #88 with exact physical runtime evidence. |
-| Desktop F16 Grounder | native exact-window pixel-space proposal adapter | ACCEPTED-SPECIALIST | Stage 26.2C physically accepted on controlled WinForms target; proposal-only, frame-bound, no action authority. |
-| Windows UIA->vision router | deterministic structure first, bounded visual fallback | ACTIVE-INTEGRATION | Stage 26.2D next; must pass freshness/authorization and adversarial accuracy gates before promotion. |
-| Real application Windows E2E | one medium-complexity user app + disposable artifact | FUTURE-SCOPED-GATE | Select from real task/evidence; deterministic postcondition and rollback. |
+| Desktop observation | canonical read-only `DesktopState` | ACCEPTED-INFRASTRUCTURE | Stage 26.2B merged #88; evidence only, never authority. |
+| Desktop F16 Grounder | native exact-window pixel-space proposal adapter | ACCEPTED-SPECIALIST | Stage 26.2C merged #89; proposal-only, frame-bound, no action authority. |
+| Windows UIA->vision router | deterministic structure first + bounded visual fallback + fresh/native guards | ACCEPTED-INFRASTRUCTURE | Stage 26.2D physically accepted and merged #90. |
+| Native visual point guard | foreground HWND + WindowFromPoint/root HWND/PID | ACCEPTED-INFRASTRUCTURE | Stage 26.2D accepted; no focus stealing. |
+| Real application Windows E2E | isolated VS Code + disposable TEMP artifact | ACTIVE-INTEGRATION | Stage 26.2E current gate; one guarded keyboard mutation, independent file verifier, rollback. |
 | Verified Procedure Runtime | ProgramGraph + live state + authorization + verifier | FUTURE-SCOPED-GATE | Only after real desktop E2E. |
 | Human demonstration transfer | Capture -> candidate procedure -> changed-state verified replay | FUTURE-SCOPED-GATE | Not blind macro replay. |
 | Procedure-state dataset | structured verified state-transition examples | OPTIONAL-RESEARCH | Not a Stage 27/28 prerequisite. |
@@ -61,7 +62,7 @@ web_observe
 web_interact
 ```
 
-After a real Windows desktop surface exists, a separate ADR decides whether a few truthful coarse desktop/procedure capabilities are required. Never hide native desktop actions behind `web_interact` and never add a generic opaque `tool_invoke` equivalent.
+A separate ADR later decides whether a few truthful coarse desktop/procedure capabilities are required. Never hide native desktop actions behind `web_interact` and never add a generic opaque `tool_invoke` equivalent.
 
 ## Accepted Windows evidence
 
@@ -69,7 +70,7 @@ After a real Windows desktop surface exists, a separate ADR decides whether a fe
 
 `7a9daa9329d81994833c22b4ca2e321927527dcc`
 
-Interactive-session capture, bounded selected-window evidence, raw UIA retention, Flow compile, zero foreign structural-window evidence, explicit refusal of unaccepted replay and clean local artifact handling were accepted.
+Interactive-session capture, bounded selected-window evidence, raw UIA retention, Flow compile, zero foreign structural-window evidence and explicit refusal of unaccepted replay were accepted.
 
 ### Stage 26.1C executor
 
@@ -88,7 +89,7 @@ window-scoped p95 = 3720.061 ms
 0 false/unrelated-window actions
 ```
 
-The 97/97 result is controlled WinForms role+name evidence, not global Windows accuracy.
+The 97/97 result is controlled WinForms evidence, not global Windows accuracy.
 
 ### Stage 26.2A production runtime
 
@@ -98,35 +99,13 @@ production p50 = 3410.031 ms
 production p95 = 3630.583 ms
 ```
 
-Production-owned runtime preserved the accepted safety/performance behavior.
-
 ### Stage 26.2B DesktopState
 
 Exact physically tested runtime head:
 
 `dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
 
-```text
-SAME_IDENTITY_PASS=True
-CONTROL_CONTRACT_PASS=True
-SCREENSHOT_DIGEST_PASS=True
-FRESHNESS_CONTRACT_PASS=True
-BOUNDED_CONTROL_COUNT_PASS=True
-WINDOW_ENUM_CALLS=2
-WINDOW_NAME_MATCH_COUNT=2
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-CHROME_PROCESS_COUNT_BEFORE=11
-CHROME_PROCESS_COUNT_AFTER=11
-CHROME_SURVIVAL_PASS=True
-FIXTURE_CLEANUP_PASS=True
-PASS=True
-```
-
-This proves bounded DesktopState observation on the controlled WinForms fixture. It does not prove cross-application UIA coverage or desktop VLM accuracy.
-
-The initial qualification also printed `ACTION_COUNT=0` and related values that were constants rather than instrumented measurements. Self-review removed them from acceptance evidence and from future harness output. Read-only behavior is instead established by direct code review and CI source-boundary tests proving no executor/actuation channel exists in the observer/driver path.
+Read-only behavior is established by code/source-boundary tests; historical constant action counters from the first qualification are not treated as measurements.
 
 ### Stage 26.2C Desktop Grounder
 
@@ -134,37 +113,69 @@ Exact physically accepted runtime head:
 
 `eadf8ff5a873936441891a66b616c83c62736152`
 
-Physical result:
+Physical evidence established the observed `1. Benchmark start` -> `Benchmark start` behavior and one valid proposal inside independent UIA bounds. Synthetic tests separately define ambiguity/fuzzy-matching refusal; those are policy tests, not physical observations.
 
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-grounder-qualification\grounder-20260820-050054\result.json`
+### Stage 26.2D Windows routing
+
+Exact physically accepted PR head:
+
+`1c74713edcd6321d5583a39234929169e68b5ac1`
+
+Merged as #90; integration main became:
+
+`42d4130d59e23e2c2b1771ac428467efe27a4b98`
+
+Physical result directory:
+
+`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\desktop-routing-qualification\routing-20260820-085625`
 
 ```text
-POSITIVE_GROUNDER_STATUS=proposal
-POSITIVE_GROUNDER_REASON=grounder-accepted-ordinal-alias-proposal-only
-POSITIVE_INVENTORY_LABELS_JSON=["Benchmark start","Guarded list click + scroll"]
-POSITIVE_PASS2_DETECTION_COUNT=1
-TARGET_POINT_INSIDE_UIA_PASS=True
-SAME_FRAME_BINDING_PASS=True
-COORDINATE_CONTRACT_PASS=True
-TARGET_EVIDENCE_BINDING_PASS=True
-ABSENT_TARGET_ABSTAIN_PASS=True
-STALE_FRAME_REJECTION_PASS=True
-PROPOSAL_ONLY_CONTRACT_PASS=True
+NATIVE_POINT_GUARD_PREFLIGHT_PASS=True
+NATIVE_POINT_GUARD_WRONG_WINDOW_REFUSAL_PASS=True
+NATIVE_POINT_GUARD_DELIVERY_PASS=True
+VISION_DISABLED_ABSTAIN_PASS=True
+ROLE_CONFLICT_ABSTAIN_PASS=True
+NEGATIVE_ZERO_ACTION_PASS=True
+POSITIVE_ROUTE_STATUS=delivered
+POSITIVE_ROUTE_REASON=vision-zero-exact-delivered
+POSITIVE_CONSISTENCY_IOU=0.34455881673798816
+FRESH_REOBSERVATION_PASS=True
+GUARDED_CLICK_RECEIPT_PASS=True
+SINGLE_ACTION_PASS=True
+STRUCTURAL_EXECUTOR_CALLS=0
+COORDINATE_EXECUTOR_CALLS=1
+GROUNDER_CALLS=1
 DESKTOP_FALLBACK_CALLS=0
 WINDOW_BINDING_FAILURES=0
 WINDOW_BINDING_AMBIGUITIES=0
-VISION_RESTORED_PASS=True
-FIXTURE_CLEANUP_PASS=True
 PASS=True
 ```
 
-Physical evidence establishes only the observed target behavior: the rendered fixture label was `1. Benchmark start`, while the VLM inventory read the intended button as `Benchmark start`, and the bounded ordinal-prefix policy recovered a unique proposal whose point fell inside independent UIA bounds. Synthetic unit tests separately define policy boundaries such as ambiguity -> ABSTAIN and no broad fuzzy matching; those synthetic cases are not physical observations.
+This is one controlled WinForms routing success, not global application accuracy.
 
-This remains controlled WinForms evidence, not general desktop accuracy. Stage 26.2D must add deterministic structure-first routing, fresh same-window/same-frame authorization and adversarial coverage before any coordinate action path is promoted.
+## Active Stage 26.2E evidence model
+
+The real-app gate intentionally avoids invented `false_action_count=0` constants. Its measurable authority/completion evidence is:
+
+```text
+one unique Code.exe PID/HWND/window
+enabled+visible focused editor evidence
+native foreground/hit-test guard
+wrong verifier expectation -> FAIL -> ABSTAIN before action
+exactly one guarded keyboard delivery
+exact saved-file size + SHA-256 postcondition
+workspace contains only expected artifact
+same current window identity
+exact qualification window cleanup
+specifically prefixed TEMP root cleanup
+rollback PASS
+```
+
+VS Code is a qualification application candidate, not a permanent architectural dependency.
 
 ## Merge rule
 
-A logically complete branch with reviewed intended diff, passing required physical/CI gates and satisfied applicable review/acceptance checks should be merged without waiting for a separate merge command. Stop instead on unresolved findings, conflicts, ambiguous scope, failed/skipped required tests or unavailable required review evidence.
+A logically complete branch with reviewed intended diff, passing required physical/CI gates and satisfied applicable acceptance checks should be merged without waiting for a separate merge command. Stop instead on unresolved findings, conflicts, ambiguous scope or failed/skipped required evidence.
 
 ## Candidate selection rule for future capabilities
 
