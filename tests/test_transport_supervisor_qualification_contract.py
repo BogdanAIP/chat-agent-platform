@@ -36,7 +36,7 @@ class TransportSupervisorQualificationContractTests(unittest.TestCase):
         self.assertIn("[bool]$status.runtime_ready", SOURCE)
 
     def test_qualification_records_machine_readable_evidence_and_resource_use(self):
-        self.assertIn("summary.json", SOURCE)
+        self.assertIn("Save-JsonEvidence -Name 'summary'", SOURCE)
         self.assertIn("resources.csv", SOURCE)
         self.assertIn("WorkingSet64", SOURCE)
         self.assertIn("PrivateMemorySize64", SOURCE)
