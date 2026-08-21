@@ -4,109 +4,152 @@ Security fixes target the current `main` branch until a versioned release policy
 
 ## Reporting
 
-Do not publish tokens, API keys, private endpoints, exploit payloads or sensitive logs in public issues/PRs. Prefer GitHub private vulnerability reporting when available; otherwise request a private channel without including exploit details.
+Do not publish tokens, API keys, private endpoints, exploit payloads or sensitive logs in public issues/PRs. Prefer GitHub private vulnerability reporting when available.
 
 ## Current normal security boundary
 
-The accepted normal semantic path is outbound from the user's machine:
-
 ```text
 ordinary ChatGPT
-  -> OpenAI Secure MCP Tunnel
-  -> official tunnel-client
-  -> direct stdio semantic-projection launcher
-  -> semantic-projection core
-  -> scoped Filesystem / isolated Playwright / focused local adapters
+ -> OpenAI Secure MCP Tunnel
+ -> official tunnel-client
+ -> direct stdio semantic-projection launcher
+ -> semantic-projection
+ -> scoped Filesystem / isolated Playwright / focused local adapters
 ```
 
-The normal semantic path does **not** require a local port-3050 1MCP hop. Port 3050/1MCP remains accepted legacy/diagnostic/adaptive infrastructure.
+The normal semantic path does not require a local 1MCP hop. 1MCP remains internal diagnostic/adaptive infrastructure.
 
 The project does not implement its own public ingress, relay, tunnel, credential vault or generic authorization server.
 
+## Important terminology: tunnel control plane vs local execution Control Plane
+
+The official tunnel path uses a credential named `CONTROL_PLANE_API_KEY`. That name refers to **OpenAI Secure MCP Tunnel infrastructure**.
+
+The project also plans a **deterministic local execution Control Plane** for Stage 26.3: task/procedure state, capability policy, action authorization, checkpoints, verification and bounded recovery.
+
+These are unrelated boundaries. A tunnel control-plane key does not grant local action authority, and the local execution Control Plane must not inherit tunnel credentials without explicit need.
+
+## Current planner boundary
+
+Ordinary ChatGPT is the only **current general planner/intelligence**. The local deterministic Control Plane is permitted to advance already-selected known procedure transitions only after current-state authorization and postcondition verification. It must not invent open-ended strategy.
+
+A future local general planner is optional Track P research. Even if later accepted, planner output remains proposal data and cannot bypass deterministic local authorization/verifier gates.
+
 ## Secrets and child-process environment
 
-Secrets, including the OpenAI tunnel runtime key, must never be committed. The tunnel runtime key should have only permissions required by tunnel operation and is stored locally through Windows DPAPI `CurrentUser` by the manager.
+Secrets, including the OpenAI tunnel runtime key, must never be committed. The runtime key should have only tunnel permissions required by operation and is stored locally through Windows DPAPI `CurrentUser` by the manager.
 
-Review of exact `openai/tunnel-client v0.0.11` established that its stdio MCP child is launched with inherited parent environment. Therefore `CONTROL_PLANE_API_KEY` would reach semantic-projection if the project did nothing.
+Exact tunnel-client review established that its stdio MCP child can inherit parent environment. The accepted secure launcher therefore removes tunnel/model API credentials before importing semantic-projection core.
 
-The accepted boundary is now explicit:
-
-```text
-tunnel-client inherited environment
-  -> semantic-projection-launcher.mjs
-       -> delete CONTROL_PLANE_API_KEY
-       -> delete OPENAI_API_KEY
-       -> import semantic-projection core
-```
-
-A Windows sentinel regression proves scrub occurs before core import and does not echo the injected value. Downstream Filesystem/Playwright are then launched through the pinned MCP SDK stdio transport, which applies its own restricted environment behavior.
-
-Do not remove the secure launcher merely because a future upstream version appears to filter environment; first prove and review that new contract.
+Do not remove this boundary without proving a replacement contract.
 
 ## Capability scope
 
-The normal semantic projection exposes only reviewed semantic operations and must not leak generic/raw backend capabilities.
+Normal semantic projection exposes only reviewed semantic operations and must not leak generic/raw backend capabilities.
 
-Raw Playwright code/evaluate/file-upload/direct-network-request actions are not part of the accepted semantic surface. Filesystem roots remain explicit; lexical traversal/absolute-path escape is rejected by projection; real Windows junction read/write escape attempts are also regression-tested and blocked by the current stack.
+Current public tools remain:
+
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+```
+
+No generic `tool_invoke`, arbitrary Playwright code/evaluate, shell/Python executor or raw backend selection is accepted as the ordinary-Chat surface.
+
+Filesystem roots remain explicit; lexical and real Windows junction/link escapes remain security boundaries.
 
 ## Browser network boundary
 
-The isolated Playwright profile is browser/process isolation, not a complete network sandbox.
+The isolated Playwright profile is process/browser isolation, not a complete network sandbox.
 
-`web_open` accepts HTTP/HTTPS but now applies a direct-destination policy before `browser_navigate`:
+Direct literal private/link-local/metadata/special IP destinations are restricted while reviewed loopback remains possible. DNS rebinding, hostname resolution and redirects remain residual risks if stronger private-network isolation is required.
 
-- reviewed loopback remains allowed: `localhost`, `*.localhost`, IPv4 127/8 and IPv6 `::1`;
-- direct RFC1918, CGNAT, link-local/metadata and other explicit non-public/special IP destinations are rejected by default;
-- direct `metadata.google.internal` is rejected;
-- Playwright `blocked-origins` additionally covers reviewed metadata endpoints as defense-in-depth.
-
-Do **not** treat Playwright `allowed-origins`/`blocked-origins` as the primary security boundary. The pinned upstream documentation explicitly states that origin filtering is not a security boundary and does not affect redirects. DNS hostname resolution/rebinding and redirects are therefore residual risks if future workflows require a stronger private-network/metadata isolation guarantee.
-
-Broader private-LAN browser access should be a separately reviewed capability/policy rather than silently weakening the normal web scope.
+Do not describe Playwright origin controls as a complete security boundary.
 
 ## Local vision boundary
 
-Accepted Stage 25 grounding uses reviewed local image data and a loopback llama.cpp endpoint. Ordinary Chat must not receive arbitrary model administration, raw model prompts, arbitrary inference endpoints or unrestricted remote image URLs.
+Accepted local vision uses reviewed local image data and loopback llama.cpp.
 
-The visual model never performs a browser action. Production layers are separated:
+The local VLM never performs or authorizes an action. It returns bounded proposal/evidence that is followed by deterministic class/target/freshness/identity checks.
+
+The final screenshot-to-coordinate action boundary remains non-atomic and therefore must fail closed on stale/ambiguous evidence.
+
+## Windows capability boundary
+
+Windows foundations are accepted through Stage 26.2D for bounded contracts:
+
+- authenticated loopback typed executor;
+- legacy generic exec absent/disabled;
+- exact PID/HWND window-scoped UIA;
+- DesktopState evidence;
+- native exact-window Grounder proposal-only;
+- deterministic structure-first UIA -> vision routing;
+- process/window/frame/target freshness checks;
+- native foreground + WindowFromPoint/root-HWND/PID guard;
+- action delivery separated from completion verification.
+
+Stage 26.2D exact physically accepted head:
+
+`1c74713edcd6321d5583a39234929169e68b5ac1`
+
+This does not grant arbitrary desktop authority.
+
+## Stage 26.2E real-app boundary
+
+The active isolated VS Code qualification may perform one harmless guarded Unicode text mutation only after:
+
+- exact TEMP containment;
+- unique Code.exe PID/HWND/DesktopState;
+- focused editor evidence;
+- deliberate verifier mismatch -> ABSTAIN with zero mutation;
+- fresh pre-action same-window/same-focused-editor fingerprint;
+- native foreground/hit-test guard.
+
+Completion requires exact saved-file SHA/size, expected-only workspace, same current window, natural window/CLI exit and cleanup/rollback. Forced process termination cannot convert a failed run to PASS.
+
+## Deterministic procedure Control Plane security
+
+Stage 26.3 target:
 
 ```text
-focused runtime owner
-  -> reviewed loopback inference
-  -> production visual grounder
-  -> deterministic class-aware authorization
-  -> same-session freshness bridge
-  -> action OR ABSTAIN
+ChatGPT selects goal/procedure
+ -> local deterministic TaskState / ProgramGraph state
+ -> current observation
+ -> exactly one permitted transition
+ -> capability policy + authorization
+ -> bounded action
+ -> postcondition verification
+ -> checkpoint / advance
+ -> repeat while known
+ -> ABSTAIN/escalate on novel/ambiguous/stale/incompatible state
 ```
 
-The production grounder does not own runtime, browser state or action. Repeated-row and tiny classes remain non-authorizing until separately promoted by measured evidence.
+Neither ChatGPT, a stored procedure, a VLM, a specialist reasoner nor a future local planner grants authority by itself.
 
-The runtime-backed grounder requires the controller's exact owned PID and, before sending screenshot bytes, verifies with Windows `Get-NetTCPConnection` that the reviewed `127.0.0.1:3068` listener is owned by that PID. A mismatch fails closed and attempts cleanup of only the ownership-verified runtime. This closes the stale-state case where an owned process remains alive while a different local process already owns the inference port.
+## Procedural-memory privacy
 
-This PID/listener check is not cryptographic endpoint authentication. Loopback TCP cannot eliminate a theoretical local race in which the verified llama.cpp listener disappears after the check and another local process immediately acquires the same port before the request connects. The current boundary therefore assumes no actively malicious same-user local process racing the inference socket. A stronger future threat model would require an authenticated per-instance endpoint, stronger OS isolation or another transport that can bind peer identity to the request.
+Do not persist private chain-of-thought.
 
-Automatic visual interaction requires capture/action in the same Playwright session and fresh CSS-pixel evidence. Layout, scroll, overlay and navigation changes observed before commit are fail-closed through an exact viewport screenshot hash. Prepared targets are one-shot, TTL-bounded and capacity-bounded.
+Persist only structured/user-visible goal summaries, observations/state, actions/receipts, postconditions, verification and provenance needed for operation/reuse/debugging.
 
-The final freshness screenshot and `browser_mouse_click_xy` are nevertheless two separate MCP calls. A page can theoretically mutate in the small interval after the final screenshot response and before the coordinate click is processed. This residual screenshot-to-click TOCTOU window is why automatic semantic-miss -> vision escalation is not part of Stage 25.1, and why consequential visual actions need additional application-specific safeguards or a more atomic backend primitive before promotion. Never implement a blind cross-session `VLM coordinate -> click` path.
+Raw desktop demonstrations are sensitive local data. Long-term storage requires explicit retention, redaction, secret filtering, deletion, encryption and export/sync policy.
 
 ## Resource/process boundary
 
-The F16 vision model is heavyweight relative to the target laptop and is not an always-on default service. The focused lifecycle owner enforces approved artifact/runtime identity, conservative memory admission, loopback health, exact process ownership, Touch, TTL/resource-pressure unload and explicit cleanup.
-
-It must not become a generic model runner or kill Chrome/unrelated processes.
+Heavy local models are task-driven/on-demand and must not become always-on generic model runners or kill unrelated processes.
 
 ## Supply-chain status
 
-- complete reachable Git history is scanned with checksum-pinned Gitleaks;
+- reachable Git history is secret-scanned;
 - GitHub Actions are SHA-pinned where configured;
-- CodeQL analyzes Actions, JavaScript/TypeScript and Python;
-- Dependabot covers Actions, semantic npm and Python requirements;
-- semantic projection uses exact top-level npm pins plus a committed lockfile;
-- product and acceptance semantic installs use `npm ci --ignore-scripts --no-audit --no-fund` and refuse unlocked install when dependencies are absent;
-- standalone installed-layout acceptance also carries the lockfile and secure launcher;
-- current vision Python dependency surface is small and exactly pins `Pillow==12.3.0`, but stable distribution still needs an explicit Python artifact/hash/update policy;
-- downloaded tunnel/model/runtime artifacts retain checksum/hash/version verification where applicable.
+- CodeQL covers current languages/workflows;
+- semantic npm dependencies are locked/pinned;
+- vision Python dependency surface is pinned where specified;
+- stable distribution still requires explicit artifact/hash/update policy for Python/model/OpenAdapt runtime assets.
 
 ## Historical infrastructure
 
-Historical Yandex/Tailscale/custom universal-core and LM Studio/llmster paths are fallback/history only and must not be treated as current authorization boundaries.
+Historical Yandex/Tailscale/custom universal-core and LM Studio/llmster paths are fallback/history only unless explicitly requalified. Historical docs may retain old `current`/`next` wording and must not override current `CONTINUATION_CONTEXT.md`, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md` and `ROADMAP.md`.
