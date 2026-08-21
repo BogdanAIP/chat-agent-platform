@@ -60,6 +60,19 @@ class Stage262EVSCodeReadinessTests(unittest.TestCase):
             with self.subTest(item=item):
                 self.assertNotIn(item, self.helper)
 
+    def test_retry_is_limited_to_physically_observed_com_rebuild(self) -> None:
+        self.assertIn("TRANSIENT_UIA_REBUILD_HRESULT = -2147220991", self.source)
+        self.assertIn("def _is_transient_uia_rebuild_error", self.source)
+        self.assertIn('type(exc).__name__ == "COMError"', self.source)
+        self.assertIn(
+            "hresult == TRANSIENT_UIA_REBUILD_HRESULT",
+            self.source,
+        )
+        self.assertIn(
+            "if not _is_transient_uia_rebuild_error(exc):\n                raise",
+            self.helper,
+        )
+
     def test_identity_changes_fail_immediately_outside_retry_block(self) -> None:
         for required in (
             "state.window_handle != expected_hwnd",
