@@ -271,6 +271,7 @@ try {
     $oldSupervisorPid = [int]$supervisors[0].ProcessId
 
     Write-Host "Injecting owned tunnel-client process failure PID=$oldTunnelPid" -ForegroundColor Yellow
+    $faultInjectedAt = (Get-Date).ToUniversalTime()
     Stop-Process -Id $oldTunnelPid -Force -ErrorAction Stop
 
     $recovered = $null
@@ -305,12 +306,77 @@ try {
     }
 
     Save-JsonEvidence -Name 'manager-after-recovery' -Value $recovered
-    if (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) {
-        Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $RunDir 'supervisor-after-recovery.json') -Force
+
+    # A replacement tunnel plus a live supervisor PID is insufficient evidence.
+    # Require the supervisor to finish its own recovery transaction and publish
+    # both machine-readable state files after the injected fault.
+    $supervisorReceipt = $null
+    $recoveryReceipt = $null
+    $receiptDeadline = (Get-Date).AddSeconds(30)
+    while ((Get-Date) -lt $receiptDeadline) {
+        if (
+            (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) -and
+            (Test-Path -LiteralPath $RecoveryStateFile -PathType Leaf)
+        ) {
+            try {
+                $candidateSupervisorReceipt = Get-Content -LiteralPath $SupervisorStateFile -Raw | ConvertFrom-Json
+                $candidateRecoveryReceipt = Get-Content -LiteralPath $RecoveryStateFile -Raw | ConvertFrom-Json
+                $observedAt = [datetime]::Parse([string]$candidateSupervisorReceipt.observed_at).ToUniversalTime()
+                $lastSuccessAt = [datetime]::Parse([string]$candidateRecoveryReceipt.last_success_at).ToUniversalTime()
+                if (
+                    [int]$candidateSupervisorReceipt.supervisor_pid -eq $oldSupervisorPid -and
+                    [bool]$candidateSupervisorReceipt.runtime_ready -and
+                    [int]$candidateRecoveryReceipt.total_recoveries -ge 1 -and
+                    $observedAt -ge $faultInjectedAt -and
+                    $lastSuccessAt -ge $faultInjectedAt
+                ) {
+                    $supervisorReceipt = $candidateSupervisorReceipt
+                    $recoveryReceipt = $candidateRecoveryReceipt
+                    break
+                }
+            }
+            catch {}
+        }
+        Start-Sleep -Milliseconds 500
     }
-    if (Test-Path -LiteralPath $RecoveryStateFile -PathType Leaf) {
-        Copy-Item -LiteralPath $RecoveryStateFile -Destination (Join-Path $RunDir 'recovery-after-recovery.json') -Force
+
+    if ($null -eq $supervisorReceipt -or $null -eq $recoveryReceipt) {
+        throw 'Supervisor did not publish a verified post-recovery receipt.'
     }
+
+    # Prove the long-lived loop is still responsive after the recovery receipt.
+    # The next reconciliation cycle must update supervisor.json while the exact
+    # same supervisor PID remains authoritative.
+    $firstObservedAt = [datetime]::Parse([string]$supervisorReceipt.observed_at).ToUniversalTime()
+    $supervisorHeartbeatVerified = $false
+    $heartbeatDeadline = (Get-Date).AddSeconds(30)
+    while ((Get-Date) -lt $heartbeatDeadline) {
+        Start-Sleep -Seconds 1
+        try {
+            $heartbeat = Get-Content -LiteralPath $SupervisorStateFile -Raw | ConvertFrom-Json
+            $heartbeatObservedAt = [datetime]::Parse([string]$heartbeat.observed_at).ToUniversalTime()
+            $heartbeatSupervisors = @(Get-ExactSupervisorProcesses)
+            if (
+                $heartbeatSupervisors.Count -eq 1 -and
+                [int]$heartbeatSupervisors[0].ProcessId -eq $oldSupervisorPid -and
+                [int]$heartbeat.supervisor_pid -eq $oldSupervisorPid -and
+                $heartbeatObservedAt -gt $firstObservedAt
+            ) {
+                $supervisorHeartbeatVerified = $true
+                $supervisorReceipt = $heartbeat
+                $recoveryReceipt = Get-Content -LiteralPath $RecoveryStateFile -Raw | ConvertFrom-Json
+                break
+            }
+        }
+        catch {}
+    }
+
+    if (-not $supervisorHeartbeatVerified) {
+        throw 'Supervisor heartbeat did not advance after recovery.'
+    }
+
+    Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $RunDir 'supervisor-after-recovery.json') -Force
+    Copy-Item -LiteralPath $RecoveryStateFile -Destination (Join-Path $RunDir 'recovery-after-recovery.json') -Force
 
     $resourceRows = @()
     foreach ($process in @(Get-ExactSupervisorProcesses)) {
@@ -365,6 +431,9 @@ try {
         new_tunnel_pid = $newTunnelPid
         tunnel_pid_changed = ($newTunnelPid -ne $oldTunnelPid)
         supervisor_pid_stable = $supervisorPidStable
+        supervisor_receipt_verified = ($null -ne $supervisorReceipt)
+        supervisor_heartbeat_verified = $supervisorHeartbeatVerified
+        recovery_receipt_total_recoveries = [int]$recoveryReceipt.total_recoveries
         runtime_ready_after_recovery = [bool]$recovered.runtime_ready
         health_code_after_recovery = [string]$recovered.health_code
         openai_control_ready_after_recovery = [bool]$recovered.openai_ready
@@ -379,6 +448,9 @@ try {
     Write-Result 'NEW_TUNNEL_PID' $newTunnelPid
     Write-Result 'TUNNEL_PID_CHANGED' $summary['tunnel_pid_changed']
     Write-Result 'SUPERVISOR_PID_STABLE' $summary['supervisor_pid_stable']
+    Write-Result 'SUPERVISOR_RECEIPT_VERIFIED' $summary['supervisor_receipt_verified']
+    Write-Result 'SUPERVISOR_HEARTBEAT_VERIFIED' $summary['supervisor_heartbeat_verified']
+    Write-Result 'RECOVERY_RECEIPT_TOTAL_RECOVERIES' $summary['recovery_receipt_total_recoveries']
     Write-Result 'RUNTIME_READY_AFTER_RECOVERY' $summary['runtime_ready_after_recovery']
     Write-Result 'HEALTH_CODE_AFTER_RECOVERY' $summary['health_code_after_recovery']
     Write-Result 'OPENAI_CONTROL_READY_AFTER_RECOVERY' $summary['openai_control_ready_after_recovery']

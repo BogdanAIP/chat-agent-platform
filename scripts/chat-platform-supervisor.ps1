@@ -92,7 +92,8 @@ function Invoke-BoundedPowerShell {
     param(
         [Parameter(Mandatory)] [string]$ScriptPath,
         [Parameter(Mandatory)] [string[]]$Arguments,
-        [ValidateRange(100, 180000)] [int]$TimeoutMilliseconds
+        [ValidateRange(100, 180000)] [int]$TimeoutMilliseconds,
+        [bool]$CaptureOutput = $true
     )
 
     $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
@@ -100,8 +101,8 @@ function Invoke-BoundedPowerShell {
     $info.FileName = $pwsh
     $info.UseShellExecute = $false
     $info.CreateNoWindow = $true
-    $info.RedirectStandardOutput = $true
-    $info.RedirectStandardError = $true
+    $info.RedirectStandardOutput = $CaptureOutput
+    $info.RedirectStandardError = $CaptureOutput
 
     foreach ($argument in @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ScriptPath)) {
         $info.ArgumentList.Add([string]$argument)
@@ -118,16 +119,16 @@ function Invoke-BoundedPowerShell {
             return [pscustomobject]@{ exit_code = -1; timed_out = $false; stdout = ''; stderr = 'process_start_failed' }
         }
 
-        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $stdoutTask = if ($CaptureOutput) { $process.StandardOutput.ReadToEndAsync() } else { $null }
+        $stderrTask = if ($CaptureOutput) { $process.StandardError.ReadToEndAsync() } else { $null }
         if (-not $process.WaitForExit($TimeoutMilliseconds)) {
             try { $process.Kill($true) } catch {}
             $process.WaitForExit()
             return [pscustomobject]@{
                 exit_code = -1
                 timed_out = $true
-                stdout = $stdoutTask.GetAwaiter().GetResult()
-                stderr = $stderrTask.GetAwaiter().GetResult()
+                stdout = if ($CaptureOutput) { $stdoutTask.GetAwaiter().GetResult() } else { '' }
+                stderr = if ($CaptureOutput) { $stderrTask.GetAwaiter().GetResult() } else { '' }
             }
         }
 
@@ -135,8 +136,8 @@ function Invoke-BoundedPowerShell {
         return [pscustomobject]@{
             exit_code = $process.ExitCode
             timed_out = $false
-            stdout = $stdoutTask.GetAwaiter().GetResult()
-            stderr = $stderrTask.GetAwaiter().GetResult()
+            stdout = if ($CaptureOutput) { $stdoutTask.GetAwaiter().GetResult() } else { '' }
+            stderr = if ($CaptureOutput) { $stderrTask.GetAwaiter().GetResult() } else { '' }
         }
     }
     finally {
@@ -149,7 +150,8 @@ function Get-ManagerStatus {
     $result = Invoke-BoundedPowerShell `
         -ScriptPath $commandPath `
         -Arguments @('-Action', 'Status', '-NoNotify') `
-        -TimeoutMilliseconds $ManagerStatusTimeoutMilliseconds
+        -TimeoutMilliseconds $ManagerStatusTimeoutMilliseconds `
+        -CaptureOutput $true
 
     if ($result.timed_out) {
         throw 'Manager status timed out.'
@@ -367,7 +369,8 @@ function Invoke-OwnedDirectControllerAction {
     $result = Invoke-BoundedPowerShell `
         -ScriptPath $ControllerPath `
         -Arguments @('-Action', $ControllerAction, '-NoNotify') `
-        -TimeoutMilliseconds $ControllerMutationTimeoutMilliseconds
+        -TimeoutMilliseconds $ControllerMutationTimeoutMilliseconds `
+        -CaptureOutput $false
 
     if ($result.timed_out) {
         throw "Direct controller $ControllerAction timed out."
