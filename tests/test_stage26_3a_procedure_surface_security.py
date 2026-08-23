@@ -13,12 +13,13 @@ class Stage263AProcedureSurfaceSecurityTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.source = PROJECTION.read_text(encoding="utf-8")
 
-    def test_control_plane_child_uses_explicit_environment_allowlist(self) -> None:
+    def test_all_descendants_use_explicit_environment_allowlist(self) -> None:
         self.assertIn("const CONTROL_PLANE_ENV_ALLOWLIST = new Set", self.source)
-        self.assertIn("env: controlPlaneEnvironment()", self.source)
+        self.assertIn("function scopedChildEnvironment()", self.source)
+        self.assertGreaterEqual(self.source.count("env: scopedChildEnvironment()"), 2)
         self.assertNotIn("env: process.env", self.source)
 
-    def test_control_plane_child_does_not_receive_tunnel_or_openai_credentials(self) -> None:
+    def test_descendants_do_not_receive_tunnel_or_openai_credentials(self) -> None:
         allowlist_block = self.source[
             self.source.index("const CONTROL_PLANE_ENV_ALLOWLIST") :
             self.source.index("function toolError")
@@ -36,6 +37,14 @@ class Stage263AProcedureSurfaceSecurityTests(unittest.TestCase):
             "CHAT_PROCEDURE_ALLOW_CANDIDATE",
         ):
             self.assertIn(required, allowlist_block)
+
+        for secret in (
+            "CONTROL_PLANE_API_KEY",
+            "OPENAI_API_KEY",
+            "OPENAI_ADMIN_KEY",
+        ):
+            self.assertIn(f"'{secret}'", self.source)
+        self.assertIn("delete process.env[key]", self.source)
 
     def test_procedure_surface_remains_fixed_and_non_generic(self) -> None:
         for required in (
