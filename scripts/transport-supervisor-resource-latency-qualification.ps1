@@ -74,12 +74,12 @@ function Get-DirectTunnelProcesses {
 }
 
 function Get-ProcessSample {
-    param([Parameter(Mandatory)] [string]$Role, [Parameter(Mandatory)] [int]$Pid)
+    param([Parameter(Mandatory)] [string]$Role, [Parameter(Mandatory)] [int]$ProcessId)
 
-    $process = Get-Process -Id $Pid -ErrorAction Stop
+    $process = Get-Process -Id $ProcessId -ErrorAction Stop
     return [pscustomobject]@{
         role = $Role
-        pid = $Pid
+        pid = $ProcessId
         sampled_at = (Get-Date).ToUniversalTime().ToString('o')
         cpu_seconds = [double]$process.CPU
         working_set_bytes = [long]$process.WorkingSet64
@@ -124,8 +124,8 @@ Write-Result 'SUPERVISOR_PID_IDLE' $supervisorPid
 Write-Result 'TUNNEL_PID_IDLE' $tunnelPid
 
 $before = @(
-    Get-ProcessSample -Role 'supervisor' -Pid $supervisorPid
-    Get-ProcessSample -Role 'tunnel-client' -Pid $tunnelPid
+    Get-ProcessSample -Role 'supervisor' -ProcessId $supervisorPid
+    Get-ProcessSample -Role 'tunnel-client' -ProcessId $tunnelPid
 )
 $before | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $RunDir 'idle-before.json') -Encoding utf8
 
@@ -141,8 +141,8 @@ if ($currentTunnels.Count -ne 1 -or [int]$currentTunnels[0].ProcessId -ne $tunne
 }
 
 $after = @(
-    Get-ProcessSample -Role 'supervisor' -Pid $supervisorPid
-    Get-ProcessSample -Role 'tunnel-client' -Pid $tunnelPid
+    Get-ProcessSample -Role 'supervisor' -ProcessId $supervisorPid
+    Get-ProcessSample -Role 'tunnel-client' -ProcessId $tunnelPid
 )
 $after | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $RunDir 'idle-after.json') -Encoding utf8
 
