@@ -51,10 +51,19 @@ class TransportSupervisorNetworkQualificationContractTests(unittest.TestCase):
         self.assertIn("Bounded reconnect recovery left non-zero consecutive attempts", SOURCE)
         self.assertIn("Bounded reconnect recovery did not publish last_success_at", SOURCE)
 
+    def test_reconnect_waits_for_coherent_process_and_receipt_pair(self):
+        for marker in (
+            "$receiptSettleDeadline = (Get-Date).AddSeconds(30)",
+            "$coherentSeamless = (",
+            "$coherentRecovery = (",
+            "Post-reconnect process and recovery receipts did not settle into a coherent state",
+        ):
+            self.assertIn(marker, SOURCE)
+
     def test_reconnect_requires_same_supervisor_and_full_ready_state(self):
         self.assertIn("[bool]$status.openai_ready", SOURCE)
         self.assertIn("[int]$currentSupervisors[0].ProcessId -eq $supervisorPid", SOURCE)
-        self.assertIn("Supervisor PID changed across network reconnect", SOURCE)
+        self.assertIn("[int]$candidateSupervisor.supervisor_pid -eq $supervisorPid", SOURCE)
         self.assertIn("Healthy state did not return automatically", SOURCE)
 
     def test_reconnect_failure_preserves_diagnostic_samples(self):
