@@ -8,21 +8,21 @@ This file is intentionally compact. Resolve live GitHub state before acting beca
 
 ## Current integration snapshot — 2026-08-23
 
-Transport Supervisor v1 was accepted and merged as PR #94. The Stage 26.3A branch has been integrated on top of that accepted foundation without force-push.
+Transport Supervisor v1 was accepted and merged as PR #94. The current procedure-runtime branch has been integrated on top of that accepted foundation without force-push.
 
 ```text
 accepted main foundation after #94:
 2f33997d3fbaa1fc52d437c00be7f16e55bdde5e
 
-Stage 26.3A exact hosted-qualified code head:
+exact hosted-qualified procedure code head:
 e4507dbe6dc07e182313769ebe833dd1e6801572
 ```
 
-All ten pull-request-triggered hosted workflows were green on `e4507dbe6dc07e182313769ebe833dd1e6801572`, including `ci`, `Stage 26.3A Procedure Qualification`, Direct Semantic Tunnel Acceptance, semantic/profile regressions, CodeQL and Secret History Scan.
+All ten pull-request-triggered hosted workflows were green on `e4507dbe6dc07e182313769ebe833dd1e6801572`, including `ci`, the dedicated procedure qualification workflow, Direct Semantic Tunnel Acceptance, semantic/profile regressions, CodeQL and Secret History Scan.
 
 Documentation commits after that exact code head do not themselves constitute new physical evidence. Before any physical qualification, resolve the live PR #92 head and require the intended exact SHA.
 
-Stage 26.3A is **not physically accepted yet**. Remaining physical gates:
+The procedure-runtime candidate is **not physically accepted yet**. Remaining physical gates:
 
 1. exact-head target-Windows direct-tunnel qualification;
 2. ordinary ChatGPT one-goal E2E with no intermediate PowerShell copy/paste;
@@ -38,7 +38,7 @@ Stage 26.3A is **not physically accepted yet**. Remaining physical gates:
 - The Control Plane owns TaskState, selected ProgramGraph progression, authorization, checkpoints, verifier/postconditions, bounded recovery and resource budgets.
 - A known selected procedure may advance through several independently authorized/verified transitions without returning to ChatGPT after every low-level action.
 - Novel strategy, stale/ambiguous/UNKNOWN/incompatible state -> ABSTAIN/escalate to ChatGPT.
-- Current normal public semantic tools remain exactly `workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`; Stage 26.3A adds `procedure_run` only in the isolated qualification profile.
+- Current normal public semantic tools remain exactly `workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`; the isolated qualification profile adds `procedure_run` without changing that normal inventory.
 - Model/procedure/planner/observation output is evidence/proposal, never authorization by itself.
 - Current state outranks remembered/history state.
 - Delivery is not completion; explicit verification controls completion.
