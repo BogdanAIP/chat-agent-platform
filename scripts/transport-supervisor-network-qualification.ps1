@@ -393,28 +393,31 @@ try {
             $currentTunnels = @(Get-DirectTunnelProcesses)
             $s = Read-SupervisorState
             $r = Read-RecoveryState
-            $reconnectSamples += [pscustomobject]@{
+
+            $sample = [pscustomobject]@{
                 observed_at = (Get-Date).ToUniversalTime().ToString('o')
                 runtime_ready = [bool]$status.runtime_ready
                 openai_ready = [bool]$status.openai_ready
-                health_code = [string]$status.health_code
-                recovery_action = [string]$status.recovery_action
-                remote_tunnel_status = [string]$status.remote_tunnel_status
-                control_plane_poll_fresh = [bool]$status.control_plane_poll_fresh
+                health_code = if ($null -ne $status.PSObject.Properties['health_code']) { [string]$status.health_code } else { $null }
+                recovery_action = if ($null -ne $status.PSObject.Properties['recovery_action']) { [string]$status.recovery_action } else { $null }
+                remote_tunnel_status = if ($null -ne $status.PSObject.Properties['remote_tunnel_status']) { [string]$status.remote_tunnel_status } else { $null }
+                control_plane_poll_fresh = if ($null -ne $status.PSObject.Properties['control_plane_poll_fresh']) { [bool]$status.control_plane_poll_fresh } else { $false }
                 supervisor_process_count = $currentSupervisors.Count
                 supervisor_pid = if ($currentSupervisors.Count -eq 1) { [int]$currentSupervisors[0].ProcessId } else { $null }
                 tunnel_process_count = $currentTunnels.Count
                 tunnel_pid = if ($currentTunnels.Count -eq 1) { [int]$currentTunnels[0].ProcessId } else { $null }
                 supervisor_state = if ($null -ne $s) { [string]$s.supervisor_state } else { $null }
                 recovery_total = if ($null -ne $r) { [int]$r.total_recoveries } else { $null }
+                consecutive_attempts = if ($null -ne $r) { [int]$r.consecutive_attempts } else { $null }
             }
+            $reconnectSamples += $sample
+
             if (
                 [bool]$status.runtime_ready -and
                 [bool]$status.openai_ready -and
                 $currentSupervisors.Count -eq 1 -and
                 [int]$currentSupervisors[0].ProcessId -eq $supervisorPid -and
-                $currentTunnels.Count -eq 1 -and
-                [int]$currentTunnels[0].ProcessId -eq $tunnelPid
+                $currentTunnels.Count -eq 1
             ) {
                 $reconnected = $status
                 break
@@ -425,22 +428,60 @@ try {
     }
     $reconnectSamples | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $RunDir 'reconnect-samples.json') -Encoding utf8
     if ($null -eq $reconnected) {
-        $last = @($reconnectSamples | Select-Object -Last 1)
-        if ($last.Count -eq 1) {
-            $sample = $last[0]
-            throw "Healthy state did not return automatically within $ReconnectTimeoutSeconds seconds after reconnect. Last sample: runtime_ready=$($sample.runtime_ready), openai_ready=$($sample.openai_ready), health_code=$($sample.health_code), recovery_action=$($sample.recovery_action), remote_tunnel_status=$($sample.remote_tunnel_status), control_plane_poll_fresh=$($sample.control_plane_poll_fresh), supervisor_pid=$($sample.supervisor_pid), tunnel_pid=$($sample.tunnel_pid), recovery_total=$($sample.recovery_total)."
+        $lastSample = if ($reconnectSamples.Count -gt 0) { $reconnectSamples[-1] } else { $null }
+        if ($null -ne $lastSample) {
+            throw "Healthy state did not return automatically within $ReconnectTimeoutSeconds seconds after reconnect. Last sample: runtime_ready=$($lastSample.runtime_ready), openai_ready=$($lastSample.openai_ready), health_code=$($lastSample.health_code), recovery_action=$($lastSample.recovery_action), remote_tunnel_status=$($lastSample.remote_tunnel_status), control_plane_poll_fresh=$($lastSample.control_plane_poll_fresh), supervisor_pid=$($lastSample.supervisor_pid), tunnel_pid=$($lastSample.tunnel_pid), recovery_total=$($lastSample.recovery_total)."
         }
-        throw "Healthy state did not return automatically within $ReconnectTimeoutSeconds seconds after reconnect; no valid reconnect status sample was captured."
+        throw "Healthy state did not return automatically within $ReconnectTimeoutSeconds seconds after reconnect and no reconnect sample was captured."
     }
     Save-JsonEvidence -Name 'manager-after-reconnect' -Value $reconnected
 
     $postRecovery = Read-RecoveryState
     $postSupervisor = Read-SupervisorState
+    $postTunnels = @(Get-DirectTunnelProcesses)
     if ($null -eq $postRecovery -or $null -eq $postSupervisor) {
         throw 'Supervisor receipts are missing after reconnect.'
     }
-    if ([int]$postRecovery.total_recoveries -ne $recoveriesBefore) {
-        throw 'Reconnect succeeded only after a destructive runtime recovery; expected reconnect without local runtime churn.'
+    if ($postTunnels.Count -ne 1) {
+        throw "Expected exactly one direct tunnel after reconnect; found $($postTunnels.Count)."
+    }
+    if ([int]$postSupervisor.supervisor_pid -ne $supervisorPid) {
+        throw 'Supervisor PID changed across network reconnect.'
+    }
+
+    $recoveriesAfter = [int]$postRecovery.total_recoveries
+    $recoveryDelta = $recoveriesAfter - $recoveriesBefore
+    if ($recoveryDelta -lt 0 -or $recoveryDelta -gt 1) {
+        throw "Reconnect caused an unexpected recovery count delta: $recoveryDelta. Expected 0 or 1."
+    }
+
+    $postTunnelPid = [int]$postTunnels[0].ProcessId
+    $reconnectMode = if ($recoveryDelta -eq 0) { 'seamless' } else { 'bounded_recovery' }
+
+    if ($reconnectMode -eq 'seamless') {
+        if ($postTunnelPid -ne $tunnelPid) {
+            throw 'Tunnel PID changed without a committed supervisor recovery receipt.'
+        }
+    }
+    else {
+        if ($postTunnelPid -eq $tunnelPid) {
+            throw 'Recovery count increased but tunnel PID did not change.'
+        }
+        if ([string]$postSupervisor.supervisor_state -ne 'healthy') {
+            throw 'Bounded reconnect recovery did not end in healthy supervisor state.'
+        }
+        if ([string]$postSupervisor.health_code -ne 'READY') {
+            throw 'Bounded reconnect recovery did not end in READY health.'
+        }
+        if ([string]$postSupervisor.recovery_action -ne 'none') {
+            throw 'Bounded reconnect recovery left a pending recovery action.'
+        }
+        if ([int]$postRecovery.consecutive_attempts -ne 0) {
+            throw 'Bounded reconnect recovery left non-zero consecutive attempts.'
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$postRecovery.last_success_at)) {
+            throw 'Bounded reconnect recovery did not publish last_success_at.'
+        }
     }
 
     $heartbeatAt = [string]$postSupervisor.observed_at
@@ -480,14 +521,16 @@ try {
     }
 
     $summary = [ordered]@{
-        schema_version = 1
+        schema_version = 2
         result = 'PASSED'
         repo_head = (git -C $RepoRoot rev-parse HEAD).Trim()
         run_dir = $RunDir
         desired_state_before = $desiredStateBefore
         desired_state_restored = $desiredStateRestored
         supervisor_pid = $supervisorPid
-        tunnel_pid = $tunnelPid
+        old_tunnel_pid = $tunnelPid
+        new_tunnel_pid = $postTunnelPid
+        reconnect_mode = $reconnectMode
         disconnect_confirmed_at = $disconnectConfirmedAt
         reconnect_confirmed_at = $reconnectConfirmedAt
         offline_health_code = [string]$offlineDetected.health_code
@@ -495,9 +538,10 @@ try {
         offline_openai_ready = [bool]$offlineDetected.openai_ready
         offline_observation_seconds = $OfflineObservationSeconds
         supervisor_pid_stable = $true
-        tunnel_pid_stable = $true
+        tunnel_pid_stable = ($postTunnelPid -eq $tunnelPid)
         recovery_receipt_total_before = $recoveriesBefore
-        recovery_receipt_total_after = [int]$postRecovery.total_recoveries
+        recovery_receipt_total_after = $recoveriesAfter
+        recovery_count_delta = $recoveryDelta
         reconnect_runtime_ready = [bool]$reconnected.runtime_ready
         reconnect_openai_ready = [bool]$reconnected.openai_ready
         supervisor_heartbeat_verified = $heartbeatAdvanced
@@ -508,11 +552,14 @@ try {
 
     Write-Result 'TRANSPORT_SUPERVISOR_NETWORK_QUALIFICATION_RESULT' 'PASSED'
     Write-Result 'SUPERVISOR_PID' $supervisorPid
-    Write-Result 'TUNNEL_PID' $tunnelPid
+    Write-Result 'OLD_TUNNEL_PID' $tunnelPid
+    Write-Result 'NEW_TUNNEL_PID' $postTunnelPid
+    Write-Result 'RECONNECT_MODE' $reconnectMode
     Write-Result 'SUPERVISOR_PID_STABLE' $summary['supervisor_pid_stable']
     Write-Result 'TUNNEL_PID_STABLE' $summary['tunnel_pid_stable']
     Write-Result 'RECOVERY_TOTAL_BEFORE' $summary['recovery_receipt_total_before']
     Write-Result 'RECOVERY_TOTAL_AFTER' $summary['recovery_receipt_total_after']
+    Write-Result 'RECOVERY_COUNT_DELTA' $summary['recovery_count_delta']
     Write-Result 'OFFLINE_RUNTIME_READY' $summary['offline_runtime_ready']
     Write-Result 'OFFLINE_OPENAI_READY' $summary['offline_openai_ready']
     Write-Result 'RECONNECT_RUNTIME_READY' $summary['reconnect_runtime_ready']
