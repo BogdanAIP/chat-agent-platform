@@ -111,6 +111,19 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, source)
 
+    def test_direct_tunnel_cleanup_is_bound_to_verified_owner_ancestry(self) -> None:
+        source = DIRECT.read_text(encoding="utf-8")
+        self.assertIn("function Get-OwnedQualificationSemanticChildren", source)
+        self.assertIn("[int]$_.ParentProcessId -eq $parentPid", source)
+        self.assertIn("Get-QualificationTunnelProcess", source)
+        stop_block = source[
+            source.index("function Stop-QualificationTunnel") :
+            source.index("function Start-QualificationTunnel")
+        ]
+        self.assertIn("Get-OwnedQualificationSemanticChildren -TunnelProcess $process", stop_block)
+        self.assertNotIn("Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |", stop_block)
+        self.assertNotIn("$entryPattern = [regex]::Escape($qualificationEntry)", stop_block)
+
 
 if __name__ == "__main__":
     unittest.main()
