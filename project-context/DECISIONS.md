@@ -206,3 +206,28 @@ observe -> match permitted transition -> authorize -> act -> verify -> checkpoin
 ```
 
 until an escalation condition occurs. This is the mechanism for long-horizon autonomy without introducing a second current general planner.
+
+## ADR-030 — Self-healing transport supervisor with a persistent tunnel anchor — PROVISIONAL
+
+The normal direct semantic transport should gain a lightweight user-context supervisor that continuously reconciles the user's explicit desired transport state and restores recoverable platform-owned runtime failures.
+
+The supervisor belongs to the Windows lifecycle/diagnostics boundary, not the Stage 26.3 procedure Control Plane and not the planner boundary.
+
+Required principles:
+
+- keep the existing accepted `tunnel_*` id as the persistent anchor;
+- restart/reconnect replaceable local `tunnel-client` / semantic runtime around that anchor;
+- represent local MCP health, local tunnel health, OpenAI control-plane health and last-known ChatGPT route health as distinct evidence;
+- use failure-specific recovery rather than blind restart loops;
+- recover local/process/network/transient-service failures with bounded fast retries followed by indefinite low-rate re-probing while desired state remains `running`;
+- fail closed on authentication, permission or conclusive remote-resource loss;
+- do not claim that remote control-plane health proves a current ChatGPT app route;
+- do not automatically create/delete/rotate tunnel resources as normal recovery;
+- do not require or persist a long-lived `OPENAI_ADMIN_KEY` in the supervisor by default;
+- preserve DPAPI `CurrentUser` secret storage and semantic-child credential scrubbing;
+- keep tray lifetime independent from supervisor lifetime;
+- prefer stable official `tunnel-client` lifecycle/recovery features when a reviewed published release provides them instead of duplicating upstream behavior.
+
+The existing unmerged `chat/tunnel-reliability-e2e-health` branch is prototype evidence only and is not accepted by this ADR.
+
+Implementation/acceptance contract: `TRANSPORT_SUPERVISOR.md`.
