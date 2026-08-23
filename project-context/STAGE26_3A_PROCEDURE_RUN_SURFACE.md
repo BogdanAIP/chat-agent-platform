@@ -45,15 +45,26 @@ Assets:
 runtime/semantic-projection/bin/procedure-qualification-projection.mjs
 runtime/chat-profiles/procedure-qualification/mcp.json
 scripts/start-procedure-qualification-profile.ps1
+scripts/stage26-3a-procedure-direct-tunnel.ps1
 ```
 
 This keeps the production/accepted five-tool profile structurally separate from the candidate procedure capability.
 
-### Control Plane child environment
+The qualification proxy is also intentionally excluded from the production semantic package `files` allowlist. It is source/qualification infrastructure until the public consequence contract is explicitly promoted.
 
-The Python Control Plane does not need tunnel/OpenAI credentials and must not inherit the projection process environment wholesale.
+### Child environment and credential isolation
 
-`procedure-qualification-projection.mjs` therefore builds an explicit child-environment allowlist containing only the operating-system minimum required to locate/run Python plus:
+The Python Control Plane and the nested semantic child do not need tunnel/OpenAI credentials and must not inherit the projection process environment wholesale.
+
+`procedure-qualification-projection.mjs` deletes the tunnel-only variables:
+
+```text
+CONTROL_PLANE_API_KEY
+OPENAI_API_KEY
+OPENAI_ADMIN_KEY
+```
+
+before starting any child, then builds an explicit child-environment allowlist containing only the operating-system minimum required to locate/run Node/Python/browser dependencies plus:
 
 ```text
 CHAT_LOCAL_FILES_ROOT
@@ -61,7 +72,7 @@ CHAT_PROCEDURE_STATE_ROOT
 CHAT_PROCEDURE_ALLOW_CANDIDATE
 ```
 
-Credential-bearing variables such as `CONTROL_PLANE_API_KEY`, `OPENAI_API_KEY` and `OPENAI_ADMIN_KEY` are intentionally not passed to the procedure child. A procedure gaining local execution authority must not gain unrelated transport/control-plane secrets by process inheritance.
+A procedure gaining bounded local execution authority must not gain unrelated transport/control-plane secrets by process inheritance.
 
 ## Exact Stage 26.3A procedure schema
 
@@ -132,7 +143,7 @@ completed (idempotent observation only)
 
 Ambiguous mid-transition state is not guessed through.
 
-## MCP acceptance
+## Direct MCP acceptance
 
 Automated acceptance must prove all of the following in one direct MCP session:
 
@@ -143,14 +154,70 @@ inventory == accepted five semantic tools + procedure_run
  -> resume_task_id returns the already-completed task without repeating actions
 ```
 
-The acceptance must also inspect the `procedure_run` input schema and prove that generic path/command/backend/tool selectors are absent. Source/security regressions additionally lock the explicit Control Plane child-environment allowlist and absence of tunnel/OpenAI credentials from that child.
+The acceptance must also inspect the `procedure_run` input schema and prove that generic path/command/backend/tool selectors are absent. Source/security regressions lock the explicit child-environment allowlist and absence of tunnel/OpenAI credentials from descendants.
 
 Current acceptance assets:
 
 ```text
 runtime/semantic-projection/tests/procedure-qualification-acceptance.mjs
-tests/test_stage26_3a_procedure_surface_security.py
+tests/test_stage26_3a_procedure_surface.py
+.github/workflows/stage26-3a-procedure.yml
 ```
+
+Production `npm run acceptance` deliberately remains the historical five-tool semantic regression. The qualification acceptance is a separate named gate; adding a candidate procedure capability must not redefine what the old production acceptance means.
+
+## Secure MCP Tunnel qualification path
+
+The ordinary-Chat physical gate must use the already accepted Secure MCP Tunnel / official `tunnel-client` / direct-stdio transport rather than an unrelated local-only path.
+
+Stage 26.3A uses a separate qualification harness:
+
+```text
+scripts/stage26-3a-procedure-direct-tunnel.ps1
+```
+
+Its contract is:
+
+```text
+existing persistent tunnel_* id
+ -> stop any competing accepted local profile
+ -> official installed tunnel-client
+ -> direct --mcp.command node procedure-qualification-projection.mjs
+ -> exact qualification workspace/state/admission environment
+ -> proxy scrubs tunnel credentials before descendants
+ -> local /readyz must pass
+```
+
+The harness must not create/update/delete/rotate tunnel resources and must not require `OPENAI_ADMIN_KEY`. The same persistent tunnel id is reused temporarily for qualification so the Chat connector binding remains stable.
+
+This harness is qualification infrastructure, not a replacement for the production semantic direct controller. Start/Stop of the qualification route must not silently promote the six-tool surface into the ordinary semantic profile.
+
+## Physical ordinary-Chat acceptance
+
+After hosted gates are green, the target Windows test is:
+
+```text
+prepare one disposable explicit workspace
+ -> start Stage 26.3A qualification direct tunnel
+ -> ordinary ChatGPT sees exactly six qualification tools
+ -> user states ONE bounded artifact goal once
+ -> Chat chooses verified_workspace_artifact_v1
+ -> Chat calls procedure_run
+ -> Control Plane executes multiple verified transitions locally
+ -> Chat independently calls workspace_read on final artifact
+ -> exact content/postcondition verified
+ -> no intermediate PowerShell copy/paste during procedure execution
+```
+
+Negative acceptance must use an incompatible/pre-existing intermediate state and prove:
+
+```text
+procedure_run -> structured ABSTAIN
+ -> zero unauthorized continuation/overwrite
+ -> independent workspace_read confirms protected state is unchanged
+```
+
+One initial target setup command to install/start the qualification route is infrastructure setup, not an allowed substitute for intermediate command relay inside the actual procedure test.
 
 ## Product promotion gate
 
@@ -159,8 +226,8 @@ The qualification surface must not become the normal Chat profile until a later 
 At minimum product promotion requires:
 
 1. hardened file-procedure checkpoint/resume/fault tests green;
-2. qualification MCP acceptance green;
-3. Secure MCP Tunnel wiring for the qualification surface;
+2. dedicated qualification MCP acceptance green;
+3. Secure MCP Tunnel direct-stdio qualification wiring green;
 4. ordinary ChatGPT E2E starting from one user goal with no intermediate PowerShell copy/paste;
 5. independent final verification returned to Chat;
 6. negative E2E showing incompatible intermediate state => structured ABSTAIN with no unauthorized continuation;
