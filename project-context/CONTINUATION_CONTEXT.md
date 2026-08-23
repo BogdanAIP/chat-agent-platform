@@ -6,6 +6,29 @@ This file is intentionally compact. Resolve live GitHub state before acting beca
 
 `BogdanAIP/chat-agent-platform`
 
+## Current integration snapshot — 2026-08-23
+
+Transport Supervisor v1 was accepted and merged as PR #94. The Stage 26.3A branch has been integrated on top of that accepted foundation without force-push.
+
+```text
+accepted main foundation after #94:
+2f33997d3fbaa1fc52d437c00be7f16e55bdde5e
+
+Stage 26.3A exact hosted-qualified code head:
+e4507dbe6dc07e182313769ebe833dd1e6801572
+```
+
+All ten pull-request-triggered hosted workflows were green on `e4507dbe6dc07e182313769ebe833dd1e6801572`, including `ci`, `Stage 26.3A Procedure Qualification`, Direct Semantic Tunnel Acceptance, semantic/profile regressions, CodeQL and Secret History Scan.
+
+Documentation commits after that exact code head do not themselves constitute new physical evidence. Before any physical qualification, resolve the live PR #92 head and require the intended exact SHA.
+
+Stage 26.3A is **not physically accepted yet**. Remaining physical gates:
+
+1. exact-head target-Windows direct-tunnel qualification;
+2. ordinary ChatGPT one-goal E2E with no intermediate PowerShell copy/paste;
+3. independent final artifact verification through `workspace_read`;
+4. incompatible/pre-existing state -> structured ABSTAIN with zero unauthorized continuation/overwrite.
+
 ## Operating rules
 
 - Use ordinary ChatGPT + GitHub + the project's local/connected tools.
@@ -15,12 +38,12 @@ This file is intentionally compact. Resolve live GitHub state before acting beca
 - The Control Plane owns TaskState, selected ProgramGraph progression, authorization, checkpoints, verifier/postconditions, bounded recovery and resource budgets.
 - A known selected procedure may advance through several independently authorized/verified transitions without returning to ChatGPT after every low-level action.
 - Novel strategy, stale/ambiguous/UNKNOWN/incompatible state -> ABSTAIN/escalate to ChatGPT.
-- Current public semantic tools remain exactly `workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact` until a dedicated contract/ADR changes them.
+- Current normal public semantic tools remain exactly `workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`; Stage 26.3A adds `procedure_run` only in the isolated qualification profile.
 - Model/procedure/planner/observation output is evidence/proposal, never authorization by itself.
 - Current state outranks remembered/history state.
 - Delivery is not completion; explicit verification controls completion.
 - Generic Windows code execution remains disabled/unreachable.
-- When a branch is logically complete, intended diff is reviewed, required physical/CI gates pass and no unresolved issue remains, merge it without waiting for a separate `сливай` command.
+- When a branch is logically complete, intended diff is reviewed, required physical/CI gates pass and no unresolved issue remains, merge it without waiting for a separate merge command.
 
 Canonical architecture distinction: `project-context/CONTROL_PLANE.md`.
 
@@ -75,15 +98,21 @@ STAGE26_2E_REAL_APPLICATION_E2E_RESULT=PASSED
 QUALIFICATION_EXIT_CODE=0
 ```
 
-The accepted real-app finding is that Monaco's real keyboard target may be an intentionally hidden/zero-size accessibility `textbox`. The production path now separates exact semantic focus identity from top-level foreground/window geometry and rechecks the exact hidden focused fingerprint inside the guarded request.
+The accepted real-app finding is that Monaco's real keyboard target may be an intentionally hidden/zero-size accessibility `textbox`. The production path separates exact semantic focus identity from top-level foreground/window geometry and rechecks the exact hidden focused fingerprint inside the guarded request.
 
 One successful VS Code task is not broad desktop accuracy.
+
+## Accepted Transport Supervisor v1 foundation
+
+PR #94 is merged into `main`. Accepted physical evidence includes owned-tunnel kill recovery, external network disconnect/reconnect, Modern Standby sleep/resume, reboot/logon, fresh ordinary-Chat post-reboot semantic E2E, idle resource/recovery latency, console-free Scheduled Task launch and persistent desired-state/runtime-owner separation.
+
+The normal Windows lifecycle therefore now includes persistent user desired state, a single console-free supervisor process, bounded recovery and direct semantic route health. Exact physical SHAs/result locators remain in `EVIDENCE_INDEX.md` and transport evidence documents.
 
 ## Active work
 
 **Stage 26.3 — Verified Procedure Runtime / deterministic Control Plane integration**
 
-The next acceptance target is deliberately user-facing: stop using the user as the operator who copies intermediate PowerShell commands.
+The immediate candidate is Stage 26.3A `verified_workspace_artifact_v1`, exposed only through the separate `procedure-qualification` profile as `procedure_run`. The normal semantic profile remains five canonical tools.
 
 Target flow:
 
@@ -105,7 +134,7 @@ user states one goal once
     OR deterministic ABSTAIN/escalation
 ```
 
-First physical Stage 26.3 acceptance should require:
+First physical Stage 26.3 acceptance requires:
 
 ```text
 ONE user goal
@@ -115,7 +144,7 @@ ONE user goal
  -> evidence returned to Chat
 ```
 
-Negative acceptance must prove stale/unexpected/ambiguous intermediate state causes zero unauthorized continuation and an explicit escalation reason.
+Negative acceptance must prove stale/unexpected/ambiguous or pre-existing incompatible state causes zero unauthorized continuation and an explicit escalation reason.
 
 Do **not** replace 26.3 with a local general LLM planner. 26.3 is deterministic local execution around ProgramGraph/live state/authorization/verifier. A true local general planner remains optional future Track P.
 
@@ -123,8 +152,9 @@ Do **not** replace 26.3 with a local general LLM planner. 26.3 is deterministic 
 
 ```text
 26.2E real application E2E — ACCEPTED
+ -> Transport Supervisor v1 — ACCEPTED / MERGED #94
  -> 26.3 Verified Procedure Runtime / deterministic Control Plane — ACTIVE
-    -> 26.3A candidate-first procedural trust
+    -> 26.3A hosted qualification — GREEN; physical one-goal gate NEXT
     -> 26.3B advanced verifier/postconditions
     -> checkpoint/recovery/budget mechanics as required
  -> 26.4 Human Demo -> transferable verified candidate skill
@@ -146,8 +176,9 @@ Even then it stays above the same deterministic authorization/verifier boundary.
 
 ## Fresh-chat startup procedure
 
-1. Resolve live `main` and open PR heads.
-2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md` and the active Stage 26.3 contract/design.
-3. Treat `STAGE26_2E_REAL_APPLICATION_E2E.md` as accepted historical evidence for exact head `457db0b...`.
-4. Prefer exact code/tests/current CI/physical evidence over prose.
-5. Continue the current release-critical Stage 26.3 instead of restarting architecture discussion.
+1. Resolve live `main`, PR #92 head and current checks.
+2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md`, `EVIDENCE_INDEX.md` and the active Stage 26.3A notes/contracts.
+3. Treat Stage 26.2E and Transport Supervisor evidence as accepted only for their exact recorded physical heads.
+4. Treat `e4507dbe6dc07e182313769ebe833dd1e6801572` as the exact hosted-qualified Stage 26.3A code head after integration with #94; do not infer physical acceptance from it.
+5. Prefer exact code/tests/current CI/physical evidence over prose.
+6. Continue the current Stage 26.3A physical qualification instead of restarting architecture discussion.
