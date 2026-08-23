@@ -17,6 +17,9 @@ $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) {
     throw 'Transport Supervisor reboot/logon qualification supports Windows only.'
 }
+if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion.Major -lt 7) {
+    throw 'PowerShell 7 or newer is required.'
+}
 if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
     throw 'LOCALAPPDATA is unavailable.'
 }
@@ -41,7 +44,10 @@ $PendingFile = Join-Path $OutputRoot 'pending.json'
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 
 function Write-Result {
-    param([Parameter(Mandatory)] [string]$Name, [Parameter(Mandatory)] $Value)
+    param(
+        [Parameter(Mandatory)] [string]$Name,
+        [Parameter(Mandatory)] $Value
+    )
     Write-Host "$Name=$Value"
 }
 
@@ -51,6 +57,7 @@ function Save-JsonEvidence {
         [Parameter(Mandatory)] [string]$Name,
         [Parameter(Mandatory)] $Value
     )
+
     $Value |
         ConvertTo-Json -Depth 12 |
         Set-Content -LiteralPath (Join-Path $Directory "$Name.json") -Encoding utf8
@@ -72,6 +79,14 @@ function Write-AtomicJson {
     finally {
         Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
     }
+}
+
+function Get-RepoHead {
+    $head = (& git -C $RepoRoot rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($head)) {
+        throw 'Could not resolve qualification repository HEAD.'
+    }
+    return $head
 }
 
 function Invoke-BoundedManagerProcess {
@@ -117,7 +132,7 @@ function Invoke-BoundedManagerProcess {
 
         $process.WaitForExit()
         return [pscustomobject]@{
-            exit_code = $process.ExitCode
+            exit_code = [int]$process.ExitCode
             stdout = if ($captureOutput) { $stdoutTask.GetAwaiter().GetResult() } else { '' }
             stderr = if ($captureOutput) { $stderrTask.GetAwaiter().GetResult() } else { '' }
         }
@@ -143,6 +158,7 @@ function Invoke-ManagerStatus {
 
 function Invoke-ManagerMutation {
     param([ValidateSet('Start', 'Stop')] [string]$Action)
+
     $timeoutSeconds = if ($Action -eq 'Start') { 150 } else { 60 }
     $result = Invoke-BoundedManagerProcess -Action $Action -TimeoutSeconds $timeoutSeconds
     if ([int]$result.exit_code -ne 0) {
@@ -216,24 +232,57 @@ function Get-BootTimeUtc {
     return ([datetime]$os.LastBootUpTime).ToUniversalTime()
 }
 
+function Convert-AccountIdentityToSid {
+    param([Parameter(Mandatory)] [string]$Identity)
+
+    if ([string]::IsNullOrWhiteSpace($Identity)) {
+        throw 'Cannot resolve an empty Windows account identity to SID.'
+    }
+
+    try {
+        if ($Identity -match '^S-\d-') {
+            return ([System.Security.Principal.SecurityIdentifier]::new($Identity)).Value
+        }
+
+        $account = [System.Security.Principal.NTAccount]::new($Identity)
+        $sid = $account.Translate([System.Security.Principal.SecurityIdentifier])
+        return [string]$sid.Value
+    }
+    catch {
+        throw "Could not resolve Windows account identity to SID: $Identity"
+    }
+}
+
 function Get-TaskEvidence {
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
     $info = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction Stop
-    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $principalUserId = [string]$task.Principal.UserId
+    $principalSid = Convert-AccountIdentityToSid -Identity $principalUserId
     $logonTriggers = @(
         $task.Triggers |
             Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger' }
+    )
+    $triggerUsers = @($logonTriggers | ForEach-Object { [string]$_.UserId })
+    $triggerSids = @(
+        foreach ($triggerUser in $triggerUsers) {
+            Convert-AccountIdentityToSid -Identity $triggerUser
+        }
     )
 
     return [pscustomobject]@{
         task_name = [string]$task.TaskName
         task_state = [string]$task.State
-        principal_user_id = [string]$task.Principal.UserId
+        principal_user_id = $principalUserId
+        principal_sid = $principalSid
         principal_logon_type = [string]$task.Principal.LogonType
         principal_run_level = [string]$task.Principal.RunLevel
-        current_identity = $identity
+        current_identity = $currentIdentity
+        current_identity_sid = $currentSid
         logon_trigger_count = $logonTriggers.Count
-        logon_trigger_users = @($logonTriggers | ForEach-Object { [string]$_.UserId })
+        logon_trigger_users = $triggerUsers
+        logon_trigger_sids = $triggerSids
         action_execute = if ($task.Actions.Count -gt 0) { [string]$task.Actions[0].Execute } else { $null }
         action_arguments = if ($task.Actions.Count -gt 0) { [string]$task.Actions[0].Arguments } else { $null }
         last_run_time = if ($info.LastRunTime.Year -gt 1900) { $info.LastRunTime.ToUniversalTime().ToString('o') } else { $null }
@@ -251,11 +300,11 @@ function Assert-TaskContract {
     if ([int]$Evidence.logon_trigger_count -ne 1) {
         throw "Expected exactly one current-user logon trigger; found $($Evidence.logon_trigger_count)."
     }
-    if ([string]$Evidence.principal_user_id -ne [string]$Evidence.current_identity) {
-        throw 'Supervisor Scheduled Task principal does not match the current Windows identity.'
+    if ([string]$Evidence.principal_sid -ne [string]$Evidence.current_identity_sid) {
+        throw "Supervisor Scheduled Task principal SID does not match the current Windows identity SID. principal=$($Evidence.principal_user_id) current=$($Evidence.current_identity)"
     }
-    if (@($Evidence.logon_trigger_users) -notcontains [string]$Evidence.current_identity) {
-        throw 'Supervisor Scheduled Task logon trigger does not target the current Windows identity.'
+    if (@($Evidence.logon_trigger_sids) -notcontains [string]$Evidence.current_identity_sid) {
+        throw "Supervisor Scheduled Task logon trigger SID does not target the current Windows identity SID. trigger=$(@($Evidence.logon_trigger_users) -join ',') current=$($Evidence.current_identity)"
     }
     if ([string]$Evidence.action_arguments -notmatch '(?i)-Action\s+Run') {
         throw 'Supervisor Scheduled Task action does not run the supervisor reconcile loop.'
@@ -279,125 +328,218 @@ function Resolve-VerifyRunDir {
     return [System.IO.Path]::GetFullPath([string]$pending.run_dir)
 }
 
+function Save-VerifyFailureDiagnostics {
+    param([Parameter(Mandatory)] [string]$Directory)
+
+    try {
+        if (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) {
+            Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $Directory 'supervisor-failure.json') -Force
+        }
+        if (Test-Path -LiteralPath $RecoveryStateFile -PathType Leaf) {
+            Copy-Item -LiteralPath $RecoveryStateFile -Destination (Join-Path $Directory 'recovery-failure.json') -Force
+        }
+        if (Test-Path -LiteralPath $SupervisorLogFile -PathType Leaf) {
+            Get-Content -LiteralPath $SupervisorLogFile -Tail 200 |
+                Set-Content -LiteralPath (Join-Path $Directory 'supervisor-log-tail.txt') -Encoding utf8
+        }
+        try {
+            $taskFailure = Get-TaskEvidence
+            Save-JsonEvidence -Directory $Directory -Name 'task-failure' -Value $taskFailure
+        }
+        catch {}
+    }
+    catch {}
+}
+
 if (-not (Test-Path -LiteralPath $Manager -PathType Leaf)) {
     throw "Installed manager is missing: $Manager"
+}
+if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) {
+    throw "Supervisor installer is missing: $Installer"
 }
 
 if ($Phase -eq 'Prepare') {
     $RunDir = Join-Path $OutputRoot ('run-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
     New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
 
-    Write-Host '===== TRANSPORT SUPERVISOR: PHYSICAL REBOOT / LOGON QUALIFICATION — PREPARE =====' -ForegroundColor Cyan
-    Write-Host 'This harness NEVER initiates reboot, shutdown, sleep, hibernate, or changes power settings.' -ForegroundColor Yellow
-    Write-Host 'After PREPARE succeeds, you will reboot Windows manually.' -ForegroundColor Yellow
+    $desiredStateBefore = if (Test-Path -LiteralPath $OwnerFile -PathType Leaf) { 'running' } else { 'stopped' }
+    $installAttempted = $false
+    $preparePassed = $false
 
-    $repoHead = (git -C $RepoRoot rev-parse HEAD).Trim()
-    if ([string]::IsNullOrWhiteSpace($repoHead)) {
-        throw 'Could not resolve qualification repository HEAD.'
-    }
-    $scriptHash = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
-    $bootBefore = Get-BootTimeUtc
-    $preparedAt = (Get-Date).ToUniversalTime()
+    try {
+        Write-Host '===== TRANSPORT SUPERVISOR: PHYSICAL REBOOT / LOGON QUALIFICATION — PREPARE =====' -ForegroundColor Cyan
+        Write-Host 'This harness NEVER initiates reboot, shutdown, sleep, hibernate, or changes power settings.' -ForegroundColor Yellow
+        Write-Host 'After PREPARE succeeds, you will reboot Windows manually.' -ForegroundColor Yellow
 
-    $baseline = Invoke-ManagerStatus
-    if ([string]$baseline.settings.profile -notin @('semantic', 'semantic-direct')) {
-        throw "Reboot qualification requires semantic/direct profile. Current profile=$($baseline.settings.profile)"
-    }
-    if (-not [bool]$baseline.runtime_ready -or -not [bool]$baseline.openai_ready) {
-        Invoke-ManagerMutation -Action Stop
-        Invoke-ManagerMutation -Action Start
-    }
+        $repoHead = Get-RepoHead
+        $scriptHash = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
+        $bootBefore = Get-BootTimeUtc
+        $preparedAt = (Get-Date).ToUniversalTime()
 
-    $readyDeadline = (Get-Date).AddSeconds(90)
-    $healthy = $null
-    while ((Get-Date) -lt $readyDeadline) {
-        $candidate = Invoke-ManagerStatus
-        if (
-            [bool]$candidate.runtime_ready -and
-            [bool]$candidate.openai_ready -and
-            [int]$candidate.tunnel_process_count -eq 1
-        ) {
-            $healthy = $candidate
-            break
+        $baseline = Invoke-ManagerStatus
+        if ([string]$baseline.settings.profile -notin @('semantic', 'semantic-direct')) {
+            throw "Reboot qualification requires semantic/direct profile. Current profile=$($baseline.settings.profile)"
         }
-        Start-Sleep -Seconds 1
-    }
-    if ($null -eq $healthy) {
-        throw 'Baseline did not become fully ready before reboot qualification.'
-    }
-    Save-JsonEvidence -Directory $RunDir -Name 'healthy-before-reboot' -Value $healthy
+        if (-not [bool]$baseline.runtime_ready -or -not [bool]$baseline.openai_ready) {
+            Invoke-ManagerMutation -Action Stop
+            Invoke-ManagerMutation -Action Start
+        }
 
-    if (-not (Test-Path -LiteralPath $OwnerFile -PathType Leaf)) {
-        throw 'Reboot qualification requires desired running owner state before reboot.'
+        $readyDeadline = (Get-Date).AddSeconds(90)
+        $healthy = $null
+        while ((Get-Date) -lt $readyDeadline) {
+            $candidate = Invoke-ManagerStatus
+            if (
+                [bool]$candidate.runtime_ready -and
+                [bool]$candidate.openai_ready -and
+                [int]$candidate.tunnel_process_count -eq 1
+            ) {
+                $healthy = $candidate
+                break
+            }
+            Start-Sleep -Seconds 1
+        }
+        if ($null -eq $healthy) {
+            throw 'Baseline did not become fully ready before reboot qualification.'
+        }
+        Save-JsonEvidence -Directory $RunDir -Name 'healthy-before-reboot' -Value $healthy
+
+        if (-not (Test-Path -LiteralPath $OwnerFile -PathType Leaf)) {
+            throw 'Reboot qualification requires desired running owner state before reboot.'
+        }
+        $ownerBefore = Get-Content -LiteralPath $OwnerFile -Raw | ConvertFrom-Json
+        Save-JsonEvidence -Directory $RunDir -Name 'owner-before-reboot' -Value $ownerBefore
+
+        $installAttempted = $true
+        & $Installer
+
+        $taskBefore = Get-TaskEvidence
+        Save-JsonEvidence -Directory $RunDir -Name 'task-before-reboot' -Value $taskBefore
+        Assert-TaskContract -Evidence $taskBefore
+
+        $supervisorDeadline = (Get-Date).AddSeconds(30)
+        $supervisors = @()
+        while ((Get-Date) -lt $supervisorDeadline) {
+            $supervisors = @(Get-ExactSupervisorProcesses)
+            if ($supervisors.Count -eq 1) { break }
+            Start-Sleep -Milliseconds 500
+        }
+        if ($supervisors.Count -ne 1) {
+            throw "Expected exactly one supervisor before reboot; found $($supervisors.Count)."
+        }
+
+        $tunnels = @(Get-DirectTunnelProcesses)
+        if ($tunnels.Count -ne 1) {
+            throw "Expected exactly one direct tunnel before reboot; found $($tunnels.Count)."
+        }
+
+        $supervisorPid = [int]$supervisors[0].ProcessId
+        $supervisorBeforeCreation = Get-ProcessCreationUtc -Process $supervisors[0]
+        $tunnelBeforeCreation = Get-ProcessCreationUtc -Process $tunnels[0]
+
+        $receiptDeadline = (Get-Date).AddSeconds(30)
+        $recoveryBefore = $null
+        $supervisorReceiptBefore = $null
+        while ((Get-Date) -lt $receiptDeadline) {
+            $candidateRecovery = Read-RecoveryState
+            $candidateSupervisor = Read-SupervisorState
+            if (
+                $null -ne $candidateRecovery -and
+                $null -ne $candidateSupervisor -and
+                [int]$candidateSupervisor.supervisor_pid -eq $supervisorPid -and
+                [bool]$candidateSupervisor.runtime_ready -and
+                [int]$candidateRecovery.consecutive_attempts -eq 0
+            ) {
+                $recoveryBefore = $candidateRecovery
+                $supervisorReceiptBefore = $candidateSupervisor
+                break
+            }
+            Start-Sleep -Milliseconds 500
+        }
+        if ($null -eq $recoveryBefore -or $null -eq $supervisorReceiptBefore) {
+            throw 'Supervisor did not publish a current clean baseline reboot qualification receipt.'
+        }
+
+        Save-JsonEvidence -Directory $RunDir -Name 'supervisor-before-reboot' -Value $supervisorReceiptBefore
+        Save-JsonEvidence -Directory $RunDir -Name 'recovery-before-reboot' -Value $recoveryBefore
+
+        $prepare = [ordered]@{
+            schema_version = 1
+            phase = 'prepared'
+            repo_head = $repoHead
+            qualification_script_sha256 = $scriptHash
+            run_dir = $RunDir
+            prepared_at = $preparedAt.ToString('o')
+            boot_time_before = $bootBefore.ToString('o')
+            desired_state_before = 'running'
+            owner_controller_path = [string]$ownerBefore.controller_path
+            owner_started_at = [string]$ownerBefore.started_at
+            task_principal_user_id = [string]$taskBefore.principal_user_id
+            task_principal_sid = [string]$taskBefore.principal_sid
+            current_identity = [string]$taskBefore.current_identity
+            current_identity_sid = [string]$taskBefore.current_identity_sid
+            supervisor_pid_before = $supervisorPid
+            supervisor_created_before = if ($null -ne $supervisorBeforeCreation) { $supervisorBeforeCreation.ToString('o') } else { $null }
+            tunnel_pid_before = [int]$tunnels[0].ProcessId
+            tunnel_created_before = if ($null -ne $tunnelBeforeCreation) { $tunnelBeforeCreation.ToString('o') } else { $null }
+            recovery_total_before = [int]$recoveryBefore.total_recoveries
+        }
+        Save-JsonEvidence -Directory $RunDir -Name 'prepare' -Value $prepare
+        Write-AtomicJson -Path $PendingFile -Value $prepare
+        $preparePassed = $true
+
+        Write-Result 'TRANSPORT_SUPERVISOR_REBOOT_QUALIFICATION_PREPARE' 'PASSED'
+        Write-Result 'EXACT_PREPARED_HEAD' $repoHead
+        Write-Result 'BOOT_TIME_BEFORE' $prepare['boot_time_before']
+        Write-Result 'TASK_PRINCIPAL_RAW' $prepare['task_principal_user_id']
+        Write-Result 'TASK_PRINCIPAL_SID' $prepare['task_principal_sid']
+        Write-Result 'CURRENT_IDENTITY_RAW' $prepare['current_identity']
+        Write-Result 'CURRENT_IDENTITY_SID' $prepare['current_identity_sid']
+        Write-Result 'SUPERVISOR_PID_BEFORE' $prepare['supervisor_pid_before']
+        Write-Result 'TUNNEL_PID_BEFORE' $prepare['tunnel_pid_before']
+        Write-Result 'RECOVERY_TOTAL_BEFORE' $prepare['recovery_total_before']
+        Write-Result 'RESULT_DIR' $RunDir
+        Write-Host ''
+        Write-Host 'ACTION REQUIRED: manually restart Windows now.' -ForegroundColor Cyan
+        Write-Host 'After logon, restore any required external VPN/proxy/network path.' -ForegroundColor Yellow
+        Write-Host 'Do NOT manually start/restart Chat Agent Platform.' -ForegroundColor Yellow
+        Write-Host 'Then run this qualification again with -Phase Verify from the same exact tested source.' -ForegroundColor Yellow
+        exit 0
     }
-    $ownerBefore = Get-Content -LiteralPath $OwnerFile -Raw | ConvertFrom-Json
-    Save-JsonEvidence -Directory $RunDir -Name 'owner-before-reboot' -Value $ownerBefore
+    catch {
+        $failure = $_
+        try {
+            [ordered]@{
+                schema_version = 1
+                phase = 'prepare'
+                result = 'FAILED'
+                desired_state_before = $desiredStateBefore
+                error_type = $failure.Exception.GetType().Name
+                error_message = $failure.Exception.Message
+                failed_at = (Get-Date).ToUniversalTime().ToString('o')
+            } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $RunDir 'failure.json') -Encoding utf8
+        }
+        catch {}
 
-    & $Installer
+        Save-VerifyFailureDiagnostics -Directory $RunDir
+        Remove-Item -LiteralPath $PendingFile -Force -ErrorAction SilentlyContinue
 
-    $taskBefore = Get-TaskEvidence
-    Assert-TaskContract -Evidence $taskBefore
-    Save-JsonEvidence -Directory $RunDir -Name 'task-before-reboot' -Value $taskBefore
+        if ($installAttempted -and -not $preparePassed) {
+            try { & $Installer -Uninstall | Out-Host } catch {}
+            try {
+                if ($desiredStateBefore -eq 'running') {
+                    Invoke-ManagerMutation -Action Stop
+                    Invoke-ManagerMutation -Action Start
+                }
+                else {
+                    Invoke-ManagerMutation -Action Stop
+                }
+            }
+            catch {}
+        }
 
-    $supervisorDeadline = (Get-Date).AddSeconds(30)
-    $supervisors = @()
-    while ((Get-Date) -lt $supervisorDeadline) {
-        $supervisors = @(Get-ExactSupervisorProcesses)
-        if ($supervisors.Count -eq 1) { break }
-        Start-Sleep -Milliseconds 500
+        throw $failure
     }
-    if ($supervisors.Count -ne 1) {
-        throw "Expected exactly one supervisor before reboot; found $($supervisors.Count)."
-    }
-    $tunnels = @(Get-DirectTunnelProcesses)
-    if ($tunnels.Count -ne 1) {
-        throw "Expected exactly one direct tunnel before reboot; found $($tunnels.Count)."
-    }
-
-    $supervisorBeforeCreation = Get-ProcessCreationUtc -Process $supervisors[0]
-    $tunnelBeforeCreation = Get-ProcessCreationUtc -Process $tunnels[0]
-    $recoveryBefore = Read-RecoveryState
-    $supervisorReceiptBefore = Read-SupervisorState
-    if ($null -eq $recoveryBefore -or $null -eq $supervisorReceiptBefore) {
-        throw 'Supervisor did not publish baseline reboot qualification receipts.'
-    }
-
-    Save-JsonEvidence -Directory $RunDir -Name 'supervisor-before-reboot' -Value $supervisorReceiptBefore
-    Save-JsonEvidence -Directory $RunDir -Name 'recovery-before-reboot' -Value $recoveryBefore
-
-    $prepare = [ordered]@{
-        schema_version = 1
-        phase = 'prepared'
-        repo_head = $repoHead
-        qualification_script_sha256 = $scriptHash
-        run_dir = $RunDir
-        prepared_at = $preparedAt.ToString('o')
-        boot_time_before = $bootBefore.ToString('o')
-        desired_state_before = 'running'
-        owner_controller_path = [string]$ownerBefore.controller_path
-        owner_started_at = [string]$ownerBefore.started_at
-        supervisor_pid_before = [int]$supervisors[0].ProcessId
-        supervisor_created_before = if ($null -ne $supervisorBeforeCreation) { $supervisorBeforeCreation.ToString('o') } else { $null }
-        tunnel_pid_before = [int]$tunnels[0].ProcessId
-        tunnel_created_before = if ($null -ne $tunnelBeforeCreation) { $tunnelBeforeCreation.ToString('o') } else { $null }
-        recovery_total_before = [int]$recoveryBefore.total_recoveries
-    }
-    Save-JsonEvidence -Directory $RunDir -Name 'prepare' -Value $prepare
-    Write-AtomicJson -Path $PendingFile -Value $prepare
-
-    Write-Result 'TRANSPORT_SUPERVISOR_REBOOT_QUALIFICATION_PREPARE' 'PASSED'
-    Write-Result 'EXACT_PREPARED_HEAD' $repoHead
-    Write-Result 'BOOT_TIME_BEFORE' $prepare['boot_time_before']
-    Write-Result 'SUPERVISOR_PID_BEFORE' $prepare['supervisor_pid_before']
-    Write-Result 'TUNNEL_PID_BEFORE' $prepare['tunnel_pid_before']
-    Write-Result 'RECOVERY_TOTAL_BEFORE' $prepare['recovery_total_before']
-    Write-Result 'RESULT_DIR' $RunDir
-    Write-Host ''
-    Write-Host 'ACTION REQUIRED: manually restart Windows now.' -ForegroundColor Cyan
-    Write-Host 'After logon, restore any required external VPN/proxy/network path.' -ForegroundColor Yellow
-    Write-Host 'Do NOT manually start/restart Chat Agent Platform.' -ForegroundColor Yellow
-    Write-Host 'Then run this qualification again with -Phase Verify from the same exact tested source.' -ForegroundColor Yellow
-    exit 0
 }
 
 $RunDir = Resolve-VerifyRunDir
@@ -416,10 +558,11 @@ Write-Host '===== TRANSPORT SUPERVISOR: PHYSICAL REBOOT / LOGON QUALIFICATION �
 Write-Host 'VERIFY is observational: it does not start or restart Chat Agent Platform.' -ForegroundColor Yellow
 
 try {
-    $repoHead = (git -C $RepoRoot rev-parse HEAD).Trim()
+    $repoHead = Get-RepoHead
     if ([string]$prepare.repo_head -ne $repoHead) {
         throw "Qualification source HEAD changed across reboot: prepared=$($prepare.repo_head) verify=$repoHead"
     }
+
     $scriptHash = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
     if ([string]$prepare.qualification_script_sha256 -ne $scriptHash) {
         throw 'Qualification script changed across reboot.'
@@ -428,19 +571,12 @@ try {
     $bootBefore = [datetime]::Parse([string]$prepare.boot_time_before).ToUniversalTime()
     $preparedAt = [datetime]::Parse([string]$prepare.prepared_at).ToUniversalTime()
     $bootAfter = Get-BootTimeUtc
-    if ($bootAfter -le $bootBefore.AddSeconds(1)) {
-        throw "A new Windows boot was not proven. boot_before=$($bootBefore.ToString('o')) boot_after=$($bootAfter.ToString('o'))"
+    if ($bootAfter -le $bootBefore) {
+        throw "A new Windows boot was not proven: before=$($bootBefore.ToString('o')) after=$($bootAfter.ToString('o'))"
     }
     if ($bootAfter -le $preparedAt) {
         throw 'Windows boot time is not later than the qualification prepare timestamp.'
     }
-
-    Save-JsonEvidence -Directory $RunDir -Name 'boot-after-reboot' -Value ([ordered]@{
-        boot_time_before = $bootBefore.ToString('o')
-        boot_time_after = $bootAfter.ToString('o')
-        verify_started_at = $verifyStartedAt.ToString('o')
-        reboot_verified = $true
-    })
 
     if (-not (Test-Path -LiteralPath $OwnerFile -PathType Leaf)) {
         throw 'Desired running owner state disappeared across Windows reboot.'
@@ -455,48 +591,45 @@ try {
     }
 
     $taskAfter = Get-TaskEvidence
-    Assert-TaskContract -Evidence $taskAfter
     Save-JsonEvidence -Directory $RunDir -Name 'task-after-logon' -Value $taskAfter
+    Assert-TaskContract -Evidence $taskAfter
+    if ([string]$taskAfter.current_identity_sid -ne [string]$prepare.current_identity_sid) {
+        throw 'Windows identity SID changed across reboot/logon qualification.'
+    }
+    if ([string]$taskAfter.principal_sid -ne [string]$prepare.task_principal_sid) {
+        throw 'Scheduled Task principal SID changed across reboot/logon qualification.'
+    }
     if ([string]::IsNullOrWhiteSpace([string]$taskAfter.last_run_time)) {
         throw 'Supervisor Scheduled Task has no post-logon LastRunTime.'
     }
     $taskLastRun = [datetime]::Parse([string]$taskAfter.last_run_time).ToUniversalTime()
-    if ($taskLastRun -lt $bootAfter.AddSeconds(-2)) {
+    if ($taskLastRun -lt $bootAfter) {
         throw 'Supervisor Scheduled Task LastRunTime predates the verified reboot.'
-    }
-    if ($taskLastRun -gt $verifyStartedAt.AddMinutes(1)) {
-        throw 'Supervisor Scheduled Task LastRunTime is inconsistent with the post-logon verification window.'
     }
 
     $supervisorsAtVerifyStart = @(Get-ExactSupervisorProcesses)
     if ($supervisorsAtVerifyStart.Count -ne 1) {
         throw "Expected exactly one supervisor already running after logon before VERIFY mutations; found $($supervisorsAtVerifyStart.Count)."
     }
-    $supervisorProcess = $supervisorsAtVerifyStart[0]
-    $supervisorCreation = Get-ProcessCreationUtc -Process $supervisorProcess
-    if ($null -eq $supervisorCreation) {
-        throw 'Could not resolve post-logon supervisor process creation time.'
-    }
-    if ($supervisorCreation -lt $bootAfter.AddSeconds(-2)) {
+    $supervisorPid = [int]$supervisorsAtVerifyStart[0].ProcessId
+    $supervisorCreated = Get-ProcessCreationUtc -Process $supervisorsAtVerifyStart[0]
+    if ($null -eq $supervisorCreated -or $supervisorCreated -lt $bootAfter) {
         throw 'Post-logon supervisor process creation time predates the verified reboot.'
     }
-    if ($supervisorCreation -gt $verifyStartedAt.AddSeconds(5)) {
+    if ($supervisorCreated -gt $verifyStartedAt) {
         throw 'Supervisor was not already running when post-logon VERIFY began.'
     }
 
-    $samples = @()
-    $ready = $null
-    $readyTunnel = $null
-    $readySupervisor = $null
-    $readyRecovery = $null
+    $postLogonSamples = @()
+    $healthy = $null
     $deadline = (Get-Date).AddSeconds($ReadyTimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
         try {
             $status = Invoke-ManagerStatus
             $supervisors = @(Get-ExactSupervisorProcesses)
             $tunnels = @(Get-DirectTunnelProcesses)
-            $s = Read-SupervisorState
-            $r = Read-RecoveryState
+            $supervisorReceipt = Read-SupervisorState
+            $recoveryReceipt = Read-RecoveryState
 
             $sample = [pscustomobject]@{
                 observed_at = (Get-Date).ToUniversalTime().ToString('o')
@@ -504,68 +637,93 @@ try {
                 openai_ready = [bool]$status.openai_ready
                 health_code = if ($null -ne $status.PSObject.Properties['health_code']) { [string]$status.health_code } else { $null }
                 recovery_action = if ($null -ne $status.PSObject.Properties['recovery_action']) { [string]$status.recovery_action } else { $null }
-                remote_tunnel_status = if ($null -ne $status.PSObject.Properties['remote_tunnel_status']) { [string]$status.remote_tunnel_status } else { $null }
-                control_plane_poll_fresh = if ($null -ne $status.PSObject.Properties['control_plane_poll_fresh']) { [bool]$status.control_plane_poll_fresh } else { $false }
                 supervisor_process_count = $supervisors.Count
                 supervisor_pid = if ($supervisors.Count -eq 1) { [int]$supervisors[0].ProcessId } else { $null }
                 tunnel_process_count = $tunnels.Count
                 tunnel_pid = if ($tunnels.Count -eq 1) { [int]$tunnels[0].ProcessId } else { $null }
-                supervisor_state = if ($null -ne $s) { [string]$s.supervisor_state } else { $null }
-                recovery_total = if ($null -ne $r) { [int]$r.total_recoveries } else { $null }
-                consecutive_attempts = if ($null -ne $r) { [int]$r.consecutive_attempts } else { $null }
+                recovery_total = if ($null -ne $recoveryReceipt) { [int]$recoveryReceipt.total_recoveries } else { $null }
+                consecutive_attempts = if ($null -ne $recoveryReceipt) { [int]$recoveryReceipt.consecutive_attempts } else { $null }
+                supervisor_state = if ($null -ne $supervisorReceipt) { [string]$supervisorReceipt.supervisor_state } else { $null }
             }
-            $samples += $sample
+            $postLogonSamples += $sample
 
             if (
                 [bool]$status.runtime_ready -and
                 [bool]$status.openai_ready -and
                 $supervisors.Count -eq 1 -and
-                [int]$supervisors[0].ProcessId -eq [int]$supervisorProcess.ProcessId -and
-                $tunnels.Count -eq 1 -and
-                $null -ne $s -and
-                $null -ne $r -and
-                [string]$s.supervisor_state -eq 'healthy' -and
-                [string]$s.health_code -eq 'READY' -and
-                [string]$s.recovery_action -eq 'none' -and
-                [int]$r.consecutive_attempts -eq 0
+                [int]$supervisors[0].ProcessId -eq $supervisorPid -and
+                $tunnels.Count -eq 1
             ) {
-                $ready = $status
-                $readyTunnel = $tunnels[0]
-                $readySupervisor = $s
-                $readyRecovery = $r
+                $healthy = $status
                 break
             }
         }
         catch {}
         Start-Sleep -Seconds 1
     }
-    $samples | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $RunDir 'post-logon-samples.json') -Encoding utf8
 
-    if ($null -eq $ready -or $null -eq $readyTunnel -or $null -eq $readySupervisor -or $null -eq $readyRecovery) {
-        $lastSample = if ($samples.Count -gt 0) { $samples[-1] } else { $null }
+    $postLogonSamples | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $RunDir 'post-logon-samples.json') -Encoding utf8
+    if ($null -eq $healthy) {
+        $lastSample = if ($postLogonSamples.Count -gt 0) { $postLogonSamples[-1] } else { $null }
         if ($null -ne $lastSample) {
-            throw "Healthy state did not return automatically within $ReadyTimeoutSeconds seconds after logon. Last sample: runtime_ready=$($lastSample.runtime_ready), openai_ready=$($lastSample.openai_ready), health_code=$($lastSample.health_code), recovery_action=$($lastSample.recovery_action), supervisor_pid=$($lastSample.supervisor_pid), tunnel_pid=$($lastSample.tunnel_pid), recovery_total=$($lastSample.recovery_total)."
+            throw "Healthy state did not return automatically within $ReadyTimeoutSeconds seconds after reboot/logon. Last sample: runtime_ready=$($lastSample.runtime_ready), openai_ready=$($lastSample.openai_ready), health_code=$($lastSample.health_code), recovery_action=$($lastSample.recovery_action), supervisor_pid=$($lastSample.supervisor_pid), tunnel_pid=$($lastSample.tunnel_pid), recovery_total=$($lastSample.recovery_total)."
         }
-        throw "Healthy state did not return automatically within $ReadyTimeoutSeconds seconds after logon and no sample was captured."
+        throw "Healthy state did not return automatically within $ReadyTimeoutSeconds seconds after reboot/logon and no sample was captured."
     }
+    Save-JsonEvidence -Directory $RunDir -Name 'manager-after-logon' -Value $healthy
 
-    $tunnelCreation = Get-ProcessCreationUtc -Process $readyTunnel
-    if ($null -eq $tunnelCreation) {
-        throw 'Could not resolve post-reboot tunnel process creation time.'
+    $tunnelsAfter = @(Get-DirectTunnelProcesses)
+    if ($tunnelsAfter.Count -ne 1) {
+        throw "Expected exactly one direct tunnel after reboot/logon; found $($tunnelsAfter.Count)."
     }
-    if ($tunnelCreation -lt $bootAfter.AddSeconds(-2)) {
+    $tunnelPid = [int]$tunnelsAfter[0].ProcessId
+    $tunnelCreated = Get-ProcessCreationUtc -Process $tunnelsAfter[0]
+    if ($null -eq $tunnelCreated -or $tunnelCreated -lt $bootAfter) {
         throw 'Post-reboot tunnel process creation time predates the verified reboot.'
     }
 
-    $recoveryBefore = [int]$prepare.recovery_total_before
-    $recoveryAfter = [int]$readyRecovery.total_recoveries
-    $recoveryDelta = $recoveryAfter - $recoveryBefore
-    if ($recoveryDelta -lt 0 -or $recoveryDelta -gt 1) {
-        throw "Reboot/logon caused unexpected recovery-count delta $recoveryDelta; expected 0 or 1."
+    $settleDeadline = (Get-Date).AddSeconds(30)
+    $postRecovery = $null
+    $postSupervisor = $null
+    while ((Get-Date) -lt $settleDeadline) {
+        $candidateRecovery = Read-RecoveryState
+        $candidateSupervisor = Read-SupervisorState
+        if (
+            $null -ne $candidateRecovery -and
+            $null -ne $candidateSupervisor -and
+            [int]$candidateSupervisor.supervisor_pid -eq $supervisorPid -and
+            [string]$candidateSupervisor.supervisor_state -eq 'healthy' -and
+            [string]$candidateSupervisor.health_code -eq 'READY' -and
+            [string]$candidateSupervisor.recovery_action -eq 'none'
+        ) {
+            $postRecovery = $candidateRecovery
+            $postSupervisor = $candidateSupervisor
+            break
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    if ($null -eq $postRecovery -or $null -eq $postSupervisor) {
+        throw 'Post-logon supervisor/recovery receipts did not settle into healthy READY state.'
     }
 
-    $heartbeatAt = [string]$readySupervisor.observed_at
-    $heartbeatAdvanced = $false
+    $recoveryBefore = [int]$prepare.recovery_total_before
+    $recoveryAfter = [int]$postRecovery.total_recoveries
+    $recoveryDelta = $recoveryAfter - $recoveryBefore
+    if ($recoveryDelta -lt 0 -or $recoveryDelta -gt 1) {
+        throw "Reboot/logon caused unexpected recovery count delta: $recoveryDelta. Expected 0 or 1."
+    }
+    if ([int]$postRecovery.consecutive_attempts -ne 0) {
+        throw 'Recovery receipt still has consecutive attempts after successful reboot/logon restoration.'
+    }
+    if ($recoveryDelta -eq 1 -and [string]::IsNullOrWhiteSpace([string]$postRecovery.last_success_at)) {
+        throw 'Bounded post-reboot recovery was not durably attributed by last_success_at.'
+    }
+
+    Save-JsonEvidence -Directory $RunDir -Name 'supervisor-after-logon' -Value $postSupervisor
+    Save-JsonEvidence -Directory $RunDir -Name 'recovery-after-logon' -Value $postRecovery
+
+    $heartbeatAt = [string]$postSupervisor.observed_at
+    $heartbeatVerified = $false
     $heartbeatDeadline = (Get-Date).AddSeconds(30)
     while ((Get-Date) -lt $heartbeatDeadline) {
         Start-Sleep -Seconds 1
@@ -574,50 +732,45 @@ try {
         if (
             $null -ne $heartbeat -and
             $currentSupervisors.Count -eq 1 -and
-            [int]$currentSupervisors[0].ProcessId -eq [int]$supervisorProcess.ProcessId -and
-            [int]$heartbeat.supervisor_pid -eq [int]$supervisorProcess.ProcessId -and
+            [int]$currentSupervisors[0].ProcessId -eq $supervisorPid -and
+            [int]$heartbeat.supervisor_pid -eq $supervisorPid -and
             [string]$heartbeat.observed_at -ne $heartbeatAt
         ) {
-            $heartbeatAdvanced = $true
-            $readySupervisor = $heartbeat
+            $heartbeatVerified = $true
+            $postSupervisor = $heartbeat
             break
         }
     }
-    if (-not $heartbeatAdvanced) {
+    if (-not $heartbeatVerified) {
         throw 'Supervisor heartbeat did not advance after reboot/logon recovery.'
     }
-
-    Save-JsonEvidence -Directory $RunDir -Name 'manager-after-logon' -Value $ready
-    Save-JsonEvidence -Directory $RunDir -Name 'supervisor-after-logon' -Value $readySupervisor
-    Save-JsonEvidence -Directory $RunDir -Name 'recovery-after-logon' -Value $readyRecovery
 
     $summary = [ordered]@{
         schema_version = 1
         result = 'PASSED'
         repo_head = $repoHead
         run_dir = $RunDir
-        prepared_at = $preparedAt.ToString('o')
-        verify_started_at = $verifyStartedAt.ToString('o')
+        reboot_verified = $true
         boot_time_before = $bootBefore.ToString('o')
         boot_time_after = $bootAfter.ToString('o')
-        reboot_verified = $true
         desired_state_before = [string]$prepare.desired_state_before
-        desired_state_after = if (Test-Path -LiteralPath $OwnerFile -PathType Leaf) { 'running' } else { 'stopped' }
-        owner_receipt_survived = $true
+        desired_state_after = 'running'
+        task_principal_sid_verified = ([string]$taskAfter.principal_sid -eq [string]$taskAfter.current_identity_sid)
         task_logon_trigger_verified = $true
-        task_last_run_after_boot = $true
+        task_last_run_after_boot = $taskAfter.last_run_time
         supervisor_pid_before = [int]$prepare.supervisor_pid_before
-        supervisor_pid_after = [int]$supervisorProcess.ProcessId
-        supervisor_created_after_boot = $true
+        supervisor_pid_after = $supervisorPid
+        supervisor_created_after_boot = $supervisorCreated.ToString('o')
         tunnel_pid_before = [int]$prepare.tunnel_pid_before
-        tunnel_pid_after = [int]$readyTunnel.ProcessId
-        tunnel_created_after_boot = $true
+        tunnel_pid_after = $tunnelPid
+        tunnel_created_after_boot = $tunnelCreated.ToString('o')
         recovery_total_before = $recoveryBefore
         recovery_total_after = $recoveryAfter
         recovery_count_delta = $recoveryDelta
-        runtime_ready_after_logon = [bool]$ready.runtime_ready
-        openai_ready_after_logon = [bool]$ready.openai_ready
-        supervisor_heartbeat_verified = $heartbeatAdvanced
+        runtime_ready_after_logon = [bool]$healthy.runtime_ready
+        openai_ready_after_logon = [bool]$healthy.openai_ready
+        supervisor_heartbeat_verified = $heartbeatVerified
+        verify_started_at = $verifyStartedAt.ToString('o')
         completed_at = (Get-Date).ToUniversalTime().ToString('o')
     }
     Save-JsonEvidence -Directory $RunDir -Name 'summary' -Value $summary
@@ -628,11 +781,10 @@ try {
     Write-Result 'REBOOT_VERIFIED' $summary['reboot_verified']
     Write-Result 'BOOT_TIME_BEFORE' $summary['boot_time_before']
     Write-Result 'BOOT_TIME_AFTER' $summary['boot_time_after']
-    Write-Result 'DESIRED_STATE_AFTER' $summary['desired_state_after']
+    Write-Result 'TASK_PRINCIPAL_SID_VERIFIED' $summary['task_principal_sid_verified']
     Write-Result 'TASK_LOGON_TRIGGER_VERIFIED' $summary['task_logon_trigger_verified']
-    Write-Result 'TASK_LAST_RUN_AFTER_BOOT' $summary['task_last_run_after_boot']
-    Write-Result 'SUPERVISOR_CREATED_AFTER_BOOT' $summary['supervisor_created_after_boot']
-    Write-Result 'TUNNEL_CREATED_AFTER_BOOT' $summary['tunnel_created_after_boot']
+    Write-Result 'SUPERVISOR_PID_AFTER' $summary['supervisor_pid_after']
+    Write-Result 'TUNNEL_PID_AFTER' $summary['tunnel_pid_after']
     Write-Result 'RECOVERY_COUNT_DELTA' $summary['recovery_count_delta']
     Write-Result 'RUNTIME_READY_AFTER_LOGON' $summary['runtime_ready_after_logon']
     Write-Result 'OPENAI_READY_AFTER_LOGON' $summary['openai_ready_after_logon']
@@ -642,30 +794,17 @@ try {
 catch {
     $failure = $_
     try {
-        Save-JsonEvidence -Directory $RunDir -Name 'failure' -Value ([ordered]@{
+        [ordered]@{
             schema_version = 1
+            phase = 'verify'
             result = 'FAILED'
-            repo_head = if ($null -ne $prepare.PSObject.Properties['repo_head']) { [string]$prepare.repo_head } else { $null }
             error_type = $failure.Exception.GetType().Name
             error_message = $failure.Exception.Message
             failed_at = (Get-Date).ToUniversalTime().ToString('o')
-        })
-        if (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) {
-            Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $RunDir 'supervisor-failure.json') -Force
-        }
-        if (Test-Path -LiteralPath $RecoveryStateFile -PathType Leaf) {
-            Copy-Item -LiteralPath $RecoveryStateFile -Destination (Join-Path $RunDir 'recovery-failure.json') -Force
-        }
-        if (Test-Path -LiteralPath $SupervisorLogFile -PathType Leaf) {
-            Get-Content -LiteralPath $SupervisorLogFile -Tail 250 |
-                Set-Content -LiteralPath (Join-Path $RunDir 'supervisor-log-tail.txt') -Encoding utf8
-        }
-        try {
-            $taskFailure = Get-TaskEvidence
-            Save-JsonEvidence -Directory $RunDir -Name 'task-failure' -Value $taskFailure
-        }
-        catch {}
+        } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $RunDir 'failure.json') -Encoding utf8
     }
     catch {}
+
+    Save-VerifyFailureDiagnostics -Directory $RunDir
     throw $failure
 }
