@@ -2,11 +2,7 @@
 
 ## Repository-state rule
 
-Resolve live `main` and relevant open PR heads before new work. Historical acceptance SHAs are evidence, not substitutes for the current integration line.
-
-At the start of Stage 26.2E, Stage 26.2D had been merged as PR #90 and `main` was:
-
-`42d4130d59e23e2c2b1771ac428467efe27a4b98`
+Resolve live `main` and relevant open PR heads before new work. Historical acceptance SHAs are evidence, not substitutes for the current integration line. Exact accepted heads/result locations belong in `EVIDENCE_INDEX.md`; this document defines durable architectural boundaries.
 
 ## Product boundary
 
@@ -34,19 +30,21 @@ local platform
 
 ### General planner vs Control Plane
 
-The repository intentionally distinguishes two roles:
-
 **General planner** means open-ended semantic strategy: interpreting the user's goal, choosing materially different approaches, adapting to novel state and inventing a new strategy. Ordinary ChatGPT is the only **current** general planner.
 
 **Deterministic Control Plane** means execution state/policy machinery for an already-selected bounded goal/procedure: `TaskState`, `ProgramGraph` progression, authorization, checkpoints, verifier/postconditions, retry/recovery ceilings and resource budgets.
 
-The Control Plane may autonomously advance an already-defined transition when current evidence uniquely matches it and all authorization/postcondition gates pass. It must ABSTAIN/escalate to ChatGPT instead of inventing a new transition when the live state is novel, stale, ambiguous, incompatible or requires new strategy.
+The Control Plane may autonomously advance an already-defined transition when current evidence uniquely matches it and every authority/postcondition gate passes. It must ABSTAIN/escalate to ChatGPT instead of inventing a new transition when live state is novel, stale, ambiguous, incompatible or requires new strategy.
 
-Canonical detail: `project-context/CONTROL_PLANE.md`.
+Canonical detail: `CONTROL_PLANE.md`.
 
-A future local general planner is a separate optional Track P; it is not part of the current release-critical architecture and even if later accepted remains above the same deterministic Control Plane authority boundary.
+A future local general planner is a separate optional Track P. It is not part of the current release-critical architecture and, if ever accepted, remains above the same deterministic authority/verifier boundary.
 
-## Accepted ordinary-Chat path
+---
+
+# Ordinary Chat -> local transport
+
+Accepted normal path:
 
 ```text
 ordinary ChatGPT
@@ -54,10 +52,10 @@ ordinary ChatGPT
   -> official tunnel-client
   -> direct stdio secure semantic launcher
   -> semantic-projection
-  -> focused task-active capabilities
+  -> focused local capabilities
 ```
 
-Current accepted public tool names remain exactly:
+Current accepted normal public tool names remain exactly:
 
 ```text
 workspace_read
@@ -67,11 +65,41 @@ web_observe
 web_interact
 ```
 
-1MCP remains replaceable internal diagnostic/adaptive/aggregation infrastructure.
+1MCP remains replaceable internal diagnostic/adaptive/aggregation infrastructure, not the normal public semantic critical path.
 
-## Semantic projection rule
+## Transport reliability is a separate authority boundary
 
-`semantic-projection` is a deterministic compatibility boundary. It may map one truthful semantic request to one reviewed capability action or a small bounded deterministic sequence. It is **not** the local Control Plane.
+Transport supervision owns availability/lifecycle of platform-owned transport processes. It is not the procedure Control Plane and not a planner.
+
+```text
+Transport Supervisor
+  desired transport state
+  exact lifecycle ownership
+  layered health observation
+  bounded recovery/backoff
+  status/receipts
+        |
+        +-> tunnel-client
+        +-> semantic launcher / projection
+```
+
+Health dimensions must remain distinct:
+
+```text
+local process/MCP readiness
+ != remote/control-plane readiness
+ != actual current ChatGPT connector route
+```
+
+A recovered local runtime is not by itself a completed recovery transaction. Recovery receipt/snapshot publication and continued supervisor heartbeat are independent evidence.
+
+Normal transport recovery keeps the persistent tunnel resource; it must not silently perform remote tunnel create/update/delete or require long-lived admin authority.
+
+---
+
+# Semantic projection boundary
+
+`semantic-projection` is a deterministic compatibility boundary. It may map one truthful semantic request to one reviewed capability action or a small bounded deterministic sequence. It is **not** the local procedure Control Plane.
 
 It must not:
 
@@ -82,11 +110,13 @@ It must not:
 - expose a disguised `tool_invoke`;
 - hide native desktop/workflow consequence classes behind misleading web semantics.
 
-A separate post-desktop/public-contract ADR decides whether truthful desktop/procedure capabilities need new public names.
+A procedure/multi-transition capability belongs on a truthful dedicated surface during qualification rather than being smuggled into `workspace_write` or `web_interact`.
+
+The normal five-tool profile remains unchanged until a separate public-contract ADR and physical ordinary-Chat acceptance permit promotion.
 
 ---
 
-# Authority, trust and state
+# Authority, trust and current state
 
 Capability authority and procedure trust are separate state machines:
 
@@ -113,84 +143,105 @@ current observed state
  > historical action sequence
 ```
 
-The future Control Plane must preserve this priority at every transition.
+Historical action order, remembered coordinates or prior success never outrank live evidence.
 
 ---
 
-# Browser grounding — accepted Stage 25.2
+# Deterministic execution Control Plane
+
+Core responsibilities:
 
 ```text
-web_interact(click)
- -> fresh accessibility snapshot
-      -> exact enabled promoted semantic target
-           -> semantic action; VLM stopped
-      -> disabled/non-button/unresolved ambiguity
-           -> ABSTAIN; VLM stopped
-      -> reviewed bounded visual path
-           -> same-session screenshot
-           -> local F16 proposal
-           -> deterministic target/freshness authorization
-           -> one coordinate action OR ABSTAIN
+TaskState
+exact procedure / ProgramGraph version
+procedure trust state
+current evidence references/digests
+capability scope
+transition authorization
+checkpoints
+postconditions/verifier
+bounded retries/recovery branches
+resource/action/time budgets
+escalation reason
 ```
 
-Accepted specialist baseline:
+Preferred execution:
 
 ```text
-llama.cpp b10448 / ad1de39e0
-LFM2.5-VL-450M F16 + F16 mmproj
-CPU 8 threads
-ctx 2048
-```
-
-The model perceives/proposes only. It never grants authority or task completion.
-
----
-
-# Procedural substrate
-
-Pinned target-qualified upstreams:
-
-```text
-openadapt-flow 1.31.0
-commit d7f58d9f35c8369f16a9b378f23952d425334ad7
-
-openadapt-capture 1.2.2
-commit bcf12942d61d66b64d94e645e9124273a5cc5963
-```
-
-Reuse/adapt:
-
-```text
-Flow compiler + Workflow/ProgramGraph
-Capture
-SkillLibrary/learn/teach lifecycle mechanics
-Windows typed backend/agent mechanics
-```
-
-The repository owns focused integration/policy/checkpoint seams rather than duplicating a generic recorder/compiler/agent framework.
-
-A stored procedure may retain native/semantic/UIA and bounded visual/template/geometry evidence, but blind historical absolute-coordinate replay is never authority or primary identity.
-
-Preferred future procedure execution:
-
-```text
-ChatGPT selects applicable procedure
+ChatGPT selects applicable known procedure + parameters
  -> Control Plane loads exact version + TaskState
- -> live state observation
- -> exactly one permitted transition
- -> current capability authorization
- -> action
- -> observed effect verification
- -> checkpoint / advance
- -> repeat while known
- -> ABSTAIN/escalate on novel or incompatible state
+ -> observe live state
+ -> exactly one permitted known transition
+ -> authorize current capability consequence
+ -> act
+ -> re-observe
+ -> verify expected effect
+ -> durable checkpoint / advance
+ -> repeat while state remains known
+ -> complete OR ABSTAIN/escalate
 ```
 
-This is stronger than treating a procedure as mere passive advice, but it is still not a second planner.
+## Checkpoint/resume rule
+
+A checkpoint is evidence for a known program state, not permission to infer an arbitrary interrupted action.
+
+Resume is allowed only when exact retained TaskState/procedure/version/parameters and current state are compatible with a declared resumable checkpoint. An ambiguous mid-transition crash fails closed unless a separately designed write-ahead transaction receipt can prove the pending consequence and ownership.
+
+## Ownership/rollback rule
+
+Content equality alone does not prove ownership. Destructive rollback must require evidence strong enough to prove that the current object is still the object created/owned by the run. For file procedures this means digest plus filesystem-object identity where available; changed/ambiguous identity is left untouched and escalated.
 
 ---
 
-# Production Windows capability — accepted through Stage 26.2D
+# Verifier foundation
+
+```text
+before = observe()
+authorized = authorize(before, requested_action)
+delivery = act(authorized)
+after = observe()
+verification = verify(before, after, expected_effect)
+```
+
+`delivery != success`.
+
+Verifier result classes:
+
+```text
+PASS
+FAIL
+UNKNOWN
+```
+
+FAIL/UNKNOWN never silently advance a procedure.
+
+The verifier is independent from planner/model self-report: a model saying “done” is not completion evidence.
+
+---
+
+# Browser capability and local vision
+
+Browser interaction remains structure-first:
+
+```text
+fresh accessibility state
+ -> exact safe semantic target
+      -> semantic action
+
+ -> only an explicitly admitted structural miss
+      -> same-session screenshot
+      -> local bounded VLM proposal
+      -> deterministic target/freshness authorization
+      -> one coordinate action OR ABSTAIN
+```
+
+Unresolved semantic ambiguity, disabled/non-actionable exact targets and generic semantic action errors do not automatically escalate to vision.
+
+Accepted specialist baseline remains local LFM2.5-VL through the project-owned bounded provider/runtime seam. The model perceives/proposes only; it never grants authority or task completion.
+
+---
+
+# Production Windows capability
 
 Maintained production boundary:
 
@@ -205,179 +256,118 @@ runtime/windows/
   native_point_guard.py   foreground + point/root-HWND/PID native guard
 ```
 
-## Typed Windows execution
-
-Accepted invariants include:
+## Typed execution invariants
 
 ```text
-127.0.0.1 only
-ephemeral authenticated agent
+127.0.0.1-only local agent where applicable
+ephemeral authentication
 legacy arbitrary exec absent/disabled
 typed bounded input only
 stale frame/context refusal
 focus-bound keyboard
-UIA unique target
-fingerprint-bound structural action
+unique/fingerprint-bound structural action
 bounded pointer/scroll
 layout-independent Unicode text delivery
-generic /execute_windows absent
+generic code-execution route absent
 ```
 
-Delivery receipts keep `outcome_verified=false`.
+Delivery receipts keep completion separate from action delivery.
 
-## Window-scoped UIA
+## Window-scoped observation/authorization
 
-Stage 26.1E accepted PID -> bounded Win32 HWND -> same-process exact window -> native UIA FindAll inside the bound window only. Controlled evidence: 97 scoped resolutions, zero Desktop fallback/binding failures/ambiguities, p50 3323.570 ms / p95 3720.061 ms. This is not global Windows accuracy.
+Bind exact process/window identity before traversing native UIA; do not rely on desktop-wide tree walks as the normal path.
 
-## DesktopState — Stage 26.2B
+`DesktopState` is evidence, not authority. It carries session/application/process generation/window identity, physical coordinate space, focused control, bounded controls, visible text, frame/screenshot digests, provenance and freshness evidence.
 
-Canonical state carries session/application/process generation/window identity, physical coordinate space, focused control, bounded controls, visible text, observed capabilities, frame/screenshot digests, provenance and freshness evidence. Observation fingerprints are evidence, not executor authority.
+A real keyboard target may legitimately be hidden/zero-size (for example an editor's focused accessibility textbox). Focused semantic identity and top-level native window geometry are separate channels. Do not fabricate visible control geometry from focus identity.
 
-## Verifier foundation
-
-```text
-before = observe()
-authorized = authorize(before, requested_action)
-delivery = act(authorized)
-after = observe()
-verification = verify(before, after, expected_effect)
-```
-
-`delivery != success`.
+## Native visual fallback
 
 ```text
-PASS
-FAIL
-UNKNOWN
-```
-
-FAIL/UNKNOWN never silently advance a procedure.
-
-## Native Grounder — Stage 26.2C
-
-Exact-window proposal/ABSTAIN only. The controlled physical `1. Benchmark start` -> `Benchmark start` mismatch is handled by one narrowly bounded ordinal-prefix alias after inventory-absent; no general fuzzy matching.
-
-## Structure-first Windows routing — Stage 26.2D
-
-```text
-current DesktopState/UIA
- -> exact safe structural target
+current exact-window DesktopState/UIA
+ -> safe structural target
       -> fresh structural re-resolution
       -> native UIA delivery
 
  -> explicitly promoted structural miss only
-      -> current exact-window screenshot
-      -> Grounder proposal
-      -> deterministic proposal/evidence gate
-      -> request/role/UIA/process/window/frame/coordinate binding
+      -> exact-window screenshot
+      -> bounded Grounder proposal
+      -> request/role/process/window/frame/coordinate evidence binding
       -> fresh exact-window re-observation
-      -> native foreground + WindowFromPoint/root HWND/PID guard
-      -> guarded backend frame gate
-      -> one bounded action OR ABSTAIN
+      -> native foreground/root-HWND/PID guard
+      -> one bounded guarded action OR ABSTAIN
 ```
 
-Exact physically accepted head:
-
-`1c74713edcd6321d5583a39234929169e68b5ac1`
-
-This proves one controlled WinForms path, not general desktop accuracy.
+VLM proposal is never authorization.
 
 ---
 
-# Current gate — Stage 26.2E real application E2E
+# Procedural substrate
 
-The current qualification application is isolated VS Code, selected as one real medium-complexity app with a strong disposable boundary.
+Pinned/qualified OpenAdapt Flow/Capture components are reused/adapted rather than duplicating a generic recorder/compiler/agent framework.
 
-```text
-specifically prefixed TEMP root
- -> isolated VS Code user-data/extensions
- -> unique empty disposable .txt
- -> exact unique Code.exe PID/HWND/DesktopState
- -> focused editor precondition
- -> deliberate verifier mismatch => FAIL -> ABSTAIN, zero action
- -> fresh pre-action DesktopState
- -> same window + same focused-editor observation fingerprint
- -> native foreground/hit-test guard
- -> exactly one guarded Unicode delivery
- -> independent autosaved file size/SHA-256 verification
- -> current same-window identity
- -> workspace contains only expected artifact
- -> WM_CLOSE
- -> natural CLI exit
- -> remove isolated TEMP root
- -> rollback PASS
-```
-
-Forced CLI terminate/kill is cleanup-only and makes acceptance fail.
-
-Read `STAGE26_2E_REAL_APPLICATION_E2E.md`.
-
----
-
-# Stage 26.3 — Verified Procedure Runtime / Control Plane integration
-
-After 26.2E, build the deterministic execution Control Plane around accepted components rather than another agent brain.
-
-Core responsibilities:
+Reuse/adapt responsibilities include:
 
 ```text
-TaskState
-ProgramGraph state/version
-procedure trust state
-current evidence references/digests
-capability scope
-transition authorization
-checkpoints
-postconditions/verifier
-bounded retries/recovery branches
-resource/action/time budgets
-escalation reason
+Flow compiler + Workflow/ProgramGraph
+Capture
+SkillLibrary/learn/teach lifecycle mechanics
+Windows typed backend/agent mechanics where project safety gates accept them
 ```
 
-A known procedure may progress through multiple verified transitions without a ChatGPT round trip after every action. A new strategy is never invented locally; unknown/incompatible state escalates.
+The repository owns the stricter integration seams: capability authority, current-state binding, candidate-first trust, checkpoints, verifier/postconditions, bounded rollback/recovery and privacy policy.
 
-## Candidate-first trust
+A stored procedure may retain native/semantic/UIA and bounded visual/template/geometry evidence, but blind historical absolute-coordinate replay is never primary identity or authority.
 
-```text
-new/demo
- -> CANDIDATE
- -> replay/regression/variant evidence
- -> trusted reusable
- -> stale/quarantined/disabled/rollback
-```
-
-## Advanced verifier library
-
-Expand postconditions across UI, files, applications/windows, browser state, artifacts and structured outputs.
-
-## Human demonstration transfer — Stage 26.4
+## Human demonstration transfer
 
 ```text
 human demonstration
  -> structured trajectory
- -> ProgramGraph
+ -> compile coordinate-independent procedure evidence
  -> project CANDIDATE
- -> verified replay
- -> changed-state/task replay
+ -> verified replay/regression/variants
+ -> trusted reusable only after evidence
 ```
+
+Raw desktop demonstrations are sensitive local data and require explicit retention/redaction/encryption policy before broad product use.
 
 ---
 
-# Optional specialist reasoning
+# Qualification-only procedure surface
 
-A future `SpecializedReasoningBackend` may receive structured goal/state/procedure evidence and return proposal/confidence/ABSTAIN only. It remains non-authorizing and is not a general planner.
+Stage 26.3 may expose a separate typed `procedure_run` capability only in a qualification profile while the accepted normal profile remains five tools.
 
-# Future local planner — Track P
+Required properties:
 
-A local general planner is retained for future offline/autonomy research after real verified procedure-state data and measured need exist.
+- fixed registered procedure id/schema, no generic dispatcher;
+- caller cannot select arbitrary path, command, Python executable, backend or raw tool;
+- workspace/state/admission are configuration authority, not Chat arguments;
+- procedure child receives least-privilege environment and no unrelated transport/OpenAI credentials;
+- direct MCP acceptance includes independent postcondition observation;
+- ordinary-Chat promotion requires explicit ADR + physical E2E.
 
-Progression is shadow/proposal-only -> bounded subtask planning -> optional general local mode. It remains behind the same deterministic Control Plane authorization/verifier boundary and never silently replaces ChatGPT as default.
+---
 
-See `ROADMAP.md` and `CONTROL_PLANE.md`.
+# Specialist reasoning and future planner
+
+A future `SpecializedReasoningBackend` may receive structured goal/state/procedure evidence and return proposal/confidence/ABSTAIN only. It remains non-authorizing.
+
+Future optional local general planner Track P progresses only after real verified procedure-state data and measured need:
+
+```text
+P0 shadow/proposal-only
+ -> P1 bounded subtask planning
+ -> P2 optional general local mode
+```
+
+It remains behind deterministic capability authorization/verifier boundaries and never silently replaces ordinary ChatGPT default.
+
+---
 
 # Multi-chat orchestration
 
-Separate upper layer, not part of Windows/procedure safety core and not a release prerequisite. Under the current constraint do not use Codex/Work unless explicitly re-enabled.
+Multi-chat/Codex orchestration is a separate upper layer, not part of Windows/procedure safety core and not a release prerequisite. Under the current project constraint, do not use Codex/Work unless explicitly re-enabled by the user.
 
 ---
 
@@ -385,21 +375,24 @@ Separate upper layer, not part of Windows/procedure safety core and not a releas
 
 - tunnel reachability remains outbound from the user machine;
 - normal semantic transport remains direct stdio;
-- tunnel secrets stay outside repository/procedure content;
+- tunnel secrets stay outside repository/procedure content and must not leak into unrelated capability children;
 - local inference is bounded, on-demand and non-authorizing;
 - planner/model/procedure output never bypasses deterministic authorization;
+- current state outranks remembered history;
 - raw desktop demonstrations are sensitive local data;
 - private chain-of-thought is never procedural/task memory;
 - generic Windows code execution remains disabled/unreachable;
 - stale, ambiguous or incompatible state fails closed;
 - artifact/model/Python/OpenAdapt reproducibility must become release-grade before stable distribution.
 
-## Windows manager
+## Windows manager / supervisor
 
-Manager/tray owns lifecycle/configuration/diagnostics only. It is neither the general planner nor the procedure Control Plane.
+Manager/tray and Transport Supervisor own lifecycle/configuration/availability only. They are neither the general planner nor the procedure Control Plane.
+
+Desired user/platform state and exact runtime ownership are separate concepts. A future product supervisor should persist explicit desired state independently from current owner identity; ownership must still be revalidated under serialized lifecycle authority before mutation.
 
 # Ownership rule
 
 The repository owns thin integration assets: pinned configs, lifecycle/bootstrap, deterministic compatibility adapters, project trust/policy/checkpoint wrappers, focused missing-boundary adapters, tests and authoritative context.
 
-It does not own a generic AI gateway, unrestricted autonomous workflow brain, generic model-serving platform or duplicate OpenAdapt implementation while qualified upstream mechanisms cover those needs.
+It does not own a generic AI gateway, unrestricted autonomous workflow brain, generic model-serving platform or duplicate upstream recorder/compiler implementation while qualified upstream mechanisms cover those needs.
