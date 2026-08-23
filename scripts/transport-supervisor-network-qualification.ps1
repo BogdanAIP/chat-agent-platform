@@ -436,17 +436,63 @@ try {
     }
     Save-JsonEvidence -Name 'manager-after-reconnect' -Value $reconnected
 
-    $postRecovery = Read-RecoveryState
-    $postSupervisor = Read-SupervisorState
-    $postTunnels = @(Get-DirectTunnelProcesses)
-    if ($null -eq $postRecovery -or $null -eq $postSupervisor) {
-        throw 'Supervisor receipts are missing after reconnect.'
+    # Manager readiness can become visible a few seconds before the supervisor
+    # finishes publishing the matching recovery receipt. Wait for a coherent
+    # process/receipt pair so a successful bounded recovery is not misread as
+    # an unexplained PID change.
+    $postRecovery = $null
+    $postSupervisor = $null
+    $postTunnels = @()
+    $receiptSettleDeadline = (Get-Date).AddSeconds(30)
+    while ((Get-Date) -lt $receiptSettleDeadline) {
+        $candidateRecovery = Read-RecoveryState
+        $candidateSupervisor = Read-SupervisorState
+        $candidateTunnels = @(Get-DirectTunnelProcesses)
+
+        if (
+            $null -ne $candidateRecovery -and
+            $null -ne $candidateSupervisor -and
+            $candidateTunnels.Count -eq 1 -and
+            [int]$candidateSupervisor.supervisor_pid -eq $supervisorPid
+        ) {
+            $candidateTunnelPid = [int]$candidateTunnels[0].ProcessId
+            $candidateDelta = [int]$candidateRecovery.total_recoveries - $recoveriesBefore
+
+            if ($candidateDelta -lt 0 -or $candidateDelta -gt 1) {
+                throw "Reconnect caused an unexpected recovery count delta: $candidateDelta. Expected 0 or 1."
+            }
+
+            $candidateHealthy = (
+                [string]$candidateSupervisor.supervisor_state -eq 'healthy' -and
+                [string]$candidateSupervisor.health_code -eq 'READY' -and
+                [string]$candidateSupervisor.recovery_action -eq 'none'
+            )
+            $coherentSeamless = (
+                $candidateHealthy -and
+                $candidateDelta -eq 0 -and
+                $candidateTunnelPid -eq $tunnelPid
+            )
+            $coherentRecovery = (
+                $candidateHealthy -and
+                $candidateDelta -eq 1 -and
+                $candidateTunnelPid -ne $tunnelPid -and
+                [int]$candidateRecovery.consecutive_attempts -eq 0 -and
+                -not [string]::IsNullOrWhiteSpace([string]$candidateRecovery.last_success_at)
+            )
+
+            if ($coherentSeamless -or $coherentRecovery) {
+                $postRecovery = $candidateRecovery
+                $postSupervisor = $candidateSupervisor
+                $postTunnels = $candidateTunnels
+                break
+            }
+        }
+
+        Start-Sleep -Milliseconds 500
     }
-    if ($postTunnels.Count -ne 1) {
-        throw "Expected exactly one direct tunnel after reconnect; found $($postTunnels.Count)."
-    }
-    if ([int]$postSupervisor.supervisor_pid -ne $supervisorPid) {
-        throw 'Supervisor PID changed across network reconnect.'
+
+    if ($null -eq $postRecovery -or $null -eq $postSupervisor -or $postTunnels.Count -ne 1) {
+        throw 'Post-reconnect process and recovery receipts did not settle into a coherent state within 30 seconds.'
     }
 
     $recoveriesAfter = [int]$postRecovery.total_recoveries
