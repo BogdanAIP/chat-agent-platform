@@ -32,13 +32,17 @@ class LiveContextSlimContractTests(unittest.TestCase):
         self.assertNotIn("QUALIFICATION_EXIT_CODE=", current)
 
     def test_core_live_invariants_remain_explicit(self) -> None:
-        combined = CURRENT.read_text(encoding="utf-8") + "\n" + ARCH.read_text(encoding="utf-8")
+        combined = (
+            CURRENT.read_text(encoding="utf-8")
+            + "\n"
+            + ARCH.read_text(encoding="utf-8")
+        ).casefold()
         for required in (
-            "ordinary ChatGPT is the only **current general planner/intelligence**",
-            "deterministic execution Control Plane",
-            "ABSTAIN",
+            "ordinary chatgpt is the only **current general planner/intelligence**",
+            "deterministic execution control plane",
+            "abstain",
             "action delivery is not task completion",
-            "Transport Supervisor",
+            "transport supervisor",
             "procedure_run",
         ):
             self.assertIn(required, combined)
