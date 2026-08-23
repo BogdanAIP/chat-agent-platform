@@ -1,6 +1,6 @@
 # Transport Supervisor implementation notes
 
-Status: **implementation in progress / physical qualification not yet complete**.
+Status: **hard local tunnel kill/recovery accepted; remaining physical qualification still in progress**.
 
 ## Current implementation slice
 
@@ -134,7 +134,7 @@ recovery_action=wait_and_probe
 next_retry_at=2026-08-23T08:34:05.0039182Z
 ```
 
-After fault injection killed exact owned tunnel PID `20204`, the classifier correctly changed to:
+After fault injection killed the exact owned tunnel, the classifier correctly changed to:
 
 ```text
 health_code=LOCAL_TUNNEL_NOT_RUNNING
@@ -142,7 +142,7 @@ recovery_action=restart_runtime
 runtime_ready=false
 ```
 
-but the supervisor retained the old `wait_and_probe` deadline and reported `backoff`. The first local recovery attempt did not begin until `2026-08-23T08:34:22.3980108Z`, leaving only about 51 seconds inside the qualification's 120-second recovery window even though one bounded controller mutation may itself consume up to 90 seconds. The qualification correctly failed with:
+but the supervisor retained the old `wait_and_probe` deadline and reported `backoff`. The first local recovery attempt did not begin until `2026-08-23T08:34:22.3980108Z`, leaving too little time inside the qualification's 120-second recovery window. The qualification correctly failed with:
 
 ```text
 Supervisor did not recover the killed direct tunnel within 120 seconds.
@@ -150,41 +150,66 @@ Supervisor did not recover the killed direct tunnel within 120 seconds.
 
 Rollback restored the previous direct controller. The preserved state/log evidence proved that classification was correct; the bug was cross-failure-class reuse of retry state, not failure to observe the dead tunnel.
 
-The correction makes a current `restart_runtime` action preempt an earlier `last_action=wait_and_probe` deadline while preserving deadlines created by failed `restart_runtime` attempts. No acceptance is inferred until the corrected exact head passes the physical gate.
+The correction makes a current `restart_runtime` action preempt an earlier `last_action=wait_and_probe` deadline while preserving deadlines created by failed `restart_runtime` attempts.
+
+### Attempt 7 — hard local tunnel kill/recovery accepted
+
+Exact tested head `b03442b66b05bf0f51000ff43f2f386e1495a1ec` was fetched from `origin/chat/transport-supervisor-v1`, checked against `REMOTE_HEAD`, mounted in a detached worktree, and checked again as `TEST_HEAD` before physical execution.
+
+The qualification then killed exact owned tunnel PID `6812` and accepted only after all required transaction/liveness evidence was observed:
+
+```text
+TRANSPORT_SUPERVISOR_QUALIFICATION_RESULT=PASSED
+OLD_TUNNEL_PID=6812
+NEW_TUNNEL_PID=4828
+TUNNEL_PID_CHANGED=True
+SUPERVISOR_PID_STABLE=True
+SUPERVISOR_RECEIPT_VERIFIED=True
+SUPERVISOR_HEARTBEAT_VERIFIED=True
+RECOVERY_RECEIPT_TOTAL_BEFORE_FAULT=0
+RECOVERY_RECEIPT_TOTAL_RECOVERIES=1
+RUNTIME_READY_AFTER_RECOVERY=True
+HEALTH_CODE_AFTER_RECOVERY=READY
+OPENAI_CONTROL_READY_AFTER_RECOVERY=True
+DESIRED_STATE_BEFORE=running
+DESIRED_STATE_RESTORED=running
+```
+
+Machine-local evidence directory:
+
+```text
+C:\Users\eahra\AppData\Local\ChatAgentPlatform\transport-supervisor-qualification\run-20260823-115911
+```
+
+This physically accepts the hard local tunnel kill/recovery gate on exact tested head `b03442b66b05bf0f51000ff43f2f386e1495a1ec`. It does not accept later documentation-only heads or any remaining physical gate.
 
 The `REMOTE_METADATA_UNAVAILABLE` state is not by itself evidence that local recovery failed. Local runtime, remote metadata/control-plane and ordinary-Chat route evidence remain independent dimensions.
 
 ## Current candidate
 
-The current PR head contains the failure-class-specific backoff correction, a dedicated regression contract, and this evidence record. The exact SHA used for a physical qualification is recorded in the PR/test command rather than embedded here, because embedding the current head in a file would make the file self-invalidating on commit.
+After Attempt 7, documentation records the accepted historical tested SHA separately from the moving PR head. Any commit made only to record evidence must not be retroactively described as physically tested.
 
-Hosted checks must be green before target-Windows fault injection is repeated.
+The implementation remains Draft while the remaining transport gates are qualified.
 
 ## Required next gate
 
-The immediate next physical gate is the same exact fault class on the current exact head:
+The next physical gate is network disconnect/reconnect behavior:
 
 ```text
-healthy baseline
- -> start supervisor
- -> kill only exact owned tunnel-client
- -> local restart_runtime preempts any older wait_and_probe delay
- -> new tunnel PID
- -> same supervisor PID
- -> runtime_ready restored
- -> post-fault recovery receipt with increasing recovery count
- -> last_success_at after fault injection
- -> supervisor snapshot committed
- -> later heartbeat from same supervisor PID
+healthy running baseline
+ -> external network disconnect while local processes remain intact
+ -> transient remote/control-plane loss does not cause restart storm or churn a healthy local runtime
+ -> network reconnect
+ -> automatic return to healthy state without manual manager restart
+ -> supervisor PID remains stable
+ -> bounded state/receipt publication remains coherent
+ -> later heartbeat proves continued reconciliation
 ```
-
-Any missing receipt/heartbeat is failure even if the tunnel itself recovered.
 
 ## Remaining physical gates
 
-After the corrected kill/recovery gate is accepted, the remaining target-Windows gates are:
+After network disconnect/reconnect, the remaining target-Windows gates are:
 
-- network disconnect -> no restart storm -> reconnect -> automatic recovery;
 - sleep/resume -> automatic recovery;
 - reboot/logon -> supervisor automatically starts and restores desired running state;
 - ordinary ChatGPT semantic call -> fresh ChatGPT E2E receipt;
