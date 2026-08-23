@@ -407,8 +407,10 @@ try {
     Write-Host 'ACTION REQUIRED: put Windows into REAL Sleep now.' -ForegroundColor Cyan
     Write-Host 'Use Start -> Power -> Sleep (or your normal physical Sleep action).' -ForegroundColor Yellow
     Write-Host "Keep the machine asleep for at least $MinimumSleepEvidenceSeconds seconds, then wake/unlock it." -ForegroundColor Yellow
-    Write-Host 'Do NOT close this PowerShell window and do NOT manually restart Chat Agent Platform.' -ForegroundColor Yellow
-    Read-Host 'After Windows has resumed and you are back at this terminal, press Enter here' | Out-Null
+    Write-Host 'After wake, restore normal network connectivity and any required VPN/proxy path before pressing Enter.' -ForegroundColor Yellow
+    Write-Host 'Confirm the external path is usable; do NOT manually restart Chat Agent Platform.' -ForegroundColor Yellow
+    Write-Host 'Do NOT close this PowerShell window.' -ForegroundColor Yellow
+    Read-Host 'After Windows and the required external network/VPN/proxy path have resumed, press Enter here' | Out-Null
     $resumeConfirmedAt = Get-Date
 
     $powerEvidence = Get-SleepResumeEvidence -PromptTime $sleepPromptAt -ConfirmedResumeTime $resumeConfirmedAt
@@ -619,7 +621,7 @@ try {
     Write-Result 'RECOVERY_COUNT_DELTA' $recoveryDelta
     Write-Result 'RESUME_RUNTIME_READY' $summary['resume_runtime_ready']
     Write-Result 'RESUME_OPENAI_READY' $summary['resume_openai_ready']
-    Write-Result 'SUPERVISOR_HEARTBEAT_VERIFIED' $heartbeatAdvanced
+    Write-Result 'SUPERVISOR_HEARTBEAT_VERIFIED' $summary['supervisor_heartbeat_verified']
     Write-Result 'RESULT_DIR' $RunDir
 }
 catch {
@@ -648,9 +650,11 @@ catch {
             Get-Content -LiteralPath $SupervisorLogFile -Tail 200 |
                 Set-Content -LiteralPath (Join-Path $RunDir 'supervisor-log-tail.txt') -Encoding utf8
         }
-        Get-NormalizedPowerEvents -StartTime (Get-Date).AddMinutes(-15) |
-            ConvertTo-Json -Depth 8 |
-            Set-Content -LiteralPath (Join-Path $RunDir 'power-events-failure.json') -Encoding utf8
+        try {
+            $failurePowerEvidence = Get-SleepResumeEvidence -PromptTime $sleepPromptAt -ConfirmedResumeTime (Get-Date)
+            Save-JsonEvidence -Name 'power-events-failure' -Value $failurePowerEvidence
+        }
+        catch {}
     }
     catch {}
 
