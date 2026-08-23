@@ -46,6 +46,53 @@ function Initialize-SupervisorDirectories {
     }
 }
 
+function ConvertTo-UtcIsoString {
+    param($Value)
+
+    if ($null -eq $Value) { return $null }
+
+    if ($Value -is [datetimeoffset]) {
+        return ([datetimeoffset]$Value).ToUniversalTime().ToString('o')
+    }
+
+    if ($Value -is [datetime]) {
+        $date = [datetime]$Value
+        if ($date.Kind -eq [DateTimeKind]::Unspecified) {
+            $date = [datetime]::SpecifyKind($date, [DateTimeKind]::Utc)
+        }
+        else {
+            $date = $date.ToUniversalTime()
+        }
+        return $date.ToString('o')
+    }
+
+    $text = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+
+    try {
+        $date = [datetime]::Parse(
+            $text,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind
+        )
+    }
+    catch {
+        # Legacy supervisor state could contain a culture-formatted UTC wall
+        # clock after ConvertFrom-Json materialized an ISO string as DateTime.
+        # The state schema defines these timestamps as UTC, so an unspecified
+        # legacy value must be repaired as UTC rather than reinterpreted as local.
+        $date = [datetime]::Parse($text, [Globalization.CultureInfo]::CurrentCulture)
+    }
+
+    if ($date.Kind -eq [DateTimeKind]::Unspecified) {
+        $date = [datetime]::SpecifyKind($date, [DateTimeKind]::Utc)
+    }
+    else {
+        $date = $date.ToUniversalTime()
+    }
+    return $date.ToString('o')
+}
+
 function Write-AtomicJson {
     param(
         [Parameter(Mandatory)] [string]$Path,
@@ -56,7 +103,20 @@ function Write-AtomicJson {
     $temporary = "$Path.new-$PID"
     try {
         $Value | ConvertTo-Json -Depth $Depth | Set-Content -LiteralPath $temporary -Encoding utf8
-        Move-Item -LiteralPath $temporary -Destination $Path -Force
+
+        # Readers such as qualification may have the previous file open for a
+        # very short interval on Windows. Retry only the atomic replacement;
+        # never rerun the operation that produced the state being published.
+        for ($attempt = 1; $attempt -le 20; $attempt++) {
+            try {
+                Move-Item -LiteralPath $temporary -Destination $Path -Force
+                return
+            }
+            catch {
+                if ($attempt -eq 20) { throw }
+                Start-Sleep -Milliseconds 50
+            }
+        }
     }
     finally {
         Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
@@ -215,7 +275,15 @@ function Get-RecoveryState {
         foreach ($name in @('consecutive_attempts', 'total_recoveries')) {
             if ($null -eq $state.PSObject.Properties[$name]) { throw "$name missing" }
         }
-        return $state
+        return [pscustomobject]@{
+            consecutive_attempts = [int]$state.consecutive_attempts
+            total_recoveries = [int]$state.total_recoveries
+            next_retry_at = ConvertTo-UtcIsoString $state.next_retry_at
+            last_attempt_at = ConvertTo-UtcIsoString $state.last_attempt_at
+            last_success_at = ConvertTo-UtcIsoString $state.last_success_at
+            last_health_code = if ($null -ne $state.PSObject.Properties['last_health_code']) { [string]$state.last_health_code } else { $null }
+            last_action = if ($null -ne $state.PSObject.Properties['last_action']) { [string]$state.last_action } else { $null }
+        }
     }
     catch {
         return [pscustomobject]@{
@@ -234,9 +302,9 @@ function Save-RecoveryState {
     param(
         [ValidateRange(0, 1000000)] [int]$ConsecutiveAttempts,
         [ValidateRange(0, 100000000)] [int]$TotalRecoveries,
-        [string]$NextRetryAt,
-        [string]$LastAttemptAt,
-        [string]$LastSuccessAt,
+        $NextRetryAt,
+        $LastAttemptAt,
+        $LastSuccessAt,
         [string]$LastHealthCode,
         [string]$LastAction
     )
@@ -245,9 +313,9 @@ function Save-RecoveryState {
         schema_version = 1
         consecutive_attempts = $ConsecutiveAttempts
         total_recoveries = $TotalRecoveries
-        next_retry_at = $NextRetryAt
-        last_attempt_at = $LastAttemptAt
-        last_success_at = $LastSuccessAt
+        next_retry_at = ConvertTo-UtcIsoString $NextRetryAt
+        last_attempt_at = ConvertTo-UtcIsoString $LastAttemptAt
+        last_success_at = ConvertTo-UtcIsoString $LastSuccessAt
         last_health_code = $LastHealthCode
         last_action = $LastAction
         updated_at = (Get-Date).ToUniversalTime().ToString('o')
@@ -260,8 +328,8 @@ function Reset-ConsecutiveRecoveryState {
         -ConsecutiveAttempts 0 `
         -TotalRecoveries ([int]$current.total_recoveries) `
         -NextRetryAt $null `
-        -LastAttemptAt ([string]$current.last_attempt_at) `
-        -LastSuccessAt ([string]$current.last_success_at) `
+        -LastAttemptAt $current.last_attempt_at `
+        -LastSuccessAt $current.last_success_at `
         -LastHealthCode $null `
         -LastAction 'none'
 }
@@ -480,9 +548,9 @@ function New-SupervisorSnapshot {
             [ordered]@{
                 consecutive_attempts = [int]$RecoveryState.consecutive_attempts
                 total_recoveries = [int]$RecoveryState.total_recoveries
-                next_retry_at = $RecoveryState.next_retry_at
-                last_attempt_at = $RecoveryState.last_attempt_at
-                last_success_at = $RecoveryState.last_success_at
+                next_retry_at = ConvertTo-UtcIsoString $RecoveryState.next_retry_at
+                last_attempt_at = ConvertTo-UtcIsoString $RecoveryState.last_attempt_at
+                last_success_at = ConvertTo-UtcIsoString $RecoveryState.last_success_at
             }
         }
         else { $null }
@@ -603,8 +671,8 @@ function Invoke-ReconcileOnce {
             -ConsecutiveAttempts ([int]$recovery.consecutive_attempts) `
             -TotalRecoveries ([int]$recovery.total_recoveries) `
             -NextRetryAt $nextRetry `
-            -LastAttemptAt ([string]$recovery.last_attempt_at) `
-            -LastSuccessAt ([string]$recovery.last_success_at) `
+            -LastAttemptAt $recovery.last_attempt_at `
+            -LastSuccessAt $recovery.last_success_at `
             -LastHealthCode ([string]$health.code) `
             -LastAction 'wait_and_probe'
         $recovery = Get-RecoveryState
@@ -660,6 +728,8 @@ function Invoke-ReconcileOnce {
     $attemptAt = (Get-Date).ToUniversalTime().ToString('o')
     Write-SupervisorLog "recovery attempt=$attemptNumber health=$($health.code)"
 
+    $post = $null
+    $postHealth = $null
     try {
         Invoke-DirectRuntimeRecovery -Owner $desired.owner
         $post = Get-ManagerStatus
@@ -667,9 +737,38 @@ function Invoke-ReconcileOnce {
         if (-not [bool]$postHealth.runtime_ready) {
             throw "runtime remained unready: $($postHealth.code)"
         }
+    }
+    catch {
+        $failureType = $_.Exception.GetType().Name
+        $delay = Get-NextRecoveryDelaySeconds -AttemptNumber $attemptNumber
+        $nextRetry = (Get-Date).ToUniversalTime().AddSeconds($delay).ToString('o')
+        Save-RecoveryState `
+            -ConsecutiveAttempts $attemptNumber `
+            -TotalRecoveries ([int]$recovery.total_recoveries) `
+            -NextRetryAt $nextRetry `
+            -LastAttemptAt $attemptAt `
+            -LastSuccessAt $recovery.last_success_at `
+            -LastHealthCode ([string]$health.code) `
+            -LastAction 'restart_runtime'
+        $recovery = Get-RecoveryState
+        $snapshot = New-SupervisorSnapshot `
+            -DesiredState 'running' `
+            -SupervisorState 'backoff' `
+            -HealthCode ([string]$health.code) `
+            -RecoveryAction 'restart_runtime' `
+            -ManagerStatus $status `
+            -RecoveryState $recovery `
+            -ErrorCode 'RECOVERY_ATTEMPT_FAILED'
+        Save-SupervisorSnapshot -Snapshot $snapshot
+        Write-SupervisorLog "recovery failed attempt=$attemptNumber phase=runtime error_type=$failureType next_retry=$nextRetry" 'WARN'
+        return $snapshot
+    }
 
-        $total = [int]$recovery.total_recoveries + 1
-        $successAt = (Get-Date).ToUniversalTime().ToString('o')
+    # Runtime recovery is now complete. Publication errors must not be turned
+    # into another destructive restart of an already-ready runtime.
+    $total = [int]$recovery.total_recoveries + 1
+    $successAt = (Get-Date).ToUniversalTime().ToString('o')
+    try {
         Save-RecoveryState `
             -ConsecutiveAttempts 0 `
             -TotalRecoveries $total `
@@ -691,28 +790,9 @@ function Invoke-ReconcileOnce {
         return $snapshot
     }
     catch {
-        $delay = Get-NextRecoveryDelaySeconds -AttemptNumber $attemptNumber
-        $nextRetry = (Get-Date).ToUniversalTime().AddSeconds($delay).ToString('o')
-        Save-RecoveryState `
-            -ConsecutiveAttempts $attemptNumber `
-            -TotalRecoveries ([int]$recovery.total_recoveries) `
-            -NextRetryAt $nextRetry `
-            -LastAttemptAt $attemptAt `
-            -LastSuccessAt ([string]$recovery.last_success_at) `
-            -LastHealthCode ([string]$health.code) `
-            -LastAction 'restart_runtime'
-        $recovery = Get-RecoveryState
-        $snapshot = New-SupervisorSnapshot `
-            -DesiredState 'running' `
-            -SupervisorState 'backoff' `
-            -HealthCode ([string]$health.code) `
-            -RecoveryAction 'restart_runtime' `
-            -ManagerStatus $status `
-            -RecoveryState $recovery `
-            -ErrorCode 'RECOVERY_ATTEMPT_FAILED'
-        Save-SupervisorSnapshot -Snapshot $snapshot
-        Write-SupervisorLog "recovery failed attempt=$attemptNumber next_retry=$nextRetry" 'WARN'
-        return $snapshot
+        $publicationType = $_.Exception.GetType().Name
+        Write-SupervisorLog "recovery publication failed attempt=$attemptNumber error_type=$publicationType" 'WARN'
+        throw
     }
 }
 

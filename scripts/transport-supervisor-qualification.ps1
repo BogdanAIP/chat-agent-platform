@@ -25,6 +25,7 @@ $OwnerFile = Join-Path $LocalRoot 'state\manager-owner.json'
 $HealthUrlFile = Join-Path $LocalRoot 'state\semantic-direct-health.url'
 $SupervisorStateFile = Join-Path $LocalRoot 'state\supervisor.json'
 $RecoveryStateFile = Join-Path $LocalRoot 'state\supervisor-recovery.json'
+$SupervisorLogFile = Join-Path $LocalRoot 'logs\supervisor.log'
 $TunnelExe = Join-Path $LocalRoot 'bin\tunnel-client.exe'
 $TaskName = 'Chat Agent Platform Transport Supervisor'
 
@@ -37,6 +38,45 @@ New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
 function Write-Result {
     param([Parameter(Mandatory)] [string]$Name, [Parameter(Mandatory)] $Value)
     Write-Host "$Name=$Value"
+}
+
+function ConvertTo-UtcDateTime {
+    param([Parameter(Mandatory)] $Value)
+
+    if ($Value -is [datetimeoffset]) {
+        return ([datetimeoffset]$Value).UtcDateTime
+    }
+
+    if ($Value -is [datetime]) {
+        $date = [datetime]$Value
+        if ($date.Kind -eq [DateTimeKind]::Unspecified) {
+            return [datetime]::SpecifyKind($date, [DateTimeKind]::Utc)
+        }
+        return $date.ToUniversalTime()
+    }
+
+    $text = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        throw 'Timestamp is empty.'
+    }
+
+    try {
+        $date = [datetime]::Parse(
+            $text,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind
+        )
+    }
+    catch {
+        # Legacy supervisor receipts could contain a culture-formatted UTC wall
+        # clock after PowerShell materialized an ISO JSON string as DateTime.
+        $date = [datetime]::Parse($text, [Globalization.CultureInfo]::CurrentCulture)
+    }
+
+    if ($date.Kind -eq [DateTimeKind]::Unspecified) {
+        return [datetime]::SpecifyKind($date, [DateTimeKind]::Utc)
+    }
+    return $date.ToUniversalTime()
 }
 
 function Invoke-BoundedManagerProcess {
@@ -230,6 +270,19 @@ try {
         throw 'Qualification installer -NoStart unexpectedly left a supervisor process running.'
     }
 
+    # Qualification state is isolated from earlier physical attempts. Preserve
+    # the old receipts as evidence, then remove them before the test supervisor
+    # starts so backoff counters and success timestamps cannot leak across runs.
+    foreach ($entry in @(
+        @($SupervisorStateFile, 'preexisting-supervisor.json'),
+        @($RecoveryStateFile, 'preexisting-recovery.json')
+    )) {
+        if (Test-Path -LiteralPath $entry[0] -PathType Leaf) {
+            Copy-Item -LiteralPath $entry[0] -Destination (Join-Path $RunDir $entry[1]) -Force
+            Remove-Item -LiteralPath $entry[0] -Force
+        }
+    }
+
     $baseline = Invoke-ManagerStatus
     Save-JsonEvidence -Name 'manager-before-start' -Value $baseline
 
@@ -262,13 +315,50 @@ try {
     if ($supervisors.Count -ne 1) {
         throw "Expected exactly one supervisor process; found $($supervisors.Count)."
     }
+    $oldSupervisorPid = [int]$supervisors[0].ProcessId
+
+    # Require one healthy supervisor reconciliation before injecting the fault.
+    # This proves the loop is alive and guarantees a clean recovery counter.
+    $supervisorBaselineReceipt = $null
+    $recoveryBaselineReceipt = $null
+    $supervisorBaselineDeadline = (Get-Date).AddSeconds(30)
+    while ((Get-Date) -lt $supervisorBaselineDeadline) {
+        if (
+            (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) -and
+            (Test-Path -LiteralPath $RecoveryStateFile -PathType Leaf)
+        ) {
+            try {
+                $candidateSupervisorBaseline = Get-Content -LiteralPath $SupervisorStateFile -Raw | ConvertFrom-Json
+                $candidateRecoveryBaseline = Get-Content -LiteralPath $RecoveryStateFile -Raw | ConvertFrom-Json
+                if (
+                    [int]$candidateSupervisorBaseline.supervisor_pid -eq $oldSupervisorPid -and
+                    [bool]$candidateSupervisorBaseline.runtime_ready -and
+                    [int]$candidateRecoveryBaseline.total_recoveries -eq 0 -and
+                    [int]$candidateRecoveryBaseline.consecutive_attempts -eq 0
+                ) {
+                    $supervisorBaselineReceipt = $candidateSupervisorBaseline
+                    $recoveryBaselineReceipt = $candidateRecoveryBaseline
+                    break
+                }
+            }
+            catch {}
+        }
+        Start-Sleep -Milliseconds 500
+    }
+
+    if ($null -eq $supervisorBaselineReceipt -or $null -eq $recoveryBaselineReceipt) {
+        throw 'Supervisor did not publish a clean healthy baseline before fault injection.'
+    }
+
+    Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $RunDir 'supervisor-before-fault.json') -Force
+    Copy-Item -LiteralPath $RecoveryStateFile -Destination (Join-Path $RunDir 'recovery-before-fault.json') -Force
+    $recoveryCountBeforeFault = [int]$recoveryBaselineReceipt.total_recoveries
 
     $tunnelProcesses = @(Get-DirectTunnelProcesses)
     if ($tunnelProcesses.Count -ne 1) {
         throw "Expected exactly one direct tunnel process; found $($tunnelProcesses.Count)."
     }
     $oldTunnelPid = [int]$tunnelProcesses[0].ProcessId
-    $oldSupervisorPid = [int]$supervisors[0].ProcessId
 
     Write-Host "Injecting owned tunnel-client process failure PID=$oldTunnelPid" -ForegroundColor Yellow
     $faultInjectedAt = (Get-Date).ToUniversalTime()
@@ -321,12 +411,12 @@ try {
             try {
                 $candidateSupervisorReceipt = Get-Content -LiteralPath $SupervisorStateFile -Raw | ConvertFrom-Json
                 $candidateRecoveryReceipt = Get-Content -LiteralPath $RecoveryStateFile -Raw | ConvertFrom-Json
-                $observedAt = [datetime]::Parse([string]$candidateSupervisorReceipt.observed_at).ToUniversalTime()
-                $lastSuccessAt = [datetime]::Parse([string]$candidateRecoveryReceipt.last_success_at).ToUniversalTime()
+                $observedAt = ConvertTo-UtcDateTime $candidateSupervisorReceipt.observed_at
+                $lastSuccessAt = ConvertTo-UtcDateTime $candidateRecoveryReceipt.last_success_at
                 if (
                     [int]$candidateSupervisorReceipt.supervisor_pid -eq $oldSupervisorPid -and
                     [bool]$candidateSupervisorReceipt.runtime_ready -and
-                    [int]$candidateRecoveryReceipt.total_recoveries -ge 1 -and
+                    [int]$candidateRecoveryReceipt.total_recoveries -gt $recoveryCountBeforeFault -and
                     $observedAt -ge $faultInjectedAt -and
                     $lastSuccessAt -ge $faultInjectedAt
                 ) {
@@ -347,14 +437,14 @@ try {
     # Prove the long-lived loop is still responsive after the recovery receipt.
     # The next reconciliation cycle must update supervisor.json while the exact
     # same supervisor PID remains authoritative.
-    $firstObservedAt = [datetime]::Parse([string]$supervisorReceipt.observed_at).ToUniversalTime()
+    $firstObservedAt = ConvertTo-UtcDateTime $supervisorReceipt.observed_at
     $supervisorHeartbeatVerified = $false
     $heartbeatDeadline = (Get-Date).AddSeconds(30)
     while ((Get-Date) -lt $heartbeatDeadline) {
         Start-Sleep -Seconds 1
         try {
             $heartbeat = Get-Content -LiteralPath $SupervisorStateFile -Raw | ConvertFrom-Json
-            $heartbeatObservedAt = [datetime]::Parse([string]$heartbeat.observed_at).ToUniversalTime()
+            $heartbeatObservedAt = ConvertTo-UtcDateTime $heartbeat.observed_at
             $heartbeatSupervisors = @(Get-ExactSupervisorProcesses)
             if (
                 $heartbeatSupervisors.Count -eq 1 -and
@@ -433,6 +523,7 @@ try {
         supervisor_pid_stable = $supervisorPidStable
         supervisor_receipt_verified = ($null -ne $supervisorReceipt)
         supervisor_heartbeat_verified = $supervisorHeartbeatVerified
+        recovery_receipt_total_before_fault = $recoveryCountBeforeFault
         recovery_receipt_total_recoveries = [int]$recoveryReceipt.total_recoveries
         runtime_ready_after_recovery = [bool]$recovered.runtime_ready
         health_code_after_recovery = [string]$recovered.health_code
@@ -450,6 +541,7 @@ try {
     Write-Result 'SUPERVISOR_PID_STABLE' $summary['supervisor_pid_stable']
     Write-Result 'SUPERVISOR_RECEIPT_VERIFIED' $summary['supervisor_receipt_verified']
     Write-Result 'SUPERVISOR_HEARTBEAT_VERIFIED' $summary['supervisor_heartbeat_verified']
+    Write-Result 'RECOVERY_RECEIPT_TOTAL_BEFORE_FAULT' $summary['recovery_receipt_total_before_fault']
     Write-Result 'RECOVERY_RECEIPT_TOTAL_RECOVERIES' $summary['recovery_receipt_total_recoveries']
     Write-Result 'RUNTIME_READY_AFTER_RECOVERY' $summary['runtime_ready_after_recovery']
     Write-Result 'HEALTH_CODE_AFTER_RECOVERY' $summary['health_code_after_recovery']
@@ -470,6 +562,21 @@ catch {
             error_message = $failure.Exception.Message
             failed_at = (Get-Date).ToUniversalTime().ToString('o')
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $RunDir 'failure.json') -Encoding utf8
+    }
+    catch {}
+
+    # Capture live supervisor evidence before uninstall stops the test process.
+    try {
+        if (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf) {
+            Copy-Item -LiteralPath $SupervisorStateFile -Destination (Join-Path $RunDir 'supervisor-failure.json') -Force
+        }
+        if (Test-Path -LiteralPath $RecoveryStateFile -PathType Leaf) {
+            Copy-Item -LiteralPath $RecoveryStateFile -Destination (Join-Path $RunDir 'recovery-failure.json') -Force
+        }
+        if (Test-Path -LiteralPath $SupervisorLogFile -PathType Leaf) {
+            Get-Content -LiteralPath $SupervisorLogFile -Tail 200 |
+                Set-Content -LiteralPath (Join-Path $RunDir 'supervisor-log-tail.txt') -Encoding utf8
+        }
     }
     catch {}
 
