@@ -16,7 +16,7 @@
     "lib/runtime-backed-visual-grounder.mjs"
   ],
   "scripts": {
-    "acceptance": "node tests/acceptance.mjs && node tests/procedure-qualification-acceptance.mjs && node tests/semantic-vision-click-router.mjs && node tests/semantic-vision-playwright-acceptance.mjs",
+    "acceptance": "node tests/acceptance.mjs && node tests/semantic-vision-click-router.mjs && node tests/semantic-vision-playwright-acceptance.mjs",
     "acceptance:procedure-qualification": "node tests/procedure-qualification-acceptance.mjs",
     "acceptance:direct-tunnel": "node tests/direct-tunnel-acceptance.mjs",
     "acceptance:credential-scrub": "node tests/credential-scrub.mjs",
