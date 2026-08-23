@@ -24,8 +24,13 @@ class TransportSupervisorSleepResumeQualificationContractTests(unittest.TestCase
     def test_harness_requires_manual_real_windows_sleep(self):
         self.assertIn("put Windows into REAL Sleep now", SOURCE)
         self.assertIn("Use Start -> Power -> Sleep", SOURCE)
-        self.assertIn("After Windows has resumed and you are back at this terminal, press Enter here", SOURCE)
+        self.assertIn("After Windows and the required external network/VPN/proxy path have resumed, press Enter here", SOURCE)
         self.assertIn("Do NOT close this PowerShell window", SOURCE)
+
+    def test_harness_requires_external_route_restoration_before_resume_timer(self):
+        self.assertIn("restore normal network connectivity and any required VPN/proxy path before pressing Enter", SOURCE)
+        self.assertIn("Confirm the external path is usable; do NOT manually restart Chat Agent Platform", SOURCE)
+        self.assertIn("required external network/VPN/proxy path have resumed", SOURCE)
 
     def test_harness_preserves_power_capability_and_event_evidence(self):
         self.assertIn("powercfg.exe", SOURCE)
