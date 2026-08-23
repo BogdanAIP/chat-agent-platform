@@ -16,6 +16,9 @@ if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion.Major -lt
 if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
     throw 'LOCALAPPDATA is unavailable.'
 }
+if ([string]::IsNullOrWhiteSpace($env:WINDIR)) {
+    throw 'WINDIR is unavailable.'
+}
 
 $TaskName = 'Chat Agent Platform Transport Supervisor'
 $ManagerMutexName = 'Local\ChatAgentPlatformControllerOperation'
@@ -28,15 +31,25 @@ $BackupDir = Join-Path $StateDir 'transport-supervisor-backup'
 $InstalledManager = Join-Path $AppScriptsDir 'chat-platform.ps1'
 $InstalledDirectController = Join-Path $AppScriptsDir 'semantic-direct-controller.ps1'
 $InstalledSupervisor = Join-Path $AppScriptsDir 'chat-platform-supervisor.ps1'
+$InstalledSupervisorLauncher = Join-Path $AppScriptsDir 'chat-platform-supervisor-launcher.vbs'
 $InstalledHealthHelper = Join-Path $AppScriptsDir 'tunnel-reliability-health.ps1'
 $DirectControllerBackup = Join-Path $BackupDir 'semantic-direct-controller.ps1'
 
 $SourceDirectController = Join-Path $PSScriptRoot 'semantic-direct-controller.ps1'
 $SourceSupervisor = Join-Path $PSScriptRoot 'chat-platform-supervisor.ps1'
+$SourceSupervisorLauncher = Join-Path $PSScriptRoot 'chat-platform-supervisor-launcher.vbs'
 $SourceHealthHelper = Join-Path $PSScriptRoot 'tunnel-reliability-health.ps1'
 
 function Get-PwshPath {
     return (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
+}
+
+function Get-WscriptPath {
+    $path = Join-Path $env:WINDIR 'System32\wscript.exe'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "wscript.exe is unavailable: $path"
+    }
+    return [System.IO.Path]::GetFullPath($path)
 }
 
 function Stop-ExactSupervisorProcess {
@@ -177,17 +190,22 @@ function Install-SupervisorAssets {
     foreach ($source in @($SourceDirectController, $SourceSupervisor, $SourceHealthHelper)) {
         Assert-PowerShellParses -Path $source
     }
+    if (-not (Test-Path -LiteralPath $SourceSupervisorLauncher -PathType Leaf)) {
+        throw "Supervisor launcher source asset is missing: $SourceSupervisorLauncher"
+    }
 
     Invoke-WithManagerMutex {
         Backup-InstalledDirectControllerIfNeeded
         Copy-VerifiedFile -Source $SourceDirectController -Destination $InstalledDirectController
         Copy-VerifiedFile -Source $SourceSupervisor -Destination $InstalledSupervisor
+        Copy-VerifiedFile -Source $SourceSupervisorLauncher -Destination $InstalledSupervisorLauncher
         Copy-VerifiedFile -Source $SourceHealthHelper -Destination $InstalledHealthHelper
     }
 
     foreach ($pair in @(
         @($SourceDirectController, $InstalledDirectController),
         @($SourceSupervisor, $InstalledSupervisor),
+        @($SourceSupervisorLauncher, $InstalledSupervisorLauncher),
         @($SourceHealthHelper, $InstalledHealthHelper)
     )) {
         $sourceHash = (Get-FileHash -LiteralPath $pair[0] -Algorithm SHA256).Hash
@@ -200,21 +218,21 @@ function Install-SupervisorAssets {
 
 function Register-SupervisorTask {
     $pwsh = Get-PwshPath
+    $wscript = Get-WscriptPath
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
     if ([string]::IsNullOrWhiteSpace($identity)) {
         throw 'Could not resolve the current Windows user identity.'
     }
 
     $arguments = @(
-        '-NoLogo',
-        '-NoProfile',
-        '-ExecutionPolicy', 'Bypass',
-        '-WindowStyle', 'Hidden',
-        '-File', ('"{0}"' -f $InstalledSupervisor),
-        '-Action', 'Run'
+        '//B',
+        '//Nologo',
+        ('"{0}"' -f $InstalledSupervisorLauncher),
+        ('"{0}"' -f $pwsh),
+        ('"{0}"' -f $InstalledSupervisor)
     ) -join ' '
 
-    $action = New-ScheduledTaskAction -Execute $pwsh -Argument $arguments
+    $action = New-ScheduledTaskAction -Execute $wscript -Argument $arguments
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity
     $principal = New-ScheduledTaskPrincipal `
         -UserId $identity `
@@ -253,6 +271,7 @@ function Uninstall-Supervisor {
     $restored = [bool](Invoke-WithManagerMutex {
         $didRestore = Restore-DirectControllerBackupIfPresent
         Remove-Item -LiteralPath $InstalledSupervisor -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $InstalledSupervisorLauncher -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $InstalledHealthHelper -Force -ErrorAction SilentlyContinue
         return $didRestore
     })
@@ -282,4 +301,5 @@ Write-Host 'TRANSPORT_SUPERVISOR_INSTALL=ok'
 Write-Host "TRANSPORT_SUPERVISOR_TASK=$($task.TaskName)"
 Write-Host "TRANSPORT_SUPERVISOR_STATE=$($task.State)"
 Write-Host "TRANSPORT_SUPERVISOR_SCRIPT=$InstalledSupervisor"
+Write-Host "TRANSPORT_SUPERVISOR_LAUNCHER=$InstalledSupervisorLauncher"
 Write-Host "TRANSPORT_SUPERVISOR_DIRECT_CONTROLLER=$InstalledDirectController"
