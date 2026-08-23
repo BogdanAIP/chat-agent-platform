@@ -1,0 +1,20 @@
+{
+  "$schema": "https://docs.1mcp.app/schemas/v1.0.0/mcp-config.json",
+  "mcpServers": {
+    "procedure-qualification-projection": {
+      "command": "node",
+      "args": [
+        "${CHAT_PROCEDURE_QUALIFICATION_ENTRY}"
+      ],
+      "env": [
+        "CHAT_LOCAL_FILES_ROOT",
+        "CHAT_PROCEDURE_STATE_ROOT",
+        "CHAT_PROCEDURE_ALLOW_CANDIDATE",
+        "CHAT_PROCEDURE_QUALIFICATION_ENTRY"
+      ],
+      "tags": ["chat-profile", "semantic", "procedure-qualification", "candidate", "local", "free"],
+      "connectionTimeout": 60000,
+      "requestTimeout": 120000
+    }
+  }
+}
