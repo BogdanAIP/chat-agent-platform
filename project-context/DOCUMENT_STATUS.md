@@ -13,12 +13,33 @@ current code/tests/CI/physical evidence
  > CONTINUATION_CONTEXT.md / START_HERE.md / CURRENT_STATE.md
  > ARCHITECTURE.md / CONTROL_PLANE.md / ROADMAP.md
  > current policy/catalog docs
+ > EVIDENCE_INDEX.md for exact accepted evidence navigation
  > active stage contract
  > accepted historical stage evidence
  > old research/handoffs
 ```
 
 A status/planning phrase inside a file classified below as historical describes the time that document/revision was written. It is **not** a live roadmap instruction.
+
+## Documentation separation rule
+
+To prevent continued growth of stage history inside durable architecture documents:
+
+```text
+ARCHITECTURE.md / CONTROL_PLANE.md
+  = durable boundaries and invariants
+
+CURRENT_STATE.md / ROADMAP.md
+  = current accepted boundary, active work, current residual risks
+
+EVIDENCE_INDEX.md
+  = exact accepted heads, physical result locations and scoped measurements
+
+STAGE*.md / historical handoffs
+  = detailed qualification design and attempt history
+```
+
+Do not copy full physical result dumps or long superseded attempt narratives into durable architecture documents. Promote only the generalized invariant learned from the evidence.
 
 ## Root documents
 
@@ -37,11 +58,12 @@ A status/planning phrase inside a file classified below as historical describes 
 |---|---|---|
 | `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Fast continuation after resolving live GitHub state. |
 | `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and current operating constraints. |
-| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted evidence, active gate, residual risks. |
-| `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Current component/layer boundaries. |
+| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted boundary, active gate, residual risks; keep detailed historical evidence out. |
+| `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/layer/authority boundaries; keep stage chronology out. |
 | `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution Control Plane vs future planner. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence + optional/future tracks. |
 | `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which documents can define current state. |
+| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted physical/target heads, result locators and scope. Primary code/test/result evidence still outranks the index. |
 
 ## Current policy / design governance
 
@@ -148,5 +170,7 @@ Any architecture-changing PR must audit/update this map when it:
 - changes general-planner or Control Plane responsibility;
 - promotes a research track into the release-critical roadmap;
 - changes the public Chat-facing capability surface.
+
+Any accepted physical gate must update `EVIDENCE_INDEX.md`. Durable architecture docs should record only the invariant learned from that evidence, not the complete historical result dump.
 
 Do not rewrite historical physical evidence merely to make old prose look current. Preserve evidence and make its authority/status explicit here and in current context.

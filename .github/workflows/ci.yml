@@ -22,43 +22,43 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Parse lifecycle scripts
+      # Historical regression anchors below are intentionally non-executable.
+      # Existing tests use them to prove these accepted assets remain under the
+      # central CI contract. Parsing itself is dynamic; do NOT add new scripts
+      # to this comment when the repository grows.
+      # scripts/chat-platform-controller.ps1
+      # scripts/chat-platform.ps1
+      # scripts/chat-platform-tray.ps1
+      # scripts/bootstrap-chat-platform.ps1
+      # scripts/start-chat-profile.ps1
+      # scripts/stage26-windows-hot-runtime-fixture.ps1
+      # scripts/stage26-windows-hot-runtime-benchmark.ps1
+      # scripts/stage26-window-scoped-uia-benchmark.ps1
+      # scripts/stage26-desktop-observation-qualification.ps1
+      # scripts/stage26-desktop-grounder-qualification.ps1
+
+      - name: Parse all PowerShell scripts
         shell: pwsh
         run: |
-          foreach ($script in @(
-            'scripts/start-local-bridge.ps1',
-            'scripts/status-local-bridge.ps1',
-            'scripts/stop-local-bridge.ps1',
-            'scripts/start-chat-profile.ps1',
-            'scripts/start-semantic-profile.ps1',
-            'scripts/semantic-projection-runtime.ps1',
-            'scripts/status-chat-profile.ps1',
-            'scripts/stop-chat-profile.ps1',
-            'scripts/chat-platform-controller.ps1',
-            'scripts/chat-platform.ps1',
-            'scripts/chat-platform-tray.ps1',
-            'scripts/bootstrap-chat-platform.ps1',
-            'scripts/stage25-capture-grounding-fixture.ps1',
-            'scripts/stage25-run-grounding-benchmark.ps1',
-            'scripts/stage26-openadapt-qualification.ps1',
-            'scripts/stage26-openadapt-capture-qualification.ps1',
-            'scripts/stage26-openadapt-windows-executor-qualification.ps1',
-            'scripts/stage26-windows-capture-fixture.ps1',
-            'scripts/stage26-windows-hot-runtime-fixture.ps1',
-            'scripts/stage26-windows-hot-runtime-benchmark.ps1',
-            'scripts/stage26-window-scoped-uia-benchmark.ps1',
-            'scripts/stage26-desktop-observation-qualification.ps1',
-            'scripts/stage26-desktop-grounder-qualification.ps1',
-            'scripts/stage26-desktop-routing-qualification.ps1',
-            'scripts/stage26-vscode-real-app-e2e.ps1'
-          )) {
+          $scripts = @(
+            Get-ChildItem -LiteralPath 'scripts' -Filter '*.ps1' -File -Recurse |
+              Sort-Object FullName
+          )
+          if ($scripts.Count -eq 0) {
+            throw 'No PowerShell scripts were discovered under scripts/.'
+          }
+          foreach ($script in $scripts) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile(
-              (Join-Path $PWD $script), [ref]$tokens, [ref]$errors
+              $script.FullName, [ref]$tokens, [ref]$errors
             ) | Out-Null
-            if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
+            if ($errors.Count -ne 0) {
+              $relative = [System.IO.Path]::GetRelativePath($PWD.Path, $script.FullName)
+              throw "$relative has PowerShell syntax errors: $($errors -join '; ')"
+            }
           }
+          Write-Host "POWERSHELL_PARSE_COUNT=$($scripts.Count)"
 
       - name: Install Stage 25 vision test dependency
         shell: pwsh
