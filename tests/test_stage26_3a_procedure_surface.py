@@ -56,6 +56,17 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, source)
 
+    def test_proxy_scrubs_tunnel_credentials_and_allowlists_control_plane_environment(self) -> None:
+        source = PROXY.read_text(encoding="utf-8")
+        for secret in ("CONTROL_PLANE_API_KEY", "OPENAI_API_KEY", "OPENAI_ADMIN_KEY"):
+            self.assertIn(f"'{secret}'", source)
+        self.assertIn("delete process.env[key]", source)
+        self.assertIn("CONTROL_PLANE_ENV_ALLOWLIST", source)
+        self.assertIn("env: controlPlaneEnvironment()", source)
+        allowlist_block = source.split("const CONTROL_PLANE_ENV_ALLOWLIST", 1)[1].split("]);", 1)[0]
+        for secret in ("CONTROL_PLANE_API_KEY", "OPENAI_API_KEY", "OPENAI_ADMIN_KEY"):
+            self.assertNotIn(secret, allowlist_block)
+
     def test_proxy_requires_exact_five_tool_semantic_child(self) -> None:
         source = PROXY.read_text(encoding="utf-8")
         for name in (
