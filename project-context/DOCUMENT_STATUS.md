@@ -88,6 +88,7 @@ Do not copy full physical result dumps or long superseded attempt narratives int
 |---|---|---|
 | `STAGE26_PROCEDURAL_MEMORY.md` | ACTIVE STAGE 26.3 CONTRACT / DESIGN | Verified Procedure Runtime / deterministic Control Plane, candidate-first procedural trust and progression invariants. |
 | `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACTIVE STAGE 26.3A IMPLEMENTATION NOTES | Current checkpoint-resume, filesystem-identity and ordinary-Chat integration boundary for the qualification procedure. |
+| `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACTIVE STAGE 26.3A PUBLIC-SURFACE QUALIFICATION CONTRACT | Separate qualification-only `procedure_run` capability, exact schema/isolation rules and MCP acceptance gate; not product-accepted. |
 
 The first Stage 26.3 physical vertical slice must remove intermediate user command entry: one user goal -> ordinary Chat procedure selection -> local deterministic multi-transition execution -> verified completion or ABSTAIN/escalation.
 
