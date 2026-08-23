@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 
@@ -12,6 +13,13 @@ class TransportSupervisorResourceLatencyQualificationContractTests(unittest.Test
         self.assertIn("if (-not $IsWindows)", SOURCE)
         self.assertIn("[int]$IdleSampleSeconds = 60", SOURCE)
         self.assertIn("[int]$RecoveryTimeoutSeconds = 120", SOURCE)
+
+    def test_process_sampler_does_not_shadow_read_only_pid_automatic_variable(self):
+        self.assertNotRegex(SOURCE, re.compile(r"(?i)\[int\]\$Pid\b"))
+        self.assertIn("[int]$ProcessId", SOURCE)
+        self.assertIn("Get-Process -Id $ProcessId", SOURCE)
+        self.assertIn("-ProcessId $supervisorPid", SOURCE)
+        self.assertIn("-ProcessId $tunnelPid", SOURCE)
 
     def test_idle_phase_is_observational_and_requires_stable_process_ids(self):
         idle_block = SOURCE.split("===== TRANSPORT SUPERVISOR: IDLE RESOURCE SAMPLE =====", 1)[1].split(
