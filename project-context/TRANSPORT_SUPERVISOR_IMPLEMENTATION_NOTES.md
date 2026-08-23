@@ -1,6 +1,6 @@
 # Transport Supervisor implementation notes
 
-Status: **hard local tunnel kill/recovery accepted; external network disconnect/reconnect accepted; remaining physical qualification is still in progress**.
+Status: **hard local tunnel kill/recovery accepted; external network disconnect/reconnect accepted; Windows sleep/resume accepted; remaining physical qualification is still in progress**.
 
 ## Current implementation slice
 
@@ -11,6 +11,7 @@ PR #94 implements the first self-healing transport-supervisor slice around the a
 - `scripts/install-chat-platform-supervisor.ps1` installs the qualification supervisor as a current-user Scheduled Task;
 - `scripts/transport-supervisor-qualification.ps1` performs the target-Windows hard local tunnel kill/recovery gate;
 - `scripts/transport-supervisor-network-qualification.ps1` performs the observational target-Windows external network disconnect/reconnect gate;
+- `scripts/transport-supervisor-sleep-resume-qualification.ps1` performs the physical Windows sleep/resume gate and verifies Windows power events;
 - automatic recovery is restricted to the exact installed direct controller;
 - the persistent tunnel id remains stable and normal recovery never performs remote tunnel CRUD;
 - authentication/permission/resource-loss states block destructive restart loops;
@@ -94,6 +95,26 @@ B. bounded_recovery
 The bounded path is intentional fallback behavior rather than a restart storm. The pinned official `openai/tunnel-client v0.0.11` control-plane poller already retries transport failures with exponential backoff/jitter in-process; the supervisor remains a second-level recovery layer when remote metadata has recovered but the client poll is still stale.
 
 The qualification harness therefore continues to forbid all recovery during the offline observation period, but no longer incorrectly requires zero recovery after connectivity returns. It also waits for the post-reconnect process state and recovery receipt to settle into one coherent pair before deciding whether the run was seamless or bounded recovery.
+
+## Sleep/resume acceptance contract
+
+The physical Windows sleep/resume gate must prove an actual power-state transition rather than a pause in the terminal. Accepted evidence is either classic sleep (`Kernel-Power 42` followed by `107`/Power-Troubleshooter `1`) or Modern Standby (`Kernel-Power 506 -> 507`) for at least the configured minimum duration.
+
+The local lifecycle contract across an ordinary sleep cycle is:
+
+```text
+healthy running baseline
+ -> real Windows sleep
+ -> resume
+ -> desired running owner survives
+ -> same supervisor PID survives
+ -> required external network/VPN/proxy path is restored before operator confirmation
+ -> direct semantic runtime returns to READY
+ -> tunnel resumes either seamlessly or through one bounded recovery
+ -> later supervisor heartbeat advances
+```
+
+The supervisor does not own an external VPN/proxy client. Therefore a remote `401/403/resource_missing` observed while that external route is not yet restored remains a fail-closed `blocked` state and must not authorize destructive local restart. The qualification operator must restore any required external path before confirming resume and starting the bounded readiness window.
 
 ## Desired-state vs ownership boundary
 
@@ -325,39 +346,87 @@ The old harness still emitted `FAILED` because its acceptance rule incorrectly r
 
 The corrected harness now accepts either in-process seamless reconnect (`same PID`, recovery delta `0`) or exactly one bounded supervisor recovery (`new PID`, recovery delta `1`, same supervisor PID, final healthy `READY`). It still rejects any PID churn or recovery while the machine is actually offline and waits for process/receipt publication to settle before classifying the mode.
 
+### Attempt 10 — Modern Standby proven; external authorization path remained blocked
+
+Exact tested head: `809abf1abd8b8e79fb387feb78f347432229099c`.
+
+Machine-local evidence directory:
+
+```text
+C:\Users\eahra\AppData\Local\ChatAgentPlatform\transport-supervisor-sleep-resume-qualification\run-20260823-162717
+```
+
+The machine physically entered and resumed from Modern Standby (`Kernel-Power 506 -> 507`) for `72.6 s`. Desired running ownership survived, supervisor PID `16120` and tunnel PID `15780` stayed stable, local MCP/tunnel readiness remained intact, and recovery count stayed `0`.
+
+The run nevertheless failed because every post-resume sample for the full 240-second readiness window reported `REMOTE_TUNNEL_FORBIDDEN / blocked`. This fail-closed behavior was correct: the supervisor must not restart a healthy local runtime to try to repair a conclusive remote authorization result. The run is not accepted as sleep/resume evidence.
+
+### Attempt 11 — Windows sleep/resume accepted via seamless Modern Standby recovery
+
+Exact tested head: `809abf1abd8b8e79fb387feb78f347432229099c`.
+
+Machine-local evidence directory:
+
+```text
+C:\Users\eahra\AppData\Local\ChatAgentPlatform\transport-supervisor-sleep-resume-qualification\run-20260823-165435
+```
+
+The physical run used the same code head as Attempt 10 but restored the required external VPN/network path before the operator confirmed resume. The harness then produced machine-readable `PASSED` evidence:
+
+```text
+TRANSPORT_SUPERVISOR_SLEEP_RESUME_QUALIFICATION_RESULT=PASSED
+POWER_EVENT_MODE=modern-standby
+SLEEP_EVIDENCE_SECONDS=20.329
+SUPERVISOR_PID=3904
+SUPERVISOR_PID_STABLE=True
+OLD_TUNNEL_PID=3540
+NEW_TUNNEL_PID=3540
+RESUME_MODE=seamless
+RECOVERY_TOTAL_BEFORE=0
+RECOVERY_TOTAL_AFTER=0
+RECOVERY_COUNT_DELTA=0
+RESUME_RUNTIME_READY=True
+RESUME_OPENAI_READY=True
+SUPERVISOR_HEARTBEAT_VERIFIED=True
+```
+
+The summary also proved `desired_state_before=running` and `desired_state_after=running`. Therefore the ordinary Windows Modern Standby sleep/resume gate is accepted on exact head `809abf1abd8b8e79fb387feb78f347432229099c`.
+
+Attempt 10 remains preserved as a useful negative control: an external VPN/proxy path is an environmental precondition outside the supervisor's authority, while conclusive `403` remains a blocked fail-closed state.
+
 ## Current candidate
 
 Accepted physical evidence remains scoped to exact tested heads:
 
 - hard local tunnel kill/recovery: `b03442b66b05bf0f51000ff43f2f386e1495a1ec`;
-- external network disconnect/reconnect: `5c9e5b7bcd93fa054d99ef449d43d6d12df8c127`.
+- external network disconnect/reconnect: `5c9e5b7bcd93fa054d99ef449d43d6d12df8c127`;
+- Windows sleep/resume: `809abf1abd8b8e79fb387feb78f347432229099c`.
 
-The moving PR head contains the corrected network qualification contract, reconnect receipt settle gate, regression coverage and documentation. Do not transfer physical evidence to the moving head; resolve the exact live head from GitHub before any later physical qualification.
+The moving PR head may contain later documentation or qualification-harness changes. Do not transfer physical evidence to that moving head; resolve the exact live head from GitHub before any later physical qualification.
 
 The implementation remains Draft while the remaining transport gates are qualified.
 
 ## Required next gate
 
-The next target-Windows physical gate is sleep/resume behavior:
+The next target-Windows physical gate is reboot/logon behavior:
 
 ```text
-healthy running baseline
- -> Windows sleep/suspend
- -> resume
- -> supervisor process/task remains or returns according to Windows task semantics
- -> desired running state is preserved
- -> direct semantic runtime returns to healthy READY automatically
+healthy desired-running baseline
+ -> install/current-user supervisor task is present
+ -> physical Windows reboot
+ -> user logon
+ -> supervisor starts automatically from the logon trigger
+ -> desired running state survives reboot
+ -> direct semantic runtime returns to healthy READY without manual platform restart
  -> any required recovery is bounded and durably receipted
  -> later heartbeat proves continued reconciliation
 ```
 
-The sleep/resume harness must not simulate suspend by merely killing a process. The qualification must use a real Windows sleep/resume cycle and preserve exact pre/post process, recovery and health evidence.
+The reboot qualification must use a real Windows reboot and must not infer success merely from a later manually started runtime. Pre-reboot evidence and post-logon evidence need separate durable files because the qualification process itself cannot survive reboot.
 
 ## Remaining physical gates
 
-After sleep/resume, the remaining target-Windows gates are:
+After reboot/logon, the remaining target-Windows gates are:
 
-- reboot/logon -> supervisor automatically starts and restores desired running state;
 - ordinary ChatGPT semantic call -> fresh ChatGPT E2E receipt;
 - idle resource-use measurement and recovery-latency evidence;
 - remove the visible blank console window observed during Scheduled Task startup before product integration.
