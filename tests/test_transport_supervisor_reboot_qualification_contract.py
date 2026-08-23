@@ -42,7 +42,28 @@ class TransportSupervisorRebootQualificationContractTests(unittest.TestCase):
         self.assertIn("Expected exactly one supervisor before reboot", SOURCE)
         self.assertIn("Expected exactly one direct tunnel before reboot", SOURCE)
         self.assertIn("MSFT_TaskLogonTrigger", SOURCE)
-        self.assertIn("Supervisor Scheduled Task principal does not match the current Windows identity", SOURCE)
+
+    def test_task_identity_contract_canonicalizes_principal_and_trigger_by_sid(self):
+        self.assertIn("function Convert-AccountIdentityToSid", SOURCE)
+        self.assertIn("WindowsIdentity]::GetCurrent().User.Value", SOURCE)
+        self.assertIn("principal_sid", SOURCE)
+        self.assertIn("current_identity_sid", SOURCE)
+        self.assertIn("logon_trigger_sids", SOURCE)
+        self.assertIn("principal SID does not match the current Windows identity SID", SOURCE)
+        self.assertIn("logon trigger SID does not target the current Windows identity SID", SOURCE)
+        self.assertNotIn("[string]$Evidence.principal_user_id -ne [string]$Evidence.current_identity", SOURCE)
+        self.assertNotIn("@($Evidence.logon_trigger_users) -notcontains [string]$Evidence.current_identity", SOURCE)
+
+    def test_prepare_failure_is_fail_safe_and_restores_pretest_state(self):
+        self.assertIn("phase = 'prepare'", SOURCE)
+        self.assertIn("& $Installer -Uninstall", SOURCE)
+        self.assertIn("Remove-Item -LiteralPath $PendingFile", SOURCE)
+        self.assertIn("if ($desiredStateBefore -eq 'running')", SOURCE)
+        self.assertIn("Invoke-ManagerMutation -Action Start", SOURCE)
+
+    def test_prepare_requires_receipt_from_current_supervisor_pid(self):
+        self.assertIn("[int]$candidateSupervisor.supervisor_pid -eq $supervisorPid", SOURCE)
+        self.assertIn("current clean baseline reboot qualification receipt", SOURCE)
 
     def test_operator_must_physically_reboot_and_restore_external_route(self):
         self.assertIn("ACTION REQUIRED: manually restart Windows now", SOURCE)
@@ -58,7 +79,9 @@ class TransportSupervisorRebootQualificationContractTests(unittest.TestCase):
         self.assertIn("Manager owner receipt was recreated instead of surviving reboot", SOURCE)
         self.assertIn("reboot_verified = $true", SOURCE)
 
-    def test_verify_requires_logon_trigger_to_have_run_after_boot(self):
+    def test_verify_requires_same_identity_sid_and_logon_trigger_to_have_run_after_boot(self):
+        self.assertIn("Windows identity SID changed across reboot/logon qualification", SOURCE)
+        self.assertIn("Scheduled Task principal SID changed across reboot/logon qualification", SOURCE)
         self.assertIn("Supervisor Scheduled Task has no post-logon LastRunTime", SOURCE)
         self.assertIn("Supervisor Scheduled Task LastRunTime predates the verified reboot", SOURCE)
         self.assertIn("task_last_run_after_boot", SOURCE)
