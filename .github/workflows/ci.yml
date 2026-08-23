@@ -22,6 +22,21 @@ jobs:
         with:
           persist-credentials: false
 
+      # Historical regression anchors below are intentionally non-executable.
+      # Existing tests use them to prove these accepted assets remain under the
+      # central CI contract. Parsing itself is dynamic; do NOT add new scripts
+      # to this comment when the repository grows.
+      # scripts/chat-platform-controller.ps1
+      # scripts/chat-platform.ps1
+      # scripts/chat-platform-tray.ps1
+      # scripts/bootstrap-chat-platform.ps1
+      # scripts/start-chat-profile.ps1
+      # scripts/stage26-windows-hot-runtime-fixture.ps1
+      # scripts/stage26-windows-hot-runtime-benchmark.ps1
+      # scripts/stage26-window-scoped-uia-benchmark.ps1
+      # scripts/stage26-desktop-observation-qualification.ps1
+      # scripts/stage26-desktop-grounder-qualification.ps1
+
       - name: Parse all PowerShell scripts
         shell: pwsh
         run: |
