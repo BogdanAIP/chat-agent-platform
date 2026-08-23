@@ -27,7 +27,7 @@ class TransportSupervisorRebootGateContractTests(unittest.TestCase):
 
     def test_core_runs_in_child_process_so_core_exit_cannot_bypass_gate_cleanup(self):
         self.assertIn("[System.Diagnostics.ProcessStartInfo]::new()", SOURCE)
-        self.assertIn("'-File', $Core", SOURCE)
+        self.assertIn("'-Command', $coreCommand", SOURCE)
         self.assertIn("Reboot qualification core failed with exit code", SOURCE)
         self.assertNotIn("& $Core @", SOURCE)
 
@@ -39,6 +39,12 @@ class TransportSupervisorRebootGateContractTests(unittest.TestCase):
         self.assertNotIn("ReadToEndAsync", core_block)
         self.assertNotIn("StandardOutput", core_block)
         self.assertNotIn("StandardError", core_block)
+
+    def test_core_runs_with_deterministic_culture(self):
+        core_block = SOURCE.split("function Invoke-CoreProcess", 1)[1].split("if ($Phase -eq 'Verify')", 1)[0]
+        self.assertIn("CultureInfo]::InvariantCulture", core_block)
+        self.assertIn("CurrentThread.CurrentCulture = $culture", core_block)
+        self.assertIn("CurrentThread.CurrentUICulture = $culture", core_block)
 
     def test_verify_is_observational_and_does_not_install_or_mutate_manager(self):
         verify_block = SOURCE.split("if ($Phase -eq 'Verify')", 1)[1].split("$desiredStateBefore", 1)[0]
