@@ -37,6 +37,7 @@ const CONTROL_PLANE_ENV_ALLOWLIST = new Set([
   'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC',
   'TEMP', 'TMP', 'TMPDIR',
   'LOCALAPPDATA', 'HOME', 'USERPROFILE',
+  'PROGRAMFILES', 'ProgramFiles', 'PROGRAMFILES(X86)',
   'LANG', 'LC_ALL', 'PYTHONUTF8', 'PYTHONIOENCODING',
   'CHAT_LOCAL_FILES_ROOT',
   'CHAT_PROCEDURE_STATE_ROOT',
@@ -54,7 +55,7 @@ function normalizeResult(result) {
   return normalized;
 }
 
-function controlPlaneEnvironment() {
+function scopedChildEnvironment() {
   const env = {};
   for (const name of CONTROL_PLANE_ENV_ALLOWLIST) {
     const value = process.env[name];
@@ -69,7 +70,8 @@ const semanticClient = new Client({
 });
 const semanticTransport = new StdioClientTransport({
   command: process.execPath,
-  args: [semanticLauncher]
+  args: [semanticLauncher],
+  env: scopedChildEnvironment()
 });
 
 await semanticClient.connect(semanticTransport);
@@ -95,7 +97,7 @@ function runProcedure(request) {
   return new Promise((resolve) => {
     const child = spawn('python', [controlPlaneCli], {
       cwd: repoRoot,
-      env: controlPlaneEnvironment(),
+      env: scopedChildEnvironment(),
       stdio: ['pipe', 'pipe', 'ignore'],
       windowsHide: true
     });
