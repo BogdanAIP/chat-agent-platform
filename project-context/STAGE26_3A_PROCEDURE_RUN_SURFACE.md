@@ -49,6 +49,20 @@ scripts/start-procedure-qualification-profile.ps1
 
 This keeps the production/accepted five-tool profile structurally separate from the candidate procedure capability.
 
+### Control Plane child environment
+
+The Python Control Plane does not need tunnel/OpenAI credentials and must not inherit the projection process environment wholesale.
+
+`procedure-qualification-projection.mjs` therefore builds an explicit child-environment allowlist containing only the operating-system minimum required to locate/run Python plus:
+
+```text
+CHAT_LOCAL_FILES_ROOT
+CHAT_PROCEDURE_STATE_ROOT
+CHAT_PROCEDURE_ALLOW_CANDIDATE
+```
+
+Credential-bearing variables such as `CONTROL_PLANE_API_KEY`, `OPENAI_API_KEY` and `OPENAI_ADMIN_KEY` are intentionally not passed to the procedure child. A procedure gaining local execution authority must not gain unrelated transport/control-plane secrets by process inheritance.
+
 ## Exact Stage 26.3A procedure schema
 
 The only admitted procedure is:
@@ -129,12 +143,13 @@ inventory == accepted five semantic tools + procedure_run
  -> resume_task_id returns the already-completed task without repeating actions
 ```
 
-The acceptance must also inspect the `procedure_run` input schema and prove that generic path/command/backend/tool selectors are absent.
+The acceptance must also inspect the `procedure_run` input schema and prove that generic path/command/backend/tool selectors are absent. Source/security regressions additionally lock the explicit Control Plane child-environment allowlist and absence of tunnel/OpenAI credentials from that child.
 
-Current acceptance asset:
+Current acceptance assets:
 
 ```text
 runtime/semantic-projection/tests/procedure-qualification-acceptance.mjs
+tests/test_stage26_3a_procedure_surface_security.py
 ```
 
 ## Product promotion gate
