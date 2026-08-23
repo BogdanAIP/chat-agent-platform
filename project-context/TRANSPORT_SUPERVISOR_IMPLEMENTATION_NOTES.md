@@ -154,6 +154,14 @@ The correction makes a current `restart_runtime` action preempt an earlier `last
 
 The `REMOTE_METADATA_UNAVAILABLE` state is not by itself evidence that local recovery failed. Local runtime, remote metadata/control-plane and ordinary-Chat route evidence remain independent dimensions.
 
+## Current candidate
+
+Current candidate head for the next exact physical gate is:
+
+`54a53bc5f0e5d32c7532ebd252aa5ab002c7ae4d`
+
+It includes the failure-class-specific backoff correction, a dedicated regression contract, and this evidence record. Hosted checks must be green before the target-Windows fault injection is repeated.
+
 ## Required next gate
 
 The immediate next physical gate is the same exact fault class on the current exact head:
