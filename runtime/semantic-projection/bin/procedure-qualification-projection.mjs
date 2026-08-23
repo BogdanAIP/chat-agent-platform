@@ -11,6 +11,13 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod/v4';
 
+const TUNNEL_ONLY_CREDENTIAL_KEYS = [
+  'CONTROL_PLANE_API_KEY',
+  'OPENAI_API_KEY',
+  'OPENAI_ADMIN_KEY'
+];
+for (const key of TUNNEL_ONLY_CREDENTIAL_KEYS) delete process.env[key];
+
 const VERSION = '0.1.0';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const semanticLauncher = path.join(here, 'semantic-projection-launcher.mjs');
