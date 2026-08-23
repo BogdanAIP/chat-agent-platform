@@ -26,9 +26,10 @@ class CiMaintenanceContractTests(unittest.TestCase):
     def test_evidence_index_keeps_unaccepted_tracks_out_of_accepted_table(self) -> None:
         text = EVIDENCE.read_text(encoding="utf-8")
         accepted, not_accepted = text.split("## Not yet accepted", maxsplit=1)
-        self.assertNotIn("Transport Supervisor v1 (#94)", accepted)
+        self.assertIn("Transport Supervisor console-free Scheduled Task launch", accepted)
+        self.assertIn("Transport Supervisor persistent desired-state / runtime-owner split", accepted)
+        self.assertNotIn("Transport Supervisor v1 (#94)", not_accepted)
         self.assertNotIn("Stage 26.3 Verified Procedure Runtime", accepted)
-        self.assertIn("Transport Supervisor v1 (#94)", not_accepted)
         self.assertIn("Stage 26.3 Verified Procedure Runtime", not_accepted)
 
 

@@ -25,6 +25,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
 $StateDir = Join-Path $LocalRoot "state"
 $OwnerFile = Join-Path $StateDir "manager-owner.json"
+$DesiredStateFile = Join-Path $StateDir "desired-state.json"
 $SettingsFile = Join-Path $StateDir "settings.json"
 $BaselineControllerPath = Join-Path $PSScriptRoot "chat-platform-controller.ps1"
 $SourceDirectControllerPath = Join-Path $PSScriptRoot "semantic-direct-controller.ps1"
@@ -84,6 +85,71 @@ function Test-SamePath {
 
 function Initialize-ManagerStateDirectory {
     New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+}
+
+function Save-DesiredState {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet("running", "stopped")]
+        [string]$DesiredState,
+
+        [ValidateSet("user_action", "legacy_migration")]
+        [string]$Source = "user_action"
+    )
+
+    Initialize-ManagerStateDirectory
+    $payload = [ordered]@{
+        schema_version = 1
+        desired_state = $DesiredState
+        source = $Source
+        updated_at = (Get-Date).ToUniversalTime().ToString("o")
+    }
+
+    $temporary = "$DesiredStateFile.new-$PID"
+    try {
+        $payload |
+            ConvertTo-Json -Depth 4 |
+            Set-Content -LiteralPath $temporary -Encoding utf8
+        Move-Item -LiteralPath $temporary -Destination $DesiredStateFile -Force
+    }
+    finally {
+        Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-DesiredState {
+    if (-not (Test-Path -LiteralPath $DesiredStateFile -PathType Leaf)) {
+        return $null
+    }
+
+    try {
+        $state = Get-Content -LiteralPath $DesiredStateFile -Raw | ConvertFrom-Json
+        if (
+            $null -eq $state.PSObject.Properties["desired_state"] -or
+            [string]$state.desired_state -notin @("running", "stopped")
+        ) {
+            throw "desired_state missing or unsupported"
+        }
+        return $state
+    }
+    catch {
+        throw "Persistent desired state is invalid: $($_.Exception.Message)"
+    }
+}
+
+function Ensure-DesiredStateMigration {
+    $existing = Get-DesiredState
+    if ($null -ne $existing) {
+        return
+    }
+
+    $legacyState = if (Test-Path -LiteralPath $OwnerFile -PathType Leaf) {
+        "running"
+    }
+    else {
+        "stopped"
+    }
+    Save-DesiredState -DesiredState $legacyState -Source "legacy_migration"
 }
 
 function Get-SharedSettings {
@@ -540,6 +606,7 @@ function Invoke-InternalControllerMutation {
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $pwsh
     $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
 
     foreach ($argument in (
         Get-ControllerArguments `
@@ -730,6 +797,8 @@ try {
         )
     }
 
+    Ensure-DesiredStateMigration
+
     if ($Action -eq "SetProfile") {
         Set-SharedProfile
         $exitCode = 0
@@ -740,6 +809,17 @@ try {
             -not [string]::IsNullOrWhiteSpace($ownerController) -and
             -not (Test-SamePath -Left $ownerController -Right $ControllerPath)
         )
+
+        if ($Action -eq "Start") {
+            Save-DesiredState -DesiredState "running" -Source "user_action"
+        }
+        elseif ($Action -eq "Stop") {
+            Save-DesiredState -DesiredState "stopped" -Source "user_action"
+        }
+        elseif ($Action -eq "Toggle") {
+            $toggleTarget = if (Test-AnySharedRuntime) { "stopped" } else { "running" }
+            Save-DesiredState -DesiredState $toggleTarget -Source "user_action"
+        }
 
         if ($Action -eq "Stop" -and $foreignOwner) {
             Invoke-InternalControllerMutation `
