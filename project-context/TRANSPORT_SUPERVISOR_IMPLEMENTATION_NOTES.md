@@ -156,11 +156,9 @@ The `REMOTE_METADATA_UNAVAILABLE` state is not by itself evidence that local rec
 
 ## Current candidate
 
-Current candidate head for the next exact physical gate is:
+The current PR head contains the failure-class-specific backoff correction, a dedicated regression contract, and this evidence record. The exact SHA used for a physical qualification is recorded in the PR/test command rather than embedded here, because embedding the current head in a file would make the file self-invalidating on commit.
 
-`54a53bc5f0e5d32c7532ebd252aa5ab002c7ae4d`
-
-It includes the failure-class-specific backoff correction, a dedicated regression contract, and this evidence record. Hosted checks must be green before the target-Windows fault injection is repeated.
+Hosted checks must be green before target-Windows fault injection is repeated.
 
 ## Required next gate
 
