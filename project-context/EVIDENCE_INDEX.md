@@ -50,6 +50,7 @@ Exact code/tests/current CI and the original physical result remain more authori
 | Stage 26.2D Windows vision routing | `1c74713edcd6321d5583a39234929169e68b5ac1` | result recorded in #90 / stage document | one controlled structure-first visual fallback path |
 | Stage 26.2E VS Code real-app E2E | `457db0b634f2e47f53d41e359a238840fa3ca2ee` | `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448` | one isolated VS Code text-edit task with independent verification/rollback |
 | Transport Supervisor hard local tunnel kill/recovery | `b03442b66b05bf0f51000ff43f2f386e1495a1ec` | `C:\Users\eahra\AppData\Local\ChatAgentPlatform\transport-supervisor-qualification\run-20260823-115911` | exact owned tunnel PID `6812` killed; replacement PID `4828`; same supervisor PID; recovery receipt `0 -> 1`; runtime returned `READY`; later supervisor heartbeat verified |
+| Ordinary-Chat frozen semantic action compatibility | `1b78ae37952c7f7a61b0e3497622395deac661e2` | target Windows ordinary ChatGPT / `Chat Local Bridge Test`: `workspace_read` reached Filesystem and returned exact-path `ENOENT`; `web_open(example.com)` succeeded; `web_observe` returned `Example Domain` | five exact legacy `_1mcp_` action IDs accepted as inbound aliases while public `tools/list` remains canonical five; no 1MCP hop restored |
 
 ## Not yet accepted
 

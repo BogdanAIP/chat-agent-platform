@@ -77,6 +77,7 @@ Do not copy full physical result dumps or long superseded attempt narratives int
 | `MODULE_CATALOG.md` | CURRENT CATALOG | Accepted/current/future capability status. |
 | `MODULE_SELECTION_POLICY.md` | CURRENT POLICY | Selection/promotion rules. |
 | `TYPED_CAPABILITY_PROJECTION.md` | ACCEPTED CURRENT FOUNDATION | Five-tool semantic projection + separation from procedure Control Plane. |
+| `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | CURRENT TEMPORARY MIGRATION COMPATIBILITY | Exact five legacy `_1mcp_` inbound aliases for frozen ChatGPT app snapshots; canonical public inventory remains five tools; removal requires a verified app migration/rebind gate. |
 | `TRANSPORT_SUPERVISOR.md` | PLANNED CROSS-CUTTING RELIABILITY DESIGN | Self-healing Secure MCP Tunnel lifecycle, layered health, bounded recovery and Windows persistence plan; not accepted runtime yet. |
 | `TRANSPORT_SUPERVISOR_IMPLEMENTATION_NOTES.md` | ACTIVE QUALIFICATION NOTES | Branch-scoped implementation and physical-gate contract; subordinate to canonical transport design and not accepted evidence until qualification passes. |
 | `VISION.md` | CURRENT PRODUCT DIRECTION | Long-term product direction; subordinate to architecture/roadmap on exact stage status. |
