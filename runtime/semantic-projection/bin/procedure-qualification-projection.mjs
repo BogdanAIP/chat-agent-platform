@@ -70,12 +70,11 @@ function runProcedure(request) {
     const child = spawn('python', [controlPlaneCli], {
       cwd: repoRoot,
       env: process.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'ignore'],
       windowsHide: true
     });
 
     let stdout = Buffer.alloc(0);
-    let stderr = Buffer.alloc(0);
     let settled = false;
     const finish = (result) => {
       if (settled) return;
@@ -96,23 +95,18 @@ function runProcedure(request) {
         finish(toolError('procedure_run failed: response_too_large'));
       }
     });
-    child.stderr.on('data', chunk => {
-      if (stderr.length < 64_000) stderr = Buffer.concat([stderr, Buffer.from(chunk)]);
-    });
     child.on('error', error => finish(toolError(`procedure_run failed: ${error.name}`)));
     child.on('close', () => {
       if (settled) return;
       try {
         const parsed = JSON.parse(stdout.toString('utf8'));
-        const text = JSON.stringify(parsed);
         finish({
-          content: [{ type: 'text', text }],
+          content: [{ type: 'text', text: JSON.stringify(parsed) }],
           structuredContent: parsed,
           ...(parsed?.status === 'error' ? { isError: true } : {})
         });
       } catch {
-        const diagnostic = stderr.toString('utf8').trim();
-        finish(toolError(`procedure_run failed: invalid_control_plane_response${diagnostic ? ` (${diagnostic.slice(0, 240)})` : ''}`));
+        finish(toolError('procedure_run failed: invalid_control_plane_response'));
       }
     });
 
@@ -121,6 +115,12 @@ function runProcedure(request) {
 }
 
 const relativePathSchema = z.string().min(1).max(2048);
+const visualFallbackSchema = z.object({
+  instruction: z.string().min(1).max(4096),
+  targetText: z.string().min(1).max(2048),
+  semanticName: z.string().min(1).max(1024).optional()
+}).strict();
+
 const server = new McpServer(
   { name: 'chat-procedure-qualification-projection', version: VERSION },
   {
@@ -130,6 +130,7 @@ const server = new McpServer(
 );
 
 server.registerTool('workspace_read', {
+  title: 'Read Workspace',
   description: 'Accepted semantic workspace read/search surface.',
   inputSchema: z.object({
     operation: z.enum(['roots', 'read_text', 'search']),
@@ -143,21 +144,21 @@ server.registerTool('workspace_read', {
 }, args => callSemantic('workspace_read', args));
 
 server.registerTool('workspace_write', {
+  title: 'Write Workspace Text',
   description: 'Accepted semantic bounded workspace text write surface.',
-  inputSchema: z.object({
-    path: relativePathSchema,
-    content: z.string().max(4_000_000)
-  }).strict(),
+  inputSchema: z.object({ path: relativePathSchema, content: z.string().max(4_000_000) }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
 }, args => callSemantic('workspace_write', args));
 
 server.registerTool('web_open', {
+  title: 'Open Web Page',
   description: 'Accepted isolated semantic web navigation surface.',
   inputSchema: z.object({ url: z.string().url().max(4096) }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
 }, args => callSemantic('web_open', args));
 
 server.registerTool('web_observe', {
+  title: 'Observe Web Page',
   description: 'Accepted read-only semantic browser observation surface.',
   inputSchema: z.object({
     operation: z.enum(['find', 'snapshot']),
@@ -169,17 +170,17 @@ server.registerTool('web_observe', {
 }, args => callSemantic('web_observe', args));
 
 server.registerTool('web_interact', {
-  description: 'Accepted semantic click/type surface with existing reviewed guards.',
+  title: 'Interact With Web Page',
+  description: 'Accepted semantic click/type surface with the existing reviewed guards.',
   inputSchema: z.object({
     operation: z.enum(['click', 'type']),
-    ref: z.string().min(1).max(2048).optional(),
+    target: z.string().min(1).max(4096).optional(),
+    element: z.string().min(1).max(1024).optional(),
+    doubleClick: z.boolean().optional(),
     text: z.string().max(200000).optional(),
-    element: z.string().min(1).max(2048).optional(),
-    visualFallback: z.object({
-      instruction: z.string().min(1).max(4096),
-      targetText: z.string().min(1).max(2048),
-      semanticName: z.string().min(1).max(1024).optional()
-    }).strict().optional()
+    submit: z.boolean().optional(),
+    slowly: z.boolean().optional(),
+    visualFallback: visualFallbackSchema.optional()
   }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
 }, args => callSemantic('web_interact', args));
@@ -190,8 +191,8 @@ server.registerTool('procedure_run', {
     'Qualification-only Stage 26.3A typed procedure execution. The only admitted procedure is verified_workspace_artifact_v1. It accepts a leaf .txt artifact name, bounded UTF-8 content, and optional resume_task_id. No path, command, Python, backend, or generic tool selector is accepted.',
   inputSchema: z.object({
     procedure: z.literal('verified_workspace_artifact_v1'),
-    artifact_name: z.string().min(1).max(72),
-    content: z.string().max(1_000_000),
+    artifact_name: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}\.txt$/),
+    content: z.string().max(4096),
     resume_task_id: z.string().regex(/^[0-9a-f]{32}$/).optional()
   }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
@@ -208,4 +209,4 @@ process.on('SIGTERM', () => void close().finally(() => process.exit(0)));
 process.stdin.on('end', () => void close());
 process.stdin.on('close', () => void close());
 
-await serveStdio(server);
+void serveStdio(() => server);
