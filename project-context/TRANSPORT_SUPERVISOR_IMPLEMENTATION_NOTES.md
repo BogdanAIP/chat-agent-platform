@@ -16,6 +16,41 @@ PR #94 implements the first self-healing transport-supervisor slice around the a
 - transient remote metadata errors wait/re-probe;
 - restart failures use 0/2/10/30s burst retry followed by indefinite low-rate retry with jitter.
 
+## Durable recovery-transaction contract
+
+A recovered runtime is not yet a completed recovery transaction. The supervisor must distinguish at least these facts:
+
+```text
+recovery attempt started
+ -> owned runtime replacement invoked
+ -> post-recovery runtime health verified
+ -> recovery receipt committed
+ -> supervisor snapshot committed
+ -> later heartbeat proves supervisor continued reconciling
+```
+
+The physical gate must never infer success only from a new tunnel PID or a healthy manager status. A runtime may recover while the supervisor is blocked or unable to publish its own transaction state.
+
+Publication failure after a verified runtime recovery is also different from runtime failure. It must **not** authorize another destructive restart of an already-ready runtime merely to recreate a missing receipt. The implementation should retry/reconcile the publication phase independently and remain idempotent.
+
+A future persistent recovery-state schema should therefore be able to represent an in-progress/pending-publication recovery phase separately from the ordinary restart backoff count. If that representation is introduced, a later reconcile may finalize a verified pending transaction but must not fabricate attribution from ambiguous evidence.
+
+## Desired-state vs ownership boundary
+
+The qualification slice currently derives desired running/stopped state from the existing authoritative manager owner record. That is acceptable as a temporary compatibility seam, but it is not the final product model.
+
+Before Stage 27 product integration, persist these as separate concepts:
+
+```text
+desired_state
+  = explicit user/platform intent: running | stopped
+
+runtime_owner
+  = exact controller/runtime identity currently holding lifecycle ownership
+```
+
+A missing/corrupt owner record must not silently rewrite user intent, and stale desired state must not authorize ownership of an arbitrary controller. The supervisor must continue to re-read exact ownership under the shared lifecycle mutex before mutation so explicit Stop wins.
+
 ## Physical qualification evidence
 
 ### Attempt 1 — lifecycle race
@@ -41,17 +76,53 @@ Exact tested head `4cefc75c7bc61df55d16893b2ef5e956e7843e76` reached the real fa
 - manager status recovered to `runtime_ready=true`;
 - qualification wrote `summary.json` with `result=PASSED` and `tunnel_pid_changed=true` / `supervisor_pid_stable=true`.
 
-However, several minutes later both `supervisor.json` and `supervisor-recovery.json` were still absent while supervisor PID `16500` was still present. This reveals the same inherited redirected-pipe hazard inside `chat-platform-supervisor.ps1`: the supervisor can launch the replacement runtime and then remain blocked waiting for inherited stdout/stderr pipes, while the qualification harness incorrectly treats the still-existing PID plus recovered manager runtime as success.
+However, several minutes later both `supervisor.json` and `supervisor-recovery.json` were still absent while supervisor PID `16500` was still present. This exposed the inherited redirected-pipe hazard inside `chat-platform-supervisor.ps1`: the supervisor could launch the replacement runtime and then remain blocked while the qualification harness incorrectly treated process existence plus recovered manager runtime as success.
 
-Therefore attempt 4 is **not accepted as the final physical kill/recovery gate**. The next fix must:
+Therefore attempt 4 is **not accepted**.
 
-1. prevent supervisor Start/Stop controller mutations from capturing inheritable stdout/stderr pipes;
-2. retain captured output for bounded `Status` calls only;
-3. require post-recovery supervisor responsiveness plus machine-readable `supervisor.json` and `supervisor-recovery.json` evidence before qualification may emit `PASSED`;
-4. preserve the existing exact-PID/new-tunnel/runtime-ready checks;
-5. separately remove the visible blank console window observed when the Scheduled Task started the supposedly hidden supervisor.
+### Attempt 5 — strict receipt gate correctly rejected an incomplete transaction
 
-The `REMOTE_METADATA_UNAVAILABLE` status observed immediately after recovery is not by itself evidence that the local recovery failed: `runtime_ready=true` and a fresh control-plane poll were present, while the independent read-only remote metadata probe was unavailable. The architecture intentionally keeps local runtime, remote metadata/control-plane, and ordinary-Chat route evidence distinct.
+Exact tested head `28c6ab835bbe5800f53de94c945a3407cfbde217` passed the hosted checks and local transport-supervisor tests, then reached real fault injection. The exact owned tunnel process was killed and manager status later returned fully healthy state, proving that a replacement runtime came up.
+
+The stricter qualification correctly returned `FAILED` because it did not observe a verified post-fault recovery receipt within the bounded window:
+
+```text
+Supervisor did not publish a verified post-recovery receipt.
+```
+
+This result is important: manager/runtime recovery alone is insufficient evidence for supervisor transaction completion.
+
+Subsequent head `dfa6c930a6a179bc3426a46275215337e77627cf` hardens the receipt path by:
+
+- canonicalizing persisted recovery timestamps as UTC;
+- making qualification timestamp comparisons type-safe;
+- retrying only the atomic state-file replacement during short Windows reader-sharing races;
+- separating runtime-recovery failure from post-recovery receipt publication failure;
+- preserving captured output for bounded `Status` calls while keeping controller `Start`/`Stop` mutations free of redirected inheritable pipes;
+- capturing live failure receipts/log tail before qualification uninstall.
+
+This head still requires a new exact-head physical kill/recovery run. No acceptance is inferred from code review alone.
+
+The `REMOTE_METADATA_UNAVAILABLE` state observed in earlier recovery diagnostics is not by itself evidence that local recovery failed. Local runtime, remote metadata/control-plane and ordinary-Chat route evidence remain independent dimensions.
+
+## Required next gate
+
+The immediate next physical gate is the same exact fault class on the current exact head:
+
+```text
+healthy baseline
+ -> start supervisor
+ -> kill only exact owned tunnel-client
+ -> new tunnel PID
+ -> same supervisor PID
+ -> runtime_ready restored
+ -> post-fault recovery receipt with increasing recovery count
+ -> last_success_at after fault injection
+ -> supervisor snapshot committed
+ -> later heartbeat from same supervisor PID
+```
+
+Any missing receipt/heartbeat is failure even if the tunnel itself recovered.
 
 ## Remaining physical gates
 
@@ -61,4 +132,5 @@ After the corrected kill/recovery gate is accepted, the remaining target-Windows
 - sleep/resume -> automatic recovery;
 - reboot/logon -> supervisor automatically starts and restores desired running state;
 - ordinary ChatGPT semantic call -> fresh ChatGPT E2E receipt;
-- idle resource-use measurement and recovery-latency evidence.
+- idle resource-use measurement and recovery-latency evidence;
+- remove the visible blank console window observed during Scheduled Task startup before product integration.
