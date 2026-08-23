@@ -14,10 +14,12 @@ Never treat a documentation SHA as permanently current. Resolve live `main`, the
 4. `project-context/CONTROL_PLANE.md`
 5. `project-context/ROADMAP.md`
 6. `project-context/DOCUMENT_STATUS.md`
-7. `project-context/MODULE_CATALOG.md`
-8. `project-context/KNOWN_ISSUES.md`
-9. active Stage 26.3 contract/design: `project-context/STAGE26_PROCEDURAL_MEMORY.md`
-10. accepted Stage 26.2E evidence: `project-context/STAGE26_2E_REAL_APPLICATION_E2E.md` when exact real-app details are needed
+7. `project-context/EVIDENCE_INDEX.md`
+8. `project-context/MODULE_CATALOG.md`
+9. `project-context/KNOWN_ISSUES.md`
+10. active Stage 26.3 contract/design: `project-context/STAGE26_PROCEDURAL_MEMORY.md`
+11. active Stage 26.3A notes/contracts: `project-context/STAGE26_3A_IMPLEMENTATION_NOTES.md` and `project-context/STAGE26_3A_PROCEDURE_RUN_SURFACE.md`
+12. accepted Stage 26.2E / Transport Supervisor evidence when exact physical details are needed
 
 When documents disagree, exact code/tests/current CI/physical target evidence outrank prose.
 
@@ -61,7 +63,7 @@ ordinary ChatGPT
   -> focused local capabilities
 ```
 
-Current public semantic tools remain exactly:
+Current normal public semantic tools remain exactly:
 
 ```text
 workspace_read
@@ -73,9 +75,9 @@ web_interact
 
 1MCP remains internal diagnostic/adaptive/aggregation infrastructure. `semantic-projection` is not the procedure Control Plane and may not become an opaque workflow dispatcher.
 
-Any new Stage 26.3 procedure-facing surface must be a dedicated truthful typed contract/ADR. Generic shell/Python/`tool_invoke` execution remains forbidden.
+Stage 26.3A adds `procedure_run` only in the isolated `procedure-qualification` profile. Generic shell/Python/`tool_invoke` execution remains forbidden.
 
-## Accepted Windows foundation
+## Accepted Windows foundation through Stage 26.2E
 
 Accepted/merged through Stage 26.2D:
 
@@ -100,9 +102,34 @@ Physical evidence directory:
 
 It proved one isolated VS Code task with exact hidden Monaco keyboard focus identity, one-shot window-scoped focus authorization, one guarded Unicode delivery, independent file postcondition and full rollback. This is real-app evidence, not broad desktop accuracy.
 
+## Accepted Transport Supervisor v1 foundation
+
+Transport Supervisor v1 was physically accepted and merged as PR #94. `main` after that merge is:
+
+`2f33997d3fbaa1fc52d437c00be7f16e55bdde5e`
+
+Accepted behavior includes:
+
+- one persistent console-free Windows supervisor;
+- persistent user `desired_state` separated from runtime owner receipt;
+- bounded owned-tunnel recovery with receipts/heartbeat;
+- external network disconnect/reconnect recovery;
+- Modern Standby sleep/resume;
+- reboot/logon restoration;
+- fresh ordinary-Chat post-reboot semantic E2E;
+- measured idle resource/recovery latency.
+
+Exact physical heads and result locators are in `EVIDENCE_INDEX.md` and the transport evidence documents.
+
 ## Active work — Stage 26.3 Verified Procedure Runtime
 
 The next acceptance target is no longer another single-action script. It is autonomous verified progression of an already-known bounded procedure.
+
+Stage 26.3A currently provides qualification-only `verified_workspace_artifact_v1` through `procedure_run`. The exact code head after integration with accepted #94 was hosted-qualified on all ten PR workflows:
+
+`e4507dbe6dc07e182313769ebe833dd1e6801572`
+
+This is **hosted readiness only**, not physical Stage 26.3A acceptance.
 
 Required first vertical slice:
 
@@ -117,14 +144,22 @@ ONE user goal
  -> verified completion OR deterministic ABSTAIN/escalation
 ```
 
+Remaining physical gates:
+
+1. exact-head target-Windows direct-tunnel qualification;
+2. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
+3. independent final artifact verification through `workspace_read`;
+4. pre-existing/incompatible target -> structured ABSTAIN with zero unauthorized overwrite/continuation.
+
 The user should not be treated as a routine command relay. Ask the user to act only when the currently available Chat/local tool surface genuinely cannot perform an irreducible target-machine or permission step.
 
 ## Current critical path
 
 ```text
 26.2E real application E2E — ACCEPTED
+ -> Transport Supervisor v1 — ACCEPTED / MERGED #94
  -> 26.3 Verified Procedure Runtime / deterministic Control Plane integration — ACTIVE
-    -> 26.3A candidate-first procedural trust
+    -> 26.3A hosted qualification — GREEN; physical one-goal gate NEXT
     -> 26.3B advanced verifier/postconditions
     -> checkpoint/recovery/budget mechanics as required
  -> 26.4 Human Demo -> transferable verified candidate skill
