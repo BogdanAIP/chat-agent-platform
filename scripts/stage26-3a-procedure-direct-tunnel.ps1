@@ -135,6 +135,21 @@ function Get-QualificationTunnelProcess {
     catch { return $null }
 }
 
+function Get-OwnedQualificationSemanticChildren {
+    param([Parameter(Mandatory)] $TunnelProcess)
+
+    $parentPid = [int]$TunnelProcess.ProcessId
+    $entryPattern = [regex]::Escape($qualificationEntry)
+    return @(
+        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Name -eq 'node.exe' -and
+                [int]$_.ParentProcessId -eq $parentPid -and
+                [string]$_.CommandLine -match $entryPattern
+            }
+    )
+}
+
 function Test-QualificationReady {
     if ($null -eq (Get-QualificationTunnelProcess)) { return $false }
     $base = Get-HealthBaseUrl
@@ -148,14 +163,23 @@ function Test-QualificationReady {
 
 function Stop-QualificationTunnel {
     $process = Get-QualificationTunnelProcess
+    $ownedSemanticChildren = if ($null -ne $process) {
+        @(Get-OwnedQualificationSemanticChildren -TunnelProcess $process)
+    }
+    else {
+        @()
+    }
+
     if ($null -ne $process) {
         Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction SilentlyContinue
     }
 
-    $entryPattern = [regex]::Escape($qualificationEntry)
-    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -eq 'node.exe' -and [string]$_.CommandLine -match $entryPattern } |
-        ForEach-Object { Stop-Process -Id ([int]$_.ProcessId) -Force -ErrorAction SilentlyContinue }
+    # Cleanup authority is ancestry-bound. Never terminate arbitrary node.exe
+    # processes merely because their command line happens to mention the same
+    # qualification entry path.
+    foreach ($child in $ownedSemanticChildren) {
+        Stop-Process -Id ([int]$child.ProcessId) -Force -ErrorAction SilentlyContinue
+    }
 
     Remove-Item -LiteralPath $healthUrlFile -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $qualificationState -Force -ErrorAction SilentlyContinue
