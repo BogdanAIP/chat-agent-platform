@@ -77,9 +77,25 @@ function Invoke-CoreProcess {
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $false
 
+    # The core currently parses persisted DateTime strings using DateTime.Parse.
+    # Run it under a deterministic culture so Windows regional settings cannot
+    # change qualification semantics. The supported entrypoint owns this seam.
+    $coreCommand = @'
+$ErrorActionPreference = 'Stop'
+$culture = [System.Globalization.CultureInfo]::InvariantCulture
+[System.Threading.Thread]::CurrentThread.CurrentCulture = $culture
+[System.Threading.Thread]::CurrentThread.CurrentUICulture = $culture
+$corePath = $args[0]
+$coreArgs = @()
+if ($args.Count -gt 1) { $coreArgs = @($args[1..($args.Count - 1)]) }
+& $corePath @coreArgs
+exit $LASTEXITCODE
+'@
+
     foreach ($argument in @(
         '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
-        '-File', $Core,
+        '-Command', $coreCommand,
+        $Core,
         '-Phase', $Phase,
         '-ReadyTimeoutSeconds', [string]$ReadyTimeoutSeconds
     )) {
