@@ -26,6 +26,14 @@ const expectedTools = [
   'workspace_write'
 ];
 
+const legacyTools = [
+  'semantic-projection_1mcp_web_interact',
+  'semantic-projection_1mcp_web_observe',
+  'semantic-projection_1mcp_web_open',
+  'semantic-projection_1mcp_workspace_read',
+  'semantic-projection_1mcp_workspace_write'
+];
+
 function textOf(result) {
   return (result.content ?? [])
     .filter(block => block.type === 'text')
@@ -75,8 +83,10 @@ async function closeHttpServer(server) {
 
 const inputPath = path.join(workspace, 'direct-input.txt');
 const outputPath = path.join(workspace, 'direct-output.txt');
+const legacyOutputPath = path.join(workspace, 'legacy-direct-output.txt');
 fs.writeFileSync(inputPath, 'DIRECT_SEMANTIC_INPUT', 'utf8');
 fs.rmSync(outputPath, { force: true });
+fs.rmSync(legacyOutputPath, { force: true });
 
 const fixture = await startFixtureServer();
 const client = new Client(
@@ -107,9 +117,10 @@ try {
     'read_text_file',
     'write_file',
     'browser_navigate',
-    'browser_click'
+    'browser_click',
+    ...legacyTools
   ]) {
-    assert(!names.includes(forbidden), `raw/generic tool leaked through direct tunnel: ${forbidden}`);
+    assert(!names.includes(forbidden), `raw/generic/legacy tool leaked through direct tunnel: ${forbidden}`);
   }
 
   const read = await client.callTool({
@@ -166,10 +177,62 @@ try {
   assert.equal(findDone.isError, undefined, textOf(findDone));
   assert(textOf(findDone).includes('DIRECT_TUNNEL_BROWSER_DONE'), textOf(findDone));
 
+  // Frozen ChatGPT action snapshots from the old Stage 24 1MCP route used
+  // server-qualified action IDs. The launcher must accept those exact IDs as
+  // compatibility aliases without republishing them in tools/list.
+  const legacyRead = await client.callTool({
+    name: 'semantic-projection_1mcp_workspace_read',
+    arguments: { operation: 'read_text', path: 'direct-input.txt' }
+  });
+  assert.equal(legacyRead.isError, undefined, textOf(legacyRead));
+  assert(textOf(legacyRead).includes('DIRECT_SEMANTIC_INPUT'), textOf(legacyRead));
+
+  const legacyWrite = await client.callTool({
+    name: 'semantic-projection_1mcp_workspace_write',
+    arguments: { path: 'legacy-direct-output.txt', content: 'LEGACY_SEMANTIC_WRITE_OK' }
+  });
+  assert.equal(legacyWrite.isError, undefined, textOf(legacyWrite));
+  assert.equal(fs.readFileSync(legacyOutputPath, 'utf8'), 'LEGACY_SEMANTIC_WRITE_OK');
+
+  const legacyOpen = await client.callTool({
+    name: 'semantic-projection_1mcp_web_open',
+    arguments: { url: `${fixture.baseUrl}/` }
+  });
+  assert.equal(legacyOpen.isError, undefined, textOf(legacyOpen));
+
+  const legacyFindButton = await client.callTool({
+    name: 'semantic-projection_1mcp_web_observe',
+    arguments: { operation: 'find', text: 'Continue direct tunnel test' }
+  });
+  assert.equal(legacyFindButton.isError, undefined, textOf(legacyFindButton));
+  const legacyButtonRef = accessibilityRefOnMatchingLine(
+    legacyFindButton,
+    'Continue direct tunnel test',
+    'legacy direct tunnel button search'
+  );
+
+  const legacyClick = await client.callTool({
+    name: 'semantic-projection_1mcp_web_interact',
+    arguments: {
+      operation: 'click',
+      target: legacyButtonRef,
+      element: 'Continue direct tunnel test button'
+    }
+  });
+  assert.equal(legacyClick.isError, undefined, textOf(legacyClick));
+
+  const legacyFindDone = await client.callTool({
+    name: 'semantic-projection_1mcp_web_observe',
+    arguments: { operation: 'find', text: 'DIRECT_TUNNEL_BROWSER_DONE' }
+  });
+  assert.equal(legacyFindDone.isError, undefined, textOf(legacyFindDone));
+  assert(textOf(legacyFindDone).includes('DIRECT_TUNNEL_BROWSER_DONE'), textOf(legacyFindDone));
+
   console.log('DIRECT_SEMANTIC_PROTOCOL_ERA=modern');
   console.log('DIRECT_SEMANTIC_TOOL_COUNT=5');
   console.log('DIRECT_SEMANTIC_FILESYSTEM=PASS');
   console.log('DIRECT_SEMANTIC_BROWSER=PASS');
+  console.log('DIRECT_SEMANTIC_LEGACY_ACTION_COMPAT=PASS');
   console.log('DIRECT_SEMANTIC_NEGATIVE_CASES=PASS');
   console.log(`DIRECT_SEMANTIC_CONNECT_MS=${connectMs}`);
   console.log('DIRECT_SEMANTIC_TUNNEL_ACCEPTANCE=PASS');
