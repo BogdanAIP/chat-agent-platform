@@ -22,6 +22,7 @@ $LocalRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'
 $StateDir = Join-Path $LocalRoot 'state'
 $LogDir = Join-Path $LocalRoot 'logs'
 $OwnerFile = Join-Path $StateDir 'manager-owner.json'
+$DesiredStateFile = Join-Path $StateDir 'desired-state.json'
 $SupervisorStateFile = Join-Path $StateDir 'supervisor.json'
 $RecoveryStateFile = Join-Path $StateDir 'supervisor-recovery.json'
 $ChatGptE2EFile = Join-Path $StateDir 'chatgpt-e2e.json'
@@ -248,12 +249,50 @@ function Get-ManagerOwner {
     }
 }
 
+function Save-LegacyDesiredStateMigration {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('running', 'stopped')]
+        [string]$DesiredState
+    )
+
+    Write-AtomicJson -Path $DesiredStateFile -Value ([ordered]@{
+        schema_version = 1
+        desired_state = $DesiredState
+        source = 'legacy_migration'
+        updated_at = (Get-Date).ToUniversalTime().ToString('o')
+    })
+}
+
+function Get-PersistedDesiredState {
+    if (-not (Test-Path -LiteralPath $DesiredStateFile -PathType Leaf)) {
+        $legacyOwner = Get-ManagerOwner
+        $legacyState = if ($null -ne $legacyOwner) { 'running' } else { 'stopped' }
+        Save-LegacyDesiredStateMigration -DesiredState $legacyState
+    }
+
+    try {
+        $state = Get-Content -LiteralPath $DesiredStateFile -Raw | ConvertFrom-Json
+        if (
+            $null -eq $state.PSObject.Properties['desired_state'] -or
+            [string]$state.desired_state -notin @('running', 'stopped')
+        ) {
+            throw 'desired_state missing or unsupported'
+        }
+        return $state
+    }
+    catch {
+        throw 'desired-state.json is invalid.'
+    }
+}
+
 function Get-DesiredState {
+    $intent = Get-PersistedDesiredState
     $owner = Get-ManagerOwner
     return [pscustomobject]@{
-        desired_state = if ($null -ne $owner) { 'running' } else { 'stopped' }
+        desired_state = [string]$intent.desired_state
         owner = $owner
-        source = 'manager-owner'
+        source = if ($null -ne $intent.PSObject.Properties['source']) { [string]$intent.source } else { 'persistent' }
     }
 }
 
@@ -481,8 +520,14 @@ function Invoke-DirectRuntimeRecovery {
             throw 'Manager lifecycle mutex is busy.'
         }
 
-        # Re-read ownership only after serialization. If the user requested Stop
-        # while we were waiting, fail closed instead of resurrecting against it.
+        # Re-read persistent intent and runtime ownership only after serialization.
+        # If the user requested Stop while we were waiting, fail closed instead of
+        # resurrecting against the new desired state even if an owner receipt remains.
+        $currentIntent = Get-PersistedDesiredState
+        if ([string]$currentIntent.desired_state -ne 'running') {
+            throw 'Desired state changed before recovery; explicit Stop wins.'
+        }
+
         $currentOwner = Get-ManagerOwner
         if ($null -eq $currentOwner) {
             throw 'Manager owner disappeared before recovery; explicit Stop wins.'
@@ -494,9 +539,9 @@ function Invoke-DirectRuntimeRecovery {
 
         Invoke-OwnedDirectControllerAction -ControllerPath $controllerPath -ControllerAction Stop
 
-        # Owner state intentionally remains in place while the platform-owned
-        # direct runtime is replaced. The public manager still owns lifecycle
-        # intent; the supervisor owns only this bounded repair transaction.
+        # manager-owner.json remains the runtime-ownership receipt while the
+        # platform-owned direct runtime is replaced. desired-state.json remains
+        # the independent user intent and is never rewritten by recovery.
         Invoke-OwnedDirectControllerAction -ControllerPath $controllerPath -ControllerAction Start
     }
     finally {
@@ -595,7 +640,7 @@ function Invoke-ReconcileOnce {
             -RecoveryState $recovery `
             -ErrorCode 'MANAGER_OWNER_INVALID'
         Save-SupervisorSnapshot -Snapshot $snapshot
-        Write-SupervisorLog 'manager owner state is invalid; fail closed' 'ERROR'
+        Write-SupervisorLog 'persistent desired/owner state is invalid; fail closed' 'ERROR'
         return $snapshot
     }
 
@@ -631,7 +676,7 @@ function Invoke-ReconcileOnce {
                 -RecoveryState $recovery `
                 -ErrorCode 'UNOWNED_RUNTIME_ACTIVE'
             Save-SupervisorSnapshot -Snapshot $snapshot
-            Write-SupervisorLog 'runtime active without authoritative manager owner; fail closed' 'ERROR'
+            Write-SupervisorLog 'runtime active against desired stopped state; fail closed' 'ERROR'
             return $snapshot
         }
 
