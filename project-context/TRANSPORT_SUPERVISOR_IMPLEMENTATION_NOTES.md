@@ -1,6 +1,6 @@
 # Transport Supervisor implementation notes
 
-Status: **hard local tunnel kill/recovery accepted; first network reconnect attempt failed and exposed a recovery-publication defect; remaining physical qualification is still in progress**.
+Status: **hard local tunnel kill/recovery accepted; external network disconnect/reconnect accepted; remaining physical qualification is still in progress**.
 
 ## Current implementation slice
 
@@ -9,7 +9,8 @@ PR #94 implements the first self-healing transport-supervisor slice around the a
 - `scripts/tunnel-reliability-health.ps1` classifies layered local/control-plane/remote health;
 - `scripts/chat-platform-supervisor.ps1` owns desired-state reconciliation and bounded repair;
 - `scripts/install-chat-platform-supervisor.ps1` installs the qualification supervisor as a current-user Scheduled Task;
-- `scripts/transport-supervisor-qualification.ps1` performs the first target-Windows kill/recovery gate;
+- `scripts/transport-supervisor-qualification.ps1` performs the target-Windows hard local tunnel kill/recovery gate;
+- `scripts/transport-supervisor-network-qualification.ps1` performs the observational target-Windows external network disconnect/reconnect gate;
 - automatic recovery is restricted to the exact installed direct controller;
 - the persistent tunnel id remains stable and normal recovery never performs remote tunnel CRUD;
 - authentication/permission/resource-loss states block destructive restart loops;
@@ -57,6 +58,42 @@ must **not** inherit the older `wait_and_probe` delay. A newly observed hard loc
 This preemption does not remove restart-storm protection. A `next_retry_at` produced by an actual failed `restart_runtime` attempt remains authoritative for later `restart_runtime` attempts. Authentication/permission/resource-loss `blocked` states continue to outrank local restart symptoms according to the health-classification contract.
 
 This distinction is required because the supervisor observes multiple independent evidence layers whose failure class can change between reconciliation cycles. A retry deadline from one layer must not silently become authority over a different, higher-priority local failure class.
+
+## Network reconnect acceptance contract
+
+The external-network gate has two phases with different safety requirements.
+
+During the confirmed offline observation window, the local runtime is expected to remain intact and the supervisor must not create a restart storm merely because remote/control-plane metadata is unavailable:
+
+```text
+offline
+ -> local runtime stays ready
+ -> supervisor PID stays stable
+ -> tunnel PID stays stable
+ -> recovery count does not increase
+```
+
+After the external path is restored, two recovery modes are valid:
+
+```text
+A. seamless
+   -> tunnel-client restores control-plane polling itself
+   -> same tunnel PID
+   -> recovery delta = 0
+
+B. bounded_recovery
+   -> external API is reachable but the existing control-plane poll remains stale
+   -> supervisor classifies REMOTE_TUNNEL_DISCONNECTED -> restart_runtime
+   -> exactly one committed recovery
+   -> new tunnel PID
+   -> same supervisor PID
+   -> final supervisor state healthy / READY / recovery_action=none
+   -> consecutive_attempts=0 and last_success_at is published
+```
+
+The bounded path is intentional fallback behavior rather than a restart storm. The pinned official `openai/tunnel-client v0.0.11` control-plane poller already retries transport failures with exponential backoff/jitter in-process; the supervisor remains a second-level recovery layer when remote metadata has recovered but the client poll is still stale.
+
+The qualification harness therefore continues to forbid all recovery during the offline observation period, but no longer incorrectly requires zero recovery after connectivity returns. It also waits for the post-reconnect process state and recovery receipt to settle into one coherent pair before deciding whether the run was seamless or bounded recovery.
 
 ## Desired-state vs ownership boundary
 
@@ -181,11 +218,9 @@ Machine-local evidence directory:
 C:\Users\eahra\AppData\Local\ChatAgentPlatform\transport-supervisor-qualification\run-20260823-115911
 ```
 
-This physically accepts the hard local tunnel kill/recovery gate on exact tested head `b03442b66b05bf0f51000ff43f2f386e1495a1ec`. It does not accept later documentation-only heads or any remaining physical gate.
+This physically accepts the hard local tunnel kill/recovery gate on exact tested head `b03442b66b05bf0f51000ff43f2f386e1495a1ec`. It does not accept later heads or any remaining physical gate.
 
-The `REMOTE_METADATA_UNAVAILABLE` state is not by itself evidence that local recovery failed. Local runtime, remote metadata/control-plane and ordinary-Chat route evidence remain independent dimensions.
-
-### Attempt 8 — offline stability passed; reconnect gate failed and exposed recovery-publication bug
+### Attempt 8 — offline stability passed; reconnect exposed recovery-publication bug
 
 Exact tested head `cc41e836be890f88ae01d6cddfa0adf5e0d73fb7` was fetched and checked in a detached worktree before running `transport-supervisor-network-qualification.ps1`.
 
@@ -207,9 +242,9 @@ control_plane_poll_fresh=true
 
 For the full 45-second offline observation, the qualification reported no supervisor PID churn, no tunnel PID churn and no recovery-count increase. This confirms the current supervisor does not create a restart storm merely because remote metadata/control-plane access is temporarily unavailable.
 
-The reconnect portion did **not** pass. The supervisor later classified `REMOTE_TUNNEL_DISCONNECTED` and began recovery at `2026-08-23T11:24:41Z`. Runtime recovery completed at about `11:25:25Z`, and `supervisor-recovery.json` advanced to `total_recoveries=1`, proving that a destructive runtime replacement occurred. That alone means the strict reconnect-without-local-churn gate was not satisfied.
+The reconnect portion later classified `REMOTE_TUNNEL_DISCONNECTED` and began recovery at `2026-08-23T11:24:41Z`. Runtime recovery completed at about `11:25:25Z`, and `supervisor-recovery.json` advanced to `total_recoveries=1`.
 
-The same physical run exposed a second independent defect after the runtime recovery: recovery snapshot publication failed with:
+The same physical run exposed an independent defect after runtime recovery: recovery snapshot publication failed with:
 
 ```text
 recovery publication failed attempt=1 error_type=CommandNotFoundException
@@ -221,49 +256,110 @@ The cause was the PowerShell call-site expression:
 -SupervisorState (if (...) { 'healthy' } else { 'degraded' })
 ```
 
-The script parsed, but PowerShell treated that grouped `if` form incorrectly at runtime in this argument position. The correction computes the state first as a normal PowerShell statement and then passes the value:
+The correction computes the state first as a normal PowerShell statement and then passes the value:
 
 ```text
 $postSupervisorState = if (...) { 'healthy' } else { 'degraded' }
 -SupervisorState $postSupervisorState
 ```
 
-A regression test now forbids the old grouped form. The network qualification harness also records `reconnect-samples.json` with runtime/openai health, remote status, control-plane poll freshness, supervisor/tunnel PIDs and recovery count, and explicitly reminds the operator to restore any VPN/proxy path required for OpenAI before confirming reconnect.
+A regression test forbids the old grouped form. Attempt 8 remains **not accepted** because recovery publication itself was broken.
 
-Attempt 8 is **not accepted**. The strict no-local-churn reconnect criterion remains unchanged.
+### Attempt 9 — external network disconnect/reconnect accepted via bounded recovery
+
+Exact tested head: `5c9e5b7bcd93fa054d99ef449d43d6d12df8c127`.
+
+Machine-local evidence directory:
+
+```text
+C:\Users\eahra\AppData\Local\ChatAgentPlatform\transport-supervisor-network-qualification\run-20260823-145633
+```
+
+The physical run again proved the offline safety contract:
+
+- baseline supervisor PID `19872` remained unchanged;
+- baseline tunnel PID `19664` remained unchanged throughout the 45-second offline observation;
+- local runtime stayed ready while OpenAI/control-plane readiness became false;
+- no recovery occurred during the offline observation (`total_recoveries=0`).
+
+After the same external route was restored, saved reconnect samples showed this transition:
+
+```text
+2026-08-23T11:59:32Z
+  runtime_ready=false
+  openai_ready=false
+  health_code=REMOTE_TUNNEL_DISCONNECTED
+  recovery_action=restart_runtime
+  remote_tunnel_status=ready
+  control_plane_poll_fresh=false
+
+2026-08-23T11:59:41Z
+  runtime_ready=true
+  openai_ready=true
+  health_code=READY
+  recovery_action=none
+  remote_tunnel_status=ready
+  control_plane_poll_fresh=true
+```
+
+The committed receipts then proved one bounded recovery rather than a loop:
+
+```text
+SUPERVISOR_PID=19872        # unchanged
+OLD_TUNNEL_PID=19664
+NEW_TUNNEL_PID=15156
+RECOVERY_TOTAL=0 -> 1
+consecutive_attempts=0
+last_attempt_at=2026-08-23T11:58:57.4618035Z
+last_success_at=2026-08-23T11:59:42.0780988Z
+supervisor_state=healthy
+health_code=READY
+recovery_action=none
+runtime_ready=true
+openai_control_ready=true
+remote_tunnel_status=ready
+control_plane_poll_fresh=true
+```
+
+The old harness still emitted `FAILED` because its acceptance rule incorrectly required the tunnel PID and recovery count to remain unchanged even **after** connectivity had returned. That was a qualification-contract false negative, not a runtime failure. This is accepted by explicit evidence review against the corrected two-mode reconnect contract above; the exact stored samples/receipts are the primary physical evidence.
+
+The corrected harness now accepts either in-process seamless reconnect (`same PID`, recovery delta `0`) or exactly one bounded supervisor recovery (`new PID`, recovery delta `1`, same supervisor PID, final healthy `READY`). It still rejects any PID churn or recovery while the machine is actually offline and waits for process/receipt publication to settle before classifying the mode.
 
 ## Current candidate
 
-The accepted hard-kill evidence remains permanently scoped to `b03442b66b05bf0f51000ff43f2f386e1495a1ec`; Attempt 8 remains a failed network qualification on `cc41e836be890f88ae01d6cddfa0adf5e0d73fb7`.
+Accepted physical evidence remains scoped to exact tested heads:
 
-Current branch development contains the post-Attempt-8 recovery-publication fix, regression coverage, and improved reconnect diagnostics. Resolve the exact live PR head from GitHub before any physical qualification and bind the next run to that SHA; do not transfer evidence from older heads.
+- hard local tunnel kill/recovery: `b03442b66b05bf0f51000ff43f2f386e1495a1ec`;
+- external network disconnect/reconnect: `5c9e5b7bcd93fa054d99ef449d43d6d12df8c127`.
+
+The moving PR head contains the corrected network qualification contract, reconnect receipt settle gate, regression coverage and documentation. Do not transfer physical evidence to the moving head; resolve the exact live head from GitHub before any later physical qualification.
 
 The implementation remains Draft while the remaining transport gates are qualified.
 
 ## Required next gate
 
-Repeat the network disconnect/reconnect qualification on the exact post-Attempt-8 candidate:
+The next target-Windows physical gate is sleep/resume behavior:
 
 ```text
 healthy running baseline
- -> external network disconnect while local processes remain intact
- -> transient remote/control-plane loss does not cause restart storm or churn a healthy local runtime
- -> network reconnect with the same external path restored, including required VPN/proxy routing
- -> automatic return to healthy state without manual manager restart
- -> supervisor PID remains stable
- -> tunnel PID remains stable
- -> recovery count does not increase
+ -> Windows sleep/suspend
+ -> resume
+ -> supervisor process/task remains or returns according to Windows task semantics
+ -> desired running state is preserved
+ -> direct semantic runtime returns to healthy READY automatically
+ -> any required recovery is bounded and durably receipted
  -> later heartbeat proves continued reconciliation
 ```
 
-If the tunnel cannot restore its control-plane connection without process replacement after the exact external route is restored, keep the gate failed and treat that as a transport-client/reconnect limitation rather than weakening the acceptance rule.
+The sleep/resume harness must not simulate suspend by merely killing a process. The qualification must use a real Windows sleep/resume cycle and preserve exact pre/post process, recovery and health evidence.
 
 ## Remaining physical gates
 
-After network disconnect/reconnect, the remaining target-Windows gates are:
+After sleep/resume, the remaining target-Windows gates are:
 
-- sleep/resume -> automatic recovery;
 - reboot/logon -> supervisor automatically starts and restores desired running state;
 - ordinary ChatGPT semantic call -> fresh ChatGPT E2E receipt;
 - idle resource-use measurement and recovery-latency evidence;
 - remove the visible blank console window observed during Scheduled Task startup before product integration.
+
+A separate pre-product lifecycle step must also split persistent user `desired_state` from runtime ownership instead of using `manager-owner.json` as both concepts.
