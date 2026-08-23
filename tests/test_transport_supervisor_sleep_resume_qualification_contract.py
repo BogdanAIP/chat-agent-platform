@@ -88,7 +88,7 @@ class TransportSupervisorSleepResumeQualificationContractTests(unittest.TestCase
         self.assertIn("supervisor-failure.json", SOURCE)
         self.assertIn("recovery-failure.json", SOURCE)
         self.assertIn("supervisor-log-tail.txt", SOURCE)
-        self.assertIn("power-events-failure.json", SOURCE)
+        self.assertIn("Save-JsonEvidence -Name 'power-events-failure'", SOURCE)
         self.assertIn("& $Installer -Uninstall", SOURCE)
         self.assertIn("if ($desiredStateBefore -eq 'running')", SOURCE)
         self.assertIn("Invoke-ManagerMutation -Action Start", SOURCE)
