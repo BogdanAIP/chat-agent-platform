@@ -6,6 +6,8 @@ Status: **hard local tunnel kill/recovery accepted; external network disconnect/
 
 PR #94 implements the first self-healing transport-supervisor slice around the accepted direct-stdio semantic transport. Accepted physical evidence is indexed in `project-context/EVIDENCE_INDEX.md`. The reboot/logon run and qualification-only defects are recorded in `project-context/TRANSPORT_SUPERVISOR_REBOOT_EVIDENCE.md`.
 
+The full historical Attempt 1–11 narrative that previously lived in this file is preserved verbatim in `project-context/TRANSPORT_SUPERVISOR_ATTEMPT_HISTORY.md`. This file is now the concise current contract/status layer; the history file remains the detailed diagnostic record.
+
 The durable transport contract remains:
 
 - exact owned direct controller only;
@@ -144,4 +146,4 @@ Transport Supervisor v1 still needs:
 - visible blank console cleanup before product integration;
 - persistent `desired_state` / `runtime_owner` split before Stage 27 product integration.
 
-Exact historical evidence remains in `EVIDENCE_INDEX.md` and the stage-specific evidence files. Acceptance is always scoped to the exact physically tested SHA, never automatically transferred to later moving heads.
+Exact historical evidence remains in `EVIDENCE_INDEX.md`, `TRANSPORT_SUPERVISOR_ATTEMPT_HISTORY.md`, and the stage-specific evidence files. Acceptance is always scoped to the exact physically tested SHA, never automatically transferred to later moving heads.
