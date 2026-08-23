@@ -50,6 +50,7 @@ Exact code/tests/current CI and the original physical result remain more authori
 | Stage 26.2D Windows vision routing | `1c74713edcd6321d5583a39234929169e68b5ac1` | result recorded in #90 / stage document | one controlled structure-first visual fallback path |
 | Stage 26.2E VS Code real-app E2E | `457db0b634f2e47f53d41e359a238840fa3ca2ee` | `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448` | one isolated VS Code text-edit task with independent verification/rollback |
 | Transport Supervisor hard local tunnel kill/recovery | `b03442b66b05bf0f51000ff43f2f386e1495a1ec` | `C:\Users\eahra\AppData\Local\ChatAgentPlatform\transport-supervisor-qualification\run-20260823-115911` | exact owned tunnel PID `6812` killed; replacement PID `4828`; same supervisor PID; recovery receipt `0 -> 1`; runtime returned `READY`; later supervisor heartbeat verified |
+| Transport Supervisor external network disconnect/reconnect | `5c9e5b7bcd93fa054d99ef449d43d6d12df8c127` | `C:\Users\eahra\AppData\Local\ChatAgentPlatform\transport-supervisor-network-qualification\run-20260823-145633` | 45 s offline observation: local runtime stayed ready with no supervisor/tunnel PID churn and no recovery increase; after reconnect supervisor PID `19872` stayed stable, stale control-plane state became `REMOTE_TUNNEL_DISCONNECTED -> restart_runtime`, tunnel PID `19664 -> 15156`, recovery `0 -> 1`, then final `READY` / `openai_ready=true`; stored run was a false-negative only because the superseded harness required zero post-reconnect recovery |
 | Ordinary-Chat frozen semantic action compatibility | `1b78ae37952c7f7a61b0e3497622395deac661e2` | target Windows ordinary ChatGPT / `Chat Local Bridge Test`: `workspace_read` reached Filesystem and returned exact-path `ENOENT`; `web_open(example.com)` succeeded; `web_observe` returned `Example Domain` | five exact legacy `_1mcp_` action IDs accepted as inbound aliases while public `tools/list` remains canonical five; no 1MCP hop restored |
 
 ## Not yet accepted
@@ -57,7 +58,7 @@ Exact code/tests/current CI and the original physical result remain more authori
 The following are current work and must not be added to the accepted table until their own gates pass:
 
 - Stage 26.3 Verified Procedure Runtime / ordinary-Chat autonomous multi-transition execution (#92);
-- remaining Transport Supervisor v1 (#94) gates: network reconnect, sleep/resume, reboot/logon, fresh ordinary-Chat E2E, idle resource/latency evidence and final product-integration cleanup;
+- remaining Transport Supervisor v1 (#94) gates: sleep/resume, reboot/logon, fresh ordinary-Chat E2E, idle resource/latency evidence and final product-integration cleanup;
 - broad cross-application Windows accuracy;
 - release-grade distribution/maintenance and clean-user stable release.
 
