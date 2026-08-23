@@ -379,16 +379,35 @@ try {
     Write-Host ''
     Write-Host 'OFFLINE OBSERVATION PASSED: no supervisor/tunnel PID churn and no recovery-count increase.' -ForegroundColor Green
     Write-Host 'ACTION REQUIRED: restore the external network now.' -ForegroundColor Cyan
+    Write-Host 'If OpenAI access on this machine depends on a VPN or proxy, restore that same path too before pressing Enter.' -ForegroundColor Yellow
     Read-Host 'After connectivity is restored, press Enter here' | Out-Null
     $reconnectConfirmedAt = (Get-Date).ToUniversalTime().ToString('o')
 
     $reconnected = $null
+    $reconnectSamples = @()
     $reconnectDeadline = (Get-Date).AddSeconds($ReconnectTimeoutSeconds)
     while ((Get-Date) -lt $reconnectDeadline) {
         try {
             $status = Invoke-ManagerStatus
             $currentSupervisors = @(Get-ExactSupervisorProcesses)
             $currentTunnels = @(Get-DirectTunnelProcesses)
+            $s = Read-SupervisorState
+            $r = Read-RecoveryState
+            $reconnectSamples += [pscustomobject]@{
+                observed_at = (Get-Date).ToUniversalTime().ToString('o')
+                runtime_ready = [bool]$status.runtime_ready
+                openai_ready = [bool]$status.openai_ready
+                health_code = [string]$status.health_code
+                recovery_action = [string]$status.recovery_action
+                remote_tunnel_status = [string]$status.remote_tunnel_status
+                control_plane_poll_fresh = [bool]$status.control_plane_poll_fresh
+                supervisor_process_count = $currentSupervisors.Count
+                supervisor_pid = if ($currentSupervisors.Count -eq 1) { [int]$currentSupervisors[0].ProcessId } else { $null }
+                tunnel_process_count = $currentTunnels.Count
+                tunnel_pid = if ($currentTunnels.Count -eq 1) { [int]$currentTunnels[0].ProcessId } else { $null }
+                supervisor_state = if ($null -ne $s) { [string]$s.supervisor_state } else { $null }
+                recovery_total = if ($null -ne $r) { [int]$r.total_recoveries } else { $null }
+            }
             if (
                 [bool]$status.runtime_ready -and
                 [bool]$status.openai_ready -and
@@ -404,8 +423,14 @@ try {
         catch {}
         Start-Sleep -Seconds 1
     }
+    $reconnectSamples | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $RunDir 'reconnect-samples.json') -Encoding utf8
     if ($null -eq $reconnected) {
-        throw "Healthy state did not return automatically within $ReconnectTimeoutSeconds seconds after reconnect."
+        $last = @($reconnectSamples | Select-Object -Last 1)
+        if ($last.Count -eq 1) {
+            $sample = $last[0]
+            throw "Healthy state did not return automatically within $ReconnectTimeoutSeconds seconds after reconnect. Last sample: runtime_ready=$($sample.runtime_ready), openai_ready=$($sample.openai_ready), health_code=$($sample.health_code), recovery_action=$($sample.recovery_action), remote_tunnel_status=$($sample.remote_tunnel_status), control_plane_poll_fresh=$($sample.control_plane_poll_fresh), supervisor_pid=$($sample.supervisor_pid), tunnel_pid=$($sample.tunnel_pid), recovery_total=$($sample.recovery_total)."
+        }
+        throw "Healthy state did not return automatically within $ReconnectTimeoutSeconds seconds after reconnect; no valid reconnect status sample was captured."
     }
     Save-JsonEvidence -Name 'manager-after-reconnect' -Value $reconnected
 
