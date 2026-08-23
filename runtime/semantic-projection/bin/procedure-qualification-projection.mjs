@@ -25,6 +25,16 @@ const REQUIRED_SEMANTIC_TOOLS = new Set([
 ]);
 const MAX_PROCEDURE_RESPONSE_BYTES = 1_000_000;
 const PROCEDURE_TIMEOUT_MS = 30_000;
+const CONTROL_PLANE_ENV_ALLOWLIST = new Set([
+  'PATH', 'Path', 'PATHEXT',
+  'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC',
+  'TEMP', 'TMP', 'TMPDIR',
+  'LOCALAPPDATA', 'HOME', 'USERPROFILE',
+  'LANG', 'LC_ALL', 'PYTHONUTF8', 'PYTHONIOENCODING',
+  'CHAT_LOCAL_FILES_ROOT',
+  'CHAT_PROCEDURE_STATE_ROOT',
+  'CHAT_PROCEDURE_ALLOW_CANDIDATE'
+]);
 
 function toolError(message) {
   return { content: [{ type: 'text', text: message }], isError: true };
@@ -35,6 +45,15 @@ function normalizeResult(result) {
   if (result?.isError) normalized.isError = true;
   if (result?.structuredContent !== undefined) normalized.structuredContent = result.structuredContent;
   return normalized;
+}
+
+function controlPlaneEnvironment() {
+  const env = {};
+  for (const name of CONTROL_PLANE_ENV_ALLOWLIST) {
+    const value = process.env[name];
+    if (typeof value === 'string') env[name] = value;
+  }
+  return env;
 }
 
 const semanticClient = new Client({
@@ -69,7 +88,7 @@ function runProcedure(request) {
   return new Promise((resolve) => {
     const child = spawn('python', [controlPlaneCli], {
       cwd: repoRoot,
-      env: process.env,
+      env: controlPlaneEnvironment(),
       stdio: ['pipe', 'pipe', 'ignore'],
       windowsHide: true
     });
