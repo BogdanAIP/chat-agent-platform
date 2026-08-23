@@ -64,6 +64,7 @@ A status/planning phrase inside a file classified below as historical describes 
 | File | Status | Use |
 |---|---|---|
 | `STAGE26_PROCEDURAL_MEMORY.md` | ACTIVE STAGE 26.3 CONTRACT / DESIGN | Verified Procedure Runtime / deterministic Control Plane, candidate-first procedural trust and progression invariants. |
+| `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACTIVE STAGE 26.3A IMPLEMENTATION NOTES | Current checkpoint-resume, filesystem-identity and ordinary-Chat integration boundary for the qualification procedure. |
 
 The first Stage 26.3 physical vertical slice must remove intermediate user command entry: one user goal -> ordinary Chat procedure selection -> local deterministic multi-transition execution -> verified completion or ABSTAIN/escalation.
 
