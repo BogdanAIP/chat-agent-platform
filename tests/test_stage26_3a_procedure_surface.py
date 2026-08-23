@@ -11,6 +11,7 @@ QUAL_PROFILE = ROOT / "runtime" / "chat-profiles" / "procedure-qualification" / 
 PROXY = ROOT / "runtime" / "semantic-projection" / "bin" / "procedure-qualification-projection.mjs"
 PACKAGE = ROOT / "runtime" / "semantic-projection" / "package.json"
 START = ROOT / "scripts" / "start-procedure-qualification-profile.ps1"
+DIRECT = ROOT / "scripts" / "stage26-3a-procedure-direct-tunnel.ps1"
 
 
 class Stage263AProcedureSurfaceTests(unittest.TestCase):
@@ -56,13 +57,13 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, source)
 
-    def test_proxy_scrubs_tunnel_credentials_and_allowlists_control_plane_environment(self) -> None:
+    def test_proxy_scrubs_tunnel_credentials_and_allowlists_child_environment(self) -> None:
         source = PROXY.read_text(encoding="utf-8")
         for secret in ("CONTROL_PLANE_API_KEY", "OPENAI_API_KEY", "OPENAI_ADMIN_KEY"):
             self.assertIn(f"'{secret}'", source)
         self.assertIn("delete process.env[key]", source)
         self.assertIn("CONTROL_PLANE_ENV_ALLOWLIST", source)
-        self.assertIn("env: controlPlaneEnvironment()", source)
+        self.assertIn("env: scopedChildEnvironment()", source)
         allowlist_block = source.split("const CONTROL_PLANE_ENV_ALLOWLIST", 1)[1].split("]);", 1)[0]
         for secret in ("CONTROL_PLANE_API_KEY", "OPENAI_API_KEY", "OPENAI_ADMIN_KEY"):
             self.assertNotIn(secret, allowlist_block)
@@ -84,6 +85,7 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         package = json.loads(PACKAGE.read_text(encoding="utf-8"))
         self.assertNotIn("bin/procedure-qualification-projection.mjs", package["files"])
         self.assertIn("acceptance:procedure-qualification", package["scripts"])
+        self.assertNotIn("procedure-qualification-acceptance.mjs", package["scripts"]["acceptance"])
 
     def test_launcher_requires_exact_six_tool_surface(self) -> None:
         source = START.read_text(encoding="utf-8")
@@ -92,6 +94,22 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         self.assertIn("'SEMANTIC_TOOL_COUNT=5'", source)
         self.assertIn("'PROCEDURE_TOOL_COUNT=1'", source)
         self.assertIn("'TOTAL_TOOL_COUNT=6'", source)
+
+    def test_direct_tunnel_harness_reuses_persistent_tunnel_without_admin_crud(self) -> None:
+        source = DIRECT.read_text(encoding="utf-8")
+        self.assertIn("'tunnel_[0-9a-f]{32}'", source)
+        self.assertIn("$qualificationEntry", source)
+        self.assertIn("CHAT_PROCEDURE_ALLOW_CANDIDATE", source)
+        self.assertIn("CHAT_PROCEDURE_STATE_ROOT", source)
+        self.assertIn("& $stopProfiles", source)
+        self.assertIn("--control-plane.tunnel-id", source)
+        for forbidden in (
+            "OPENAI_ADMIN_KEY",
+            "tunnels create",
+            "tunnels update",
+            "tunnels delete",
+        ):
+            self.assertNotIn(forbidden, source)
 
 
 if __name__ == "__main__":
