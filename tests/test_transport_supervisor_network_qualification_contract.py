@@ -25,6 +25,7 @@ class TransportSupervisorNetworkQualificationContractTests(unittest.TestCase):
         self.assertIn("After the computer is actually offline, press Enter here", SOURCE)
         self.assertIn("restore the external network now", SOURCE)
         self.assertIn("After connectivity is restored, press Enter here", SOURCE)
+        self.assertIn("depends on a VPN or proxy", SOURCE)
 
     def test_offline_acceptance_requires_local_runtime_to_stay_ready_while_openai_is_unready(self):
         self.assertIn("[bool]$status.runtime_ready", SOURCE)
@@ -45,6 +46,17 @@ class TransportSupervisorNetworkQualificationContractTests(unittest.TestCase):
         self.assertIn("[int]$currentTunnels[0].ProcessId -eq $tunnelPid", SOURCE)
         self.assertIn("Healthy state did not return automatically", SOURCE)
         self.assertIn("expected reconnect without local runtime churn", SOURCE)
+
+    def test_reconnect_failure_preserves_diagnostic_samples(self):
+        for marker in (
+            "$reconnectSamples = @()",
+            "reconnect-samples.json",
+            "remote_tunnel_status = [string]$status.remote_tunnel_status",
+            "control_plane_poll_fresh = [bool]$status.control_plane_poll_fresh",
+            "recovery_total = if ($null -ne $r)",
+            "Last sample: runtime_ready=",
+        ):
+            self.assertIn(marker, SOURCE)
 
     def test_success_requires_post_reconnect_heartbeat_and_machine_readable_summary(self):
         self.assertIn("Supervisor heartbeat did not advance after network reconnect", SOURCE)
