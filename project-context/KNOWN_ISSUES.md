@@ -66,6 +66,14 @@ Only unresolved issues for the current architecture are listed here. Closed/supe
 
 32. **The accepted hidden-focus guard is proven on VS Code/Monaco only.** Other applications with hidden focused accessibility inputs need their own evidence before reusing app-specific identity assumptions.
 
+33. **Current direct semantic status can overstate transport health.** On `main`, `semantic-direct-controller.ps1` derives both `tunnel_ready` and `mcp_ready` from the official tunnel client's local readiness path. Local readiness is not proof that the OpenAI control-plane path or a specific ChatGPT app route is currently usable.
+
+34. **No accepted self-healing transport supervisor exists yet.** Explicit manager `Start` can recreate a dead owned tunnel-client, but there is no independent desired-state reconciler that survives tray closure and automatically restores recoverable process/network failures after logon, reboot or resume.
+
+35. **Remote/product-side tunnel failures must not be treated as generic local restart failures.** Authentication/permission/resource-loss and ChatGPT/app-side route failures require distinct status and fail-closed behavior. A healthy local runtime must not be churned indefinitely merely because a product-side route reports failure.
+
+36. **The existing `chat/tunnel-reliability-e2e-health` branch is an unaccepted prototype.** It contains useful health/recovery experiments but has no accepted PR/physical evidence, its tests do not cover the full watchdog lifecycle, and the audited controller contains a malformed semantic-child `Stop-Process` invocation. Use `TRANSPORT_SUPERVISOR.md` as the planned contract, not that branch as current architecture.
+
 ## Closed / superseded findings
 
 - Stage 25.1/25.2 browser semantic/vision foundations are merged/accepted; historical candidate-runtime rankings no longer define the active path.
