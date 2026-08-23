@@ -75,9 +75,7 @@ function Invoke-CoreProcess {
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $pwsh
     $startInfo.UseShellExecute = $false
-    $startInfo.CreateNoWindow = $true
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
+    $startInfo.CreateNoWindow = $false
 
     foreach ($argument in @(
         '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
@@ -103,8 +101,6 @@ function Invoke-CoreProcess {
             throw 'Reboot qualification core could not be started.'
         }
 
-        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-        $stderrTask = $process.StandardError.ReadToEndAsync()
         $timeoutMilliseconds = [int](($ReadyTimeoutSeconds + 180) * 1000)
         if (-not $process.WaitForExit($timeoutMilliseconds)) {
             try { $process.Kill($true) } catch {}
@@ -112,15 +108,6 @@ function Invoke-CoreProcess {
             throw "Reboot qualification core timed out after $([int]($ReadyTimeoutSeconds + 180)) seconds."
         }
         $process.WaitForExit()
-
-        $stdout = $stdoutTask.GetAwaiter().GetResult()
-        $stderr = $stderrTask.GetAwaiter().GetResult()
-        if (-not [string]::IsNullOrWhiteSpace($stdout)) {
-            Write-Host $stdout.TrimEnd()
-        }
-        if (-not [string]::IsNullOrWhiteSpace($stderr)) {
-            Write-Host $stderr.TrimEnd()
-        }
 
         if ([int]$process.ExitCode -ne 0) {
             throw "Reboot qualification core failed with exit code $($process.ExitCode)."
