@@ -792,9 +792,10 @@ function Invoke-ReconcileOnce {
             -LastHealthCode ([string]$postHealth.code) `
             -LastAction 'restart_runtime'
         $recovery = Get-RecoveryState
+        $postSupervisorState = if ([string]$postHealth.recovery_action -eq 'none') { 'healthy' } else { 'degraded' }
         $snapshot = New-SupervisorSnapshot `
             -DesiredState 'running' `
-            -SupervisorState (if ([string]$postHealth.recovery_action -eq 'none') { 'healthy' } else { 'degraded' }) `
+            -SupervisorState $postSupervisorState `
             -HealthCode ([string]$postHealth.code) `
             -RecoveryAction ([string]$postHealth.recovery_action) `
             -ManagerStatus $post `
