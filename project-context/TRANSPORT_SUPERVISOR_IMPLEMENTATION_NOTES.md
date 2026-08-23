@@ -35,6 +35,29 @@ Publication failure after a verified runtime recovery is also different from run
 
 A future persistent recovery-state schema should therefore be able to represent an in-progress/pending-publication recovery phase separately from the ordinary restart backoff count. If that representation is introduced, a later reconcile may finalize a verified pending transaction but must not fabricate attribution from ambiguous evidence.
 
+## Failure-class-specific backoff
+
+Retry/backoff state is scoped to the failure/recovery class that created it; it is not a global permission to postpone every later recovery action.
+
+In particular:
+
+```text
+REMOTE_METADATA_UNAVAILABLE
+ -> wait_and_probe
+ -> next_retry_at in the future
+
+then later:
+
+LOCAL_TUNNEL_NOT_RUNNING
+ -> restart_runtime
+```
+
+must **not** inherit the older `wait_and_probe` delay. A newly observed hard local runtime failure that requires `restart_runtime` preempts a pending wait-only metadata delay and may begin bounded local repair on the current reconcile cycle.
+
+This preemption does not remove restart-storm protection. A `next_retry_at` produced by an actual failed `restart_runtime` attempt remains authoritative for later `restart_runtime` attempts. Authentication/permission/resource-loss `blocked` states continue to outrank local restart symptoms according to the health-classification contract.
+
+This distinction is required because the supervisor observes multiple independent evidence layers whose failure class can change between reconciliation cycles. A retry deadline from one layer must not silently become authority over a different, higher-priority local failure class.
+
 ## Desired-state vs ownership boundary
 
 The qualification slice currently derives desired running/stopped state from the existing authoritative manager owner record. That is acceptable as a temporary compatibility seam, but it is not the final product model.
@@ -92,7 +115,7 @@ Supervisor did not publish a verified post-recovery receipt.
 
 This result is important: manager/runtime recovery alone is insufficient evidence for supervisor transaction completion.
 
-Subsequent head `dfa6c930a6a179bc3426a46275215337e77627cf` hardens the receipt path by:
+Subsequent head `dfa6c930a6a179bc3426a46275215337e77627cf` hardened the receipt path by:
 
 - canonicalizing persisted recovery timestamps as UTC;
 - making qualification timestamp comparisons type-safe;
@@ -101,9 +124,35 @@ Subsequent head `dfa6c930a6a179bc3426a46275215337e77627cf` hardens the receipt p
 - preserving captured output for bounded `Status` calls while keeping controller `Start`/`Stop` mutations free of redirected inheritable pipes;
 - capturing live failure receipts/log tail before qualification uninstall.
 
-This head still requires a new exact-head physical kill/recovery run. No acceptance is inferred from code review alone.
+### Attempt 6 — remote wait backoff delayed a later hard local failure
 
-The `REMOTE_METADATA_UNAVAILABLE` state observed in earlier recovery diagnostics is not by itself evidence that local recovery failed. Local runtime, remote metadata/control-plane and ordinary-Chat route evidence remain independent dimensions.
+Exact tested head `dfcd07c5d6becfff747b43c29d2ab752a5059347` established a healthy local direct semantic baseline but remote metadata probing was temporarily unavailable. The supervisor therefore recorded:
+
+```text
+health_code=REMOTE_METADATA_UNAVAILABLE
+recovery_action=wait_and_probe
+next_retry_at=2026-08-23T08:34:05.0039182Z
+```
+
+After fault injection killed exact owned tunnel PID `20204`, the classifier correctly changed to:
+
+```text
+health_code=LOCAL_TUNNEL_NOT_RUNNING
+recovery_action=restart_runtime
+runtime_ready=false
+```
+
+but the supervisor retained the old `wait_and_probe` deadline and reported `backoff`. The first local recovery attempt did not begin until `2026-08-23T08:34:22.3980108Z`, leaving only about 51 seconds inside the qualification's 120-second recovery window even though one bounded controller mutation may itself consume up to 90 seconds. The qualification correctly failed with:
+
+```text
+Supervisor did not recover the killed direct tunnel within 120 seconds.
+```
+
+Rollback restored the previous direct controller. The preserved state/log evidence proved that classification was correct; the bug was cross-failure-class reuse of retry state, not failure to observe the dead tunnel.
+
+The correction makes a current `restart_runtime` action preempt an earlier `last_action=wait_and_probe` deadline while preserving deadlines created by failed `restart_runtime` attempts. No acceptance is inferred until the corrected exact head passes the physical gate.
+
+The `REMOTE_METADATA_UNAVAILABLE` state is not by itself evidence that local recovery failed. Local runtime, remote metadata/control-plane and ordinary-Chat route evidence remain independent dimensions.
 
 ## Required next gate
 
@@ -113,6 +162,7 @@ The immediate next physical gate is the same exact fault class on the current ex
 healthy baseline
  -> start supervisor
  -> kill only exact owned tunnel-client
+ -> local restart_runtime preempts any older wait_and_probe delay
  -> new tunnel PID
  -> same supervisor PID
  -> runtime_ready restored
