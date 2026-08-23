@@ -70,23 +70,70 @@ function Invoke-ManagerMutation {
     }
 }
 
-function Invoke-Core {
-    $arguments = @(
+function Invoke-CoreProcess {
+    $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $pwsh
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    foreach ($argument in @(
+        '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
+        '-File', $Core,
         '-Phase', $Phase,
         '-ReadyTimeoutSeconds', [string]$ReadyTimeoutSeconds
-    )
+    )) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
     if (-not [string]::IsNullOrWhiteSpace($RunDir)) {
-        $arguments += @('-RunDir', $RunDir)
+        $startInfo.ArgumentList.Add('-RunDir')
+        $startInfo.ArgumentList.Add([string]$RunDir)
     }
     if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
-        $arguments += @('-OutputRoot', $OutputRoot)
+        $startInfo.ArgumentList.Add('-OutputRoot')
+        $startInfo.ArgumentList.Add([string]$OutputRoot)
     }
-    & $Core @arguments
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) {
+            throw 'Reboot qualification core could not be started.'
+        }
+
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $timeoutMilliseconds = [int](($ReadyTimeoutSeconds + 180) * 1000)
+        if (-not $process.WaitForExit($timeoutMilliseconds)) {
+            try { $process.Kill($true) } catch {}
+            try { $process.WaitForExit(5000) | Out-Null } catch {}
+            throw "Reboot qualification core timed out after $([int]($ReadyTimeoutSeconds + 180)) seconds."
+        }
+        $process.WaitForExit()
+
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        if (-not [string]::IsNullOrWhiteSpace($stdout)) {
+            Write-Host $stdout.TrimEnd()
+        }
+        if (-not [string]::IsNullOrWhiteSpace($stderr)) {
+            Write-Host $stderr.TrimEnd()
+        }
+
+        if ([int]$process.ExitCode -ne 0) {
+            throw "Reboot qualification core failed with exit code $($process.ExitCode)."
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
 }
 
 if ($Phase -eq 'Verify') {
     Write-Host 'REBOOT_GATE_MODE=verify-observational'
-    Invoke-Core
+    Invoke-CoreProcess
     exit 0
 }
 
@@ -98,8 +145,9 @@ try {
     Write-Host 'Installing the qualification transport health surface before baseline evaluation.' -ForegroundColor Yellow
     & $Installer -NoStart
 
-    Invoke-Core
+    Invoke-CoreProcess
     $preparePassed = $true
+    Write-Host 'REBOOT_GATE_PREPARE_RESULT=PASSED' -ForegroundColor Green
 }
 catch {
     $failure = $_
@@ -115,10 +163,6 @@ catch {
         }
     }
     catch {}
+    Write-Host 'REBOOT_GATE_PREPARE_RESULT=FAILED' -ForegroundColor Red
     throw $failure
-}
-finally {
-    if (-not $preparePassed) {
-        Write-Host 'REBOOT_GATE_PREPARE_RESULT=FAILED' -ForegroundColor Red
-    }
 }
