@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -79,11 +80,20 @@ class DocumentationConsistencyTests(unittest.TestCase):
         current = (CONTEXT / "CURRENT_STATE.md").read_text(encoding="utf-8")
         continuation = (CONTEXT / "CONTINUATION_CONTEXT.md").read_text(encoding="utf-8")
         for text in (roadmap, current, continuation):
-            self.assertIn("26.2E", text)
-            self.assertIn("26.3", text)
-            self.assertIn("26.4", text)
-            self.assertLess(text.index("26.2E"), text.index("26.3"))
-            self.assertLess(text.index("26.3"), text.index("26.4"))
+            for stage in ("26.2E", "26.3", "26.4"):
+                self.assertIn(stage, text)
+
+            # Compare canonical Stage headings/critical-path entries rather than
+            # the first incidental mention. Live docs may legitimately mention
+            # a qualification-only 26.3 surface before the historical 26.2E
+            # summary without changing the actual roadmap order.
+            positions = []
+            for stage in ("26.2E", "26.3", "26.4"):
+                matches = list(re.finditer(rf"(?m)^(?:#+\s+|\s*->\s*)?(?:Stage\s+)?{re.escape(stage)}\b", text))
+                self.assertTrue(matches, f"no canonical occurrence for Stage {stage}")
+                positions.append(matches[-1].start())
+            self.assertLess(positions[0], positions[1])
+            self.assertLess(positions[1], positions[2])
 
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
