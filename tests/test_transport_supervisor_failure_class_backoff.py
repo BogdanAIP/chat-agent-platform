@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
+import subprocess
 import unittest
 
 
@@ -36,6 +38,46 @@ class TransportSupervisorFailureClassBackoffTests(unittest.TestCase):
         self.assertIn(
             "Test-RecoveryDue -RecoveryState $recovery -CurrentAction ([string]$health.recovery_action)",
             self.source,
+        )
+
+
+@unittest.skipUnless(shutil.which("pwsh") or shutil.which("pwsh.exe"), "PowerShell 7 unavailable")
+class TransportSupervisorFailureClassBackoffPowerShellTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.pwsh = shutil.which("pwsh") or shutil.which("pwsh.exe")
+
+    def _invoke_policy(self, *, last_action: str, current_action: str) -> bool:
+        source = str(SUPERVISOR).replace("'", "''")
+        command = f"""
+$raw = Get-Content -LiteralPath '{source}' -Raw
+$start = $raw.IndexOf('function Test-RecoveryDue')
+$end = $raw.IndexOf('function Get-NextRecoveryDelaySeconds', $start)
+$block = $raw.Substring($start, $end - $start)
+Invoke-Expression $block
+$state = [pscustomobject]@{{
+    next_retry_at = (Get-Date).ToUniversalTime().AddMinutes(5).ToString('o')
+    last_action = '{last_action}'
+}}
+$result = Test-RecoveryDue -RecoveryState $state -CurrentAction '{current_action}'
+if ($result) {{ 'true' }} else {{ 'false' }}
+"""
+        completed = subprocess.run(
+            [self.pwsh, "-NoLogo", "-NoProfile", "-Command", command],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        return completed.stdout.strip().lower() == "true"
+
+    def test_future_wait_probe_deadline_is_preempted_by_local_restart(self) -> None:
+        self.assertTrue(
+            self._invoke_policy(last_action="wait_and_probe", current_action="restart_runtime")
+        )
+
+    def test_future_restart_deadline_is_not_preempted_by_another_restart(self) -> None:
+        self.assertFalse(
+            self._invoke_policy(last_action="restart_runtime", current_action="restart_runtime")
         )
 
 
