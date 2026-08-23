@@ -1,6 +1,39 @@
 # Stage 26.3A Verified Procedure Runtime implementation notes
 
-Status: **implementation in progress / ordinary-Chat physical acceptance not yet complete**.
+Status: **hosted qualification green after Transport Supervisor v1 integration / ordinary-Chat physical acceptance not yet complete**.
+
+## Current exact candidate
+
+PR #92 is rebased by merge onto the accepted Transport Supervisor v1 foundation from PR #94.
+
+```text
+main foundation = 2f33997d3fbaa1fc52d437c00be7f16e55bdde5e
+Stage 26.3A hosted candidate = e4507dbe6dc07e182313769ebe833dd1e6801572
+```
+
+The complete pull-request-triggered hosted matrix is green on `e4507dbe6dc07e182313769ebe833dd1e6801572`:
+
+```text
+ci = success
+Chat Profile Acceptance = success
+Semantic Projection Acceptance = success
+Semantic Dependency Reproducibility = success
+Direct Semantic Tunnel Acceptance = success
+Stage 26.3A Procedure Qualification = success
+Stage 25.1 Security Regressions = success
+Stage 25.1 Vision Bridge Acceptance = success
+CodeQL Security = success
+Secret History Scan = success
+```
+
+This proves hosted compatibility with the merged Transport Supervisor v1 code and regression surface. It does **not** constitute physical Stage 26.3A acceptance.
+
+Remaining acceptance gates are:
+
+1. exact-head target-Windows direct-tunnel qualification;
+2. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
+3. independent final artifact verification through `workspace_read`;
+4. incompatible/pre-existing state -> structured ABSTAIN with zero unauthorized continuation/overwrite.
 
 ## Current qualification procedure
 
@@ -92,9 +125,9 @@ Internal execution-state persistence is allowed so the runtime can record an ABS
 
 The procedure creates its reserved workspace directory only after preflight has established a path on which execution may proceed.
 
-## Required automated fault coverage before public `procedure_run`
+## Automated fault/security coverage — GREEN on current hosted candidate
 
-Before wiring the candidate through the ordinary-Chat semantic surface, tests must cover at minimum:
+The current hosted candidate covers at minimum:
 
 1. resume from `staged_verified` completes only transitions 2-3;
 2. resume from `final_verified` completes only transition 3;
@@ -107,6 +140,8 @@ Before wiring the candidate through the ordinary-Chat semantic surface, tests mu
 9. request fields remain a strict allowlist with no command/path/tool injection;
 10. persisted TaskState contains structured evidence, not private reasoning.
 
+These hosted regressions are necessary but not sufficient for physical acceptance.
+
 ## Ordinary-Chat integration order
 
 Do not expand this kernel to Windows/UI procedures yet.
@@ -114,19 +149,19 @@ Do not expand this kernel to Windows/UI procedures yet.
 Required order:
 
 ```text
-checkpoint-resumable file procedure
- -> hosted deterministic/fault tests
- -> truthful qualification-only procedure_run surface
- -> direct MCP procedure_run + independent workspace_read verification
- -> ordinary ChatGPT ONE-goal E2E, no intermediate PowerShell relay
+checkpoint-resumable file procedure — implemented
+ -> hosted deterministic/fault tests — GREEN on e4507dbe...
+ -> truthful qualification-only procedure_run surface — GREEN hosted
+ -> direct MCP procedure_run + independent workspace_read verification — next physical gate
+ -> ordinary ChatGPT ONE-goal E2E, no intermediate PowerShell relay — next physical gate
  -> only then integrate broader Files/Browser/Windows procedure transitions
 ```
 
-A dedicated `procedure_run`-class capability is preferable to hiding multi-transition procedure consequences inside `workspace_write` or `web_interact`. The normal five-tool profile should remain unchanged until the dedicated public-contract ADR/profile is explicitly qualified.
+A dedicated `procedure_run`-class capability is preferable to hiding multi-transition procedure consequences inside `workspace_write` or `web_interact`. The normal five-tool profile remains unchanged; the extra surface is confined to the qualification profile until its physical gate is accepted.
 
 ## Acceptance meaning
 
-A successful local Python invocation is not Stage 26.3 product acceptance.
+A successful hosted workflow or local Python invocation is not Stage 26.3 product acceptance.
 
 The first accepted vertical slice requires:
 
