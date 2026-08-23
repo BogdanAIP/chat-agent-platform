@@ -59,6 +59,19 @@ class TransportSupervisorRecoveryReceiptContractTests(unittest.TestCase):
         self.assertLess(publication_marker, success_save)
         self.assertLess(success_save, publication_failure)
 
+    def test_success_publication_computes_supervisor_state_before_binding_argument(self):
+        reconcile_start = SUPERVISOR.index("# Runtime recovery is now complete.")
+        reconcile_end = SUPERVISOR.index("function Get-SupervisorStatus", reconcile_start)
+        publication_block = SUPERVISOR[reconcile_start:reconcile_end]
+
+        state_assignment = (
+            "$postSupervisorState = if ([string]$postHealth.recovery_action -eq 'none') "
+            "{ 'healthy' } else { 'degraded' }"
+        )
+        self.assertIn(state_assignment, publication_block)
+        self.assertIn("-SupervisorState $postSupervisorState", publication_block)
+        self.assertNotIn("-SupervisorState (if ", publication_block)
+
     def test_physical_gate_uses_type_safe_utc_timestamp_comparison(self):
         self.assertIn("function ConvertTo-UtcDateTime", QUALIFICATION)
         self.assertIn(
