@@ -109,7 +109,7 @@ Explicit release order:
 26.2E real application E2E                         ACCEPTED
  -> 26.3 Verified Procedure Runtime / Control Plane ACTIVE
     -> 26.3A six-tool verified procedure runtime   ACCEPTED
-    -> 26.3B Verification Kernel + Finish Gate     NEXT
+    -> 26.3B Verification Kernel + Finish Gate     ACTIVE
     -> 26.3C WorkingState + typed recovery + LoopGuard
  -> 26.4 Human Demo -> transferable verified candidate skill
  -> 26.5 Hybrid Computer-Use Integration
@@ -119,24 +119,25 @@ Explicit release order:
 
 The 2026-08-24 Stage 26.3A GUI-agent research is now promoted into this order through `COMPUTER_USE_ARCHITECTURE.md` and ADR-032/033.
 
-## 26.3B — Verification Kernel + independent Finish Gate — NEXT
+## 26.3B — Verification Kernel + independent Finish Gate — ACTIVE
 
 Primary objective: make verification a reusable cross-capability contract instead of stage-specific ad hoc checks.
 
-Implement deterministic primitives for:
+The first active foundation slice introduces:
 
 ```text
-ExpectedEffect / postcondition contract
-fresh re-observation reference
+ObservationRef / ObservationSnapshot
+capability + subject + observation-stream identity
+same-stream monotonic freshness
+ExpectedEffect / bounded declarative postconditions
 PASS | FAIL | UNKNOWN transition result
-file/artifact identity/content/structure
-browser URL/document/control/result state
-process/window/application identity/state
-cross-capability goal predicates
-candidate_done -> independent Finish Gate -> DONE
+independent Finish Gate
+separate task-success and safety/policy evidence
 ```
 
-The Finish Gate must be task-level and independent of planner confidence or action-history plausibility.
+Freshness does not rely on wall-clock plausibility. Verification requires evidence from the same observation stream/capability/subject and a strictly higher sequence; mismatched streams, stale state, ambiguity or incomplete required evidence yield `UNKNOWN` rather than guessed success.
+
+The Finish Gate is task-level and independent of planner confidence or action-history plausibility. `candidate_done` is only a proposal.
 
 Minimum task completion dimensions:
 
@@ -146,7 +147,18 @@ Minimum task completion dimensions:
 - no required ambiguity or confirmation remains unresolved;
 - safety/policy predicates hold.
 
-Task-success and safety evidence remain separate even if evaluated at the same completion boundary.
+Task-success, unresolved completion requirements and safety evidence remain distinct even if evaluated at the same completion boundary.
+
+The foundation slice is **not Stage 26.3B acceptance**. Remaining work before acceptance:
+
+```text
+file/artifact normalized observation adapter
+migrate verified_workspace_artifact_v1 onto shared kernel
+browser URL/document/control/result verification adapter
+process/window/application verification adapter
+cross-capability task predicates where real procedures require them
+physical acceptance once shared verification changes a production action/procedure path
+```
 
 Non-negotiable:
 
@@ -154,8 +166,10 @@ Non-negotiable:
 action delivered != transition verified
 transition verified != task completed
 current observed state > remembered procedure state
-stale / ambiguous / UNKNOWN -> zero unauthorized continuation
+stale / mismatched-stream / ambiguous / UNKNOWN -> zero unauthorized continuation
 ```
+
+Active implementation contract: `STAGE26_3B_VERIFICATION_KERNEL.md`.
 
 ## 26.3C — WorkingState + Typed Recovery + LoopGuard
 
