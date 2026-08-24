@@ -62,6 +62,7 @@ $ManualStatusFile = Join-Path $StateDir "manual-status.json"
 $ControllerLog = Join-Path $LocalRoot "logs\controller.log"
 $SupervisorTaskName = "Chat Agent Platform Transport Supervisor"
 $AutomaticSnapshotFreshnessSeconds = 2100
+$OperationTimeoutSeconds = 120
 
 New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 
@@ -245,13 +246,25 @@ function Save-ManualStatusForAction {
         return
     }
 
-    $settings = Get-SettingsProjection
     $running = ($Action -eq "Start")
+    $expectedDesiredState = if ($running) { "running" } else { "stopped" }
+    $desired = Read-JsonFile -Path $DesiredStateFile
+    $currentDesiredState = [string](
+        Get-PropertyValue -Object $desired -Name "desired_state" -DefaultValue "unknown"
+    )
 
+    # A lifecycle process can finish after another explicit action has already
+    # changed desired-state.json. Never let that stale completion overwrite the
+    # newer user intent with a contradictory manual-status receipt.
+    if ($currentDesiredState -ne $expectedDesiredState) {
+        return
+    }
+
+    $settings = Get-SettingsProjection
     Write-AtomicJson -Path $ManualStatusFile -Value ([ordered]@{
         schema_version = 1
         source = "manual_user_action"
-        desired_state = if ($running) { "running" } else { "stopped" }
+        desired_state = $expectedDesiredState
         profile = [string]$settings.profile
         runtime_ready = $running
         mcp_ready = $running
@@ -449,12 +462,37 @@ $notify.ContextMenuStrip = $menu
 # Legacy top-level controls intentionally removed from the visible UI:
 # "Переключить ВКЛ / ВЫКЛ", simultaneous "Включить" and "Выключить" entries.
 
-$script:OperationJob = $null
+$script:OperationProcess = $null
+$script:OperationStdoutTask = $null
+$script:OperationStderrTask = $null
 $script:OperationAction = $null
+$script:OperationStartedAt = $null
 $script:LastState = $null
 
 $operationTimer = New-Object System.Windows.Forms.Timer
 $operationTimer.Interval = 250
+
+function Test-OperationRunning {
+    if ($null -eq $script:OperationProcess) {
+        return $false
+    }
+    try {
+        return (-not $script:OperationProcess.HasExited)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Clear-OperationProcess {
+    if ($null -ne $script:OperationProcess) {
+        try { $script:OperationProcess.Dispose() } catch {}
+    }
+    $script:OperationProcess = $null
+    $script:OperationStdoutTask = $null
+    $script:OperationStderrTask = $null
+    $script:OperationStartedAt = $null
+}
 
 function Set-VisualState {
     param(
@@ -527,10 +565,7 @@ function Set-VisualState {
 }
 
 function Refresh-VisualState {
-    if (
-        $null -ne $script:OperationJob -and
-        $script:OperationJob.State -eq "Running"
-    ) {
+    if (Test-OperationRunning) {
         Set-VisualState -State ([pscustomobject]@{
             mode = "busy"
             operation_mode = Get-OperationMode
@@ -579,18 +614,11 @@ function Start-ControllerOperation {
         [string]$Action
     )
 
-    if (
-        $null -ne $script:OperationJob -and
-        $script:OperationJob.State -eq "Running"
-    ) {
+    if (Test-OperationRunning) {
         return
     }
 
-    if ($null -ne $script:OperationJob) {
-        Remove-Job $script:OperationJob -Force -ErrorAction SilentlyContinue
-        $script:OperationJob = $null
-    }
-
+    Clear-OperationProcess
     Set-VisualState -State ([pscustomobject]@{
         mode = "busy"
         operation_mode = Get-OperationMode
@@ -598,27 +626,36 @@ function Start-ControllerOperation {
         files_root = ""
     })
 
+    $pwsh = (Get-Command "pwsh.exe" -ErrorAction Stop).Source
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $pwsh
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @(
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $CommandPath,
+        "-Action", $Action,
+        "-NoNotify"
+    )) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) {
+        $process.Dispose()
+        throw "Не удалось запустить операцию $Action."
+    }
+
+    $script:OperationProcess = $process
+    $script:OperationStdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $script:OperationStderrTask = $process.StandardError.ReadToEndAsync()
     $script:OperationAction = $Action
-    $script:OperationJob = Start-Job `
-        -ArgumentList $CommandPath, $Action `
-        -ScriptBlock {
-            param($CommandPath, $Action)
-            $ErrorActionPreference = "Stop"
-            $pwsh = (Get-Command "pwsh.exe" -ErrorAction Stop).Source
-            $output = @(
-                & $pwsh `
-                    -NoLogo `
-                    -NoProfile `
-                    -ExecutionPolicy Bypass `
-                    -File $CommandPath `
-                    -Action $Action `
-                    -NoNotify `
-                    2>&1
-            )
-            if ($LASTEXITCODE -ne 0) {
-                throw "Manager action $Action failed: $(($output | Out-String).Trim())"
-            }
-        }
+    $script:OperationStartedAt = [datetimeoffset]::UtcNow
 
     # Runs only while an explicit Start/Stop action is in progress.
     $operationTimer.Start()
@@ -647,10 +684,7 @@ function Set-PlatformOperationMode {
         [string]$Mode
     )
 
-    if (
-        $null -ne $script:OperationJob -and
-        $script:OperationJob.State -eq "Running"
-    ) {
+    if (Test-OperationRunning) {
         $notify.BalloonTipTitle = "Chat Agent Platform"
         $notify.BalloonTipText = "Дождитесь завершения текущей операции."
         $notify.ShowBalloonTip(2500)
@@ -704,41 +738,71 @@ function Set-PlatformOperationMode {
 }
 
 $operationTimer.add_Tick({
-    if ($null -eq $script:OperationJob) {
+    if ($null -eq $script:OperationProcess) {
         $operationTimer.Stop()
         return
     }
-    if ($script:OperationJob.State -notin @("Completed", "Failed", "Stopped")) {
-        return
+
+    $timedOut = $false
+    if (-not $script:OperationProcess.HasExited) {
+        if (
+            $null -eq $script:OperationStartedAt -or
+            ([datetimeoffset]::UtcNow - $script:OperationStartedAt).TotalSeconds -lt $OperationTimeoutSeconds
+        ) {
+            return
+        }
+
+        $timedOut = $true
+        try { $script:OperationProcess.Kill($true) } catch {}
+        try { $script:OperationProcess.WaitForExit(5000) | Out-Null } catch {}
     }
 
     $operationTimer.Stop()
-    $failed = ($script:OperationJob.State -ne "Completed")
-    $reason = if ($failed) { $script:OperationJob.ChildJobs[0].JobStateInfo.Reason } else { $null }
+    try { $script:OperationProcess.WaitForExit() } catch {}
 
+    $exitCode = if ($timedOut) { -1 } else { $script:OperationProcess.ExitCode }
+    $stdout = ""
+    $stderr = ""
     try {
-        Receive-Job $script:OperationJob -ErrorAction Stop | Out-Null
-    }
-    catch {
-        $failed = $true
-        if ($null -eq $reason) {
-            $reason = $_.Exception
+        if ($null -ne $script:OperationStdoutTask) {
+            $stdout = [string]$script:OperationStdoutTask.GetAwaiter().GetResult()
         }
     }
-
-    Remove-Job $script:OperationJob -Force -ErrorAction SilentlyContinue
-    $script:OperationJob = $null
-
-    if (-not $failed -and $script:OperationAction -in @("Start", "Stop")) {
-        Save-ManualStatusForAction -Action ([string]$script:OperationAction)
+    catch {}
+    try {
+        if ($null -ne $script:OperationStderrTask) {
+            $stderr = [string]$script:OperationStderrTask.GetAwaiter().GetResult()
+        }
     }
+    catch {}
+
+    $action = [string]$script:OperationAction
+    $failed = ($exitCode -ne 0)
+    $failureText = if ($timedOut) {
+        "Операция превысила $OperationTimeoutSeconds секунд и была остановлена."
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($stderr)) {
+        $stderr.Trim()
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($stdout)) {
+        $stdout.Trim()
+    }
+    else {
+        "Операция завершилась с кодом $exitCode."
+    }
+
+    Clear-OperationProcess
     $script:OperationAction = $null
+
+    if (-not $failed -and $action -in @("Start", "Stop")) {
+        Save-ManualStatusForAction -Action $action
+    }
 
     Refresh-VisualState
     if ($failed) {
         $notify.BalloonTipTitle = "Chat Agent Platform - ошибка"
-        $notify.BalloonTipText = if ($reason) { $reason.Message } else { "Операция завершилась с ошибкой." }
-        $notify.ShowBalloonTip(3500)
+        $notify.BalloonTipText = $failureText
+        $notify.ShowBalloonTip(4000)
     }
     else {
         Show-StateBalloon
@@ -826,9 +890,10 @@ $exitItem.add_Click({
     $operationTimer.Stop()
     $operationTimer.Dispose()
 
-    if ($null -ne $script:OperationJob) {
-        Remove-Job $script:OperationJob -Force -ErrorAction SilentlyContinue
+    if (Test-OperationRunning) {
+        try { $script:OperationProcess.Kill($true) } catch {}
     }
+    Clear-OperationProcess
 
     $uiHost.Dispose()
     $notify.Dispose()
