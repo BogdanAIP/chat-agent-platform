@@ -1,0 +1,318 @@
+Set-StrictMode -Version Latest
+
+function Get-ChatTunnelArchitecture {
+    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+    switch ($arch) {
+        'x64' { return 'amd64' }
+        'arm64' { return 'arm64' }
+        default { throw "Unsupported Windows architecture for tunnel-client: $arch" }
+    }
+}
+
+function Get-ChatOfficialTunnelRelease {
+    param(
+        [Parameter(Mandatory)] [string]$AcceptedVersion,
+        [Parameter(Mandatory)] [string]$ReleaseApi
+    )
+
+    $headers = @{
+        Accept = 'application/vnd.github+json'
+        'User-Agent' = 'chat-agent-platform-bootstrap'
+        'X-GitHub-Api-Version' = '2022-11-28'
+    }
+    $release = Invoke-RestMethod -Method Get -Uri $ReleaseApi -Headers $headers -TimeoutSec 30
+
+    if ([bool]$release.draft -or [bool]$release.prerelease) {
+        throw 'Accepted tunnel-client release is not a stable published release.'
+    }
+    $tag = [string]$release.tag_name
+    if ($tag -ne $AcceptedVersion) {
+        throw "Expected tunnel-client $AcceptedVersion, got $tag."
+    }
+
+    $arch = Get-ChatTunnelArchitecture
+    $assetName = "tunnel-client-$tag-windows-$arch.zip"
+    $asset = @($release.assets | Where-Object { [string]$_.name -eq $assetName })
+    $sumAsset = @($release.assets | Where-Object { [string]$_.name -eq 'SHA256SUMS.txt' })
+    if ($asset.Count -ne 1) {
+        throw "Official release $tag does not contain exactly one $assetName asset."
+    }
+    if ($sumAsset.Count -ne 1) {
+        throw "Official release $tag does not contain SHA256SUMS.txt."
+    }
+
+    $expectedPrefix = "https://github.com/openai/tunnel-client/releases/download/$tag/"
+    foreach ($url in @([string]$asset[0].browser_download_url, [string]$sumAsset[0].browser_download_url)) {
+        if (-not $url.StartsWith($expectedPrefix, [System.StringComparison]::Ordinal)) {
+            throw "Unexpected tunnel-client release asset URL: $url"
+        }
+    }
+
+    return [pscustomobject]@{
+        tag = $tag
+        asset_name = $assetName
+        asset_url = [string]$asset[0].browser_download_url
+        asset_digest = [string]$asset[0].digest
+        sums_url = [string]$sumAsset[0].browser_download_url
+        release_url = [string]$release.html_url
+    }
+}
+
+function Get-ChatExpectedChecksum {
+    param(
+        [Parameter(Mandatory)] [string]$SumsPath,
+        [Parameter(Mandatory)] [string]$AssetName
+    )
+
+    $pattern = '^(?<hash>[0-9A-Fa-f]{64})\s+[*]?' + [regex]::Escape($AssetName) + '$'
+    foreach ($line in Get-Content -LiteralPath $SumsPath) {
+        $trimmed = $line.Trim()
+        if ($trimmed -match $pattern) {
+            return $Matches.hash.ToLowerInvariant()
+        }
+    }
+    throw "SHA256SUMS.txt does not contain a checksum for $AssetName."
+}
+
+function Get-ChatExactTunnelProcesses {
+    param([Parameter(Mandatory)] [string]$TunnelExe)
+
+    if (-not (Test-Path -LiteralPath $TunnelExe -PathType Leaf)) {
+        return @()
+    }
+
+    $expected = [System.IO.Path]::GetFullPath($TunnelExe)
+    return @(
+        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+            Where-Object {
+                if ($_.Name -ne 'tunnel-client.exe') { return $false }
+                $actual = [string]$_.ExecutablePath
+                if ([string]::IsNullOrWhiteSpace($actual)) { return $false }
+                try { $actual = [System.IO.Path]::GetFullPath($actual) } catch { return $false }
+                return ($actual -ieq $expected)
+            }
+    )
+}
+
+function Install-ChatOfficialTunnelClient {
+    param(
+        [Parameter(Mandatory)] [string]$LocalRoot,
+        [Parameter(Mandatory)] [string]$BinDir,
+        [Parameter(Mandatory)] [string]$TunnelDir,
+        [Parameter(Mandatory)] [string]$StateDir,
+        [Parameter(Mandatory)] [string]$TunnelExe,
+        [Parameter(Mandatory)] [string]$InstallMetadata,
+        [Parameter(Mandatory)] [string]$AcceptedVersion,
+        [Parameter(Mandatory)] [string]$ReleaseApi,
+        [Parameter(Mandatory)] [hashtable]$AcceptedArchiveSha256,
+        [switch]$ForceUpdate
+    )
+
+    foreach ($path in @($LocalRoot, $BinDir, $TunnelDir, $StateDir)) {
+        New-Item -ItemType Directory -Force -Path $path | Out-Null
+    }
+
+    $release = Get-ChatOfficialTunnelRelease -AcceptedVersion $AcceptedVersion -ReleaseApi $ReleaseApi
+    Write-Host "OFFICIAL_TUNNEL_RELEASE=$($release.tag)"
+    Write-Host "OFFICIAL_RELEASE_URL=$($release.release_url)"
+
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("chat-agent-platform-bootstrap-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+
+    try {
+        $zipPath = Join-Path $tempRoot $release.asset_name
+        $sumsPath = Join-Path $tempRoot 'SHA256SUMS.txt'
+        Invoke-WebRequest -Uri $release.sums_url -OutFile $sumsPath -TimeoutSec 60
+        Invoke-WebRequest -Uri $release.asset_url -OutFile $zipPath -TimeoutSec 180
+
+        $publishedChecksum = Get-ChatExpectedChecksum -SumsPath $sumsPath -AssetName $release.asset_name
+        $arch = Get-ChatTunnelArchitecture
+        $expected = [string]$AcceptedArchiveSha256[$arch]
+        if ([string]::IsNullOrWhiteSpace($expected)) {
+            throw "No reviewed tunnel-client checksum is pinned for architecture $arch."
+        }
+        if ($publishedChecksum -ne $expected) {
+            throw 'Official SHA256SUMS.txt disagrees with the reviewed checksum pinned in this repository.'
+        }
+
+        $actual = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actual -ne $expected) {
+            throw "Official tunnel-client ZIP checksum mismatch. Expected $expected, got $actual."
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($release.asset_digest)) {
+            $apiDigest = $release.asset_digest.ToLowerInvariant()
+            if ($apiDigest -notmatch '^sha256:[0-9a-f]{64}$') {
+                throw "Unexpected GitHub asset digest format: $($release.asset_digest)"
+            }
+            if ($apiDigest -ne "sha256:$actual") {
+                throw 'GitHub release asset digest does not match the downloaded ZIP.'
+            }
+        }
+
+        $extractDir = Join-Path $tempRoot 'extract'
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
+        $candidates = @(Get-ChildItem -LiteralPath $extractDir -Filter 'tunnel-client.exe' -File -Recurse)
+        if ($candidates.Count -ne 1) {
+            throw "Expected exactly one tunnel-client.exe in the official archive; found $($candidates.Count)."
+        }
+
+        $candidate = $candidates[0].FullName
+        $help = @(& $candidate help quickstart 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            throw "Downloaded tunnel-client failed executable preflight: $($help -join ' ')"
+        }
+
+        $candidateHash = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+        $needsInstall = $true
+        if (Test-Path -LiteralPath $TunnelExe -PathType Leaf) {
+            $installedHash = (Get-FileHash -LiteralPath $TunnelExe -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($installedHash -eq $candidateHash -and -not $ForceUpdate) {
+                $needsInstall = $false
+            }
+        }
+
+        if ($needsInstall) {
+            if (@(Get-ChatExactTunnelProcesses -TunnelExe $TunnelExe).Count -gt 0) {
+                throw 'The installed tunnel-client is running. Stop Chat Agent Platform before updating it.'
+            }
+            $newPath = "$TunnelExe.new"
+            Copy-Item -LiteralPath $candidate -Destination $newPath -Force
+            $newHash = (Get-FileHash -LiteralPath $newPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($newHash -ne $candidateHash) {
+                Remove-Item -LiteralPath $newPath -Force -ErrorAction SilentlyContinue
+                throw 'Tunnel binary copy verification failed.'
+            }
+            Move-Item -LiteralPath $newPath -Destination $TunnelExe -Force
+        }
+
+        [ordered]@{
+            schema_version = 1
+            version = $release.tag
+            archive_sha256 = $actual
+            binary_sha256 = $candidateHash
+            asset = $release.asset_name
+            source = $release.asset_url
+            release = $release.release_url
+            verified_at = (Get-Date).ToUniversalTime().ToString('o')
+        } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $InstallMetadata -Encoding utf8
+
+        Write-Host "TUNNEL_BINARY=$TunnelExe"
+        Write-Host "TUNNEL_ARCHIVE_SHA256=$actual"
+        Write-Host "TUNNEL_BINARY_SHA256=$candidateHash"
+        Write-Host 'TUNNEL_BINARY_VERIFIED=True' -ForegroundColor Green
+    }
+    finally {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Resolve-ChatTunnelId {
+    param(
+        [string]$RequestedTunnelId,
+        [Parameter(Mandatory)] [string]$TunnelProfile
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedTunnelId)) {
+        $candidate = $RequestedTunnelId.Trim()
+    }
+    elseif (Test-Path -LiteralPath $TunnelProfile -PathType Leaf) {
+        $raw = Get-Content -LiteralPath $TunnelProfile -Raw
+        $matches = @(
+            [regex]::Matches($raw, 'tunnel_[0-9a-f]{32}') |
+                ForEach-Object { $_.Value } |
+                Select-Object -Unique
+        )
+        if ($matches.Count -eq 1) {
+            $candidate = [string]$matches[0]
+            Write-Host 'TUNNEL_ID_SOURCE=existing-profile'
+        }
+        else {
+            $candidate = (Read-Host 'Вставь CONTROL_PLANE_TUNNEL_ID (tunnel_ + 32 hex символа)').Trim()
+        }
+    }
+    else {
+        $candidate = (Read-Host 'Вставь CONTROL_PLANE_TUNNEL_ID (tunnel_ + 32 hex символа)').Trim()
+    }
+
+    if ($candidate -notmatch '^tunnel_[0-9a-f]{32}$') {
+        throw 'TunnelId has invalid format. Expected tunnel_ followed by 32 lowercase hexadecimal characters.'
+    }
+    return $candidate
+}
+
+function Test-ChatTunnelProfileContract {
+    param(
+        [Parameter(Mandatory)] [string]$Path,
+        [Parameter(Mandatory)] [string]$ResolvedTunnelId,
+        [Parameter(Mandatory)] [string]$McpUrl
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    $raw = Get-Content -LiteralPath $Path -Raw
+
+    $logBlock = [regex]::Match($raw, '(?ms)^\s*log:\s*\r?\n(?<body>(?:[ \t]+[^\r\n]*(?:\r?\n|$))*)')
+    if ($logBlock.Success) {
+        $logFileMatch = [regex]::Match($logBlock.Groups['body'].Value, '(?m)^[ \t]+file:\s*(?<value>[^\r\n#]+)')
+        if ($logFileMatch.Success) {
+            $logFile = $logFileMatch.Groups['value'].Value.Trim().Trim('"').Trim("'")
+            if (-not [System.IO.Path]::IsPathRooted($logFile)) { return $false }
+        }
+    }
+
+    return (
+        $raw -match [regex]::Escape($ResolvedTunnelId) -and
+        $raw -match [regex]::Escape($McpUrl) -and
+        $raw -match 'CONTROL_PLANE_API_KEY'
+    )
+}
+
+function Initialize-ChatOfficialTunnelProfile {
+    param(
+        [Parameter(Mandatory)] [string]$TunnelExe,
+        [Parameter(Mandatory)] [string]$TunnelDir,
+        [Parameter(Mandatory)] [string]$TunnelProfile,
+        [Parameter(Mandatory)] [string]$ResolvedTunnelId,
+        [Parameter(Mandatory)] [string]$McpUrl,
+        [switch]$Reconfigure
+    )
+
+    New-Item -ItemType Directory -Force -Path $TunnelDir | Out-Null
+    $profileValid = Test-ChatTunnelProfileContract -Path $TunnelProfile -ResolvedTunnelId $ResolvedTunnelId -McpUrl $McpUrl
+
+    if (-not $Reconfigure -and $profileValid) {
+        Write-Host "TUNNEL_PROFILE=$TunnelProfile"
+        Write-Host 'TUNNEL_PROFILE_SOURCE=existing-validated'
+        return
+    }
+
+    if ((Test-Path -LiteralPath $TunnelProfile) -and -not $profileValid) {
+        Write-Host 'TUNNEL_PROFILE_COMPATIBILITY=reconfigure-required'
+    }
+    if (Test-Path -LiteralPath $TunnelProfile) {
+        $backup = "$TunnelProfile.bootstrap-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        Copy-Item -LiteralPath $TunnelProfile -Destination $backup -Force
+        Write-Host "TUNNEL_PROFILE_BACKUP=$backup"
+    }
+
+    $args = @(
+        'init',
+        '--sample', 'sample_mcp_remote_no_auth',
+        '--profile', 'local-1mcp',
+        '--profile-dir', $TunnelDir,
+        '--tunnel-id', $ResolvedTunnelId,
+        '--mcp-server-url', $McpUrl,
+        '--health-listen-addr', '127.0.0.1:0',
+        '--force'
+    )
+    $output = @(& $TunnelExe @args 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Official tunnel-client init failed: $($output -join ' ')"
+    }
+    if (-not (Test-ChatTunnelProfileContract -Path $TunnelProfile -ResolvedTunnelId $ResolvedTunnelId -McpUrl $McpUrl)) {
+        throw 'Official tunnel-client created a profile that does not satisfy the local bridge contract.'
+    }
+
+    Write-Host "TUNNEL_PROFILE=$TunnelProfile"
+    Write-Host 'TUNNEL_PROFILE_SOURCE=official-tunnel-client-init'
+}
