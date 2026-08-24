@@ -35,7 +35,7 @@ The ordinary semantic startup guard performs a live `tools/list` inspection and 
 
 The tray has one normal semantic READY state; there is no qualification color/state.
 
-## Installed runtime contract
+## Installed runtime and transport contract
 
 The bootstrap installs one verified runtime bundle containing the canonical six-tool projection and deterministic Control Plane dependencies.
 
@@ -55,7 +55,57 @@ Installation metadata records:
 semantic_public_tool_count = 6
 ```
 
-The bootstrap remains one public entrypoint but is internally split into reviewed modules for tunnel acquisition/configuration, manager/runtime bundle installation and lifecycle smoke testing.
+The bootstrap remains one public entrypoint but is internally split into reviewed modules for tunnel acquisition, manager/runtime bundle installation and lifecycle smoke testing.
+
+Normal semantic transport is direct stdio and must not require 1MCP:
+
+```text
+ordinary ChatGPT
+ -> OpenAI Secure MCP Tunnel
+ -> official tunnel-client
+ -> semantic launcher
+ -> canonical six-tool projection
+```
+
+The accepted persistent `tunnel_*` id is platform state and is stored in:
+
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\state\tunnel.json
+```
+
+On upgrade, an existing `local-1mcp.yaml` may be read only as a bounded migration fallback to recover one already accepted tunnel id. It is not the normal semantic source of truth after migration.
+
+Normal bootstrap requirements:
+
+```text
+Node >= 20
+npm
+Python
+verified official tunnel-client
+no mandatory npx/1MCP preflight
+smoke profile = semantic
+smoke binding = direct-stdio
+live semantic inventory = exactly six tools
+```
+
+## Optional 1MCP Extension Manager
+
+1MCP is retained for future extension work rather than deleted from the project.
+
+Target role:
+
+```text
+canonical semantic surface
+ -> project-owned typed facade
+ -> optional internal Extension Manager (1MCP or qualified replacement)
+ -> selected third-party MCP backend
+```
+
+The Extension Manager may provide backend discovery/aggregation, enable-disable, lazy lifecycle, health and restart. It does not grant capability authorization, own the persistent tunnel anchor or automatically expose raw backend tools to ChatGPT.
+
+Optional extension failure must not block the baseline six-tool route unless the current task explicitly requires that extension.
+
+Authoritative policy: `DECISIONS.md` ADR-031 and `MODULE_SELECTION_POLICY.md`.
 
 ## Current bounded procedure
 
@@ -155,7 +205,12 @@ The current hosted contract must cover at minimum:
 10. strict `procedure_run` request allowlist with no command/path/tool injection;
 11. installed bundle contains the canonical six-tool projection and Control Plane closure;
 12. ordinary semantic startup guard rejects any inventory other than the six canonical tools;
-13. real direct semantic tunnel acceptance sees and exercises `procedure_run` through the same public route.
+13. real direct semantic tunnel acceptance sees and exercises `procedure_run` through the same public route;
+14. normal bootstrap contains no mandatory 1MCP/npx preflight;
+15. neutral `state/tunnel.json` is authoritative with legacy `local-1mcp.yaml` migration fallback only;
+16. bootstrap smoke exercises normal `semantic` + `direct-stdio`, not the historical reference/1MCP path.
+
+Optional adaptive/1MCP Extension Manager regressions remain useful evidence, but they do not redefine the normal semantic critical path.
 
 Hosted success is necessary but not sufficient for physical acceptance.
 
@@ -168,8 +223,10 @@ Required order:
 ```text
 checkpoint-resumable file procedure — implemented
  -> canonical six-tool public semantic surface — implemented
+ -> 1MCP-independent normal bootstrap + neutral tunnel anchor — implemented candidate
  -> hosted deterministic/security/integration tests — must be green on exact head
  -> install exact head on target Windows
+ -> verify state/tunnel.json migration/resolution
  -> ordinary ChatGPT ONE-goal E2E on normal semantic route
  -> independent final workspace_read verification
  -> negative pre-existing target => ABSTAIN/no overwrite
