@@ -140,8 +140,12 @@ Install-ChatManagerBundle `
     -DirectControllerPath $DirectControllerPath `
     -TrayPath $TrayPath
 
-Write-Step 'Установка manager и защищённого runtime key'
-Install-ChatManager -CommandPath $CommandPath
+Write-Step 'Инициализация normal semantic core и защищённого runtime key'
+$defaultFilesRoot = Initialize-ChatSemanticCore `
+    -CommandPath $CommandPath `
+    -LocalRoot $LocalRoot `
+    -AppRoot $AppRoot `
+    -TrayPath $TrayPath
 
 if (-not $SkipSmokeTest) {
     Write-Step 'Проверка normal six-tool semantic lifecycle'
@@ -158,8 +162,11 @@ Write-Host "`nCHAT_PLATFORM_BOOTSTRAP=OK" -ForegroundColor Green
 Write-Host "LOCAL_ROOT=$LocalRoot"
 Write-Host "APP_ROOT=$AppRoot"
 Write-Host "TUNNEL_STATE=$TunnelStateFile"
+Write-Host 'DEFAULT_PROFILE=semantic'
+Write-Host "DEFAULT_FILES_ROOT=$defaultFilesRoot"
 Write-Host 'SEMANTIC_BINDING=direct-stdio'
 Write-Host 'SEMANTIC_PUBLIC_TOOL_COUNT=6'
 Write-Host 'EXTENSION_MANAGER=optional-1mcp'
+Write-Host 'LEGACY_1MCP_INSTALL_PATH_USED=False'
 Write-Host 'PLATFORM_STATE=stopped'
 Write-Host 'NEXT=Use the desktop shortcut or the installed chat-platform.ps1 command facade.'
