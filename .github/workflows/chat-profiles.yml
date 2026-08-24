@@ -19,6 +19,9 @@ on:
       - "scripts/chat-platform.ps1"
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/bootstrap-tunnel-runtime.ps1"
+      - "scripts/bootstrap-manager-runtime.ps1"
+      - "scripts/bootstrap-manager-lifecycle.ps1"
       - "tests/adaptive-mcp-acceptance.mjs"
       - "tests/test_adaptive_profile.py"
       - ".github/workflows/chat-profiles.yml"
@@ -42,6 +45,9 @@ on:
       - "scripts/chat-platform.ps1"
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/bootstrap-tunnel-runtime.ps1"
+      - "scripts/bootstrap-manager-runtime.ps1"
+      - "scripts/bootstrap-manager-lifecycle.ps1"
       - "tests/adaptive-mcp-acceptance.mjs"
       - "tests/test_adaptive_profile.py"
       - ".github/workflows/chat-profiles.yml"
@@ -68,6 +74,7 @@ jobs:
         run: |
           node --version
           npx --version
+          python --version
           $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
           if (-not (Test-Path $chrome)) { throw 'Google Chrome is required for browser acceptance.' }
           $env:PATH = "$(Split-Path $chrome -Parent);$env:PATH"
@@ -88,7 +95,10 @@ jobs:
             'scripts/chat-platform-controller.ps1',
             'scripts/chat-platform.ps1',
             'scripts/chat-platform-tray.ps1',
-            'scripts/bootstrap-chat-platform.ps1'
+            'scripts/bootstrap-chat-platform.ps1',
+            'scripts/bootstrap-tunnel-runtime.ps1',
+            'scripts/bootstrap-manager-runtime.ps1',
+            'scripts/bootstrap-manager-lifecycle.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -96,7 +106,7 @@ jobs:
             if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
           }
 
-      - name: Enforce pinned direct profiles, semantic projection, and adaptive catalog
+      - name: Enforce pinned direct profiles, six-tool semantic projection, and adaptive catalog
         shell: pwsh
         run: |
           $files = Get-Content 'runtime/chat-profiles/files-readonly/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
@@ -113,6 +123,7 @@ jobs:
           if ($semanticServers.Count -ne 1 -or $semanticServers[0].Name -ne 'semantic-projection') { throw 'Semantic profile must contain only semantic-projection.' }
           if ([string]$semantic.mcpServers.'semantic-projection'.command -ne 'node') { throw 'Semantic profile must directly launch Node.' }
           if (@($semantic.mcpServers.'semantic-projection'.args).Count -ne 1 -or [string]$semantic.mcpServers.'semantic-projection'.args[0] -ne '${CHAT_SEMANTIC_PROJECTION_ENTRY}') { throw 'Semantic entrypoint contract drifted.' }
+          if (@($semantic.mcpServers.'semantic-projection'.tags) -notcontains 'procedure' -or @($semantic.mcpServers.'semantic-projection'.tags) -notcontains 'control-plane') { throw 'Semantic profile must permanently expose the bounded procedure/control-plane capability.' }
           if ($adaptiveServers.Count -ne 2) { throw 'Adaptive catalog must contain exactly filesystem and playwright for this acceptance stage.' }
           foreach ($name in @('filesystem','playwright')) {
             $entry = @($adaptiveServers | Where-Object Name -eq $name)
@@ -171,7 +182,7 @@ jobs:
             ./scripts/stop-chat-profile.ps1
           }
 
-      - name: Prove promoted semantic profile routes through the public manager
+      - name: Prove promoted six-tool semantic profile routes through the public manager
         shell: pwsh
         run: |
           $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-semantic-manager-files'
