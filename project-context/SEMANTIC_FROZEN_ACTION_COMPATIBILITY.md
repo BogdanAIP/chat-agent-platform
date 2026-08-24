@@ -1,6 +1,6 @@
 # Semantic Frozen-Action Compatibility
 
-Status: **CURRENT MIGRATION COMPATIBILITY / CANONICAL PUBLIC INVENTORY = SIX TOOLS**.
+Status: **CURRENT MIGRATION COMPATIBILITY / CANONICAL PUBLIC INVENTORY = SIX TOOLS / APP REBIND GATE PASSED FOR STAGE 26.3A**.
 
 ## Why this exists
 
@@ -20,7 +20,7 @@ That historical physical evidence is scoped to those five Stage 24 IDs. It must 
 
 ## Current canonical public inventory
 
-The normal Stage 26.3A semantic runtime publishes exactly six canonical tools:
+The accepted Stage 26.3A normal semantic runtime publishes exactly six canonical tools:
 
 ```text
 workspace_read
@@ -48,7 +48,7 @@ semantic-projection_1mcp_web_interact          -> web_interact
 semantic-projection_1mcp_procedure_run         -> procedure_run
 ```
 
-Temporary Stage 26.3A procedure-qualification family:
+Former Stage 26.3A procedure-qualification family:
 
 ```text
 procedure-qualification-projection_1mcp_workspace_read  -> workspace_read
@@ -59,7 +59,7 @@ procedure-qualification-projection_1mcp_web_interact    -> web_interact
 procedure-qualification-projection_1mcp_procedure_run   -> procedure_run
 ```
 
-Only the first five `semantic-projection_1mcp_*` mappings have the PR #97 physical ordinary-Chat evidence. The `procedure_run` aliases and the former procedure-qualification family are bounded Stage 26.3A migration compatibility for app snapshots created while the public surface was changing; they are not additional public tools or an alternative runtime mode.
+Only the first five `semantic-projection_1mcp_*` mappings have the PR #97 physical ordinary-Chat evidence. The `procedure_run` aliases and the former procedure-qualification family remain bounded migration compatibility for app snapshots created while the public surface was changing; they are not additional public tools or an alternative runtime mode.
 
 The compatibility implementation must remain an exact lookup table. It must not strip arbitrary prefixes, dispatch arbitrary names, expose a generic invocation tool, or reintroduce 1MCP into the normal direct-stdio transport.
 
@@ -77,9 +77,7 @@ Therefore the launcher can repair a stale inbound tool **name**, but it cannot r
 
 This distinction is release-critical. A successful old frozen-name call proves only that the inbound alias reached the canonical runtime; it does not prove that the current ChatGPT app snapshot is synchronized with the six-tool server.
 
-OpenAI documents that MCP app tool/action definitions are frozen on approval and are not automatically updated; a live definition that no longer matches that snapshot can cause tool-call errors until the app actions are refreshed/reviewed or the app is recreated/rebound as required by the product surface.
-
-## 2026-08-24 Stage 26.3A physical observation
+## 2026-08-24 interrupted app-session observation
 
 The normal six-tool local route was physically READY on exact candidate head `300db9956dfbdf0300ecc59f017d6f3280d4353a` with:
 
@@ -93,27 +91,30 @@ conflict=false
 tunnel_binding=direct-stdio
 ```
 
-A subsequent ordinary-Chat attempt successfully read the fresh Stage 26.3A challenge through `workspace_read`, then reached the ChatGPT confirmation UI for `workspace_write`. During that approval path ChatGPT transitioned into a `Connect / Add Chat Local Bridge Test` flow and the current message ended with a stream error.
+An ordinary-Chat attempt successfully read the fresh Stage 26.3A challenge through `workspace_read`, then reached ChatGPT confirmation UI for `workspace_write`. During that approval path ChatGPT transitioned into a `Connect / Add Chat Local Bridge Test` flow and the current message ended with a stream error.
 
-Because the challenge read already reached the live semantic runtime and the local route had just passed the physical READY gate, this observation is classified as **unaccepted ChatGPT app snapshot/connection/permission-session evidence**, not as evidence that the local semantic runtime crashed. The final Stage 26.3A E2E must not be accepted from this interrupted run.
+Because the challenge read had already reached the live semantic runtime and the local route had just passed the physical READY gate, this was classified as **ChatGPT app snapshot/connection/permission-session evidence**, not as evidence that the local semantic runtime crashed.
 
-## App rebind gate before final Stage 26.3A E2E
+## Accepted Stage 26.3A app rebind evidence
 
-The next final ordinary-Chat acceptance must use a deliberately synchronized app binding rather than relying on a long-lived historical snapshot.
+The interrupted run was not accepted. The app/session state was stabilized first:
 
-Before starting the long autonomous task:
+1. `Chat Local Bridge Test` was reconnected outside an active tool call;
+2. app-specific permission was set to `Allow all actions` before the long run;
+3. a fresh ordinary ChatGPT conversation was started;
+4. connection and permission policy were not changed during the task.
 
-1. complete any ChatGPT `Connect / Add` flow outside an active tool call;
-2. ensure the app is rebound/refreshed against the current Secure MCP Tunnel endpoint;
-3. ensure the current app snapshot recognizes the six canonical actions, including `procedure_run`;
-4. settle the intended write/modify permission policy before the long task begins, so the acceptance run is not also a permission-configuration transaction;
-5. start a fresh ordinary ChatGPT conversation and run the long E2E without reconnecting or changing app permissions mid-run.
+The resulting long-horizon Stage 26.3A ordinary-Chat E2E completed successfully across all six semantic capabilities, including real `workspace_write`, repeated `web_interact`, `procedure_run` completion, independent final read, a second `procedure_run` structured ABSTAIN and independent zero-overwrite verification.
 
-A UI Refresh alone is not sufficient migration evidence because PR #97 already proved that Refresh may leave historical action IDs frozen. A newly created or explicitly rebound app is stronger evidence.
+This proves that a deliberately synchronized/rebound app session can execute the accepted six-tool Stage 26.3A workflow. It does **not** prove that ChatGPT sent canonical names rather than one of the exact inbound compatibility aliases, because the user-visible result does not expose the action id used by ChatGPT for every call.
+
+Operational rule: complete app reconnect/review and settle permission policy **before** a long autonomous task. Do not make app-binding or permission changes mid-run.
+
+A UI Refresh alone remains weaker migration evidence because PR #97 showed that Refresh may leave historical action IDs frozen.
 
 ## Historical PR #97 evidence
 
-PR #97 accepted the migration compatibility for the five Stage 24 file/browser IDs on its own exact physical head. The ordinary-Chat evidence included:
+PR #97 accepted migration compatibility for the five Stage 24 file/browser IDs on its own exact physical head. The ordinary-Chat evidence included:
 
 ```text
 workspace_read(input.txt)
@@ -130,7 +131,9 @@ The prior routing failure `Tool semantic-projection_1mcp_* not found` was absent
 
 ## Removal gate
 
-Frozen aliases may be removed only after a separate ordinary-Chat migration test proves that a newly created or explicitly rebound ChatGPT app invokes canonical names and remains stable across read, write, browser and `procedure_run` calls.
+Frozen aliases may be removed only after a separate ordinary-Chat migration test proves that a newly created or explicitly rebound ChatGPT app actually invokes canonical names and remains stable across read, write, browser and `procedure_run` calls.
+
+The successful Stage 26.3A rebind run is strong connection/session evidence, but it does not expose enough per-call action-id telemetry to satisfy this alias-removal gate by itself.
 
 Until that gate passes, retaining the exact allowlist is safer than breaking existing app snapshots during runtime upgrades. The aliases are migration compatibility, not the permanent product contract.
 
