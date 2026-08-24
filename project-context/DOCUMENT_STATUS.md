@@ -19,11 +19,9 @@ current code/tests/CI/physical evidence
  > old research/handoffs
 ```
 
-A status/planning phrase inside a file classified below as historical describes the time that document/revision was written. It is **not** a live roadmap instruction.
+A status/planning phrase inside a historical file describes the time that document/revision was written. It is not a live roadmap instruction.
 
 ## Documentation separation rule
-
-To prevent continued growth of stage history inside durable architecture documents:
 
 ```text
 ARCHITECTURE.md / CONTROL_PLANE.md
@@ -39,7 +37,7 @@ STAGE*.md / historical handoffs
   = detailed qualification design and attempt history
 ```
 
-Do not copy full physical result dumps or long superseded attempt narratives into durable architecture documents. Promote only the generalized invariant learned from the evidence.
+Do not copy full physical result dumps into durable architecture documents. Promote only the generalized invariant learned from evidence.
 
 ## Root documents
 
@@ -56,14 +54,14 @@ Do not copy full physical result dumps or long superseded attempt narratives int
 
 | File | Status | Use |
 |---|---|---|
-| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Fast continuation after resolving live GitHub state. |
-| `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and current operating constraints. |
-| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted boundary, active gate, residual risks; keep detailed historical evidence out. |
-| `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/layer/authority boundaries; keep stage chronology out. |
+| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Fast continuation after resolving live GitHub state. Current Stage 26.3A semantic candidate = exactly six public tools with no 5/6 mode switch. |
+| `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and operating constraints. |
+| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted boundary, active gate, residual risks. Current candidate semantic inventory = six tools. |
+| `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/layer/authority boundaries. |
 | `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution Control Plane vs future planner. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence + optional/future tracks. |
 | `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which documents can define current state. |
-| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted physical/target heads, result locators and scope. Primary code/test/result evidence still outranks the index. |
+| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted physical/target heads, result locators and scope. |
 
 ## Current policy / design governance
 
@@ -76,12 +74,12 @@ Do not copy full physical result dumps or long superseded attempt narratives int
 | `COST_POLICY.md` | CURRENT POLICY | Baseline cost/subscription constraints. |
 | `MODULE_CATALOG.md` | CURRENT CATALOG | Accepted/current/future capability status. |
 | `MODULE_SELECTION_POLICY.md` | CURRENT POLICY | Selection/promotion rules. |
-| `TYPED_CAPABILITY_PROJECTION.md` | ACCEPTED CURRENT FOUNDATION | Five-tool semantic projection + separation from procedure Control Plane. |
-| `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | CURRENT TEMPORARY MIGRATION COMPATIBILITY | Exact five legacy `_1mcp_` inbound aliases for frozen ChatGPT app snapshots; canonical public inventory remains five tools; removal requires a verified app migration/rebind gate. |
+| `TYPED_CAPABILITY_PROJECTION.md` | CURRENT STAGE 26.3A CANDIDATE CONTRACT | Historical typed five-tool foundation plus current canonical six-tool candidate surface; `procedure_run` is typed/bounded, not generic execution. |
+| `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | CURRENT TEMPORARY MIGRATION COMPATIBILITY | Exact five historical `_1mcp_` inbound aliases only. Current canonical candidate inventory is six tools; aliases are not published and do not create a five-tool mode. |
 | `TRANSPORT_SUPERVISOR.md` | ACCEPTED CURRENT RELIABILITY FOUNDATION | Self-healing Secure MCP Tunnel lifecycle, layered health, bounded recovery, Windows persistence and persistent desired-state separation accepted through #94. |
-| `TRANSPORT_SUPERVISOR_IMPLEMENTATION_NOTES.md` | ACCEPTED QUALIFICATION NOTES | Transport Supervisor v1 qualification contract/status retained after #94 acceptance; detailed historical attempts are split into the classified history file below. |
-| `TRANSPORT_SUPERVISOR_REBOOT_EVIDENCE.md` | ACCEPTED PHYSICAL EVIDENCE | Exact Windows reboot/logon acceptance record and qualification-only defect attribution for exact head `27de6f6...`. |
-| `TRANSPORT_SUPERVISOR_ATTEMPT_HISTORY.md` | HISTORICAL QUALIFICATION ATTEMPT LOG | Verbatim preserved Attempt 1–11 transport-supervisor narrative; historical diagnostics only, subordinate to current notes/evidence index. |
+| `TRANSPORT_SUPERVISOR_IMPLEMENTATION_NOTES.md` | ACCEPTED QUALIFICATION NOTES | Transport Supervisor v1 qualification contract/status. |
+| `TRANSPORT_SUPERVISOR_REBOOT_EVIDENCE.md` | ACCEPTED PHYSICAL EVIDENCE | Exact Windows reboot/logon evidence. |
+| `TRANSPORT_SUPERVISOR_ATTEMPT_HISTORY.md` | HISTORICAL QUALIFICATION ATTEMPT LOG | Historical diagnostics only. |
 | `VISION.md` | CURRENT PRODUCT DIRECTION | Long-term product direction; subordinate to architecture/roadmap on exact stage status. |
 | `HANDOFF_TEMPLATE.md` | CURRENT PROCESS TEMPLATE | Required future handoff fields. |
 | `KNOWN_ISSUES.md` | CURRENT ISSUE INDEX | Current unresolved issues + explicitly closed history. |
@@ -91,10 +89,18 @@ Do not copy full physical result dumps or long superseded attempt narratives int
 | File | Status | Use |
 |---|---|---|
 | `STAGE26_PROCEDURAL_MEMORY.md` | ACTIVE STAGE 26.3 CONTRACT / DESIGN | Verified Procedure Runtime / deterministic Control Plane, candidate-first procedural trust and progression invariants. |
-| `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACTIVE STAGE 26.3A IMPLEMENTATION NOTES | Current checkpoint-resume, filesystem-identity and ordinary-Chat integration boundary for the qualification procedure. |
-| `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACTIVE STAGE 26.3A PUBLIC-SURFACE QUALIFICATION CONTRACT | Separate qualification-only `procedure_run` capability, exact schema/isolation rules and MCP acceptance gate; not product-accepted. |
+| `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACTIVE STAGE 26.3A IMPLEMENTATION NOTES | Canonical six-tool runtime, checkpoint/resume, filesystem identity and physical acceptance boundary. |
+| `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACTIVE STAGE 26.3A PUBLIC-SURFACE CONTRACT | `procedure_run` is permanently part of the current candidate ordinary semantic six-tool surface; no separate qualification profile remains. |
 
-The first Stage 26.3 physical vertical slice must remove intermediate user command entry: one user goal -> ordinary Chat procedure selection -> local deterministic multi-transition execution -> verified completion or ABSTAIN/escalation.
+The first Stage 26.3 physical vertical slice must remove intermediate user command entry:
+
+```text
+one user goal
+ -> ordinary Chat procedure selection
+ -> normal six-tool semantic route
+ -> local deterministic multi-transition execution
+ -> verified completion OR ABSTAIN/escalation
+```
 
 ## Accepted foundation documents — historical evidence
 
@@ -103,32 +109,32 @@ The files below preserve stage-specific evidence/design from their own time. The
 | File | Status | Important note |
 |---|---|---|
 | `BRIDGE_ACCEPTANCE.md` | ACCEPTED HISTORICAL FOUNDATION | Evidence log intentionally points current architecture elsewhere. |
-| `DIRECT_SEMANTIC_TUNNEL.md` | ACCEPTED HISTORICAL FOUNDATION | Stage 24.1 transport decision/evidence. |
-| `STAGE22_LEGACY_REDUCTION.md` | ACCEPTED HISTORICAL STAGE | References the then-current 1MCP architecture; direct stdio later became normal public path. |
+| `DIRECT_SEMANTIC_TUNNEL.md` | ACCEPTED HISTORICAL FOUNDATION | Stage 24.1 transport decision/evidence. Historical public inventory counts remain scoped to that stage. |
+| `STAGE22_LEGACY_REDUCTION.md` | ACCEPTED HISTORICAL STAGE | References the then-current 1MCP architecture. |
 | `STAGE24_LEAST_PRIVILEGE.md` | ACCEPTED HISTORICAL STAGE | Opening “current Stage 24” wording is historical. |
 | `STAGE25_1_VISION_INTEGRATION.md` | ACCEPTED HISTORICAL STAGE | Accepted Stage 25.1 evidence. |
-| `STAGE26_1A_OPENADAPT_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | “product integration not started” describes that stage, not current state. |
+| `STAGE26_1A_OPENADAPT_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Historical qualification evidence. |
 | `STAGE26_1B_OPENADAPT_CAPTURE_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Accepted capture evidence. |
-| `STAGE26_1C_WINDOWS_EXECUTOR_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | **Its opening DRAFT/rerun-required label is an old intermediate revision.** Final accepted physical head is `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`; #83 merged. |
+| `STAGE26_1C_WINDOWS_EXECUTOR_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Final accepted physical head is `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`; #83 merged. |
 | `STAGE26_1D_WINDOWS_HOT_RUNTIME_BENCHMARK.md` | ACCEPTED HISTORICAL STAGE | Physical benchmark evidence. |
 | `STAGE26_1E_WINDOW_SCOPED_UIA_RESOLVER.md` | ACCEPTED HISTORICAL STAGE | Physical resolver evidence. |
-| `STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME.md` | ACCEPTED HISTORICAL STAGE | **Its opening ACTIVE/DRAFT label is historical.** Stage 26.2A was accepted/merged as #87. |
+| `STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME.md` | ACCEPTED HISTORICAL STAGE | Stage 26.2A accepted/merged as #87. |
 | `STAGE26_2B_DESKTOP_OBSERVATION.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #88. |
 | `STAGE26_2C_DESKTOP_GROUNDER.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #89. |
-| `STAGE26_2D_WINDOWS_VISION_ROUTING.md` | ACCEPTED HISTORICAL STAGE | **Its opening ACTIVE/qualification-required label is historical.** Exact physical head `1c74713edcd6321d5583a39234929169e68b5ac1` passed and #90 merged. |
-| `STAGE26_2E_REAL_APPLICATION_E2E.md` | ACCEPTED HISTORICAL EVIDENCE | Exact physical runtime/qualification head `457db0b634f2e47f53d41e359a238840fa3ca2ee` passed the isolated VS Code real-app gate with one guarded Unicode action, independent file verification and full rollback. |
+| `STAGE26_2D_WINDOWS_VISION_ROUTING.md` | ACCEPTED HISTORICAL STAGE | Exact physical head `1c74713edcd6321d5583a39234929169e68b5ac1`; #90 merged. |
+| `STAGE26_2E_REAL_APPLICATION_E2E.md` | ACCEPTED HISTORICAL EVIDENCE | Exact physical runtime/qualification head `457db0b634f2e47f53d41e359a238840fa3ca2ee`; isolated VS Code real-app gate passed. |
 
-Exact physical data inside historical documents remains valid only for the scoped code/head/test it names. Do not reinterpret synthetic cases as physical evidence.
+Exact physical data inside historical documents remains valid only for the scoped code/head/test it names. Historical five-tool counts remain valid evidence for those exact earlier stages but do not define the current Stage 26.3A candidate inventory.
 
 ## Research / superseded planning documents
 
 | File | Status | Notes |
 |---|---|---|
-| `ACTIVE_VISUAL_GROUNDING.md` | HISTORICAL RESEARCH / STAGE 25 DESIGN | Opening ACTIVE wording and old 3B/Mark-Grid implementation order are historical; accepted target later became 450M F16 bounded specialist path. |
-| `LOCAL_SPECIALIST_INFERENCE.md` | HISTORICAL RESEARCH / SPECIALIST TRACK | Opening ACTIVE/PROVISIONAL and LM Studio candidate discussion are historical. Current specialist/planner boundary is `CONTROL_PLANE.md`/`MODULE_CATALOG.md`. |
-| `STAGE25_MODEL_PROFILES.md` | HISTORICAL RESEARCH | Opening active benchmark wording and old 3B profile are not current selected runtime. |
-| `STAGE25_TARGET_BENCHMARKS.md` | HISTORICAL EVIDENCE/RESEARCH | Preserve measurements; opening ACTIVE EVIDENCE is date-scoped. |
-| `STAGE25_CHAT_HANDOFF_2026-08-17.md` | HISTORICAL HANDOFF | Its “active development handoff for next conversation” is explicitly obsolete. |
+| `ACTIVE_VISUAL_GROUNDING.md` | HISTORICAL RESEARCH / STAGE 25 DESIGN | Old visual-grounding implementation order is historical. |
+| `LOCAL_SPECIALIST_INFERENCE.md` | HISTORICAL RESEARCH / SPECIALIST TRACK | Current specialist/planner boundary is `CONTROL_PLANE.md`/`MODULE_CATALOG.md`. |
+| `STAGE25_MODEL_PROFILES.md` | HISTORICAL RESEARCH | Old profile selection notes are not current runtime. |
+| `STAGE25_TARGET_BENCHMARKS.md` | HISTORICAL EVIDENCE/RESEARCH | Preserve measurements; opening ACTIVE wording is date-scoped. |
+| `STAGE25_CHAT_HANDOFF_2026-08-17.md` | HISTORICAL HANDOFF | Explicitly obsolete continuation guidance. |
 
 ## Architecture terminology all future docs must preserve
 
@@ -153,7 +159,7 @@ resource/action/time budgets
 escalation
 ```
 
-May advance known authorized+verified procedure transitions without a ChatGPT round trip after every low-level action. It is **not** a second general planner.
+May advance known authorized+verified procedure transitions without a ChatGPT round trip after every low-level action. It is not a second general planner.
 
 ### Future local planner
 
@@ -165,7 +171,7 @@ P0 shadow/proposal-only
  -> P2 optional local general-planner mode
 ```
 
-Even if later accepted it remains behind deterministic capability authorization/verifier boundaries and does not silently replace ChatGPT default.
+Even if later accepted it remains behind deterministic capability authorization/verifier boundaries.
 
 ## Maintenance rule
 
@@ -177,6 +183,6 @@ Any architecture-changing PR must audit/update this map when it:
 - promotes a research track into the release-critical roadmap;
 - changes the public Chat-facing capability surface.
 
-Any accepted physical gate must update `EVIDENCE_INDEX.md`. Durable architecture docs should record only the invariant learned from that evidence, not the complete historical result dump.
+Any accepted physical gate must update `EVIDENCE_INDEX.md`. Durable architecture docs should record only the invariant learned from evidence, not the complete historical result dump.
 
 Do not rewrite historical physical evidence merely to make old prose look current. Preserve evidence and make its authority/status explicit here and in current context.
