@@ -437,7 +437,14 @@ function Initialize-ChatExtensionManagerTunnelProfile {
     New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
     try {
         $template = Join-Path $tempRoot "$ProfileName.yaml"
-        & $TunnelExe init sample_mcp_remote_no_auth --profile-dir $tempRoot --non-interactive --force *> $null
+        $initArguments = @(
+            'init',
+            'sample_mcp_remote_no_auth',
+            '--profile-dir', $tempRoot,
+            '--non-interactive',
+            '--force'
+        )
+        & $TunnelExe @initArguments *> $null
         if ($LASTEXITCODE -ne 0) {
             throw 'tunnel-client init failed while creating Extension Manager profile.'
         }
