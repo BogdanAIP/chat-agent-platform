@@ -26,15 +26,17 @@ class FinishStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ObservationRef:
-    """Stable reference to one concrete capability observation.
+    """Stable reference to one concrete capability observation stream.
 
-    ``sequence`` is owned by the observing adapter/session and must increase for
-    every fresh observation of the same subject.  It is deliberately preferred
-    over wall-clock freshness so verification does not depend on clock skew.
+    ``stream_id`` binds sequence numbers to one adapter/session-owned stream.
+    ``sequence`` must increase for every fresh observation of the same subject
+    inside that stream.  This is deliberately preferred over wall-clock
+    freshness so verification does not depend on clock skew.
     """
 
     capability: str
     subject: str
+    stream_id: str
     sequence: int
     fingerprint: str
     observed_at: str | None = None
@@ -44,6 +46,8 @@ class ObservationRef:
             raise ValueError("observation capability must be non-empty")
         if not self.subject or not self.subject.strip():
             raise ValueError("observation subject must be non-empty")
+        if not self.stream_id or not self.stream_id.strip():
+            raise ValueError("observation stream_id must be non-empty")
         if type(self.sequence) is not int or self.sequence < 0:
             raise ValueError("observation sequence must be a non-negative integer")
         if not self.fingerprint or not self.fingerprint.strip():
@@ -53,6 +57,7 @@ class ObservationRef:
         return {
             "capability": self.capability,
             "subject": self.subject,
+            "stream_id": self.stream_id,
             "sequence": self.sequence,
             "fingerprint": self.fingerprint,
             "observed_at": self.observed_at,
@@ -74,8 +79,12 @@ class ObservationSnapshot:
     ambiguous: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.ref, ObservationRef):
+            raise TypeError("observation ref must be ObservationRef")
         if not isinstance(self.state, Mapping):
             raise TypeError("observation state must be a mapping")
+        if type(self.complete) is not bool or type(self.ambiguous) is not bool:
+            raise TypeError("observation complete/ambiguous flags must be bool")
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,10 +124,14 @@ class ExpectedEffect:
     def __post_init__(self) -> None:
         if not self.effect_id or not self.effect_id.strip():
             raise ValueError("effect_id must be non-empty")
+        if not isinstance(self.before, ObservationRef):
+            raise TypeError("ExpectedEffect before must be ObservationRef")
         if not self.predicates:
             raise ValueError("ExpectedEffect requires at least one predicate")
         if any(not isinstance(item, StatePredicate) for item in self.predicates):
             raise TypeError("ExpectedEffect predicates must be StatePredicate instances")
+        if type(self.require_unambiguous) is not bool:
+            raise TypeError("require_unambiguous must be bool")
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +161,18 @@ class VerificationResult:
     reason: str
     observation: ObservationRef | None
     predicate_results: tuple[PredicateResult, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.effect_id or not self.effect_id.strip():
+            raise ValueError("verification result effect_id must be non-empty")
+        if not isinstance(self.status, VerificationStatus):
+            raise TypeError("verification result status must be VerificationStatus")
+        if not self.reason or not self.reason.strip():
+            raise ValueError("verification result reason must be non-empty")
+        if self.observation is not None and not isinstance(self.observation, ObservationRef):
+            raise TypeError("verification result observation must be ObservationRef or None")
+        if any(not isinstance(item, PredicateResult) for item in self.predicate_results):
+            raise TypeError("verification result predicate_results must contain PredicateResult")
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -276,6 +301,8 @@ def combine_statuses(
 ) -> VerificationStatus:
     if not statuses:
         return empty
+    if any(not isinstance(item, VerificationStatus) for item in statuses):
+        raise TypeError("statuses must contain VerificationStatus values")
     if any(item is VerificationStatus.FAIL for item in statuses):
         return VerificationStatus.FAIL
     if any(item is VerificationStatus.UNKNOWN for item in statuses):
@@ -286,7 +313,7 @@ def combine_statuses(
 def verify_expected_effect(effect: ExpectedEffect, after: ObservationSnapshot) -> VerificationResult:
     """Verify one effect against a fresh observation, without authorizing action.
 
-    Capability/subject mismatch, stale observation sequence, ambiguity, or
+    Stream/capability/subject mismatch, stale observation sequence, ambiguity, or
     incomplete required evidence yields ``UNKNOWN`` rather than guessing.
     """
 
@@ -302,6 +329,13 @@ def verify_expected_effect(effect: ExpectedEffect, after: ObservationSnapshot) -
             effect_id=effect.effect_id,
             status=VerificationStatus.UNKNOWN,
             reason="subject_mismatch",
+            observation=after.ref,
+        )
+    if after.ref.stream_id != effect.before.stream_id:
+        return VerificationResult(
+            effect_id=effect.effect_id,
+            status=VerificationStatus.UNKNOWN,
+            reason="observation_stream_mismatch",
             observation=after.ref,
         )
     if after.ref.sequence <= effect.before.sequence:
@@ -341,7 +375,17 @@ def aggregate_results(
     *,
     empty: VerificationStatus = VerificationStatus.UNKNOWN,
 ) -> VerificationStatus:
+    if any(not isinstance(item, VerificationResult) for item in results):
+        raise TypeError("results must contain VerificationResult values")
     return combine_statuses(tuple(item.status for item in results), empty=empty)
+
+
+def _optional_dimension_status(results: Sequence[VerificationResult] | None) -> VerificationStatus:
+    """None means the task declares no such dimension; empty means evidence is missing."""
+
+    if results is None:
+        return VerificationStatus.PASS
+    return aggregate_results(results, empty=VerificationStatus.UNKNOWN)
 
 
 def evaluate_finish_gate(
@@ -349,28 +393,31 @@ def evaluate_finish_gate(
     candidate_done: bool,
     goal_results: Sequence[VerificationResult],
     safety_results: Sequence[VerificationResult],
-    constraint_results: Sequence[VerificationResult] = (),
-    freshness_results: Sequence[VerificationResult] = (),
+    constraint_results: Sequence[VerificationResult] | None = None,
+    freshness_results: Sequence[VerificationResult] | None = None,
     unresolved: Sequence[str] = (),
 ) -> FinishGateResult:
     """Independently decide task completion from fresh verification evidence.
 
-    ``candidate_done`` is only a planner proposal.  The gate requires explicit
-    goal and safety evidence.  Missing goal/safety evidence is ``UNKNOWN``;
-    absent optional constraints/freshness dimensions are vacuously satisfied.
-    Task-success and safety remain separate outputs even when final completion is
-    denied.
+    ``candidate_done`` is only a planner proposal.  Goal and safety evidence are
+    always required.  For constraint/freshness dimensions, ``None`` explicitly
+    means the task declares no such dimension, while an empty sequence means the
+    dimension exists but has no evidence and therefore remains ``UNKNOWN``.
+
+    Task-success, unresolved completion requirements and safety remain distinct
+    outputs/gates even when they deny final completion together.
     """
 
-    goals = aggregate_results(goal_results, empty=VerificationStatus.UNKNOWN)
-    constraints = aggregate_results(constraint_results, empty=VerificationStatus.PASS)
-    freshness = aggregate_results(freshness_results, empty=VerificationStatus.PASS)
-    safety = aggregate_results(safety_results, empty=VerificationStatus.UNKNOWN)
+    if type(candidate_done) is not bool:
+        raise TypeError("candidate_done must be bool")
 
+    goals = aggregate_results(goal_results, empty=VerificationStatus.UNKNOWN)
+    constraints = _optional_dimension_status(constraint_results)
+    freshness = _optional_dimension_status(freshness_results)
+    safety = aggregate_results(safety_results, empty=VerificationStatus.UNKNOWN)
     task_success = combine_statuses((goals, constraints, freshness))
+
     normalized_unresolved = tuple(str(item) for item in unresolved if str(item))
-    if normalized_unresolved and task_success is VerificationStatus.PASS:
-        task_success = VerificationStatus.UNKNOWN
 
     if not candidate_done:
         status = FinishStatus.NOT_DONE
@@ -378,6 +425,9 @@ def evaluate_finish_gate(
     elif task_success is VerificationStatus.FAIL or safety is VerificationStatus.FAIL:
         status = FinishStatus.NOT_DONE
         reason = "completion_predicate_failed"
+    elif normalized_unresolved:
+        status = FinishStatus.UNKNOWN
+        reason = "unresolved_completion_requirement"
     elif task_success is VerificationStatus.UNKNOWN or safety is VerificationStatus.UNKNOWN:
         status = FinishStatus.UNKNOWN
         reason = "completion_evidence_unknown"
