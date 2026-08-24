@@ -53,11 +53,11 @@ ordinary ChatGPT
   -> OpenAI Secure MCP Tunnel
   -> official tunnel-client
   -> direct stdio secure semantic launcher
-  -> semantic-projection
-  -> focused task-active capabilities
+  -> canonical six-tool semantic projection
+  -> focused task-active capabilities / deterministic Control Plane
 ```
 
-Current accepted public tool names remain exactly:
+Current canonical public tool names are exactly:
 
 ```text
 workspace_read
@@ -65,9 +65,47 @@ workspace_write
 web_open
 web_observe
 web_interact
+procedure_run
 ```
 
-1MCP remains replaceable internal diagnostic/adaptive/aggregation infrastructure.
+There is no normal runtime/profile/tray choice between five and six tools. The historical five-capability file/browser projection remains only as a private implementation/regression layer behind the canonical six-tool launcher.
+
+### Persistent tunnel anchor
+
+The accepted `tunnel_*` id is platform state, not 1MCP state.
+
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\state\tunnel.json
+```
+
+is the neutral source of truth for the persistent tunnel anchor. An existing `local-1mcp.yaml` may be read only as a bounded migration fallback to recover one already accepted tunnel id. The normal semantic route must not require that legacy profile after migration.
+
+### Optional Extension Manager
+
+1MCP is retained as replaceable **optional internal Extension Manager infrastructure**, not as the normal semantic critical path.
+
+Target extension topology:
+
+```text
+ordinary ChatGPT
+        |
+        v
+canonical project-owned semantic surface
+        |
+        +----> project-owned capabilities / deterministic Control Plane
+        |
+        `----> internal Extension Manager
+                    |
+                   1MCP
+                    |
+              third-party MCP backends
+```
+
+1MCP may provide discovery, aggregation, enable/disable, lazy lifecycle, health and restart for extension backends. It does not own baseline reachability, the persistent tunnel anchor, Chat-facing authorization or the raw public tool contract.
+
+Normal six-tool bootstrap/start/smoke/health must work without 1MCP or an `npx` 1MCP preflight. Failure of an optional extension must be isolated unless the current task explicitly depends on that extension.
+
+Raw third-party MCP catalogs are never promoted automatically to ordinary ChatGPT. A supported extension remains behind the smallest truthful project-owned typed facade and the same consequence/authorization boundary.
 
 ## Semantic projection rule
 
@@ -82,7 +120,7 @@ It must not:
 - expose a disguised `tool_invoke`;
 - hide native desktop/workflow consequence classes behind misleading web semantics.
 
-A separate post-desktop/public-contract ADR decides whether truthful desktop/procedure capabilities need new public names.
+A separate public-contract ADR decides when a genuinely new consequence class needs a new public name. The current six-tool count is not an eternal maximum.
 
 ---
 
@@ -384,10 +422,12 @@ Separate upper layer, not part of Windows/procedure safety core and not a releas
 # Security/privacy boundaries
 
 - tunnel reachability remains outbound from the user machine;
-- normal semantic transport remains direct stdio;
+- normal semantic transport remains direct stdio and does not depend on 1MCP;
+- persistent tunnel identity is stored in neutral platform state;
 - tunnel secrets stay outside repository/procedure content;
+- optional Extension Manager backends do not gain implicit trust or public exposure;
 - local inference is bounded, on-demand and non-authorizing;
-- planner/model/procedure output never bypasses deterministic authorization;
+- planner/model/procedure/extension output never bypasses deterministic authorization;
 - raw desktop demonstrations are sensitive local data;
 - private chain-of-thought is never procedural/task memory;
 - generic Windows code execution remains disabled/unreachable;
