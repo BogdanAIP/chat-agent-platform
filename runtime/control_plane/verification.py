@@ -53,9 +53,9 @@ def _freeze_normalized(
 ) -> Any:
     """Validate and freeze bounded JSON-like evidence/predicate data.
 
-    Only plain builtins are accepted.  This keeps verification evaluation free
-    from user-defined ``__eq__``/mapping behavior and prevents callers from
-    mutating an observation payload after the snapshot is constructed.
+    Only plain builtins are accepted. This keeps predicate evaluation free from
+    user-defined equality/mapping behavior and prevents callers from mutating an
+    observation payload after the snapshot is constructed.
     """
 
     if budget is None:
@@ -117,7 +117,7 @@ def _normalized_equal(left: Any, right: Any) -> bool:
     if isinstance(left, Mapping) or isinstance(right, Mapping):
         if not isinstance(left, Mapping) or not isinstance(right, Mapping):
             return False
-        if tuple(left.keys()) != tuple(right.keys()):
+        if set(left.keys()) != set(right.keys()):
             return False
         return all(_normalized_equal(left[key], right[key]) for key in left)
     if type(left) is tuple or type(right) is tuple:
@@ -263,6 +263,7 @@ class VerificationResult:
     status: VerificationStatus
     reason: str
     observation: ObservationRef | None
+    evidence_batch_id: str | None = None
     predicate_results: tuple[PredicateResult, ...] = ()
 
     def __post_init__(self) -> None:
@@ -272,6 +273,8 @@ class VerificationResult:
         _require_text(self.reason, name="verification result reason")
         if self.observation is not None and not isinstance(self.observation, ObservationRef):
             raise TypeError("verification result observation must be ObservationRef or None")
+        if self.evidence_batch_id is not None:
+            _require_text(self.evidence_batch_id, name="evidence_batch_id")
         if type(self.predicate_results) is not tuple:
             raise TypeError("verification result predicate_results must be a tuple")
         if any(not isinstance(item, PredicateResult) for item in self.predicate_results):
@@ -283,6 +286,7 @@ class VerificationResult:
             "status": self.status.value,
             "reason": self.reason,
             "observation": self.observation.as_dict() if self.observation is not None else None,
+            "evidence_batch_id": self.evidence_batch_id,
             "predicate_results": [item.as_dict() for item in self.predicate_results],
         }
 
@@ -291,6 +295,7 @@ class VerificationResult:
 class FinishGateResult:
     status: FinishStatus
     reason: str
+    evidence_batch_id: str
     task_success: VerificationStatus
     safety: VerificationStatus
     goals: VerificationStatus
@@ -303,6 +308,7 @@ class FinishGateResult:
         return {
             "status": self.status.value,
             "reason": self.reason,
+            "evidence_batch_id": self.evidence_batch_id,
             "task_success": self.task_success.value,
             "safety": self.safety.value,
             "goals": self.goals.value,
@@ -415,48 +421,40 @@ def combine_statuses(
     return VerificationStatus.PASS
 
 
-def verify_expected_effect(effect: ExpectedEffect, after: ObservationSnapshot) -> VerificationResult:
+def verify_expected_effect(
+    effect: ExpectedEffect,
+    after: ObservationSnapshot,
+    *,
+    evidence_batch_id: str | None = None,
+) -> VerificationResult:
     """Verify one effect against a fresh observation, without authorizing action."""
 
     if not isinstance(effect, ExpectedEffect):
         raise TypeError("effect must be ExpectedEffect")
     if not isinstance(after, ObservationSnapshot):
         raise TypeError("after must be ObservationSnapshot")
+    if evidence_batch_id is not None:
+        _require_text(evidence_batch_id, name="evidence_batch_id")
+
+    def result(status: VerificationStatus, reason: str) -> VerificationResult:
+        return VerificationResult(
+            effect_id=effect.effect_id,
+            status=status,
+            reason=reason,
+            observation=after.ref,
+            evidence_batch_id=evidence_batch_id,
+        )
+
     if after.ref.capability != effect.before.capability:
-        return VerificationResult(
-            effect_id=effect.effect_id,
-            status=VerificationStatus.UNKNOWN,
-            reason="capability_mismatch",
-            observation=after.ref,
-        )
+        return result(VerificationStatus.UNKNOWN, "capability_mismatch")
     if after.ref.subject != effect.before.subject:
-        return VerificationResult(
-            effect_id=effect.effect_id,
-            status=VerificationStatus.UNKNOWN,
-            reason="subject_mismatch",
-            observation=after.ref,
-        )
+        return result(VerificationStatus.UNKNOWN, "subject_mismatch")
     if after.ref.stream_id != effect.before.stream_id:
-        return VerificationResult(
-            effect_id=effect.effect_id,
-            status=VerificationStatus.UNKNOWN,
-            reason="observation_stream_mismatch",
-            observation=after.ref,
-        )
+        return result(VerificationStatus.UNKNOWN, "observation_stream_mismatch")
     if after.ref.sequence <= effect.before.sequence:
-        return VerificationResult(
-            effect_id=effect.effect_id,
-            status=VerificationStatus.UNKNOWN,
-            reason="stale_observation",
-            observation=after.ref,
-        )
+        return result(VerificationStatus.UNKNOWN, "stale_observation")
     if effect.require_unambiguous and after.ambiguous:
-        return VerificationResult(
-            effect_id=effect.effect_id,
-            status=VerificationStatus.UNKNOWN,
-            reason="ambiguous_observation",
-            observation=after.ref,
-        )
+        return result(VerificationStatus.UNKNOWN, "ambiguous_observation")
 
     results = tuple(_evaluate_predicate(predicate, after) for predicate in effect.predicates)
     status = combine_statuses(tuple(item.status for item in results))
@@ -471,6 +469,7 @@ def verify_expected_effect(effect: ExpectedEffect, after: ObservationSnapshot) -
         status=status,
         reason=reason,
         observation=after.ref,
+        evidence_batch_id=evidence_batch_id,
         predicate_results=results,
     )
 
@@ -489,6 +488,7 @@ def _evidence_bound_status(
     results: Sequence[VerificationResult],
     *,
     empty: VerificationStatus,
+    evidence_batch_id: str,
 ) -> VerificationStatus:
     if not results:
         return empty
@@ -496,21 +496,30 @@ def _evidence_bound_status(
         raise TypeError("finish-gate results must contain VerificationResult values")
     if any(item.observation is None for item in results):
         return VerificationStatus.UNKNOWN
+    if any(item.evidence_batch_id != evidence_batch_id for item in results):
+        return VerificationStatus.UNKNOWN
     return aggregate_results(results, empty=empty)
 
 
 def _optional_dimension_status(
     results: Sequence[VerificationResult] | None,
+    *,
+    evidence_batch_id: str,
 ) -> VerificationStatus:
     """None = not declared; empty sequence = declared but evidence missing."""
 
     if results is None:
         return VerificationStatus.PASS
-    return _evidence_bound_status(results, empty=VerificationStatus.UNKNOWN)
+    return _evidence_bound_status(
+        results,
+        empty=VerificationStatus.UNKNOWN,
+        evidence_batch_id=evidence_batch_id,
+    )
 
 
 def evaluate_finish_gate(
     *,
+    evidence_batch_id: str,
     candidate_done: bool,
     goal_results: Sequence[VerificationResult],
     safety_results: Sequence[VerificationResult],
@@ -518,10 +527,13 @@ def evaluate_finish_gate(
     freshness_results: Sequence[VerificationResult] | None = None,
     unresolved: Sequence[str] = (),
 ) -> FinishGateResult:
-    """Independently decide task completion from evidence-bound verification."""
+    """Independently decide task completion from one evidence collection batch."""
 
+    _require_text(evidence_batch_id, name="evidence_batch_id")
     if type(candidate_done) is not bool:
         raise TypeError("candidate_done must be bool")
+    if isinstance(unresolved, (str, bytes)) or not isinstance(unresolved, Sequence):
+        raise TypeError("unresolved completion requirements must be a sequence of strings")
     if any(type(item) is not str for item in unresolved):
         raise TypeError("unresolved completion requirements must be strings")
     if any(not item.strip() for item in unresolved):
@@ -529,10 +541,24 @@ def evaluate_finish_gate(
     if len(set(unresolved)) != len(unresolved):
         raise ValueError("unresolved completion requirements must be unique")
 
-    goals = _evidence_bound_status(goal_results, empty=VerificationStatus.UNKNOWN)
-    constraints = _optional_dimension_status(constraint_results)
-    freshness = _optional_dimension_status(freshness_results)
-    safety = _evidence_bound_status(safety_results, empty=VerificationStatus.UNKNOWN)
+    goals = _evidence_bound_status(
+        goal_results,
+        empty=VerificationStatus.UNKNOWN,
+        evidence_batch_id=evidence_batch_id,
+    )
+    constraints = _optional_dimension_status(
+        constraint_results,
+        evidence_batch_id=evidence_batch_id,
+    )
+    freshness = _optional_dimension_status(
+        freshness_results,
+        evidence_batch_id=evidence_batch_id,
+    )
+    safety = _evidence_bound_status(
+        safety_results,
+        empty=VerificationStatus.UNKNOWN,
+        evidence_batch_id=evidence_batch_id,
+    )
     task_success = combine_statuses((goals, constraints, freshness))
     normalized_unresolved = tuple(unresolved)
 
@@ -555,6 +581,7 @@ def evaluate_finish_gate(
     return FinishGateResult(
         status=status,
         reason=reason,
+        evidence_batch_id=evidence_batch_id,
         task_success=task_success,
         safety=safety,
         goals=goals,
