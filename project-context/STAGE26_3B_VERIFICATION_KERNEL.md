@@ -45,34 +45,37 @@ Internal module:
 
 It introduces:
 
-- `ObservationRef` — capability, subject, monotonic observation sequence and fingerprint;
+- `ObservationRef` — capability, subject, observation-stream identity, monotonic sequence and fingerprint;
 - `ObservationSnapshot` — normalized state plus completeness/ambiguity flags;
 - `StatePredicate` — bounded declarative `equals`, `present`, `absent` predicates;
 - `ExpectedEffect` — expected post-action predicates bound to a concrete prior observation;
 - `VerificationStatus` — `pass`, `fail`, `unknown`;
 - `verify_expected_effect(...)` — generic deterministic transition verifier;
 - `FinishGateResult` / `FinishStatus`;
-- `evaluate_finish_gate(...)` — independent completion decision preserving task-success and safety as separate dimensions.
+- `evaluate_finish_gate(...)` — independent completion decision preserving task-success, unresolved requirements and safety as separate dimensions.
 
 The package exports this contract from `runtime.control_plane` without adding any Chat-facing tool.
 
 ## Freshness rule
 
-Freshness is established by an adapter/session-owned monotonic observation sequence for the same capability + subject:
+Freshness is established only inside the same adapter/session-owned observation stream and for the same capability + subject:
 
 ```text
+after.stream_id == before.stream_id
+after.capability == before.capability
+after.subject == before.subject
 after.sequence > before.sequence
 ```
 
-The kernel does not trust wall-clock time as proof that a state was re-observed. A stale/equal sequence returns `UNKNOWN` even when the payload happens to match the expected values.
+The kernel does not trust wall-clock time as proof that a state was re-observed. A stale/equal sequence returns `UNKNOWN` even when the payload happens to match the expected values. A numerically higher sequence from another observation stream also returns `UNKNOWN`.
 
-Capability or subject mismatch also returns `UNKNOWN` rather than reusing evidence from another page/window/artifact.
+Capability, subject or stream mismatch cannot be reused as proof for another page/window/artifact.
 
 ## PASS / FAIL / UNKNOWN semantics
 
 ### PASS
 
-Fresh, unambiguous evidence proves all required predicates.
+Fresh, stream-bound, unambiguous evidence proves all required predicates.
 
 ### FAIL
 
@@ -91,6 +94,7 @@ The kernel cannot prove either success or a definite contradiction.
 Examples:
 
 - stale observation;
+- different observation stream;
 - wrong capability/subject evidence;
 - ambiguous observation when unambiguous evidence is required;
 - required field omitted from an incomplete observation;
@@ -122,14 +126,15 @@ Rules:
 
 - goal evidence is mandatory; no goal evidence => task success `UNKNOWN`;
 - safety evidence is mandatory; no safety evidence => safety `UNKNOWN`;
-- optional constraint/freshness dimensions are vacuously `PASS` only when the task declares none;
+- for optional constraint/freshness dimensions, `None` explicitly means the task declares no such dimension and is therefore vacuously `PASS`;
+- an empty sequence for a declared optional dimension means evidence is missing and yields `UNKNOWN`;
 - any failed task-success dimension => `NOT_DONE`;
 - failed safety => `NOT_DONE` even when task-success is `PASS`;
-- unresolved required confirmation/ambiguity prevents verified completion without fabricating a false safety failure;
+- unresolved required confirmation/ambiguity blocks verified completion as its own gate without rewriting an otherwise proven task-success or safety result;
 - any required `UNKNOWN` => completion `UNKNOWN`;
-- only `candidate_done + task_success PASS + safety PASS` may produce `DONE`.
+- only `candidate_done + task_success PASS + safety PASS + no unresolved required completion item` may produce `DONE`.
 
-Task-success and safety remain separate fields in the result so evaluation cannot hide a safety failure inside one generic success bit.
+Task-success and safety remain separate fields in the result so evaluation cannot hide a safety failure inside one generic success bit. Unresolved completion requirements remain separate as well.
 
 ## First hosted test matrix
 
@@ -137,15 +142,17 @@ Task-success and safety remain separate fields in the result so evaluation canno
 
 - fresh exact normalized file/artifact-like evidence -> `PASS`;
 - stale same observation -> `UNKNOWN`;
+- higher sequence from a different observation stream -> `UNKNOWN`;
 - capability/subject mismatch -> `UNKNOWN`;
 - definite fresh mismatch -> `FAIL`;
 - incomplete missing evidence -> `UNKNOWN`;
 - ambiguous current evidence -> `UNKNOWN`;
 - common kernel semantics across browser-like and Windows-like normalized state;
 - Finish Gate requires independent goal + safety evidence;
+- explicit absent optional dimension vs declared-but-unverified dimension;
 - task-success `PASS` remains visible when safety independently fails;
 - `candidate_done=False` cannot self-authorize `DONE`;
-- unresolved confirmation prevents `DONE` without fabricating a safety failure.
+- unresolved confirmation prevents `DONE` without rewriting already-proven task-success/safety.
 
 ## Explicit non-goals of this slice
 
@@ -180,7 +187,7 @@ After the kernel foundation is accepted:
 action delivered != transition verified
 transition PASS != task DONE
 current observed state > remembered procedure/demo/history
-stale / ambiguous / incomplete evidence -> UNKNOWN
+stale / mismatched-stream / ambiguous / incomplete evidence -> UNKNOWN
 UNKNOWN -> zero unauthorized continuation
 planner confidence != completion evidence
 model/procedure output != authorization
