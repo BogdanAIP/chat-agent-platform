@@ -1,0 +1,149 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+import { Client } from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const entry = path.resolve(here, '..', 'bin', 'semantic-projection-launcher.mjs');
+const expectedTools = [
+  'procedure_run',
+  'web_interact',
+  'web_observe',
+  'web_open',
+  'workspace_read',
+  'workspace_write'
+];
+
+function childEnvironment(extra) {
+  const env = {};
+  for (const [key, value] of Object.entries(process.env)) if (typeof value === 'string') env[key] = value;
+  return { ...env, ...extra };
+}
+
+function textOf(result) {
+  return (result.content ?? []).filter(block => block.type === 'text').map(block => block.text).join('\n');
+}
+
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-six-tool-workspace-'));
+const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-six-tool-state-'));
+const client = new Client({ name: 'six-tool-semantic-acceptance', version: '1.0.0' });
+const transport = new StdioClientTransport({
+  command: process.execPath,
+  args: [entry],
+  env: childEnvironment({
+    CHAT_LOCAL_FILES_ROOT: workspace,
+    CHAT_PROCEDURE_STATE_ROOT: stateRoot
+  })
+});
+
+try {
+  await client.connect(transport);
+  const inventory = await client.listTools();
+  const names = inventory.tools.map(tool => tool.name).sort();
+  assert.deepEqual(names, expectedTools, `public semantic surface must be exactly six tools: ${names.join(', ')}`);
+
+  const byName = new Map(inventory.tools.map(tool => [tool.name, tool]));
+  assert.equal(byName.get('workspace_read')?.annotations?.readOnlyHint, true);
+  assert.equal(byName.get('workspace_write')?.annotations?.destructiveHint, true);
+  assert.equal(byName.get('web_observe')?.annotations?.readOnlyHint, true);
+  assert.equal(byName.get('web_interact')?.annotations?.openWorldHint, true);
+
+  const procedure = byName.get('procedure_run');
+  assert(procedure, 'procedure_run missing from canonical semantic surface');
+  assert.equal(procedure.annotations?.readOnlyHint, false);
+  assert.equal(procedure.annotations?.destructiveHint, true);
+  assert.equal(procedure.annotations?.openWorldHint, false);
+  const properties = procedure.inputSchema?.properties ?? {};
+  assert.deepEqual(Object.keys(properties).sort(), ['artifact_name', 'content', 'procedure', 'resume_task_id']);
+  for (const forbidden of ['path', 'command', 'python', 'backend', 'tool', 'args']) {
+    assert.equal(Object.prototype.hasOwnProperty.call(properties, forbidden), false, `forbidden procedure selector leaked: ${forbidden}`);
+  }
+
+  fs.writeFileSync(path.join(workspace, 'input.txt'), 'SIX_TOOL_READ_OK', 'utf8');
+  const read = await client.callTool({
+    name: 'workspace_read',
+    arguments: { operation: 'read_text', path: 'input.txt' }
+  });
+  assert.equal(read.isError, undefined, textOf(read));
+  assert(textOf(read).includes('SIX_TOOL_READ_OK'), textOf(read));
+
+  const write = await client.callTool({
+    name: 'workspace_write',
+    arguments: { path: 'notes.txt', content: 'SIX_TOOL_WRITE_OK' }
+  });
+  assert.equal(write.isError, undefined, textOf(write));
+  assert.equal(fs.readFileSync(path.join(workspace, 'notes.txt'), 'utf8'), 'SIX_TOOL_WRITE_OK');
+
+  const run = await client.callTool({
+    name: 'procedure_run',
+    arguments: {
+      procedure: 'verified_workspace_artifact_v1',
+      artifact_name: 'six-tool-result.txt',
+      content: 'SIX_TOOL_PROCEDURE_OK'
+    }
+  });
+  assert.equal(run.isError, undefined, textOf(run));
+  const payload = run.structuredContent ?? JSON.parse(textOf(run));
+  assert.equal(payload.status, 'completed', textOf(run));
+  assert.equal(payload.action_count, 3, textOf(run));
+  assert.equal(payload.procedure_id, 'verified_workspace_artifact_v1', textOf(run));
+
+  const relative = '.chat-agent-platform/stage26-3a/six-tool-result.txt';
+  assert.equal(fs.readFileSync(path.join(workspace, relative), 'utf8'), 'SIX_TOOL_PROCEDURE_OK');
+
+  const independentRead = await client.callTool({
+    name: 'workspace_read',
+    arguments: { operation: 'read_text', path: relative }
+  });
+  assert.equal(independentRead.isError, undefined, textOf(independentRead));
+  assert(textOf(independentRead).includes('SIX_TOOL_PROCEDURE_OK'), textOf(independentRead));
+
+  const resumed = await client.callTool({
+    name: 'procedure_run',
+    arguments: {
+      procedure: 'verified_workspace_artifact_v1',
+      artifact_name: 'six-tool-result.txt',
+      content: 'SIX_TOOL_PROCEDURE_OK',
+      resume_task_id: payload.task_id
+    }
+  });
+  assert.equal(resumed.isError, undefined, textOf(resumed));
+  const resumedPayload = resumed.structuredContent ?? JSON.parse(textOf(resumed));
+  assert.equal(resumedPayload.status, 'completed');
+  assert.equal(resumedPayload.resumed, true);
+  assert.equal(resumedPayload.action_count, 3);
+
+  const conflictName = 'protected-existing.txt';
+  const protectedDir = path.join(workspace, '.chat-agent-platform', 'stage26-3a');
+  fs.mkdirSync(protectedDir, { recursive: true });
+  fs.writeFileSync(path.join(protectedDir, conflictName), 'DO_NOT_OVERWRITE', 'utf8');
+  const abstain = await client.callTool({
+    name: 'procedure_run',
+    arguments: {
+      procedure: 'verified_workspace_artifact_v1',
+      artifact_name: conflictName,
+      content: 'MUST_NOT_REPLACE_EXISTING'
+    }
+  });
+  assert.equal(abstain.isError, undefined, textOf(abstain));
+  const abstainPayload = abstain.structuredContent ?? JSON.parse(textOf(abstain));
+  assert.equal(abstainPayload.status, 'abstained', textOf(abstain));
+  assert.equal(abstainPayload.escalation_reason, 'target_already_exists');
+  assert.equal(fs.readFileSync(path.join(protectedDir, conflictName), 'utf8'), 'DO_NOT_OVERWRITE');
+
+  console.log('SEMANTIC_PUBLIC_TOOL_COUNT=6');
+  console.log('SEMANTIC_PUBLIC_PROCEDURE_RUN=PASS');
+  console.log('SEMANTIC_PUBLIC_INDEPENDENT_READ=PASS');
+  console.log('SEMANTIC_PUBLIC_RESUME=PASS');
+  console.log('SEMANTIC_PUBLIC_ABSTAIN_NO_OVERWRITE=PASS');
+  console.log('SEMANTIC_PUBLIC_SIX_TOOL_ACCEPTANCE=PASS');
+} finally {
+  try { await client.close(); } catch {}
+  fs.rmSync(workspace, { recursive: true, force: true });
+  fs.rmSync(stateRoot, { recursive: true, force: true });
+}
