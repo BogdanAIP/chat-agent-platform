@@ -1,10 +1,16 @@
 # Stage 26.3A canonical six-tool semantic surface
 
-Status: **ACTIVE IMPLEMENTATION CONTRACT / PHYSICAL ORDINARY-CHAT ACCEPTANCE PENDING**.
+Status: **PHYSICALLY ACCEPTED ORDINARY-CHAT CONTRACT**.
+
+Exact accepted runtime head:
+
+```text
+300db9956dfbdf0300ecc59f017d6f3280d4353a
+```
 
 ## Decision
 
-For the current Stage 26.3A candidate there is one ordinary semantic public surface and it exposes exactly six tools:
+There is one ordinary semantic public surface and it exposes exactly six tools:
 
 ```text
 workspace_read
@@ -17,17 +23,15 @@ procedure_run
 
 There is no user-selectable or runtime-selectable `5 tools` versus `6 tools` mode.
 
-The separate `procedure-qualification` profile, qualification projection and qualification handoff path were removed. The normal semantic launcher always routes through the canonical six-tool Control Plane projection.
+The separate `procedure-qualification` profile, qualification projection and qualification handoff path are removed. The normal semantic launcher always routes through the canonical six-tool Control Plane projection.
 
-An internal five-capability file/browser implementation remains only as a private implementation layer behind the canonical projection. It is not a Chat-facing profile, cannot be selected by the tray/manager and is not an alternative public contract.
+An internal five-capability file/browser implementation remains only as a private implementation layer behind the canonical projection. It is not Chat-facing, cannot be selected by tray/manager and is not an alternative public contract.
 
 ## Purpose
 
 `procedure_run` gives ordinary ChatGPT one truthful typed capability for asking the deterministic local Control Plane to execute a known bounded procedure through multiple independently verified transitions.
 
-It must not be hidden inside `workspace_write`, `web_interact`, or a generic dispatcher.
-
-The six-tool surface therefore separates two responsibilities:
+It is not hidden inside `workspace_write`, `web_interact`, or a generic dispatcher.
 
 ```text
 ordinary ChatGPT
@@ -50,7 +54,7 @@ local deterministic Control Plane
 
 ## Public runtime
 
-The canonical path is:
+Canonical path:
 
 ```text
 ordinary ChatGPT
@@ -63,25 +67,13 @@ ordinary ChatGPT
        -> deterministic Control Plane procedure adapter
 ```
 
-`semantic-projection-launcher.mjs` always launches `semantic-control-plane-projection.mjs`. There is no conditional entrypoint that chooses a five-tool public surface.
+Normal runtime binding is `semantic + direct-stdio`. 1MCP is not in the normal request path and is not required for baseline bootstrap/start/status/health/smoke.
 
-The normal semantic profile declares the permanent `procedure` / `control-plane` capability and still exposes exactly one projection server.
+The public launcher scrubs `CONTROL_PLANE_API_KEY`, `OPENAI_API_KEY` and `OPENAI_ADMIN_KEY` before semantic child execution. Procedure authority does not imply transport-secret inheritance.
 
-## Credential isolation
+## Exact accepted procedure schema
 
-The public launcher scrubs tunnel/OpenAI credentials before child execution:
-
-```text
-CONTROL_PLANE_API_KEY
-OPENAI_API_KEY
-OPENAI_ADMIN_KEY
-```
-
-The deterministic procedure child receives only the bounded environment required for the reviewed workspace/procedure runtime. Procedure authority must not imply transport-secret inheritance.
-
-## Exact Stage 26.3A procedure schema
-
-The currently registered procedure is:
+Registered procedure:
 
 ```text
 verified_workspace_artifact_v1
@@ -96,7 +88,7 @@ content         = bounded UTF-8 text
 resume_task_id  = optional exact 32-hex TaskState id
 ```
 
-It must not accept or expose:
+It does not accept:
 
 ```text
 arbitrary path
@@ -110,7 +102,7 @@ working directory
 arbitrary args
 ```
 
-The workspace root and procedure-state root come from the local runtime configuration, not caller-selected procedure arguments.
+Workspace and procedure-state roots come from local runtime configuration, not caller-selected procedure arguments.
 
 ## Authority boundary
 
@@ -132,9 +124,9 @@ ordinary ChatGPT
       complete OR ABSTAIN
 ```
 
-Novel, stale, ambiguous or incompatible state must fail closed.
+Novel, stale, ambiguous or incompatible state fails closed.
 
-## Current file procedure
+## Accepted file procedure
 
 `verified_workspace_artifact_v1` operates only below:
 
@@ -154,9 +146,9 @@ Rollback may remove a path only when both recorded digest and filesystem-object 
 
 ## Resume contract
 
-`resume_task_id` may continue only a retained compatible TaskState for the same exact procedure/artifact/content and a proven resumable checkpoint.
+`resume_task_id` may continue only retained compatible TaskState for the same exact procedure/artifact/content and a proven resumable checkpoint.
 
-Current durable nodes are:
+Current durable nodes:
 
 ```text
 preflight
@@ -167,74 +159,115 @@ completed (idempotent observation only)
 
 Ambiguous mid-transition crash state is never guessed through.
 
-## Automated acceptance
+## Hosted acceptance
 
-The canonical six-tool acceptance must prove in one MCP session:
+Hosted acceptance proves:
 
 ```text
 tools/list == exactly six canonical tools
  -> procedure_run creates a verified artifact
  -> independent workspace_read observes the exact artifact
- -> resume_task_id returns the compatible completed task without replaying mutations
+ -> compatible resume does not replay completed mutations
  -> pre-existing target causes ABSTAIN
- -> independent read proves the protected target was not overwritten
+ -> independent read proves protected target was not overwritten
 ```
 
-It also verifies that generic path/command/backend/tool selectors are absent from the `procedure_run` schema.
+It also verifies the closed procedure schema, installed bundle, direct tunnel route, startup inventory guard, neutral tunnel state, normal bootstrap and 1MCP-independent baseline.
 
-The old file/browser regression remains useful only as an internal-base regression. It must not describe itself as the public surface.
+Hosted evidence is necessary but was not used as a substitute for target-Windows ordinary-Chat acceptance.
 
-## Startup / installed-layout acceptance
+## Physical ordinary-Chat acceptance — PASSED
 
-The ordinary `start-semantic-profile.ps1` startup guard must inspect the live semantic server and require exactly the six canonical names before reporting READY.
-
-The installed bundle must contain and verify:
+Target Windows pre-chat gate on accepted runtime head `300db995...` proved:
 
 ```text
-semantic-projection-launcher.mjs
-semantic-control-plane-projection.mjs
-semantic-projection.mjs
-runtime/control_plane/cli.py
-runtime/control_plane/verified_workspace_artifact.py
-```
-
-Installation metadata records:
-
-```text
+runtime_ready = true
+mcp_ready = true
+tunnel_ready = true
+active_profile = semantic
+active_count = 1
+conflict = false
+tunnel_binding = direct-stdio
 semantic_public_tool_count = 6
+extension_manager_included = false
+1MCP_REQUIRED = false
 ```
 
-The tray has one normal READY state. For semantic, READY means the ordinary semantic runtime is healthy with the six-tool contract; there is no separate qualification color/state.
+The accepted ordinary-Chat E2E used only `Chat Local Bridge Test` and all six semantic tools in one long-horizon research task rather than a toy fixture.
 
-## Physical ordinary-Chat acceptance
-
-After hosted gates are green, the target-Windows gate is the ordinary installed semantic route itself:
+Observed workload:
 
 ```text
-install/update exact candidate
- -> select/start ordinary semantic profile
- -> tray reports normal READY
- -> Chat Local Bridge Test sees exactly six tools
- -> user gives one natural bounded goal
- -> Chat uses workspace/browser capabilities as useful
- -> Chat invokes verified_workspace_artifact_v1 through procedure_run for the final bounded artifact
- -> Chat independently reads the produced artifact
- -> exact postcondition is verified
+workspace_read successes = 5
+workspace_write successes = 5
+web_open successes = 16
+web_observe successes = 30
+web_interact successes = 12
+procedure_run calls = 2
+content pages = 16
+works/systems/benchmark groups = 12
+browser interaction failures = 1 (recovered)
+other tool failures = 0
 ```
 
-A negative physical gate must also prove:
+Working memory/report artifacts:
 
 ```text
-pre-existing protected target
- -> procedure_run returns structured ABSTAIN
- -> no overwrite
- -> independent workspace_read confirms protected content remains unchanged
+research-ledger.md
+gui-agent-research.md
 ```
 
-No temporary five-to-six handoff is part of this test.
+Both were actually used; the ledger was updated and reread during the task, and the final report was independently reread before procedure completion.
 
-## Acceptance meaning
+Completion `procedure_run`:
 
-Hosted CI proves the software contract; it does not prove ordinary-Chat physical behavior on the target Windows machine.
+```text
+task_id = 497ecb591779219ef0ee1e55ea7ad0b8
+status = completed
+action_count = 3
+current_node = completed
+artifact = .chat-agent-platform/stage26-3a/ordinary-chat-result.txt
+sha256 = 2396b8338edced2675982db9d263a046705f7f906b553b0ed19b81f51205e583
+```
 
-Stage 26.3A is physically accepted only after the normal six-tool semantic route succeeds end-to-end in ordinary ChatGPT and the negative ABSTAIN/no-overwrite case is independently verified.
+Independent `workspace_read` returned exactly:
+
+```text
+STAGE26_3A_ORDINARY_CHAT_SUCCESS_E4F49B4AD4CB4DABA07A9F01A5575255
+```
+
+Zero-overwrite `procedure_run`:
+
+```text
+task_id = 02b09a4909b6d71e0578c19b2d395cb8
+status = abstained
+action_count = 0
+current_node = preflight
+escalation_reason = target_already_exists
+```
+
+A second independent `workspace_read` returned the original success content and the SHA-256 remained unchanged. The protected target was not overwritten.
+
+The one browser failure was:
+
+```text
+web_interact click requires target unless visualFallback is provided.
+```
+
+Ordinary ChatGPT recovered by re-observing the browser state, obtaining the explicit target and retrying successfully. This is accepted recovery evidence for browser task flow, not proof of general recovery across all consequence classes.
+
+## ChatGPT app/session prerequisite
+
+An earlier attempt demonstrated that a locally READY route can still be interrupted by ChatGPT app snapshot/permission/session state before an MCP `tools/call` reaches the launcher.
+
+The accepted run was started only after the app was reconnected and the user set app-specific `Allow all actions` before execution. No app connection or permission changes occurred mid-task.
+
+Frozen inbound aliases remain migration compatibility for already-formed MCP calls; they cannot repair ChatGPT's frozen app snapshot or connection/permission state before invocation.
+
+## Acceptance meaning / next boundary
+
+Stage 26.3A is accepted for the exact runtime head and procedure scope above.
+
+This acceptance does not authorize arbitrary shell/Python execution, raw backend tools, arbitrary Windows consequences or a generic workflow dispatcher.
+
+Next work is Stage 26.3B: broaden deterministic verifier/postcondition coverage while preserving the small project-owned semantic surface, current-state authority and fail-closed ABSTAIN/escalation rules.
