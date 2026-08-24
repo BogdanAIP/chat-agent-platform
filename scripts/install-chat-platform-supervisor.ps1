@@ -21,6 +21,7 @@ if ([string]::IsNullOrWhiteSpace($env:WINDIR)) {
 }
 
 $TaskName = 'Chat Agent Platform Transport Supervisor'
+$TrayTaskName = 'Chat Agent Platform Status Indicator'
 $ManagerMutexName = 'Local\ChatAgentPlatformControllerOperation'
 $ManagerMutexTimeoutMilliseconds = 30000
 
@@ -33,6 +34,7 @@ $InstalledDirectController = Join-Path $AppScriptsDir 'semantic-direct-controlle
 $InstalledSupervisor = Join-Path $AppScriptsDir 'chat-platform-supervisor.ps1'
 $InstalledSupervisorLauncher = Join-Path $AppScriptsDir 'chat-platform-supervisor-launcher.vbs'
 $InstalledHealthHelper = Join-Path $AppScriptsDir 'tunnel-reliability-health.ps1'
+$InstalledTray = Join-Path $AppScriptsDir 'chat-platform-tray.ps1'
 $DirectControllerBackup = Join-Path $BackupDir 'semantic-direct-controller.ps1'
 
 $SourceDirectController = Join-Path $PSScriptRoot 'semantic-direct-controller.ps1'
@@ -77,6 +79,32 @@ function Stop-SupervisorTaskIfPresent {
         try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch {}
     }
     Stop-ExactSupervisorProcess
+}
+
+function Stop-ExactTrayProcess {
+    if (-not (Test-Path -LiteralPath $InstalledTray -PathType Leaf)) {
+        return
+    }
+
+    $scriptPattern = [regex]::Escape([System.IO.Path]::GetFullPath($InstalledTray))
+    foreach ($process in @(
+        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Name -eq 'pwsh.exe' -and
+                -not [string]::IsNullOrWhiteSpace([string]$_.CommandLine) -and
+                [string]$_.CommandLine -match $scriptPattern
+            }
+    )) {
+        Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Stop-TrayTaskIfPresent {
+    $task = Get-ScheduledTask -TaskName $TrayTaskName -ErrorAction SilentlyContinue
+    if ($null -ne $task) {
+        try { Stop-ScheduledTask -TaskName $TrayTaskName -ErrorAction SilentlyContinue } catch {}
+    }
+    Stop-ExactTrayProcess
 }
 
 function Copy-VerifiedFile {
@@ -186,10 +214,14 @@ function Install-SupervisorAssets {
     if (-not (Test-Path -LiteralPath $InstalledManager -PathType Leaf)) {
         throw "Installed Chat Agent Platform manager is missing: $InstalledManager. Run bootstrap first."
     }
+    if (-not (Test-Path -LiteralPath $InstalledTray -PathType Leaf)) {
+        throw "Installed Chat Agent Platform tray is missing: $InstalledTray. Run bootstrap first."
+    }
 
     foreach ($source in @($SourceDirectController, $SourceSupervisor, $SourceHealthHelper)) {
         Assert-PowerShellParses -Path $source
     }
+    Assert-PowerShellParses -Path $InstalledTray
     if (-not (Test-Path -LiteralPath $SourceSupervisorLauncher -PathType Leaf)) {
         throw "Supervisor launcher source asset is missing: $SourceSupervisorLauncher"
     }
@@ -216,6 +248,29 @@ function Install-SupervisorAssets {
     }
 }
 
+function Get-InteractiveTaskPrincipal {
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    if ([string]::IsNullOrWhiteSpace($identity)) {
+        throw 'Could not resolve the current Windows user identity.'
+    }
+
+    return New-ScheduledTaskPrincipal `
+        -UserId $identity `
+        -LogonType Interactive `
+        -RunLevel Limited
+}
+
+function Get-LongRunningTaskSettings {
+    return New-ScheduledTaskSettingsSet `
+        -StartWhenAvailable `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -MultipleInstances IgnoreNew `
+        -RestartCount 3 `
+        -RestartInterval (New-TimeSpan -Minutes 1) `
+        -ExecutionTimeLimit ([TimeSpan]::Zero)
+}
+
 function Register-SupervisorTask {
     $pwsh = Get-PwshPath
     $wscript = Get-WscriptPath
@@ -234,18 +289,8 @@ function Register-SupervisorTask {
 
     $action = New-ScheduledTaskAction -Execute $wscript -Argument $arguments
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity
-    $principal = New-ScheduledTaskPrincipal `
-        -UserId $identity `
-        -LogonType Interactive `
-        -RunLevel Limited
-    $settings = New-ScheduledTaskSettingsSet `
-        -StartWhenAvailable `
-        -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries `
-        -MultipleInstances IgnoreNew `
-        -RestartCount 3 `
-        -RestartInterval (New-TimeSpan -Minutes 1) `
-        -ExecutionTimeLimit ([TimeSpan]::Zero)
+    $principal = Get-InteractiveTaskPrincipal
+    $settings = Get-LongRunningTaskSettings
 
     Register-ScheduledTask `
         -TaskName $TaskName `
@@ -262,10 +307,51 @@ function Register-SupervisorTask {
     }
 }
 
+function Register-TrayTask {
+    $pwsh = Get-PwshPath
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    if ([string]::IsNullOrWhiteSpace($identity)) {
+        throw 'Could not resolve the current Windows user identity.'
+    }
+
+    $arguments = @(
+        '-NoLogo',
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-WindowStyle', 'Hidden',
+        '-File', ('"{0}"' -f $InstalledTray),
+        '-NoConsoleHost'
+    ) -join ' '
+
+    $action = New-ScheduledTaskAction -Execute $pwsh -Argument $arguments
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity
+    $principal = Get-InteractiveTaskPrincipal
+    $settings = Get-LongRunningTaskSettings
+
+    Register-ScheduledTask `
+        -TaskName $TrayTaskName `
+        -Action $action `
+        -Trigger $trigger `
+        -Principal $principal `
+        -Settings $settings `
+        -Description 'Shows the current Chat Agent Platform route, readiness and qualification state.' `
+        -Force | Out-Null
+
+    $registered = Get-ScheduledTask -TaskName $TrayTaskName -ErrorAction Stop
+    if ([string]$registered.TaskName -ne $TrayTaskName) {
+        throw 'Status Indicator Scheduled Task registration verification failed.'
+    }
+}
+
 function Uninstall-Supervisor {
     Stop-SupervisorTaskIfPresent
+    Stop-TrayTaskIfPresent
+
     if ($null -ne (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    }
+    if ($null -ne (Get-ScheduledTask -TaskName $TrayTaskName -ErrorAction SilentlyContinue)) {
+        Unregister-ScheduledTask -TaskName $TrayTaskName -Confirm:$false
     }
 
     $restored = [bool](Invoke-WithManagerMutex {
@@ -277,6 +363,7 @@ function Uninstall-Supervisor {
     })
 
     Write-Host 'TRANSPORT_SUPERVISOR_INSTALL=removed'
+    Write-Host 'CHAT_PLATFORM_STATUS_INDICATOR=removed'
     Write-Host "TRANSPORT_SUPERVISOR_CONTROLLER_RESTORED=$restored"
 }
 
@@ -288,18 +375,26 @@ if ($Uninstall) {
 }
 
 Stop-SupervisorTaskIfPresent
+Stop-TrayTaskIfPresent
 Install-SupervisorAssets
 Register-SupervisorTask
+Register-TrayTask
 
 if (-not $NoStart) {
     Start-ScheduledTask -TaskName $TaskName
+    Start-ScheduledTask -TaskName $TrayTaskName
     Start-Sleep -Milliseconds 500
 }
 
 $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+$trayTask = Get-ScheduledTask -TaskName $TrayTaskName -ErrorAction Stop
 Write-Host 'TRANSPORT_SUPERVISOR_INSTALL=ok'
 Write-Host "TRANSPORT_SUPERVISOR_TASK=$($task.TaskName)"
 Write-Host "TRANSPORT_SUPERVISOR_STATE=$($task.State)"
 Write-Host "TRANSPORT_SUPERVISOR_SCRIPT=$InstalledSupervisor"
 Write-Host "TRANSPORT_SUPERVISOR_LAUNCHER=$InstalledSupervisorLauncher"
 Write-Host "TRANSPORT_SUPERVISOR_DIRECT_CONTROLLER=$InstalledDirectController"
+Write-Host 'CHAT_PLATFORM_STATUS_INDICATOR=installed'
+Write-Host "CHAT_PLATFORM_STATUS_INDICATOR_TASK=$($trayTask.TaskName)"
+Write-Host "CHAT_PLATFORM_STATUS_INDICATOR_STATE=$($trayTask.State)"
+Write-Host "CHAT_PLATFORM_STATUS_INDICATOR_SCRIPT=$InstalledTray"
