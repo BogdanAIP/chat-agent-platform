@@ -9,6 +9,9 @@ CONTROLLER = ROOT / "scripts" / "chat-platform-controller.ps1"
 TRAY = ROOT / "scripts" / "chat-platform-tray.ps1"
 COMMAND = ROOT / "scripts" / "chat-platform.ps1"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
+BOOTSTRAP_TUNNEL = ROOT / "scripts" / "bootstrap-tunnel-runtime.ps1"
+BOOTSTRAP_MANAGER = ROOT / "scripts" / "bootstrap-manager-runtime.ps1"
+BOOTSTRAP_LIFECYCLE = ROOT / "scripts" / "bootstrap-manager-lifecycle.ps1"
 START_LOCAL = ROOT / "scripts" / "start-local-bridge.ps1"
 START_SEMANTIC = ROOT / "scripts" / "start-semantic-profile.ps1"
 SEMANTIC_RUNTIME = ROOT / "scripts" / "semantic-projection-runtime.ps1"
@@ -25,6 +28,17 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         cls.tray = TRAY.read_text(encoding="utf-8")
         cls.command = COMMAND.read_text(encoding="utf-8")
         cls.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
+        cls.bootstrap_tunnel = BOOTSTRAP_TUNNEL.read_text(encoding="utf-8")
+        cls.bootstrap_manager = BOOTSTRAP_MANAGER.read_text(encoding="utf-8")
+        cls.bootstrap_lifecycle = BOOTSTRAP_LIFECYCLE.read_text(encoding="utf-8")
+        cls.bootstrap_full = "\n".join(
+            (
+                cls.bootstrap,
+                cls.bootstrap_tunnel,
+                cls.bootstrap_manager,
+                cls.bootstrap_lifecycle,
+            )
+        )
         cls.start_local = START_LOCAL.read_text(encoding="utf-8")
         cls.start_semantic = START_SEMANTIC.read_text(encoding="utf-8")
         cls.semantic_runtime = SEMANTIC_RUNTIME.read_text(encoding="utf-8")
@@ -33,49 +47,35 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         cls.ci = CI.read_text(encoding="utf-8")
         cls.profile_ci = PROFILE_CI.read_text(encoding="utf-8")
 
-    def test_controller_tray_command_and_bootstrap_exist(self):
-        self.assertTrue(CONTROLLER.is_file())
-        self.assertTrue(COMMAND.is_file())
-        self.assertTrue(TRAY.is_file())
-        self.assertTrue(BOOTSTRAP.is_file())
-        self.assertTrue(START_SEMANTIC.is_file())
-        self.assertTrue(SEMANTIC_RUNTIME.is_file())
+    def test_controller_tray_command_and_modular_bootstrap_exist(self):
+        for path in (
+            CONTROLLER,
+            COMMAND,
+            TRAY,
+            BOOTSTRAP,
+            BOOTSTRAP_TUNNEL,
+            BOOTSTRAP_MANAGER,
+            BOOTSTRAP_LIFECYCLE,
+            START_SEMANTIC,
+            SEMANTIC_RUNTIME,
+        ):
+            self.assertTrue(path.is_file(), path)
 
     def test_controller_uses_persistent_local_appdata_and_dpapi(self):
-        self.assertIn(
-            'Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"',
-            self.controller,
-        )
+        self.assertIn('Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"', self.controller)
         self.assertIn('"control-plane-api-key.dpapi"', self.controller)
-        self.assertIn(
-            "[Security.Cryptography.ProtectedData]::Protect",
-            self.controller,
-        )
-        self.assertIn(
-            "[Security.Cryptography.DataProtectionScope]::CurrentUser",
-            self.controller,
-        )
+        self.assertIn("[Security.Cryptography.ProtectedData]::Protect", self.controller)
+        self.assertIn("[Security.Cryptography.DataProtectionScope]::CurrentUser", self.controller)
 
     def test_secret_is_not_embedded_in_source(self):
-        combined = (
-            self.controller
-            + "\n"
-            + self.command
-            + "\n"
-            + self.tray
-            + "\n"
-            + self.bootstrap
+        combined = "\n".join(
+            (self.controller, self.command, self.tray, self.bootstrap_full)
         )
-        self.assertIsNone(
-            re.search(r"sk-[A-Za-z0-9_-]{20,}", combined)
-        )
+        self.assertIsNone(re.search(r"sk-[A-Za-z0-9_-]{20,}", combined))
 
     def test_controller_uses_pwsh_tray_shortcut(self):
         self.assertIn('"pwsh.exe"', self.controller)
-        self.assertIn(
-            '"scripts\\chat-platform-tray.ps1"',
-            self.controller,
-        )
+        self.assertIn('"scripts\\chat-platform-tray.ps1"', self.controller)
         self.assertIn("-WindowStyle Hidden", self.controller)
 
     def test_default_reference_profile_has_supported_start_path(self):
@@ -84,8 +84,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertRegex(
             self.controller,
             re.compile(
-                r'if \(\$desiredProfile -eq "reference"\).*?'
-                r'& \$StartLocalBridgeScript',
+                r'if \(\$desiredProfile -eq "reference"\).*?& \$StartLocalBridgeScript',
                 re.S,
             ),
         )
@@ -95,34 +94,21 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertRegex(
             self.controller,
             re.compile(
-                r'function Get-ChatProfileStatus.*?'
-                r'-File \$StatusChatScript',
+                r'function Get-ChatProfileStatus.*?-File \$StatusChatScript',
                 re.S,
             ),
         )
 
     def test_public_manager_serializes_mutating_operations(self):
-        self.assertIn(
-            "Local\\ChatAgentPlatformControllerOperation",
-            self.command,
-        )
-        self.assertIn(
-            "WaitOne($MutexTimeoutMilliseconds)",
-            self.command,
-        )
+        self.assertIn("Local\\ChatAgentPlatformControllerOperation", self.command)
+        self.assertIn("WaitOne($MutexTimeoutMilliseconds)", self.command)
         self.assertIn("AbandonedMutexException", self.command)
         self.assertIn('if ($Action -eq "Status")', self.command)
         self.assertIn('"chat-platform-controller.ps1"', self.command)
 
     def test_public_manager_waits_on_exact_mutating_child_process(self):
-        self.assertIn(
-            "System.Diagnostics.ProcessStartInfo",
-            self.command,
-        )
-        self.assertIn(
-            "Invoke-InternalControllerMutation",
-            self.command,
-        )
+        self.assertIn("System.Diagnostics.ProcessStartInfo", self.command)
+        self.assertIn("Invoke-InternalControllerMutation", self.command)
         mutation = re.search(
             r"function Invoke-InternalControllerMutation \{(.*?)\n\}",
             self.command,
@@ -135,18 +121,21 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertNotIn("& $pwsh", body)
 
     def test_windows_1mcp_worker_hides_direct_cmd_host(self):
-        self.assertIn("Start-HiddenWindowsWorker", self.start_local)
-        self.assertIn("Get-Command 'npx.cmd'", self.start_local)
-        self.assertIn("Get-Command 'npm.cmd'", self.start_local)
-        self.assertIn("OneMcpLauncherPackage", self.start_local)
-        self.assertIn("System.Diagnostics.ProcessStartInfo", self.start_local)
-        self.assertIn("$startInfo.FileName = $cmd", self.start_local)
-        self.assertIn("$startInfo.CreateNoWindow = $true", self.start_local)
-        self.assertIn("$startInfo.UseShellExecute = $false", self.start_local)
-        self.assertIn("$startInfo.ArgumentList.Add('/c')", self.start_local)
-        self.assertIn("$windowsLauncher", self.start_local)
-        self.assertIn("--transport http", self.start_local)
-        self.assertIn("--log-file", self.start_local)
+        for expected in (
+            "Start-HiddenWindowsWorker",
+            "Get-Command 'npx.cmd'",
+            "Get-Command 'npm.cmd'",
+            "OneMcpLauncherPackage",
+            "System.Diagnostics.ProcessStartInfo",
+            "$startInfo.FileName = $cmd",
+            "$startInfo.CreateNoWindow = $true",
+            "$startInfo.UseShellExecute = $false",
+            "$startInfo.ArgumentList.Add('/c')",
+            "$windowsLauncher",
+            "--transport http",
+            "--log-file",
+        ):
+            self.assertIn(expected, self.start_local)
         self.assertNotIn("$ForegroundWorker", self.start_local)
         windows_branch = re.search(
             r"if \(\$IsWindows\) \{(.*?)\n    \}\n    else \{",
@@ -161,16 +150,11 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("conflict = $conflict", self.status_profile)
         self.assertIn("'conflict'", self.status_profile)
         self.assertIn("exit 0", self.status_profile)
-        self.assertNotIn(
-            "More than one Chat-facing Runtime Scope",
-            self.status_profile,
-        )
+        self.assertNotIn("More than one Chat-facing Runtime Scope", self.status_profile)
 
     def test_stop_scripts_share_idempotent_exit_codes(self):
         self.assertIn("-in @(3, 7)", self.stop_local)
-        stop_chat = (
-            ROOT / "scripts" / "stop-chat-profile.ps1"
-        ).read_text(encoding="utf-8")
+        stop_chat = (ROOT / "scripts" / "stop-chat-profile.ps1").read_text(encoding="utf-8")
         self.assertIn("-notin @(0, 3, 7)", stop_chat)
 
     def test_tray_uses_authoritative_serialized_manager_status_only(self):
@@ -183,18 +167,9 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertNotIn("Get-TunnelProcesses", self.tray)
 
     def test_tunnel_profile_is_persistent_after_migration(self):
-        self.assertIn(
-            '$profileSource = "local-existing"',
-            self.controller,
-        )
-        self.assertIn(
-            'if (-not (Test-Path $TunnelProfile))',
-            self.controller,
-        )
-        self.assertIn(
-            'TUNNEL_PROFILE_SOURCE=$profileSource',
-            self.controller,
-        )
+        self.assertIn('$profileSource = "local-existing"', self.controller)
+        self.assertIn('if (-not (Test-Path $TunnelProfile))', self.controller)
+        self.assertIn('TUNNEL_PROFILE_SOURCE=$profileSource', self.controller)
 
     def test_running_binary_is_not_blindly_overwritten(self):
         self.assertIn("local-existing-identical", self.controller)
@@ -211,10 +186,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
     def test_tunnel_readiness_uses_official_readyz_probe(self):
         self.assertIn("tunnel-health.url", self.controller)
         self.assertIn("/readyz", self.controller)
-        self.assertIn(
-            "--health.listen-addr 127.0.0.1:0",
-            self.controller,
-        )
+        self.assertIn("--health.listen-addr 127.0.0.1:0", self.controller)
         self.assertIn("--health.url-file", self.controller)
         self.assertIn("Wait-TunnelReady", self.controller)
         self.assertIn("tunnel_ready", self.controller)
@@ -240,6 +212,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("System.Drawing.Color]::Crimson", self.tray)
         self.assertIn("System.Drawing.Color]::Goldenrod", self.tray)
         self.assertIn("System.Drawing.Color]::LimeGreen", self.tray)
+        self.assertNotIn("DodgerBlue", self.tray)
 
     def test_tray_exposes_explicit_controls(self):
         for expected in (
@@ -253,13 +226,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("add_DoubleClick", self.tray)
 
     def test_expected_profiles_remain_explicit_in_controller(self):
-        for profile in (
-            "reference",
-            "files-readonly",
-            "browser-isolated",
-            "semantic",
-            "adaptive",
-        ):
+        for profile in ("reference", "files-readonly", "browser-isolated", "semantic", "adaptive"):
             self.assertIn(profile, self.controller)
 
     def test_adaptive_profile_uses_scoped_files_root_and_shared_lifecycle(self):
@@ -269,15 +236,13 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         )
         self.assertIn(expected_validate, self.controller)
         self.assertIn(expected_validate, self.command)
-        for source in (self.controller, self.command, self.bootstrap):
-            self.assertIn('"adaptive"', source)
+        for source in (self.controller, self.command, self.bootstrap_full):
+            self.assertIn("adaptive", source)
         self.assertRegex(
             self.controller,
             re.compile(
-                r'elseif \(\$desiredProfile -in @\('
-                r'"files-readonly", "adaptive"\)\).*?'
-                r'-Profile \$desiredProfile.*?'
-                r'-FilesRoot \$root',
+                r'elseif \(\$desiredProfile -in @\("files-readonly", "adaptive"\)\).*?'
+                r'-Profile \$desiredProfile.*?-FilesRoot \$root',
                 re.S,
             ),
         )
@@ -292,8 +257,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             self.controller,
             re.compile(
                 r'elseif \(\$desiredProfile -eq "semantic"\).*?'
-                r'& \$StartSemanticScript.*?'
-                r'-FilesRoot \$root',
+                r'& \$StartSemanticScript.*?-FilesRoot \$root',
                 re.S,
             ),
         )
@@ -312,35 +276,40 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             "runtime\\1mcp-adaptive-shim\\bin\\1mcp-adaptive.mjs",
             "runtime\\1mcp-adaptive-shim\\scripts\\apply-compatibility-patch.mjs",
         ):
-            self.assertIn(expected, self.bootstrap)
-        self.assertIn("Assert-InstalledAdaptiveRuntime", self.bootstrap)
-        self.assertIn("runtime_assets = @(", self.bootstrap)
-        self.assertIn('schema_version = 3', self.bootstrap)
+            self.assertIn(expected, self.bootstrap_manager)
+        self.assertIn("Assert-ChatInstalledAdaptiveRuntime", self.bootstrap_manager)
+        self.assertIn("runtime_assets", self.bootstrap_manager)
+        self.assertIn("schema_version = 4", self.bootstrap_manager)
 
-    def test_bootstrap_installs_semantic_runtime_source_and_helpers(self):
+    def test_bootstrap_installs_canonical_six_tool_semantic_runtime(self):
         for expected in (
-            '"start-semantic-profile.ps1"',
-            '"semantic-projection-runtime.ps1"',
+            "start-semantic-profile.ps1",
+            "semantic-projection-runtime.ps1",
             "runtime\\chat-profiles\\semantic\\mcp.json",
             "runtime\\semantic-projection\\package.json",
-            "runtime\\semantic-projection\\bin\\semantic-projection.mjs",
+            "runtime\\semantic-projection\\bin\\semantic-control-plane-projection.mjs",
+            "runtime\\control_plane\\cli.py",
+            "runtime\\control_plane\\verified_workspace_artifact.py",
         ):
-            self.assertIn(expected, self.bootstrap)
-        self.assertIn("Assert-InstalledSemanticRuntimeSource", self.bootstrap)
-        self.assertIn("@modelcontextprotocol/server-filesystem", self.bootstrap)
-        self.assertIn("@playwright/mcp", self.bootstrap)
+            self.assertIn(expected, self.bootstrap_manager)
+        self.assertIn("Assert-ChatInstalledSixToolSemanticRuntime", self.bootstrap_manager)
+        self.assertIn("@modelcontextprotocol/server-filesystem", self.bootstrap_manager)
+        self.assertIn("@playwright/mcp", self.bootstrap_manager)
+        self.assertIn("semantic_public_tool_count = 6", self.bootstrap_manager)
+        self.assertIn("SEMANTIC_PUBLIC_TOOL_COUNT=6", self.bootstrap_manager)
 
-    def test_bootstrap_requires_node_20_and_stops_before_bundle_update(self):
+    def test_bootstrap_requires_node_python_and_stops_before_bundle_update(self):
         self.assertIn('[int]$Matches.major -lt 20', self.bootstrap)
         self.assertIn('Node.js 20 or newer is required', self.bootstrap)
-        self.assertIn('Stop-InstalledManagerForBundleUpdate', self.bootstrap)
+        self.assertIn("Require-Command 'python.exe'", self.bootstrap)
+        self.assertIn('Stop-ChatInstalledManagerForBundleUpdate', self.bootstrap_manager)
         bundle = re.search(
-            r"function Install-ManagerBundle \{(.*?)\n\}",
-            self.bootstrap,
+            r"function Install-ChatManagerBundle \{(.*?)\n\}",
+            self.bootstrap_manager,
             re.S,
         )
         self.assertIsNotNone(bundle)
-        self.assertIn("Stop-InstalledManagerForBundleUpdate", bundle.group(1))
+        self.assertIn('Stop-ChatInstalledManagerForBundleUpdate', bundle.group(1))
 
     def test_public_status_preserves_profile_conflict_state(self):
         self.assertIn("conflict = [bool]$chat.conflict", self.controller)
@@ -349,103 +318,81 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertGreaterEqual(self.controller.count('profile = "reference"'), 2)
 
     def test_bootstrap_pins_official_tunnel_client_release_and_checksums(self):
-        self.assertIn(
-            '$AcceptedTunnelClientVersion = "v0.0.11"',
-            self.bootstrap,
-        )
-        self.assertIn(
-            "https://api.github.com/repos/openai/tunnel-client/releases/tags/",
-            self.bootstrap,
-        )
-        self.assertNotIn("/releases/latest", self.bootstrap)
-        self.assertIn("SHA256SUMS.txt", self.bootstrap)
-        self.assertIn(
-            "eb912c86c6ccde90cda805cb17009507176a656725cf86c36fabe1901a12e29b",
-            self.bootstrap,
-        )
-        self.assertIn(
-            "38f015a720404c8ccd5976a0d6aed18d931899697eaf208548b5eb3d0f6e8592",
-            self.bootstrap,
-        )
-        self.assertIn("asset_digest", self.bootstrap)
-        self.assertIn("Get-FileHash", self.bootstrap)
+        self.assertIn("$AcceptedTunnelClientVersion = 'v0.0.11'", self.bootstrap)
+        self.assertIn("https://api.github.com/repos/openai/tunnel-client/releases/tags/", self.bootstrap)
+        self.assertNotIn("/releases/latest", self.bootstrap_full)
+        self.assertIn("SHA256SUMS.txt", self.bootstrap_tunnel)
+        self.assertIn("eb912c86c6ccde90cda805cb17009507176a656725cf86c36fabe1901a12e29b", self.bootstrap)
+        self.assertIn("38f015a720404c8ccd5976a0d6aed18d931899697eaf208548b5eb3d0f6e8592", self.bootstrap)
+        self.assertIn("asset_digest", self.bootstrap_tunnel)
+        self.assertIn("Get-FileHash", self.bootstrap_tunnel)
 
     def test_bootstrap_uses_official_cli_and_standalone_manager_bundle(self):
         for expected in (
-            '"init"',
-            '"sample_mcp_remote_no_auth"',
-            '"--profile-dir"',
-            '"--tunnel-id"',
-            '"--mcp-server-url"',
-            '"http://127.0.0.1:3050/mcp"',
-            '"local-1mcp"',
+            "'init'",
+            "'sample_mcp_remote_no_auth'",
+            "'--profile-dir'",
+            "'--tunnel-id'",
+            "'--mcp-server-url'",
+            "'local-1mcp'",
         ):
-            self.assertIn(expected, self.bootstrap)
-        self.assertIn("BOOTSTRAP_SMOKE_TEST=passed", self.bootstrap)
-        self.assertIn('Join-Path $LocalRoot "app"', self.bootstrap)
-        self.assertIn('"chat-platform.ps1"', self.bootstrap)
-        self.assertIn("Copy-VerifiedManagerFile", self.bootstrap)
-        self.assertIn("MANAGER_BUNDLE_VERIFIED=True", self.bootstrap)
+            self.assertIn(expected, self.bootstrap_tunnel)
+        self.assertIn("BOOTSTRAP_SMOKE_TEST=passed", self.bootstrap_lifecycle)
+        self.assertIn("Join-Path $LocalRoot 'app'", self.bootstrap)
+        self.assertIn("'chat-platform.ps1'", self.bootstrap)
+        self.assertIn("Copy-ChatVerifiedFile", self.bootstrap_manager)
+        self.assertIn("MANAGER_BUNDLE_VERIFIED=True", self.bootstrap_manager)
 
     def test_bootstrap_repairs_legacy_relative_tunnel_log_profile(self):
-        self.assertIn("Test-TunnelProfileContract", self.bootstrap)
-        self.assertIn("[System.IO.Path]::IsPathRooted", self.bootstrap)
-        self.assertIn("TUNNEL_PROFILE_COMPATIBILITY=reconfigure-required", self.bootstrap)
-        self.assertIn("TUNNEL_PROFILE_BACKUP", self.bootstrap)
-        self.assertIn("TUNNEL_PROFILE_SOURCE=official-tunnel-client-init", self.bootstrap)
-        self.assertIn("logFileMatch", self.bootstrap)
+        self.assertIn("Test-ChatTunnelProfileContract", self.bootstrap_tunnel)
+        self.assertIn("[System.IO.Path]::IsPathRooted", self.bootstrap_tunnel)
+        self.assertIn("TUNNEL_PROFILE_COMPATIBILITY=reconfigure-required", self.bootstrap_tunnel)
+        self.assertIn("TUNNEL_PROFILE_BACKUP", self.bootstrap_tunnel)
+        self.assertIn("TUNNEL_PROFILE_SOURCE=official-tunnel-client-init", self.bootstrap_tunnel)
+        self.assertIn("logFileMatch", self.bootstrap_tunnel)
 
     def test_bootstrap_keeps_first_key_prompt_interactive(self):
         self.assertRegex(
-            self.bootstrap,
+            self.bootstrap_lifecycle,
             re.compile(
-                r"function Install-Manager \{.*?"
-                r"& \$pwsh.*?"
-                r"-Action Install",
+                r"function Install-ChatManager \{.*?& \$pwsh.*?-Action Install",
                 re.S,
             ),
         )
         status_capture = re.search(
-            r"function Invoke-ManagerStatusCapture \{(.*?)\n\}",
-            self.bootstrap,
+            r"function Invoke-ChatManagerStatusCapture \{(.*?)\n\}",
+            self.bootstrap_lifecycle,
             re.S,
         )
         self.assertIsNotNone(status_capture)
-        self.assertNotIn('"Install"', status_capture.group(1))
+        self.assertNotIn("Install", status_capture.group(1))
 
     def test_bootstrap_smoke_forces_reference_without_pipeline_capture(self):
         self.assertIn(
-            "Invoke-ManagerAction -Action Start -Profile reference",
-            self.bootstrap,
+            "Invoke-ChatManagerAction -CommandPath $CommandPath -Action Start -Profile reference",
+            self.bootstrap_lifecycle,
         )
-        self.assertIn(
-            'BOOTSTRAP_SMOKE_PROFILE=reference',
-            self.bootstrap,
-        )
-        self.assertIn(
-            "System.Diagnostics.ProcessStartInfo",
-            self.bootstrap,
-        )
+        self.assertIn('BOOTSTRAP_SMOKE_PROFILE=reference', self.bootstrap_lifecycle)
+        self.assertIn("System.Diagnostics.ProcessStartInfo", self.bootstrap_lifecycle)
         action = re.search(
-            r"function Invoke-ManagerAction \{(.*?)\n\}",
-            self.bootstrap,
+            r"function Invoke-ChatManagerAction \{(.*?)\n\}",
+            self.bootstrap_lifecycle,
             re.S,
         )
         self.assertIsNotNone(action)
         body = action.group(1)
         self.assertIn("WaitForExit()", body)
         self.assertNotIn("& $pwsh", body)
-        self.assertNotIn(
-            "Invoke-ControllerProcess -Action Start",
-            self.bootstrap,
-        )
 
-    def test_profile_acceptance_runs_when_manager_changes(self):
+    def test_profile_acceptance_runs_when_manager_or_bootstrap_module_changes(self):
         for expected in (
             "scripts/chat-platform-controller.ps1",
             "scripts/chat-platform.ps1",
             "scripts/chat-platform-tray.ps1",
             "scripts/bootstrap-chat-platform.ps1",
+            "scripts/bootstrap-tunnel-runtime.ps1",
+            "scripts/bootstrap-manager-runtime.ps1",
+            "scripts/bootstrap-manager-lifecycle.ps1",
         ):
             self.assertIn(expected, self.profile_ci)
         self.assertIn(
@@ -453,12 +400,15 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             self.profile_ci,
         )
 
-    def test_ci_parses_new_lifecycle_scripts_and_runs_python_tests(self):
-        self.assertIn("scripts/chat-platform-controller.ps1", self.ci)
-        self.assertIn("scripts/chat-platform.ps1", self.ci)
-        self.assertIn("scripts/chat-platform-tray.ps1", self.ci)
-        self.assertIn("scripts/bootstrap-chat-platform.ps1", self.ci)
-        self.assertIn("scripts/start-chat-profile.ps1", self.ci)
+    def test_ci_parses_lifecycle_scripts_and_runs_python_tests(self):
+        for expected in (
+            "scripts/chat-platform-controller.ps1",
+            "scripts/chat-platform.ps1",
+            "scripts/chat-platform-tray.ps1",
+            "scripts/bootstrap-chat-platform.ps1",
+            "scripts/start-chat-profile.ps1",
+        ):
+            self.assertIn(expected, self.ci)
         self.assertIn(
             'python -m unittest discover -s tests -p "test_*.py"',
             self.ci,
