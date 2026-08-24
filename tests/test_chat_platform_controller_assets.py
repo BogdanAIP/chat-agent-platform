@@ -131,7 +131,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             "OneMcpLauncherPackage",
             "System.Diagnostics.ProcessStartInfo",
             "$startInfo.FileName = $cmd",
-            "$startInfo.CreateNoWindow = $true",
+            "$startInfo.CreateNoWindow = $true,
             "$startInfo.UseShellExecute = $false",
             "$startInfo.ArgumentList.Add('/c')",
             "$windowsLauncher",
@@ -272,17 +272,20 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         for forbidden in ('tool_invoke', 'tool_schema', 'mcp_enable'):
             self.assertNotIn(forbidden, self.start_semantic)
 
-    def test_bootstrap_installs_optional_adaptive_extension_assets(self):
-        for expected in (
+    def test_baseline_bootstrap_excludes_optional_adaptive_extension_assets(self):
+        install_body = self.bootstrap_manager.split('function Install-ChatManagerBundle', 1)[1]
+        for forbidden in (
             "runtime\\chat-profiles\\adaptive\\mcp.json",
             "runtime\\1mcp-adaptive-shim\\package.json",
             "runtime\\1mcp-adaptive-shim\\bin\\1mcp-adaptive.mjs",
             "runtime\\1mcp-adaptive-shim\\scripts\\apply-compatibility-patch.mjs",
         ):
-            self.assertIn(expected, self.bootstrap_manager)
-        self.assertIn("Assert-ChatInstalledAdaptiveRuntime", self.bootstrap_manager)
-        self.assertIn("runtime_assets", self.bootstrap_manager)
-        self.assertIn("schema_version = 4", self.bootstrap_manager)
+            self.assertNotIn(forbidden, install_body)
+        self.assertNotIn("Assert-ChatInstalledAdaptiveRuntime -AppRuntimeDir", install_body)
+        self.assertIn("extension_manager_included = $false", install_body)
+        self.assertIn("EXTENSION_MANAGER_INCLUDED=False", install_body)
+        self.assertIn("runtime_assets", install_body)
+        self.assertIn("schema_version = 4", install_body)
 
     def test_bootstrap_installs_canonical_six_tool_semantic_runtime(self):
         for expected in (
