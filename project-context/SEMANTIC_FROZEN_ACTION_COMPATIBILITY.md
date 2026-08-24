@@ -1,28 +1,10 @@
 # Semantic Frozen-Action Compatibility
 
-Status: **PHYSICAL E2E ACCEPTED ON TARGET WINDOWS / TEMPORARY MIGRATION COMPATIBILITY**.
+Status: **PHYSICAL E2E ACCEPTED MIGRATION COMPATIBILITY / CURRENT CANONICAL CANDIDATE INVENTORY = SIX TOOLS**.
 
 ## Why this exists
 
-The normal public `semantic` path is already direct stdio:
-
-```text
-ordinary ChatGPT
-  -> Chat Local Bridge Test
-  -> OpenAI Secure MCP Tunnel
-  -> official tunnel-client
-  -> semantic-projection
-```
-
-The live semantic server publishes exactly five canonical tools:
-
-- `workspace_read`;
-- `workspace_write`;
-- `web_open`;
-- `web_observe`;
-- `web_interact`.
-
-A fresh ordinary-Chat test in August 2026 showed that the existing `Chat Local Bridge Test` app still invoked the old Stage 24 1MCP-qualified action IDs even after Refresh:
+A previously accepted ordinary-Chat app snapshot continued to invoke five historical Stage 24 1MCP-qualified action IDs even after Refresh:
 
 ```text
 semantic-projection_1mcp_workspace_read
@@ -32,76 +14,52 @@ semantic-projection_1mcp_web_observe
 semantic-projection_1mcp_web_interact
 ```
 
-The direct semantic runtime correctly rejected those names with JSON-RPC `-32602` / `Tool ... not found` because they were no longer part of the public inventory.
+The direct semantic runtime originally rejected those frozen names with JSON-RPC `Tool ... not found` even though the corresponding canonical semantics were available.
 
-## Compatibility decision
+PR #97 therefore introduced a narrow inbound compatibility rewrite for exactly those five historical IDs.
 
-PR #97 adds a narrow compatibility proxy in the credential-scrubbing launcher.
+## Compatibility rule
 
-It rewrites **only** the five exact reviewed frozen action IDs above to their canonical names on inbound `tools/call` requests. It does not:
+The compatibility layer rewrites **only** those five exact frozen action IDs to their canonical equivalents on inbound `tools/call` requests.
+
+It does not:
 
 - publish the legacy aliases in `tools/list`;
-- add a generic invocation tool;
 - strip arbitrary prefixes;
+- add a generic invocation tool;
 - dispatch arbitrary tool names;
-- reintroduce 1MCP into the normal semantic path.
+- reintroduce 1MCP into the normal direct semantic transport;
+- create a five-tool public mode;
+- alias or emulate `procedure_run`.
 
-The public inventory remains exactly five canonical tools.
+## Current Stage 26.3A candidate inventory
 
-## Hosted acceptance
-
-Hosted candidate `1b78ae37952c7f7a61b0e3497622395deac661e2` passed the complete PR matrix, including:
-
-- Direct Semantic Tunnel Acceptance;
-- Semantic Projection Acceptance;
-- Semantic Dependency Reproducibility;
-- Stage 25.1 Security Regressions;
-- CodeQL Security;
-- Secret History Scan;
-- `ci`;
-- Chat Profile Acceptance.
-
-Direct tunnel acceptance on the official `tunnel-client v0.0.11` recorded:
+The current normal semantic candidate publishes exactly six canonical tools:
 
 ```text
-DIRECT_SEMANTIC_TOOL_COUNT=5
-DIRECT_SEMANTIC_FILESYSTEM=PASS
-DIRECT_SEMANTIC_BROWSER=PASS
-DIRECT_SEMANTIC_LEGACY_ACTION_COMPAT=PASS
-DIRECT_SEMANTIC_NEGATIVE_CASES=PASS
-DIRECT_SEMANTIC_TUNNEL_ACCEPTANCE=PASS
-DIRECT_SEMANTIC_1MCP_USED=False
-DIRECT_SEMANTIC_TUNNEL=PASS
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+procedure_run
 ```
 
-## Target-Windows ordinary-Chat E2E — PASSED
+The five frozen `_1mcp_` aliases exist only as inbound migration compatibility for old app snapshots. They are not part of `tools/list` and do not determine the current public tool count.
 
-The target machine installed the exact semantic bundle from:
+`procedure_run` is new to the Stage 26.3A candidate and has no frozen Stage 24 alias.
 
-```text
-1b78ae37952c7f7a61b0e3497622395deac661e2
-```
+## Historical physical evidence
 
-The installed runtime then reported:
+PR #97 physical acceptance remains valid for the exact historical code/head and scope it tested. It proved that old frozen ChatGPT action IDs could reach the canonical file/browser implementations without restoring raw 1MCP routing.
 
-```text
-tunnel_running=true
-tunnel_ready=true
-mcp_ready=true
-runtime_ready=true
-openai_ready=true
-active_profile=semantic
-active_count=1
-conflict=false
-tunnel_binding=direct-stdio
-health_code=READY
-```
+At that time the canonical public inventory was five tools. That historical count is evidence about the accepted migration fix at that exact point in development; it is **not** the current Stage 26.3A candidate contract.
 
-An ordinary ChatGPT conversation using only `Chat Local Bridge Test` semantic tools then executed the frozen action snapshot successfully:
+The accepted ordinary-Chat evidence included:
 
 ```text
 workspace_read(input.txt)
-=> ENOENT: no such file or directory, open 'C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\executor-qualification\input.txt'
+=> application-level Filesystem ENOENT rather than Tool-not-found
 
 web_open(https://example.com)
 => success
@@ -110,9 +68,7 @@ web_observe
 => Example Domain
 ```
 
-The `workspace_read` result is an application-level Filesystem `ENOENT`, not a tool-routing failure. It proves that the old frozen action ID reached the canonical semantic Filesystem implementation. `web_open` and `web_observe` completed end-to-end through the same compatibility boundary.
-
-The prior failure mode:
+The prior routing failure:
 
 ```text
 Tool semantic-projection_1mcp_* not found
@@ -120,14 +76,32 @@ Tool semantic-projection_1mcp_* not found
 
 was not observed.
 
-## Architectural scope
+## Current architectural scope
 
-This layer is migration compatibility, not a new permanent public contract. The canonical five tool names remain authoritative.
+The normal public route remains direct stdio through the Secure MCP Tunnel and canonical semantic launcher.
 
-The compatibility aliases may be removed only after a separate ordinary-Chat migration test proves that a newly created or explicitly rebound ChatGPT app no longer invokes any of the five old `_1mcp_` IDs. A UI Refresh alone is not sufficient evidence because the August 2026 target test showed that Refresh did not clear the stale identifiers.
+For Stage 26.3A the launcher always reaches the canonical six-tool projection. The frozen compatibility table is merely an inbound name-rewrite boundary for five old file/browser aliases.
 
-Until that removal gate passes, keeping the exact allowlist is preferred to breaking existing connected ChatGPT app snapshots during transport/runtime upgrades.
+There is no runtime choice such as:
+
+```text
+legacy five-tool mode
+vs
+six-tool procedure mode
+```
+
+The old aliases and current six-tool inventory solve different problems and must not be conflated.
+
+## Removal gate
+
+The five frozen aliases may be removed only after a separate ordinary-Chat migration test proves that a newly created or explicitly rebound ChatGPT app no longer invokes any of the old `_1mcp_` IDs.
+
+A UI Refresh alone is not sufficient evidence because prior target testing showed Refresh did not clear the stale identifiers.
+
+Until that removal gate passes, keeping the exact allowlist is safer than breaking existing connected app snapshots during runtime upgrades.
 
 ## Performance scope
 
-The compatibility operation is a fixed lookup/rewrite across five exact strings before the canonical MCP call. It is not expected to be a material latency contributor compared with tunnel, browser, Filesystem, grounding or model work. Performance is therefore not the removal criterion; removal is governed by contract cleanliness and verified app migration.
+The compatibility operation is a fixed lookup/rewrite across five exact historical strings before the canonical MCP call. It is not expected to be a material latency contributor compared with tunnel, browser, filesystem, grounding or model work.
+
+Removal is governed by verified app migration and contract cleanliness, not performance.
