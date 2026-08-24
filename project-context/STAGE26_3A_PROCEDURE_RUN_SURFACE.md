@@ -1,14 +1,10 @@
-# Stage 26.3A `procedure_run` Qualification Surface
+# Stage 26.3A canonical six-tool semantic surface
 
-Status: **ACTIVE IMPLEMENTATION CONTRACT / NOT PRODUCT-ACCEPTED**.
+Status: **ACTIVE IMPLEMENTATION CONTRACT / PHYSICAL ORDINARY-CHAT ACCEPTANCE PENDING**.
 
-## Purpose
+## Decision
 
-Stage 26.3A needs one truthful Chat-facing capability that can ask the deterministic local Control Plane to execute a bounded known procedure through multiple independently verified transitions.
-
-This must not be hidden inside `workspace_write`, `web_interact`, or a generic `tool_invoke` surface.
-
-The accepted ordinary semantic profile remains unchanged and continues to expose exactly:
+For the current Stage 26.3A candidate there is one ordinary semantic public surface and it exposes exactly six tools:
 
 ```text
 workspace_read
@@ -16,47 +12,64 @@ workspace_write
 web_open
 web_observe
 web_interact
-```
-
-Stage 26.3A therefore introduces a separate **qualification-only** profile with one additional tool:
-
-```text
 procedure_run
 ```
 
-No product/public promotion is implied by this qualification surface.
+There is no user-selectable or runtime-selectable `5 tools` versus `6 tools` mode.
 
-## Isolation model
+The separate `procedure-qualification` profile, qualification projection and qualification handoff path were removed. The normal semantic launcher always routes through the canonical six-tool Control Plane projection.
 
-The normal semantic server is not modified to conditionally grow extra authority.
+An internal five-capability file/browser implementation remains only as a private implementation layer behind the canonical projection. It is not a Chat-facing profile, cannot be selected by the tray/manager and is not an alternative public contract.
 
-Instead the qualification profile uses:
+## Purpose
 
-```text
-procedure-qualification-projection
-  -> proxies the exact accepted five semantic tools
-  -> adds one typed procedure_run tool
-  -> procedure_run invokes only the fixed local Control Plane CLI
-```
+`procedure_run` gives ordinary ChatGPT one truthful typed capability for asking the deterministic local Control Plane to execute a known bounded procedure through multiple independently verified transitions.
 
-Assets:
+It must not be hidden inside `workspace_write`, `web_interact`, or a generic dispatcher.
+
+The six-tool surface therefore separates two responsibilities:
 
 ```text
-runtime/semantic-projection/bin/procedure-qualification-projection.mjs
-runtime/chat-profiles/procedure-qualification/mcp.json
-scripts/start-procedure-qualification-profile.ps1
-scripts/stage26-3a-procedure-direct-tunnel.ps1
+ordinary ChatGPT
+  -> open-ended goal interpretation and procedure selection
+
+canonical semantic projection
+  -> five reviewed file/browser semantics
+  -> one typed procedure_run semantic
+
+local deterministic Control Plane
+  -> exact registered procedure/version
+  -> TaskState/checkpoints
+  -> current-state authorization
+  -> bounded transition execution
+  -> verifier/postconditions
+  -> completion or ABSTAIN
 ```
 
-This keeps the production/accepted five-tool profile structurally separate from the candidate procedure capability.
+`procedure_run` does not create a second general planner and does not expose arbitrary shell/Python execution.
 
-The qualification proxy is also intentionally excluded from the production semantic package `files` allowlist. It is source/qualification infrastructure until the public consequence contract is explicitly promoted.
+## Public runtime
 
-### Child environment and credential isolation
+The canonical path is:
 
-The Python Control Plane and the nested semantic child do not need tunnel/OpenAI credentials and must not inherit the projection process environment wholesale.
+```text
+ordinary ChatGPT
+  -> Chat Local Bridge Test
+  -> OpenAI Secure MCP Tunnel
+  -> official tunnel-client
+  -> semantic-projection-launcher.mjs
+  -> semantic-control-plane-projection.mjs
+       -> private file/browser semantic base
+       -> deterministic Control Plane procedure adapter
+```
 
-`procedure-qualification-projection.mjs` deletes the tunnel-only variables:
+`semantic-projection-launcher.mjs` always launches `semantic-control-plane-projection.mjs`. There is no conditional entrypoint that chooses a five-tool public surface.
+
+The normal semantic profile declares the permanent `procedure` / `control-plane` capability and still exposes exactly one projection server.
+
+## Credential isolation
+
+The public launcher scrubs tunnel/OpenAI credentials before child execution:
 
 ```text
 CONTROL_PLANE_API_KEY
@@ -64,19 +77,11 @@ OPENAI_API_KEY
 OPENAI_ADMIN_KEY
 ```
 
-before starting any child, then builds an explicit child-environment allowlist containing only the operating-system minimum required to locate/run Node/Python/browser dependencies plus:
-
-```text
-CHAT_LOCAL_FILES_ROOT
-CHAT_PROCEDURE_STATE_ROOT
-CHAT_PROCEDURE_ALLOW_CANDIDATE
-```
-
-A procedure gaining bounded local execution authority must not gain unrelated transport/control-plane secrets by process inheritance.
+The deterministic procedure child receives only the bounded environment required for the reviewed workspace/procedure runtime. Procedure authority must not imply transport-secret inheritance.
 
 ## Exact Stage 26.3A procedure schema
 
-The only admitted procedure is:
+The currently registered procedure is:
 
 ```text
 verified_workspace_artifact_v1
@@ -94,45 +99,64 @@ resume_task_id  = optional exact 32-hex TaskState id
 It must not accept or expose:
 
 ```text
-path
+arbitrary path
 command
+shell
 python executable
 backend
 server
 raw tool name
-arbitrary args
-shell
 working directory
+arbitrary args
 ```
 
-The workspace root, TaskState root and candidate admission are profile configuration, not caller-controlled procedure arguments.
+The workspace root and procedure-state root come from the local runtime configuration, not caller-selected procedure arguments.
 
 ## Authority boundary
 
-`procedure_run` is not a planner and does not itself authorize arbitrary actions.
+A procedure request does not bypass authorization, verifier gates, budgets, checkpoint compatibility or current-state checks.
 
 ```text
 ordinary ChatGPT
- -> chooses the known procedure + bounded parameters
+ -> chooses known procedure + bounded parameters
  -> procedure_run
  -> deterministic Control Plane
-      exact procedure/version/trust admission
-      TaskState/checkpoint
-      current-state validation
-      known transition
-      bounded action
-      verifier
+      validate procedure/version/input
+      load/create TaskState
+      observe current state
+      authorize exact known transition
+      perform bounded mutation
+      verify result
       checkpoint
-      repeat or ABSTAIN
+      continue while state is known and budgets permit
+      complete OR ABSTAIN
 ```
 
-A procedure request does not bypass current-state authorization, verifier gates, budgets, checkpoint compatibility, or candidate admission.
+Novel, stale, ambiguous or incompatible state must fail closed.
+
+## Current file procedure
+
+`verified_workspace_artifact_v1` operates only below:
+
+```text
+.chat-agent-platform/stage26-3a/
+```
+
+It has a fixed action budget of three verified transitions:
+
+1. exclusive staging create -> exact size/SHA-256 + filesystem-object identity verify -> checkpoint;
+2. exclusive final create -> target+staging identity/content verify -> checkpoint;
+3. verify target/staging -> remove only the owned staging object -> verify final state -> completion checkpoint.
+
+A pre-existing final target produces structured `ABSTAIN` and zero unauthorized overwrite.
+
+Rollback may remove a path only when both recorded digest and filesystem-object identity still prove ownership by the current task.
 
 ## Resume contract
 
-`resume_task_id` may resume only a retained compatible TaskState for the same exact procedure/artifact/content and only from a proven resumable checkpoint.
+`resume_task_id` may continue only a retained compatible TaskState for the same exact procedure/artifact/content and a proven resumable checkpoint.
 
-The current kernel accepts durable checkpoint resume at:
+Current durable nodes are:
 
 ```text
 preflight
@@ -141,96 +165,76 @@ final_verified
 completed (idempotent observation only)
 ```
 
-Ambiguous mid-transition state is not guessed through.
+Ambiguous mid-transition crash state is never guessed through.
 
-## Direct MCP acceptance
+## Automated acceptance
 
-Automated acceptance must prove all of the following in one direct MCP session:
-
-```text
-inventory == accepted five semantic tools + procedure_run
- -> procedure_run creates the verified artifact through three transitions
- -> independent workspace_read observes the exact artifact content
- -> resume_task_id returns the already-completed task without repeating actions
-```
-
-The acceptance must also inspect the `procedure_run` input schema and prove that generic path/command/backend/tool selectors are absent. Source/security regressions lock the explicit child-environment allowlist and absence of tunnel/OpenAI credentials from descendants.
-
-Current acceptance assets:
+The canonical six-tool acceptance must prove in one MCP session:
 
 ```text
-runtime/semantic-projection/tests/procedure-qualification-acceptance.mjs
-tests/test_stage26_3a_procedure_surface.py
-.github/workflows/stage26-3a-procedure.yml
+tools/list == exactly six canonical tools
+ -> procedure_run creates a verified artifact
+ -> independent workspace_read observes the exact artifact
+ -> resume_task_id returns the compatible completed task without replaying mutations
+ -> pre-existing target causes ABSTAIN
+ -> independent read proves the protected target was not overwritten
 ```
 
-Production `npm run acceptance` deliberately remains the historical five-tool semantic regression. The qualification acceptance is a separate named gate; adding a candidate procedure capability must not redefine what the old production acceptance means.
+It also verifies that generic path/command/backend/tool selectors are absent from the `procedure_run` schema.
 
-## Secure MCP Tunnel qualification path
+The old file/browser regression remains useful only as an internal-base regression. It must not describe itself as the public surface.
 
-The ordinary-Chat physical gate must use the already accepted Secure MCP Tunnel / official `tunnel-client` / direct-stdio transport rather than an unrelated local-only path.
+## Startup / installed-layout acceptance
 
-Stage 26.3A uses a separate qualification harness:
+The ordinary `start-semantic-profile.ps1` startup guard must inspect the live semantic server and require exactly the six canonical names before reporting READY.
+
+The installed bundle must contain and verify:
 
 ```text
-scripts/stage26-3a-procedure-direct-tunnel.ps1
+semantic-projection-launcher.mjs
+semantic-control-plane-projection.mjs
+semantic-projection.mjs
+runtime/control_plane/cli.py
+runtime/control_plane/verified_workspace_artifact.py
 ```
 
-Its contract is:
+Installation metadata records:
 
 ```text
-existing persistent tunnel_* id
- -> stop any competing accepted local profile
- -> official installed tunnel-client
- -> direct --mcp.command node procedure-qualification-projection.mjs
- -> exact qualification workspace/state/admission environment
- -> proxy scrubs tunnel credentials before descendants
- -> local /readyz must pass
+semantic_public_tool_count = 6
 ```
 
-The harness must not create/update/delete/rotate tunnel resources and must not require `OPENAI_ADMIN_KEY`. The same persistent tunnel id is reused temporarily for qualification so the Chat connector binding remains stable.
-
-This harness is qualification infrastructure, not a replacement for the production semantic direct controller. Start/Stop of the qualification route must not silently promote the six-tool surface into the ordinary semantic profile.
+The tray has one normal READY state. For semantic, READY means the ordinary semantic runtime is healthy with the six-tool contract; there is no separate qualification color/state.
 
 ## Physical ordinary-Chat acceptance
 
-After hosted gates are green, the target Windows test is:
+After hosted gates are green, the target-Windows gate is the ordinary installed semantic route itself:
 
 ```text
-prepare one disposable explicit workspace
- -> start Stage 26.3A qualification direct tunnel
- -> ordinary ChatGPT sees exactly six qualification tools
- -> user states ONE bounded artifact goal once
- -> Chat chooses verified_workspace_artifact_v1
- -> Chat calls procedure_run
- -> Control Plane executes multiple verified transitions locally
- -> Chat independently calls workspace_read on final artifact
- -> exact content/postcondition verified
- -> no intermediate PowerShell copy/paste during procedure execution
+install/update exact candidate
+ -> select/start ordinary semantic profile
+ -> tray reports normal READY
+ -> Chat Local Bridge Test sees exactly six tools
+ -> user gives one natural bounded goal
+ -> Chat uses workspace/browser capabilities as useful
+ -> Chat invokes verified_workspace_artifact_v1 through procedure_run for the final bounded artifact
+ -> Chat independently reads the produced artifact
+ -> exact postcondition is verified
 ```
 
-Negative acceptance must use an incompatible/pre-existing intermediate state and prove:
+A negative physical gate must also prove:
 
 ```text
-procedure_run -> structured ABSTAIN
- -> zero unauthorized continuation/overwrite
- -> independent workspace_read confirms protected state is unchanged
+pre-existing protected target
+ -> procedure_run returns structured ABSTAIN
+ -> no overwrite
+ -> independent workspace_read confirms protected content remains unchanged
 ```
 
-One initial target setup command to install/start the qualification route is infrastructure setup, not an allowed substitute for intermediate command relay inside the actual procedure test.
+No temporary five-to-six handoff is part of this test.
 
-## Product promotion gate
+## Acceptance meaning
 
-The qualification surface must not become the normal Chat profile until a later explicit ADR/review accepts the public consequence contract.
+Hosted CI proves the software contract; it does not prove ordinary-Chat physical behavior on the target Windows machine.
 
-At minimum product promotion requires:
-
-1. hardened file-procedure checkpoint/resume/fault tests green;
-2. dedicated qualification MCP acceptance green;
-3. Secure MCP Tunnel direct-stdio qualification wiring green;
-4. ordinary ChatGPT E2E starting from one user goal with no intermediate PowerShell copy/paste;
-5. independent final verification returned to Chat;
-6. negative E2E showing incompatible intermediate state => structured ABSTAIN with no unauthorized continuation;
-7. a dedicated public-surface ADR after the Transport Supervisor ADR numbering is integrated into `main`.
-
-Until those gates pass, the normal five-tool semantic profile remains the accepted product contract.
+Stage 26.3A is physically accepted only after the normal six-tool semantic route succeeds end-to-end in ordinary ChatGPT and the negative ABSTAIN/no-overwrite case is independently verified.
