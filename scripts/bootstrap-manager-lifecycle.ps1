@@ -101,7 +101,7 @@ function Resolve-ChatBootstrapWorkspace {
                 -not [string]::IsNullOrWhiteSpace([string]$settings.files_root) -and
                 (Test-Path -LiteralPath ([string]$settings.files_root) -PathType Container)
             ) {
-                return (Resolve-Path -LiteralPath ([string]$settings.files_root).Path
+                return (Resolve-Path -LiteralPath ([string]$settings.files_root)).Path
             }
         }
         catch {}
