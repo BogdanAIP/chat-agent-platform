@@ -4,6 +4,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 CHAT_PROFILES = (ROOT / '.github' / 'workflows' / 'chat-profiles.yml').read_text(encoding='utf-8')
+SEMANTIC = (ROOT / '.github' / 'workflows' / 'semantic-projection.yml').read_text(encoding='utf-8')
 EXTENSIONS = (ROOT / '.github' / 'workflows' / 'extension-manager.yml').read_text(encoding='utf-8')
 BOOTSTRAP = (ROOT / 'scripts' / 'bootstrap-chat-platform.ps1').read_text(encoding='utf-8')
 
@@ -15,6 +16,14 @@ class ExtensionManagerBoundaryTests(unittest.TestCase):
         self.assertNotIn('tests/adaptive-mcp-acceptance.mjs', CHAT_PROFILES)
         self.assertNotIn("Get-Content 'runtime/chat-profiles/adaptive/mcp.json'", CHAT_PROFILES)
         self.assertIn('Prove promoted six-tool semantic profile routes through the public manager', CHAT_PROFILES)
+
+    def test_required_semantic_projection_gate_does_not_use_1mcp(self):
+        self.assertNotIn('@1mcp/agent', SEMANTIC)
+        self.assertNotIn('real 1MCP lifecycle', SEMANTIC)
+        self.assertNotIn('SEMANTIC_PROFILE_1MCP', SEMANTIC)
+        self.assertIn('SEMANTIC_INSTALLED_1MCP_REQUIRED=False', SEMANTIC)
+        self.assertIn('Run canonical six-tool acceptance and internal base regressions', SEMANTIC)
+        self.assertIn('Prove semantic runtime from standalone installed layout', SEMANTIC)
 
     def test_optional_extension_workflow_owns_1mcp_adaptive_acceptance(self):
         self.assertIn('name: Optional Extension Manager Acceptance', EXTENSIONS)
