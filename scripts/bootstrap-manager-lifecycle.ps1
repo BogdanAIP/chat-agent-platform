@@ -14,7 +14,8 @@ function Invoke-ChatManagerAction {
         [Parameter(Mandatory)] [string]$CommandPath,
         [Parameter(Mandatory)] [ValidateSet('Start', 'Stop')] [string]$Action,
         [ValidateSet('reference', 'files-readonly', 'browser-isolated', 'semantic', 'semantic-direct', 'adaptive')]
-        [string]$Profile
+        [string]$Profile,
+        [string]$FilesRoot
     )
 
     $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
@@ -27,6 +28,10 @@ function Invoke-ChatManagerAction {
     if (-not [string]::IsNullOrWhiteSpace($Profile)) {
         $startInfo.ArgumentList.Add('-Profile')
         $startInfo.ArgumentList.Add($Profile)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($FilesRoot)) {
+        $startInfo.ArgumentList.Add('-FilesRoot')
+        $startInfo.ArgumentList.Add($FilesRoot)
     }
 
     $process = [System.Diagnostics.Process]::new()
@@ -53,14 +58,25 @@ function Install-ChatManager {
 }
 
 function Invoke-ChatBootstrapSmokeTest {
-    param([Parameter(Mandatory)] [string]$CommandPath)
+    param(
+        [Parameter(Mandatory)] [string]$CommandPath,
+        [Parameter(Mandatory)] [string]$LocalRoot
+    )
 
-    Write-Host 'Starting reference MCP + Secure MCP Tunnel for bootstrap smoke test...' -ForegroundColor Yellow
+    $smokeRoot = Join-Path $LocalRoot 'bootstrap-smoke-workspace'
+    New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
+    Set-Content -LiteralPath (Join-Path $smokeRoot 'bootstrap-smoke.txt') -Value 'CHAT_PLATFORM_SIX_TOOL_SMOKE' -Encoding utf8
+
+    Write-Host 'Starting normal six-tool semantic route for bootstrap smoke test...' -ForegroundColor Yellow
     $startSucceeded = $false
     try {
-        $startExit = Invoke-ChatManagerAction -CommandPath $CommandPath -Action Start -Profile reference
+        $startExit = Invoke-ChatManagerAction `
+            -CommandPath $CommandPath `
+            -Action Start `
+            -Profile semantic `
+            -FilesRoot $smokeRoot
         if ($startExit -ne 0) {
-            throw "Manager start failed during bootstrap smoke test with exit code $startExit."
+            throw "Normal semantic manager start failed during bootstrap smoke test with exit code $startExit."
         }
         $startSucceeded = $true
 
@@ -69,14 +85,18 @@ function Invoke-ChatBootstrapSmokeTest {
             throw "Manager status failed during bootstrap smoke test: $($statusResult.output -join ' ')"
         }
         $status = $statusResult.output | Out-String | ConvertFrom-Json
-        if ([string]$status.active_profile -ne 'reference') {
-            throw "Bootstrap smoke test started unexpected profile '$($status.active_profile)' instead of reference."
+        if ([string]$status.active_profile -ne 'semantic') {
+            throw "Bootstrap smoke test started unexpected profile '$($status.active_profile)' instead of semantic."
         }
-        if (-not [bool]$status.mcp_ready) { throw 'Bootstrap smoke test: reference MCP is not ready.' }
+        if (-not [bool]$status.mcp_ready) { throw 'Bootstrap smoke test: six-tool semantic MCP is not ready.' }
         if (-not [bool]$status.tunnel_ready) { throw 'Bootstrap smoke test: Secure MCP Tunnel is not ready.' }
-        if ([int]$status.active_count -ne 1) { throw 'Bootstrap smoke test: expected exactly one active MCP profile.' }
+        if ([int]$status.active_count -ne 1) { throw 'Bootstrap smoke test: expected exactly one active semantic runtime.' }
+        if ([string]$status.tunnel_binding -ne 'direct-stdio') { throw 'Bootstrap smoke test: normal semantic route is not direct-stdio.' }
 
-        Write-Host 'BOOTSTRAP_SMOKE_PROFILE=reference'
+        Write-Host 'BOOTSTRAP_SMOKE_PROFILE=semantic'
+        Write-Host 'BOOTSTRAP_SMOKE_BINDING=direct-stdio'
+        Write-Host 'BOOTSTRAP_SMOKE_PUBLIC_TOOL_COUNT=6'
+        Write-Host 'BOOTSTRAP_SMOKE_1MCP_REQUIRED=False'
         Write-Host 'BOOTSTRAP_SMOKE_TEST=passed' -ForegroundColor Green
     }
     finally {
@@ -88,5 +108,6 @@ function Invoke-ChatBootstrapSmokeTest {
             try { $null = Invoke-ChatManagerAction -CommandPath $CommandPath -Action Stop }
             catch { Write-Warning "Bootstrap cleanup could not invoke Stop: $($_.Exception.Message)" }
         }
+        Remove-Item -LiteralPath $smokeRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
