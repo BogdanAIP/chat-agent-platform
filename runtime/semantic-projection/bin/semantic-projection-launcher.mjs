@@ -5,6 +5,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { assertExpectedSemanticInventory } from '../lib/semantic-inventory-guard.mjs';
+
 const tunnelOnlyCredentialKeys = [
   'CONTROL_PLANE_API_KEY',
   'OPENAI_API_KEY',
@@ -63,6 +65,18 @@ function rewriteLegacyToolCall(line) {
 
 const launcherDir = path.dirname(fileURLToPath(import.meta.url));
 const semanticEntry = path.join(launcherDir, 'semantic-control-plane-projection.mjs');
+
+try {
+  await assertExpectedSemanticInventory({
+    entry: semanticEntry,
+    env: process.env
+  });
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`semantic launcher live inventory preflight failed: ${message}`);
+  process.exit(1);
+}
+
 const child = spawn(process.execPath, [semanticEntry], {
   env: process.env,
   stdio: ['pipe', 'pipe', 'pipe'],
