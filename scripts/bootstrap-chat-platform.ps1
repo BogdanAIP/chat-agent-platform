@@ -2,7 +2,6 @@
 param(
     [string]$TunnelId,
     [switch]$ForceTunnelClientUpdate,
-    [switch]$ReconfigureTunnelProfile,
     [switch]$SkipSmokeTest,
     [switch]$LaunchTray
 )
@@ -32,7 +31,8 @@ $BinDir = Join-Path $LocalRoot 'bin'
 $TunnelDir = Join-Path $LocalRoot 'tunnel'
 $StateDir = Join-Path $LocalRoot 'state'
 $TunnelExe = Join-Path $BinDir 'tunnel-client.exe'
-$TunnelProfile = Join-Path $TunnelDir 'local-1mcp.yaml'
+$TunnelStateFile = Join-Path $StateDir 'tunnel.json'
+$LegacyTunnelProfile = Join-Path $TunnelDir 'local-1mcp.yaml'
 $InstallMetadata = Join-Path $StateDir 'tunnel-client-install.json'
 $AppInstallMetadata = Join-Path $StateDir 'manager-install.json'
 $CommandPath = Join-Path $AppScriptsDir 'chat-platform.ps1'
@@ -40,14 +40,12 @@ $ControllerPath = Join-Path $AppScriptsDir 'chat-platform-controller.ps1'
 $DirectControllerPath = Join-Path $AppScriptsDir 'semantic-direct-controller.ps1'
 $TrayPath = Join-Path $AppScriptsDir 'chat-platform-tray.ps1'
 
-$McpUrl = 'http://127.0.0.1:3050/mcp'
 $AcceptedTunnelClientVersion = 'v0.0.11'
 $OfficialReleaseApi = "https://api.github.com/repos/openai/tunnel-client/releases/tags/$AcceptedTunnelClientVersion"
 $AcceptedTunnelArchiveSha256 = @{
     amd64 = 'eb912c86c6ccde90cda805cb17009507176a656725cf86c36fabe1901a12e29b'
     arm64 = '38f015a720404c8ccd5976a0d6aed18d931899697eaf208548b5eb3d0f6e8592'
 }
-$OneMcpPackage = '@1mcp/agent@0.34.4'
 
 function Write-Step {
     param([Parameter(Mandatory)] [string]$Message)
@@ -71,7 +69,6 @@ function Assert-ChatBootstrapEnvironment {
     $null = Require-Command 'pwsh.exe'
     $node = Require-Command 'node.exe'
     $null = Require-Command 'npm.cmd'
-    $null = Require-Command 'npx.cmd'
     $python = Require-Command 'python.exe'
 
     $nodeVersion = (& $node --version 2>&1 | Out-String).Trim()
@@ -82,11 +79,6 @@ function Assert-ChatBootstrapEnvironment {
 
     $pythonVersion = (& $python --version 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) { throw "Could not determine the installed Python version: $pythonVersion" }
-
-    $oneMcpHelp = @(& npx.cmd -y $OneMcpPackage --help 2>&1)
-    if ($LASTEXITCODE -ne 0) {
-        throw "Pinned 1MCP dependency failed its startup preflight: $($oneMcpHelp -join ' ')"
-    }
 
     foreach ($source in @(
         (Join-Path $PSScriptRoot 'chat-platform-controller.ps1'),
@@ -106,11 +98,11 @@ function Assert-ChatBootstrapEnvironment {
     Write-Host "NODE=$nodeVersion"
     Write-Host "NPM=$(& npm.cmd --version)"
     Write-Host "PYTHON=$pythonVersion"
-    Write-Host "ONE_MCP=$OneMcpPackage"
+    Write-Host 'NORMAL_SEMANTIC_1MCP_REQUIRED=False'
     Write-Host 'SEMANTIC_PUBLIC_TOOL_COUNT=6'
 }
 
-Write-Step 'Проверка Windows и зависимостей'
+Write-Step 'Проверка Windows и зависимостей normal semantic runtime'
 Assert-ChatBootstrapEnvironment
 
 Write-Step 'Получение и проверка официального OpenAI tunnel-client'
@@ -126,15 +118,14 @@ Install-ChatOfficialTunnelClient `
     -AcceptedArchiveSha256 $AcceptedTunnelArchiveSha256 `
     -ForceUpdate:$ForceTunnelClientUpdate
 
-Write-Step 'Настройка официального tunnel-профиля'
-$resolvedTunnelId = Resolve-ChatTunnelId -RequestedTunnelId $TunnelId -TunnelProfile $TunnelProfile
-Initialize-ChatOfficialTunnelProfile `
-    -TunnelExe $TunnelExe `
-    -TunnelDir $TunnelDir `
-    -TunnelProfile $TunnelProfile `
-    -ResolvedTunnelId $resolvedTunnelId `
-    -McpUrl $McpUrl `
-    -Reconfigure:$ReconfigureTunnelProfile
+Write-Step 'Разрешение постоянного tunnel anchor'
+$resolvedTunnelId = Resolve-ChatTunnelId `
+    -RequestedTunnelId $TunnelId `
+    -TunnelStateFile $TunnelStateFile `
+    -LegacyTunnelProfile $LegacyTunnelProfile
+Write-Host "TUNNEL_ID=$resolvedTunnelId"
+Write-Host "TUNNEL_STATE=$TunnelStateFile"
+Write-Host 'TUNNEL_ANCHOR_1MCP_REQUIRED=False'
 
 Write-Step 'Установка единого six-tool manager/runtime bundle'
 Install-ChatManagerBundle `
@@ -153,8 +144,8 @@ Write-Step 'Установка manager и защищённого runtime key'
 Install-ChatManager -CommandPath $CommandPath
 
 if (-not $SkipSmokeTest) {
-    Write-Step 'Проверка полного локального lifecycle'
-    Invoke-ChatBootstrapSmokeTest -CommandPath $CommandPath
+    Write-Step 'Проверка normal six-tool semantic lifecycle'
+    Invoke-ChatBootstrapSmokeTest -CommandPath $CommandPath -LocalRoot $LocalRoot
 }
 
 if ($LaunchTray) {
@@ -166,7 +157,9 @@ if ($LaunchTray) {
 Write-Host "`nCHAT_PLATFORM_BOOTSTRAP=OK" -ForegroundColor Green
 Write-Host "LOCAL_ROOT=$LocalRoot"
 Write-Host "APP_ROOT=$AppRoot"
-Write-Host "DEFAULT_MCP_URL=$McpUrl"
+Write-Host "TUNNEL_STATE=$TunnelStateFile"
+Write-Host 'SEMANTIC_BINDING=direct-stdio'
 Write-Host 'SEMANTIC_PUBLIC_TOOL_COUNT=6'
+Write-Host 'EXTENSION_MANAGER=optional-1mcp'
 Write-Host 'PLATFORM_STATE=stopped'
 Write-Host 'NEXT=Use the desktop shortcut or the installed chat-platform.ps1 command facade.'
