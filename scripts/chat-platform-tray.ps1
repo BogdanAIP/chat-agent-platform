@@ -54,10 +54,6 @@ public static class ChatPlatformNativeIcon
 $CommandPath = Join-Path $PSScriptRoot "chat-platform.ps1"
 $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
 $ControllerLog = Join-Path $LocalRoot "logs\controller.log"
-$DesiredStateFile = Join-Path $LocalRoot "state\desired-state.json"
-$QualificationHandoffState = Join-Path $LocalRoot "state\stage26-3a-procedure-supervised-handoff.json"
-$QualificationDirectState = Join-Path $LocalRoot "state\stage26-3a-procedure-direct.json"
-$QualificationHealthUrlFile = Join-Path $LocalRoot "state\stage26-3a-procedure-direct-health.url"
 
 $createdNew = $false
 $mutex = New-Object System.Threading.Mutex(
@@ -105,7 +101,6 @@ function New-StatusIcon {
 $script:RedIcon = New-StatusIcon ([System.Drawing.Color]::Crimson)
 $script:YellowIcon = New-StatusIcon ([System.Drawing.Color]::Goldenrod)
 $script:GreenIcon = New-StatusIcon ([System.Drawing.Color]::LimeGreen)
-$script:BlueIcon = New-StatusIcon ([System.Drawing.Color]::DodgerBlue)
 
 function Invoke-ControllerStatus {
     $pwsh = (Get-Command "pwsh.exe" -ErrorAction Stop).Source
@@ -136,104 +131,7 @@ function Invoke-ControllerStatus {
     }
 }
 
-function Read-JsonStateFile {
-    param([Parameter(Mandatory)] [string]$Path)
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        return $null
-    }
-    try {
-        return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -ErrorAction Stop
-    }
-    catch {
-        return $null
-    }
-}
-
-function Test-QualificationReady {
-    if (-not (Test-Path -LiteralPath $QualificationHealthUrlFile -PathType Leaf)) {
-        return $false
-    }
-
-    try {
-        $base = (Get-Content -LiteralPath $QualificationHealthUrlFile -Raw).Trim().TrimEnd('/')
-        if ($base -notmatch '^https?://127\.0\.0\.1(?::\d+)?$') {
-            return $false
-        }
-        $response = Invoke-WebRequest `
-            -Uri "$base/readyz" `
-            -Method Get `
-            -TimeoutSec 2 `
-            -ErrorAction Stop
-        return ($response.StatusCode -eq 200)
-    }
-    catch {
-        return $false
-    }
-}
-
-function Get-QualificationVisualState {
-    if (-not (Test-Path -LiteralPath $QualificationHandoffState -PathType Leaf)) {
-        return $null
-    }
-
-    $handoff = Read-JsonStateFile -Path $QualificationHandoffState
-    if ($null -eq $handoff) {
-        return [pscustomobject]@{
-            mode = "partial"
-            profile = "procedure-qualification"
-            route_owner = "qualification"
-            expected_tool_count = 6
-            tunnel_running = $false
-            tunnel_ready = $false
-            mcp_ready = $false
-            active_count = 0
-            files_root = $null
-            tunnel_id = $null
-            error = "Qualification handoff receipt is unreadable."
-        }
-    }
-
-    $direct = Read-JsonStateFile -Path $QualificationDirectState
-    $desired = Read-JsonStateFile -Path $DesiredStateFile
-    $directReceiptPresent = (
-        $null -ne $direct -and
-        $null -ne $direct.PSObject.Properties['pid'] -and
-        $null -ne $direct.PSObject.Properties['tunnel_id'] -and
-        -not [string]::IsNullOrWhiteSpace([string]$direct.tunnel_id)
-    )
-    $ready = Test-QualificationReady
-    $handoffRunning = (
-        $null -ne $handoff.PSObject.Properties['phase'] -and
-        [string]$handoff.phase -eq "running"
-    )
-    $normalSuspended = (
-        $null -ne $desired -and
-        $null -ne $desired.PSObject.Properties['desired_state'] -and
-        [string]$desired.desired_state -eq "stopped"
-    )
-    $fullyReady = ($handoffRunning -and $normalSuspended -and $directReceiptPresent -and $ready)
-
-    return [pscustomobject]@{
-        mode = if ($fullyReady) { "qualification" } else { "partial" }
-        profile = "procedure-qualification"
-        route_owner = "qualification"
-        expected_tool_count = 6
-        tunnel_running = ($directReceiptPresent -and $ready)
-        tunnel_ready = $ready
-        mcp_ready = $ready
-        active_count = if ($directReceiptPresent -and $ready) { 1 } else { 0 }
-        files_root = if ($null -ne $direct) { [string]$direct.files_root } else { [string]$handoff.files_root }
-        tunnel_id = if ($null -ne $direct) { [string]$direct.tunnel_id } else { $null }
-        error = if ($fullyReady) { $null } else { "Qualification handoff exists but the 6-tool route is not fully ready." }
-    }
-}
-
 function Get-PlatformVisualState {
-    $qualification = Get-QualificationVisualState
-    if ($null -ne $qualification) {
-        return $qualification
-    }
-
     try {
         $state = Invoke-ControllerStatus
     }
@@ -241,14 +139,12 @@ function Get-PlatformVisualState {
         return [pscustomobject]@{
             mode = "partial"
             profile = "unknown"
-            route_owner = "platform"
             expected_tool_count = $null
             tunnel_running = $false
             tunnel_ready = $false
             mcp_ready = $false
             active_count = 0
             files_root = $null
-            tunnel_id = $null
             error = $_.Exception.Message
         }
     }
@@ -285,17 +181,26 @@ function Get-PlatformVisualState {
         $mode = "partial"
     }
 
+    $toolCount = if ($profile -in @("semantic", "semantic-direct")) { 6 } else { $null }
+    $filesRoot = if (
+        $null -ne $state.settings -and
+        $null -ne $state.settings.PSObject.Properties['files_root']
+    ) {
+        [string]$state.settings.files_root
+    }
+    else {
+        $null
+    }
+
     return [pscustomobject]@{
         mode = $mode
         profile = $profile
-        route_owner = "platform"
-        expected_tool_count = if ($profile -eq "semantic") { 5 } else { $null }
+        expected_tool_count = $toolCount
         tunnel_running = [bool]$state.tunnel_running
         tunnel_ready = [bool]$state.tunnel_ready
         mcp_ready = [bool]$state.mcp_ready
         active_count = $activeCount
-        files_root = $null
-        tunnel_id = $null
+        files_root = $filesRoot
         error = $null
     }
 }
@@ -347,29 +252,19 @@ function Set-VisualState {
     $workspaceItem.Visible = $false
 
     switch ([string]$State.mode) {
-        "qualification" {
-            $notify.Icon = $script:BlueIcon
-            $notify.Text = "Chat Agent Platform - 6 tools READY"
-            $statusItem.Text = "🔵 Qualification - 6 tools READY"
-            $detailsItem.Text = "MCP READY | Tunnel READY | owner=qualification"
-            if (-not [string]::IsNullOrWhiteSpace([string]$State.files_root)) {
-                $workspaceItem.Text = "Workspace: $($State.files_root)"
-                $workspaceItem.Visible = $true
-            }
-            $toggleItem.Enabled = $false
-            $startItem.Enabled = $false
-            $stopItem.Enabled = $false
-        }
-
         "on" {
             $notify.Icon = $script:GreenIcon
-            $notify.Text = "Chat Agent Platform - ON"
-            $statusItem.Text = "🟢 Включено - $($State.profile)"
+            $notify.Text = "Chat Agent Platform - READY"
+            $statusItem.Text = "🟢 Готово - $($State.profile)"
             if ($null -ne $State.expected_tool_count) {
                 $detailsItem.Text = "MCP READY | Tunnel READY | $($State.expected_tool_count) tools"
             }
             else {
                 $detailsItem.Text = "MCP READY | Tunnel READY"
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string]$State.files_root)) {
+                $workspaceItem.Text = "Workspace: $($State.files_root)"
+                $workspaceItem.Visible = $true
             }
             $toggleItem.Enabled = $true
             $startItem.Enabled = $false
@@ -406,9 +301,9 @@ function Set-VisualState {
             else {
                 $detailsItem.Text = "MCP=$($State.mcp_ready) | Tunnel=$($State.tunnel_ready)"
             }
-            $toggleItem.Enabled = ($State.route_owner -ne "qualification")
-            $startItem.Enabled = ($State.route_owner -ne "qualification")
-            $stopItem.Enabled = ($State.route_owner -ne "qualification")
+            $toggleItem.Enabled = $true
+            $startItem.Enabled = $true
+            $stopItem.Enabled = $true
         }
     }
 }
@@ -421,7 +316,6 @@ function Refresh-VisualState {
         Set-VisualState -State ([pscustomobject]@{
             mode = "busy"
             profile = ""
-            route_owner = "platform"
         })
         return
     }
@@ -435,13 +329,14 @@ function Show-StateBalloon {
     $state = Get-PlatformVisualState
 
     switch ([string]$state.mode) {
-        "qualification" {
-            $notify.BalloonTipTitle = "Chat Agent Platform - Qualification"
-            $notify.BalloonTipText = "6 tools READY. MCP READY. Tunnel READY. Обычное ВКЛ/ВЫКЛ временно заблокировано."
-        }
         "on" {
-            $notify.BalloonTipTitle = "Chat Agent Platform - ВКЛ"
-            $notify.BalloonTipText = "Профиль $($state.profile) полностью готов."
+            $notify.BalloonTipTitle = "Chat Agent Platform - READY"
+            if ($null -ne $state.expected_tool_count) {
+                $notify.BalloonTipText = "Профиль $($state.profile) готов. MCP READY. Tunnel READY. $($state.expected_tool_count) tools."
+            }
+            else {
+                $notify.BalloonTipText = "Профиль $($state.profile) полностью готов."
+            }
         }
         "off" {
             $notify.BalloonTipTitle = "Chat Agent Platform - ВЫКЛ"
@@ -468,12 +363,6 @@ function Start-ControllerOperation {
         [string]$Action
     )
 
-    $state = Get-PlatformVisualState
-    if ($state.route_owner -eq "qualification") {
-        Show-StateBalloon
-        return
-    }
-
     if (
         $null -ne $script:OperationJob -and
         $script:OperationJob.State -eq "Running"
@@ -489,7 +378,6 @@ function Start-ControllerOperation {
     Set-VisualState -State ([pscustomobject]@{
         mode = "busy"
         profile = ""
-        route_owner = "platform"
     })
 
     $script:OperationJob = Start-Job `
@@ -516,11 +404,6 @@ function Start-ControllerOperation {
 
 function Toggle-Platform {
     $state = Get-PlatformVisualState
-    if ($state.route_owner -eq "qualification") {
-        Show-StateBalloon
-        return
-    }
-
     if ($state.mode -eq "off") {
         Start-ControllerOperation -Action Start
     }
@@ -554,7 +437,6 @@ $exitItem.add_Click({
     $script:RedIcon.Dispose()
     $script:YellowIcon.Dispose()
     $script:GreenIcon.Dispose()
-    $script:BlueIcon.Dispose()
 
     $mutex.ReleaseMutex()
     $mutex.Dispose()
@@ -610,6 +492,6 @@ $timer.add_Tick({
 Refresh-VisualState
 $timer.Start()
 $notify.BalloonTipTitle = "Chat Agent Platform"
-$notify.BalloonTipText = "Индикатор запущен. Синий = Stage 26.3A qualification (6 tools)."
+$notify.BalloonTipText = "Индикатор запущен. Зелёный READY для semantic означает единый 6-tool runtime."
 $notify.ShowBalloonTip(2500)
 [System.Windows.Forms.Application]::Run()
