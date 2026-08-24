@@ -10,6 +10,7 @@ SEMANTIC_PROFILE = ROOT / "runtime" / "chat-profiles" / "semantic" / "mcp.json"
 CONTROL_PLANE = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-control-plane-projection.mjs"
 LAUNCHER = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-projection-launcher.mjs"
 PACKAGE = ROOT / "runtime" / "semantic-projection" / "package.json"
+FROZEN_COMPAT = ROOT / "project-context" / "SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md"
 OBSOLETE_PROFILE = ROOT / "runtime" / "chat-profiles" / "procedure-qualification" / "mcp.json"
 OBSOLETE_PROJECTION = ROOT / "runtime" / "semantic-projection" / "bin" / "procedure-qualification-projection.mjs"
 OBSOLETE_START = ROOT / "scripts" / "start-procedure-qualification-profile.ps1"
@@ -44,6 +45,43 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
             "procedure_run",
         ):
             self.assertIn(name, launcher)
+
+    def test_frozen_action_compatibility_is_exact_and_snapshot_boundary_is_documented(self) -> None:
+        launcher = LAUNCHER.read_text(encoding="utf-8")
+        documentation = FROZEN_COMPAT.read_text(encoding="utf-8")
+        canonical = (
+            "workspace_read",
+            "workspace_write",
+            "web_open",
+            "web_observe",
+            "web_interact",
+            "procedure_run",
+        )
+        prefixes = (
+            "semantic-projection_1mcp_",
+            "procedure-qualification-projection_1mcp_",
+        )
+        for prefix in prefixes:
+            for name in canonical:
+                alias = f"{prefix}{name}"
+                self.assertIn(alias, launcher)
+                self.assertIn(alias, documentation)
+
+        self.assertIn("const LEGACY_TOOL_ALIASES = new Map", launcher)
+        self.assertIn("LEGACY_TOOL_ALIASES.has(message.params.name)", launcher)
+        self.assertNotIn("replace('semantic-projection_1mcp_'", launcher)
+        self.assertNotIn("replace(\"semantic-projection_1mcp_\"", launcher)
+
+        for required in (
+            "Critical ChatGPT frozen-snapshot boundary",
+            "after ChatGPT has already selected an action",
+            "cannot repair ChatGPT-side state",
+            "app/connector connection state",
+            "per-action permission or confirmation state",
+            "App rebind gate before final Stage 26.3A E2E",
+            "newly created or explicitly rebound ChatGPT app",
+        ):
+            self.assertIn(required, documentation)
 
     def test_public_control_plane_registers_exact_six_tool_model(self) -> None:
         source = CONTROL_PLANE.read_text(encoding="utf-8")
