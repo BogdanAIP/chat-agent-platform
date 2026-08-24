@@ -81,7 +81,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn('"scripts\\chat-platform-tray.ps1"', self.controller)
         self.assertIn("-WindowStyle Hidden", self.controller)
 
-    def test_default_reference_profile_has_supported_start_path(self):
+    def test_legacy_reference_profile_has_supported_internal_start_path(self):
         self.assertIn('profile = "reference"', self.controller)
         self.assertIn("$StartLocalBridgeScript", self.controller)
         self.assertRegex(
@@ -254,7 +254,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             self.controller,
         )
 
-    def test_semantic_profile_uses_fixed_projection_and_scoped_root(self):
+    def test_legacy_internal_semantic_profile_uses_fixed_projection(self):
         self.assertIn('$StartSemanticScript', self.controller)
         self.assertRegex(
             self.controller,
@@ -347,21 +347,20 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertNotIn("Initialize-ChatExtensionManagerTunnelProfile", self.bootstrap)
         self.assertIn("EXTENSION_MANAGER=optional-1mcp", self.bootstrap)
 
-    def test_bootstrap_keeps_first_key_prompt_interactive(self):
-        self.assertRegex(
-            self.bootstrap_lifecycle,
-            re.compile(
-                r"function Install-ChatManager \{.*?& \$pwsh.*?-Action Install",
-                re.S,
-            ),
-        )
-        status_capture = re.search(
-            r"function Invoke-ChatManagerStatusCapture \{(.*?)\n\}",
-            self.bootstrap_lifecycle,
-            re.S,
-        )
-        self.assertIsNotNone(status_capture)
-        self.assertNotIn("Install", status_capture.group(1))
+    def test_bootstrap_initializes_semantic_core_and_dpapi_without_legacy_install(self):
+        for expected in (
+            "Save-ChatProtectedApiKeyIfMissing",
+            "[Security.Cryptography.ProtectedData]::Protect",
+            "Initialize-ChatSemanticCore",
+            "-Action SetProfile",
+            "-Profile semantic",
+            "DEFAULT_TUNNEL_BINDING=direct-stdio",
+            "LEGACY_1MCP_INSTALL_PATH_USED=False",
+        ):
+            self.assertIn(expected, self.bootstrap_lifecycle)
+        self.assertIn("Initialize-ChatSemanticCore", self.bootstrap)
+        self.assertNotIn("Install-ChatManager -CommandPath", self.bootstrap)
+        self.assertNotIn("function Install-ChatManager", self.bootstrap_lifecycle)
 
     def test_bootstrap_smoke_uses_normal_six_tool_direct_semantic(self):
         for expected in (
@@ -385,7 +384,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("WaitForExit()", body)
         self.assertNotIn("& $pwsh", body)
 
-    def test_profile_acceptance_runs_when_manager_or_bootstrap_module_changes(self):
+    def test_profile_acceptance_is_direct_semantic_and_1mcp_runtime_free(self):
         for expected in (
             "scripts/chat-platform-controller.ps1",
             "scripts/chat-platform.ps1",
@@ -397,9 +396,13 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         ):
             self.assertIn(expected, self.profile_ci)
         self.assertIn(
-            "Prove public manager can observe and clean conflicting runtime scopes",
+            "Prove promoted six-tool semantic profile routes through the public manager",
             self.profile_ci,
         )
+        self.assertIn("SEMANTIC_PUBLIC_MANAGER_1MCP_REQUIRED=False", self.profile_ci)
+        self.assertNotIn("./scripts/start-local-bridge.ps1", self.profile_ci)
+        self.assertNotIn("./scripts/start-chat-profile.ps1", self.profile_ci)
+        self.assertNotIn("./scripts/stop-chat-profile.ps1", self.profile_ci)
 
     def test_ci_recursively_parses_scripts_and_runs_python_tests(self):
         self.assertIn("Get-ChildItem -LiteralPath 'scripts' -Filter '*.ps1' -File -Recurse", self.ci)
@@ -408,6 +411,8 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             'python -m unittest discover -s tests -p "test_*.py"',
             self.ci,
         )
+        self.assertIn("Prove clean public semantic manager status without 1MCP", self.ci)
+        self.assertNotIn("./scripts/stop-chat-profile.ps1", self.ci)
 
 
 if __name__ == "__main__":
