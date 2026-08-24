@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This file prevents older stage/research documents from overriding the live architecture simply because they contain words such as `ACTIVE`, `CURRENT`, `NEXT`, `DRAFT`, `rerun required`, or an old future-stage number.
+This file prevents older stage/research documents from overriding the live architecture merely because they contain words such as `ACTIVE`, `CURRENT`, `NEXT`, `DRAFT`, `rerun required`, or an old future-stage number.
 
 Before using any document as current architecture, resolve live GitHub state and apply this status map.
 
@@ -11,7 +11,7 @@ Before using any document as current architecture, resolve live GitHub state and
 ```text
 current code/tests/CI/physical evidence
  > CONTINUATION_CONTEXT.md / START_HERE.md / CURRENT_STATE.md
- > ARCHITECTURE.md / CONTROL_PLANE.md / ROADMAP.md
+ > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / ROADMAP.md
  > current policy/catalog docs
  > EVIDENCE_INDEX.md for exact accepted evidence navigation
  > active stage contract
@@ -19,12 +19,12 @@ current code/tests/CI/physical evidence
  > old research/handoffs
 ```
 
-A status/planning phrase inside a historical file describes the time that document/revision was written. It is not a live roadmap instruction.
+A status/planning phrase inside a historical file describes the time that revision was written. It is not a live roadmap instruction.
 
 ## Documentation separation rule
 
 ```text
-ARCHITECTURE.md / CONTROL_PLANE.md
+ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md
   = durable boundaries and invariants
 
 CURRENT_STATE.md / ROADMAP.md
@@ -37,13 +37,13 @@ STAGE*.md / historical handoffs
   = detailed qualification design and attempt history
 ```
 
-Do not copy full physical result dumps into durable architecture documents. Promote only the generalized invariant learned from evidence.
+Do not copy complete physical dumps into durable architecture documents. Promote generalized architecture/safety lessons; keep exact accepted heads and evidence locators in the evidence/stage records.
 
 ## Root documents
 
 | File | Status | Use |
 |---|---|---|
-| `AGENTS.md` | AUTHORITATIVE ENTRY | Fresh-session rules/source order/current boundaries. |
+| `AGENTS.md` | AUTHORITATIVE ENTRY | Fresh-session rules, source order and current boundaries. |
 | `README.md` | CURRENT PRODUCT OVERVIEW | Human-facing architecture/status summary. |
 | `SECURITY.md` | CURRENT SECURITY OVERVIEW | Repository/product security boundary. |
 | `LICENSE` | AUTHORITATIVE LEGAL | MIT license. |
@@ -54,58 +54,52 @@ Do not copy full physical result dumps into durable architecture documents. Prom
 
 | File | Status | Use |
 |---|---|---|
-| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Fast continuation after resolving live GitHub state. Current Stage 26.3A semantic candidate = exactly six public tools; normal semantic is direct-stdio; 1MCP is optional internal Extension Manager infrastructure. |
+| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Fast continuation after resolving live GitHub state. |
 | `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and operating constraints. |
-| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted boundary, active gate, residual risks. Current candidate semantic inventory = six tools; persistent tunnel source = neutral `state/tunnel.json`. |
-| `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/layer/authority boundaries, including the optional Extension Manager boundary. |
-| `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution Control Plane vs future planner. |
+| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted boundary, active work and residual risks. Stage 26.3A is accepted/merged; 26.3B is next. |
+| `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/layer/authority boundaries. |
+| `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution state/policy, verification, recovery and completion. |
+| `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid observation, capability routing, ExpectedEffect verification, WorkingState, LoopGuard, Finish Gate and environmental-content trust boundary. Implementation is staged. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence + optional/future tracks. |
-| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which documents can define current state. |
-| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted physical/target heads, result locators and scope. |
+| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which documents may define current state. |
+| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads, result locators and scoped measurements. |
 
 ## Current policy / design governance
 
 | File | Status | Use |
 |---|---|---|
 | `CONSTRAINTS.md` | CURRENT POLICY | Hard project constraints. |
-| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing current development. ADR-031 defines 1MCP as an optional replaceable internal Extension Manager rather than normal semantic critical-path infrastructure. |
+| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority. |
 | `DEVELOPMENT_PRINCIPLES.md` | CURRENT POLICY | Development/acceptance principles. |
-| `SECURITY_POLICY.md` | CURRENT POLICY | Detailed trust/authorization/privacy boundaries. |
+| `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
 | `COST_POLICY.md` | CURRENT POLICY | Baseline cost/subscription constraints. |
 | `MODULE_CATALOG.md` | CURRENT CATALOG | Accepted/current/future capability status. |
-| `MODULE_SELECTION_POLICY.md` | CURRENT POLICY | Selection/promotion rules, including the internal Extension Manager boundary for future MCP backends. |
-| `EXTENSION_MANAGER.md` | CURRENT OPERATING CONTRACT | Defines the optional 1MCP Extension Manager role, opt-in install/status/remove flow, tunnel migration boundary, CI separation and future MCP backend promotion path. |
-| `TYPED_CAPABILITY_PROJECTION.md` | CURRENT STAGE 26.3A CANDIDATE CONTRACT | Historical typed five-tool foundation plus current canonical six-tool candidate surface; `procedure_run` is typed/bounded, not generic execution. |
-| `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | CURRENT TEMPORARY MIGRATION COMPATIBILITY | Exact five historical `_1mcp_` inbound aliases only. Current canonical candidate inventory is six tools; aliases are not published and do not create a five-tool mode. |
-| `TRANSPORT_SUPERVISOR.md` | ACCEPTED CURRENT RELIABILITY FOUNDATION | Self-healing Secure MCP Tunnel lifecycle, layered health, bounded recovery, Windows persistence and persistent desired-state separation accepted through #94. |
-| `TRANSPORT_SUPERVISOR_IMPLEMENTATION_NOTES.md` | ACCEPTED QUALIFICATION NOTES | Transport Supervisor v1 qualification contract/status. |
+| `MODULE_SELECTION_POLICY.md` | CURRENT POLICY | Selection/promotion rules including Extension Manager boundary. |
+| `EXTENSION_MANAGER.md` | CURRENT OPERATING CONTRACT | Optional 1MCP Extension Manager role and lifecycle/promotion boundary. |
+| `TYPED_CAPABILITY_PROJECTION.md` | CURRENT CAPABILITY CONTRACT | Historical typed five-tool foundation plus accepted canonical six-tool surface; `procedure_run` remains typed/bounded, not generic execution. |
+| `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | CURRENT TEMPORARY MIGRATION COMPATIBILITY | Exact bounded historical inbound alias families only; aliases are not published tools and cannot repair ChatGPT-side app snapshot/permission state before MCP invocation. |
+| `TRANSPORT_SUPERVISOR.md` | ACCEPTED CURRENT RELIABILITY FOUNDATION | Self-healing Secure MCP Tunnel lifecycle, layered health and bounded recovery accepted through #94. |
+| `TRANSPORT_SUPERVISOR_IMPLEMENTATION_NOTES.md` | ACCEPTED QUALIFICATION NOTES | Transport Supervisor v1 implementation/qualification contract. |
 | `TRANSPORT_SUPERVISOR_REBOOT_EVIDENCE.md` | ACCEPTED PHYSICAL EVIDENCE | Exact Windows reboot/logon evidence. |
 | `TRANSPORT_SUPERVISOR_ATTEMPT_HISTORY.md` | HISTORICAL QUALIFICATION ATTEMPT LOG | Historical diagnostics only. |
-| `VISION.md` | CURRENT PRODUCT DIRECTION | Long-term product direction; subordinate to architecture/roadmap on exact stage status. |
+| `VISION.md` | CURRENT PRODUCT DIRECTION | Long-term product direction; subordinate to architecture/roadmap for exact stage status. |
 | `HANDOFF_TEMPLATE.md` | CURRENT PROCESS TEMPLATE | Required future handoff fields. |
 | `KNOWN_ISSUES.md` | CURRENT ISSUE INDEX | Current unresolved issues + explicitly closed history. |
 
-## Active stage contract
+## Stage 26.3 current/accepted documents
 
 | File | Status | Use |
 |---|---|---|
-| `STAGE26_PROCEDURAL_MEMORY.md` | ACTIVE STAGE 26.3 CONTRACT / DESIGN | Verified Procedure Runtime / deterministic Control Plane, candidate-first procedural trust and progression invariants. |
-| `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACTIVE STAGE 26.3A IMPLEMENTATION NOTES | Canonical six-tool runtime, checkpoint/resume, filesystem identity and physical acceptance boundary. |
-| `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACTIVE STAGE 26.3A PUBLIC-SURFACE CONTRACT | `procedure_run` is permanently part of the current candidate ordinary semantic six-tool surface; no separate qualification profile remains. |
+| `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT STAGE 26.3 DESIGN CONTRACT | Verified Procedure Runtime, candidate-first procedural trust and deterministic progression invariants. |
+| `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACCEPTED STAGE 26.3A IMPLEMENTATION/EVIDENCE NOTES | Canonical six-tool runtime, checkpoint/resume, identity rules and accepted physical boundary. |
+| `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACCEPTED STAGE 26.3A PUBLIC-SURFACE CONTRACT | `procedure_run` is part of the accepted normal semantic six-tool surface; no separate qualification profile remains. |
 
-The first Stage 26.3 physical vertical slice must remove intermediate user command entry:
+Stage 26.3A is accepted/merged through PR #92. Current release-critical implementation target is Stage 26.3B Verification Kernel + independent Finish Gate, followed by Stage 26.3C WorkingState + typed recovery + LoopGuard. These current directions are governed by `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `CURRENT_STATE.md` and `ROADMAP.md` rather than by an old Stage 26.3A “pending” phrase.
 
-```text
-one user goal
- -> ordinary Chat procedure selection
- -> normal six-tool semantic route
- -> local deterministic multi-transition execution
- -> verified completion OR ABSTAIN/escalation
-```
-
-Current transport/extension invariants for that slice:
+Current normal transport/extension invariants:
 
 ```text
+public semantic inventory = exactly six tools
 normal semantic binding = direct-stdio
 normal semantic 1MCP dependency = none
 persistent tunnel source = state/tunnel.json
@@ -113,43 +107,43 @@ legacy local-1mcp.yaml = migration fallback / optional extension path only
 1MCP = optional internal Extension Manager
 ```
 
-Hosted acceptance for current code must prove the normal bootstrap does not require a 1MCP/npx preflight and that its smoke test exercises `semantic` + `direct-stdio`, not the historical `reference`/1MCP route.
-
 ## Accepted foundation documents — historical evidence
 
-The files below preserve stage-specific evidence/design from their own time. Their old planning/status prose cannot override live context.
+The files below preserve stage-specific evidence/design from their own time. Old planning/status prose cannot override live context.
 
 | File | Status | Important note |
 |---|---|---|
 | `BRIDGE_ACCEPTANCE.md` | ACCEPTED HISTORICAL FOUNDATION | Evidence log intentionally points current architecture elsewhere. |
-| `DIRECT_SEMANTIC_TUNNEL.md` | ACCEPTED HISTORICAL FOUNDATION | Stage 24.1 transport decision/evidence. Historical public inventory counts remain scoped to that stage. |
-| `STAGE22_LEGACY_REDUCTION.md` | ACCEPTED HISTORICAL STAGE | References the then-current 1MCP architecture. |
+| `DIRECT_SEMANTIC_TUNNEL.md` | ACCEPTED HISTORICAL FOUNDATION | Stage 24.1 transport evidence; historical tool counts are stage-scoped. |
+| `STAGE22_LEGACY_REDUCTION.md` | ACCEPTED HISTORICAL STAGE | References then-current architecture only. |
 | `STAGE24_LEAST_PRIVILEGE.md` | ACCEPTED HISTORICAL STAGE | Opening “current Stage 24” wording is historical. |
 | `STAGE25_1_VISION_INTEGRATION.md` | ACCEPTED HISTORICAL STAGE | Accepted Stage 25.1 evidence. |
 | `STAGE26_1A_OPENADAPT_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Historical qualification evidence. |
 | `STAGE26_1B_OPENADAPT_CAPTURE_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Accepted capture evidence. |
-| `STAGE26_1C_WINDOWS_EXECUTOR_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Final accepted physical head is `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`; #83 merged. |
+| `STAGE26_1C_WINDOWS_EXECUTOR_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Final accepted physical head `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`; #83 merged. |
 | `STAGE26_1D_WINDOWS_HOT_RUNTIME_BENCHMARK.md` | ACCEPTED HISTORICAL STAGE | Physical benchmark evidence. |
 | `STAGE26_1E_WINDOW_SCOPED_UIA_RESOLVER.md` | ACCEPTED HISTORICAL STAGE | Physical resolver evidence. |
-| `STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME.md` | ACCEPTED HISTORICAL STAGE | Stage 26.2A accepted/merged as #87. |
+| `STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME.md` | ACCEPTED HISTORICAL STAGE | Stage 26.2A accepted/merged #87. |
 | `STAGE26_2B_DESKTOP_OBSERVATION.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #88. |
 | `STAGE26_2C_DESKTOP_GROUNDER.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #89. |
-| `STAGE26_2D_WINDOWS_VISION_ROUTING.md` | ACCEPTED HISTORICAL STAGE | Exact physical head `1c74713edcd6321d5583a39234929169e68b5ac1`; #90 merged. |
-| `STAGE26_2E_REAL_APPLICATION_E2E.md` | ACCEPTED HISTORICAL EVIDENCE | Exact physical runtime/qualification head `457db0b634f2e47f53d41e359a238840fa3ca2ee`; isolated VS Code real-app gate passed. |
+| `STAGE26_2D_WINDOWS_VISION_ROUTING.md` | ACCEPTED HISTORICAL STAGE | Physical head `1c74713edcd6321d5583a39234929169e68b5ac1`; #90 merged. |
+| `STAGE26_2E_REAL_APPLICATION_E2E.md` | ACCEPTED HISTORICAL EVIDENCE | Physical runtime/qualification head `457db0b634f2e47f53d41e359a238840fa3ca2ee`; isolated VS Code gate passed. |
 
-Exact physical data inside historical documents remains valid only for the scoped code/head/test it names. Historical five-tool counts remain valid evidence for those exact earlier stages but do not define the current Stage 26.3A candidate inventory.
+Exact physical data in historical documents remains valid only for the scoped code/head/test it names. Historical five-tool counts do not define the current accepted six-tool inventory.
 
-Historical references that place 1MCP in the normal bridge path remain valid only for their own stage. They do not override the current direct-stdio normal route or ADR-031.
+Historical references placing 1MCP in the normal bridge path remain valid only for their own stage and do not override current direct-stdio normal transport.
 
 ## Research / superseded planning documents
 
 | File | Status | Notes |
 |---|---|---|
 | `ACTIVE_VISUAL_GROUNDING.md` | HISTORICAL RESEARCH / STAGE 25 DESIGN | Old visual-grounding implementation order is historical. |
-| `LOCAL_SPECIALIST_INFERENCE.md` | HISTORICAL RESEARCH / SPECIALIST TRACK | Current specialist/planner boundary is `CONTROL_PLANE.md`/`MODULE_CATALOG.md`. |
+| `LOCAL_SPECIALIST_INFERENCE.md` | HISTORICAL RESEARCH / SPECIALIST TRACK | Current specialist/planner boundary is governed by `CONTROL_PLANE.md` and current catalog. |
 | `STAGE25_MODEL_PROFILES.md` | HISTORICAL RESEARCH | Old profile selection notes are not current runtime. |
 | `STAGE25_TARGET_BENCHMARKS.md` | HISTORICAL EVIDENCE/RESEARCH | Preserve measurements; opening ACTIVE wording is date-scoped. |
 | `STAGE25_CHAT_HANDOFF_2026-08-17.md` | HISTORICAL HANDOFF | Explicitly obsolete continuation guidance. |
+
+The Stage 26.3A locally generated `gui-agent-research.md` is **research evidence**, not a repository source of truth. Its independently checked/generalized conclusions have been promoted into `COMPUTER_USE_ARCHITECTURE.md`, ADR-032/033, `CONTROL_PLANE.md`, `CURRENT_STATE.md`, `ROADMAP.md` and `SECURITY_POLICY.md`.
 
 ## Architecture terminology all future docs must preserve
 
@@ -164,17 +158,30 @@ Owns open-ended goal interpretation, strategy, procedure selection and novel-sta
 ### Deterministic local execution Control Plane
 
 ```text
-TaskState
-ProgramGraph state/progression
+TaskState / WorkingState
+ProgramGraph progression
 capability policy / authorization
+ExpectedEffect + transition verifier
 checkpoints
-verifier/postconditions
-bounded retry/recovery
+bounded typed recovery + LoopGuard
 resource/action/time budgets
-escalation
+independent Finish Gate
+safety/policy gate
 ```
 
 May advance known authorized+verified procedure transitions without a ChatGPT round trip after every low-level action. It is not a second general planner.
+
+### State-first hybrid computer use
+
+```text
+semantic/native state first
+ -> selective visual evidence
+ -> bounded action
+ -> fresh re-observation
+ -> transition verification
+ -> bounded recovery
+ -> independent completion
+```
 
 ### Optional internal Extension Manager
 
@@ -186,7 +193,7 @@ May advance known authorized+verified procedure transitions without a ChatGPT ro
  -> selected third-party MCP backends
 ```
 
-It is not the normal semantic transport, does not own the persistent tunnel anchor, does not grant trust/authorization and does not expose raw extension tool catalogs directly to ordinary ChatGPT.
+It is not the normal semantic transport, does not own the persistent tunnel anchor, does not grant trust/authorization and does not directly publish raw backend catalogs.
 
 ### Future local planner
 
@@ -198,7 +205,7 @@ P0 shadow/proposal-only
  -> P2 optional local general-planner mode
 ```
 
-Even if later accepted it remains behind deterministic capability authorization/verifier boundaries.
+Even if later accepted it remains above deterministic capability authorization, transition verifier, Finish Gate and safety boundaries.
 
 ## Maintenance rule
 
@@ -207,10 +214,11 @@ Any architecture-changing PR must audit/update this map when it:
 - changes authoritative document names/read order;
 - closes/opens an active stage;
 - changes general-planner or Control Plane responsibility;
-- changes the 1MCP/Extension Manager boundary or persistent tunnel source;
+- changes computer-use observation/verification/recovery/completion boundaries;
+- changes the Extension Manager/persistent tunnel boundary;
 - promotes a research track into the release-critical roadmap;
 - changes the public Chat-facing capability surface.
 
-Any accepted physical gate must update `EVIDENCE_INDEX.md`. Durable architecture docs should record only the invariant learned from evidence, not the complete historical result dump.
+Any accepted physical gate must update `EVIDENCE_INDEX.md`. Durable architecture docs should record only generalized invariants learned from evidence, not complete historical result dumps.
 
 Do not rewrite historical physical evidence merely to make old prose look current. Preserve evidence and make its authority/status explicit here and in current context.

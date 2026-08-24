@@ -2,14 +2,16 @@
 
 ## Status
 
-**AUTHORITATIVE ARCHITECTURAL DIRECTION.** Implementation is staged through Stage 26.3 Verified Procedure Runtime after Stage 26.2E real-application acceptance.
+**AUTHORITATIVE ARCHITECTURAL DIRECTION.** Stage 26.3A has physically accepted the first deterministic multi-transition procedure slice. Stage 26.3B/C now generalize verification, completion, WorkingState and bounded recovery before broader computer-use authority is added.
 
-This document defines a distinction that must remain explicit across the repository:
+This distinction remains mandatory:
 
 - ordinary ChatGPT is the **only current general planner / strategist / task interpreter**;
-- the local platform is expected to own a **deterministic execution Control Plane**;
-- a deterministic Control Plane is **not** a second general planner;
-- a future local general planner is retained as an optional research direction, not part of the current release-critical path.
+- the local platform owns a **deterministic execution Control Plane**;
+- the Control Plane is not a second general planner;
+- a future local general planner remains optional Track P research and is **not part of the current release-critical path**.
+
+Canonical computer-use extension: `COMPUTER_USE_ARCHITECTURE.md`.
 
 ## Target architecture
 
@@ -22,117 +24,302 @@ GENERAL PLANNER / MANAGER
   task understanding
   strategy
   procedure selection
-  adaptation
-  novel-state decisions
+  adaptation / novel-state decisions
+  candidate_done proposal
   |
   | structured goal / procedure / parameters
   v
 DETERMINISTIC LOCAL CONTROL PLANE
-  TaskState
+  TaskState + WorkingState
   ProgramGraph/procedure state
-  capability policy
-  authorization
+  capability policy / authorization
+  ObservationEnvelope references
+  ExpectedEffect / postconditions
   checkpoints
-  verifier/postconditions
-  retry/recovery state machine
-  resource budgets
+  transition verifier
+  typed recovery + LoopGuard
+  resource/action/time budgets
+  independent Finish Gate
+  safety/policy gate
   escalation rules
   |
   +-------------------+-------------------+
   |                   |                   |
   v                   v                   v
 Files               Browser             Windows
-                                         |
-                                  native/UIA first
-                                         |
-                                  weak evidence only
-                                         v
-                                   local VLM
-                                  PROPOSAL ONLY
-                                         |
-                                         v
-                                    authorization
-                                         |
-                                         v
-                                       action
-                                         |
-                                         v
-                                      verify
-                                         |
-                           +-------------+-------------+
-                           |                           |
-                         PASS                    mismatch/UNKNOWN
-                           |                           |
-                  next permitted state              ABSTAIN
-                                                       |
-                                                       v
-                                                    ChatGPT
+                     DOM/AX              native/UIA first
+                       |                        |
+                 selective visual         selective visual
+                 evidence only            evidence only
+                       \                    /
+                        bounded capability
+                               |
+                             action
+                               |
+                         re-observe
+                               |
+                transition verification
+                     PASS | FAIL | UNKNOWN
+                               |
+                   +-----------+-----------+
+                   |                       |
+                advance              recovery/ABSTAIN
+                                           |
+                                           v
+                                        ChatGPT
+
+candidate_done
+  -> independent Finish Gate
+  -> DONE only from fresh goal/safety evidence
 ```
 
 ## What ChatGPT owns
 
-Ordinary ChatGPT currently owns all open-ended semantic planning:
+Ordinary ChatGPT owns open-ended semantic planning:
 
 - interpreting the user's real goal;
-- selecting strategy and deciding whether a known procedure is applicable;
+- selecting strategy and deciding whether a known procedure applies;
 - choosing between materially different approaches;
-- adapting when the environment presents a novel or incompatible state;
+- adapting when live state requires a novel strategy;
 - deciding what new information or capability is needed;
-- handling semantic ambiguity that cannot be reduced by deterministic policy;
-- deciding how to recover when recovery requires a new strategy.
+- resolving semantic ambiguity that deterministic policy cannot reduce;
+- replanning after deterministic recovery options are exhausted.
 
-The local runtime must not silently reinterpret these decisions.
+ChatGPT may propose `candidate_done`. It does not unilaterally declare verified completion.
 
 ## What the deterministic Control Plane owns
 
-Once ChatGPT has selected a bounded goal/procedure, the local Control Plane may own execution mechanics without a ChatGPT round trip after every low-level action:
+Once ChatGPT selects a bounded goal/procedure, the local Control Plane may progress it without a ChatGPT round trip after every low-level action. It owns:
 
-- persistent task/subtask state;
+- persistent `TaskState` and structured `WorkingState`;
 - current ProgramGraph node and permitted outgoing transitions;
-- current observed state and evidence provenance;
-- capability AVAILABLE -> ACTIVE -> AUTHORIZED state;
+- current observations/evidence provenance and freshness;
+- capability `AVAILABLE -> ACTIVE -> AUTHORIZED` state;
 - consequence/scope policy evaluation;
-- freshness, identity, focus and target authorization;
+- expected effect/postcondition contracts;
+- target/focus/identity/freshness authorization;
 - checkpoints and bounded rollback metadata;
-- postcondition/effect verification;
-- deterministic retry rules and bounded recovery transitions;
-- resource/time/action budgets;
+- transition verification;
+- typed deterministic recovery branches;
+- `LoopGuard` state and retry/action/time/resource budgets;
 - procedure trust state;
-- decision to advance a previously defined safe transition;
-- decision to ABSTAIN/escalate when the state is stale, unknown, ambiguous, incompatible or outside the selected procedure.
+- independent task completion predicates;
+- safety/policy predicates;
+- escalation reason.
 
-This is an execution state machine, not free-form strategic reasoning.
+This is execution-state machinery, not free-form strategic reasoning.
 
-## Procedure progression
+## State-first hybrid observation
 
-A verified procedure is more than passive advice, but less than authority.
+The Control Plane consumes capability-native evidence first:
 
-After ChatGPT selects an applicable procedure and supplies required parameters, the Control Plane may execute a sequence of already-defined transitions when every transition independently passes current-state authorization and verification:
+```text
+project-owned semantic/native state
+ -> DOM / accessibility / UIA / app-state evidence
+ -> selected screenshot/ROI only for reviewed structural miss,
+    spatial manipulation or independent visual cross-check
+```
+
+A future normalized `ObservationEnvelope` may reference capability-native state without flattening it:
+
+```text
+ObservationEnvelope
+  capability / app / page / window identity
+  version / timestamp / freshness
+  structural evidence reference
+  visual evidence reference (optional)
+  provenance
+  confidence / ambiguity where relevant
+```
+
+Observation is evidence, never authority.
+
+## Transition contract
+
+A state-changing transition is not just an action template. It must bind:
+
+```text
+transition_id
+current-state precondition evidence
+authorized capability/action parameters
+expected_effect / explicit postcondition predicates
+re-observation scope
+verification policy
+recovery policy
+budget impact
+```
+
+Normal progression:
 
 ```text
 ChatGPT selects procedure P
-  -> Control Plane loads P
-  -> observe current state
-  -> match exactly one permitted transition
-  -> authorize current capability/action
-  -> execute bounded action
-  -> observe result
-  -> verify explicit postcondition
-  -> checkpoint
-  -> advance
-  -> repeat while the next state remains known and permitted
+ -> load exact P/version/trust state
+ -> observe current state
+ -> match exactly one permitted transition
+ -> bind ExpectedEffect
+ -> authorize current capability/action
+ -> execute one bounded action
+ -> re-observe relevant state
+ -> verify actual state against ExpectedEffect
+ -> PASS: checkpoint + advance
+ -> FAIL/UNKNOWN: typed recovery or ABSTAIN/escalate
 ```
 
-The Control Plane must stop and escalate rather than invent a new transition when:
+`delivery != success` remains a non-negotiable invariant.
 
-- no known transition matches current state;
-- more than one incompatible transition is plausible;
-- a required observation is stale or UNKNOWN;
-- the expected postcondition fails;
-- the environment has materially diverged from procedure assumptions;
-- required consequence/scope is not authorized;
-- a retry/recovery budget is exhausted;
-- continuing would require a new strategy rather than a predeclared recovery branch.
+## Verification result
+
+Transition verification is explicit:
+
+```text
+PASS
+FAIL
+UNKNOWN
+```
+
+- `PASS` permits checkpoint/advance only for the current expected effect.
+- `FAIL` may enter a predeclared bounded recovery branch.
+- `UNKNOWN` requires better evidence or escalation; it never silently advances.
+
+Prefer deterministic/native/system-of-record predicates where practical. A model may assist an ambiguous classification as non-authorizing evidence, but cannot replace stronger available predicates.
+
+## Independent Finish Gate
+
+Transition verification answers: **did this step produce its expected effect?**
+
+The Finish Gate answers: **is the user's task actually complete?**
+
+The planner may emit:
+
+```text
+candidate_done
+```
+
+Only the Finish Gate may produce:
+
+```text
+DONE
+```
+
+It evaluates fresh goal-level predicates, not planner confidence or action-history plausibility. At minimum it considers:
+
+```text
+goal predicates
+user constraints
+required source freshness/reconciliation
+required artifact/application/browser state
+unresolved ambiguity/confirmation state
+safety/policy predicates
+```
+
+A file merely existing is not sufficient when content/identity/structure matters. A browser click succeeding is not sufficient when server-side or DOM state defines completion. A produced artifact is not sufficient when required semantic correctness remains unverified.
+
+## WorkingState
+
+Long-horizon operation requires active structured state rather than raw replay of every interaction.
+
+Target `WorkingState` contains only execution-relevant user-visible/structured data:
+
+```text
+user constraints
+current subgoals + progress vector
+verified completed achievements
+authoritative facts + provenance + freshness
+open questions / ambiguities
+current observation/evidence references
+expected vs observed state deltas
+retry/recovery history
+resource/action/time budgets
+```
+
+It must not contain hidden model chain-of-thought.
+
+Selected ROI visual evidence may be referenced when operationally useful, subject to capture privacy/retention policy. Episodic memory may retrieve verified procedures/trajectories, but historical experience remains non-authorizing and current state outranks it.
+
+## Typed recovery
+
+Common cross-capability failure classes begin with:
+
+```text
+target_missing
+target_ambiguous
+stale_state
+action_no_effect
+partial_effect
+unexpected_dialog
+navigation_changed
+tool_unavailable
+permission_denied
+unsafe_transition
+external_dynamic_change
+```
+
+Capabilities may define narrower subtypes, but every recoverable failure must map to a reviewed bounded transition or escalation.
+
+Default recovery ladder:
+
+```text
+re-observe
+ -> refresh/re-resolve target
+ -> retry only when new evidence justifies it
+ -> alternate admitted modality/capability
+ -> predeclared local recovery branch
+ -> ChatGPT replan / user clarification / ABSTAIN
+```
+
+No recovery step grants broader authority than the original task/procedure and current capability policy.
+
+## LoopGuard
+
+A bounded retry count alone is insufficient for long tasks. `LoopGuard` tracks evidence of progress and repeated ineffective behavior:
+
+```text
+fingerprint(relevant_state, intended_subgoal, action_signature)
+no_effect_count
+action-family retry count
+oscillation window, e.g. A -> B -> A -> B
+subgoal budget
+global task budget
+recovery escalation level
+verified progress vector
+```
+
+An identical state/action fingerprint must not be repeated indefinitely without new evidence or verified progress. Recovery escalation may increase after failure; it cannot reset silently merely because the planner phrases the same action differently.
+
+## Capability-aware routing
+
+Backend availability is not routing authority.
+
+For admitted cases, deterministic capability policy chooses the strongest reliable evidence/action channel:
+
+```text
+exact safe semantic/native operation available
+ -> use semantic/native route
+
+reviewed structural miss or spatial/visual requirement
+ -> request selected GUI/visual grounding evidence
+
+uncertain / ambiguous / high-consequence result
+ -> additional verification or ABSTAIN
+```
+
+The router is not a generic dispatcher and not a second planner. A future public Windows/computer-use tool surface still requires its own public-contract ADR and physical ordinary-Chat acceptance.
+
+## Grounding evidence
+
+When coordinate/spatial grounding is required, proposals should preserve identity evidence where possible:
+
+```text
+semantic target identity
+role/name/state
+bounding region / coordinates
+source = structural | visual | hybrid
+observation/frame binding
+confidence
+ambiguity evidence
+```
+
+Coordinates alone are not durable target identity.
 
 ## Authorization invariants
 
@@ -140,12 +327,13 @@ Neither ChatGPT, a stored procedure, a local model nor a future planner directly
 
 ```text
 request/proposal
-  -> current observed evidence
-  -> deterministic capability/scope policy
-  -> identity/freshness/target guards
-  -> authorization
-  -> bounded actuation
-  -> verification
+ -> current observed evidence
+ -> deterministic capability/scope policy
+ -> identity/freshness/target guards
+ -> authorization
+ -> bounded actuation
+ -> re-observation
+ -> verification
 ```
 
 Required invariants:
@@ -156,39 +344,28 @@ Required invariants:
 - trusted procedure status is not blanket authorization;
 - action delivery is not completion;
 - current observed state outranks remembered procedure;
-- stale/ambiguous/UNKNOWN causes zero mutation;
+- stale/ambiguous/UNKNOWN causes zero unauthorized continuation;
 - generic Windows code execution remains disabled/unreachable;
 - private chain-of-thought is never persisted as task/procedure state.
 
-## State and checkpoint model
+## Environmental-content trust boundary
 
-The local Control Plane should eventually maintain a structured state record similar to:
+Observed content from pages/DOM, UI, email/messages, documents, screenshots/OCR and third-party tool/MCP outputs is environmental data. It does not gain policy authority merely because it is visible to ChatGPT or a model.
+
+The Control Plane must preserve provenance/trust classification when task facts move across applications/capabilities. Environmental content cannot broaden permission scope or redefine Control Plane policy.
+
+Task-success and safety are separate dimensions:
 
 ```text
-TaskState
-  task_id
-  goal/reference supplied by ChatGPT
-  selected_procedure + version
-  procedure_trust_state
-  current_program_node
-  current_observation references/digests
-  authorized capability scope
-  completed verified transitions
-  checkpoint/rollback metadata
-  retry/recovery budgets
-  pending verifier criteria
-  last delivery receipt
-  last verification result
-  escalation reason
+task verifier -> requested outcome predicates
+safety/policy gate -> allowed consequence and prohibited-risk predicates
 ```
 
-Store only structured/user-visible intent summaries and execution evidence needed for operation/debugging. Never store hidden model reasoning.
+A transition may appear task-useful and still be refused as unsafe.
 
-### Durable checkpoint / crash-recovery invariant
+## Durable checkpoint / crash-recovery invariant
 
-A persisted TaskState is not permission to infer what probably happened after a crash. Local continuation after process interruption is allowed only from a **durable, independently revalidated checkpoint** whose procedure/version, node, budgets, bound parameters and relevant external resource identities still match live state.
-
-The generic recovery rule is:
+A persisted TaskState is not permission to infer what probably happened after interruption.
 
 ```text
 load retained TaskState
@@ -202,30 +379,23 @@ load retained TaskState
       -> ABSTAIN/escalate
 ```
 
-In particular:
-
-- a verifier PASS that was never durably checkpointed does not become a remembered success after restart;
-- an ambiguous crash inside a transition must not be guessed through merely because the intended result appears plausible;
-- an existing artifact with matching content/digest is not automatically the same object created/owned by the interrupted task when stronger identity evidence is available;
-- rollback/removal must require current evidence that the resource is still the task-owned object, not just that its bytes resemble historical output;
-- completed work may be observed idempotently only when the completion evidence still matches the retained checkpoint;
-- if safe mid-transition recovery later requires write-ahead intent/transaction evidence, that mechanism must be explicit and independently tested rather than inferred from side effects.
-
-This rule applies beyond the Stage 26.3A file procedure. Future Browser/Windows procedures must define equivalent durable identity/current-state evidence appropriate to their consequence class before they can resume autonomously after interruption.
+A verifier result not durably checkpointed does not become remembered success after restart. Ambiguous mid-transition crash state is never guessed through. Rollback/removal requires current ownership evidence, not byte similarity alone.
 
 ## Relationship to existing components
 
 The Control Plane does not replace accepted components:
 
-- `semantic-projection` remains the truthful Chat-facing compatibility boundary, not the workflow brain;
-- `runtime/windows` remains the Windows observation/authorization/actuation/verifier capability layer;
-- OpenAdapt Flow `ProgramGraph` is the qualified procedural IR candidate;
-- OpenAdapt Capture is the qualified human/demo capture candidate;
-- adapted `SkillLibrary` mechanics may provide version/provenance/regression lifecycle behind project candidate-first trust;
-- LFM2.5-VL remains a bounded perception proposal backend;
+- `semantic-projection` remains the truthful Chat-facing boundary, not the workflow brain;
+- `runtime/windows` remains Windows observation/authorization/actuation/verifier capability code;
+- Windows `DesktopState` remains the accepted native Windows state representation;
+- Browser structure-first semantic/vision routing remains capability-specific implementation;
+- OpenAdapt Flow `ProgramGraph` remains the qualified procedural IR candidate;
+- OpenAdapt Capture remains the qualified human/demo capture candidate;
+- adapted SkillLibrary mechanics may support version/provenance/regression lifecycle;
+- LFM2.5-VL remains bounded perception proposal only;
 - Filesystem/Playwright remain focused capabilities.
 
-Stage 26.3 integrates these through project-owned deterministic state/policy/checkpoint seams rather than building another generic agent framework.
+`COMPUTER_USE_ARCHITECTURE.md` defines how these capability-specific pieces should converge on common long-horizon contracts without creating a generic agent gateway.
 
 ## What the Control Plane must not become
 
@@ -239,67 +409,58 @@ It must not:
 - bypass capability authorization because a procedure/model/planner requested an action;
 - hide native desktop/workflow consequences behind misleading harmless tool semantics;
 - use model confidence as a substitute for verified outcomes;
-- silently turn a single demonstration into permanent trust.
+- silently turn a single demonstration into permanent trust;
+- treat environmental UI/tool content as authority over user intent or policy.
 
 ## Stage mapping
 
-Current release-critical order remains:
+Current release-critical order:
 
 ```text
-26.2E real application E2E
- -> 26.3 Verified Procedure Runtime / deterministic Control Plane integration
-    -> 26.3A candidate-first procedural trust
-    -> 26.3B advanced verifier/postcondition library
+26.2E real application E2E                         ACCEPTED
+ -> 26.3A verified procedure runtime              ACCEPTED
+ -> 26.3B Verification Kernel + Finish Gate       NEXT
+ -> 26.3C WorkingState + typed recovery + LoopGuard
  -> 26.4 Human Demo -> transferable verified candidate skill
+ -> 26.5 Hybrid Computer-Use Integration
  -> 27 Distribution & Maintenance
  -> 28 Clean User E2E / stable release
 ```
 
-The Control Plane is therefore an architectural property of Stage 26.3, not a replacement stage inserted before it.
-
 ## Future Track P — Local Planner / Offline Autonomy
 
-A local general planner is **not rejected forever**. It is explicitly retained as a future optional research direction.
+A local general planner is retained as future optional research, not current production architecture.
 
-Earliest sensible prerequisite: real verified procedure-state data from Stage 26.3/26.4 and a measured reason that the ChatGPT-manager architecture is insufficient.
-
-Possible triggers:
-
-- useful offline operation when ChatGPT is unavailable;
-- unacceptable ChatGPT round-trip latency on decisions that genuinely require planning rather than deterministic procedure progression;
-- multi-machine or highly parallel independent work where centralized planning becomes the measured bottleneck;
-- privacy/deployment requirements that require a fully local planning mode;
-- a local model reaches measured quality/safety parity for the intended bounded workload.
-
-Research progression should be conservative:
+Earliest prerequisite: verified procedure-state data from Stage 26.3/26.4 and a measured reason ordinary ChatGPT is insufficient.
 
 ```text
 P0 shadow planner
    -> sees structured state
-   -> proposes next semantic decision
-   -> never authorizes or actuates
-   -> compare with ChatGPT-manager baseline
+   -> proposal only
+   -> no authorization / no actuation
 
 P1 bounded subtask planner
-   -> only explicitly scoped task classes
+   -> explicitly scoped task classes
    -> deterministic Control Plane remains authoritative
-   -> planner proposal may be rejected/ABSTAIN
 
 P2 optional local general-planner mode
-   -> only after measured parity/safety evidence
-   -> remains behind the same Control Plane authorization/verifier boundary
-   -> never silently replaces ChatGPT as the default mode
+   -> only after measured parity/safety/resource evidence
+   -> never silently replaces ChatGPT default
 ```
 
-Any future planner must be benchmarked with comparable task/compute/action budgets and must measure false-action rate, task completion, recovery quality, latency/resource use and escalation behavior. Multi-agent complexity is not accepted merely because it is fashionable.
+Even in P2, the planner remains above the same capability policy, verification, Finish Gate and safety boundaries.
 
 ## Terminology rule
 
-Repository documents must use these terms consistently:
+Use these terms consistently:
 
 - **general planner / planner:** open-ended strategy and task interpretation; currently ordinary ChatGPT only;
-- **deterministic Control Plane:** local execution state/policy/procedure/verification/recovery layer; desired architecture;
-- **specialist model:** bounded perception or structured reasoning proposal; non-authorizing;
-- **future local planner:** optional Track P research; not current product architecture.
+- **deterministic Control Plane:** execution state/policy/procedure/verification/recovery/finish machinery;
+- **WorkingState:** structured long-horizon operational state, never private reasoning;
+- **transition verifier:** verifies one expected action effect;
+- **Finish Gate:** independently verifies task-level completion;
+- **LoopGuard:** detects bounded repeated/no-effect/oscillating execution;
+- **specialist model:** bounded perception or structured proposal; non-authorizing;
+- **future local planner:** optional Track P research.
 
 Do not use `Control Plane` as a synonym for `local planner`.

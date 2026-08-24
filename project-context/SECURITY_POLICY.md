@@ -9,23 +9,23 @@ ordinary ChatGPT
  -> OpenAI Secure MCP Tunnel
  -> official tunnel-client
  -> direct stdio secure semantic launcher
- -> semantic-projection
- -> focused capability adapters
+ -> canonical six-tool semantic projection
+ -> deterministic Control Plane / focused capability adapters
 ```
 
-1MCP remains internal/diagnostic where useful; it is not the normal public semantic hop.
+1MCP remains optional internal Extension Manager infrastructure. It is not the normal public semantic hop and does not grant trust or authority to loaded backends.
 
-The tunnel provides authenticated reachability. It is not a substitute for capability scope, action authorization, procedure trust, deterministic execution-state control or verifier evidence.
+The tunnel provides authenticated reachability. It is not a substitute for capability scope, action authorization, procedure trust, deterministic execution-state control, verifier evidence, Finish Gate evidence or safety policy.
 
 ## Terminology: two different “control planes”
 
-The OpenAI tunnel ecosystem uses `CONTROL_PLANE_API_KEY` for Secure MCP Tunnel infrastructure. That credential/name is **unrelated** to the project's planned local deterministic **execution Control Plane**.
+The OpenAI tunnel ecosystem uses `CONTROL_PLANE_API_KEY` for Secure MCP Tunnel infrastructure. That credential/name is unrelated to the project's deterministic local **execution Control Plane**.
 
-Never infer that possession of a tunnel/control-plane key grants local action authority.
+Possession of a tunnel/control-plane key never grants local action authority.
 
 ## Security objective
 
-Control consequence, scope, lifetime and progression without making legitimate workflows impossible.
+Control consequence, scope, lifetime, progression and completion without making legitimate workflows impossible.
 
 Capability lifecycle:
 
@@ -47,20 +47,24 @@ Capability authorization and procedure trust remain separate.
 
 ## Deterministic local execution Control Plane
 
-The target Control Plane is a security boundary, not a second general planner.
+The Control Plane is a security boundary, not a second general planner.
 
 It may own:
 
-- structured TaskState;
+- structured `TaskState` and `WorkingState`;
 - selected procedure/ProgramGraph version and current node;
-- current evidence references/digests;
+- current evidence references/digests/provenance/freshness;
 - allowed outgoing transitions;
 - capability scope and consequence policy;
 - current action authorization;
+- `ExpectedEffect` / postconditions;
 - checkpoints/rollback metadata;
-- verifier/postconditions;
-- retry/recovery ceilings;
+- transition verifier results;
+- typed recovery and `LoopGuard` state;
 - time/action/resource budgets;
+- independent Finish Gate predicates;
+- task-success evidence;
+- safety/policy evidence;
 - escalation reason.
 
 A known selected procedure may continue locally through repeated:
@@ -68,36 +72,37 @@ A known selected procedure may continue locally through repeated:
 ```text
 observe current state
  -> exactly one permitted transition
+ -> bind expected effect
  -> authorize current action
  -> act
- -> observe result
+ -> re-observe result
  -> verify explicit postcondition
  -> checkpoint / advance
 ```
 
-The Control Plane must stop with zero further mutation and escalate when:
+The Control Plane must stop with zero unauthorized continuation and escalate when:
 
 - current state is stale/ambiguous/UNKNOWN;
 - no known transition matches;
 - incompatible multiple transitions match;
 - authorization scope is absent;
-- postcondition FAIL/UNKNOWN cannot be resolved by an explicitly defined bounded recovery branch;
-- retry/resource budget is exhausted;
+- postcondition FAIL/UNKNOWN cannot be resolved by a predeclared bounded recovery branch;
+- LoopGuard or retry/resource budget is exhausted;
 - continuing requires a new strategy.
 
 It must never invent a new user goal or infer broad authority from a procedure/model/planner request.
 
 ## General planner boundary
 
-Ordinary ChatGPT is the only **current general planner/intelligence**. It interprets user goals, chooses strategy/procedure and handles novel-state adaptation.
+Ordinary ChatGPT is the **only current general planner/intelligence**. It interprets user goals, chooses strategy/procedure and handles novel-state adaptation.
 
-A future local planner may only enter through optional Track P research. Its output is still non-authorizing proposal data. It remains above the same deterministic Control Plane and cannot bypass capability policy/verifier gates.
+ChatGPT may propose `candidate_done`. Verified task completion is produced only by the independent Finish Gate from fresh goal-level evidence.
 
-Initial future planner research must be shadow/proposal-only before any bounded planning authority is considered.
+A future local planner may enter only through optional Track P research. Its output remains non-authorizing proposal data above the same deterministic Control Plane, transition verifier, Finish Gate and safety boundaries.
 
 ## Chat-facing tool semantics
 
-Current accepted public tool names:
+Current accepted public tool names are exactly:
 
 ```text
 workspace_read
@@ -105,11 +110,140 @@ workspace_write
 web_open
 web_observe
 web_interact
+procedure_run
 ```
 
-Generic adaptive `tool_invoke` is not the ordinary-Chat product surface. `semantic-projection` must remain deterministic and truthful; it cannot become the procedure Control Plane, hidden planner, generic desktop dispatcher or arbitrary server/tool selector.
+Generic adaptive `tool_invoke` is not the ordinary-Chat product surface. `semantic-projection` must remain deterministic and truthful; it cannot become a hidden planner, generic desktop dispatcher or arbitrary server/tool selector.
 
-A public desktop/procedure surface requires its own ADR/schema/review/ordinary-Chat acceptance.
+A future public Windows/computer-use surface requires its own ADR/schema/security review and ordinary-Chat physical acceptance. Research or internal capability availability does not expand the six-tool contract automatically.
+
+## State-first hybrid computer-use security
+
+Canonical direction: `COMPUTER_USE_ARCHITECTURE.md` / ADR-032.
+
+Prefer:
+
+```text
+project-owned semantic/native state
+ -> DOM/AX/UIA/app-state evidence
+ -> selected screenshot/ROI only for reviewed structural miss,
+    spatial manipulation or independent visual cross-check
+```
+
+Visual evidence is non-authorizing. A screenshot or coordinate proposal does not establish current target identity, freshness, consequence scope or task completion.
+
+Every mutating transition must bind:
+
+```text
+current-state evidence
+expected effect/postcondition
+one bounded authorized action
+fresh re-observation
+PASS | FAIL | UNKNOWN verification
+```
+
+`delivery != success` remains mandatory.
+
+## Environmental content is untrusted data
+
+ADR-033 is an immediate security invariant.
+
+Treat content observed from the following as **untrusted environmental data** with respect to user intent, policy and authority:
+
+```text
+web pages / DOM
+application UI
+email / messages
+files and documents being processed
+screenshots / OCR
+third-party tool or MCP output
+```
+
+Environmental content may be useful task data. It does **not** gain a higher instruction priority, broaden permission scope, alter Control Plane policy, grant a capability, or authorize a consequence merely because ChatGPT/model/tooling can read it.
+
+When facts move between applications/capabilities, preserve provenance/trust classification and freshness where operationally relevant.
+
+Third-party extension output remains untrusted environmental data even when the backend is loaded successfully by 1MCP or another Extension Manager.
+
+### Task-success vs safety/policy verification
+
+Keep two dimensions explicit:
+
+```text
+task-success verifier
+  -> did the requested outcome actually occur?
+
+safety/policy gate
+  -> was the transition authorized and did it avoid prohibited consequence?
+```
+
+A task may be capability-successful but safety-failed. Evaluation and TaskState must not collapse those outcomes into one generic success flag.
+
+Prefer deterministic/native/system-of-record predicates for both dimensions where practical. Model-assisted classification may contribute non-authorizing evidence for ambiguous cases but cannot grant execution authority.
+
+## Independent Finish Gate
+
+A model, ChatGPT, procedure or future planner saying “done” is insufficient.
+
+The planner may provide only:
+
+```text
+candidate_done
+```
+
+The Finish Gate may return `DONE` only when fresh evidence confirms all required task-level predicates, including where applicable:
+
+```text
+goal/result predicates
+user constraints
+required source freshness/reconciliation
+artifact/application/browser final state
+no unresolved required ambiguity/confirmation
+safety/policy predicates
+```
+
+Transition PASS is not equivalent to task DONE.
+
+## WorkingState security
+
+Long-horizon memory must contain structured operational facts/evidence, not hidden reasoning.
+
+Permitted target categories include:
+
+```text
+user constraints
+subgoals/progress
+verified completed achievements
+authoritative facts + provenance + freshness
+open ambiguities/questions
+evidence references
+expected/observed state deltas
+retry/recovery history
+budgets
+```
+
+Never persist private chain-of-thought.
+
+Selected ROI visual evidence is sensitive capture data and remains subject to retention/redaction/encryption policy.
+
+## Typed recovery / LoopGuard security
+
+Recovery never implies broader authority.
+
+Common recovery categories include `target_missing`, `target_ambiguous`, `stale_state`, `action_no_effect`, `partial_effect`, `unexpected_dialog`, `navigation_changed`, `tool_unavailable`, `permission_denied`, `unsafe_transition`, and `external_dynamic_change`.
+
+Default bounded recovery order:
+
+```text
+re-observe
+ -> re-resolve from fresh evidence
+ -> retry only when new evidence justifies it
+ -> alternate already-admitted modality/capability
+ -> predeclared local recovery branch
+ -> ChatGPT replan / user clarification / ABSTAIN
+```
+
+LoopGuard must stop repeated no-effect or oscillating behavior when state/action fingerprints repeat without verified progress or budgets expire.
 
 ## Browser semantic -> vision authorization — ACCEPTED
 
@@ -117,49 +251,53 @@ Stage 25.2 remains structure-first. Model output is untrusted evidence. Only rev
 
 Browser screenshot -> coordinate action remains a narrow non-atomic TOCTOU residual boundary.
 
-## Windows capability security — ACCEPTED THROUGH STAGE 26.2D FOR BOUNDED CONTRACTS
+## Windows capability security — ACCEPTED THROUGH STAGE 26.2E FOR BOUNDED CONTRACTS
 
-The old statement that product acceptance of the Windows agent is still pending Stage 26.1C is obsolete.
-
-Accepted foundations now include:
+Accepted foundations include:
 
 - bounded authenticated typed executor;
-- legacy generic `/execute_windows` disabled/unreachable;
+- generic `/execute_windows` disabled/unreachable;
 - exact PID/HWND window-scoped UIA;
-- DesktopState evidence;
+- `DesktopState` evidence;
 - native exact-window F16 Grounder proposal-only;
 - deterministic structure-first UIA -> vision routing;
 - fresh process/window/frame/target evidence;
 - native foreground + WindowFromPoint/root-HWND/PID guard;
-- delivery receipts separate from completion.
+- delivery receipts separate from completion;
+- one isolated real VS Code application E2E with exact postcondition/cleanup evidence.
 
-Stage 26.2D exact physically accepted head:
+This is scoped acceptance, not universal Windows authorization.
 
-`1c74713edcd6321d5583a39234929169e68b5ac1`
+## Stage 26.3A procedure security — ACCEPTED / MERGED #92
 
-This is controlled fixture evidence, not universal Windows authorization.
+The accepted normal semantic surface contains six tools including the bounded `procedure_run`.
 
-## Stage 26.2E real-app security gate — ACTIVE
+Current registered procedure:
 
-The isolated VS Code qualification uses one specifically prefixed TEMP root and no user profile/project.
+```text
+verified_workspace_artifact_v1
+```
 
-Before its one guarded Unicode delivery it requires:
+It accepts bounded leaf `.txt` identity + bounded UTF-8 content + optional compatible resume task id. It does not expose arbitrary path, command, shell, Python, backend, raw tool selector or working directory.
 
-- exact disposable containment;
-- unique Code.exe PID/HWND/DesktopState;
-- enabled/visible focused editor evidence;
-- deliberate verifier mismatch -> FAIL -> ABSTAIN with zero action;
-- **fresh pre-action DesktopState with same exact window and focused-editor fingerprint**;
-- native foreground/hit-test guard;
-- authenticated loopback agent with legacy exec absent.
+Physical ordinary-Chat acceptance proved:
 
-After action it requires exact saved artifact hash/size, same current window identity, expected-only workspace, natural CLI/window exit and rollback. Forced process cleanup is allowed only after a failure and cannot convert the run to PASS.
+```text
+completed 3-action verified artifact procedure
+ -> independent workspace_read exact result
+ -> second call on pre-existing target
+ -> ABSTAIN at preflight
+ -> action_count = 0
+ -> independent reread proves zero overwrite
+```
+
+This does not authorize arbitrary procedures or broad desktop consequences.
 
 ## Procedural-memory security
 
 ### No private chain-of-thought persistence
 
-Store only execution-relevant structured/user-visible state: goal summaries, procedure/version IDs, observations, actions/receipts, postconditions, verification and provenance.
+Store only execution-relevant structured/user-visible state: goal summaries, constraints, procedure/version IDs, observations, facts/provenance/freshness, actions/receipts, postconditions, verification, progress and recovery state.
 
 Never persist hidden model reasoning.
 
@@ -188,18 +326,6 @@ A compiled procedure may retain structural/native evidence and bounded pixel/tem
 - version/provenance history is preserved;
 - imported/upstream procedures receive no implicit local authorization.
 
-## Completion integrity
-
-A model, ChatGPT, procedure or future planner saying “done” is not enough.
-
-Use deterministic/native/system-of-record postcondition evidence where practical:
-
-```text
-PASS -> checkpoint / advance
-FAIL -> bounded recovery or stop
-UNKNOWN -> observe / ABSTAIN / escalation
-```
-
 ## F16 / specialist grounding security
 
 Local LFM2.5-VL-450M F16 remains bounded perception only:
@@ -222,7 +348,7 @@ It never plans, grants authority or declares completion.
 
 - workspace paths remain scoped/rooted;
 - containment includes Windows junction/link escape checks;
-- procedure history cannot broaden current file scope.
+- procedure/history/memory cannot broaden current file scope.
 
 ## Browser network boundary
 
@@ -230,9 +356,9 @@ Current policy is not a complete DNS/rebinding/redirect/private-network sandbox.
 
 ## Bootstrap/lifecycle integrity
 
-Manager/tray owns lifecycle/configuration/diagnostics only. It must not become the general planner or the procedure Control Plane.
+Manager/tray owns lifecycle/configuration/diagnostics only. It must not become the general planner or deterministic procedure Control Plane.
 
-The procedure Control Plane must not own tunnel credentials merely because both systems use the phrase “control plane”.
+The execution Control Plane must not own tunnel credentials merely because both systems use the phrase “control plane”.
 
 ## Chat permission / OpenAI safety behavior
 

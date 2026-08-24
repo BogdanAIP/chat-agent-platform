@@ -1,6 +1,6 @@
 # Module / Capability Catalog
 
-Status synchronized through accepted Stage 26.2E + Transport Supervisor v1 and active Stage 26.3A canonical six-tool integration.
+Status synchronized through accepted Stage 26.3A / PR #92 and the promoted computer-use architecture direction.
 
 Resolve live `main` and relevant PR heads before work.
 
@@ -26,33 +26,41 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 |---|---|---|---|
 | General planner / manager | ordinary ChatGPT | PRODUCT-ACCEPTED | Only current open-ended goal/strategy/planning layer. |
 | Chat reachability | OpenAI Secure MCP Tunnel + official tunnel-client | PRODUCT-ACCEPTED | Normal ordinary-Chat reachability. |
-| Transport supervision | accepted Transport Supervisor v1 | PRODUCT-ACCEPTED / ACCEPTED-INFRASTRUCTURE | Persistent desired state/runtime owner, bounded recovery, console-free Windows persistence. |
-| Public semantic transport | direct stdio secure launcher -> canonical semantic projection | PRODUCT-ACCEPTED foundation / ACTIVE-INTEGRATION surface change | Stage 26.3A candidate route always reaches the canonical six-tool projection. |
-| Internal MCP aggregation/lifecycle | 1MCP | ACCEPTED-INFRASTRUCTURE / DIAGNOSTIC | Internal diagnostics/adaptive lifecycle; not the normal public semantic contract. |
-| Windows manager ownership | authoritative runtime owner + installed/source coordination | ACCEPTED-INFRASTRUCTURE | Lifecycle/config/diagnostics only; not the procedure planner. |
+| Transport supervision | Transport Supervisor v1 | PRODUCT-ACCEPTED / ACCEPTED-INFRASTRUCTURE | Persistent desired state/runtime owner, bounded recovery, console-free Windows persistence. |
+| Public semantic transport | direct stdio launcher -> canonical six-tool semantic projection | PRODUCT-ACCEPTED | Stage 26.3A physically accepted/merged. |
+| Internal MCP aggregation/lifecycle | optional 1MCP Extension Manager | ACCEPTED-INFRASTRUCTURE / DIAGNOSTIC | Optional extension discovery/lifecycle; not baseline route, trust or authorization. |
+| Windows manager ownership | authoritative runtime owner + installed/source coordination | ACCEPTED-INFRASTRUCTURE | Lifecycle/config/diagnostics only; not planner or procedure Control Plane. |
 | Scoped files | official Filesystem backend behind semantic projection | PRODUCT-ACCEPTED | `workspace_read` / `workspace_write`. |
 | Browser | pinned Playwright path behind semantic projection | PRODUCT-ACCEPTED | `web_open` / `web_observe` / `web_interact`. |
-| Semantic capability projection | canonical six-tool candidate boundary | ACTIVE-INTEGRATION | Exactly five reviewed file/browser semantics + typed bounded `procedure_run`; no 5/6 public mode switch. |
-| Deterministic execution Control Plane | TaskState + exact registered procedure + authorization/checkpoint/verifier/budgets | ACTIVE-INTEGRATION | Stage 26.3A implementation exists behind `procedure_run`; not a general planner. |
-| Verified Procedure Runtime | `verified_workspace_artifact_v1` first bounded procedure | ACTIVE-INTEGRATION | Three verified transitions, durable checkpoints, fail-closed ABSTAIN/no-overwrite. |
+| Semantic capability projection | exact six-tool canonical boundary | PRODUCT-ACCEPTED | Five file/browser semantics + bounded typed `procedure_run`; no 5/6 mode. |
+| Deterministic execution Control Plane | TaskState + registered procedures + authorization/checkpoints/verifier/budgets | PRODUCT-ACCEPTED first slice / ACTIVE-INTEGRATION broader contracts | Stage 26.3A proves first slice; 26.3B/C broaden verification/state/recovery. |
+| Verified Procedure Runtime | `verified_workspace_artifact_v1` | PRODUCT-ACCEPTED scoped | Three verified transitions, durable checkpoints, fail-closed ABSTAIN/no-overwrite. |
+| Verification Kernel | ExpectedEffect + fresh re-observation + `PASS|FAIL|UNKNOWN` + cross-capability predicates | ACTIVE-INTEGRATION | Stage 26.3B NEXT; transition delivery/result separation becomes reusable contract. |
+| Independent Finish Gate | `candidate_done` -> fresh goal-level predicates -> `DONE` | ACTIVE-INTEGRATION | Stage 26.3B; planner self-assessment is not task completion. |
+| WorkingState v1 | constraints/subgoals/facts+provenance+freshness/progress/evidence/recovery/budgets | FUTURE-SCOPED-GATE / NEXT-AFTER-26.3B | Stage 26.3C; structured operational state, never private chain-of-thought. |
+| Typed recovery + LoopGuard | failure taxonomy, no-effect/repeat/oscillation detection, bounded escalation | FUTURE-SCOPED-GATE / NEXT-AFTER-26.3B | Stage 26.3C; no blind infinite retry. |
 | Local visual grounding | llama.cpp + LFM2.5-VL-450M F16 | ACCEPTED-SPECIALIST | Local/on-demand/perception-only; replaceable. |
-| Browser semantic -> vision routing | Stage 25.2 bounded internal escalation | PRODUCT-ACCEPTED | Semantic first; bounded visual fallback only. |
+| Browser semantic -> vision routing | Stage 25.2 bounded internal escalation | PRODUCT-ACCEPTED | Semantic/AX first; bounded visual fallback only. |
 | Procedural compiler + IR | OpenAdapt Flow 1.31.0 `Workflow` / `ProgramGraph` | TARGET-QUALIFIED | Candidate IR/mechanics behind project boundaries. |
-| Procedural lifecycle | OpenAdapt `SkillLibrary` + learn/teach/regression mechanics | FUTURE-SCOPED-GATE | Reuse mechanics only after project trust/verification integration. |
-| Human/desktop capture | OpenAdapt Capture 1.2.2 + Flow adapter | TARGET-QUALIFIED | Capture foundation accepted; transfer integration is later Stage 26.4. |
-| Typed Windows executor | pinned OpenAdapt `WindowsBackend` + hardened agent + production wrapper | ACCEPTED-INFRASTRUCTURE | No generic exec; bounded typed actions. |
-| Window-scoped Windows UI resolution | PID -> HWND -> exact window -> bounded native UIA | ACCEPTED-INFRASTRUCTURE | Stage 26.1E accepted and promoted. |
-| Runtime verifier foundation | before/after evidence + `PASS|FAIL|UNKNOWN` | ACCEPTED-INFRASTRUCTURE | Delivery is not success; UNKNOWN never silently advances. |
+| Procedural lifecycle | OpenAdapt `SkillLibrary` + learn/teach/regression mechanics | FUTURE-SCOPED-GATE | Reuse lifecycle mechanics only after project trust/verification integration. |
+| Human/desktop capture | OpenAdapt Capture 1.2.2 + Flow adapter | TARGET-QUALIFIED | Capture foundation accepted; demo transfer Stage 26.4. |
+| Human demonstration transfer | demo -> subtask goals/verifiers -> CANDIDATE -> live-state verified replay | FUTURE-SCOPED-GATE | Stage 26.4; not blind macro replay. |
+| Typed Windows executor | hardened Windows backend/agent + production wrapper | ACCEPTED-INFRASTRUCTURE | No generic exec; bounded typed actions. |
+| Window-scoped Windows UI resolution | PID -> HWND -> exact window -> bounded native UIA | ACCEPTED-INFRASTRUCTURE | Stage 26.1E accepted/promoted. |
 | Production Windows runtime | `runtime/windows` bounded observation/actuation/verification | ACCEPTED-INFRASTRUCTURE | Stage 26.2A accepted/merged. |
-| Desktop observation | canonical read-only `DesktopState` | ACCEPTED-INFRASTRUCTURE | Evidence only. |
+| Desktop observation | canonical read-only `DesktopState` | ACCEPTED-INFRASTRUCTURE | Capability-native evidence, not authority. |
 | Desktop F16 Grounder | native exact-window proposal adapter | ACCEPTED-SPECIALIST | Proposal-only. |
-| Windows UIA -> vision router | deterministic structure first + bounded visual fallback + freshness/native guards | ACCEPTED-INFRASTRUCTURE | Physically accepted Stage 26.2D. |
-| Native visual point guard | foreground HWND + WindowFromPoint/root HWND/PID | ACCEPTED-INFRASTRUCTURE | No focus stealing. |
-| Real application Windows E2E | isolated VS Code + disposable TEMP artifact | PRODUCT-ACCEPTED scoped foundation | Stage 26.2E physically accepted for one exact task; not broad app accuracy. |
-| Human demonstration transfer | Capture -> candidate procedure -> changed-state verified replay | FUTURE-SCOPED-GATE | Stage 26.4; not blind macro replay. |
+| Windows UIA -> vision router | deterministic structure first + bounded visual fallback + freshness/native guards | ACCEPTED-INFRASTRUCTURE | Stage 26.2D physically accepted scoped path. |
+| Native visual point guard | foreground HWND + WindowFromPoint/root HWND/PID | ACCEPTED-INFRASTRUCTURE | Prevents unbound coordinate consequence. |
+| Real application Windows E2E | isolated VS Code + disposable TEMP artifact | PRODUCT-ACCEPTED scoped foundation | Stage 26.2E accepted one task; not broad app accuracy. |
+| ObservationEnvelope | small reference envelope over capability-native Browser/Windows/file/app state | FUTURE-SCOPED-GATE | Stage 26.5 target; do not flatten rich native state prematurely. |
+| Capability-aware router | reviewed semantic/native vs visual/GUI route from preconditions/evidence | FUTURE-SCOPED-GATE | Stage 26.5; backend availability alone is not a route decision. |
+| Common grounding proposal fields | target identity/source/frame/confidence/ambiguity + coordinates when required | FUTURE-SCOPED-GATE | Stage 26.5 integration direction; capability-specific grounders remain valid. |
+| Environmental-content trust classification | UI/DOM/email/docs/OCR/tool output treated as untrusted task data re policy/authority | ACCEPTED SECURITY INVARIANT | ADR-033; provenance survives cross-capability transfer. |
+| Task-success vs safety verification | separate result dimensions | ACCEPTED DIRECTION / ACTIVE-INTEGRATION | Stage 26.3B and later safety evaluation. |
 | Procedure-state dataset | structured verified state-transition examples | OPTIONAL-RESEARCH | Supports later evaluation/training; not release prerequisite. |
-| Specialized local reasoning | proposal-only specialist interface | OPTIONAL-RESEARCH | Not a general planner. |
-| Future local general planner | Track P: shadow -> bounded subtask -> optional local mode | OPTIONAL-RESEARCH / FUTURE | Only after verified data + measured need; always behind Control Plane authorization/verifier. |
+| Specialized local reasoning | proposal-only specialist interface | OPTIONAL-RESEARCH | Not a general planner or authorization source. |
+| Future local general planner | Track P: shadow -> bounded subtask -> optional local mode | OPTIONAL-RESEARCH / FUTURE | Only after verified data + measured need; always behind Control Plane/verifier/Finish Gate. |
 | Multi-chat orchestration | upper-layer controller over ordinary Chat sessions | PARALLEL-TRACK | Outside Windows/procedure safety core. |
 | Distribution/maintenance | installer/update/repair/doctor/uninstall/rollback/restart recovery | FUTURE-SCOPED-GATE | Stage 27. |
 
@@ -64,8 +72,8 @@ general planner
  = ordinary ChatGPT today
 
 local deterministic Control Plane
- = execution state/policy/procedure/verifier/recovery
- = active Stage 26.3 integration
+ = execution state/policy/procedure/verification/recovery/finish
+ = accepted first slice + active Stage 26.3 expansion
 
 future local planner
  = optional Track P research
@@ -74,7 +82,7 @@ future local planner
 
 Do not use `Control Plane` as a synonym for `planner`.
 
-## Current Stage 26.3A candidate public surface
+## Accepted public surface
 
 ```text
 workspace_read
@@ -87,28 +95,40 @@ procedure_run
 
 There is no runtime/profile/tray switch between five and six tools.
 
-The historical five-tool file/browser projection remains an internal implementation/regression layer only. Old Stage 24/25 five-tool evidence remains valid for its exact historical scope but does not define the current candidate inventory.
+The historical five-tool file/browser projection remains internal implementation/regression only. The normal semantic startup guard refuses READY unless live inventory equals the exact six canonical names.
 
-The normal semantic startup guard must refuse READY unless live inventory equals the exact six canonical names.
+`procedure_run` may invoke only registered bounded procedures and exposes no generic shell/Python/path/backend/tool selector.
 
-`procedure_run` may invoke only registered bounded procedures and does not expose generic shell/Python/opaque `tool_invoke` dispatch.
+## Computer-use direction
 
-## Stage 26.3A physical acceptance gate
-
-After hosted CI is green on one exact PR #92 head:
+Canonical formula from ADR-032:
 
 ```text
-install exact head on target Windows
- -> start normal semantic route
- -> tray normal READY
- -> exactly six live tools
- -> ordinary Chat one-goal task
- -> actual procedure_run
- -> independent workspace_read final verification
- -> protected pre-existing target => ABSTAIN/no overwrite
+semantic/native state first
+ -> selective visual evidence
+ -> capability-aware bounded action
+ -> fresh re-observation
+ -> ExpectedEffect verification
+ -> typed recovery + LoopGuard
+ -> WorkingState
+ -> independent Finish Gate
+ -> safety/policy gate
 ```
 
-Until this physical gate passes, the six-tool surface is an active candidate, not a physically product-accepted Stage 26.3A contract.
+This direction does not authorize a screenshot-only loop, unrestricted program-state/code access, generic raw-tool dispatcher or new public Windows tool names.
+
+## Stage order
+
+```text
+26.2E real application E2E                         ACCEPTED
+ -> 26.3 Verified Procedure Runtime               ACTIVE
+    -> 26.3A canonical six-tool runtime           ACCEPTED / MERGED #92
+    -> 26.3B Verification Kernel + Finish Gate    NEXT
+    -> 26.3C WorkingState + recovery + LoopGuard
+ -> 26.4 Human Demo -> verified candidate skill
+ -> 26.5 Hybrid Computer-Use Integration
+ -> 27/28 release work
+```
 
 ## Accepted Windows evidence lineage
 
@@ -116,7 +136,7 @@ Exact Stage 26.1/26.2 physical heads, result directories and scoped measurements
 
 ## Future planner acceptance rule
 
-Do not promote a local planner because a model exists. Track P requires verified procedure-state data, a measured need and comparative evaluation against ordinary ChatGPT manager behavior. First mode is shadow/proposal-only. Capability authorization and verifier remain independent regardless of planner source.
+Do not promote a local planner merely because a model exists. Track P requires verified long-horizon state data, measured need and comparative evaluation against ordinary ChatGPT behavior. First mode is shadow/proposal-only. Capability authorization, transition verification, Finish Gate and safety policy remain independent regardless of planner source.
 
 ## Merge rule
 

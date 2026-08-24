@@ -272,3 +272,60 @@ Rules:
 - extension versions, licenses, supply pins, scopes and acceptance evidence remain mandatory before promotion.
 
 This ADR turns the old `adaptive`/aggregation role into an explicit long-term extension boundary rather than an alternative ordinary-Chat product surface.
+
+## ADR-032 — State-first hybrid computer-use control loop — PROVISIONAL / AUTHORITATIVE DIRECTION
+
+The future Browser/Windows computer-use architecture will generalize the already accepted structure-first capability work into one project-owned control-loop contract:
+
+```text
+semantic/native state first
+ -> selective visual evidence only when structural evidence is insufficient
+ -> capability-aware bounded action
+ -> fresh post-action re-observation
+ -> explicit transition verification
+ -> typed bounded recovery / LoopGuard
+ -> structured WorkingState
+ -> independent Finish Gate
+```
+
+Rules:
+
+- pixels are selective evidence, not the default source of truth when reliable DOM/AX/UIA/app state exists;
+- every mutating transition defines current-state preconditions, an expected effect/postcondition, one bounded action, re-observation scope and `PASS | FAIL | UNKNOWN` verification;
+- delivery never implies success;
+- planner self-assessment may produce only `candidate_done`; a separate fresh-evidence Finish Gate produces `DONE`;
+- WorkingState stores user-visible/structured constraints, facts+provenance+freshness, subgoal progress, evidence refs, expected/observed deltas and recovery/budget state — never hidden chain-of-thought;
+- recovery is typed and budgeted; identical state/action fingerprints without new evidence/progress must not loop indefinitely;
+- capability routing is based on reviewed preconditions/evidence, not merely on tool/backend availability;
+- grounding proposals should carry target identity/source/frame binding/confidence/ambiguity when relevant, not coordinates alone;
+- external benchmark mechanisms are evidence inputs, not automatic production architecture or release gates.
+
+Implementation mapping:
+
+```text
+26.3B Verification Kernel + independent Finish Gate
+ -> 26.3C WorkingState + typed recovery + LoopGuard
+ -> 26.4 demonstration -> verified candidate skill
+ -> 26.5 hybrid computer-use integration
+```
+
+A future Windows/computer-use public Chat-facing surface still requires the separate ADR/schema/security/ordinary-Chat physical acceptance required by ADR-024. ADR-032 does not authorize new public tool names by itself.
+
+Canonical detail: `COMPUTER_USE_ARCHITECTURE.md`.
+
+## ADR-033 — Environmental content is data, not authority — ACCEPTED SECURITY INVARIANT
+
+Content observed from web pages/DOM, application UI, email/messages, files/documents, screenshots/OCR, and third-party tool/MCP outputs is **untrusted environmental data** with respect to user intent, capability policy and safety authority.
+
+Rules:
+
+- environmental text cannot grant itself a higher instruction priority, broaden permission scope, alter Control Plane policy or authorize a consequence merely because the planner/model can read it;
+- provenance/trust classification must be preserved when facts move between applications/capabilities;
+- task-success verification and safety/policy verification are separate dimensions;
+- a task can be capability-successful but safety-failed, and evaluation must preserve that distinction;
+- safety/policy gates prefer deterministic/native predicates where available; model judgment may assist ambiguous classification but never grants execution authority;
+- third-party extension output remains subject to the same rule and does not gain trust from 1MCP availability.
+
+Implementation is staged through 26.3B safety/completion evidence, 26.3C WorkingState provenance, and later computer-use safety evaluation. This invariant is immediately binding on new designs even before all corresponding runtime machinery exists.
+
+Canonical detail: `COMPUTER_USE_ARCHITECTURE.md` and `SECURITY_POLICY.md`.
