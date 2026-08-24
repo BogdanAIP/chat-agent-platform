@@ -41,16 +41,26 @@ class StatusIndicatorAutostartContractTests(unittest.TestCase):
         self.assertIn("Start-ScheduledTask -TaskName $TrayTaskName", SOURCE)
         self.assertIn("Unregister-ScheduledTask -TaskName $TrayTaskName", SOURCE)
 
-    def test_supervisor_uninstall_does_not_delete_base_tray_asset(self):
+    def test_installer_deploys_reviewed_tray_with_verified_copy(self):
+        self.assertIn("$SourceTray = Join-Path $PSScriptRoot 'chat-platform-tray.ps1'", SOURCE)
+        self.assertIn("Backup-InstalledTrayIfNeeded", SOURCE)
+        self.assertIn("Copy-VerifiedFile -Source $SourceTray -Destination $InstalledTray", SOURCE)
+        self.assertIn("@($SourceTray, $InstalledTray)", SOURCE)
+
+    def test_existing_tray_is_backed_up_and_restored(self):
+        self.assertIn("$TrayBackup", SOURCE)
+        self.assertIn("function Backup-InstalledTrayIfNeeded", SOURCE)
+        self.assertIn("Copy-VerifiedFile -Source $InstalledTray -Destination $TrayBackup", SOURCE)
+        self.assertIn("function Restore-TrayBackupIfPresent", SOURCE)
+        self.assertIn("Copy-VerifiedFile -Source $TrayBackup -Destination $InstalledTray", SOURCE)
+        self.assertIn("$trayRestored = Restore-TrayBackupIfPresent", SOURCE)
+
+    def test_supervisor_uninstall_does_not_blindly_delete_base_tray_asset(self):
         uninstall_start = SOURCE.index("function Uninstall-Supervisor")
         uninstall = SOURCE[uninstall_start:]
         self.assertNotIn("Remove-Item -LiteralPath $InstalledTray ", uninstall)
         self.assertIn("Remove-Item -LiteralPath $InstalledTrayLauncher", uninstall)
-
-    def test_indicator_task_reuses_existing_bootstrapped_tray(self):
-        self.assertIn("Installed Chat Agent Platform tray is missing", SOURCE)
-        self.assertNotIn("$SourceTray =", SOURCE)
-        self.assertNotIn("Copy-VerifiedFile -Source $SourceTray -Destination $InstalledTray", SOURCE)
+        self.assertIn("CHAT_PLATFORM_STATUS_INDICATOR_RESTORED", uninstall)
 
 
 if __name__ == "__main__":
