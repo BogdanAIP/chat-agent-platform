@@ -39,6 +39,7 @@ $PollFreshnessSeconds = 120
 $RemoteProbeCacheSeconds = 30
 $RemoteProbeTimeoutMilliseconds = 8000
 $LocalHealthTimeoutMilliseconds = 4000
+$StartupReadyTimeoutMilliseconds = 45000
 
 function Initialize-Directories {
     foreach ($path in @($StateDir, $LogDir)) {
@@ -359,7 +360,11 @@ function Invoke-BoundedProcess {
 }
 
 function Get-LocalHealthProbe {
-    param([object[]]$Processes)
+    param(
+        [object[]]$Processes,
+        [ValidateRange(100, 60000)]
+        [int]$TimeoutMilliseconds = $LocalHealthTimeoutMilliseconds
+    )
 
     if (
         $Processes.Count -ne 1 -or
@@ -383,7 +388,7 @@ function Get-LocalHealthProbe {
             '--pid', [string]$Processes[0].ProcessId,
             '--require-control-plane-poll'
         ) `
-        -TimeoutMilliseconds $LocalHealthTimeoutMilliseconds
+        -TimeoutMilliseconds $TimeoutMilliseconds
 
     if ($result.timed_out -or [string]::IsNullOrWhiteSpace([string]$result.stdout)) {
         return [pscustomobject]@{
@@ -903,27 +908,89 @@ function Start-DirectRuntime {
 
     Save-DirectState -ProcessId $process.Id -Root $root -TunnelId $tunnelId -SemanticEntry $semanticEntry
 
+    # Startup readiness is intentionally lightweight. The previous loop called
+    # Get-DirectStatusObject up to 180 times; each pass could perform multiple
+    # WMI scans plus local and remote health work, so the nominal 45-second
+    # budget could stretch to many minutes. Use a real wall-clock deadline and
+    # poll only tunnel-client's local health endpoint while the child starts.
     $ready = $false
-    $lastStatus = $null
-    for ($i = 0; $i -lt 180; $i++) {
-        if ($process.HasExited) { break }
-        $lastStatus = Get-DirectStatusObject
-        if ([bool]$lastStatus.runtime_ready -and -not [bool]$lastStatus.conflict) {
-            $ready = $true
+    $lastHealthCode = 'LOCAL_TUNNEL_NOT_HEALTHY'
+    $startupClock = [System.Diagnostics.Stopwatch]::StartNew()
+    $startupProcessProjection = @(
+        [pscustomobject]@{ ProcessId = [int]$process.Id }
+    )
+
+    while ($startupClock.ElapsedMilliseconds -lt $StartupReadyTimeoutMilliseconds) {
+        if ($process.HasExited) {
+            $lastHealthCode = 'LOCAL_TUNNEL_NOT_RUNNING'
             break
         }
-        if ([string]$lastStatus.recovery_action -eq 'blocked') { break }
-        Start-Sleep -Milliseconds 250
+
+        $remainingMilliseconds = [int](
+            $StartupReadyTimeoutMilliseconds - $startupClock.ElapsedMilliseconds
+        )
+        if ($remainingMilliseconds -lt 100) {
+            break
+        }
+
+        $probeTimeoutMilliseconds = [int][math]::Min(
+            $LocalHealthTimeoutMilliseconds,
+            $remainingMilliseconds
+        )
+        $local = Get-LocalHealthProbe `
+            -Processes $startupProcessProjection `
+            -TimeoutMilliseconds $probeTimeoutMilliseconds
+
+        if (
+            [bool]$local.healthz_ok -and
+            [bool]$local.readyz_ok -and
+            [bool]$local.poll_ok -and
+            [bool]$local.process_ok
+        ) {
+            # One bounded ownership scan after local readiness is enough to
+            # prove that the expected semantic child exists. Do not repeat the
+            # full WMI/remote status pipeline in the startup wait loop.
+            $semanticProcesses = @(Get-SemanticProcesses)
+            if ($semanticProcesses.Count -eq 1) {
+                $ready = $true
+                $lastHealthCode = 'READY'
+                break
+            }
+            if ($semanticProcesses.Count -gt 1) {
+                $lastHealthCode = 'LOCAL_RUNTIME_CONFLICT'
+                break
+            }
+            $lastHealthCode = 'LOCAL_MCP_PROCESS_MISSING'
+        }
+        elseif (-not [bool]$local.healthz_ok) {
+            $lastHealthCode = 'LOCAL_TUNNEL_NOT_HEALTHY'
+        }
+        elseif (-not [bool]$local.poll_ok) {
+            $lastHealthCode = 'REMOTE_TUNNEL_DISCONNECTED'
+        }
+        else {
+            $lastHealthCode = 'LOCAL_MCP_UNAVAILABLE'
+        }
+
+        $sleepBudget = [int](
+            $StartupReadyTimeoutMilliseconds - $startupClock.ElapsedMilliseconds
+        )
+        if ($sleepBudget -gt 0) {
+            Start-Sleep -Milliseconds ([int][math]::Min(500, $sleepBudget))
+        }
     }
+    $startupClock.Stop()
 
     if (-not $ready) {
-        $code = if ($null -ne $lastStatus) { [string]$lastStatus.health_code } else { 'LOCAL_TUNNEL_NOT_HEALTHY' }
         $stderrTail = if (Test-Path -LiteralPath $StderrLog) {
             (Get-Content -LiteralPath $StderrLog -Tail 40 | Out-String).Trim()
         }
         else { '' }
         Stop-DirectRuntime
-        throw "Direct semantic tunnel did not become runtime-ready within 45 seconds. health_code=$code $stderrTail"
+        throw (
+            "Direct semantic tunnel did not become runtime-ready within 45 seconds. " +
+            "health_code=$lastHealthCode elapsed_ms=$([int]$startupClock.ElapsedMilliseconds) $stderrTail"
+        )
     }
 
     Write-Host 'SEMANTIC_DIRECT_STATUS=ready'
@@ -932,7 +999,7 @@ function Start-DirectRuntime {
     Write-Host "SEMANTIC_DIRECT_FILES_ROOT=$root"
     Write-Host "SEMANTIC_DIRECT_TUNNEL_PID=$($process.Id)"
     Write-Host "SEMANTIC_DIRECT_TUNNEL_ID=$tunnelId"
-    Write-Host "SEMANTIC_DIRECT_HEALTH_CODE=$($lastStatus.health_code)"
+    Write-Host "SEMANTIC_DIRECT_HEALTH_CODE=$lastHealthCode"
 }
 
 Initialize-Directories
