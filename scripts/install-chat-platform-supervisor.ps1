@@ -37,11 +37,13 @@ $InstalledHealthHelper = Join-Path $AppScriptsDir 'tunnel-reliability-health.ps1
 $InstalledTray = Join-Path $AppScriptsDir 'chat-platform-tray.ps1'
 $InstalledTrayLauncher = Join-Path $AppScriptsDir 'chat-platform-tray-launcher.vbs'
 $DirectControllerBackup = Join-Path $BackupDir 'semantic-direct-controller.ps1'
+$TrayBackup = Join-Path $BackupDir 'chat-platform-tray.ps1'
 
 $SourceDirectController = Join-Path $PSScriptRoot 'semantic-direct-controller.ps1'
 $SourceSupervisor = Join-Path $PSScriptRoot 'chat-platform-supervisor.ps1'
 $SourceSupervisorLauncher = Join-Path $PSScriptRoot 'chat-platform-supervisor-launcher.vbs'
 $SourceHealthHelper = Join-Path $PSScriptRoot 'tunnel-reliability-health.ps1'
+$SourceTray = Join-Path $PSScriptRoot 'chat-platform-tray.ps1'
 $SourceTrayLauncher = Join-Path $PSScriptRoot 'chat-platform-tray-launcher.vbs'
 
 function Get-PwshPath {
@@ -177,39 +179,54 @@ function Invoke-WithManagerMutex {
     }
 }
 
-function Backup-InstalledDirectControllerIfNeeded {
-    if (-not (Test-Path -LiteralPath $InstalledDirectController -PathType Leaf)) {
+function Backup-InstalledFileIfNeeded {
+    param(
+        [Parameter(Mandatory)] [string]$Installed,
+        [Parameter(Mandatory)] [string]$Source,
+        [Parameter(Mandatory)] [string]$Backup,
+        [Parameter(Mandatory)] [string]$Label
+    )
+
+    if (-not (Test-Path -LiteralPath $Installed -PathType Leaf)) {
         return
     }
-    if (Test-Path -LiteralPath $DirectControllerBackup -PathType Leaf) {
+    if (Test-Path -LiteralPath $Backup -PathType Leaf) {
         return
     }
 
-    $installedHash = (Get-FileHash -LiteralPath $InstalledDirectController -Algorithm SHA256).Hash
-    $sourceHash = (Get-FileHash -LiteralPath $SourceDirectController -Algorithm SHA256).Hash
+    $installedHash = (Get-FileHash -LiteralPath $Installed -Algorithm SHA256).Hash
+    $sourceHash = (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash
     if ($installedHash -eq $sourceHash) {
         return
     }
 
     New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
-    Copy-VerifiedFile -Source $InstalledDirectController -Destination $DirectControllerBackup
-    Write-Host "TRANSPORT_SUPERVISOR_CONTROLLER_BACKUP=$DirectControllerBackup"
+    Copy-VerifiedFile -Source $Installed -Destination $Backup
+    Write-Host "$Label=$Backup"
 }
 
-function Restore-DirectControllerBackupIfPresent {
-    if (-not (Test-Path -LiteralPath $DirectControllerBackup -PathType Leaf)) {
+function Restore-InstalledFileBackupIfPresent {
+    param(
+        [Parameter(Mandatory)] [string]$Backup,
+        [Parameter(Mandatory)] [string]$Installed
+    )
+
+    if (-not (Test-Path -LiteralPath $Backup -PathType Leaf)) {
         return $false
     }
 
-    Copy-VerifiedFile -Source $DirectControllerBackup -Destination $InstalledDirectController
-    Remove-Item -LiteralPath $DirectControllerBackup -Force
+    Copy-VerifiedFile -Source $Backup -Destination $Installed
+    Remove-Item -LiteralPath $Backup -Force
+    return $true
+}
+
+function Remove-BackupDirectoryIfEmpty {
     if (Test-Path -LiteralPath $BackupDir -PathType Container) {
         $remaining = @(Get-ChildItem -LiteralPath $BackupDir -Force -ErrorAction SilentlyContinue)
         if ($remaining.Count -eq 0) {
             Remove-Item -LiteralPath $BackupDir -Force -ErrorAction SilentlyContinue
         }
     }
-    return $true
 }
 
 function Install-SupervisorAssets {
@@ -220,10 +237,9 @@ function Install-SupervisorAssets {
         throw "Installed Chat Agent Platform tray is missing: $InstalledTray. Run bootstrap first."
     }
 
-    foreach ($source in @($SourceDirectController, $SourceSupervisor, $SourceHealthHelper)) {
+    foreach ($source in @($SourceDirectController, $SourceSupervisor, $SourceHealthHelper, $SourceTray)) {
         Assert-PowerShellParses -Path $source
     }
-    Assert-PowerShellParses -Path $InstalledTray
     foreach ($launcher in @($SourceSupervisorLauncher, $SourceTrayLauncher)) {
         if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
             throw "Supervisor launcher source asset is missing: $launcher"
@@ -231,11 +247,22 @@ function Install-SupervisorAssets {
     }
 
     Invoke-WithManagerMutex {
-        Backup-InstalledDirectControllerIfNeeded
+        Backup-InstalledFileIfNeeded `
+            -Installed $InstalledDirectController `
+            -Source $SourceDirectController `
+            -Backup $DirectControllerBackup `
+            -Label 'TRANSPORT_SUPERVISOR_CONTROLLER_BACKUP'
+        Backup-InstalledFileIfNeeded `
+            -Installed $InstalledTray `
+            -Source $SourceTray `
+            -Backup $TrayBackup `
+            -Label 'CHAT_PLATFORM_STATUS_INDICATOR_BACKUP'
+
         Copy-VerifiedFile -Source $SourceDirectController -Destination $InstalledDirectController
         Copy-VerifiedFile -Source $SourceSupervisor -Destination $InstalledSupervisor
         Copy-VerifiedFile -Source $SourceSupervisorLauncher -Destination $InstalledSupervisorLauncher
         Copy-VerifiedFile -Source $SourceHealthHelper -Destination $InstalledHealthHelper
+        Copy-VerifiedFile -Source $SourceTray -Destination $InstalledTray
         Copy-VerifiedFile -Source $SourceTrayLauncher -Destination $InstalledTrayLauncher
     }
 
@@ -244,6 +271,7 @@ function Install-SupervisorAssets {
         @($SourceSupervisor, $InstalledSupervisor),
         @($SourceSupervisorLauncher, $InstalledSupervisorLauncher),
         @($SourceHealthHelper, $InstalledHealthHelper),
+        @($SourceTray, $InstalledTray),
         @($SourceTrayLauncher, $InstalledTrayLauncher)
     )) {
         $sourceHash = (Get-FileHash -LiteralPath $pair[0] -Algorithm SHA256).Hash
@@ -360,18 +388,30 @@ function Uninstall-Supervisor {
         Unregister-ScheduledTask -TaskName $TrayTaskName -Confirm:$false
     }
 
-    $restored = [bool](Invoke-WithManagerMutex {
-        $didRestore = Restore-DirectControllerBackupIfPresent
+    $restore = Invoke-WithManagerMutex {
+        $controllerRestored = Restore-InstalledFileBackupIfPresent `
+            -Backup $DirectControllerBackup `
+            -Installed $InstalledDirectController
+        $trayRestored = Restore-InstalledFileBackupIfPresent `
+            -Backup $TrayBackup `
+            -Installed $InstalledTray
+
         Remove-Item -LiteralPath $InstalledSupervisor -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $InstalledSupervisorLauncher -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $InstalledHealthHelper -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $InstalledTrayLauncher -Force -ErrorAction SilentlyContinue
-        return $didRestore
-    })
+        Remove-BackupDirectoryIfEmpty
+
+        return [pscustomobject]@{
+            controller_restored = [bool]$controllerRestored
+            tray_restored = [bool]$trayRestored
+        }
+    }
 
     Write-Host 'TRANSPORT_SUPERVISOR_INSTALL=removed'
     Write-Host 'CHAT_PLATFORM_STATUS_INDICATOR=removed'
-    Write-Host "TRANSPORT_SUPERVISOR_CONTROLLER_RESTORED=$restored"
+    Write-Host "TRANSPORT_SUPERVISOR_CONTROLLER_RESTORED=$([bool]$restore.controller_restored)"
+    Write-Host "CHAT_PLATFORM_STATUS_INDICATOR_RESTORED=$([bool]$restore.tray_restored)"
 }
 
 New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
