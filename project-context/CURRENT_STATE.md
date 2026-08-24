@@ -69,7 +69,37 @@ The persistent accepted `tunnel_*` id is stored in neutral platform state:
 %LOCALAPPDATA%\ChatAgentPlatform\state\tunnel.json
 ```
 
-An existing `local-1mcp.yaml` may be read only as a one-time migration fallback for an already accepted tunnel id. It is not the normal semantic source of truth.
+An existing installed legacy profile at:
+
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\tunnel\local-1mcp.yaml
+```
+
+may be read only as a bounded migration fallback for one already accepted tunnel id. It is not the normal semantic source of truth and fresh normal bootstrap does not recreate it as the normal route.
+
+Fresh/current normal bootstrap no longer invokes the legacy internal controller `-Action Install` path. It initializes the semantic core directly:
+
+```text
+verified tunnel-client + neutral tunnel state
+ -> verified six-tool bundle
+ -> DPAPI runtime key
+ -> existing safe FilesRoot OR %LOCALAPPDATA%\ChatAgentPlatform\workspace
+ -> profile = semantic
+ -> tunnel binding = direct-stdio
+ -> six-tool smoke
+ -> stopped
+```
+
+After bootstrap, public `Status` and the tray resolve through the direct semantic controller rather than legacy `status-chat-profile.ps1`; they must not query `npx @1mcp/agent` merely to report a stopped normal platform.
+
+Baseline manager metadata records:
+
+```text
+semantic_public_tool_count = 6
+extension_manager_included = false
+```
+
+Historical 1MCP lifecycle scripts/profile definitions remain as compatibility hooks only. Their presence does not mean the Extension Manager is installed or required.
 
 1MCP is retained as an optional internal Extension Manager for future third-party MCP backends:
 
@@ -85,7 +115,9 @@ canonical semantic surface
               third-party MCP backends
 ```
 
-1MCP may later handle backend discovery/aggregation, enable-disable, lazy lifecycle, health and restart. Its absence/failure must not block baseline six-tool bootstrap/start/health. Raw backend tools are not exported directly to ordinary ChatGPT; supported extensions remain behind project-owned typed semantic facades and the same authorization boundary.
+1MCP may later handle backend discovery/aggregation, enable-disable, lazy lifecycle, health and restart. Its absence/failure must not block baseline six-tool bootstrap/start/status/health/smoke. Raw backend tools are not exported directly to ordinary ChatGPT; supported extensions remain behind project-owned typed semantic facades and the same authorization boundary.
+
+Canonical operational contract: `EXTENSION_MANAGER.md`.
 
 ---
 
@@ -165,6 +197,7 @@ The installed bundle must include the canonical six-tool projection and Control 
 
 ```text
 semantic_public_tool_count = 6
+extension_manager_included = false
 ```
 
 Normal bootstrap acceptance now also requires:
@@ -172,24 +205,29 @@ Normal bootstrap acceptance now also requires:
 ```text
 semantic binding = direct-stdio
 normal semantic 1MCP required = false
+legacy 1MCP install path used = false
+bootstrap/default public profile = semantic
 bootstrap smoke profile = semantic
 persistent tunnel source = state/tunnel.json
 ```
 
+Required baseline CI must not launch or query live 1MCP as a condition of six-tool readiness. Historical local bridge, files/browser switching, conflict cleanup and adaptive activation belong to the separate `Optional Extension Manager Acceptance` workflow.
+
 ### Stage 26.3A remaining physical acceptance
 
-After all hosted checks are green on one exact PR #92 head:
+After all hosted checks are green on one exact PR #92 code head:
 
 1. install/update that exact head on the target Windows machine;
 2. migrate/verify the accepted tunnel id into neutral `state/tunnel.json`;
-3. start the **normal** semantic route;
-4. verify one normal tray READY state and exactly six live tools;
-5. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
-6. actual `procedure_run` success;
-7. independent `workspace_read` of the final nested artifact;
-8. negative pre-existing-target case -> structured ABSTAIN;
-9. independent read proves zero unauthorized overwrite;
-10. record exact physical head/result evidence before acceptance.
+3. verify normal manager metadata reports `semantic_public_tool_count=6` and `extension_manager_included=false`;
+4. verify current settings are `profile=semantic` and `tunnel_profile=direct-stdio`;
+5. start the **normal** semantic route;
+6. verify one normal tray READY state and exactly six live tools;
+7. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
+8. actual `procedure_run` success;
+9. independent `workspace_read` of the final nested artifact;
+10. negative pre-existing-target case -> structured ABSTAIN and independent proof of zero unauthorized overwrite;
+11. record exact physical head/result evidence before acceptance.
 
 A manual `workspace_write` fallback does not count as physical acceptance of `procedure_run`.
 
@@ -236,7 +274,7 @@ Stop on unresolved findings, conflict, ambiguous scope or failed/skipped require
 # Residual risks
 
 - Stage 26.3A normal six-tool route is not yet physically accepted on the target Windows machine;
-- the new neutral tunnel-state migration still requires hosted + target-machine verification on the current PR head;
+- the neutral tunnel-state/default-semantic migration still requires target-machine verification on the current PR head;
 - the optional 1MCP/adaptive extension path is not a baseline release gate and remains less stable than the normal direct semantic route;
 - one real VS Code task is not broad real-application coverage;
 - `AutomationId` still lacks dedicated accepted physical coverage across real applications;
@@ -250,7 +288,9 @@ Stop on unresolved findings, conflict, ambiguous scope or failed/skipped require
 
 - ordinary ChatGPT is the only current general planner/intelligence;
 - deterministic Control Plane may advance only already-defined authorized+verified procedure transitions;
-- normal semantic install/start/health must not require optional 1MCP extension infrastructure;
+- normal semantic install/start/status/health/smoke must not require optional 1MCP extension infrastructure;
+- normal bootstrap does not use the legacy 1MCP-oriented controller install path;
+- fresh/current normal settings use `semantic` + `direct-stdio`;
 - persistent tunnel identity belongs to neutral platform state;
 - third-party MCP availability is not trust or authorization;
 - raw extension tools are not automatically Chat-facing;
