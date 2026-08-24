@@ -50,43 +50,27 @@ The ordinary semantic startup guard must refuse READY unless live `tools/list` i
 
 The tray has one normal semantic READY state; there is no qualification color/state.
 
-### Current transport / 1MCP decision
+### Current 1MCP / Extension Manager boundary
 
-The normal semantic path is direct stdio and **does not depend on 1MCP**:
+Normal semantic transport is direct stdio through the official Secure MCP Tunnel client. Normal bootstrap/start/health/smoke does not require 1MCP.
 
-```text
-ordinary ChatGPT
- -> OpenAI Secure MCP Tunnel
- -> official tunnel-client
- -> semantic launcher
- -> canonical six-tool projection
-```
-
-The persistent accepted `tunnel_*` id belongs to neutral platform state:
+Persistent tunnel state is:
 
 ```text
 %LOCALAPPDATA%\ChatAgentPlatform\state\tunnel.json
 ```
 
-On upgrade, an existing `local-1mcp.yaml` may be read once as a bounded migration fallback to recover the already accepted tunnel id. After migration it is not the normal semantic source of truth.
+Historical `local-1mcp.yaml` may be used only as a bounded migration source for an already accepted tunnel id.
 
-1MCP is retained as a replaceable optional internal **Extension Manager** for future third-party MCP backends:
+1MCP remains a replaceable **optional internal Extension Manager** for future third-party MCP backends. The normal manager bundle records `extension_manager_included = false`; optional assets are installed explicitly with:
 
 ```text
-canonical semantic surface
-        |
-        +----> project-owned capability / Control Plane
-        |
-        `----> optional Extension Manager
-                    |
-                   1MCP
-                    |
-              third-party MCP backends
+scripts/install-extension-manager.ps1
 ```
 
-1MCP may later handle extension discovery/aggregation, enable-disable, lazy lifecycle, health and restart. Its failure/absence must not block normal six-tool bootstrap/start/health. Raw backend tool catalogs are not exported directly to ordinary ChatGPT; supported extensions remain behind project-owned typed semantic facades and the same authorization boundary.
+Required baseline CI does not start 1MCP. Its runtime/adaptive acceptance lives in the separate `Optional Extension Manager Acceptance` workflow.
 
-Authoritative decision: `DECISIONS.md` ADR-031 and `MODULE_SELECTION_POLICY.md`.
+Canonical operating contract: `EXTENSION_MANAGER.md`.
 
 ### Current deterministic procedure
 
@@ -114,15 +98,11 @@ It has a fixed three-action verified transition budget and must ABSTAIN rather t
 - The deterministic local Control Plane is an execution/verification component, not a second planner.
 - The Control Plane owns TaskState, known ProgramGraph progression, authorization, checkpoints, verifiers/postconditions, bounded recovery and budgets.
 - A known selected procedure may advance through several independently authorized/verified transitions without returning to ChatGPT after every low-level action.
-- Normal semantic bootstrap/start/health must not require optional 1MCP extension infrastructure.
-- Persistent tunnel identity belongs to neutral platform state.
-- Third-party MCP availability is not trust or authorization.
-- Raw extension tools are not automatically Chat-facing.
 - Novel strategy or stale/ambiguous/UNKNOWN/incompatible state -> ABSTAIN/escalate to ChatGPT.
 - Current state outranks remembered/history state.
 - Delivery is not completion; explicit verification controls completion.
 - Generic Windows code execution remains disabled/unreachable.
-- Model/procedure/planner/observation/extension output is evidence/proposal, never authorization by itself.
+- Model/procedure/planner/observation output is evidence/proposal, never authorization by itself.
 - When a branch is logically complete, intended diff is reviewed, required physical/CI gates pass and no unresolved issue remains, merge it without waiting for a separate merge command.
 
 Canonical architecture distinction: `project-context/CONTROL_PLANE.md`.
@@ -143,27 +123,17 @@ Installation metadata records:
 
 ```text
 semantic_public_tool_count = 6
+extension_manager_included = false
 ```
 
-The public bootstrap is one entrypoint, internally modularized for tunnel, manager/runtime bundle and lifecycle verification.
-
-Normal bootstrap requirements now include:
-
-```text
-1MCP preflight = not required
-normal smoke profile = semantic
-normal tunnel binding = direct-stdio
-persistent tunnel source = state/tunnel.json
-```
-
-Optional adaptive/1MCP assets may remain installed for future Extension Manager work, but they are not baseline startup authority or a normal semantic release gate.
+The public bootstrap is one entrypoint, internally modularized for tunnel, manager/runtime bundle and lifecycle verification. Optional 1MCP/adaptive assets are outside that baseline bundle.
 
 ## Remaining Stage 26.3A physical gates
 
-After all required hosted workflows are green on one exact PR head:
+After all hosted workflows required for the baseline are green on one exact PR head:
 
 1. install/update that exact head on the target Windows machine;
-2. confirm the accepted tunnel id migrated/resolved into `state/tunnel.json`;
+2. verify the accepted tunnel id migrated/resolved into neutral `state/tunnel.json`;
 3. start the **normal** semantic route — no temporary qualification route;
 4. verify the tray reports normal READY and live inventory is exactly six tools;
 5. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
@@ -206,13 +176,11 @@ workspace_read challenge
  -> 28 clean-user E2E/stable release
 ```
 
-Optional 1MCP Extension Manager work is orthogonal to the release-critical six-tool path and should be promoted only when a real task needs an additional backend.
-
 ## Fresh-chat startup procedure
 
 1. Resolve live `main`, PR #92 head and current checks.
-2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `DECISIONS.md`, `MODULE_SELECTION_POLICY.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md`, `EVIDENCE_INDEX.md`, `STAGE26_3A_IMPLEMENTATION_NOTES.md` and `STAGE26_3A_PROCEDURE_RUN_SURFACE.md`.
+2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `EXTENSION_MANAGER.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md`, `EVIDENCE_INDEX.md`, `STAGE26_3A_IMPLEMENTATION_NOTES.md` and `STAGE26_3A_PROCEDURE_RUN_SURFACE.md`.
 3. Treat Stage 26.2E and Transport Supervisor evidence as accepted only for their exact recorded physical heads.
 4. Treat hosted CI as software-contract evidence only; do not infer physical ordinary-Chat acceptance from it.
 5. Prefer exact code/tests/current CI/physical evidence over prose.
-6. Continue the current normal six-tool semantic physical qualification; do not recreate a separate five-versus-six qualification mode and do not reinsert 1MCP into the normal semantic critical path.
+6. Continue the current normal six-tool semantic physical qualification; do not recreate a separate five-versus-six qualification mode and do not put 1MCP back into the normal semantic critical path.
