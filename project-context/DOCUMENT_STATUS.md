@@ -74,6 +74,7 @@ Do not copy full physical result dumps into durable architecture documents. Prom
 | `COST_POLICY.md` | CURRENT POLICY | Baseline cost/subscription constraints. |
 | `MODULE_CATALOG.md` | CURRENT CATALOG | Accepted/current/future capability status. |
 | `MODULE_SELECTION_POLICY.md` | CURRENT POLICY | Selection/promotion rules, including the internal Extension Manager boundary for future MCP backends. |
+| `EXTENSION_MANAGER.md` | CURRENT OPERATING CONTRACT | Defines the optional 1MCP Extension Manager role, opt-in install/status/remove flow, tunnel migration boundary, CI separation and future MCP backend promotion path. |
 | `TYPED_CAPABILITY_PROJECTION.md` | CURRENT STAGE 26.3A CANDIDATE CONTRACT | Historical typed five-tool foundation plus current canonical six-tool candidate surface; `procedure_run` is typed/bounded, not generic execution. |
 | `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | CURRENT TEMPORARY MIGRATION COMPATIBILITY | Exact five historical `_1mcp_` inbound aliases only. Current canonical candidate inventory is six tools; aliases are not published and do not create a five-tool mode. |
 | `TRANSPORT_SUPERVISOR.md` | ACCEPTED CURRENT RELIABILITY FOUNDATION | Self-healing Secure MCP Tunnel lifecycle, layered health, bounded recovery, Windows persistence and persistent desired-state separation accepted through #94. |
