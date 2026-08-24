@@ -5,22 +5,13 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { Client } from '@modelcontextprotocol/client';
-import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import { assertExpectedSemanticInventory } from '../lib/semantic-inventory-guard.mjs';
 
 const tunnelOnlyCredentialKeys = [
   'CONTROL_PLANE_API_KEY',
   'OPENAI_API_KEY',
   'OPENAI_ADMIN_KEY'
 ];
-const EXPECTED_SEMANTIC_TOOLS = Object.freeze([
-  'procedure_run',
-  'web_interact',
-  'web_observe',
-  'web_open',
-  'workspace_read',
-  'workspace_write'
-]);
 
 for (const key of tunnelOnlyCredentialKeys) {
   delete process.env[key];
@@ -72,65 +63,14 @@ function rewriteLegacyToolCall(line) {
   return line;
 }
 
-function childEnvironment(source) {
-  const env = {};
-  for (const [key, value] of Object.entries(source ?? {})) {
-    if (typeof value === 'string') env[key] = value;
-  }
-  return env;
-}
-
-async function assertExpectedSemanticInventory(entry) {
-  const client = new Client({
-    name: 'chat-semantic-inventory-guard',
-    version: '1.0.0'
-  });
-  const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [entry],
-    env: childEnvironment(process.env)
-  });
-
-  try {
-    await client.connect(transport);
-    const inventory = await client.listTools();
-    const names = inventory.tools.map(tool => tool.name).sort();
-    if (
-      names.length !== EXPECTED_SEMANTIC_TOOLS.length ||
-      names.some((name, index) => name !== EXPECTED_SEMANTIC_TOOLS[index])
-    ) {
-      throw new Error(
-        `expected exactly: ${EXPECTED_SEMANTIC_TOOLS.join(', ')}; actual: ${names.join(', ')}`
-      );
-    }
-    return names;
-  } finally {
-    await client.close().catch(() => {});
-  }
-}
-
 const launcherDir = path.dirname(fileURLToPath(import.meta.url));
 const semanticEntry = path.join(launcherDir, 'semantic-control-plane-projection.mjs');
-const inventoryTestIndex = process.argv.indexOf('--verify-inventory-entry');
-if (inventoryTestIndex >= 0) {
-  const candidate = process.argv[inventoryTestIndex + 1];
-  if (!candidate) {
-    console.error('semantic launcher --verify-inventory-entry requires one entry path');
-    process.exit(2);
-  }
-  try {
-    const names = await assertExpectedSemanticInventory(path.resolve(candidate));
-    console.log(`SEMANTIC_LIVE_INVENTORY_GUARD=PASS;TOOLS=${names.join(',')}`);
-    process.exit(0);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`semantic launcher live inventory preflight failed: ${message}`);
-    process.exit(1);
-  }
-}
 
 try {
-  await assertExpectedSemanticInventory(semanticEntry);
+  await assertExpectedSemanticInventory({
+    entry: semanticEntry,
+    env: process.env
+  });
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`semantic launcher live inventory preflight failed: ${message}`);
