@@ -12,22 +12,26 @@ ordinary ChatGPT
   + adaptation to novel state
 
 local companion
-  = scoped capabilities
-  + deterministic/native observation
-  + bounded specialist perception
+  = scoped Files / Browser / Windows capabilities
+  + semantic/native observation
+  + selective specialist perception
   + deterministic execution Control Plane
-  + procedural memory
-  + authorization / verification
-  + checkpoints / bounded recovery / budgets
+  + TaskState / WorkingState
+  + authorization / ExpectedEffect verification
+  + checkpoints / typed recovery / LoopGuard / budgets
+  + independent Finish Gate
+  + safety/policy gate
+  + verified procedural memory
 ```
 
 The key distinction is **general planning vs deterministic execution control**.
 
-The local Control Plane should be able to continue an already-selected known procedure through multiple independently authorized and verified state transitions without asking ChatGPT after every low-level action. When the live state is novel, ambiguous, stale, incompatible or requires new strategy, it stops and escalates to ChatGPT.
+The local Control Plane may continue an already-selected known procedure through multiple independently authorized and verified transitions without asking ChatGPT after every low-level action. When live state is novel, ambiguous, stale, incompatible or requires new strategy, it stops and escalates to ChatGPT.
 
-This gives long-horizon autonomy without immediately duplicating ChatGPT with a second general agent brain.
+Canonical contracts:
 
-Canonical contract: `CONTROL_PLANE.md`.
+- `CONTROL_PLANE.md`
+- `COMPUTER_USE_ARCHITECTURE.md`
 
 ## Replaceable local foundation
 
@@ -40,42 +44,103 @@ The bridge should remain boring and replaceable where possible:
 - qualified upstream procedural components;
 - project-owned deterministic state/policy/verification seams only where product safety/integration requires them.
 
-Capability growth should not mean plugin/tool explosion or permanent process growth. Concrete local programs are selected from actual user tasks/evidence rather than precommitted as a fixed application list.
+Capability growth must not become plugin/tool explosion or permanent process growth.
+
+## Accepted public capability direction
+
+The accepted current ordinary-Chat surface is exactly:
+
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+procedure_run
+```
+
+Six is not an eternal maximum. A future Windows/computer-use public consequence class requires its own truthful ADR/schema/security/physical ordinary-Chat gate. Do not hide native consequences behind web semantics, generic dispatch, shell/Python or raw backend catalogs.
+
+## State-first hybrid computer-use direction
+
+The project now explicitly targets:
+
+```text
+semantic/native state first
+ -> selective visual evidence when structure is insufficient
+ -> capability-aware bounded action
+ -> fresh re-observation
+ -> explicit ExpectedEffect verification
+ -> typed bounded recovery + LoopGuard
+ -> structured WorkingState
+ -> independent Finish Gate
+ -> separate safety/policy gate
+```
+
+This extends the already accepted Browser/Windows structure-first foundations. It does not mean screenshot-only operation and does not require one universal low-level agent runtime.
+
+### Observation and grounding
+
+Prefer DOM/accessibility/UIA/app-native state where reliable. Use screenshots/ROI for spatial/visual-only or structural-miss cases. Grounding should preserve identity/source/frame/confidence/ambiguity evidence rather than return coordinates alone where stronger identity exists.
+
+### Completion
+
+Planner/procedure confidence is not completion. The planner may propose `candidate_done`; fresh goal-level predicates determine `DONE` through an independent Finish Gate.
+
+### Recovery
+
+Long tasks need typed bounded recovery and no-effect/oscillation detection rather than repeated blind retries.
+
+### Environmental content
+
+Pages/DOM, UI, email/messages, documents/files, screenshots/OCR and third-party tool/MCP output are task data, not authority over user intent, permission scope or Control Plane policy. Task-success and safety/policy verification remain separate.
 
 ## User-teachable direction
 
-The long-term product should allow successful work or a human demonstration to become a versioned candidate procedure that can later execute safely against current state.
+Successful work or a human demonstration should become a versioned **candidate** procedure, not a macro with automatic authority.
 
 ```text
 successful work / human demo
  -> structured trajectory
+ -> subtask goals + verifier criteria
  -> ProgramGraph / candidate procedure
  -> replay/regression/variant evidence
  -> trusted reusable procedure
  -> future ChatGPT task
- -> ChatGPT selects applicable goal/procedure
- -> local Control Plane progresses known transitions
- -> current state authorization + verification at every step
- -> ABSTAIN/escalate on novelty
+ -> live state re-resolution
+ -> independently authorized + verified transitions
 ```
 
-Remembered procedure is not blanket authority and not blind macro replay. Current observed state remains authoritative. Completion is verified.
+Historical coordinates/action sequences remain advisory evidence. Current state is authoritative.
 
 ## Windows desktop direction
 
-The Windows desktop foundation is no longer merely future work: bounded production runtime, DesktopState, native visual Grounder and structure-first UIA -> vision routing are accepted through Stage 26.2D.
+The Windows desktop foundation is accepted through Stage 26.2E for scoped contracts: production runtime, DesktopState, native Grounder, structure-first UIA -> vision routing and one isolated VS Code real-app E2E.
 
-Stage 26.2E is the first real-application E2E. After it, Stage 26.3 integrates deterministic procedure/control-plane execution over accepted capabilities.
+Stage 26.3A then physically accepted the first ordinary-Chat multi-transition procedure runtime and six-tool surface.
 
-Native/deterministic evidence stays preferred; screen/vision is bounded fallback; keyboard/mouse actuation remains guarded and fail-closed.
+Next work deliberately improves long-horizon correctness before broadening GUI authority:
+
+```text
+26.3B Verification Kernel + Finish Gate
+ -> 26.3C WorkingState + typed recovery + LoopGuard
+ -> 26.4 human demonstration -> verified candidate skill
+ -> 26.5 hybrid computer-use integration
+```
+
+## Memory direction
+
+Do not replay every screenshot/action forever. WorkingState stores structured operational facts, constraints, provenance/freshness, progress, evidence references and recovery/budget state.
+
+Verified episodic trajectories/procedures may later be retrieved under applicability/trust rules. Learned memory selection is optional later work after enough verified traces exist.
+
+Private chain-of-thought is never task/procedure memory.
 
 ## Future local planner direction
 
-A local general planner is not prohibited forever. It is explicitly retained as optional future **Track P — Local Planner / Offline Autonomy** after verified procedure-state data and measured need exist.
+A local general planner is explicitly retained as optional future **Track P — Local Planner / Offline Autonomy** after verified long-horizon state data and measured need exist.
 
-Possible reasons include offline operation, planning round-trip latency, parallel/multi-machine work or deployment/privacy constraints.
-
-It should mature through:
+Potential reasons include offline operation, planning round-trip latency, parallel/multi-machine work or deployment/privacy constraints.
 
 ```text
 shadow/proposal-only
@@ -83,21 +148,18 @@ shadow/proposal-only
  -> optional local general-planner mode
 ```
 
-Even then, planner output never bypasses the deterministic Control Plane's capability policy, authorization and verifier.
-
-The default product can therefore remain ChatGPT-manager-first while preserving a credible path to stronger local/offline autonomy later.
-
-## Public capability direction
-
-Current five public semantic tools remain the accepted contract until a dedicated ADR proves truthful desktop/procedure capabilities are needed. Do not hide native consequences inside web semantics or generic dispatch.
+Even then, planner output never bypasses deterministic capability policy, transition verification, Finish Gate or safety gates.
 
 ## Product-ready direction
 
 A stable product requires:
 
-- real-app desktop evidence;
-- verified deterministic procedure runtime;
-- candidate-first human-demo transfer;
+- broader real-app evidence beyond one VS Code path;
+- reusable Verification Kernel and independent Finish Gate;
+- structured WorkingState + LoopGuard / bounded recovery;
+- verified candidate-first human-demo transfer;
+- hybrid computer-use integration without raw-tool explosion;
+- environmental-injection/safety evaluation;
 - normal installation/update/repair/rollback/restart recovery;
 - clean-user E2E;
 - release-grade dependency/model/procedure artifact reproducibility;
