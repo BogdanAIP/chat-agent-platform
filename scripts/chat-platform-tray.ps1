@@ -141,12 +141,36 @@ function Get-SupervisorSnapshotAgeSeconds {
     param([Parameter(Mandatory)] $Snapshot)
 
     $observedAt = Get-PropertyValue -Object $Snapshot -Name "observed_at"
-    if ([string]::IsNullOrWhiteSpace([string]$observedAt)) {
+    if ($null -eq $observedAt) {
         return $null
     }
 
     try {
-        $observed = [datetimeoffset]::Parse([string]$observedAt).ToUniversalTime()
+        if ($observedAt -is [datetimeoffset]) {
+            $observed = ([datetimeoffset]$observedAt).ToUniversalTime()
+        }
+        elseif ($observedAt -is [datetime]) {
+            $date = [datetime]$observedAt
+            if ($date.Kind -eq [DateTimeKind]::Unspecified) {
+                $date = [datetime]::SpecifyKind($date, [DateTimeKind]::Utc)
+            }
+            else {
+                $date = $date.ToUniversalTime()
+            }
+            $observed = [datetimeoffset]$date
+        }
+        else {
+            $text = [string]$observedAt
+            if ([string]::IsNullOrWhiteSpace($text)) {
+                return $null
+            }
+            $observed = [datetimeoffset]::Parse(
+                $text,
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::RoundtripKind
+            ).ToUniversalTime()
+        }
+
         return [math]::Max(
             0,
             ([datetimeoffset]::UtcNow - $observed).TotalSeconds
