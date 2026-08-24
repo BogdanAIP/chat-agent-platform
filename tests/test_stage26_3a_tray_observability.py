@@ -32,13 +32,27 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
 
     def test_operation_timer_runs_only_for_explicit_user_lifecycle_action(self):
         self.assertIn("$operationTimer.Interval = 250", SOURCE)
+        self.assertIn("$OperationTimeoutSeconds = 120", SOURCE)
         start = SOURCE.index("function Start-ControllerOperation")
         end = SOURCE.index("function Toggle-Platform", start)
         block = SOURCE[start:end]
         self.assertIn("$operationTimer.Start()", block)
-        self.assertIn("Start-Job", block)
-        self.assertIn("-Action $Action", block)
+        self.assertIn("System.Diagnostics.ProcessStartInfo", block)
+        self.assertIn("-File", block)
+        self.assertIn("$CommandPath", block)
+        self.assertIn('"-Action", $Action', block)
+        self.assertNotIn("Start-Job", block)
         self.assertIn("$operationTimer.Stop()", SOURCE)
+        self.assertIn("$script:OperationProcess.Kill($true)", SOURCE)
+
+    def test_stale_manual_completion_cannot_override_newer_desired_state(self):
+        start = SOURCE.index("function Save-ManualStatusForAction")
+        end = SOURCE.index("function Save-ManualStatusFromAutomaticSnapshot", start)
+        block = SOURCE[start:end]
+        self.assertIn("Read-JsonFile -Path $DesiredStateFile", block)
+        self.assertIn("$expectedDesiredState", block)
+        self.assertIn("$currentDesiredState -ne $expectedDesiredState", block)
+        self.assertIn("return", block)
 
     def test_automatic_snapshot_freshness_matches_thirty_minute_cadence(self):
         self.assertIn("$AutomaticSnapshotFreshnessSeconds = 2100", SOURCE)
@@ -117,8 +131,9 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
 
     def test_user_actions_keep_execution_authority_in_manager(self):
         self.assertIn("Start-ControllerOperation", SOURCE)
-        self.assertIn("-File $CommandPath", SOURCE)
-        self.assertIn("-Action $Action", SOURCE)
+        self.assertIn("-File", SOURCE)
+        self.assertIn("$CommandPath", SOURCE)
+        self.assertIn('"-Action", $Action', SOURCE)
         self.assertIn('[ValidateSet("Start", "Stop")]', SOURCE)
 
     def test_observability_does_not_gain_execution_authority(self):
