@@ -131,7 +131,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             "OneMcpLauncherPackage",
             "System.Diagnostics.ProcessStartInfo",
             "$startInfo.FileName = $cmd",
-            "$startInfo.CreateNoWindow = $true,
+            "$startInfo.CreateNoWindow = $true",
             "$startInfo.UseShellExecute = $false",
             "$startInfo.ArgumentList.Add('/c')",
             "$windowsLauncher",
