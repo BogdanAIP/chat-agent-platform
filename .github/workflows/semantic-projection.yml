@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "runtime/semantic-projection/**"
+      - "runtime/control_plane/**"
       - "runtime/local_vision_adapter/**"
       - "runtime/chat-profiles/semantic/**"
       - "config/local-vision-runtime.json"
@@ -25,6 +26,7 @@ on:
     branches: [main]
     paths:
       - "runtime/semantic-projection/**"
+      - "runtime/control_plane/**"
       - "runtime/local_vision_adapter/**"
       - "runtime/chat-profiles/semantic/**"
       - "config/local-vision-runtime.json"
@@ -65,12 +67,13 @@ jobs:
         run: |
           node --version
           npm --version
+          python --version
           $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
           if (-not (Test-Path -LiteralPath $chrome)) {
             throw 'Google Chrome is required for semantic projection browser acceptance.'
           }
 
-      - name: Enforce fixed semantic projection contract
+      - name: Enforce fixed six-tool semantic projection contract
         shell: pwsh
         run: |
           $manifest = Get-Content 'runtime/semantic-projection/package.json' -Raw -Encoding utf8 | ConvertFrom-Json
@@ -96,21 +99,26 @@ jobs:
             }
           }
 
-          $source = Get-Content 'runtime/semantic-projection/bin/semantic-projection.mjs' -Raw -Encoding utf8
-          foreach ($name in @('workspace_read','workspace_write','web_open','web_observe','web_interact')) {
+          $source = Get-Content 'runtime/semantic-projection/bin/semantic-control-plane-projection.mjs' -Raw -Encoding utf8
+          foreach ($name in @('workspace_read','workspace_write','web_open','web_observe','web_interact','procedure_run')) {
             if ($source -notmatch "registerTool\(\s*'$([regex]::Escape($name))'") {
-              throw "Semantic projection is missing fixed tool '$name'."
+              throw "Canonical semantic projection is missing fixed tool '$name'."
             }
           }
           $registrations = [regex]::Matches($source, 'registerTool\(').Count
-          if ($registrations -ne 5) { throw "Semantic projection must register exactly five tools; found $registrations." }
+          if ($registrations -ne 6) { throw "Canonical semantic projection must register exactly six tools; found $registrations." }
           foreach ($forbidden in @('tool_invoke','tool_schema','mcp_enable','browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
             if ($source -match [regex]::Escape($forbidden)) {
-              throw "Semantic projection source contains forbidden generic/unsafe downstream marker '$forbidden'."
+              throw "Canonical semantic projection source contains forbidden generic/unsafe marker '$forbidden'."
             }
           }
           if ($source -match "command:\s*'npx'" -or $source -match "command:\s*'cmd'.*npx") {
             throw 'Semantic projection must not perform downstream npm installs at tool-call time.'
+          }
+
+          $launcher = Get-Content 'runtime/semantic-projection/bin/semantic-projection-launcher.mjs' -Raw -Encoding utf8
+          if ($launcher -notmatch 'semantic-control-plane-projection\.mjs') {
+            throw 'Public semantic launcher is not permanently routed through the six-tool control plane.'
           }
 
           $config = Get-Content 'runtime/chat-profiles/semantic/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
@@ -125,6 +133,9 @@ jobs:
           if (@($semantic.args).Count -ne 1 -or [string]$semantic.args[0] -ne '${CHAT_SEMANTIC_PROJECTION_ENTRY}') {
             throw 'Semantic profile entrypoint contract drifted.'
           }
+          if (@($semantic.tags) -notcontains 'procedure' -or @($semantic.tags) -notcontains 'control-plane') {
+            throw 'Semantic profile does not declare its permanent procedure/control-plane capability.'
+          }
 
       - name: Install locked projection dependencies
         shell: pwsh
@@ -138,13 +149,15 @@ jobs:
             Pop-Location
           }
 
-      - name: Run real Filesystem and Playwright semantic acceptance
+      - name: Run canonical six-tool acceptance and internal base regressions
         shell: pwsh
         run: |
           Push-Location 'runtime/semantic-projection'
           try {
+            npm run acceptance:six-tool
+            if ($LASTEXITCODE -ne 0) { throw "Canonical six-tool acceptance failed with exit code $LASTEXITCODE" }
             npm run acceptance
-            if ($LASTEXITCODE -ne 0) { throw "Semantic projection acceptance failed with exit code $LASTEXITCODE" }
+            if ($LASTEXITCODE -ne 0) { throw "Internal semantic base acceptance failed with exit code $LASTEXITCODE" }
           }
           finally {
             Pop-Location
@@ -174,12 +187,12 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "1MCP semantic inspect failed: $inventoryText" }
             $inventory = $inventoryText | ConvertFrom-Json
             $actual = @($inventory.tools | ForEach-Object { [string]$_.tool } | Sort-Object)
-            $expected = @('web_interact','web_observe','web_open','workspace_read','workspace_write')
+            $expected = @('procedure_run','web_interact','web_observe','web_open','workspace_read','workspace_write')
             if (($actual -join "`n") -ne ($expected -join "`n")) {
               throw "Semantic profile surface drifted: $($actual -join ', ')"
             }
             Write-Host 'SEMANTIC_PROFILE_ACTIVE=PASS'
-            Write-Host 'SEMANTIC_PROFILE_TOOL_COUNT=5'
+            Write-Host 'SEMANTIC_PROFILE_TOOL_COUNT=6'
             Write-Host 'SEMANTIC_PROFILE_1MCP=PASS'
           }
           finally {
@@ -230,11 +243,15 @@ jobs:
             'runtime/semantic-projection/package.json',
             'runtime/semantic-projection/package-lock.json',
             'runtime/semantic-projection/bin/semantic-projection-launcher.mjs',
+            'runtime/semantic-projection/bin/semantic-control-plane-projection.mjs',
             'runtime/semantic-projection/bin/semantic-projection.mjs',
             'runtime/semantic-projection/lib/semantic-vision-click-router.mjs',
             'runtime/semantic-projection/lib/visual-grounding-bridge.mjs',
             'runtime/semantic-projection/lib/runtime-backed-bridge-grounder.mjs',
             'runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs',
+            'runtime/control_plane/__init__.py',
+            'runtime/control_plane/cli.py',
+            'runtime/control_plane/verified_workspace_artifact.py',
             'runtime/local_vision_adapter/__init__.py',
             'runtime/local_vision_adapter/benchmark.py',
             'runtime/local_vision_adapter/mark_grid.py',
@@ -255,6 +272,8 @@ jobs:
           Copy-Item -LiteralPath (Join-Path $PWD 'config/local-vision-runtime.json') -Destination (Join-Path $installedConfig 'local-vision-runtime.json') -Force
 
           foreach ($required in @(
+            (Join-Path $installedRuntime 'semantic-projection/bin/semantic-control-plane-projection.mjs'),
+            (Join-Path $installedRuntime 'control_plane/cli.py'),
             (Join-Path $installedRuntime 'semantic-projection/lib/semantic-vision-click-router.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/runtime-backed-visual-grounder.mjs'),
             (Join-Path $installedRuntime 'local_vision_adapter/native_bbox.py'),
@@ -263,10 +282,10 @@ jobs:
             (Join-Path $installedConfig 'local-vision-runtime.json')
           )) {
             if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-              throw "Standalone installed semantic/vision asset missing: $required"
+              throw "Standalone installed semantic/vision/control-plane asset missing: $required"
             }
           }
-          Write-Host 'SEMANTIC_INSTALLED_VISION_BUNDLE=PASS'
+          Write-Host 'SEMANTIC_INSTALLED_SIX_TOOL_BUNDLE=PASS'
 
           Push-Location (Join-Path $installedRuntime 'semantic-projection')
           try {
@@ -296,11 +315,11 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Installed-layout semantic inspect failed: $inventoryText" }
             $inventory = $inventoryText | ConvertFrom-Json
             $actual = @($inventory.tools | ForEach-Object { [string]$_.tool } | Sort-Object)
-            $expected = @('web_interact','web_observe','web_open','workspace_read','workspace_write')
+            $expected = @('procedure_run','web_interact','web_observe','web_open','workspace_read','workspace_write')
             if (($actual -join "`n") -ne ($expected -join "`n")) { throw "Installed-layout semantic surface drifted: $($actual -join ', ')" }
 
             Write-Host 'SEMANTIC_INSTALLED_LAYOUT=PASS'
-            Write-Host 'SEMANTIC_INSTALLED_TOOL_COUNT=5'
+            Write-Host 'SEMANTIC_INSTALLED_TOOL_COUNT=6'
           }
           finally {
             & (Join-Path $installedScripts 'stop-chat-profile.ps1')
