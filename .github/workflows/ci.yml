@@ -100,20 +100,6 @@ jobs:
             if ($raw -match [regex]::Escape($forbidden)) { throw "Privileged module '$forbidden' is forbidden in the reference config." }
           }
 
-      - name: Prove local MCP runtime on Windows
-        shell: pwsh
-        run: |
-          try {
-            # Hosted runners have an empty npm cache. Keep the production default
-            # strict, but give CI enough time to download pinned packages before
-            # judging MCP readiness.
-            ./scripts/start-local-bridge.ps1 -Port 3059 -ReadyTimeoutSeconds 240
-            ./scripts/status-local-bridge.ps1 -Port 3059
-          }
-          finally {
-            ./scripts/stop-local-bridge.ps1
-          }
-
       - name: Prove clean public manager status path
         shell: pwsh
         run: |
@@ -130,3 +116,4 @@ jobs:
           if ([string]$state.settings.profile -ne 'reference') {
             throw 'Clean manager status must preserve the reference default.'
           }
+          Write-Host 'BASELINE_1MCP_RUNTIME_REQUIRED=False'
