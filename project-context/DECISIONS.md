@@ -16,9 +16,13 @@ Accepted by real ordinary-Chat E2E. Historical custom/public ingress experiments
 
 The old universal agent/gateway platform is historical only. Recover specific pieces only for a later measured gap.
 
-## ADR-013 — 1MCP is replaceable internal infrastructure — ACCEPTED
+## ADR-013 — 1MCP is replaceable optional internal infrastructure — ACCEPTED
 
-1MCP remains useful for diagnostics/adaptive lifecycle/aggregation. Stage 24.1 removed it from the normal semantic critical path because direct stdio was simpler/faster with equivalent tested behavior.
+1MCP is not part of the normal semantic critical path. Stage 24.1 removed it from that path because direct stdio was simpler/faster with equivalent tested behavior.
+
+Retain 1MCP as an optional internal component for extension discovery/aggregation, backend lifecycle, diagnostics and adaptive experiments. Failure or absence of 1MCP must not prevent install/start/health of the normal six-tool semantic route.
+
+The persistent OpenAI tunnel anchor is product state and must not be owned by a `local-1mcp` profile. The neutral source of truth is `state/tunnel.json`; a legacy `local-1mcp.yaml` may be read only as a bounded migration fallback for an existing accepted `tunnel_*` id.
 
 ## ADR-014 — Privileged capabilities require scoped acceptance — ACCEPTED
 
@@ -42,7 +46,7 @@ Backend availability, process activation and action authorization are distinct.
 
 ## ADR-018 — Small concrete semantic Chat-facing surface — ACCEPTED
 
-Current public tool names are:
+Current public tool names are exactly:
 
 ```text
 workspace_read
@@ -50,9 +54,10 @@ workspace_write
 web_open
 web_observe
 web_interact
+procedure_run
 ```
 
-Five is a current proven contract, not an eternal limit. Never preserve it by hiding unrelated consequences behind misleading schemas.
+Six is the current canonical contract, not an eternal maximum. Never preserve a tool count by hiding unrelated consequences behind misleading schemas. New capability classes require a truthful public-contract decision or remain behind existing truthful project-owned semantics.
 
 ## ADR-019 — One authoritative Windows manager owner — ACCEPTED
 
@@ -69,10 +74,10 @@ ordinary ChatGPT
  -> Secure MCP Tunnel
  -> official tunnel-client
  -> secure launcher
- -> direct stdio semantic-projection
+ -> direct stdio canonical six-tool semantic projection
 ```
 
-`semantic-projection` remains deterministic and does not become planner/lifecycle/workflow state.
+`semantic-projection` remains deterministic and does not become planner/lifecycle/workflow state. Normal semantic install/start/smoke acceptance must not require 1MCP.
 
 ## ADR-022 — Semantic-first same-session local vision — ACCEPTED
 
@@ -112,7 +117,7 @@ This ADR supersedes the older interpretation that procedures are only passive ad
 
 ## ADR-024 — Desktop capability and public-contract expansion are separate — ACCEPTED DIRECTION
 
-The Windows desktop capability has now progressed through accepted Stage 26.2A-D. A public desktop/procedure tool surface still requires a separate ADR and ordinary-Chat acceptance. Do not overload `web_interact` or add opaque workflow dispatch merely to keep five tool names.
+The Windows desktop capability has now progressed through accepted Stage 26.2A-D. A truthful public desktop surface still requires a separate ADR and ordinary-Chat acceptance. Do not overload `web_interact` or add opaque workflow dispatch merely to preserve the current six tool names.
 
 ## ADR-025 — Reuse qualified OpenAdapt procedural core before replacements — ACCEPTED
 
@@ -216,6 +221,7 @@ The supervisor belongs to the Windows lifecycle/diagnostics boundary, not the St
 Required principles:
 
 - keep the existing accepted `tunnel_*` id as the persistent anchor;
+- store that anchor in neutral platform state rather than an extension-specific profile;
 - restart/reconnect replaceable local `tunnel-client` / semantic runtime around that anchor;
 - represent local MCP health, local tunnel health, OpenAI control-plane health and last-known ChatGPT route health as distinct evidence;
 - use failure-specific recovery rather than blind restart loops;
@@ -231,3 +237,38 @@ Required principles:
 The existing unmerged `chat/tunnel-reliability-e2e-health` branch is prototype evidence only and is not accepted by this ADR.
 
 Implementation/acceptance contract: `TRANSPORT_SUPERVISOR.md`.
+
+## ADR-031 — 1MCP is the optional internal Extension Manager — ACCEPTED DIRECTION
+
+Future third-party MCP backends may be attached behind an internal Extension Manager implemented with 1MCP or a qualified replacement.
+
+Target boundary:
+
+```text
+ordinary ChatGPT
+        |
+        v
+project-owned canonical semantic surface
+        |
+        +----> deterministic Control Plane / project-owned capabilities
+        |
+        `----> internal Extension Manager
+                    |
+                   1MCP
+                    |
+              third-party MCP backends
+```
+
+Rules:
+
+- 1MCP is optional and replaceable;
+- normal six-tool semantic install/start/health does not depend on 1MCP or `npx` preflight;
+- 1MCP may own discovery, aggregation, enable/disable, lazy lifecycle, health and restart of extension backends;
+- a third-party MCP is not automatically trusted or Chat-facing merely because 1MCP can load it;
+- raw backend tool catalogs are not exported directly to ordinary ChatGPT;
+- project-owned semantic adapters/facades remain small, typed, truthful, scope-preserving and non-planning;
+- Control Plane/capability policy remains authoritative for consequences and authorization;
+- extension failure must be isolated from the baseline six-tool route unless the current task explicitly depends on that extension;
+- extension versions, licenses, supply pins, scopes and acceptance evidence remain mandatory before promotion.
+
+This ADR turns the old `adaptive`/aggregation role into an explicit long-term extension boundary rather than an alternative ordinary-Chat product surface.
