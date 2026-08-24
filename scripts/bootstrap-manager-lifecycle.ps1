@@ -22,6 +22,7 @@ function Invoke-ChatManagerAction {
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $pwsh
     $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
     foreach ($argument in @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $CommandPath, '-Action', $Action, '-NoNotify')) {
         $startInfo.ArgumentList.Add([string]$argument)
     }
@@ -48,13 +49,130 @@ function Invoke-ChatManagerAction {
     }
 }
 
-function Install-ChatManager {
-    param([Parameter(Mandatory)] [string]$CommandPath)
-    $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
-    & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $CommandPath -Action Install -NoNotify
-    if ($LASTEXITCODE -ne 0) {
-        throw "Manager installation failed with exit code $LASTEXITCODE."
+function Save-ChatProtectedApiKeyIfMissing {
+    param([Parameter(Mandatory)] [string]$LocalRoot)
+
+    $secretDir = Join-Path $LocalRoot 'secrets'
+    $secretFile = Join-Path $secretDir 'control-plane-api-key.dpapi'
+    New-Item -ItemType Directory -Force -Path $secretDir | Out-Null
+
+    if (Test-Path -LiteralPath $secretFile -PathType Leaf) {
+        Write-Host 'SECRET_SOURCE=existing-dpapi'
+        return
     }
+
+    $secure = Read-Host 'Вставь CONTROL_PLANE_API_KEY — ввод скрыт' -AsSecureString
+    if ($secure.Length -eq 0) { throw 'API key is empty.' }
+
+    $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    $plain = $null
+    $plainBytes = $null
+    $protectedBytes = $null
+    try {
+        $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+        $plainBytes = [Text.Encoding]::UTF8.GetBytes($plain)
+        $protectedBytes = [Security.Cryptography.ProtectedData]::Protect(
+            $plainBytes,
+            $null,
+            [Security.Cryptography.DataProtectionScope]::CurrentUser
+        )
+        [Convert]::ToBase64String($protectedBytes) |
+            Set-Content -LiteralPath $secretFile -Encoding ascii
+    }
+    finally {
+        if ($plainBytes) { [Array]::Clear($plainBytes, 0, $plainBytes.Length) }
+        if ($protectedBytes) { [Array]::Clear($protectedBytes, 0, $protectedBytes.Length) }
+        $plain = $null
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+    }
+
+    Write-Host 'SECRET_SOURCE=new-dpapi'
+}
+
+function Resolve-ChatBootstrapWorkspace {
+    param([Parameter(Mandatory)] [string]$LocalRoot)
+
+    $settingsFile = Join-Path $LocalRoot 'state\settings.json'
+    if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
+        try {
+            $settings = Get-Content -LiteralPath $settingsFile -Raw | ConvertFrom-Json
+            if (
+                $null -ne $settings.PSObject.Properties['files_root'] -and
+                -not [string]::IsNullOrWhiteSpace([string]$settings.files_root) -and
+                (Test-Path -LiteralPath ([string]$settings.files_root) -PathType Container)
+            ) {
+                return (Resolve-Path -LiteralPath ([string]$settings.files_root).Path
+            }
+        }
+        catch {}
+    }
+
+    $workspace = Join-Path $LocalRoot 'workspace'
+    New-Item -ItemType Directory -Force -Path $workspace | Out-Null
+    return (Resolve-Path -LiteralPath $workspace).Path
+}
+
+function Install-ChatSemanticDesktopShortcut {
+    param(
+        [Parameter(Mandatory)] [string]$AppRoot,
+        [Parameter(Mandatory)] [string]$TrayPath
+    )
+
+    if (-not (Test-Path -LiteralPath $TrayPath -PathType Leaf)) {
+        throw "Installed tray script is missing: $TrayPath"
+    }
+
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    if ([string]::IsNullOrWhiteSpace($desktop)) {
+        Write-Host 'DESKTOP_SHORTCUT=unavailable'
+        return
+    }
+
+    $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
+    $shortcutPath = Join-Path $desktop 'Chat Agent Platform.lnk'
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $pwsh
+    $shortcut.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $TrayPath
+    $shortcut.WorkingDirectory = $AppRoot
+    $shortcut.IconLocation = "${env:SystemRoot}\System32\shell32.dll,44"
+    $shortcut.Description = 'Chat Agent Platform — индикатор и ВКЛ/ВЫКЛ'
+    $shortcut.Save()
+    Write-Host "DESKTOP_SHORTCUT=$shortcutPath"
+}
+
+function Initialize-ChatSemanticCore {
+    param(
+        [Parameter(Mandatory)] [string]$CommandPath,
+        [Parameter(Mandatory)] [string]$LocalRoot,
+        [Parameter(Mandatory)] [string]$AppRoot,
+        [Parameter(Mandatory)] [string]$TrayPath
+    )
+
+    Save-ChatProtectedApiKeyIfMissing -LocalRoot $LocalRoot
+    $workspace = Resolve-ChatBootstrapWorkspace -LocalRoot $LocalRoot
+
+    $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
+    & $pwsh `
+        -NoLogo `
+        -NoProfile `
+        -ExecutionPolicy Bypass `
+        -File $CommandPath `
+        -Action SetProfile `
+        -Profile semantic `
+        -FilesRoot $workspace `
+        -NoNotify
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not migrate the public manager to canonical semantic/direct-stdio profile (exit $LASTEXITCODE)."
+    }
+
+    Install-ChatSemanticDesktopShortcut -AppRoot $AppRoot -TrayPath $TrayPath
+
+    Write-Host 'DEFAULT_PROFILE=semantic'
+    Write-Host "DEFAULT_FILES_ROOT=$workspace"
+    Write-Host 'DEFAULT_TUNNEL_BINDING=direct-stdio'
+    Write-Host 'LEGACY_1MCP_INSTALL_PATH_USED=False'
+    return $workspace
 }
 
 function Invoke-ChatBootstrapSmokeTest {
