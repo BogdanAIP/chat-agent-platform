@@ -30,6 +30,7 @@ class SemanticStartSixToolContractTests(unittest.TestCase):
         self.assertIn("Semantic profile surface drifted", LEGACY_START)
 
     def test_canonical_launcher_live_inventory_guard_precedes_working_child(self):
+        self.assertIn("export async function assertExpectedSemanticInventory", LAUNCHER)
         self.assertIn("new Client({", LAUNCHER)
         self.assertIn("new StdioClientTransport({", LAUNCHER)
         self.assertIn("await client.listTools()", LAUNCHER)
@@ -44,14 +45,16 @@ class SemanticStartSixToolContractTests(unittest.TestCase):
         ):
             self.assertIn(name, LAUNCHER)
 
-        guard = LAUNCHER.index("await assertExpectedSemanticInventory(semanticEntry)")
+        guard = LAUNCHER.index("await assertExpectedSemanticInventory({")
         child = LAUNCHER.index("const child = spawn(process.execPath, [semanticEntry]")
         self.assertLess(guard, child)
         self.assertIn("semantic launcher live inventory preflight failed", LAUNCHER)
-        self.assertIn("process.exit(1)", LAUNCHER[guard:child])
+        self.assertIn("process.exitCode = 1", LAUNCHER[guard:child])
 
-    def test_inventory_guard_has_explicit_negative_test_entry_mode(self):
-        self.assertIn("--verify-inventory-entry", LAUNCHER)
+    def test_inventory_guard_is_testable_without_generic_cli_entry_override(self):
+        self.assertNotIn("--verify-inventory-entry", LAUNCHER)
+        self.assertIn("const invokedPath = process.argv[1]", LAUNCHER)
+        self.assertIn("if (invokedPath === launcherPath)", LAUNCHER)
         self.assertIn("expected exactly:", LAUNCHER)
 
 
