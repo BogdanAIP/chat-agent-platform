@@ -17,10 +17,18 @@ from runtime.control_plane.verification import (
 
 class Stage263BVerificationKernelTests(unittest.TestCase):
     @staticmethod
-    def _ref(capability: str, subject: str, sequence: int, fingerprint: str) -> ObservationRef:
+    def _ref(
+        capability: str,
+        subject: str,
+        sequence: int,
+        fingerprint: str,
+        *,
+        stream_id: str = "stream-main",
+    ) -> ObservationRef:
         return ObservationRef(
             capability=capability,
             subject=subject,
+            stream_id=stream_id,
             sequence=sequence,
             fingerprint=fingerprint,
         )
@@ -73,6 +81,29 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
 
         self.assertEqual(result.status, VerificationStatus.UNKNOWN)
         self.assertEqual(result.reason, "stale_observation")
+
+    def test_higher_sequence_from_another_stream_is_not_fresh_evidence(self) -> None:
+        before = self._ref("files", "artifact:result.txt", 7, "before", stream_id="stream-a")
+        effect = ExpectedEffect(
+            effect_id="stream-bound",
+            before=before,
+            predicates=(StatePredicate.equals("exists", expected=True),),
+        )
+        other_stream = ObservationSnapshot(
+            ref=self._ref(
+                "files",
+                "artifact:result.txt",
+                999,
+                "other",
+                stream_id="stream-b",
+            ),
+            state={"exists": True},
+        )
+
+        result = verify_expected_effect(effect, other_stream)
+
+        self.assertEqual(result.status, VerificationStatus.UNKNOWN)
+        self.assertEqual(result.reason, "observation_stream_mismatch")
 
     def test_wrong_subject_or_capability_cannot_verify_effect(self) -> None:
         before = self._ref("browser", "page:primary", 1, "before")
@@ -193,6 +224,30 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
         self.assertEqual(missing_safety.status, FinishStatus.UNKNOWN)
         self.assertEqual(missing_safety.safety, VerificationStatus.UNKNOWN)
 
+    def test_declared_optional_dimension_without_evidence_is_unknown(self) -> None:
+        passed = self._result("pass", VerificationStatus.PASS)
+
+        no_constraints_declared = evaluate_finish_gate(
+            candidate_done=True,
+            goal_results=(passed,),
+            safety_results=(passed,),
+            constraint_results=None,
+        )
+        constraints_declared_but_unverified = evaluate_finish_gate(
+            candidate_done=True,
+            goal_results=(passed,),
+            safety_results=(passed,),
+            constraint_results=(),
+        )
+
+        self.assertEqual(no_constraints_declared.constraints, VerificationStatus.PASS)
+        self.assertEqual(no_constraints_declared.status, FinishStatus.DONE)
+        self.assertEqual(
+            constraints_declared_but_unverified.constraints,
+            VerificationStatus.UNKNOWN,
+        )
+        self.assertEqual(constraints_declared_but_unverified.status, FinishStatus.UNKNOWN)
+
     def test_finish_gate_keeps_task_success_and_safety_separate(self) -> None:
         result = evaluate_finish_gate(
             candidate_done=True,
@@ -215,7 +270,7 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
         self.assertEqual(result.status, FinishStatus.NOT_DONE)
         self.assertEqual(result.reason, "candidate_done_not_proposed")
 
-    def test_unresolved_confirmation_blocks_done_without_fabricating_failure(self) -> None:
+    def test_unresolved_confirmation_blocks_done_without_rewriting_task_success(self) -> None:
         passed = self._result("pass", VerificationStatus.PASS)
         result = evaluate_finish_gate(
             candidate_done=True,
@@ -225,8 +280,19 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
         )
 
         self.assertEqual(result.status, FinishStatus.UNKNOWN)
-        self.assertEqual(result.task_success, VerificationStatus.UNKNOWN)
+        self.assertEqual(result.reason, "unresolved_completion_requirement")
+        self.assertEqual(result.task_success, VerificationStatus.PASS)
         self.assertEqual(result.safety, VerificationStatus.PASS)
+
+    def test_observation_reference_requires_stream_identity(self) -> None:
+        with self.assertRaises(ValueError):
+            ObservationRef(
+                capability="files",
+                subject="artifact:x",
+                stream_id="",
+                sequence=1,
+                fingerprint="fp",
+            )
 
 
 if __name__ == "__main__":
