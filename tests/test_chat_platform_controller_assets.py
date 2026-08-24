@@ -6,6 +6,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 CONTROLLER = ROOT / "scripts" / "chat-platform-controller.ps1"
+DIRECT = ROOT / "scripts" / "semantic-direct-controller.ps1"
 TRAY = ROOT / "scripts" / "chat-platform-tray.ps1"
 COMMAND = ROOT / "scripts" / "chat-platform.ps1"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
@@ -25,6 +26,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.controller = CONTROLLER.read_text(encoding="utf-8")
+        cls.direct = DIRECT.read_text(encoding="utf-8")
         cls.tray = TRAY.read_text(encoding="utf-8")
         cls.command = COMMAND.read_text(encoding="utf-8")
         cls.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
@@ -50,6 +52,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
     def test_controller_tray_command_and_modular_bootstrap_exist(self):
         for path in (
             CONTROLLER,
+            DIRECT,
             COMMAND,
             TRAY,
             BOOTSTRAP,
@@ -69,7 +72,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
 
     def test_secret_is_not_embedded_in_source(self):
         combined = "\n".join(
-            (self.controller, self.command, self.tray, self.bootstrap_full)
+            (self.controller, self.direct, self.command, self.tray, self.bootstrap_full)
         )
         self.assertIsNone(re.search(r"sk-[A-Za-z0-9_-]{20,}", combined))
 
@@ -120,7 +123,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("$process.ExitCode", body)
         self.assertNotIn("& $pwsh", body)
 
-    def test_windows_1mcp_worker_hides_direct_cmd_host(self):
+    def test_windows_1mcp_worker_remains_internal_and_console_free(self):
         for expected in (
             "Start-HiddenWindowsWorker",
             "Get-Command 'npx.cmd'",
@@ -137,14 +140,6 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         ):
             self.assertIn(expected, self.start_local)
         self.assertNotIn("$ForegroundWorker", self.start_local)
-        windows_branch = re.search(
-            r"if \(\$IsWindows\) \{(.*?)\n    \}\n    else \{",
-            self.start_local,
-            re.S,
-        )
-        self.assertIsNotNone(windows_branch)
-        self.assertIn("Start-HiddenWindowsWorker", windows_branch.group(1))
-        self.assertNotIn("--background", windows_branch.group(1))
 
     def test_profile_status_keeps_conflict_machine_readable(self):
         self.assertIn("conflict = $conflict", self.status_profile)
@@ -166,10 +161,11 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertNotIn("server.pid", self.tray)
         self.assertNotIn("Get-TunnelProcesses", self.tray)
 
-    def test_tunnel_profile_is_persistent_after_migration(self):
+    def test_legacy_1mcp_profile_remains_supported_only_by_internal_controller(self):
         self.assertIn('$profileSource = "local-existing"', self.controller)
         self.assertIn('if (-not (Test-Path $TunnelProfile))', self.controller)
         self.assertIn('TUNNEL_PROFILE_SOURCE=$profileSource', self.controller)
+        self.assertIn('local-1mcp', self.controller)
 
     def test_running_binary_is_not_blindly_overwritten(self):
         self.assertIn("local-existing-identical", self.controller)
@@ -179,8 +175,6 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
     def test_tunnel_process_matching_is_bound_to_installed_binary(self):
         self.assertIn("ExecutablePath", self.controller)
         self.assertIn("$actualExe -ieq $expectedExe", self.controller)
-        self.assertIn("--profile-dir", self.controller)
-        self.assertIn("local-1mcp", self.controller)
         self.assertIn("(?=\\s|$)", self.controller)
 
     def test_tunnel_readiness_uses_official_readyz_probe(self):
@@ -190,6 +184,16 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("--health.url-file", self.controller)
         self.assertIn("Wait-TunnelReady", self.controller)
         self.assertIn("tunnel_ready", self.controller)
+
+    def test_direct_semantic_uses_neutral_persistent_tunnel_state(self):
+        self.assertIn("$TunnelStateFile = Join-Path $StateDir 'tunnel.json'", self.direct)
+        self.assertIn("function Get-PersistentTunnelId", self.direct)
+        self.assertIn("Persistent tunnel state does not contain a valid tunnel_id", self.direct)
+        self.assertIn("return $persistent", self.direct)
+        self.assertIn("$LegacyTunnelProfile = Join-Path $TunnelDir 'local-1mcp.yaml'", self.direct)
+        self.assertIn("Get-LegacyTunnelId", self.direct)
+        self.assertNotIn("Accepted tunnel profile is missing", self.direct)
+        self.assertNotIn("accepted local-1mcp profile", self.direct)
 
     def test_tray_green_requires_controller_mcp_and_tunnel_readiness(self):
         self.assertIn("[bool]$state.mcp_ready", self.tray)
@@ -225,7 +229,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             self.assertIn(expected, self.tray)
         self.assertIn("add_DoubleClick", self.tray)
 
-    def test_expected_profiles_remain_explicit_in_controller(self):
+    def test_expected_internal_profiles_remain_explicit(self):
         for profile in ("reference", "files-readonly", "browser-isolated", "semantic", "adaptive"):
             self.assertIn(profile, self.controller)
 
@@ -236,8 +240,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         )
         self.assertIn(expected_validate, self.controller)
         self.assertIn(expected_validate, self.command)
-        for source in (self.controller, self.command, self.bootstrap_full):
-            self.assertIn("adaptive", source)
+        self.assertIn("adaptive", self.bootstrap_manager)
         self.assertRegex(
             self.controller,
             re.compile(
@@ -269,7 +272,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         for forbidden in ('tool_invoke', 'tool_schema', 'mcp_enable'):
             self.assertNotIn(forbidden, self.start_semantic)
 
-    def test_bootstrap_installs_complete_adaptive_runtime_assets(self):
+    def test_bootstrap_installs_optional_adaptive_extension_assets(self):
         for expected in (
             "runtime\\chat-profiles\\adaptive\\mcp.json",
             "runtime\\1mcp-adaptive-shim\\package.json",
@@ -298,24 +301,16 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("semantic_public_tool_count = 6", self.bootstrap_manager)
         self.assertIn("SEMANTIC_PUBLIC_TOOL_COUNT=6", self.bootstrap_manager)
 
-    def test_bootstrap_requires_node_python_and_stops_before_bundle_update(self):
+    def test_normal_bootstrap_requires_node_python_but_not_1mcp(self):
         self.assertIn('[int]$Matches.major -lt 20', self.bootstrap)
         self.assertIn('Node.js 20 or newer is required', self.bootstrap)
         self.assertIn("Require-Command 'python.exe'", self.bootstrap)
+        self.assertIn("Require-Command 'npm.cmd'", self.bootstrap)
+        self.assertNotIn("Require-Command 'npx.cmd'", self.bootstrap)
+        self.assertNotIn("OneMcpPackage", self.bootstrap)
+        self.assertNotIn("Pinned 1MCP dependency failed", self.bootstrap)
+        self.assertIn("NORMAL_SEMANTIC_1MCP_REQUIRED=False", self.bootstrap)
         self.assertIn('Stop-ChatInstalledManagerForBundleUpdate', self.bootstrap_manager)
-        bundle = re.search(
-            r"function Install-ChatManagerBundle \{(.*?)\n\}",
-            self.bootstrap_manager,
-            re.S,
-        )
-        self.assertIsNotNone(bundle)
-        self.assertIn('Stop-ChatInstalledManagerForBundleUpdate', bundle.group(1))
-
-    def test_public_status_preserves_profile_conflict_state(self):
-        self.assertIn("conflict = [bool]$chat.conflict", self.controller)
-
-    def test_default_profile_remains_reference_after_semantic_integration(self):
-        self.assertGreaterEqual(self.controller.count('profile = "reference"'), 2)
 
     def test_bootstrap_pins_official_tunnel_client_release_and_checksums(self):
         self.assertIn("$AcceptedTunnelClientVersion = 'v0.0.11'", self.bootstrap)
@@ -327,29 +322,27 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIn("asset_digest", self.bootstrap_tunnel)
         self.assertIn("Get-FileHash", self.bootstrap_tunnel)
 
-    def test_bootstrap_uses_official_cli_and_standalone_manager_bundle(self):
+    def test_bootstrap_persists_neutral_tunnel_anchor_with_legacy_migration(self):
+        self.assertIn("$TunnelStateFile = Join-Path $StateDir 'tunnel.json'", self.bootstrap)
+        self.assertIn("Resolve-ChatTunnelId", self.bootstrap)
+        self.assertIn("-TunnelStateFile $TunnelStateFile", self.bootstrap)
+        self.assertIn("-LegacyTunnelProfile $LegacyTunnelProfile", self.bootstrap)
+        self.assertIn("Read-ChatTunnelState", self.bootstrap_tunnel)
+        self.assertIn("Save-ChatTunnelState", self.bootstrap_tunnel)
+        self.assertIn("legacy-profile-migration", self.bootstrap_tunnel)
+        self.assertIn("TUNNEL_ID_SOURCE=state/tunnel.json", self.bootstrap_tunnel)
+
+    def test_extension_manager_profile_helper_is_optional_not_normal_bootstrap(self):
         for expected in (
+            "Initialize-ChatExtensionManagerTunnelProfile",
             "'init'",
             "'sample_mcp_remote_no_auth'",
             "'--profile-dir'",
-            "'--tunnel-id'",
-            "'--mcp-server-url'",
             "'local-1mcp'",
         ):
             self.assertIn(expected, self.bootstrap_tunnel)
-        self.assertIn("BOOTSTRAP_SMOKE_TEST=passed", self.bootstrap_lifecycle)
-        self.assertIn("Join-Path $LocalRoot 'app'", self.bootstrap)
-        self.assertIn("'chat-platform.ps1'", self.bootstrap)
-        self.assertIn("Copy-ChatVerifiedFile", self.bootstrap_manager)
-        self.assertIn("MANAGER_BUNDLE_VERIFIED=True", self.bootstrap_manager)
-
-    def test_bootstrap_repairs_legacy_relative_tunnel_log_profile(self):
-        self.assertIn("Test-ChatTunnelProfileContract", self.bootstrap_tunnel)
-        self.assertIn("[System.IO.Path]::IsPathRooted", self.bootstrap_tunnel)
-        self.assertIn("TUNNEL_PROFILE_COMPATIBILITY=reconfigure-required", self.bootstrap_tunnel)
-        self.assertIn("TUNNEL_PROFILE_BACKUP", self.bootstrap_tunnel)
-        self.assertIn("TUNNEL_PROFILE_SOURCE=official-tunnel-client-init", self.bootstrap_tunnel)
-        self.assertIn("logFileMatch", self.bootstrap_tunnel)
+        self.assertNotIn("Initialize-ChatExtensionManagerTunnelProfile", self.bootstrap)
+        self.assertIn("EXTENSION_MANAGER=optional-1mcp", self.bootstrap)
 
     def test_bootstrap_keeps_first_key_prompt_interactive(self):
         self.assertRegex(
@@ -367,12 +360,17 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertIsNotNone(status_capture)
         self.assertNotIn("Install", status_capture.group(1))
 
-    def test_bootstrap_smoke_forces_reference_without_pipeline_capture(self):
-        self.assertIn(
-            "Invoke-ChatManagerAction -CommandPath $CommandPath -Action Start -Profile reference",
-            self.bootstrap_lifecycle,
-        )
-        self.assertIn('BOOTSTRAP_SMOKE_PROFILE=reference', self.bootstrap_lifecycle)
+    def test_bootstrap_smoke_uses_normal_six_tool_direct_semantic(self):
+        for expected in (
+            "-Profile semantic",
+            "-FilesRoot $smokeRoot",
+            "BOOTSTRAP_SMOKE_PROFILE=semantic",
+            "BOOTSTRAP_SMOKE_BINDING=direct-stdio",
+            "BOOTSTRAP_SMOKE_PUBLIC_TOOL_COUNT=6",
+            "BOOTSTRAP_SMOKE_1MCP_REQUIRED=False",
+        ):
+            self.assertIn(expected, self.bootstrap_lifecycle)
+        self.assertNotIn("-Profile reference", self.bootstrap_lifecycle)
         self.assertIn("System.Diagnostics.ProcessStartInfo", self.bootstrap_lifecycle)
         action = re.search(
             r"function Invoke-ChatManagerAction \{(.*?)\n\}",
@@ -403,6 +401,7 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
     def test_ci_parses_lifecycle_scripts_and_runs_python_tests(self):
         for expected in (
             "scripts/chat-platform-controller.ps1",
+            "scripts/semantic-direct-controller.ps1",
             "scripts/chat-platform.ps1",
             "scripts/chat-platform-tray.ps1",
             "scripts/bootstrap-chat-platform.ps1",
