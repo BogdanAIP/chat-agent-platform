@@ -26,6 +26,7 @@ class DocumentationConsistencyTests(unittest.TestCase):
             CONTEXT / "CURRENT_STATE.md",
             CONTEXT / "ARCHITECTURE.md",
             CONTEXT / "CONTROL_PLANE.md",
+            CONTEXT / "COMPUTER_USE_ARCHITECTURE.md",
             CONTEXT / "ROADMAP.md",
             CONTEXT / "CONSTRAINTS.md",
             CONTEXT / "DECISIONS.md",
@@ -55,6 +56,8 @@ class DocumentationConsistencyTests(unittest.TestCase):
             CONTEXT / "START_HERE.md",
             CONTEXT / "CURRENT_STATE.md",
             CONTEXT / "ARCHITECTURE.md",
+            CONTEXT / "CONTROL_PLANE.md",
+            CONTEXT / "COMPUTER_USE_ARCHITECTURE.md",
             CONTEXT / "ROADMAP.md",
             CONTEXT / "CONSTRAINTS.md",
             CONTEXT / "DEVELOPMENT_PRINCIPLES.md",
@@ -81,10 +84,9 @@ class DocumentationConsistencyTests(unittest.TestCase):
             CONTEXT / "CURRENT_STATE.md",
             CONTEXT / "CONTINUATION_CONTEXT.md",
         )
-        # Current documents may legitimately mention the active Stage 26.3 near
-        # the top.  What matters is that each document still contains an
-        # explicit release-order sequence 26.2E -> 26.3 -> 26.4.  Do not use
-        # first-occurrence indexes: those confuse status prose with stage order.
+        # Current documents may legitimately mention active later stages near
+        # the top. What matters is that each still contains an explicit
+        # release-order sequence 26.2E -> 26.3 -> 26.4.
         ordered_sequence = re.compile(
             r"26\.2E[\s\S]{0,4000}?26\.3[\s\S]{0,4000}?26\.4",
             re.IGNORECASE,
@@ -106,6 +108,15 @@ class DocumentationConsistencyTests(unittest.TestCase):
         self.assertIn("P0 shadow planner", roadmap)
         self.assertIn("proposal only", roadmap)
         self.assertIn("deterministic Control Plane", roadmap)
+
+    def test_computer_use_architecture_preserves_small_surface_and_independent_completion(self) -> None:
+        computer_use = (CONTEXT / "COMPUTER_USE_ARCHITECTURE.md").read_text(encoding="utf-8")
+        self.assertIn("current six-tool public surface remains accepted", computer_use)
+        self.assertIn("state first", computer_use.casefold())
+        self.assertIn("Finish Gate", computer_use)
+        self.assertIn("LoopGuard", computer_use)
+        self.assertIn("environmental data", computer_use.casefold())
+        self.assertIn("Control Plane", computer_use)
 
     def test_stage26_2e_document_matches_current_guard_contract(self) -> None:
         stage = (CONTEXT / "STAGE26_2E_REAL_APPLICATION_E2E.md").read_text(encoding="utf-8")
