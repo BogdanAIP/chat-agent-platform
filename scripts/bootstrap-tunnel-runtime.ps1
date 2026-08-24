@@ -417,6 +417,10 @@ function Initialize-ChatExtensionManagerTunnelProfile {
         [Parameter(Mandatory)] [string]$McpUrl
     )
 
+    if ($ProfileName -ne 'local-1mcp') {
+        throw "Extension Manager tunnel helper accepts only the reviewed local-1mcp profile; got '$ProfileName'."
+    }
+
     $profilePath = Join-Path $TunnelDir "$ProfileName.yaml"
     if (Test-ChatTunnelProfileContract -Path $profilePath -ResolvedTunnelId $TunnelId -McpUrl $McpUrl) {
         Write-Host 'EXTENSION_TUNNEL_PROFILE_SOURCE=existing-valid'
