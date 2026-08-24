@@ -5,9 +5,6 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { Client } from '@modelcontextprotocol/client';
-import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-
 const tunnelOnlyCredentialKeys = [
   'CONTROL_PLANE_API_KEY',
   'OPENAI_API_KEY',
@@ -71,6 +68,10 @@ export async function assertExpectedSemanticInventory({ entry, env = process.env
     throw new Error('semantic inventory guard requires one semantic entry path');
   }
 
+  const [{ Client }, { StdioClientTransport }] = await Promise.all([
+    import('@modelcontextprotocol/client'),
+    import('@modelcontextprotocol/client/stdio')
+  ]);
   const client = new Client({
     name: 'chat-semantic-inventory-guard',
     version: '1.0.0'
