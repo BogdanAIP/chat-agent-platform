@@ -53,7 +53,12 @@ public static class ChatPlatformNativeIcon
 
 $CommandPath = Join-Path $PSScriptRoot "chat-platform.ps1"
 $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
+$StateDir = Join-Path $LocalRoot "state"
+$SupervisorStateFile = Join-Path $StateDir "supervisor.json"
+$DesiredStateFile = Join-Path $StateDir "desired-state.json"
+$SettingsFile = Join-Path $StateDir "settings.json"
 $ControllerLog = Join-Path $LocalRoot "logs\controller.log"
+$SupervisorSnapshotFreshnessSeconds = 45
 
 $createdNew = $false
 $mutex = New-Object System.Threading.Mutex(
@@ -98,112 +103,147 @@ function New-StatusIcon {
     return $icon
 }
 
-$script:RedIcon = New-StatusIcon ([System.Drawing.Color]::Crimson)
-$script:YellowIcon = New-StatusIcon ([System.Drawing.Color]::Goldenrod)
-$script:GreenIcon = New-StatusIcon ([System.Drawing.Color]::LimeGreen)
+function Read-JsonFile {
+    param([Parameter(Mandatory)] [string]$Path)
 
-function Invoke-ControllerStatus {
-    $pwsh = (Get-Command "pwsh.exe" -ErrorAction Stop).Source
-    $output = @(
-        & $pwsh `
-            -NoLogo `
-            -NoProfile `
-            -ExecutionPolicy Bypass `
-            -File $CommandPath `
-            -Action Status `
-            -NoNotify `
-            2>&1
-    )
-
-    if ($LASTEXITCODE -ne 0) {
-        throw (
-            "Manager status failed with exit code {0}: {1}" -f `
-            $LASTEXITCODE,
-            (($output | Out-String).Trim())
-        )
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $null
     }
 
     try {
-        return ($output | Out-String | ConvertFrom-Json -ErrorAction Stop)
+        return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -ErrorAction Stop
     }
     catch {
-        throw "Manager status returned invalid JSON: $(($output | Out-String).Trim())"
+        return $null
+    }
+}
+
+function Get-PropertyValue {
+    param(
+        $Object,
+        [Parameter(Mandatory)] [string]$Name,
+        $DefaultValue = $null
+    )
+
+    if ($null -eq $Object) {
+        return $DefaultValue
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $DefaultValue
+    }
+
+    return $property.Value
+}
+
+function Get-SupervisorSnapshotAgeSeconds {
+    param([Parameter(Mandatory)] $Snapshot)
+
+    $observedAt = Get-PropertyValue -Object $Snapshot -Name "observed_at"
+    if ([string]::IsNullOrWhiteSpace([string]$observedAt)) {
+        return $null
+    }
+
+    try {
+        $observed = [datetimeoffset]::Parse([string]$observedAt).ToUniversalTime()
+        return [math]::Max(
+            0,
+            ([datetimeoffset]::UtcNow - $observed).TotalSeconds
+        )
+    }
+    catch {
+        return $null
     }
 }
 
 function Get-PlatformVisualState {
-    try {
-        $state = Invoke-ControllerStatus
+    # The tray is a projection only. The supervisor owns expensive health
+    # observation and atomically publishes supervisor.json. Polling the manager
+    # from this 2-second UI timer used to create nested pwsh.exe processes and
+    # repeat WMI/transport probes continuously.
+    $snapshot = Read-JsonFile -Path $SupervisorStateFile
+    $desired = Read-JsonFile -Path $DesiredStateFile
+    $settings = Read-JsonFile -Path $SettingsFile
+
+    $desiredState = [string](Get-PropertyValue -Object $desired -Name "desired_state" -DefaultValue "")
+    if ([string]::IsNullOrWhiteSpace($desiredState)) {
+        $desiredState = [string](Get-PropertyValue -Object $snapshot -Name "desired_state" -DefaultValue "unknown")
     }
-    catch {
+
+    $profile = [string](Get-PropertyValue -Object $snapshot -Name "profile" -DefaultValue "")
+    if ([string]::IsNullOrWhiteSpace($profile)) {
+        $profile = [string](Get-PropertyValue -Object $settings -Name "profile" -DefaultValue "reference")
+    }
+
+    $filesRoot = [string](Get-PropertyValue -Object $settings -Name "files_root" -DefaultValue "")
+    $toolCount = if ($profile -in @("semantic", "semantic-direct")) { 6 } else { $null }
+
+    if ($null -eq $snapshot) {
         return [pscustomobject]@{
             mode = "partial"
-            profile = "unknown"
-            expected_tool_count = $null
-            tunnel_running = $false
-            tunnel_ready = $false
+            profile = $profile
+            expected_tool_count = $toolCount
+            desired_state = $desiredState
+            runtime_ready = $false
             mcp_ready = $false
-            active_count = 0
-            files_root = $null
-            error = $_.Exception.Message
+            tunnel_ready = $false
+            health_code = "SUPERVISOR_STATE_UNAVAILABLE"
+            files_root = $filesRoot
+            error = "Supervisor state is unavailable."
         }
     }
 
-    $activeCount = [int]$state.active_count
-    $profile = [string]$state.active_profile
-
-    if ([string]::IsNullOrWhiteSpace($profile)) {
-        if ($activeCount -gt 1) {
-            $profile = "multiple"
-        }
-        elseif (
-            $null -ne $state.settings -and
-            -not [string]::IsNullOrWhiteSpace([string]$state.settings.profile)
-        ) {
-            $profile = [string]$state.settings.profile
-        }
-        else {
-            $profile = "reference"
+    $age = Get-SupervisorSnapshotAgeSeconds -Snapshot $snapshot
+    if ($null -eq $age -or $age -gt $SupervisorSnapshotFreshnessSeconds) {
+        return [pscustomobject]@{
+            mode = "partial"
+            profile = $profile
+            expected_tool_count = $toolCount
+            desired_state = $desiredState
+            runtime_ready = $false
+            mcp_ready = $false
+            tunnel_ready = $false
+            health_code = "SUPERVISOR_STATE_STALE"
+            files_root = $filesRoot
+            error = "Supervisor state is stale or has no valid observed_at timestamp."
         }
     }
 
-    if ($activeCount -eq 0 -and -not [bool]$state.tunnel_running) {
+    $supervisorState = [string](Get-PropertyValue -Object $snapshot -Name "supervisor_state" -DefaultValue "unknown")
+    $healthCode = [string](Get-PropertyValue -Object $snapshot -Name "health_code" -DefaultValue "UNKNOWN")
+    $runtimeReady = [bool](Get-PropertyValue -Object $snapshot -Name "runtime_ready" -DefaultValue $false)
+    $mcpReady = [bool](Get-PropertyValue -Object $snapshot -Name "mcp_ready" -DefaultValue $false)
+    $tunnelReady = [bool](Get-PropertyValue -Object $snapshot -Name "tunnel_local_ready" -DefaultValue $false)
+
+    if ($desiredState -eq "stopped") {
         $mode = "off"
     }
-    elseif (
-        $activeCount -eq 1 -and
-        [bool]$state.mcp_ready -and
-        [bool]$state.tunnel_ready
-    ) {
+    elseif ($runtimeReady -and $mcpReady -and $tunnelReady) {
         $mode = "on"
     }
     else {
         $mode = "partial"
     }
 
-    $toolCount = if ($profile -in @("semantic", "semantic-direct")) { 6 } else { $null }
-    $filesRoot = if (
-        $null -ne $state.settings -and
-        $null -ne $state.settings.PSObject.Properties['files_root']
-    ) {
-        [string]$state.settings.files_root
-    }
-    else {
-        $null
-    }
-
     return [pscustomobject]@{
         mode = $mode
         profile = $profile
         expected_tool_count = $toolCount
-        tunnel_running = [bool]$state.tunnel_running
-        tunnel_ready = [bool]$state.tunnel_ready
-        mcp_ready = [bool]$state.mcp_ready
-        active_count = $activeCount
+        desired_state = $desiredState
+        supervisor_state = $supervisorState
+        runtime_ready = $runtimeReady
+        mcp_ready = $mcpReady
+        tunnel_ready = $tunnelReady
+        health_code = $healthCode
         files_root = $filesRoot
         error = $null
     }
 }
+
+$script:RedIcon = New-StatusIcon ([System.Drawing.Color]::Crimson)
+$script:YellowIcon = New-StatusIcon ([System.Drawing.Color]::Goldenrod)
+$script:GreenIcon = New-StatusIcon ([System.Drawing.Color]::LimeGreen)
 
 $notify = New-Object System.Windows.Forms.NotifyIcon
 $notify.Visible = $true
@@ -299,9 +339,9 @@ function Set-VisualState {
                 $detailsItem.Text = [string]$State.error
             }
             else {
-                $detailsItem.Text = "MCP=$($State.mcp_ready) | Tunnel=$($State.tunnel_ready)"
+                $detailsItem.Text = "Health=$($State.health_code) | MCP=$($State.mcp_ready) | Tunnel=$($State.tunnel_ready)"
             }
-            $toggleItem.Enabled = $true
+            $toggleItem.Enabled = ([string]$State.desired_state -in @("running", "stopped"))
             $startItem.Enabled = $true
             $stopItem.Enabled = $true
         }
@@ -348,7 +388,7 @@ function Show-StateBalloon {
                 $notify.BalloonTipText = [string]$state.error
             }
             else {
-                $notify.BalloonTipText = "Система запущена частично. MCP ready=$($state.mcp_ready); Tunnel ready=$($state.tunnel_ready)."
+                $notify.BalloonTipText = "Система запущена частично. Health=$($state.health_code); MCP=$($state.mcp_ready); Tunnel=$($state.tunnel_ready)."
             }
         }
     }
@@ -404,12 +444,18 @@ function Start-ControllerOperation {
 
 function Toggle-Platform {
     $state = Get-PlatformVisualState
-    if ($state.mode -eq "off") {
+    if ([string]$state.desired_state -eq "stopped") {
         Start-ControllerOperation -Action Start
+        return
     }
-    else {
+    if ([string]$state.desired_state -eq "running") {
         Start-ControllerOperation -Action Stop
+        return
     }
+
+    $notify.BalloonTipTitle = "Chat Agent Platform"
+    $notify.BalloonTipText = "Не удалось определить желаемое состояние. Используйте Включить или Выключить."
+    $notify.ShowBalloonTip(3000)
 }
 
 $toggleHandler = { Toggle-Platform }
