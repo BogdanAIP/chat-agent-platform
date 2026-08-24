@@ -63,7 +63,9 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         for expected in (
             'ValidateSet("manual", "automatic")',
             '$manualModeItem.Text = "Ручной"',
-            '$automaticModeItem.Text = "Автоматический (проверка раз в 30 минут)"',
+            '$automaticModeItem.Text = "Автоматический — проверка раз в 30 мин"',
+            '$modeMenu.DropDownItems.Add($manualModeItem)',
+            '$modeMenu.DropDownItems.Add($automaticModeItem)',
             'Set-PlatformOperationMode -Mode "manual"',
             'Set-PlatformOperationMode -Mode "automatic"',
             'Stop-ScheduledTask -TaskName $SupervisorTaskName',
@@ -90,23 +92,28 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
     def test_semantic_ready_is_always_six_tools(self):
         self.assertIn('$profile -in @("semantic", "semantic-direct")', SOURCE)
         self.assertIn('{ 6 } else { $null }', SOURCE)
-        self.assertIn('MCP READY | Tunnel READY | $($State.expected_tool_count) tools', SOURCE)
+        self.assertIn('READY · MCP · Tunnel · $($State.expected_tool_count) tools', SOURCE)
         self.assertNotIn("{ 5 }", SOURCE)
         self.assertNotIn("TOOL_COUNT=5", SOURCE)
+
+    def test_simplified_menu_has_one_power_action_and_hides_diagnostics(self):
+        self.assertIn('$powerItem = New-Object System.Windows.Forms.ToolStripMenuItem', SOURCE)
+        self.assertIn('$menu.Items.Add($powerItem)', SOURCE)
+        self.assertIn('$powerItem.Text = "Включить"', SOURCE)
+        self.assertIn('$powerItem.Text = "Выключить"', SOURCE)
+        self.assertIn('$moreMenu.Text = "Дополнительно"', SOURCE)
+        self.assertIn('$moreMenu.DropDownItems.Add($detailsItem)', SOURCE)
+        self.assertIn('$moreMenu.DropDownItems.Add($workspaceItem)', SOURCE)
+        self.assertIn('$moreMenu.DropDownItems.Add($logItem)', SOURCE)
+        self.assertNotIn('$toggleItem = New-Object System.Windows.Forms.ToolStripMenuItem', SOURCE)
+        self.assertNotIn('$startItem = New-Object System.Windows.Forms.ToolStripMenuItem', SOURCE)
+        self.assertNotIn('$stopItem = New-Object System.Windows.Forms.ToolStripMenuItem', SOURCE)
 
     def test_there_is_no_blue_or_qualification_mode(self):
         self.assertNotIn("DodgerBlue", SOURCE)
         self.assertNotIn('"qualification" {', SOURCE)
         self.assertNotIn("owner=qualification", SOURCE)
         self.assertNotIn("Qualification", SOURCE)
-
-    def test_ready_state_keeps_normal_controls_available(self):
-        ready_start = SOURCE.index('"on" {')
-        ready_end = SOURCE.index('"off" {', ready_start)
-        block = SOURCE[ready_start:ready_end]
-        self.assertIn("$toggleItem.Enabled = $true", block)
-        self.assertIn("$startItem.Enabled = $false", block)
-        self.assertIn("$stopItem.Enabled = $true", block)
 
     def test_user_actions_keep_execution_authority_in_manager(self):
         self.assertIn("Start-ControllerOperation", SOURCE)

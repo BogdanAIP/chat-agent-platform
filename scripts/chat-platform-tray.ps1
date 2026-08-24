@@ -71,7 +71,6 @@ $mutex = New-Object System.Threading.Mutex(
     "Local\ChatAgentPlatformTray",
     [ref]$createdNew
 )
-
 if (-not $createdNew) {
     exit 0
 }
@@ -229,12 +228,9 @@ function Get-SnapshotAgeSeconds {
 
 function Get-SettingsProjection {
     $settings = Read-JsonFile -Path $SettingsFile
-    $profile = [string](Get-PropertyValue -Object $settings -Name "profile" -DefaultValue "reference")
-    $filesRoot = [string](Get-PropertyValue -Object $settings -Name "files_root" -DefaultValue "")
-
     return [pscustomobject]@{
-        profile = $profile
-        files_root = $filesRoot
+        profile = [string](Get-PropertyValue -Object $settings -Name "profile" -DefaultValue "reference")
+        files_root = [string](Get-PropertyValue -Object $settings -Name "files_root" -DefaultValue "")
     }
 }
 
@@ -251,12 +247,11 @@ function Save-ManualStatusForAction {
 
     $settings = Get-SettingsProjection
     $running = ($Action -eq "Start")
-    $desiredState = if ($running) { "running" } else { "stopped" }
 
     Write-AtomicJson -Path $ManualStatusFile -Value ([ordered]@{
         schema_version = 1
         source = "manual_user_action"
-        desired_state = $desiredState
+        desired_state = if ($running) { "running" } else { "stopped" }
         profile = [string]$settings.profile
         runtime_ready = $running
         mcp_ready = $running
@@ -273,16 +268,15 @@ function Save-ManualStatusFromAutomaticSnapshot {
     )
 
     $settings = Get-SettingsProjection
-
     if ($null -eq $Snapshot) {
-        $running = $false
+        $runtimeReady = $false
         $mcpReady = $false
         $tunnelReady = $false
         $healthCode = if ($DesiredState -eq "stopped") { "STOPPED" } else { "MANUAL_STATE_UNVERIFIED" }
         $profile = [string]$settings.profile
     }
     else {
-        $running = [bool](Get-PropertyValue -Object $Snapshot -Name "runtime_ready" -DefaultValue $false)
+        $runtimeReady = [bool](Get-PropertyValue -Object $Snapshot -Name "runtime_ready" -DefaultValue $false)
         $mcpReady = [bool](Get-PropertyValue -Object $Snapshot -Name "mcp_ready" -DefaultValue $false)
         $tunnelReady = [bool](Get-PropertyValue -Object $Snapshot -Name "tunnel_local_ready" -DefaultValue $false)
         $healthCode = [string](Get-PropertyValue -Object $Snapshot -Name "health_code" -DefaultValue "MANUAL_STATE_UNVERIFIED")
@@ -294,7 +288,7 @@ function Save-ManualStatusFromAutomaticSnapshot {
         source = "automatic_handoff"
         desired_state = $DesiredState
         profile = $profile
-        runtime_ready = $running
+        runtime_ready = $runtimeReady
         mcp_ready = $mcpReady
         tunnel_local_ready = $tunnelReady
         health_code = $healthCode
@@ -330,7 +324,7 @@ function Get-PlatformVisualState {
             tunnel_ready = $false
             health_code = if ($operationMode -eq "manual") { "MANUAL_STATE_UNVERIFIED" } else { "SUPERVISOR_STATE_UNAVAILABLE" }
             files_root = [string]$settings.files_root
-            error = if ($operationMode -eq "manual") { "Ручное состояние ещё не подтверждено." } else { "Supervisor state is unavailable." }
+            error = if ($operationMode -eq "manual") { "Ручное состояние ещё не подтверждено." } else { "Состояние автоматической проверки недоступно." }
         }
     }
 
@@ -348,7 +342,7 @@ function Get-PlatformVisualState {
                 tunnel_ready = $false
                 health_code = "SUPERVISOR_STATE_STALE"
                 files_root = [string]$settings.files_root
-                error = "Supervisor state is stale or has no valid observed_at timestamp."
+                error = "Данные автоматической проверки устарели."
             }
         }
     }
@@ -374,11 +368,10 @@ function Get-PlatformVisualState {
         }
     }
 
-    $supervisorState = [string](Get-PropertyValue -Object $snapshot -Name "supervisor_state" -DefaultValue "manual")
-    $healthCode = [string](Get-PropertyValue -Object $snapshot -Name "health_code" -DefaultValue "UNKNOWN")
     $runtimeReady = [bool](Get-PropertyValue -Object $snapshot -Name "runtime_ready" -DefaultValue $false)
     $mcpReady = [bool](Get-PropertyValue -Object $snapshot -Name "mcp_ready" -DefaultValue $false)
     $tunnelReady = [bool](Get-PropertyValue -Object $snapshot -Name "tunnel_local_ready" -DefaultValue $false)
+    $healthCode = [string](Get-PropertyValue -Object $snapshot -Name "health_code" -DefaultValue "UNKNOWN")
 
     if ($desiredState -eq "stopped") {
         $mode = "off"
@@ -396,7 +389,6 @@ function Get-PlatformVisualState {
         profile = $profile
         expected_tool_count = $toolCount
         desired_state = $desiredState
-        supervisor_state = $supervisorState
         runtime_ready = $runtimeReady
         mcp_ready = $mcpReady
         tunnel_ready = $tunnelReady
@@ -416,46 +408,46 @@ $menu = New-Object System.Windows.Forms.ContextMenuStrip
 
 $statusItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $statusItem.Enabled = $false
+
+$modeMenu = New-Object System.Windows.Forms.ToolStripMenuItem
+$modeMenu.Text = "Режим"
+$manualModeItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$manualModeItem.Text = "Ручной"
+$automaticModeItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$automaticModeItem.Text = "Автоматический — проверка раз в 30 мин"
+[void]$modeMenu.DropDownItems.Add($manualModeItem)
+[void]$modeMenu.DropDownItems.Add($automaticModeItem)
+
+$powerItem = New-Object System.Windows.Forms.ToolStripMenuItem
+
+$moreMenu = New-Object System.Windows.Forms.ToolStripMenuItem
+$moreMenu.Text = "Дополнительно"
 $detailsItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $detailsItem.Enabled = $false
 $workspaceItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $workspaceItem.Enabled = $false
 $workspaceItem.Visible = $false
-
-$modeLabelItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$modeLabelItem.Text = "Режим"
-$modeLabelItem.Enabled = $false
-$manualModeItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$manualModeItem.Text = "Ручной"
-$automaticModeItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$automaticModeItem.Text = "Автоматический (проверка раз в 30 минут)"
-
-$toggleItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$toggleItem.Text = "Переключить ВКЛ / ВЫКЛ"
-$startItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$startItem.Text = "Включить"
-$stopItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$stopItem.Text = "Выключить"
 $logItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $logItem.Text = "Открыть журнал"
+[void]$moreMenu.DropDownItems.Add($detailsItem)
+[void]$moreMenu.DropDownItems.Add($workspaceItem)
+[void]$moreMenu.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+[void]$moreMenu.DropDownItems.Add($logItem)
+
 $exitItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $exitItem.Text = "Закрыть индикатор"
 
 [void]$menu.Items.Add($statusItem)
-[void]$menu.Items.Add($detailsItem)
-[void]$menu.Items.Add($workspaceItem)
 [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-[void]$menu.Items.Add($modeLabelItem)
-[void]$menu.Items.Add($manualModeItem)
-[void]$menu.Items.Add($automaticModeItem)
+[void]$menu.Items.Add($modeMenu)
+[void]$menu.Items.Add($powerItem)
 [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-[void]$menu.Items.Add($toggleItem)
-[void]$menu.Items.Add($startItem)
-[void]$menu.Items.Add($stopItem)
-[void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-[void]$menu.Items.Add($logItem)
+[void]$menu.Items.Add($moreMenu)
 [void]$menu.Items.Add($exitItem)
 $notify.ContextMenuStrip = $menu
+
+# Legacy top-level controls intentionally removed from the visible UI:
+# "Переключить ВКЛ / ВЫКЛ", simultaneous "Включить" and "Выключить" entries.
 
 $script:OperationJob = $null
 $script:OperationAction = $null
@@ -473,63 +465,63 @@ function Set-VisualState {
     $operationMode = [string](Get-PropertyValue -Object $State -Name "operation_mode" -DefaultValue (Get-OperationMode))
     $manualModeItem.Checked = ($operationMode -eq "manual")
     $automaticModeItem.Checked = ($operationMode -eq "automatic")
-    $workspaceItem.Visible = $false
+    $modeMenu.Text = if ($operationMode -eq "manual") { "Режим: Ручной" } else { "Режим: Автоматический" }
 
-    $modeText = if ($operationMode -eq "manual") { "Ручной" } else { "Автоматический" }
+    $workspaceItem.Visible = -not [string]::IsNullOrWhiteSpace([string]$State.files_root)
+    if ($workspaceItem.Visible) {
+        $workspaceItem.Text = "Рабочая папка: $($State.files_root)"
+    }
 
     switch ([string]$State.mode) {
         "on" {
             $notify.Icon = $script:GreenIcon
             $notify.Text = "Chat Agent Platform - READY"
-            $statusItem.Text = "🟢 Готово - $($State.profile)"
+            $statusItem.Text = "🟢 Chat Agent Platform включён"
+            $powerItem.Text = "Выключить"
+            $powerItem.Enabled = $true
             if ($null -ne $State.expected_tool_count) {
-                $detailsItem.Text = "$modeText | MCP READY | Tunnel READY | $($State.expected_tool_count) tools"
+                $detailsItem.Text = "Состояние: READY · MCP · Tunnel · $($State.expected_tool_count) tools"
             }
             else {
-                $detailsItem.Text = "$modeText | MCP READY | Tunnel READY"
+                $detailsItem.Text = "Состояние: READY"
             }
-            if (-not [string]::IsNullOrWhiteSpace([string]$State.files_root)) {
-                $workspaceItem.Text = "Workspace: $($State.files_root)"
-                $workspaceItem.Visible = $true
-            }
-            $toggleItem.Enabled = $true
-            $startItem.Enabled = $false
-            $stopItem.Enabled = $true
         }
 
         "off" {
             $notify.Icon = $script:RedIcon
             $notify.Text = "Chat Agent Platform - OFF"
-            $statusItem.Text = "🔴 Выключено"
-            $detailsItem.Text = "$modeText | MCP stopped | Tunnel stopped"
-            $toggleItem.Enabled = $true
-            $startItem.Enabled = $true
-            $stopItem.Enabled = $false
+            $statusItem.Text = "🔴 Chat Agent Platform выключен"
+            $powerItem.Text = "Включить"
+            $powerItem.Enabled = $true
+            $detailsItem.Text = "Состояние: выключено"
         }
 
         "busy" {
             $notify.Icon = $script:YellowIcon
             $notify.Text = "Chat Agent Platform - switching"
             $statusItem.Text = "🟡 Переключение..."
-            $detailsItem.Text = "Ожидание подтверждённого состояния"
-            $toggleItem.Enabled = $false
-            $startItem.Enabled = $false
-            $stopItem.Enabled = $false
+            $powerItem.Text = "Подождите..."
+            $powerItem.Enabled = $false
+            $detailsItem.Text = "Состояние: выполняется операция"
         }
 
         default {
             $notify.Icon = $script:YellowIcon
-            $notify.Text = "Chat Agent Platform - PARTIAL"
-            $statusItem.Text = "🟡 Частично - $($State.profile)"
-            if (-not [string]::IsNullOrWhiteSpace([string]$State.error)) {
-                $detailsItem.Text = "$modeText | $([string]$State.error)"
+            $notify.Text = "Chat Agent Platform - CHECK"
+            $statusItem.Text = "🟡 Chat Agent Platform — требуется проверка"
+            if ([string]$State.desired_state -eq "stopped") {
+                $powerItem.Text = "Включить"
             }
             else {
-                $detailsItem.Text = "$modeText | Health=$($State.health_code) | MCP=$($State.mcp_ready) | Tunnel=$($State.tunnel_ready)"
+                $powerItem.Text = "Выключить"
             }
-            $toggleItem.Enabled = ([string]$State.desired_state -in @("running", "stopped"))
-            $startItem.Enabled = $true
-            $stopItem.Enabled = $true
+            $powerItem.Enabled = ([string]$State.desired_state -in @("running", "stopped"))
+            if (-not [string]::IsNullOrWhiteSpace([string]$State.error)) {
+                $detailsItem.Text = "Состояние: $([string]$State.error)"
+            }
+            else {
+                $detailsItem.Text = "Состояние: $($State.health_code)"
+            }
         }
     }
 }
@@ -543,6 +535,7 @@ function Refresh-VisualState {
             mode = "busy"
             operation_mode = Get-OperationMode
             profile = ""
+            files_root = ""
         })
         return
     }
@@ -559,19 +552,19 @@ function Show-StateBalloon {
     switch ([string]$state.mode) {
         "on" {
             $notify.BalloonTipTitle = "Chat Agent Platform - READY"
-            $notify.BalloonTipText = "$modeText Профиль $($state.profile) готов. MCP READY. Tunnel READY."
+            $notify.BalloonTipText = "$modeText Платформа включена."
         }
         "off" {
             $notify.BalloonTipTitle = "Chat Agent Platform - ВЫКЛ"
-            $notify.BalloonTipText = "$modeText Туннель и локальный MCP остановлены."
+            $notify.BalloonTipText = "$modeText Платформа выключена."
         }
         default {
             $notify.BalloonTipTitle = "Chat Agent Platform"
-            if (-not [string]::IsNullOrWhiteSpace([string]$state.error)) {
-                $notify.BalloonTipText = "$modeText $([string]$state.error)"
+            $notify.BalloonTipText = if (-not [string]::IsNullOrWhiteSpace([string]$state.error)) {
+                "$modeText $([string]$state.error)"
             }
             else {
-                $notify.BalloonTipText = "$modeText Health=$($state.health_code); MCP=$($state.mcp_ready); Tunnel=$($state.tunnel_ready)."
+                "$modeText Состояние: $($state.health_code)."
             }
         }
     }
@@ -602,6 +595,7 @@ function Start-ControllerOperation {
         mode = "busy"
         operation_mode = Get-OperationMode
         profile = ""
+        files_root = ""
     })
 
     $script:OperationAction = $Action
@@ -626,8 +620,7 @@ function Start-ControllerOperation {
             }
         }
 
-    # This timer exists only while an explicit user Start/Stop operation is in
-    # progress. It is stopped during idle operation and is not a health poller.
+    # Runs only while an explicit Start/Stop action is in progress.
     $operationTimer.Start()
 }
 
@@ -643,7 +636,7 @@ function Toggle-Platform {
     }
 
     $notify.BalloonTipTitle = "Chat Agent Platform"
-    $notify.BalloonTipText = "Не удалось определить желаемое состояние. Используйте Включить или Выключить."
+    $notify.BalloonTipText = "Не удалось определить текущее состояние."
     $notify.ShowBalloonTip(3000)
 }
 
@@ -659,13 +652,12 @@ function Set-PlatformOperationMode {
         $script:OperationJob.State -eq "Running"
     ) {
         $notify.BalloonTipTitle = "Chat Agent Platform"
-        $notify.BalloonTipText = "Дождитесь завершения текущего включения или выключения."
+        $notify.BalloonTipText = "Дождитесь завершения текущей операции."
         $notify.ShowBalloonTip(2500)
         return
     }
 
-    $current = Get-OperationMode
-    if ($current -eq $Mode) {
+    if ((Get-OperationMode) -eq $Mode) {
         return
     }
 
@@ -691,7 +683,7 @@ function Set-PlatformOperationMode {
     else {
         Save-OperationMode -Mode "automatic"
         try {
-            $task = Get-ScheduledTask -TaskName $SupervisorTaskName -ErrorAction Stop
+            Get-ScheduledTask -TaskName $SupervisorTaskName -ErrorAction Stop | Out-Null
             Start-ScheduledTask -TaskName $SupervisorTaskName -ErrorAction Stop
         }
         catch {
@@ -706,7 +698,7 @@ function Set-PlatformOperationMode {
         "Ручной режим включён. Фоновый supervisor остановлен."
     }
     else {
-        "Автоматический режим включён. Проверка выполняется раз в 30 минут."
+        "Автоматический режим включён. Проверка раз в 30 минут."
     }
     $notify.ShowBalloonTip(3000)
 }
@@ -716,18 +708,13 @@ $operationTimer.add_Tick({
         $operationTimer.Stop()
         return
     }
-
     if ($script:OperationJob.State -notin @("Completed", "Failed", "Stopped")) {
         return
     }
 
     $operationTimer.Stop()
     $failed = ($script:OperationJob.State -ne "Completed")
-    $reason = $null
-
-    if ($failed) {
-        $reason = $script:OperationJob.ChildJobs[0].JobStateInfo.Reason
-    }
+    $reason = if ($failed) { $script:OperationJob.ChildJobs[0].JobStateInfo.Reason } else { $null }
 
     try {
         Receive-Job $script:OperationJob -ErrorAction Stop | Out-Null
@@ -748,15 +735,9 @@ $operationTimer.add_Tick({
     $script:OperationAction = $null
 
     Refresh-VisualState
-
     if ($failed) {
         $notify.BalloonTipTitle = "Chat Agent Platform - ошибка"
-        if ($reason) {
-            $notify.BalloonTipText = $reason.Message
-        }
-        else {
-            $notify.BalloonTipText = "Операция завершилась с ошибкой."
-        }
+        $notify.BalloonTipText = if ($reason) { $reason.Message } else { "Операция завершилась с ошибкой." }
         $notify.ShowBalloonTip(3500)
     }
     else {
@@ -764,11 +745,8 @@ $operationTimer.add_Tick({
     }
 })
 
-$toggleHandler = { Toggle-Platform }
-$notify.add_DoubleClick($toggleHandler)
-$toggleItem.add_Click($toggleHandler)
-$startItem.add_Click({ Start-ControllerOperation -Action Start })
-$stopItem.add_Click({ Start-ControllerOperation -Action Stop })
+$powerItem.add_Click({ Toggle-Platform })
+$notify.add_DoubleClick({ Toggle-Platform })
 $manualModeItem.add_Click({
     try { Set-PlatformOperationMode -Mode "manual" }
     catch {
@@ -785,15 +763,13 @@ $automaticModeItem.add_Click({
         $notify.ShowBalloonTip(3500)
     }
 })
-
 $logItem.add_Click({
     if (Test-Path -LiteralPath $ControllerLog -PathType Leaf) {
         Start-Process -FilePath "notepad.exe" -ArgumentList "`"$ControllerLog`""
     }
 })
 
-# FileSystemWatcher is the idle observation mechanism. Windows wakes the tray
-# only when relevant state files change; there is no periodic 2-second refresh.
+# Idle observation is event-driven. There is no periodic health/status timer.
 $uiHost = New-Object System.Windows.Forms.Form
 $uiHost.ShowInTaskbar = $false
 $uiHost.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedToolWindow
@@ -867,6 +843,6 @@ $exitItem.add_Click({
 
 Refresh-VisualState
 $notify.BalloonTipTitle = "Chat Agent Platform"
-$notify.BalloonTipText = "Индикатор запущен. Режим можно выбрать в меню значка."
-$notify.ShowBalloonTip(2500)
+$notify.BalloonTipText = "Индикатор запущен."
+$notify.ShowBalloonTip(2000)
 [System.Windows.Forms.Application]::Run()
