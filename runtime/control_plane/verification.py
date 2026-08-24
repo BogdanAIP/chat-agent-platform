@@ -3,7 +3,17 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from math import isfinite
+from types import MappingProxyType
 from typing import Any
+
+
+_MAX_NORMALIZED_DEPTH = 12
+_MAX_NORMALIZED_NODES = 4096
+_MAX_COLLECTION_ITEMS = 1024
+_MAX_STRING_CHARS = 65536
+_MAX_KEY_CHARS = 256
+_MAX_ID_CHARS = 512
 
 
 class VerificationStatus(StrEnum):
@@ -24,15 +34,102 @@ class FinishStatus(StrEnum):
     UNKNOWN = "unknown"
 
 
+def _require_text(value: Any, *, name: str, max_chars: int = _MAX_ID_CHARS) -> str:
+    if type(value) is not str:
+        raise TypeError(f"{name} must be a string")
+    if not value.strip():
+        raise ValueError(f"{name} must be non-empty")
+    if len(value) > max_chars:
+        raise ValueError(f"{name} exceeds {max_chars} characters")
+    return value
+
+
+def _freeze_normalized(
+    value: Any,
+    *,
+    name: str,
+    depth: int = 0,
+    budget: list[int] | None = None,
+) -> Any:
+    """Validate and freeze bounded JSON-like evidence/predicate data.
+
+    Only plain builtins are accepted.  This keeps verification evaluation free
+    from user-defined ``__eq__``/mapping behavior and prevents callers from
+    mutating an observation payload after the snapshot is constructed.
+    """
+
+    if budget is None:
+        budget = [0]
+    budget[0] += 1
+    if budget[0] > _MAX_NORMALIZED_NODES:
+        raise ValueError(f"{name} exceeds {_MAX_NORMALIZED_NODES} normalized nodes")
+    if depth > _MAX_NORMALIZED_DEPTH:
+        raise ValueError(f"{name} exceeds normalized depth {_MAX_NORMALIZED_DEPTH}")
+
+    value_type = type(value)
+    if value is None or value_type is bool or value_type is int:
+        return value
+    if value_type is float:
+        if not isfinite(value):
+            raise ValueError(f"{name} contains a non-finite float")
+        return value
+    if value_type is str:
+        if len(value) > _MAX_STRING_CHARS:
+            raise ValueError(f"{name} contains a string longer than {_MAX_STRING_CHARS} characters")
+        return value
+    if value_type is list:
+        if len(value) > _MAX_COLLECTION_ITEMS:
+            raise ValueError(f"{name} list exceeds {_MAX_COLLECTION_ITEMS} items")
+        return tuple(
+            _freeze_normalized(item, name=name, depth=depth + 1, budget=budget)
+            for item in value
+        )
+    if value_type is dict:
+        if len(value) > _MAX_COLLECTION_ITEMS:
+            raise ValueError(f"{name} mapping exceeds {_MAX_COLLECTION_ITEMS} items")
+        frozen: dict[str, Any] = {}
+        for key, item in value.items():
+            if type(key) is not str:
+                raise TypeError(f"{name} mapping keys must be strings")
+            if not key:
+                raise ValueError(f"{name} mapping keys must be non-empty")
+            if len(key) > _MAX_KEY_CHARS:
+                raise ValueError(f"{name} mapping key exceeds {_MAX_KEY_CHARS} characters")
+            frozen[key] = _freeze_normalized(
+                item,
+                name=name,
+                depth=depth + 1,
+                budget=budget,
+            )
+        return MappingProxyType(frozen)
+    raise TypeError(f"{name} must contain only plain JSON-like values")
+
+
+def _thaw_normalized(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _thaw_normalized(item) for key, item in value.items()}
+    if type(value) is tuple:
+        return [_thaw_normalized(item) for item in value]
+    return value
+
+
+def _normalized_equal(left: Any, right: Any) -> bool:
+    if isinstance(left, Mapping) or isinstance(right, Mapping):
+        if not isinstance(left, Mapping) or not isinstance(right, Mapping):
+            return False
+        if tuple(left.keys()) != tuple(right.keys()):
+            return False
+        return all(_normalized_equal(left[key], right[key]) for key in left)
+    if type(left) is tuple or type(right) is tuple:
+        if type(left) is not tuple or type(right) is not tuple or len(left) != len(right):
+            return False
+        return all(_normalized_equal(a, b) for a, b in zip(left, right, strict=True))
+    return type(left) is type(right) and left == right
+
+
 @dataclass(frozen=True, slots=True)
 class ObservationRef:
-    """Stable reference to one concrete capability observation stream.
-
-    ``stream_id`` binds sequence numbers to one adapter/session-owned stream.
-    ``sequence`` must increase for every fresh observation of the same subject
-    inside that stream.  This is deliberately preferred over wall-clock
-    freshness so verification does not depend on clock skew.
-    """
+    """Stable reference to one concrete capability observation stream."""
 
     capability: str
     subject: str
@@ -42,16 +139,14 @@ class ObservationRef:
     observed_at: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.capability or not self.capability.strip():
-            raise ValueError("observation capability must be non-empty")
-        if not self.subject or not self.subject.strip():
-            raise ValueError("observation subject must be non-empty")
-        if not self.stream_id or not self.stream_id.strip():
-            raise ValueError("observation stream_id must be non-empty")
+        _require_text(self.capability, name="observation capability")
+        _require_text(self.subject, name="observation subject")
+        _require_text(self.stream_id, name="observation stream_id")
+        _require_text(self.fingerprint, name="observation fingerprint", max_chars=2048)
         if type(self.sequence) is not int or self.sequence < 0:
             raise ValueError("observation sequence must be a non-negative integer")
-        if not self.fingerprint or not self.fingerprint.strip():
-            raise ValueError("observation fingerprint must be non-empty")
+        if self.observed_at is not None:
+            _require_text(self.observed_at, name="observed_at", max_chars=256)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -66,12 +161,7 @@ class ObservationRef:
 
 @dataclass(frozen=True, slots=True)
 class ObservationSnapshot:
-    """Normalized current-state evidence supplied by a capability adapter.
-
-    The kernel never obtains authority from ``state`` contents.  Capability
-    adapters decide what state is safe/truthful to expose and whether it is a
-    complete observation for the requested subject.
-    """
+    """Bounded immutable normalized state supplied by a capability adapter."""
 
     ref: ObservationRef
     state: Mapping[str, Any]
@@ -81,10 +171,15 @@ class ObservationSnapshot:
     def __post_init__(self) -> None:
         if not isinstance(self.ref, ObservationRef):
             raise TypeError("observation ref must be ObservationRef")
-        if not isinstance(self.state, Mapping):
-            raise TypeError("observation state must be a mapping")
+        if type(self.state) is not dict:
+            raise TypeError("observation state must be a plain dict")
         if type(self.complete) is not bool or type(self.ambiguous) is not bool:
             raise TypeError("observation complete/ambiguous flags must be bool")
+        object.__setattr__(
+            self,
+            "state",
+            _freeze_normalized(self.state, name="observation state"),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,12 +189,21 @@ class StatePredicate:
     expected: Any = None
 
     def __post_init__(self) -> None:
-        if not self.path or any(not isinstance(part, str) or not part for part in self.path):
-            raise ValueError("predicate path must contain non-empty string components")
+        if type(self.path) is not tuple or not self.path:
+            raise ValueError("predicate path must be a non-empty tuple")
+        if any(type(part) is not str or not part or len(part) > _MAX_KEY_CHARS for part in self.path):
+            raise ValueError("predicate path must contain bounded non-empty string components")
         if not isinstance(self.operator, PredicateOperator):
             raise TypeError("predicate operator must be PredicateOperator")
-        if self.operator in {PredicateOperator.PRESENT, PredicateOperator.ABSENT} and self.expected is not None:
-            raise ValueError("present/absent predicates do not accept an expected value")
+        if self.operator in {PredicateOperator.PRESENT, PredicateOperator.ABSENT}:
+            if self.expected is not None:
+                raise ValueError("present/absent predicates do not accept an expected value")
+        else:
+            object.__setattr__(
+                self,
+                "expected",
+                _freeze_normalized(self.expected, name="predicate expected value"),
+            )
 
     @classmethod
     def equals(cls, *path: str, expected: Any) -> StatePredicate:
@@ -122,12 +226,11 @@ class ExpectedEffect:
     require_unambiguous: bool = True
 
     def __post_init__(self) -> None:
-        if not self.effect_id or not self.effect_id.strip():
-            raise ValueError("effect_id must be non-empty")
+        _require_text(self.effect_id, name="effect_id")
         if not isinstance(self.before, ObservationRef):
             raise TypeError("ExpectedEffect before must be ObservationRef")
-        if not self.predicates:
-            raise ValueError("ExpectedEffect requires at least one predicate")
+        if type(self.predicates) is not tuple or not self.predicates:
+            raise ValueError("ExpectedEffect requires a non-empty predicate tuple")
         if any(not isinstance(item, StatePredicate) for item in self.predicates):
             raise TypeError("ExpectedEffect predicates must be StatePredicate instances")
         if type(self.require_unambiguous) is not bool:
@@ -148,8 +251,8 @@ class PredicateResult:
             "path": list(self.path),
             "operator": self.operator.value,
             "status": self.status.value,
-            "expected": self.expected,
-            "observed": self.observed,
+            "expected": _thaw_normalized(self.expected),
+            "observed": _thaw_normalized(self.observed),
             "reason": self.reason,
         }
 
@@ -163,14 +266,14 @@ class VerificationResult:
     predicate_results: tuple[PredicateResult, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.effect_id or not self.effect_id.strip():
-            raise ValueError("verification result effect_id must be non-empty")
+        _require_text(self.effect_id, name="verification result effect_id")
         if not isinstance(self.status, VerificationStatus):
             raise TypeError("verification result status must be VerificationStatus")
-        if not self.reason or not self.reason.strip():
-            raise ValueError("verification result reason must be non-empty")
+        _require_text(self.reason, name="verification result reason")
         if self.observation is not None and not isinstance(self.observation, ObservationRef):
             raise TypeError("verification result observation must be ObservationRef or None")
+        if type(self.predicate_results) is not tuple:
+            raise TypeError("verification result predicate_results must be a tuple")
         if any(not isinstance(item, PredicateResult) for item in self.predicate_results):
             raise TypeError("verification result predicate_results must contain PredicateResult")
 
@@ -236,7 +339,7 @@ def _evaluate_predicate(predicate: StatePredicate, snapshot: ObservationSnapshot
                 observed=None,
                 reason="field_missing" if snapshot.complete else "field_not_observed",
             )
-        if observed == predicate.expected:
+        if _normalized_equal(observed, predicate.expected):
             return PredicateResult(
                 path=predicate.path,
                 operator=predicate.operator,
@@ -299,6 +402,8 @@ def combine_statuses(
     *,
     empty: VerificationStatus = VerificationStatus.UNKNOWN,
 ) -> VerificationStatus:
+    if not isinstance(empty, VerificationStatus):
+        raise TypeError("empty must be VerificationStatus")
     if not statuses:
         return empty
     if any(not isinstance(item, VerificationStatus) for item in statuses):
@@ -311,12 +416,12 @@ def combine_statuses(
 
 
 def verify_expected_effect(effect: ExpectedEffect, after: ObservationSnapshot) -> VerificationResult:
-    """Verify one effect against a fresh observation, without authorizing action.
+    """Verify one effect against a fresh observation, without authorizing action."""
 
-    Stream/capability/subject mismatch, stale observation sequence, ambiguity, or
-    incomplete required evidence yields ``UNKNOWN`` rather than guessing.
-    """
-
+    if not isinstance(effect, ExpectedEffect):
+        raise TypeError("effect must be ExpectedEffect")
+    if not isinstance(after, ObservationSnapshot):
+        raise TypeError("after must be ObservationSnapshot")
     if after.ref.capability != effect.before.capability:
         return VerificationResult(
             effect_id=effect.effect_id,
@@ -380,12 +485,28 @@ def aggregate_results(
     return combine_statuses(tuple(item.status for item in results), empty=empty)
 
 
-def _optional_dimension_status(results: Sequence[VerificationResult] | None) -> VerificationStatus:
-    """None means the task declares no such dimension; empty means evidence is missing."""
+def _evidence_bound_status(
+    results: Sequence[VerificationResult],
+    *,
+    empty: VerificationStatus,
+) -> VerificationStatus:
+    if not results:
+        return empty
+    if any(not isinstance(item, VerificationResult) for item in results):
+        raise TypeError("finish-gate results must contain VerificationResult values")
+    if any(item.observation is None for item in results):
+        return VerificationStatus.UNKNOWN
+    return aggregate_results(results, empty=empty)
+
+
+def _optional_dimension_status(
+    results: Sequence[VerificationResult] | None,
+) -> VerificationStatus:
+    """None = not declared; empty sequence = declared but evidence missing."""
 
     if results is None:
         return VerificationStatus.PASS
-    return aggregate_results(results, empty=VerificationStatus.UNKNOWN)
+    return _evidence_bound_status(results, empty=VerificationStatus.UNKNOWN)
 
 
 def evaluate_finish_gate(
@@ -397,27 +518,23 @@ def evaluate_finish_gate(
     freshness_results: Sequence[VerificationResult] | None = None,
     unresolved: Sequence[str] = (),
 ) -> FinishGateResult:
-    """Independently decide task completion from fresh verification evidence.
-
-    ``candidate_done`` is only a planner proposal.  Goal and safety evidence are
-    always required.  For constraint/freshness dimensions, ``None`` explicitly
-    means the task declares no such dimension, while an empty sequence means the
-    dimension exists but has no evidence and therefore remains ``UNKNOWN``.
-
-    Task-success, unresolved completion requirements and safety remain distinct
-    outputs/gates even when they deny final completion together.
-    """
+    """Independently decide task completion from evidence-bound verification."""
 
     if type(candidate_done) is not bool:
         raise TypeError("candidate_done must be bool")
+    if any(type(item) is not str for item in unresolved):
+        raise TypeError("unresolved completion requirements must be strings")
+    if any(not item.strip() for item in unresolved):
+        raise ValueError("unresolved completion requirements must be non-empty")
+    if len(set(unresolved)) != len(unresolved):
+        raise ValueError("unresolved completion requirements must be unique")
 
-    goals = aggregate_results(goal_results, empty=VerificationStatus.UNKNOWN)
+    goals = _evidence_bound_status(goal_results, empty=VerificationStatus.UNKNOWN)
     constraints = _optional_dimension_status(constraint_results)
     freshness = _optional_dimension_status(freshness_results)
-    safety = aggregate_results(safety_results, empty=VerificationStatus.UNKNOWN)
+    safety = _evidence_bound_status(safety_results, empty=VerificationStatus.UNKNOWN)
     task_success = combine_statuses((goals, constraints, freshness))
-
-    normalized_unresolved = tuple(str(item) for item in unresolved if str(item))
+    normalized_unresolved = tuple(unresolved)
 
     if not candidate_done:
         status = FinishStatus.NOT_DONE
