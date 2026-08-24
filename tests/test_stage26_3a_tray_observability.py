@@ -14,20 +14,21 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn("stage26-3a-procedure-direct-health.url", SOURCE)
         self.assertIn("desired-state.json", SOURCE)
 
-    def test_qualification_ready_requires_handoff_suspend_process_and_health(self):
+    def test_qualification_ready_requires_serialized_handoff_suspend_receipt_and_health(self):
         self.assertIn('[string]$handoff.phase -eq "running"', SOURCE)
         self.assertIn('[string]$desired.desired_state -eq "stopped"', SOURCE)
-        self.assertIn("$running = ($null -ne $process)", SOURCE)
+        self.assertIn("$directReceiptPresent", SOURCE)
         self.assertIn("$ready = Test-QualificationReady", SOURCE)
         self.assertIn(
-            "$fullyReady = ($handoffRunning -and $normalSuspended -and $running -and $ready)",
+            "$fullyReady = ($handoffRunning -and $normalSuspended -and $directReceiptPresent -and $ready)",
             SOURCE,
         )
 
-    def test_qualification_process_identity_is_not_pid_only(self):
-        self.assertIn('Win32_Process -Filter "ProcessId = $pidValue"', SOURCE)
-        self.assertIn('[string]$process.Name -ne "tunnel-client.exe"', SOURCE)
-        self.assertIn("[regex]::Escape($QualificationHealthUrlFile)", SOURCE)
+    def test_tray_does_not_reconstruct_process_ownership(self):
+        self.assertNotIn("Win32_Process", SOURCE)
+        self.assertNotIn("Get-CimInstance", SOURCE)
+        self.assertNotIn("Get-Process", SOURCE)
+        self.assertNotIn("server.pid", SOURCE)
 
     def test_health_probe_is_loopback_only(self):
         self.assertIn("'^https?://127\\.0\\.0\\.1(?::\\d+)?$'", SOURCE)
@@ -39,8 +40,8 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn('mode = if ($fullyReady) { "qualification" } else { "partial" }', SOURCE)
         self.assertIn('expected_tool_count = 6', SOURCE)
         self.assertIn('route_owner = "qualification"', SOURCE)
-        self.assertIn('"🔵 Qualification — 6 tools READY"', SOURCE)
-        self.assertIn('"MCP READY · Tunnel READY · owner=qualification"', SOURCE)
+        self.assertIn('"🔵 Qualification - 6 tools READY"', SOURCE)
+        self.assertIn('"MCP READY | Tunnel READY | owner=qualification"', SOURCE)
 
     def test_normal_controls_are_locked_while_qualification_owns_route(self):
         qualification_start = SOURCE.index('"qualification" {')
