@@ -6,147 +6,137 @@ This file is intentionally compact. Resolve live GitHub state before acting beca
 
 `BogdanAIP/chat-agent-platform`
 
-## Current integration snapshot — 2026-08-23
+## Accepted foundation
 
-Transport Supervisor v1 was accepted and merged as PR #94. The current procedure-runtime branch has been integrated on top of that accepted foundation without force-push.
+Transport Supervisor v1 was physically accepted and merged as PR #94.
 
 ```text
 accepted main foundation after #94:
 2f33997d3fbaa1fc52d437c00be7f16e55bdde5e
-
-exact hosted-qualified procedure code head:
-e4507dbe6dc07e182313769ebe833dd1e6801572
 ```
 
-All ten pull-request-triggered hosted workflows were green on `e4507dbe6dc07e182313769ebe833dd1e6801572`, including `ci`, the dedicated procedure qualification workflow, Direct Semantic Tunnel Acceptance, semantic/profile regressions, CodeQL and Secret History Scan.
+Stages through 26.2E are accepted only for their exact recorded physical heads/evidence. Exact locators remain in `EVIDENCE_INDEX.md`.
 
-Documentation commits after that exact code head do not themselves constitute new physical evidence. Before any physical qualification, resolve the live PR #92 head and require the intended exact SHA.
+Stage 26.3A is **not physically accepted yet**.
 
-The procedure-runtime candidate is **not physically accepted yet**. Remaining physical gates:
+## Active work
 
-1. exact-head target-Windows direct-tunnel qualification;
-2. ordinary ChatGPT one-goal E2E with no intermediate PowerShell copy/paste;
-3. independent final artifact verification through `workspace_read`;
-4. incompatible/pre-existing state -> structured ABSTAIN with zero unauthorized continuation/overwrite.
+PR #92 — Stage 26.3A Verified Procedure Runtime / deterministic Control Plane.
+
+Always resolve the live PR #92 head and its checks before physical qualification. Do not reuse an older hosted SHA from historical comments merely because it was once green.
+
+### Current architectural decision — six tools, one semantic mode
+
+The current candidate ordinary `semantic` profile exposes exactly:
+
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+procedure_run
+```
+
+This is the only current public semantic contract.
+
+There is **no runtime/profile/tray selection between five and six tools**.
+
+The old separate `procedure-qualification` profile/projection/direct-tunnel handoff was removed. The public semantic launcher always routes through the canonical six-tool Control Plane projection.
+
+A private five-capability file/browser implementation may exist behind the canonical projection as an implementation layer only. It is not user-selectable, not Chat-facing and not an alternative public profile.
+
+The ordinary semantic startup guard must refuse READY unless live `tools/list` is exactly the six canonical names.
+
+The tray has one normal semantic READY state; there is no qualification color/state.
+
+### Current deterministic procedure
+
+The first registered procedure is intentionally narrow:
+
+```text
+verified_workspace_artifact_v1
+```
+
+It accepts only a bounded leaf `.txt` name, bounded UTF-8 content and optional compatible resume task id. It writes only below:
+
+```text
+.chat-agent-platform/stage26-3a/
+```
+
+It has a fixed three-action verified transition budget and must ABSTAIN rather than overwrite a pre-existing protected target or guess through incompatible state.
+
+`procedure_run` is not generic code execution and must not expose arbitrary shell, Python, path, backend, server, raw tool or working-directory arguments.
 
 ## Operating rules
 
 - Use ordinary ChatGPT + GitHub + the project's local/connected tools.
-- Do **not** use Codex or ChatGPT Work resources unless the user explicitly re-enables them.
-- Ordinary ChatGPT is the **only current general planner/intelligence**.
-- A **deterministic local execution Control Plane is part of the target architecture**; it is not a second planner.
-- The Control Plane owns TaskState, selected ProgramGraph progression, authorization, checkpoints, verifier/postconditions, bounded recovery and resource budgets.
+- Do not use Codex or ChatGPT Work resources unless the user explicitly requests them.
+- Ordinary ChatGPT is the only current general planner/intelligence.
+- The deterministic local Control Plane is an execution/verification component, not a second planner.
+- The Control Plane owns TaskState, known ProgramGraph progression, authorization, checkpoints, verifiers/postconditions, bounded recovery and budgets.
 - A known selected procedure may advance through several independently authorized/verified transitions without returning to ChatGPT after every low-level action.
-- Novel strategy, stale/ambiguous/UNKNOWN/incompatible state -> ABSTAIN/escalate to ChatGPT.
-- Current normal public semantic tools remain exactly `workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`; the isolated qualification profile adds `procedure_run` without changing that normal inventory.
-- Model/procedure/planner/observation output is evidence/proposal, never authorization by itself.
+- Novel strategy or stale/ambiguous/UNKNOWN/incompatible state -> ABSTAIN/escalate to ChatGPT.
 - Current state outranks remembered/history state.
 - Delivery is not completion; explicit verification controls completion.
 - Generic Windows code execution remains disabled/unreachable.
+- Model/procedure/planner/observation output is evidence/proposal, never authorization by itself.
 - When a branch is logically complete, intended diff is reviewed, required physical/CI gates pass and no unresolved issue remains, merge it without waiting for a separate merge command.
 
 Canonical architecture distinction: `project-context/CONTROL_PLANE.md`.
 
-## Accepted Windows integration through Stage 26.2E
+## Installed-runtime requirement
 
-Stages through 26.2D were merged as PRs #83–#90. Stage 26.2E is physically accepted on PR #91.
-
-Exact physically accepted Stage 26.2E runtime/qualification head:
-
-`457db0b634f2e47f53d41e359a238840fa3ca2ee`
-
-Physical result directory:
-
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448`
-
-Accepted evidence includes:
+The installed normal semantic bundle must contain the canonical six-tool projection and deterministic Control Plane closure, including:
 
 ```text
-WINDOW_BINDING_PASS=True
-DESKTOP_OBSERVATION_PASS=True
-FOCUSED_EDITOR_PRECONDITION_PASS=True
-FOCUSED_EDITOR_ROLE=textbox
-FRESH_PRE_ACTION_STATE_PASS=True
-NATIVE_POINT_GUARD_PASS=True
-KEYBOARD_FOCUS_GUARD_MODE=window_scoped_focused_observation_fingerprint
-KEYBOARD_FOCUS_GUARD_ARMED_PASS=True
-KEYBOARD_FOCUS_GUARD_PASS=True
-MISMATCH_PROBE_VERIFICATION_STATUS=fail
-MISMATCH_PROBE_DECISION=abstain
-MISMATCH_PROBE_ZERO_ACTION_PASS=True
-GUARDED_KEYBOARD_DELIVERY_PASS=True
-KEYBOARD_ACTION_COUNT=1
-COMPLETION_VERIFICATION_STATUS=pass
-COMPLETION_VERIFICATION_PASS=True
-CURRENT_STATE_VERIFICATION_PASS=True
-WORKSPACE_EXPECTED_ONLY_PASS=True
-KEYBOARD_FOCUS_GUARD_ARMS=1
-KEYBOARD_FOCUS_GUARD_CALLS=1
-KEYBOARD_FOCUS_GUARD_PASSES=1
-KEYBOARD_FOCUS_GUARD_FAILURES=0
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-CLEANUP_REVALIDATION_PASS=True
-APPLICATION_CLEANUP_PASS=True
-CLI_PROCESS_RETURNCODE=0
-CLI_PROCESS_EXIT_PASS=True
-FORCED_CLI_CLEANUP=False
-APP_ROOT_CLEANUP_PASS=True
-ROLLBACK_PASS=True
-STAGE26_2E_REAL_APPLICATION_E2E_RESULT=PASSED
-QUALIFICATION_EXIT_CODE=0
+semantic-projection-launcher.mjs
+semantic-control-plane-projection.mjs
+semantic-projection.mjs
+runtime/control_plane/cli.py
+runtime/control_plane/verified_workspace_artifact.py
 ```
 
-The accepted real-app finding is that Monaco's real keyboard target may be an intentionally hidden/zero-size accessibility `textbox`. The production path separates exact semantic focus identity from top-level foreground/window geometry and rechecks the exact hidden focused fingerprint inside the guarded request.
-
-One successful VS Code task is not broad desktop accuracy.
-
-## Accepted Transport Supervisor v1 foundation
-
-PR #94 is merged into `main`. Accepted physical evidence includes owned-tunnel kill recovery, external network disconnect/reconnect, Modern Standby sleep/resume, reboot/logon, fresh ordinary-Chat post-reboot semantic E2E, idle resource/recovery latency, console-free Scheduled Task launch and persistent desired-state/runtime-owner separation.
-
-The normal Windows lifecycle therefore now includes persistent user desired state, a single console-free supervisor process, bounded recovery and direct semantic route health. Exact physical SHAs/result locators remain in `EVIDENCE_INDEX.md` and transport evidence documents.
-
-## Active work
-
-**Stage 26.3 — Verified Procedure Runtime / deterministic Control Plane integration**
-
-The immediate candidate is Stage 26.3A `verified_workspace_artifact_v1`, exposed only through the separate `procedure-qualification` profile as `procedure_run`. The normal semantic profile remains five canonical tools.
-
-Target flow:
+Installation metadata records:
 
 ```text
-user states one goal once
- -> ordinary ChatGPT chooses an applicable bounded known procedure + parameters
- -> local deterministic Control Plane
-      loads ProgramGraph
-      binds TaskState/checkpoint
-      observes current state
-      resolves exactly one permitted known transition
-      authorizes the action
-      executes a typed/scoped capability
-      re-observes
-      verifies the postcondition
-      checkpoints and advances
-      repeats while state remains known/permitted and budgets allow
- -> verified completion
-    OR deterministic ABSTAIN/escalation
+semantic_public_tool_count = 6
 ```
 
-First physical Stage 26.3 acceptance requires:
+The public bootstrap is one entrypoint, internally modularized for tunnel, manager/runtime bundle and lifecycle verification.
+
+## Remaining Stage 26.3A physical gates
+
+After all hosted workflows are green on one exact PR head:
+
+1. install/update that exact head on the target Windows machine;
+2. start the **normal** semantic route — no temporary qualification route;
+3. verify the tray reports normal READY and live inventory is exactly six tools;
+4. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
+5. actual `procedure_run` success through `verified_workspace_artifact_v1`;
+6. independent `workspace_read` of the final nested artifact;
+7. negative pre-existing-target case -> structured ABSTAIN and zero overwrite;
+8. independent read proves protected content unchanged;
+9. capture exact head/status/evidence in PR/docs before acceptance.
+
+A manual `workspace_write` fallback can demonstrate resilience but does **not** count as `procedure_run` physical PASS.
+
+## First physical test shape
+
+Use a natural ordinary-Chat task, not a rigid tool-call script. The agent should be able to use local notes plus a real public website and meaningful browser interaction, recover from isolated failures and create the final bounded artifact through `procedure_run`.
+
+The current preferred research-style test uses a real public site such as arXiv so `web_open`, `web_observe` and `web_interact` are exercised through actual search/click/navigation rather than `example.com`/`httpbin` fixtures.
+
+Expected natural chain:
 
 ```text
-ONE user goal
- -> NO intermediate PowerShell copy/paste
- -> multiple independently authorized + verified transitions
- -> independent final postcondition
- -> evidence returned to Chat
+workspace_read challenge
+ -> real web research/search/click/observe
+ -> workspace_write evolving notes
+ -> reread notes / revise plan
+ -> procedure_run final verified artifact
+ -> independent workspace_read final artifact
 ```
-
-Negative acceptance must prove stale/unexpected/ambiguous or pre-existing incompatible state causes zero unauthorized continuation and an explicit escalation reason.
-
-Do **not** replace 26.3 with a local general LLM planner. 26.3 is deterministic local execution around ProgramGraph/live state/authorization/verifier. A true local general planner remains optional future Track P.
 
 ## Stage order
 
@@ -154,7 +144,7 @@ Do **not** replace 26.3 with a local general LLM planner. 26.3 is deterministic 
 26.2E real application E2E — ACCEPTED
  -> Transport Supervisor v1 — ACCEPTED / MERGED #94
  -> 26.3 Verified Procedure Runtime / deterministic Control Plane — ACTIVE
-    -> 26.3A hosted qualification — GREEN; physical one-goal gate NEXT
+    -> 26.3A canonical six-tool semantic runtime — hosted gate in progress; physical gate next
     -> 26.3B advanced verifier/postconditions
     -> checkpoint/recovery/budget mechanics as required
  -> 26.4 Human Demo -> transferable verified candidate skill
@@ -162,23 +152,11 @@ Do **not** replace 26.3 with a local general LLM planner. 26.3 is deterministic 
  -> 28 clean-user E2E/stable release
 ```
 
-## Future local planner
-
-Track P remains future optional research after verified procedure-state data and measured need exist:
-
-```text
-P0 shadow/proposal-only
- -> P1 bounded subtask planner
- -> P2 optional local general-planner mode
-```
-
-Even then it stays above the same deterministic authorization/verifier boundary.
-
 ## Fresh-chat startup procedure
 
 1. Resolve live `main`, PR #92 head and current checks.
-2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md`, `EVIDENCE_INDEX.md` and the active Stage 26.3A notes/contracts.
+2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md`, `EVIDENCE_INDEX.md`, `STAGE26_3A_IMPLEMENTATION_NOTES.md` and `STAGE26_3A_PROCEDURE_RUN_SURFACE.md`.
 3. Treat Stage 26.2E and Transport Supervisor evidence as accepted only for their exact recorded physical heads.
-4. Treat `e4507dbe6dc07e182313769ebe833dd1e6801572` as the exact hosted-qualified Stage 26.3A code head after integration with #94; do not infer physical acceptance from it.
+4. Treat hosted CI as software-contract evidence only; do not infer physical ordinary-Chat acceptance from it.
 5. Prefer exact code/tests/current CI/physical evidence over prose.
-6. Continue the current Stage 26.3A physical qualification instead of restarting architecture discussion.
+6. Continue the current normal six-tool semantic physical qualification; do not recreate a separate five-versus-six qualification mode.
