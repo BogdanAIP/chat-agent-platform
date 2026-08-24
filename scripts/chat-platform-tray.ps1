@@ -59,6 +59,7 @@ $DesiredStateFile = Join-Path $StateDir "desired-state.json"
 $SettingsFile = Join-Path $StateDir "settings.json"
 $OperationModeFile = Join-Path $StateDir "operation-mode.json"
 $ManualStatusFile = Join-Path $StateDir "manual-status.json"
+$ManagerOwnerFile = Join-Path $StateDir "manager-owner.json"
 $ControllerLog = Join-Path $LocalRoot "logs\controller.log"
 $SupervisorTaskName = "Chat Agent Platform Transport Supervisor"
 $AutomaticSnapshotFreshnessSeconds = 2100
@@ -160,6 +161,43 @@ function Get-PropertyValue {
     return $property.Value
 }
 
+function ConvertTo-UtcDateTimeOffset {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    try {
+        if ($Value -is [datetimeoffset]) {
+            return ([datetimeoffset]$Value).ToUniversalTime()
+        }
+        if ($Value -is [datetime]) {
+            $date = [datetime]$Value
+            if ($date.Kind -eq [DateTimeKind]::Unspecified) {
+                $date = [datetime]::SpecifyKind($date, [DateTimeKind]::Utc)
+            }
+            else {
+                $date = $date.ToUniversalTime()
+            }
+            return ([datetimeoffset]$date).ToUniversalTime()
+        }
+
+        $text = [string]$Value
+        if ([string]::IsNullOrWhiteSpace($text)) {
+            return $null
+        }
+        return [datetimeoffset]::Parse(
+            $text,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind
+        ).ToUniversalTime()
+    }
+    catch {
+        return $null
+    }
+}
+
 function Get-OperationMode {
     $state = Read-JsonFile -Path $OperationModeFile
     $mode = [string](Get-PropertyValue -Object $state -Name "mode" -DefaultValue "automatic")
@@ -187,44 +225,38 @@ function Get-SnapshotAgeSeconds {
     param([Parameter(Mandatory)] $Snapshot)
 
     $observedAt = Get-PropertyValue -Object $Snapshot -Name "observed_at"
-    if ($null -eq $observedAt) {
+    $observed = ConvertTo-UtcDateTimeOffset -Value $observedAt
+    if ($null -eq $observed) {
         return $null
     }
 
-    try {
-        if ($observedAt -is [datetimeoffset]) {
-            $observed = ([datetimeoffset]$observedAt).ToUniversalTime()
-        }
-        elseif ($observedAt -is [datetime]) {
-            $date = [datetime]$observedAt
-            if ($date.Kind -eq [DateTimeKind]::Unspecified) {
-                $date = [datetime]::SpecifyKind($date, [DateTimeKind]::Utc)
-            }
-            else {
-                $date = $date.ToUniversalTime()
-            }
-            $observed = [datetimeoffset]$date
-        }
-        else {
-            $text = [string]$observedAt
-            if ([string]::IsNullOrWhiteSpace($text)) {
-                return $null
-            }
-            $observed = [datetimeoffset]::Parse(
-                $text,
-                [Globalization.CultureInfo]::InvariantCulture,
-                [Globalization.DateTimeStyles]::RoundtripKind
-            ).ToUniversalTime()
-        }
+    return [math]::Max(
+        0,
+        ([datetimeoffset]::UtcNow - $observed).TotalSeconds
+    )
+}
 
-        return [math]::Max(
-            0,
-            ([datetimeoffset]::UtcNow - $observed).TotalSeconds
-        )
+function Test-ManagerOwnerFromCurrentBoot {
+    param($Owner)
+
+    if ($null -eq $Owner) {
+        return $false
     }
-    catch {
-        return $null
+
+    $startedAt = ConvertTo-UtcDateTimeOffset -Value (
+        Get-PropertyValue -Object $Owner -Name "started_at"
+    )
+    if ($null -eq $startedAt) {
+        return $false
     }
+
+    # Manual mode deliberately performs no periodic WMI/process polling. Use
+    # TickCount64 to reject a stale owner receipt left behind by a previous boot.
+    $bootUtc = [datetimeoffset]::UtcNow.AddMilliseconds(-[Environment]::TickCount64)
+    return (
+        $startedAt -ge $bootUtc.AddSeconds(-5) -and
+        $startedAt -le [datetimeoffset]::UtcNow.AddMinutes(1)
+    )
 }
 
 function Get-SettingsProjection {
@@ -315,13 +347,77 @@ function Get-PlatformVisualState {
     $settings = Get-SettingsProjection
     $desiredState = [string](Get-PropertyValue -Object $desired -Name "desired_state" -DefaultValue "unknown")
 
-    $snapshot = if ($operationMode -eq "manual") {
-        Read-JsonFile -Path $ManualStatusFile
-    }
-    else {
-        Read-JsonFile -Path $SupervisorStateFile
+    if ($operationMode -eq "manual") {
+        # Keep the legacy receipt readable for compatibility/diagnostics, but do
+        # not make the visible Manual state depend on a tray timer callback.
+        $manualSnapshot = Read-JsonFile -Path $ManualStatusFile
+        $ownerFilePresent = Test-Path -LiteralPath $ManagerOwnerFile -PathType Leaf
+        $owner = Read-JsonFile -Path $ManagerOwnerFile
+        $ownerCurrentBoot = ($ownerFilePresent -and (Test-ManagerOwnerFromCurrentBoot -Owner $owner))
+        $profile = [string](Get-PropertyValue -Object $manualSnapshot -Name "profile" -DefaultValue ([string]$settings.profile))
+        $toolCount = if ($profile -in @("semantic", "semantic-direct")) { 6 } else { $null }
+
+        if ($desiredState -eq "stopped" -and -not $ownerFilePresent) {
+            return [pscustomobject]@{
+                mode = "off"
+                operation_mode = $operationMode
+                profile = $profile
+                expected_tool_count = $toolCount
+                desired_state = $desiredState
+                runtime_ready = $false
+                mcp_ready = $false
+                tunnel_ready = $false
+                health_code = "STOPPED"
+                files_root = [string]$settings.files_root
+                error = $null
+            }
+        }
+
+        if ($desiredState -eq "running" -and $ownerCurrentBoot) {
+            return [pscustomobject]@{
+                mode = "on"
+                operation_mode = $operationMode
+                profile = $profile
+                expected_tool_count = $toolCount
+                desired_state = $desiredState
+                runtime_ready = $true
+                mcp_ready = $true
+                tunnel_ready = $true
+                health_code = "READY"
+                files_root = [string]$settings.files_root
+                error = $null
+            }
+        }
+
+        $manualError = if ($desiredState -eq "running" -and $ownerFilePresent -and -not $ownerCurrentBoot) {
+            "Ручной запуск не подтверждён в текущем сеансе Windows."
+        }
+        elseif ($desiredState -eq "running") {
+            "Ручной запуск ещё выполняется."
+        }
+        elseif ($desiredState -eq "stopped" -and $ownerFilePresent) {
+            "Ручная остановка ещё выполняется."
+        }
+        else {
+            "Ручное состояние ещё не подтверждено."
+        }
+
+        return [pscustomobject]@{
+            mode = "partial"
+            operation_mode = $operationMode
+            profile = $profile
+            expected_tool_count = $toolCount
+            desired_state = $desiredState
+            runtime_ready = $false
+            mcp_ready = $false
+            tunnel_ready = $false
+            health_code = "MANUAL_STATE_UNVERIFIED"
+            files_root = [string]$settings.files_root
+            error = $manualError
+        }
     }
 
+    $snapshot = Read-JsonFile -Path $SupervisorStateFile
     $profile = [string](Get-PropertyValue -Object $snapshot -Name "profile" -DefaultValue ([string]$settings.profile))
     $toolCount = if ($profile -in @("semantic", "semantic-direct")) { 6 } else { $null }
 
@@ -335,37 +431,14 @@ function Get-PlatformVisualState {
             runtime_ready = $false
             mcp_ready = $false
             tunnel_ready = $false
-            health_code = if ($operationMode -eq "manual") { "MANUAL_STATE_UNVERIFIED" } else { "SUPERVISOR_STATE_UNAVAILABLE" }
+            health_code = "SUPERVISOR_STATE_UNAVAILABLE"
             files_root = [string]$settings.files_root
-            error = if ($operationMode -eq "manual") { "Ручное состояние ещё не подтверждено." } else { "Состояние автоматической проверки недоступно." }
+            error = "Состояние автоматической проверки недоступно."
         }
     }
 
-    if ($operationMode -eq "automatic") {
-        $age = Get-SnapshotAgeSeconds -Snapshot $snapshot
-        if ($null -eq $age -or $age -gt $AutomaticSnapshotFreshnessSeconds) {
-            return [pscustomobject]@{
-                mode = "partial"
-                operation_mode = $operationMode
-                profile = $profile
-                expected_tool_count = $toolCount
-                desired_state = $desiredState
-                runtime_ready = $false
-                mcp_ready = $false
-                tunnel_ready = $false
-                health_code = "SUPERVISOR_STATE_STALE"
-                files_root = [string]$settings.files_root
-                error = "Данные автоматической проверки устарели."
-            }
-        }
-    }
-
-    $snapshotDesired = [string](Get-PropertyValue -Object $snapshot -Name "desired_state" -DefaultValue $desiredState)
-    if (
-        $operationMode -eq "manual" -and
-        $desiredState -in @("running", "stopped") -and
-        $snapshotDesired -ne $desiredState
-    ) {
+    $age = Get-SnapshotAgeSeconds -Snapshot $snapshot
+    if ($null -eq $age -or $age -gt $AutomaticSnapshotFreshnessSeconds) {
         return [pscustomobject]@{
             mode = "partial"
             operation_mode = $operationMode
@@ -375,9 +448,9 @@ function Get-PlatformVisualState {
             runtime_ready = $false
             mcp_ready = $false
             tunnel_ready = $false
-            health_code = "MANUAL_STATE_UNVERIFIED"
+            health_code = "SUPERVISOR_STATE_STALE"
             files_root = [string]$settings.files_root
-            error = "Ручное состояние изменилось и ещё не подтверждено."
+            error = "Данные автоматической проверки устарели."
         }
     }
 
@@ -463,8 +536,6 @@ $notify.ContextMenuStrip = $menu
 # "Переключить ВКЛ / ВЫКЛ", simultaneous "Включить" and "Выключить" entries.
 
 $script:OperationProcess = $null
-$script:OperationStdoutTask = $null
-$script:OperationStderrTask = $null
 $script:OperationAction = $null
 $script:OperationStartedAt = $null
 $script:LastState = $null
@@ -489,8 +560,6 @@ function Clear-OperationProcess {
         try { $script:OperationProcess.Dispose() } catch {}
     }
     $script:OperationProcess = $null
-    $script:OperationStdoutTask = $null
-    $script:OperationStderrTask = $null
     $script:OperationStartedAt = $null
 }
 
@@ -565,17 +634,24 @@ function Set-VisualState {
 }
 
 function Refresh-VisualState {
+    $state = Get-PlatformVisualState
+
     if (Test-OperationRunning) {
-        Set-VisualState -State ([pscustomobject]@{
-            mode = "busy"
-            operation_mode = Get-OperationMode
-            profile = ""
-            files_root = ""
-        })
-        return
+        $targetReached = (
+            ($script:OperationAction -eq "Start" -and [string]$state.mode -eq "on") -or
+            ($script:OperationAction -eq "Stop" -and [string]$state.mode -eq "off")
+        )
+        if (-not $targetReached) {
+            Set-VisualState -State ([pscustomobject]@{
+                mode = "busy"
+                operation_mode = Get-OperationMode
+                profile = ""
+                files_root = ""
+            })
+            return
+        }
     }
 
-    $state = Get-PlatformVisualState
     Set-VisualState -State $state
     $script:LastState = $state
 }
@@ -631,8 +707,8 @@ function Start-ControllerOperation {
     $startInfo.FileName = $pwsh
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
+    $startInfo.RedirectStandardOutput = $false
+    $startInfo.RedirectStandardError = $false
     foreach ($argument in @(
         "-NoLogo",
         "-NoProfile",
@@ -652,8 +728,6 @@ function Start-ControllerOperation {
     }
 
     $script:OperationProcess = $process
-    $script:OperationStdoutTask = $process.StandardOutput.ReadToEndAsync()
-    $script:OperationStderrTask = $process.StandardError.ReadToEndAsync()
     $script:OperationAction = $Action
     $script:OperationStartedAt = [datetimeoffset]::UtcNow
 
@@ -758,34 +832,17 @@ $operationTimer.add_Tick({
     }
 
     $operationTimer.Stop()
-    try { $script:OperationProcess.WaitForExit() } catch {}
-
-    $exitCode = if ($timedOut) { -1 } else { $script:OperationProcess.ExitCode }
-    $stdout = ""
-    $stderr = ""
-    try {
-        if ($null -ne $script:OperationStdoutTask) {
-            $stdout = [string]$script:OperationStdoutTask.GetAwaiter().GetResult()
-        }
+    $exitCode = if ($timedOut) {
+        -1
     }
-    catch {}
-    try {
-        if ($null -ne $script:OperationStderrTask) {
-            $stderr = [string]$script:OperationStderrTask.GetAwaiter().GetResult()
-        }
+    else {
+        try { [int]$script:OperationProcess.ExitCode } catch { -1 }
     }
-    catch {}
 
     $action = [string]$script:OperationAction
     $failed = ($exitCode -ne 0)
     $failureText = if ($timedOut) {
         "Операция превысила $OperationTimeoutSeconds секунд и была остановлена."
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($stderr)) {
-        $stderr.Trim()
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($stdout)) {
-        $stdout.Trim()
     }
     else {
         "Операция завершилась с кодом $exitCode."
@@ -848,7 +905,8 @@ $script:WatchedStateNames = @(
     "desired-state.json",
     "settings.json",
     "operation-mode.json",
-    "manual-status.json"
+    "manual-status.json",
+    "manager-owner.json"
 )
 
 $watcher = New-Object System.IO.FileSystemWatcher
