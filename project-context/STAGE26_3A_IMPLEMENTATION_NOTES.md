@@ -1,43 +1,65 @@
 # Stage 26.3A Verified Procedure Runtime implementation notes
 
-Status: **hosted qualification green after Transport Supervisor v1 integration / ordinary-Chat physical acceptance not yet complete**.
+Status: **canonical six-tool semantic runtime implemented / physical ordinary-Chat acceptance pending**.
 
-## Current exact candidate
+## Foundation
 
-PR #92 is rebased by merge onto the accepted Transport Supervisor v1 foundation from PR #94.
+PR #92 is based on the accepted Transport Supervisor v1 foundation from PR #94:
 
 ```text
 main foundation = 2f33997d3fbaa1fc52d437c00be7f16e55bdde5e
-Stage 26.3A hosted candidate = e4507dbe6dc07e182313769ebe833dd1e6801572
 ```
 
-The complete pull-request-triggered hosted matrix is green on `e4507dbe6dc07e182313769ebe833dd1e6801572`:
+Resolve the live PR #92 head and hosted checks before any physical test. Do not use an older SHA merely because it appears in historical comments or evidence.
+
+## Current public semantic contract
+
+The current Stage 26.3A candidate has one ordinary semantic public surface with exactly six tools:
 
 ```text
-ci = success
-Chat Profile Acceptance = success
-Semantic Projection Acceptance = success
-Semantic Dependency Reproducibility = success
-Direct Semantic Tunnel Acceptance = success
-Stage 26.3A Procedure Qualification = success
-Stage 25.1 Security Regressions = success
-Stage 25.1 Vision Bridge Acceptance = success
-CodeQL Security = success
-Secret History Scan = success
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+procedure_run
 ```
 
-This proves hosted compatibility with the merged Transport Supervisor v1 code and regression surface. It does **not** constitute physical Stage 26.3A acceptance.
+There is no runtime/profile/tray choice between five and six tools.
 
-Remaining acceptance gates are:
+The old separate `procedure-qualification` profile, projection, direct-tunnel harness and supervisor handoff were removed. The public semantic launcher permanently routes through `semantic-control-plane-projection.mjs`.
 
-1. exact-head target-Windows direct-tunnel qualification;
-2. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
-3. independent final artifact verification through `workspace_read`;
-4. incompatible/pre-existing state -> structured ABSTAIN with zero unauthorized continuation/overwrite.
+A private five-capability file/browser implementation remains behind the canonical projection as an implementation layer only. It is not selectable or public and must not be treated as a second semantic mode.
 
-## Current qualification procedure
+The ordinary semantic startup guard performs a live `tools/list` inspection and refuses READY unless the exact six-tool inventory is present.
 
-The current candidate procedure remains intentionally narrow:
+The tray has one normal semantic READY state; there is no qualification color/state.
+
+## Installed runtime contract
+
+The bootstrap installs one verified runtime bundle containing the canonical six-tool projection and deterministic Control Plane dependencies.
+
+Required installed assets include:
+
+```text
+runtime/semantic-projection/bin/semantic-projection-launcher.mjs
+runtime/semantic-projection/bin/semantic-control-plane-projection.mjs
+runtime/semantic-projection/bin/semantic-projection.mjs
+runtime/control_plane/cli.py
+runtime/control_plane/verified_workspace_artifact.py
+```
+
+Installation metadata records:
+
+```text
+semantic_public_tool_count = 6
+```
+
+The bootstrap remains one public entrypoint but is internally split into reviewed modules for tunnel acquisition/configuration, manager/runtime bundle installation and lifecycle smoke testing.
+
+## Current bounded procedure
+
+The first registered procedure remains intentionally narrow:
 
 ```text
 verified_workspace_artifact_v1
@@ -45,6 +67,8 @@ verified_workspace_artifact_v1
   workspace scope: .chat-agent-platform/stage26-3a/
   action budget: 3
 ```
+
+It does not expose arbitrary path, shell, Python, generic tool dispatch, backend selection or Windows command execution.
 
 Transitions:
 
@@ -62,28 +86,26 @@ staged_verified
 
 final_verified
  -> verify exact staging + target identities
- -> remove exact staging object
+ -> remove exact owned staging object
  -> verify final target + cleanup
  -> checkpoint: completed
 ```
 
-The candidate profile/admission gate remains mandatory and no arbitrary path, shell, Python, generic tool dispatcher or Windows command surface is introduced.
+A pre-existing final target causes structured `ABSTAIN` with zero unauthorized overwrite.
 
 ## Durable checkpoint resume contract
 
-Stage 26.3 must distinguish a durable checkpoint from an arbitrary interrupted instruction boundary.
-
-A resume request may continue only when all of the following match the retained TaskState:
+A resume request may continue only when all of the following match retained TaskState:
 
 - exact `task_id`;
 - exact procedure id/version/trust status;
 - exact artifact identity/path parameters;
 - exact content size/SHA-256;
 - valid action budget/count;
-- a known resumable ProgramGraph node;
+- known resumable ProgramGraph node;
 - current filesystem evidence compatible with that checkpoint.
 
-Current implementation supports resume from these durable nodes:
+Current resumable nodes:
 
 ```text
 preflight
@@ -91,21 +113,15 @@ staged_verified
 final_verified
 ```
 
-`completed` is idempotently observable when the final artifact still has the exact recorded identity/content. Failed/abstained tasks are returned as terminal evidence; they are not silently restarted as a fresh strategy.
+`completed` is idempotently observable when the final artifact still has the exact recorded identity/content. Failed or abstained tasks remain terminal evidence and are not silently restarted as a fresh strategy.
 
-If live state no longer matches the checkpoint, the runtime ABSTAINS instead of guessing which historical action happened.
+If live state no longer matches the checkpoint, the runtime ABSTAINS instead of guessing what happened.
 
-### Important boundary
+## Filesystem ownership rule
 
-Crash-resume does **not** mean that every CPU instruction becomes recoverable. If a process dies after a mutation but before the corresponding verified checkpoint was durably committed, ownership/effect evidence may be ambiguous. In that case the correct behavior is fail-closed ABSTAIN/escalation unless a later design adds a predeclared write-ahead transaction record that can prove the exact pending mutation.
+SHA-256 proves byte equality, not ownership.
 
-Stage 26.3 acceptance must therefore inject failures at durable checkpoint boundaries first. A future extension may add write-ahead transition intents for narrower mid-transition recovery, but must not infer ownership from path/name alone.
-
-## Exact file ownership rule
-
-SHA-256 proves content equality, not ownership.
-
-Another process can replace a path with a different filesystem object containing identical bytes. Therefore rollback and resume authorization require both:
+Rollback/resume authorization therefore requires both:
 
 ```text
 expected content digest
@@ -113,60 +129,64 @@ AND
 recorded filesystem-object identity
 ```
 
-The current implementation records `st_dev` / `st_ino` as the bounded cross-platform filesystem identity available through Python `stat()`. On Windows this corresponds to the file object's filesystem identity exposed by the runtime. If future target evidence shows that release-grade Windows identity needs a stronger native file-id/volume contract, add that adapter before broadening destructive rollback authority.
+The implementation records `st_dev` / `st_ino` through Python `stat()`. Rollback refuses deletion when either digest or object identity differs.
 
-Rollback refuses deletion when either digest or object identity differs.
+If future Windows evidence shows a stronger native file-id/volume contract is required before broader destructive authority, add that adapter before broadening procedures.
 
 ## Zero-mutation terminology
 
-Repository docs use `zero mutation` as a safety invariant. For the procedure runtime this means **zero unauthorized external capability/workspace mutation**.
+For this runtime, `zero mutation` means **zero unauthorized external capability/workspace mutation**.
 
-Internal execution-state persistence is allowed so the runtime can record an ABSTAIN/escalation receipt. Internal TaskState/checkpoint writes must never be confused with authority to alter the user's target artifact.
+Internal TaskState/checkpoint persistence is permitted so ABSTAIN/escalation evidence can be durable. Internal state writes never authorize alteration of the user's target artifact.
 
-The procedure creates its reserved workspace directory only after preflight has established a path on which execution may proceed.
+## Automated acceptance requirements
 
-## Automated fault/security coverage — GREEN on current hosted candidate
+The current hosted contract must cover at minimum:
 
-The current hosted candidate covers at minimum:
+1. exact canonical public inventory of six tools;
+2. `procedure_run` creation followed by independent `workspace_read` verification;
+3. resume from `staged_verified` and `final_verified` only from compatible evidence;
+4. completed checkpoint idempotence;
+5. same-content replacement with different filesystem identity rejected;
+6. corrupt/missing/mismatched checkpoint fails closed;
+7. fixed action budget preserved across resume;
+8. concurrent/pre-existing target cannot be overwritten;
+9. rollback never deletes a path whose ownership evidence changed;
+10. strict `procedure_run` request allowlist with no command/path/tool injection;
+11. installed bundle contains the canonical six-tool projection and Control Plane closure;
+12. ordinary semantic startup guard rejects any inventory other than the six canonical tools;
+13. real direct semantic tunnel acceptance sees and exercises `procedure_run` through the same public route.
 
-1. resume from `staged_verified` completes only transitions 2-3;
-2. resume from `final_verified` completes only transition 3;
-3. completed checkpoint is idempotently observable without another action;
-4. same-content replacement with a different filesystem identity is rejected;
-5. corrupt/missing/mismatched checkpoint fails closed;
-6. action count cannot exceed the fixed budget across resume;
-7. concurrent/exclusive target creation cannot overwrite an external target;
-8. failed rollback never deletes a path whose ownership evidence changed;
-9. request fields remain a strict allowlist with no command/path/tool injection;
-10. persisted TaskState contains structured evidence, not private reasoning.
-
-These hosted regressions are necessary but not sufficient for physical acceptance.
+Hosted success is necessary but not sufficient for physical acceptance.
 
 ## Ordinary-Chat integration order
 
-Do not expand this kernel to Windows/UI procedures yet.
+Do not expand this kernel to broad Windows/UI procedures yet.
 
 Required order:
 
 ```text
 checkpoint-resumable file procedure — implemented
- -> hosted deterministic/fault tests — GREEN on e4507dbe...
- -> truthful qualification-only procedure_run surface — GREEN hosted
- -> direct MCP procedure_run + independent workspace_read verification — next physical gate
- -> ordinary ChatGPT ONE-goal E2E, no intermediate PowerShell relay — next physical gate
- -> only then integrate broader Files/Browser/Windows procedure transitions
+ -> canonical six-tool public semantic surface — implemented
+ -> hosted deterministic/security/integration tests — must be green on exact head
+ -> install exact head on target Windows
+ -> ordinary ChatGPT ONE-goal E2E on normal semantic route
+ -> independent final workspace_read verification
+ -> negative pre-existing target => ABSTAIN/no overwrite
+ -> only then broaden procedure catalog
 ```
 
-A dedicated `procedure_run`-class capability is preferable to hiding multi-transition procedure consequences inside `workspace_write` or `web_interact`. The normal five-tool profile remains unchanged; the extra surface is confined to the qualification profile until its physical gate is accepted.
+The six-tool decision is current architecture, not a temporary qualification switch. Future changes may change the public surface only through a new reviewed decision and corresponding physical acceptance.
 
-## Acceptance meaning
+## Physical acceptance meaning
 
-A successful hosted workflow or local Python invocation is not Stage 26.3 product acceptance.
+A successful hosted workflow or local Python invocation is not Stage 26.3A physical acceptance.
 
 The first accepted vertical slice requires:
 
 ```text
 one user goal in ordinary ChatGPT
+ -> normal semantic route exposes six canonical tools
  -> bounded procedure selected/admitted
  -> multiple independently authorized+verified transitions
  -> durable checkpoints
@@ -174,4 +194,4 @@ one user goal in ordinary ChatGPT
  -> structured completion/evidence returned to Chat
 ```
 
-Unexpected checkpoint/live-state mismatch must produce ABSTAIN/escalation and no unauthorized continuation.
+Unexpected checkpoint/live-state mismatch or pre-existing protected target must produce ABSTAIN/escalation and no unauthorized continuation.
