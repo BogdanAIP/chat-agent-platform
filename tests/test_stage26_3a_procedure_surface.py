@@ -72,16 +72,18 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         self.assertNotIn("replace('semantic-projection_1mcp_'", launcher)
         self.assertNotIn("replace(\"semantic-projection_1mcp_\"", launcher)
 
+        normalized_documentation = documentation.replace("**", "")
         for required in (
             "Critical ChatGPT frozen-snapshot boundary",
             "after ChatGPT has already selected an action",
             "cannot repair ChatGPT-side state",
             "app/connector connection state",
             "per-action permission or confirmation state",
-            "App rebind gate before final Stage 26.3A E2E",
+            "Accepted Stage 26.3A app rebind evidence",
             "newly created or explicitly rebound ChatGPT app",
+            "does not expose enough per-call action-id telemetry",
         ):
-            self.assertIn(required, documentation)
+            self.assertIn(required, normalized_documentation)
 
     def test_public_control_plane_registers_exact_six_tool_model(self) -> None:
         source = CONTROL_PLANE.read_text(encoding="utf-8")
