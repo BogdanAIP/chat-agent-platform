@@ -94,6 +94,53 @@ function Get-ChatExactTunnelProcesses {
     )
 }
 
+function Test-ChatVerifiedInstalledTunnelClient {
+    param(
+        [Parameter(Mandatory)] [string]$TunnelExe,
+        [Parameter(Mandatory)] [string]$InstallMetadata,
+        [Parameter(Mandatory)] [string]$AcceptedVersion,
+        [Parameter(Mandatory)] [hashtable]$AcceptedArchiveSha256
+    )
+
+    if (
+        -not (Test-Path -LiteralPath $TunnelExe -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $InstallMetadata -PathType Leaf)
+    ) {
+        return $false
+    }
+
+    try {
+        $metadata = Get-Content -LiteralPath $InstallMetadata -Raw | ConvertFrom-Json
+        $arch = Get-ChatTunnelArchitecture
+        $expectedArchive = [string]$AcceptedArchiveSha256[$arch]
+        $expectedAsset = "tunnel-client-$AcceptedVersion-windows-$arch.zip"
+
+        if ([string]::IsNullOrWhiteSpace($expectedArchive)) { return $false }
+        if ([int]$metadata.schema_version -ne 1) { return $false }
+        if ([string]$metadata.version -ne $AcceptedVersion) { return $false }
+        if ([string]$metadata.asset -ne $expectedAsset) { return $false }
+        if ([string]$metadata.archive_sha256 -ne $expectedArchive) { return $false }
+
+        $recordedBinaryHash = ([string]$metadata.binary_sha256).ToLowerInvariant()
+        if ($recordedBinaryHash -notmatch '^[0-9a-f]{64}$') { return $false }
+        $actualBinaryHash = (Get-FileHash -LiteralPath $TunnelExe -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualBinaryHash -ne $recordedBinaryHash) { return $false }
+
+        $help = @(& $TunnelExe help quickstart 2>&1)
+        if ($LASTEXITCODE -ne 0) { return $false }
+
+        Write-Host 'TUNNEL_BINARY_SOURCE=verified-local-install'
+        Write-Host "OFFICIAL_TUNNEL_RELEASE=$AcceptedVersion"
+        Write-Host "TUNNEL_ARCHIVE_SHA256=$expectedArchive"
+        Write-Host "TUNNEL_BINARY_SHA256=$actualBinaryHash"
+        Write-Host 'TUNNEL_BINARY_VERIFIED=True' -ForegroundColor Green
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
 function Install-ChatOfficialTunnelClient {
     param(
         [Parameter(Mandatory)] [string]$LocalRoot,
@@ -112,6 +159,19 @@ function Install-ChatOfficialTunnelClient {
         New-Item -ItemType Directory -Force -Path $path | Out-Null
     }
 
+    if (
+        -not $ForceUpdate -and
+        (Test-ChatVerifiedInstalledTunnelClient `
+            -TunnelExe $TunnelExe `
+            -InstallMetadata $InstallMetadata `
+            -AcceptedVersion $AcceptedVersion `
+            -AcceptedArchiveSha256 $AcceptedArchiveSha256)
+    ) {
+        Write-Host 'TUNNEL_NETWORK_FETCH_REQUIRED=False'
+        return
+    }
+
+    Write-Host 'TUNNEL_NETWORK_FETCH_REQUIRED=True'
     $release = Get-ChatOfficialTunnelRelease -AcceptedVersion $AcceptedVersion -ReleaseApi $ReleaseApi
     Write-Host "OFFICIAL_TUNNEL_RELEASE=$($release.tag)"
     Write-Host "OFFICIAL_RELEASE_URL=$($release.release_url)"
@@ -341,59 +401,67 @@ function Test-ChatTunnelProfileContract {
         }
     }
 
-    return (
-        $raw -match [regex]::Escape($ResolvedTunnelId) -and
-        $raw -match [regex]::Escape($McpUrl) -and
-        $raw -match 'CONTROL_PLANE_API_KEY'
-    )
+    $expectedApiKey = '${CONTROL_PLANE_API_KEY}'
+    if ($raw -notmatch [regex]::Escape("tunnel-id: $ResolvedTunnelId")) { return $false }
+    if ($raw -notmatch [regex]::Escape("api-key: $expectedApiKey")) { return $false }
+    if ($raw -notmatch [regex]::Escape("mcp-server-url: $McpUrl")) { return $false }
+    return $true
 }
 
 function Initialize-ChatExtensionManagerTunnelProfile {
     param(
         [Parameter(Mandatory)] [string]$TunnelExe,
         [Parameter(Mandatory)] [string]$TunnelDir,
-        [Parameter(Mandatory)] [string]$TunnelProfile,
-        [Parameter(Mandatory)] [string]$ResolvedTunnelId,
-        [Parameter(Mandatory)] [string]$McpUrl,
-        [switch]$Reconfigure
+        [Parameter(Mandatory)] [string]$ProfileName,
+        [Parameter(Mandatory)] [string]$TunnelId,
+        [Parameter(Mandatory)] [string]$McpUrl
     )
 
-    New-Item -ItemType Directory -Force -Path $TunnelDir | Out-Null
-    $profileValid = Test-ChatTunnelProfileContract -Path $TunnelProfile -ResolvedTunnelId $ResolvedTunnelId -McpUrl $McpUrl
-
-    if (-not $Reconfigure -and $profileValid) {
-        Write-Host "EXTENSION_MANAGER_TUNNEL_PROFILE=$TunnelProfile"
-        Write-Host 'EXTENSION_MANAGER_TUNNEL_PROFILE_SOURCE=existing-validated'
-        return
+    $profilePath = Join-Path $TunnelDir "$ProfileName.yaml"
+    if (Test-ChatTunnelProfileContract -Path $profilePath -ResolvedTunnelId $TunnelId -McpUrl $McpUrl) {
+        Write-Host 'EXTENSION_TUNNEL_PROFILE_SOURCE=existing-valid'
+        return $profilePath
     }
 
-    if ((Test-Path -LiteralPath $TunnelProfile) -and -not $profileValid) {
-        Write-Host 'EXTENSION_MANAGER_TUNNEL_PROFILE_COMPATIBILITY=reconfigure-required'
-    }
-    if (Test-Path -LiteralPath $TunnelProfile) {
-        $backup = "$TunnelProfile.bootstrap-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-        Copy-Item -LiteralPath $TunnelProfile -Destination $backup -Force
-        Write-Host "EXTENSION_MANAGER_TUNNEL_PROFILE_BACKUP=$backup"
+    if (@(Get-ChatExactTunnelProcesses -TunnelExe $TunnelExe).Count -gt 0) {
+        throw 'Cannot replace an invalid Extension Manager tunnel profile while tunnel-client is running.'
     }
 
-    $args = @(
-        'init',
-        '--sample', 'sample_mcp_remote_no_auth',
-        '--profile', 'local-1mcp',
-        '--profile-dir', $TunnelDir,
-        '--tunnel-id', $ResolvedTunnelId,
-        '--mcp-server-url', $McpUrl,
-        '--health-listen-addr', '127.0.0.1:0',
-        '--force'
-    )
-    $output = @(& $TunnelExe @args 2>&1)
-    if ($LASTEXITCODE -ne 0) {
-        throw "Optional Extension Manager tunnel profile init failed: $($output -join ' ')"
-    }
-    if (-not (Test-ChatTunnelProfileContract -Path $TunnelProfile -ResolvedTunnelId $ResolvedTunnelId -McpUrl $McpUrl)) {
-        throw 'Optional Extension Manager tunnel profile does not satisfy its local bridge contract.'
+    if (Test-Path -LiteralPath $profilePath -PathType Leaf) {
+        $backup = "$profilePath.bak-$(Get-Date -Format yyyyMMddHHmmss)"
+        Move-Item -LiteralPath $profilePath -Destination $backup -Force
+        Write-Host "EXTENSION_TUNNEL_PROFILE_BACKUP=$backup"
     }
 
-    Write-Host "EXTENSION_MANAGER_TUNNEL_PROFILE=$TunnelProfile"
-    Write-Host 'EXTENSION_MANAGER_TUNNEL_PROFILE_SOURCE=official-tunnel-client-init'
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("chat-agent-platform-extension-profile-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+    try {
+        $template = Join-Path $tempRoot "$ProfileName.yaml"
+        & $TunnelExe init sample_mcp_remote_no_auth --profile-dir $tempRoot --non-interactive --force *> $null
+        if ($LASTEXITCODE -ne 0) {
+            throw 'tunnel-client init failed while creating Extension Manager profile.'
+        }
+        if (-not (Test-Path -LiteralPath $template -PathType Leaf)) {
+            throw "tunnel-client init did not create expected template: $template"
+        }
+        $raw = Get-Content -LiteralPath $template -Raw
+        $raw = [regex]::Replace($raw, '(?m)^\s*tunnel-id:\s*.*$', "tunnel-id: $TunnelId")
+        $raw = [regex]::Replace($raw, '(?m)^\s*api-key:\s*.*$', "api-key: `${CONTROL_PLANE_API_KEY}")
+        $raw = [regex]::Replace($raw, '(?m)^\s*mcp-server-url:\s*.*$', "mcp-server-url: $McpUrl")
+        $raw = [regex]::Replace($raw, '(?m)^\s*log-level:\s*.*$', 'log-level: info')
+        $raw = [regex]::Replace($raw, '(?m)^\s*format:\s*.*$', '  format: text')
+        $logPath = Join-Path $TunnelDir "$ProfileName.log"
+        $raw = [regex]::Replace($raw, '(?m)^\s*file:\s*.*$', "  file: $logPath")
+        $raw | Set-Content -LiteralPath $profilePath -Encoding utf8
+    }
+    finally {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    if (-not (Test-ChatTunnelProfileContract -Path $profilePath -ResolvedTunnelId $TunnelId -McpUrl $McpUrl)) {
+        throw 'Generated Extension Manager tunnel profile failed validation.'
+    }
+
+    Write-Host 'EXTENSION_TUNNEL_PROFILE_SOURCE=generated'
+    return $profilePath
 }
