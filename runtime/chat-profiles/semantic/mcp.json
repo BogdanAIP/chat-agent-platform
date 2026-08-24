@@ -10,7 +10,7 @@
         "CHAT_LOCAL_FILES_ROOT",
         "CHAT_SEMANTIC_PROJECTION_ENTRY"
       ],
-      "tags": ["chat-profile", "semantic", "filesystem", "browser", "local", "free"],
+      "tags": ["chat-profile", "semantic", "filesystem", "browser", "procedure", "control-plane", "local", "free"],
       "connectionTimeout": 60000,
       "requestTimeout": 120000
     }
