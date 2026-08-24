@@ -266,7 +266,6 @@ function Install-ChatManagerBundle {
         @('runtime\chat-profiles\files-readonly\mcp.json', 'runtime\chat-profiles\files-readonly\mcp.json'),
         @('runtime\chat-profiles\browser-isolated\mcp.json', 'runtime\chat-profiles\browser-isolated\mcp.json'),
         @('runtime\chat-profiles\semantic\mcp.json', 'runtime\chat-profiles\semantic\mcp.json'),
-        @('runtime\chat-profiles\adaptive\mcp.json', 'runtime\chat-profiles\adaptive\mcp.json'),
         @('runtime\semantic-projection\package.json', 'runtime\semantic-projection\package.json'),
         @('runtime\semantic-projection\package-lock.json', 'runtime\semantic-projection\package-lock.json'),
         @('runtime\semantic-projection\bin\semantic-projection-launcher.mjs', 'runtime\semantic-projection\bin\semantic-projection-launcher.mjs'),
@@ -287,10 +286,7 @@ function Install-ChatManagerBundle {
         @('runtime\local_vision_adapter\production_grounder.py', 'runtime\local_vision_adapter\production_grounder.py'),
         @('runtime\local_vision_adapter\production_policy.py', 'runtime\local_vision_adapter\production_policy.py'),
         @('runtime\local_vision_adapter\provider.py', 'runtime\local_vision_adapter\provider.py'),
-        @('runtime\local_vision_adapter\renderer.py', 'runtime\local_vision_adapter\renderer.py'),
-        @('runtime\1mcp-adaptive-shim\package.json', 'runtime\1mcp-adaptive-shim\package.json'),
-        @('runtime\1mcp-adaptive-shim\bin\1mcp-adaptive.mjs', 'runtime\1mcp-adaptive-shim\bin\1mcp-adaptive.mjs'),
-        @('runtime\1mcp-adaptive-shim\scripts\apply-compatibility-patch.mjs', 'runtime\1mcp-adaptive-shim\scripts\apply-compatibility-patch.mjs')
+        @('runtime\local_vision_adapter\renderer.py', 'runtime\local_vision_adapter\renderer.py')
     )
 
     foreach ($pair in $runtimeFiles) {
@@ -299,7 +295,6 @@ function Install-ChatManagerBundle {
         Copy-ChatVerifiedFile -Source $source -Destination $destination
     }
 
-    Assert-ChatInstalledAdaptiveRuntime -AppRuntimeDir $AppRuntimeDir
     Assert-ChatInstalledSixToolSemanticRuntime -AppRuntimeDir $AppRuntimeDir -AppScriptsDir $AppScriptsDir -AppConfigDir $AppConfigDir
 
     foreach ($installed in @($CommandPath, $ControllerPath, $DirectControllerPath, $TrayPath)) {
@@ -313,6 +308,7 @@ function Install-ChatManagerBundle {
         app_root = $AppRoot
         source_root = $RepoRoot
         semantic_public_tool_count = 6
+        extension_manager_included = $false
         installed_at = (Get-Date).ToUniversalTime().ToString('o')
         scripts = $scriptNames
         runtime_configs = @(
@@ -320,7 +316,6 @@ function Install-ChatManagerBundle {
             'runtime/chat-profiles/files-readonly/mcp.json',
             'runtime/chat-profiles/browser-isolated/mcp.json',
             'runtime/chat-profiles/semantic/mcp.json',
-            'runtime/chat-profiles/adaptive/mcp.json',
             'config/local-vision-runtime.json'
         )
         runtime_assets = @($runtimeFiles | ForEach-Object { ([string]$_[0]).Replace('\', '/') })
@@ -328,5 +323,6 @@ function Install-ChatManagerBundle {
 
     Write-Host "MANAGER_APP_ROOT=$AppRoot"
     Write-Host 'SEMANTIC_PUBLIC_TOOL_COUNT=6'
+    Write-Host 'EXTENSION_MANAGER_INCLUDED=False'
     Write-Host 'MANAGER_BUNDLE_VERIFIED=True' -ForegroundColor Green
 }
