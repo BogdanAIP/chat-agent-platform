@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 const tunnelOnlyCredentialKeys = [
   'CONTROL_PLANE_API_KEY',
-  'OPENAI_API_KEY'
+  'OPENAI_API_KEY',
+  'OPENAI_ADMIN_KEY'
 ];
 
 for (const key of tunnelOnlyCredentialKeys) {
@@ -30,7 +31,14 @@ const LEGACY_TOOL_ALIASES = new Map([
   ['semantic-projection_1mcp_workspace_write', 'workspace_write'],
   ['semantic-projection_1mcp_web_open', 'web_open'],
   ['semantic-projection_1mcp_web_observe', 'web_observe'],
-  ['semantic-projection_1mcp_web_interact', 'web_interact']
+  ['semantic-projection_1mcp_web_interact', 'web_interact'],
+  ['semantic-projection_1mcp_procedure_run', 'procedure_run'],
+  ['procedure-qualification-projection_1mcp_workspace_read', 'workspace_read'],
+  ['procedure-qualification-projection_1mcp_workspace_write', 'workspace_write'],
+  ['procedure-qualification-projection_1mcp_web_open', 'web_open'],
+  ['procedure-qualification-projection_1mcp_web_observe', 'web_observe'],
+  ['procedure-qualification-projection_1mcp_web_interact', 'web_interact'],
+  ['procedure-qualification-projection_1mcp_procedure_run', 'procedure_run']
 ]);
 
 function rewriteLegacyToolCall(line) {
@@ -54,7 +62,7 @@ function rewriteLegacyToolCall(line) {
 }
 
 const launcherDir = path.dirname(fileURLToPath(import.meta.url));
-const semanticEntry = path.join(launcherDir, 'semantic-projection.mjs');
+const semanticEntry = path.join(launcherDir, 'semantic-control-plane-projection.mjs');
 const child = spawn(process.execPath, [semanticEntry], {
   env: process.env,
   stdio: ['pipe', 'pipe', 'pipe'],
