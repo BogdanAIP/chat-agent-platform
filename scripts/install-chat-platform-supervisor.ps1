@@ -35,12 +35,14 @@ $InstalledSupervisor = Join-Path $AppScriptsDir 'chat-platform-supervisor.ps1'
 $InstalledSupervisorLauncher = Join-Path $AppScriptsDir 'chat-platform-supervisor-launcher.vbs'
 $InstalledHealthHelper = Join-Path $AppScriptsDir 'tunnel-reliability-health.ps1'
 $InstalledTray = Join-Path $AppScriptsDir 'chat-platform-tray.ps1'
+$InstalledTrayLauncher = Join-Path $AppScriptsDir 'chat-platform-tray-launcher.vbs'
 $DirectControllerBackup = Join-Path $BackupDir 'semantic-direct-controller.ps1'
 
 $SourceDirectController = Join-Path $PSScriptRoot 'semantic-direct-controller.ps1'
 $SourceSupervisor = Join-Path $PSScriptRoot 'chat-platform-supervisor.ps1'
 $SourceSupervisorLauncher = Join-Path $PSScriptRoot 'chat-platform-supervisor-launcher.vbs'
 $SourceHealthHelper = Join-Path $PSScriptRoot 'tunnel-reliability-health.ps1'
+$SourceTrayLauncher = Join-Path $PSScriptRoot 'chat-platform-tray-launcher.vbs'
 
 function Get-PwshPath {
     return (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
@@ -222,8 +224,10 @@ function Install-SupervisorAssets {
         Assert-PowerShellParses -Path $source
     }
     Assert-PowerShellParses -Path $InstalledTray
-    if (-not (Test-Path -LiteralPath $SourceSupervisorLauncher -PathType Leaf)) {
-        throw "Supervisor launcher source asset is missing: $SourceSupervisorLauncher"
+    foreach ($launcher in @($SourceSupervisorLauncher, $SourceTrayLauncher)) {
+        if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
+            throw "Supervisor launcher source asset is missing: $launcher"
+        }
     }
 
     Invoke-WithManagerMutex {
@@ -232,13 +236,15 @@ function Install-SupervisorAssets {
         Copy-VerifiedFile -Source $SourceSupervisor -Destination $InstalledSupervisor
         Copy-VerifiedFile -Source $SourceSupervisorLauncher -Destination $InstalledSupervisorLauncher
         Copy-VerifiedFile -Source $SourceHealthHelper -Destination $InstalledHealthHelper
+        Copy-VerifiedFile -Source $SourceTrayLauncher -Destination $InstalledTrayLauncher
     }
 
     foreach ($pair in @(
         @($SourceDirectController, $InstalledDirectController),
         @($SourceSupervisor, $InstalledSupervisor),
         @($SourceSupervisorLauncher, $InstalledSupervisorLauncher),
-        @($SourceHealthHelper, $InstalledHealthHelper)
+        @($SourceHealthHelper, $InstalledHealthHelper),
+        @($SourceTrayLauncher, $InstalledTrayLauncher)
     )) {
         $sourceHash = (Get-FileHash -LiteralPath $pair[0] -Algorithm SHA256).Hash
         $installedHash = (Get-FileHash -LiteralPath $pair[1] -Algorithm SHA256).Hash
@@ -309,21 +315,21 @@ function Register-SupervisorTask {
 
 function Register-TrayTask {
     $pwsh = Get-PwshPath
+    $wscript = Get-WscriptPath
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
     if ([string]::IsNullOrWhiteSpace($identity)) {
         throw 'Could not resolve the current Windows user identity.'
     }
 
     $arguments = @(
-        '-NoLogo',
-        '-NoProfile',
-        '-ExecutionPolicy', 'Bypass',
-        '-WindowStyle', 'Hidden',
-        '-File', ('"{0}"' -f $InstalledTray),
-        '-NoConsoleHost'
+        '//B',
+        '//Nologo',
+        ('"{0}"' -f $InstalledTrayLauncher),
+        ('"{0}"' -f $pwsh),
+        ('"{0}"' -f $InstalledTray)
     ) -join ' '
 
-    $action = New-ScheduledTaskAction -Execute $pwsh -Argument $arguments
+    $action = New-ScheduledTaskAction -Execute $wscript -Argument $arguments
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity
     $principal = Get-InteractiveTaskPrincipal
     $settings = Get-LongRunningTaskSettings
@@ -359,6 +365,7 @@ function Uninstall-Supervisor {
         Remove-Item -LiteralPath $InstalledSupervisor -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $InstalledSupervisorLauncher -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $InstalledHealthHelper -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $InstalledTrayLauncher -Force -ErrorAction SilentlyContinue
         return $didRestore
     })
 
@@ -398,3 +405,4 @@ Write-Host 'CHAT_PLATFORM_STATUS_INDICATOR=installed'
 Write-Host "CHAT_PLATFORM_STATUS_INDICATOR_TASK=$($trayTask.TaskName)"
 Write-Host "CHAT_PLATFORM_STATUS_INDICATOR_STATE=$($trayTask.State)"
 Write-Host "CHAT_PLATFORM_STATUS_INDICATOR_SCRIPT=$InstalledTray"
+Write-Host "CHAT_PLATFORM_STATUS_INDICATOR_LAUNCHER=$InstalledTrayLauncher"
