@@ -179,44 +179,61 @@ function Invoke-WithManagerMutex {
     }
 }
 
-function Backup-InstalledFileIfNeeded {
-    param(
-        [Parameter(Mandatory)] [string]$Installed,
-        [Parameter(Mandatory)] [string]$Source,
-        [Parameter(Mandatory)] [string]$Backup,
-        [Parameter(Mandatory)] [string]$Label
-    )
-
-    if (-not (Test-Path -LiteralPath $Installed -PathType Leaf)) {
+function Backup-InstalledDirectControllerIfNeeded {
+    if (-not (Test-Path -LiteralPath $InstalledDirectController -PathType Leaf)) {
         return
     }
-    if (Test-Path -LiteralPath $Backup -PathType Leaf) {
+    if (Test-Path -LiteralPath $DirectControllerBackup -PathType Leaf) {
         return
     }
 
-    $installedHash = (Get-FileHash -LiteralPath $Installed -Algorithm SHA256).Hash
-    $sourceHash = (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash
+    $installedHash = (Get-FileHash -LiteralPath $InstalledDirectController -Algorithm SHA256).Hash
+    $sourceHash = (Get-FileHash -LiteralPath $SourceDirectController -Algorithm SHA256).Hash
     if ($installedHash -eq $sourceHash) {
         return
     }
 
     New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
-    Copy-VerifiedFile -Source $Installed -Destination $Backup
-    Write-Host "$Label=$Backup"
+    Copy-VerifiedFile -Source $InstalledDirectController -Destination $DirectControllerBackup
+    Write-Host "TRANSPORT_SUPERVISOR_CONTROLLER_BACKUP=$DirectControllerBackup"
 }
 
-function Restore-InstalledFileBackupIfPresent {
-    param(
-        [Parameter(Mandatory)] [string]$Backup,
-        [Parameter(Mandatory)] [string]$Installed
-    )
-
-    if (-not (Test-Path -LiteralPath $Backup -PathType Leaf)) {
+function Restore-DirectControllerBackupIfPresent {
+    if (-not (Test-Path -LiteralPath $DirectControllerBackup -PathType Leaf)) {
         return $false
     }
 
-    Copy-VerifiedFile -Source $Backup -Destination $Installed
-    Remove-Item -LiteralPath $Backup -Force
+    Copy-VerifiedFile -Source $DirectControllerBackup -Destination $InstalledDirectController
+    Remove-Item -LiteralPath $DirectControllerBackup -Force
+    return $true
+}
+
+function Backup-InstalledTrayIfNeeded {
+    if (-not (Test-Path -LiteralPath $InstalledTray -PathType Leaf)) {
+        return
+    }
+    if (Test-Path -LiteralPath $TrayBackup -PathType Leaf) {
+        return
+    }
+
+    $installedHash = (Get-FileHash -LiteralPath $InstalledTray -Algorithm SHA256).Hash
+    $sourceHash = (Get-FileHash -LiteralPath $SourceTray -Algorithm SHA256).Hash
+    if ($installedHash -eq $sourceHash) {
+        return
+    }
+
+    New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
+    Copy-VerifiedFile -Source $InstalledTray -Destination $TrayBackup
+    Write-Host "CHAT_PLATFORM_STATUS_INDICATOR_BACKUP=$TrayBackup"
+}
+
+function Restore-TrayBackupIfPresent {
+    if (-not (Test-Path -LiteralPath $TrayBackup -PathType Leaf)) {
+        return $false
+    }
+
+    Copy-VerifiedFile -Source $TrayBackup -Destination $InstalledTray
+    Remove-Item -LiteralPath $TrayBackup -Force
     return $true
 }
 
@@ -247,16 +264,8 @@ function Install-SupervisorAssets {
     }
 
     Invoke-WithManagerMutex {
-        Backup-InstalledFileIfNeeded `
-            -Installed $InstalledDirectController `
-            -Source $SourceDirectController `
-            -Backup $DirectControllerBackup `
-            -Label 'TRANSPORT_SUPERVISOR_CONTROLLER_BACKUP'
-        Backup-InstalledFileIfNeeded `
-            -Installed $InstalledTray `
-            -Source $SourceTray `
-            -Backup $TrayBackup `
-            -Label 'CHAT_PLATFORM_STATUS_INDICATOR_BACKUP'
+        Backup-InstalledDirectControllerIfNeeded
+        Backup-InstalledTrayIfNeeded
 
         Copy-VerifiedFile -Source $SourceDirectController -Destination $InstalledDirectController
         Copy-VerifiedFile -Source $SourceSupervisor -Destination $InstalledSupervisor
@@ -389,12 +398,8 @@ function Uninstall-Supervisor {
     }
 
     $restore = Invoke-WithManagerMutex {
-        $controllerRestored = Restore-InstalledFileBackupIfPresent `
-            -Backup $DirectControllerBackup `
-            -Installed $InstalledDirectController
-        $trayRestored = Restore-InstalledFileBackupIfPresent `
-            -Backup $TrayBackup `
-            -Installed $InstalledTray
+        $controllerRestored = Restore-DirectControllerBackupIfPresent
+        $trayRestored = Restore-TrayBackupIfPresent
 
         Remove-Item -LiteralPath $InstalledSupervisor -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $InstalledSupervisorLauncher -Force -ErrorAction SilentlyContinue
