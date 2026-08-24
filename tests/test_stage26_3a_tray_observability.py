@@ -8,35 +8,48 @@ SOURCE = TRAY.read_text(encoding="utf-8")
 
 
 class Stage263ATrayObservabilityTests(unittest.TestCase):
-    def test_tray_reads_authoritative_supervisor_projection(self):
-        self.assertIn('"supervisor.json"', SOURCE)
-        self.assertIn("$SupervisorStateFile", SOURCE)
-        self.assertIn("Get-PlatformVisualState", SOURCE)
-        self.assertIn("Read-JsonFile -Path $SupervisorStateFile", SOURCE)
-        self.assertIn('"desired-state.json"', SOURCE)
-        self.assertIn('"settings.json"', SOURCE)
+    def test_tray_reads_cached_state_projections_only(self):
+        for expected in (
+            '"supervisor.json"',
+            '"manual-status.json"',
+            '"operation-mode.json"',
+            '"desired-state.json"',
+            '"settings.json"',
+            "Read-JsonFile -Path $SupervisorStateFile",
+            "Read-JsonFile -Path $ManualStatusFile",
+        ):
+            self.assertIn(expected, SOURCE)
         self.assertNotIn("Invoke-ControllerStatus", SOURCE)
         self.assertNotIn("-Action Status", SOURCE)
 
-    def test_periodic_refresh_does_not_spawn_status_processes(self):
-        timer_start = SOURCE.index("$timer = New-Object System.Windows.Forms.Timer")
-        timer_block = SOURCE[timer_start:]
-        self.assertIn("$timer.Interval = 2000", timer_block)
-        self.assertIn("Refresh-VisualState", timer_block)
-        self.assertNotIn("Get-Command", timer_block)
-        self.assertNotIn("pwsh.exe", timer_block)
-        self.assertNotIn("-Action Status", timer_block)
+    def test_idle_refresh_is_event_driven_not_periodic(self):
+        self.assertIn("System.IO.FileSystemWatcher", SOURCE)
+        self.assertIn("$watcher.SynchronizingObject = $uiHost", SOURCE)
+        self.assertIn("$watcher.EnableRaisingEvents = $true", SOURCE)
+        self.assertIn("Refresh-VisualState", SOURCE)
+        self.assertNotIn("$timer.Interval = 2000", SOURCE)
+        self.assertNotIn("$timer.Start()", SOURCE)
 
-    def test_supervisor_snapshot_has_bounded_freshness(self):
-        self.assertIn("$SupervisorSnapshotFreshnessSeconds = 45", SOURCE)
-        self.assertIn("Get-SupervisorSnapshotAgeSeconds", SOURCE)
+    def test_operation_timer_runs_only_for_explicit_user_lifecycle_action(self):
+        self.assertIn("$operationTimer.Interval = 250", SOURCE)
+        start = SOURCE.index("function Start-ControllerOperation")
+        end = SOURCE.index("function Toggle-Platform", start)
+        block = SOURCE[start:end]
+        self.assertIn("$operationTimer.Start()", block)
+        self.assertIn("Start-Job", block)
+        self.assertIn("-Action $Action", block)
+        self.assertIn("$operationTimer.Stop()", SOURCE)
+
+    def test_automatic_snapshot_freshness_matches_thirty_minute_cadence(self):
+        self.assertIn("$AutomaticSnapshotFreshnessSeconds = 2100", SOURCE)
+        self.assertIn("Get-SnapshotAgeSeconds", SOURCE)
         self.assertIn('"observed_at"', SOURCE)
         self.assertIn('"SUPERVISOR_STATE_STALE"', SOURCE)
-        self.assertIn("$age -gt $SupervisorSnapshotFreshnessSeconds", SOURCE)
+        self.assertIn("$age -gt $AutomaticSnapshotFreshnessSeconds", SOURCE)
 
     def test_snapshot_age_handles_convertfrom_json_datetime_without_culture_round_trip(self):
-        start = SOURCE.index("function Get-SupervisorSnapshotAgeSeconds")
-        end = SOURCE.index("function Get-PlatformVisualState", start)
+        start = SOURCE.index("function Get-SnapshotAgeSeconds")
+        end = SOURCE.index("function Get-SettingsProjection", start)
         block = SOURCE[start:end]
         self.assertIn("$observedAt -is [datetimeoffset]", block)
         self.assertIn("$observedAt -is [datetime]", block)
@@ -45,6 +58,28 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn("[Globalization.CultureInfo]::InvariantCulture", block)
         self.assertIn("[Globalization.DateTimeStyles]::RoundtripKind", block)
         self.assertNotIn("Parse([string]$observedAt)", block)
+
+    def test_manual_and_automatic_modes_are_explicit_user_controls(self):
+        for expected in (
+            'ValidateSet("manual", "automatic")',
+            '$manualModeItem.Text = "Ручной"',
+            '$automaticModeItem.Text = "Автоматический (проверка раз в 30 минут)"',
+            'Set-PlatformOperationMode -Mode "manual"',
+            'Set-PlatformOperationMode -Mode "automatic"',
+            'Stop-ScheduledTask -TaskName $SupervisorTaskName',
+            'Start-ScheduledTask -TaskName $SupervisorTaskName',
+        ):
+            self.assertIn(expected, SOURCE)
+
+    def test_manual_mode_has_no_snapshot_freshness_poll(self):
+        visual = SOURCE[
+            SOURCE.index("function Get-PlatformVisualState") :
+            SOURCE.index("$script:RedIcon", SOURCE.index("function Get-PlatformVisualState"))
+        ]
+        self.assertIn('$operationMode -eq "manual"', visual)
+        self.assertIn("Read-JsonFile -Path $ManualStatusFile", visual)
+        self.assertIn('$operationMode -eq "automatic"', visual)
+        self.assertIn("Get-SnapshotAgeSeconds -Snapshot $snapshot", visual)
 
     def test_tray_does_not_reconstruct_process_ownership(self):
         self.assertNotIn("Win32_Process", SOURCE)
@@ -55,8 +90,7 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
     def test_semantic_ready_is_always_six_tools(self):
         self.assertIn('$profile -in @("semantic", "semantic-direct")', SOURCE)
         self.assertIn('{ 6 } else { $null }', SOURCE)
-        self.assertIn('"MCP READY | Tunnel READY | $($State.expected_tool_count) tools"', SOURCE)
-        self.assertIn('"Индикатор запущен. Зелёный READY для semantic означает единый 6-tool runtime."', SOURCE)
+        self.assertIn('MCP READY | Tunnel READY | $($State.expected_tool_count) tools', SOURCE)
         self.assertNotIn("{ 5 }", SOURCE)
         self.assertNotIn("TOOL_COUNT=5", SOURCE)
 
