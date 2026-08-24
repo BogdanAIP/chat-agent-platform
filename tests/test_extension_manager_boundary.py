@@ -13,12 +13,21 @@ INSTALLER = (ROOT / 'scripts' / 'install-extension-manager.ps1').read_text(encod
 
 
 class ExtensionManagerBoundaryTests(unittest.TestCase):
-    def test_adaptive_runtime_is_not_part_of_baseline_chat_profile_gate(self):
-        self.assertNotIn('adaptive-runtime:', CHAT_PROFILES)
-        self.assertNotIn('runtime/1mcp-adaptive-shim/**', CHAT_PROFILES)
-        self.assertNotIn('tests/adaptive-mcp-acceptance.mjs', CHAT_PROFILES)
-        self.assertNotIn("Get-Content 'runtime/chat-profiles/adaptive/mcp.json'", CHAT_PROFILES)
+    def test_baseline_chat_profile_gate_does_not_start_legacy_1mcp_runtime(self):
+        for forbidden in (
+            'adaptive-runtime:',
+            'runtime/1mcp-adaptive-shim/**',
+            'tests/adaptive-mcp-acceptance.mjs',
+            './scripts/start-local-bridge.ps1',
+            './scripts/start-chat-profile.ps1',
+            './scripts/stop-chat-profile.ps1',
+            'npx --version',
+            'Prove direct profile switching and isolation',
+            'Prove public manager can observe and clean conflicting runtime scopes',
+        ):
+            self.assertNotIn(forbidden, CHAT_PROFILES)
         self.assertIn('Prove promoted six-tool semantic profile routes through the public manager', CHAT_PROFILES)
+        self.assertIn('SEMANTIC_PUBLIC_MANAGER_1MCP_REQUIRED=False', CHAT_PROFILES)
 
     def test_required_semantic_projection_gate_does_not_use_1mcp(self):
         self.assertNotIn('@1mcp/agent', SEMANTIC)
@@ -41,14 +50,19 @@ class ExtensionManagerBoundaryTests(unittest.TestCase):
         self.assertNotIn('./scripts/start-local-bridge.ps1 -Port 3059', CI)
         self.assertIn('BASELINE_1MCP_RUNTIME_REQUIRED=False', CI)
 
-    def test_optional_extension_workflow_owns_1mcp_runtime_acceptance(self):
+    def test_optional_extension_workflow_owns_all_live_1mcp_runtime_acceptance(self):
         self.assertIn('name: Optional Extension Manager Acceptance', EXTENSIONS)
         self.assertIn('runtime/1mcp-adaptive-shim/**', EXTENSIONS)
         self.assertIn('runtime/chat-profiles/adaptive/**', EXTENSIONS)
+        self.assertIn('runtime/chat-profiles/files-readonly/**', EXTENSIONS)
+        self.assertIn('runtime/chat-profiles/browser-isolated/**', EXTENSIONS)
         self.assertIn('scripts/install-extension-manager.ps1', EXTENSIONS)
         self.assertIn('Prove opt-in Extension Manager install lifecycle', EXTENSIONS)
         self.assertIn('Prove legacy internal 1MCP runtime remains available when explicitly tested', EXTENSIONS)
+        self.assertIn('Prove legacy files and browser profile switching and isolation', EXTENSIONS)
+        self.assertIn('Prove optional manager can observe and clean conflicting legacy runtime scopes', EXTENSIONS)
         self.assertIn('./scripts/start-local-bridge.ps1 -Port 3059', EXTENSIONS)
+        self.assertIn('./scripts/start-chat-profile.ps1 -Profile files-readonly', EXTENSIONS)
         self.assertIn('tests/adaptive-mcp-acceptance.mjs', EXTENSIONS)
         self.assertIn('EXTENSION_MANAGER=1mcp-optional-internal', EXTENSIONS)
         self.assertIn('BASELINE_SEMANTIC_DEPENDENCY=False', EXTENSIONS)
