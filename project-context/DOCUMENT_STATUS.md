@@ -56,7 +56,7 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 |---|---|---|
 | `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Fast continuation after resolving live GitHub state. |
 | `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and operating constraints. |
-| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted boundary, active work and residual risks. Stage 26.3A is accepted/merged; 26.3B is next. |
+| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted boundary, active work and residual risks. Stage 26.3A is accepted/merged; 26.3B is active. |
 | `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/layer/authority boundaries. |
 | `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution state/policy, verification, recovery and completion. |
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid observation, capability routing, ExpectedEffect verification, WorkingState, LoopGuard, Finish Gate and environmental-content trust boundary. Implementation is staged. |
@@ -93,8 +93,9 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT STAGE 26.3 DESIGN CONTRACT | Verified Procedure Runtime, candidate-first procedural trust and deterministic progression invariants. |
 | `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACCEPTED STAGE 26.3A IMPLEMENTATION/EVIDENCE NOTES | Canonical six-tool runtime, checkpoint/resume, identity rules and accepted physical boundary. |
 | `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACCEPTED STAGE 26.3A PUBLIC-SURFACE CONTRACT | `procedure_run` is part of the accepted normal semantic six-tool surface; no separate qualification profile remains. |
+| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE STAGE 26.3B IMPLEMENTATION CONTRACT | Verification Kernel foundation, fresh ExpectedEffect verification, PASS/FAIL/UNKNOWN semantics and independent Finish Gate. No Stage 26.3B acceptance claim yet. |
 
-Stage 26.3A is accepted/merged through PR #92. Current release-critical implementation target is Stage 26.3B Verification Kernel + independent Finish Gate, followed by Stage 26.3C WorkingState + typed recovery + LoopGuard. These current directions are governed by `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `CURRENT_STATE.md` and `ROADMAP.md` rather than by an old Stage 26.3A “pending” phrase.
+Stage 26.3A is accepted/merged through PR #92. Current release-critical implementation is Stage 26.3B Verification Kernel + independent Finish Gate. Its first internal kernel slice is active; capability adapters, migration of the accepted file procedure and any required physical integration gate remain before Stage 26.3B can be accepted. Stage 26.3C WorkingState + typed recovery + LoopGuard follows afterward. These current directions are governed by `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `CURRENT_STATE.md`, `ROADMAP.md` and the active Stage 26.3B contract rather than by an old Stage 26.3A “pending” phrase.
 
 Current normal transport/extension invariants:
 
@@ -218,7 +219,3 @@ Any architecture-changing PR must audit/update this map when it:
 - changes the Extension Manager/persistent tunnel boundary;
 - promotes a research track into the release-critical roadmap;
 - changes the public Chat-facing capability surface.
-
-Any accepted physical gate must update `EVIDENCE_INDEX.md`. Durable architecture docs should record only generalized invariants learned from evidence, not complete historical result dumps.
-
-Do not rewrite historical physical evidence merely to make old prose look current. Preserve evidence and make its authority/status explicit here and in current context.
