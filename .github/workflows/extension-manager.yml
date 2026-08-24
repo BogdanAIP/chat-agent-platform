@@ -3,8 +3,10 @@ name: Optional Extension Manager Acceptance
 on:
   pull_request:
     paths:
+      - "runtime/mcp.json"
       - "runtime/chat-profiles/adaptive/**"
       - "runtime/1mcp-adaptive-shim/**"
+      - "scripts/install-extension-manager.ps1"
       - "scripts/start-chat-profile.ps1"
       - "scripts/status-chat-profile.ps1"
       - "scripts/stop-chat-profile.ps1"
@@ -16,12 +18,15 @@ on:
       - "scripts/bootstrap-manager-runtime.ps1"
       - "tests/adaptive-mcp-acceptance.mjs"
       - "tests/test_adaptive_profile.py"
+      - "tests/test_extension_manager_boundary.py"
       - ".github/workflows/extension-manager.yml"
   push:
     branches: [main]
     paths:
+      - "runtime/mcp.json"
       - "runtime/chat-profiles/adaptive/**"
       - "runtime/1mcp-adaptive-shim/**"
+      - "scripts/install-extension-manager.ps1"
       - "scripts/start-chat-profile.ps1"
       - "scripts/status-chat-profile.ps1"
       - "scripts/stop-chat-profile.ps1"
@@ -33,6 +38,7 @@ on:
       - "scripts/bootstrap-manager-runtime.ps1"
       - "tests/adaptive-mcp-acceptance.mjs"
       - "tests/test_adaptive_profile.py"
+      - "tests/test_extension_manager_boundary.py"
       - ".github/workflows/extension-manager.yml"
   workflow_dispatch:
 
@@ -46,7 +52,7 @@ concurrency:
 jobs:
   adaptive-1mcp:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -87,11 +93,45 @@ jobs:
             if ($raw.ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
           }
 
-      - name: Run adaptive profile Python contracts
+      - name: Run adaptive and boundary Python contracts
         shell: pwsh
         run: |
-          python -m unittest tests.test_adaptive_profile
-          if ($LASTEXITCODE -ne 0) { throw "Adaptive profile contracts failed with exit code $LASTEXITCODE" }
+          python -m unittest tests.test_adaptive_profile tests.test_extension_manager_boundary
+          if ($LASTEXITCODE -ne 0) { throw "Extension Manager contracts failed with exit code $LASTEXITCODE" }
+
+      - name: Prove opt-in Extension Manager install lifecycle
+        shell: pwsh
+        run: |
+          $appRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\app'
+          $scripts = Join-Path $appRoot 'scripts'
+          New-Item -ItemType Directory -Force -Path $scripts | Out-Null
+          Set-Content -LiteralPath (Join-Path $scripts 'chat-platform.ps1') -Value '# hosted baseline sentinel' -Encoding utf8
+          try {
+            ./scripts/install-extension-manager.ps1 -Action Install
+            $status = ./scripts/install-extension-manager.ps1 -Action Status | Out-String | ConvertFrom-Json
+            if (-not [bool]$status.installed) { throw 'Opt-in Extension Manager installer did not report installed=true.' }
+            if ([bool]$status.baseline_semantic_dependency) { throw 'Extension Manager incorrectly claims baseline semantic dependency.' }
+            ./scripts/install-extension-manager.ps1 -Action Remove
+            $after = ./scripts/install-extension-manager.ps1 -Action Status | Out-String | ConvertFrom-Json
+            if ([bool]$after.installed) { throw 'Extension Manager remove did not remove optional assets.' }
+            Write-Host 'EXTENSION_MANAGER_INSTALL_LIFECYCLE=PASS'
+          }
+          finally {
+            ./scripts/install-extension-manager.ps1 -Action Remove -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $appRoot -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Prove legacy internal 1MCP runtime remains available when explicitly tested
+        shell: pwsh
+        run: |
+          try {
+            ./scripts/start-local-bridge.ps1 -Port 3059 -ReadyTimeoutSeconds 240
+            ./scripts/status-local-bridge.ps1 -Port 3059
+            Write-Host 'EXTENSION_MANAGER_LEGACY_RUNTIME=PASS'
+          }
+          finally {
+            ./scripts/stop-local-bridge.ps1
+          }
 
       - name: Prove optional 1MCP Extension Manager can activate backends on demand
         shell: pwsh
