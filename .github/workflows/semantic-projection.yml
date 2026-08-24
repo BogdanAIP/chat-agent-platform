@@ -94,7 +94,7 @@ jobs:
           if ([int]$lock['lockfileVersion'] -ne 3) { throw 'Semantic projection lockfileVersion drifted.' }
           $rootPackage = $lock['packages']['']
           foreach ($name in $pins.Keys) {
-            if ([string]$rootPackage['dependencies'][$name) -ne [string]$pins[$name]) {
+            if ([string]$rootPackage['dependencies'][$name] -ne [string]$pins[$name]) {
               throw "Semantic projection lock dependency drifted: $name"
             }
           }
