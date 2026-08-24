@@ -51,6 +51,42 @@ The ordinary semantic startup guard must refuse READY unless live `tools/list` i
 
 The tray has one normal semantic READY state; no separate qualification state/color remains.
 
+## Normal transport vs optional extensions
+
+Normal semantic transport is direct stdio and must not depend on 1MCP.
+
+```text
+ordinary ChatGPT
+ -> Secure MCP Tunnel
+ -> official tunnel-client
+ -> semantic launcher
+ -> six canonical tools
+```
+
+The persistent accepted `tunnel_*` id is stored in neutral platform state:
+
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\state\tunnel.json
+```
+
+An existing `local-1mcp.yaml` may be read only as a one-time migration fallback for an already accepted tunnel id. It is not the normal semantic source of truth.
+
+1MCP is retained as an optional internal Extension Manager for future third-party MCP backends:
+
+```text
+canonical semantic surface
+        |
+        +----> project-owned capability / Control Plane
+        |
+        `----> optional Extension Manager
+                    |
+                   1MCP
+                    |
+              third-party MCP backends
+```
+
+1MCP may later handle backend discovery/aggregation, enable-disable, lazy lifecycle, health and restart. Its absence/failure must not block baseline six-tool bootstrap/start/health. Raw backend tools are not exported directly to ordinary ChatGPT; supported extensions remain behind project-owned typed semantic facades and the same authorization boundary.
+
 ---
 
 # Accepted foundation
@@ -131,19 +167,29 @@ The installed bundle must include the canonical six-tool projection and Control 
 semantic_public_tool_count = 6
 ```
 
+Normal bootstrap acceptance now also requires:
+
+```text
+semantic binding = direct-stdio
+normal semantic 1MCP required = false
+bootstrap smoke profile = semantic
+persistent tunnel source = state/tunnel.json
+```
+
 ### Stage 26.3A remaining physical acceptance
 
 After all hosted checks are green on one exact PR #92 head:
 
 1. install/update that exact head on the target Windows machine;
-2. start the **normal** semantic route;
-3. verify one normal tray READY state and exactly six live tools;
-4. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
-5. actual `procedure_run` success;
-6. independent `workspace_read` of the final nested artifact;
-7. negative pre-existing-target case -> structured ABSTAIN;
-8. independent read proves zero unauthorized overwrite;
-9. record exact physical head/result evidence before acceptance.
+2. migrate/verify the accepted tunnel id into neutral `state/tunnel.json`;
+3. start the **normal** semantic route;
+4. verify one normal tray READY state and exactly six live tools;
+5. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
+6. actual `procedure_run` success;
+7. independent `workspace_read` of the final nested artifact;
+8. negative pre-existing-target case -> structured ABSTAIN;
+9. independent read proves zero unauthorized overwrite;
+10. record exact physical head/result evidence before acceptance.
 
 A manual `workspace_write` fallback does not count as physical acceptance of `procedure_run`.
 
@@ -177,6 +223,8 @@ Stage 26.2E real application E2E — ACCEPTED
 
 Future optional Track P may later evaluate a local planner after verified procedure-state data and measured need. It remains behind the same authorization/verifier boundary.
 
+Optional 1MCP Extension Manager development is orthogonal to this release-critical path. It may be used later to reduce integration work for additional MCP backends without re-entering the baseline semantic critical path.
+
 ## Merge policy
 
 When a branch is logically complete, intended diff is reviewed, required physical/CI tests pass and applicable acceptance gates are satisfied, merge it without waiting for a separate merge command.
@@ -188,6 +236,8 @@ Stop on unresolved findings, conflict, ambiguous scope or failed/skipped require
 # Residual risks
 
 - Stage 26.3A normal six-tool route is not yet physically accepted on the target Windows machine;
+- the new neutral tunnel-state migration still requires hosted + target-machine verification on the current PR head;
+- the optional 1MCP/adaptive extension path is not a baseline release gate and remains less stable than the normal direct semantic route;
 - one real VS Code task is not broad real-application coverage;
 - `AutomationId` still lacks dedicated accepted physical coverage across real applications;
 - browser DNS/rebinding/redirect/private-network isolation remains incomplete;
@@ -200,6 +250,10 @@ Stop on unresolved findings, conflict, ambiguous scope or failed/skipped require
 
 - ordinary ChatGPT is the only current general planner/intelligence;
 - deterministic Control Plane may advance only already-defined authorized+verified procedure transitions;
+- normal semantic install/start/health must not require optional 1MCP extension infrastructure;
+- persistent tunnel identity belongs to neutral platform state;
+- third-party MCP availability is not trust or authorization;
+- raw extension tools are not automatically Chat-facing;
 - new strategy/ambiguity/stale/UNKNOWN -> ABSTAIN/escalate;
 - semantic/native structure before pixels where reliable;
 - model/procedure/observation proposal is not authorization;
