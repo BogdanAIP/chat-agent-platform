@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import {
+  EXPECTED_SEMANTIC_TOOLS,
+  assertExpectedSemanticInventory
+} from '../lib/semantic-inventory-guard.mjs';
+
 const here = path.dirname(fileURLToPath(import.meta.url));
-const launcher = path.resolve(here, '..', 'bin', 'semantic-projection-launcher.mjs');
 const canonicalEntry = path.resolve(here, '..', 'bin', 'semantic-control-plane-projection.mjs');
 const privateFiveToolEntry = path.resolve(here, '..', 'bin', 'semantic-projection.mjs');
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-inventory-guard-workspace-'));
@@ -24,31 +27,20 @@ function childEnvironment() {
   return env;
 }
 
-function verify(entry) {
-  return spawnSync(
-    process.execPath,
-    [launcher, '--verify-inventory-entry', entry],
-    {
-      env: childEnvironment(),
-      encoding: 'utf8',
-      timeout: 30_000,
-      windowsHide: true
-    }
-  );
-}
-
 try {
-  const canonical = verify(canonicalEntry);
-  assert.equal(canonical.error, undefined, canonical.error?.message);
-  assert.equal(canonical.status, 0, `canonical inventory guard failed:\n${canonical.stderr}`);
-  assert.match(canonical.stdout, /SEMANTIC_LIVE_INVENTORY_GUARD=PASS/);
-  assert.match(canonical.stdout, /procedure_run/);
+  const names = await assertExpectedSemanticInventory({
+    entry: canonicalEntry,
+    env: childEnvironment()
+  });
+  assert.deepEqual(names, EXPECTED_SEMANTIC_TOOLS);
 
-  const privateFive = verify(privateFiveToolEntry);
-  assert.equal(privateFive.error, undefined, privateFive.error?.message);
-  assert.equal(privateFive.status, 1, `five-tool private base unexpectedly passed:\n${privateFive.stdout}`);
-  assert.match(privateFive.stderr, /semantic launcher live inventory preflight failed/);
-  assert.match(privateFive.stderr, /expected exactly:/);
+  await assert.rejects(
+    () => assertExpectedSemanticInventory({
+      entry: privateFiveToolEntry,
+      env: childEnvironment()
+    }),
+    /expected exactly:/
+  );
 
   console.log('SEMANTIC_LIVE_INVENTORY_GUARD_CANONICAL=PASS');
   console.log('SEMANTIC_LIVE_INVENTORY_GUARD_REJECTS_FIVE_TOOL=PASS');
