@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "runtime/mcp.json"
+      - "runtime/chat-profiles/files-readonly/**"
+      - "runtime/chat-profiles/browser-isolated/**"
       - "runtime/chat-profiles/adaptive/**"
       - "runtime/1mcp-adaptive-shim/**"
       - "scripts/install-extension-manager.ps1"
@@ -24,6 +26,8 @@ on:
     branches: [main]
     paths:
       - "runtime/mcp.json"
+      - "runtime/chat-profiles/files-readonly/**"
+      - "runtime/chat-profiles/browser-isolated/**"
       - "runtime/chat-profiles/adaptive/**"
       - "runtime/1mcp-adaptive-shim/**"
       - "scripts/install-extension-manager.ps1"
@@ -52,7 +56,7 @@ concurrency:
 jobs:
   adaptive-1mcp:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -65,7 +69,7 @@ jobs:
           npx --version
           python --version
           $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
-          if (-not (Test-Path $chrome)) { throw 'Google Chrome is required for adaptive browser acceptance.' }
+          if (-not (Test-Path $chrome)) { throw 'Google Chrome is required for optional browser acceptance.' }
           $env:PATH = "$(Split-Path $chrome -Parent);$env:PATH"
 
       - name: Enforce optional adaptive catalog contract
@@ -131,6 +135,49 @@ jobs:
           }
           finally {
             ./scripts/stop-local-bridge.ps1
+          }
+
+      - name: Prove legacy files and browser profile switching and isolation
+        shell: pwsh
+        run: |
+          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-extension-profile-files'
+          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+          Set-Content -LiteralPath (Join-Path $filesRoot 'marker.txt') -Value 'CHAT_EXTENSION_FILES_OK' -Encoding utf8
+          try {
+            ./scripts/start-chat-profile.ps1 -Profile files-readonly -FilesRoot $filesRoot -Port 3066 -ReadyTimeoutSeconds 240
+            $filesStatus = ./scripts/status-chat-profile.ps1 -Port 3066 | Out-String | ConvertFrom-Json
+            if ($filesStatus.active_count -ne 1 -or $filesStatus.active_profile -ne 'files-readonly' -or $filesStatus.conflict) { throw 'files-readonly was not the only active optional profile.' }
+
+            ./scripts/start-chat-profile.ps1 -Profile browser-isolated -Port 3066 -ReadyTimeoutSeconds 240
+            $browserStatus = ./scripts/status-chat-profile.ps1 -Port 3066 | Out-String | ConvertFrom-Json
+            if ($browserStatus.active_count -ne 1 -or $browserStatus.active_profile -ne 'browser-isolated' -or $browserStatus.conflict) { throw 'browser-isolated did not replace files-readonly.' }
+
+            Write-Host 'EXTENSION_MANAGER_LEGACY_PROFILE_SWITCHING=PASS'
+          }
+          finally {
+            ./scripts/stop-chat-profile.ps1
+          }
+
+      - name: Prove optional manager can observe and clean conflicting legacy runtime scopes
+        shell: pwsh
+        run: |
+          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-extension-conflict-files'
+          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+          Set-Content -LiteralPath (Join-Path $filesRoot 'marker.txt') -Value 'CHAT_EXTENSION_CONFLICT_OK' -Encoding utf8
+          $env:CHAT_LOCAL_FILES_ROOT = $filesRoot
+          try {
+            ./scripts/start-local-bridge.ps1 -Port 3071 -ConfigPath runtime/chat-profiles/files-readonly/mcp.json -HealthServerName filesystem -ReadyTimeoutSeconds 240
+            ./scripts/start-local-bridge.ps1 -Port 3072 -ConfigPath runtime/chat-profiles/browser-isolated/mcp.json -HealthServerName playwright -ReadyTimeoutSeconds 240
+            $conflict = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if ($conflict.active_count -ne 2 -or -not $conflict.conflict) { throw 'Manager did not preserve active_count=2 optional conflict state.' }
+            ./scripts/chat-platform.ps1 -Action Toggle -NoNotify
+            $clean = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if ($clean.active_count -ne 0 -or $clean.conflict) { throw 'Manager did not clean conflicting optional Runtime Scopes.' }
+            Write-Host 'EXTENSION_MANAGER_LEGACY_CONFLICT_CLEANUP=PASS'
+          }
+          finally {
+            Remove-Item Env:CHAT_LOCAL_FILES_ROOT -ErrorAction SilentlyContinue
+            ./scripts/stop-chat-profile.ps1
           }
 
       - name: Prove optional 1MCP Extension Manager can activate backends on demand
