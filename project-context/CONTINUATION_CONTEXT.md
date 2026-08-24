@@ -52,7 +52,7 @@ The tray has one normal semantic READY state; there is no qualification color/st
 
 ### Current 1MCP / Extension Manager boundary
 
-Normal semantic transport is direct stdio through the official Secure MCP Tunnel client. Normal bootstrap/start/health/smoke does not require 1MCP.
+Normal semantic transport is direct stdio through the official Secure MCP Tunnel client. Normal bootstrap/start/status/health/smoke does not require 1MCP.
 
 Persistent tunnel state is:
 
@@ -60,15 +60,43 @@ Persistent tunnel state is:
 %LOCALAPPDATA%\ChatAgentPlatform\state\tunnel.json
 ```
 
-Historical `local-1mcp.yaml` may be used only as a bounded migration source for an already accepted tunnel id.
+The historical installed profile:
 
-1MCP remains a replaceable **optional internal Extension Manager** for future third-party MCP backends. The normal manager bundle records `extension_manager_included = false`; optional assets are installed explicitly with:
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\tunnel\local-1mcp.yaml
+```
+
+may be used only as a bounded migration source for an already accepted tunnel id. Fresh normal bootstrap does not create it as the normal transport profile.
+
+Normal bootstrap no longer invokes the legacy internal controller `-Action Install` path. It initializes the semantic core directly, preserves an existing valid `files_root` when possible or creates:
+
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\workspace
+```
+
+and persists:
+
+```text
+profile = semantic
+tunnel_profile = direct-stdio
+```
+
+After bootstrap, ordinary public `Status` and the tray resolve through `semantic-direct-controller.ps1`; a stopped normal platform must not call `npx @1mcp/agent` merely to report status.
+
+1MCP remains a replaceable **optional internal Extension Manager** for future third-party MCP backends. The normal manager bundle records:
+
+```text
+semantic_public_tool_count = 6
+extension_manager_included = false
+```
+
+Optional assets are installed explicitly with:
 
 ```text
 scripts/install-extension-manager.ps1
 ```
 
-Required baseline CI does not start 1MCP. Its runtime/adaptive acceptance lives in the separate `Optional Extension Manager Acceptance` workflow.
+Historical 1MCP lifecycle scripts and file/browser profile definitions may remain in the repository/bundle as compatibility hooks, but required baseline CI does not execute their live runtime paths. Their runtime acceptance lives in the separate `Optional Extension Manager Acceptance` workflow.
 
 Canonical operating contract: `EXTENSION_MANAGER.md`.
 
@@ -126,22 +154,24 @@ semantic_public_tool_count = 6
 extension_manager_included = false
 ```
 
-The public bootstrap is one entrypoint, internally modularized for tunnel, manager/runtime bundle and lifecycle verification. Optional 1MCP/adaptive assets are outside that baseline bundle.
+The public bootstrap is one entrypoint, internally modularized for tunnel, manager/runtime bundle and lifecycle verification. Optional 1MCP/adaptive assets are outside that baseline runtime dependency. Legacy compatibility hooks must remain inert unless explicitly exercised by the optional extension path.
 
 ## Remaining Stage 26.3A physical gates
 
-After all hosted workflows required for the baseline are green on one exact PR head:
+After required hosted workflows are green for the current code candidate:
 
-1. install/update that exact head on the target Windows machine;
+1. install/update that exact code head on the target Windows machine;
 2. verify the accepted tunnel id migrated/resolved into neutral `state/tunnel.json`;
-3. start the **normal** semantic route — no temporary qualification route;
-4. verify the tray reports normal READY and live inventory is exactly six tools;
-5. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
-6. actual `procedure_run` success through `verified_workspace_artifact_v1`;
-7. independent `workspace_read` of the final nested artifact;
-8. negative pre-existing-target case -> structured ABSTAIN and zero overwrite;
-9. independent read proves protected content unchanged;
-10. capture exact head/status/evidence in PR/docs before acceptance.
+3. verify normal install metadata reports `semantic_public_tool_count=6` and `extension_manager_included=false`;
+4. verify manager settings are `profile=semantic` and `tunnel_profile=direct-stdio` after bootstrap;
+5. verify stopped public Status/tray does not require a live 1MCP runtime;
+6. start the **normal** semantic route — no temporary qualification route;
+7. verify the tray reports normal READY and live inventory is exactly six tools;
+8. ordinary ChatGPT one-goal E2E with no intermediate PowerShell relay;
+9. actual `procedure_run` success through `verified_workspace_artifact_v1`;
+10. independent `workspace_read` of the final nested artifact;
+11. negative pre-existing-target case -> structured ABSTAIN and independent proof of zero overwrite;
+12. capture exact head/status/evidence in PR/docs before acceptance.
 
 A manual `workspace_write` fallback can demonstrate resilience but does **not** count as `procedure_run` physical PASS.
 
@@ -168,7 +198,7 @@ workspace_read challenge
 26.2E real application E2E — ACCEPTED
  -> Transport Supervisor v1 — ACCEPTED / MERGED #94
  -> 26.3 Verified Procedure Runtime / deterministic Control Plane — ACTIVE
-    -> 26.3A canonical six-tool semantic runtime — hosted gate in progress; physical gate next
+    -> 26.3A canonical six-tool semantic runtime — hosted gate then physical gate
     -> 26.3B advanced verifier/postconditions
     -> checkpoint/recovery/budget mechanics as required
  -> 26.4 Human Demo -> transferable verified candidate skill
@@ -183,4 +213,4 @@ workspace_read challenge
 3. Treat Stage 26.2E and Transport Supervisor evidence as accepted only for their exact recorded physical heads.
 4. Treat hosted CI as software-contract evidence only; do not infer physical ordinary-Chat acceptance from it.
 5. Prefer exact code/tests/current CI/physical evidence over prose.
-6. Continue the current normal six-tool semantic physical qualification; do not recreate a separate five-versus-six qualification mode and do not put 1MCP back into the normal semantic critical path.
+6. Continue the current normal six-tool semantic physical qualification; do not recreate a separate five-versus-six qualification mode, do not make `reference` the normal fresh-install default and do not put 1MCP back into the normal semantic critical path.
