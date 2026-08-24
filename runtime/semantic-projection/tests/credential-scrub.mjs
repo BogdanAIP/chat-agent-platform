@@ -10,25 +10,27 @@ const launcher = path.resolve(here, '..', 'bin', 'semantic-projection-launcher.m
 const source = fs.readFileSync(launcher, 'utf8');
 
 const deleteIndex = source.indexOf('delete process.env[key]');
-const semanticEntryIndex = source.indexOf("path.join(launcherDir, 'semantic-projection.mjs')");
+const semanticEntryIndex = source.indexOf("path.join(launcherDir, 'semantic-control-plane-projection.mjs')");
 const spawnIndex = source.indexOf('spawn(process.execPath, [semanticEntry]');
 assert(deleteIndex >= 0, 'launcher must delete tunnel-only credentials');
-assert(semanticEntryIndex > deleteIndex, 'semantic child entry must be resolved after credential scrub');
+assert(semanticEntryIndex > deleteIndex, 'six-tool semantic entry must be resolved after credential scrub');
 assert(spawnIndex > semanticEntryIndex, 'credential scrub and fixed semantic entry resolution must happen before child spawn');
 assert(source.includes("'CONTROL_PLANE_API_KEY'"));
 assert(source.includes("'OPENAI_API_KEY'"));
+assert(source.includes("'OPENAI_ADMIN_KEY'"));
 
 for (const legacyName of [
   'semantic-projection_1mcp_workspace_read',
   'semantic-projection_1mcp_workspace_write',
   'semantic-projection_1mcp_web_open',
   'semantic-projection_1mcp_web_observe',
-  'semantic-projection_1mcp_web_interact'
+  'semantic-projection_1mcp_web_interact',
+  'semantic-projection_1mcp_procedure_run'
 ]) {
   assert(source.includes(`'${legacyName}'`), `missing reviewed frozen-action alias: ${legacyName}`);
 }
 
-const sentinel = 'STAGE25_1_SECRET_MUST_NOT_REACH_SEMANTIC_CORE';
+const sentinel = 'STAGE26_3A_SECRET_MUST_NOT_REACH_SEMANTIC_CORE';
 const child = spawnSync(
   process.execPath,
   [launcher, '--verify-credential-scrub'],
@@ -38,6 +40,7 @@ const child = spawnSync(
       ...process.env,
       CONTROL_PLANE_API_KEY: sentinel,
       OPENAI_API_KEY: sentinel,
+      OPENAI_ADMIN_KEY: sentinel,
       CHAT_LOCAL_FILES_ROOT: process.cwd()
     },
     encoding: 'utf8',
