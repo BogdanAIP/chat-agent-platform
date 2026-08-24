@@ -54,7 +54,10 @@ public static class ChatPlatformNativeIcon
 $CommandPath = Join-Path $PSScriptRoot "chat-platform.ps1"
 $LocalRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform"
 $ControllerLog = Join-Path $LocalRoot "logs\controller.log"
+$DesiredStateFile = Join-Path $LocalRoot "state\desired-state.json"
 $QualificationHandoffState = Join-Path $LocalRoot "state\stage26-3a-procedure-supervised-handoff.json"
+$QualificationDirectState = Join-Path $LocalRoot "state\stage26-3a-procedure-direct.json"
+$QualificationHealthUrlFile = Join-Path $LocalRoot "state\stage26-3a-procedure-direct-health.url"
 
 $createdNew = $false
 $mutex = New-Object System.Threading.Mutex(
@@ -133,115 +136,125 @@ function Invoke-ControllerStatus {
     }
 }
 
-function Get-QualificationStatus {
-    if (-not (Test-Path -LiteralPath $QualificationHandoffState -PathType Leaf)) {
+function Read-JsonStateFile {
+    param([Parameter(Mandatory)] [string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $null
+    }
+    try {
+        return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-QualificationTunnelProcess {
+    $direct = Read-JsonStateFile -Path $QualificationDirectState
+    if ($null -eq $direct -or $null -eq $direct.PSObject.Properties['pid']) {
         return $null
     }
 
     try {
-        $handoff = Get-Content -LiteralPath $QualificationHandoffState -Raw | ConvertFrom-Json -ErrorAction Stop
+        $pidValue = [int]$direct.pid
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" -ErrorAction SilentlyContinue
+        if ($null -eq $process) { return $null }
+        if ([string]$process.Name -ne "tunnel-client.exe") { return $null }
+        if (
+            [string]::IsNullOrWhiteSpace([string]$process.CommandLine) -or
+            [string]$process.CommandLine -notmatch [regex]::Escape($QualificationHealthUrlFile)
+        ) {
+            return $null
+        }
+        return $process
     }
     catch {
-        return [pscustomobject]@{
-            present = $true
-            error = "Qualification handoff receipt is invalid: $($_.Exception.Message)"
-        }
+        return $null
     }
+}
 
-    if (
-        $null -eq $handoff.PSObject.Properties['repo_root'] -or
-        [string]::IsNullOrWhiteSpace([string]$handoff.repo_root)
-    ) {
-        return [pscustomobject]@{
-            present = $true
-            error = "Qualification handoff receipt has no repo_root."
-        }
+function Test-QualificationReady {
+    if ($null -eq (Get-QualificationTunnelProcess)) {
+        return $false
     }
-
-    $handoffScript = Join-Path ([string]$handoff.repo_root) "scripts\stage26-3a-procedure-supervised-handoff.ps1"
-    if (-not (Test-Path -LiteralPath $handoffScript -PathType Leaf)) {
-        return [pscustomobject]@{
-            present = $true
-            error = "Qualification status script is unavailable: $handoffScript"
-        }
-    }
-
-    $pwsh = (Get-Command "pwsh.exe" -ErrorAction Stop).Source
-    $output = @(
-        & $pwsh `
-            -NoLogo `
-            -NoProfile `
-            -ExecutionPolicy Bypass `
-            -File $handoffScript `
-            -Action Status `
-            2>&1
-    )
-
-    if ($LASTEXITCODE -ne 0) {
-        return [pscustomobject]@{
-            present = $true
-            error = "Qualification status failed with exit code $LASTEXITCODE`: $(($output | Out-String).Trim())"
-        }
+    if (-not (Test-Path -LiteralPath $QualificationHealthUrlFile -PathType Leaf)) {
+        return $false
     }
 
     try {
-        $status = $output | Out-String | ConvertFrom-Json -ErrorAction Stop
+        $base = (Get-Content -LiteralPath $QualificationHealthUrlFile -Raw).Trim().TrimEnd('/')
+        if ($base -notmatch '^https?://127\.0\.0\.1(?::\d+)?$') {
+            return $false
+        }
+        $response = Invoke-WebRequest `
+            -Uri "$base/readyz" `
+            -Method Get `
+            -TimeoutSec 2 `
+            -ErrorAction Stop
+        return ($response.StatusCode -eq 200)
     }
     catch {
+        return $false
+    }
+}
+
+function Get-QualificationVisualState {
+    if (-not (Test-Path -LiteralPath $QualificationHandoffState -PathType Leaf)) {
+        return $null
+    }
+
+    $handoff = Read-JsonStateFile -Path $QualificationHandoffState
+    if ($null -eq $handoff) {
         return [pscustomobject]@{
-            present = $true
-            error = "Qualification status returned invalid JSON: $(($output | Out-String).Trim())"
+            mode = "partial"
+            profile = "procedure-qualification"
+            route_owner = "qualification"
+            expected_tool_count = 6
+            tunnel_running = $false
+            tunnel_ready = $false
+            mcp_ready = $false
+            active_count = 0
+            files_root = $null
+            tunnel_id = $null
+            error = "Qualification handoff receipt is unreadable."
         }
     }
 
+    $direct = Read-JsonStateFile -Path $QualificationDirectState
+    $desired = Read-JsonStateFile -Path $DesiredStateFile
+    $process = Get-QualificationTunnelProcess
+    $running = ($null -ne $process)
+    $ready = Test-QualificationReady
+    $handoffRunning = (
+        $null -ne $handoff.PSObject.Properties['phase'] -and
+        [string]$handoff.phase -eq "running"
+    )
+    $normalSuspended = (
+        $null -ne $desired -and
+        $null -ne $desired.PSObject.Properties['desired_state'] -and
+        [string]$desired.desired_state -eq "stopped"
+    )
+    $fullyReady = ($handoffRunning -and $normalSuspended -and $running -and $ready)
+
     return [pscustomobject]@{
-        present = $true
-        error = $null
-        status = $status
+        mode = if ($fullyReady) { "qualification" } else { "partial" }
+        profile = "procedure-qualification"
+        route_owner = "qualification"
+        expected_tool_count = 6
+        tunnel_running = $running
+        tunnel_ready = $ready
+        mcp_ready = $ready
+        active_count = if ($running) { 1 } else { 0 }
+        files_root = if ($null -ne $direct) { [string]$direct.files_root } else { [string]$handoff.files_root }
+        tunnel_id = if ($null -ne $direct) { [string]$direct.tunnel_id } else { $null }
+        error = if ($fullyReady) { $null } else { "Qualification handoff exists but the 6-tool route is not fully ready." }
     }
 }
 
 function Get-PlatformVisualState {
-    $qualification = Get-QualificationStatus
+    $qualification = Get-QualificationVisualState
     if ($null -ne $qualification) {
-        if (-not [string]::IsNullOrWhiteSpace([string]$qualification.error)) {
-            return [pscustomobject]@{
-                mode = "partial"
-                profile = "procedure-qualification"
-                route_owner = "qualification"
-                expected_tool_count = 6
-                tunnel_running = $false
-                tunnel_ready = $false
-                mcp_ready = $false
-                active_count = 0
-                files_root = $null
-                tunnel_id = $null
-                error = [string]$qualification.error
-            }
-        }
-
-        $q = $qualification.status
-        $ready = (
-            [bool]$q.handoff_present -and
-            [string]$q.handoff_phase -eq "running" -and
-            [string]$q.current_desired_state -eq "stopped" -and
-            [bool]$q.qualification_running -and
-            [bool]$q.qualification_ready
-        )
-
-        return [pscustomobject]@{
-            mode = if ($ready) { "qualification" } else { "partial" }
-            profile = "procedure-qualification"
-            route_owner = "qualification"
-            expected_tool_count = 6
-            tunnel_running = [bool]$q.qualification_running
-            tunnel_ready = [bool]$q.qualification_ready
-            mcp_ready = [bool]$q.qualification_ready
-            active_count = if ([bool]$q.qualification_running) { 1 } else { 0 }
-            files_root = [string]$q.files_root
-            tunnel_id = [string]$q.tunnel_id
-            error = if ($ready) { $null } else { "Qualification handoff exists but the 6-tool route is not fully ready." }
-        }
+        return $qualification
     }
 
     try {
