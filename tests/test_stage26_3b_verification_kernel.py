@@ -15,6 +15,9 @@ from runtime.control_plane.verification import (
 )
 
 
+_FINISH_BATCH = "finish-batch-1"
+
+
 class Stage263BVerificationKernelTests(unittest.TestCase):
     @staticmethod
     def _ref(
@@ -34,12 +37,28 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _result(effect_id: str, status: VerificationStatus) -> VerificationResult:
+    def _result(
+        effect_id: str,
+        status: VerificationStatus,
+        *,
+        batch: str | None = _FINISH_BATCH,
+        bound: bool = True,
+    ) -> VerificationResult:
+        observation = None
+        if bound:
+            observation = ObservationRef(
+                capability="finish-test",
+                subject=f"check:{effect_id}",
+                stream_id="finish-stream",
+                sequence=1,
+                fingerprint=f"fp:{effect_id}",
+            )
         return VerificationResult(
             effect_id=effect_id,
             status=status,
             reason=f"synthetic_{status.value}",
-            observation=None,
+            observation=observation,
+            evidence_batch_id=batch,
         )
 
     def test_fresh_exact_effect_passes(self) -> None:
@@ -203,16 +222,65 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
         self.assertEqual(verify_expected_effect(browser_effect, browser_after).status, VerificationStatus.PASS)
         self.assertEqual(verify_expected_effect(windows_effect, windows_after).status, VerificationStatus.PASS)
 
+    def test_normalized_state_is_frozen_and_detached_from_caller_mutation(self) -> None:
+        source = {"exists": True, "nested": {"values": [1, 2]}}
+        snapshot = ObservationSnapshot(
+            ref=self._ref("files", "artifact:x", 1, "fp"),
+            state=source,
+        )
+
+        source["exists"] = False
+        source["nested"]["values"].append(3)
+
+        self.assertIs(snapshot.state["exists"], True)
+        self.assertEqual(tuple(snapshot.state["nested"]["values"]), (1, 2))
+        with self.assertRaises(TypeError):
+            snapshot.state["exists"] = False  # type: ignore[index]
+
+    def test_normalized_boundary_rejects_custom_objects(self) -> None:
+        class Custom:
+            pass
+
+        with self.assertRaises(TypeError):
+            ObservationSnapshot(
+                ref=self._ref("files", "artifact:x", 1, "fp"),
+                state={"unsafe": Custom()},
+            )
+        with self.assertRaises(TypeError):
+            StatePredicate.equals("value", expected=Custom())
+
+    def test_equals_is_type_strict_and_mapping_order_independent(self) -> None:
+        before = self._ref("test", "subject", 1, "before")
+        strict = ExpectedEffect(
+            effect_id="strict-type",
+            before=before,
+            predicates=(StatePredicate.equals("value", expected=True),),
+        )
+        reordered = ExpectedEffect(
+            effect_id="mapping-order",
+            before=before,
+            predicates=(StatePredicate.equals("payload", expected={"a": 1, "b": 2}),),
+        )
+        after = ObservationSnapshot(
+            ref=self._ref("test", "subject", 2, "after"),
+            state={"value": 1, "payload": {"b": 2, "a": 1}},
+        )
+
+        self.assertEqual(verify_expected_effect(strict, after).status, VerificationStatus.FAIL)
+        self.assertEqual(verify_expected_effect(reordered, after).status, VerificationStatus.PASS)
+
     def test_finish_gate_requires_independent_goal_and_safety_evidence(self) -> None:
         passed_goal = self._result("goal", VerificationStatus.PASS)
         passed_safety = self._result("safety", VerificationStatus.PASS)
 
         done = evaluate_finish_gate(
+            evidence_batch_id=_FINISH_BATCH,
             candidate_done=True,
             goal_results=(passed_goal,),
             safety_results=(passed_safety,),
         )
         missing_safety = evaluate_finish_gate(
+            evidence_batch_id=_FINISH_BATCH,
             candidate_done=True,
             goal_results=(passed_goal,),
             safety_results=(),
@@ -224,16 +292,62 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
         self.assertEqual(missing_safety.status, FinishStatus.UNKNOWN)
         self.assertEqual(missing_safety.safety, VerificationStatus.UNKNOWN)
 
+    def test_finish_gate_rejects_unbound_or_wrong_batch_pass_receipts(self) -> None:
+        passed = self._result("goal", VerificationStatus.PASS)
+        unbound = self._result("safety", VerificationStatus.PASS, bound=False)
+        wrong_batch = self._result("safety", VerificationStatus.PASS, batch="old-batch")
+
+        unbound_gate = evaluate_finish_gate(
+            evidence_batch_id=_FINISH_BATCH,
+            candidate_done=True,
+            goal_results=(passed,),
+            safety_results=(unbound,),
+        )
+        mixed_batch_gate = evaluate_finish_gate(
+            evidence_batch_id=_FINISH_BATCH,
+            candidate_done=True,
+            goal_results=(passed,),
+            safety_results=(wrong_batch,),
+        )
+
+        self.assertEqual(unbound_gate.status, FinishStatus.UNKNOWN)
+        self.assertEqual(unbound_gate.safety, VerificationStatus.UNKNOWN)
+        self.assertEqual(mixed_batch_gate.status, FinishStatus.UNKNOWN)
+        self.assertEqual(mixed_batch_gate.safety, VerificationStatus.UNKNOWN)
+
+    def test_verify_expected_effect_can_bind_result_to_finish_batch(self) -> None:
+        before = self._ref("files", "artifact:x", 1, "before")
+        effect = ExpectedEffect(
+            effect_id="goal-check",
+            before=before,
+            predicates=(StatePredicate.equals("exists", expected=True),),
+        )
+        after = ObservationSnapshot(
+            ref=self._ref("files", "artifact:x", 2, "after"),
+            state={"exists": True},
+        )
+
+        result = verify_expected_effect(
+            effect,
+            after,
+            evidence_batch_id=_FINISH_BATCH,
+        )
+
+        self.assertEqual(result.status, VerificationStatus.PASS)
+        self.assertEqual(result.evidence_batch_id, _FINISH_BATCH)
+
     def test_declared_optional_dimension_without_evidence_is_unknown(self) -> None:
         passed = self._result("pass", VerificationStatus.PASS)
 
         no_constraints_declared = evaluate_finish_gate(
+            evidence_batch_id=_FINISH_BATCH,
             candidate_done=True,
             goal_results=(passed,),
             safety_results=(passed,),
             constraint_results=None,
         )
         constraints_declared_but_unverified = evaluate_finish_gate(
+            evidence_batch_id=_FINISH_BATCH,
             candidate_done=True,
             goal_results=(passed,),
             safety_results=(passed,),
@@ -250,6 +364,7 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
 
     def test_finish_gate_keeps_task_success_and_safety_separate(self) -> None:
         result = evaluate_finish_gate(
+            evidence_batch_id=_FINISH_BATCH,
             candidate_done=True,
             goal_results=(self._result("goal", VerificationStatus.PASS),),
             safety_results=(self._result("safety", VerificationStatus.FAIL),),
@@ -262,6 +377,7 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
     def test_candidate_done_never_self_authorizes_completion(self) -> None:
         passed = self._result("pass", VerificationStatus.PASS)
         result = evaluate_finish_gate(
+            evidence_batch_id=_FINISH_BATCH,
             candidate_done=False,
             goal_results=(passed,),
             safety_results=(passed,),
@@ -273,6 +389,7 @@ class Stage263BVerificationKernelTests(unittest.TestCase):
     def test_unresolved_confirmation_blocks_done_without_rewriting_task_success(self) -> None:
         passed = self._result("pass", VerificationStatus.PASS)
         result = evaluate_finish_gate(
+            evidence_batch_id=_FINISH_BATCH,
             candidate_done=True,
             goal_results=(passed,),
             safety_results=(passed,),
