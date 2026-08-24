@@ -22,7 +22,8 @@ class SemanticDirectStartupBudgetTests(unittest.TestCase):
         self.assertIn("Get-LocalHealthProbe", wait_block)
         self.assertIn("$startupProcessProjection", wait_block)
         self.assertIn("Get-SemanticProcesses", wait_block)
-        self.assertNotIn("Get-DirectStatusObject", wait_block)
+        self.assertNotIn("$lastStatus = Get-DirectStatusObject", wait_block)
+        self.assertNotIn("$local = Get-DirectStatusObject", wait_block)
 
     def test_local_health_probe_accepts_bounded_startup_timeout(self):
         start = SOURCE.index("function Get-LocalHealthProbe")
