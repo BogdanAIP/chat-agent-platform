@@ -10,11 +10,11 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 
 ## Product boundary
 
-Ordinary ChatGPT is the only **current general planner/intelligence**. The local platform has a deterministic execution **Control Plane**, not a second general-planning brain.
+Ordinary ChatGPT is the only **current general planner/intelligence**. The local platform owns deterministic execution state/policy through the Control Plane, not a second general-planning brain.
 
 ```text
 ordinary ChatGPT
-  task interpretation / strategy / adaptation
+  task interpretation / strategy / procedure selection / novel adaptation
         |
         v
 OpenAI Secure MCP Tunnel
@@ -23,14 +23,17 @@ OpenAI Secure MCP Tunnel
   -> canonical six-tool semantic projection
         |
         v
-local deterministic execution Control Plane + focused capabilities
+local deterministic Control Plane + focused capabilities
 ```
 
-The Control Plane may keep TaskState/checkpoints, advance a selected verified procedure through already-defined transitions, authorize each consequence, verify effects, apply bounded retry/recovery/resource budgets and escalate. It must ABSTAIN/escalate when current evidence does not uniquely match an allowed transition or new strategy is required.
+The Control Plane may maintain TaskState/WorkingState, advance a selected known procedure through already-defined transitions, authorize each consequence, verify effects, apply typed bounded recovery/LoopGuard, enforce budgets and independently verify completion. New strategy remains ChatGPT's responsibility.
 
-A true local planner is future optional Track P, not current production architecture and not a Stage 27/28 prerequisite. See `CONTROL_PLANE.md`.
+Canonical architecture:
 
-## Accepted Stage 26.3A public semantic surface
+- `CONTROL_PLANE.md`
+- `COMPUTER_USE_ARCHITECTURE.md`
+
+## Accepted public semantic surface
 
 The normal `semantic` route exposes exactly:
 
@@ -43,13 +46,9 @@ web_interact
 procedure_run
 ```
 
-There is no runtime/profile/tray choice between five and six tools.
+There is no runtime/profile/tray choice between five and six tools. The private historical five-capability file/browser implementation remains internal only.
 
-The old separate `procedure-qualification` route was removed. The public launcher always routes through the canonical six-tool projection. A private five-capability file/browser implementation remains only as an internal implementation/regression layer and is not selectable or Chat-facing.
-
-The ordinary semantic startup guard refuses READY unless live `tools/list` is exactly the six canonical names.
-
-The tray has one normal semantic READY state; no separate qualification state/color remains.
+The startup guard refuses READY unless live `tools/list` is exactly the six canonical names.
 
 ## Normal transport vs optional extensions
 
@@ -63,211 +62,254 @@ ordinary ChatGPT
  -> six canonical tools
 ```
 
-The persistent accepted `tunnel_*` id is stored in neutral platform state:
+Persistent tunnel identity is neutral platform state:
 
 ```text
 %LOCALAPPDATA%\ChatAgentPlatform\state\tunnel.json
 ```
 
-An existing installed legacy profile at:
-
-```text
-%LOCALAPPDATA%\ChatAgentPlatform\tunnel\local-1mcp.yaml
-```
-
-may be read only as a bounded migration fallback for one already accepted tunnel id. It is not the normal semantic source of truth and fresh normal bootstrap does not recreate it as the normal route.
-
-Fresh/current normal bootstrap initializes the semantic core directly:
-
-```text
-verified tunnel-client + neutral tunnel state
- -> verified six-tool bundle
- -> DPAPI runtime key
- -> existing safe FilesRoot OR %LOCALAPPDATA%\ChatAgentPlatform\workspace
- -> profile = semantic
- -> tunnel binding = direct-stdio
- -> six-tool smoke
- -> stopped
-```
-
-After bootstrap, public `Status` and the tray resolve through the direct semantic controller rather than legacy `status-chat-profile.ps1`; they do not query `npx @1mcp/agent` merely to report a stopped normal platform.
-
-Baseline manager metadata records:
-
-```text
-semantic_public_tool_count = 6
-extension_manager_included = false
-```
-
-1MCP is retained only as an optional internal Extension Manager for future third-party MCP backends. Its absence/failure must not block baseline six-tool bootstrap/start/status/health/smoke. Raw backend tools are not exported directly to ordinary ChatGPT; supported extensions remain behind project-owned typed semantic facades and the same authorization boundary.
-
-Canonical operational contract: `EXTENSION_MANAGER.md`.
+Legacy `local-1mcp.yaml` is migration fallback only for an already accepted tunnel id. 1MCP remains an optional internal Extension Manager for third-party backends and cannot automatically expose raw tools or grant authority.
 
 ---
 
 # Accepted foundation
 
-## Stage 24 / 24.1 — typed semantic file/browser foundation and direct tunnel — ACCEPTED
+## Stage 24 / 24.1 — typed semantic file/browser + direct tunnel — ACCEPTED
 
-Historical five-tool file/browser semantics, Windows lifecycle and direct stdio transport are accepted foundations for their exact tested scope. They do not define the current public inventory.
+Historical five-tool semantics are accepted foundation only; they do not define the current public inventory.
 
-## Stage 25 / 25.1 / 25.2 — browser semantic + local vision — ACCEPTED
+## Stage 25 / 25.1 / 25.2 — Browser semantic + local vision — ACCEPTED
 
-Accepted local visual baseline remains structure-first, proposal-only and behind deterministic authorization.
+Accepted invariant: semantic/native structure first, visual proposal only for reviewed fallback, deterministic authorization, ABSTAIN on unresolved evidence.
 
 ## Stage 26.1A-E / 26.2A-E — Windows capability foundation — ACCEPTED
 
-Accepted Windows work includes OpenAdapt qualification, bounded capture/executor, warm latency characterization, window-scoped UIA, production Windows runtime, DesktopState, native local Grounder, deterministic UIA->vision routing and the first isolated real VS Code application E2E.
+Accepted work includes OpenAdapt qualification, bounded capture/executor, window-scoped UIA, production Windows runtime, `DesktopState`, native Grounder, deterministic UIA->vision routing and one isolated VS Code real-application E2E.
 
-Exact physical heads/result directories and scoped measurements are authoritative in `EVIDENCE_INDEX.md` and the accepted historical stage documents.
-
-One accepted VS Code task is not universal desktop accuracy.
+This is scoped evidence, not universal Windows accuracy.
 
 ## Transport Supervisor v1 — ACCEPTED / MERGED #94
 
-Transport Supervisor v1 is the accepted reliability foundation. It provides persistent desired state/runtime ownership, bounded recovery, console-free Windows persistence and health-driven restart semantics around the normal route.
+Persistent desired state/runtime ownership, console-free Windows persistence, layered health and bounded route recovery are maintained product infrastructure.
 
-Accepted `main` foundation after #94:
+## Stage 26.3A — canonical six-tool verified procedure runtime — ACCEPTED / MERGED #92
 
-```text
-2f33997d3fbaa1fc52d437c00be7f16e55bdde5e
-```
-
-## Stage 26.3A — canonical six-tool verified procedure runtime — PHYSICALLY ACCEPTED
-
-Exact accepted runtime head:
+Exact physically accepted runtime head:
 
 ```text
 300db9956dfbdf0300ecc59f017d6f3280d4353a
 ```
 
-Target Windows physical pre-chat gate proved:
+Merged main integration commit:
+
+```text
+43ad61384e966ecf089e69a95c166d41da949ebe
+```
+
+Physical ordinary-Chat acceptance proved:
 
 ```text
 profile = semantic
-tunnel binding = direct-stdio
-semantic_public_tool_count = 6
-extension_manager_included = false
+binding = direct-stdio
+public tools = 6
 1MCP_REQUIRED = false
 runtime_ready = true
 mcp_ready = true
 tunnel_ready = true
-active_count = 1
 conflict = false
 ```
 
-A fresh ordinary ChatGPT conversation using only `Chat Local Bridge Test` then completed one long-horizon research task through all six semantic tools. It used `research-ledger.md` as working memory, visited 16 content pages, analyzed 12 works/systems/benchmark groups, recovered from one invalid browser interaction, wrote and independently reread `gui-agent-research.md`, then completed the registered `verified_workspace_artifact_v1` procedure.
+One long-horizon ordinary-Chat task used all six semantic tools, a reread working ledger, 16 content pages, 12 analyzed systems/benchmark groups and recovered from one invalid browser interaction. `procedure_run` then completed the bounded three-transition artifact procedure, followed by independent result read. A second call on the same target returned `ABSTAIN`, `action_count=0`, `target_already_exists`, and an independent reread proved zero overwrite.
 
-First `procedure_run` task:
+Exact task ids/SHA/locator remain in `EVIDENCE_INDEX.md`.
 
-```text
-497ecb591779219ef0ee1e55ea7ad0b8
-status = completed
-action_count = 3
-artifact = .chat-agent-platform/stage26-3a/ordinary-chat-result.txt
-sha256 = 2396b8338edced2675982db9d263a046705f7f906b553b0ed19b81f51205e583
-```
+## Stage 26.3A GUI-agent research — REVIEWED / PROMOTED TO ARCHITECTURE
 
-Independent `workspace_read` returned the exact expected success nonce.
+The `gui-agent-research.md` artifact from the accepted physical session was independently reviewed against public sources on 2026-08-24. The core findings were confirmed and promoted into `COMPUTER_USE_ARCHITECTURE.md`, ADR-032 and ADR-033.
 
-Second `procedure_run` task:
+Verified external mechanisms included:
 
-```text
-02b09a4909b6d71e0578c19b2d395cb8
-status = abstained
-action_count = 0
-escalation_reason = target_already_exists
-```
+- ComponentBench observation/action-space sensitivity and component diagnostics;
+- OSWorld 2.0 long-horizon state/freshness/verification failures;
+- OSWorld-G/Jedi grounding decomposition;
+- UI-Mate demonstration-to-subtask workflows with live replanning;
+- StateAct state-first hybrid execution and independent finish gate;
+- MementoGUI selective working/episodic memory;
+- HiViG pre-execution visually grounded critique;
+- WebArena/BrowserGym functional evaluation/harness normalization;
+- ENVS/OSWorld-Noisy verified recovery under interruptions;
+- Hybrid GUI-MCP capability-routing/context lessons;
+- MobileWorldSafety environmental-injection/final-state safety evaluation.
 
-A second independent `workspace_read` proved the original bytes/SHA were unchanged. This is the accepted physical zero-overwrite gate.
-
-Exact locator and scoped measurements are recorded in `EVIDENCE_INDEX.md`.
+The research did **not** authorize unrestricted code access, screenshot-only control, raw backend catalogs, learned memory/router components, generic tool dispatch or new public Windows tool names.
 
 ---
 
 # Active release-critical work
 
-## Stage 26.3 — Verified Procedure Runtime / deterministic execution Control Plane — ACTIVE
+## Stage 26.3B — Verification Kernel + independent Finish Gate — NEXT
 
-Stage 26.3A is accepted. The next work is to broaden deterministic verification and procedure coverage without weakening the small semantic surface or introducing generic execution.
+This is now more specific than the former generic "advanced verifier library" description.
 
-### Stage 26.3B — advanced verifier/postcondition library — NEXT
+Implement reusable deterministic contracts for:
 
-Broaden deterministic completion evidence for UI, files/artifacts, process/window/application state, browser state and structured outputs.
+```text
+ExpectedEffect / postcondition predicates
+fresh re-observation evidence
+PASS | FAIL | UNKNOWN transition verification
+file/artifact identity/content/structure
+browser URL/document/control/final state
+process/window/application state
+cross-capability completion predicates
+candidate_done -> independent Finish Gate -> DONE
+```
 
-Requirements:
+Task completion must verify fresh goal predicates, constraints, required source freshness/reconciliation, unresolved ambiguity/confirmation state and safety/policy predicates.
 
-- action delivery remains distinct from task completion;
-- current observed state outranks remembered procedure state;
-- each consequence has explicit postconditions;
-- stale/ambiguous/UNKNOWN evidence causes ABSTAIN/escalation;
-- retries and recovery remain bounded and typed;
-- new procedures remain explicit registered capabilities, not generic shell/Python/tool dispatch;
-- project-owned semantic tools remain small and stable.
+Rules:
 
-### Stage 26.3C — checkpoints / bounded recovery / budgets
+- action delivery != transition success;
+- transition PASS != task DONE;
+- current observed state outranks remembered procedure/demo/history;
+- stale/ambiguous/UNKNOWN -> zero unauthorized continuation;
+- task-success verification and safety/policy verification remain separate dimensions.
 
-Extend longer procedures only where 26.3B evidence demonstrates a concrete need. Preserve explicit checkpoints, retry ceilings, safe known recovery branches, action/time/resource budgets and deterministic escalation reasons.
+## Stage 26.3C — WorkingState + typed recovery + LoopGuard
+
+Generalize long-horizon state/recovery before broader computer-use authority.
+
+WorkingState v1 target:
+
+```text
+user constraints
+subgoals / progress vector
+verified completed achievements
+authoritative facts + provenance + freshness
+open ambiguities/questions
+evidence references
+expected/observed state deltas
+retry/recovery history
+action/time/resource budgets
+```
+
+Initial common recovery classes:
+
+```text
+target_missing
+target_ambiguous
+stale_state
+action_no_effect
+partial_effect
+unexpected_dialog
+navigation_changed
+tool_unavailable
+permission_denied
+unsafe_transition
+external_dynamic_change
+```
+
+LoopGuard must detect repeated state/action fingerprints, no-effect repetition, oscillation, exhausted subgoal/global budgets and absent verified progress.
+
+Default ladder:
+
+```text
+re-observe
+ -> re-resolve
+ -> retry only with new evidence
+ -> alternate admitted modality
+ -> predeclared recovery branch
+ -> ChatGPT replan / clarification / ABSTAIN
+```
 
 ## Stage 26.4 — Human Demo -> transferable verified candidate skill
 
-Human demonstration transfer follows the accepted verified procedure runtime. Live re-resolution and verifier-controlled progression are required; macro replay is insufficient.
+Demonstrations compile into subtask goals + verifiable completion criteria + advisory action/target evidence. Live state remains authoritative. Blind coordinate/action replay is not accepted.
+
+One demonstration creates at most CANDIDATE. Promotion requires replay/regression/variant evidence.
+
+## Stage 26.5 — Hybrid Computer-Use Integration
+
+After 26.3B/C foundations and 26.4 candidate-skill semantics:
+
+```text
+normalized ObservationEnvelope references
+capability-aware semantic/native vs GUI routing
+common grounding identity/confidence/ambiguity evidence
+semantic/native state first
+selective screenshot/ROI fallback
+cross-app fact provenance
+component-level and noisy-recovery evaluation
+```
+
+Stage 26.5 does not itself add public tools. Any Windows/computer-use public surface still needs a separate ADR/schema/security and ordinary-Chat physical acceptance.
 
 ---
 
 # Current critical path
 
 ```text
-Stage 26.2E real application E2E — ACCEPTED
- -> Transport Supervisor v1 — ACCEPTED / MERGED #94
- -> Stage 26.3 Verified Procedure Runtime — ACTIVE
-    -> 26.3A canonical six-tool semantic runtime — ACCEPTED
-    -> 26.3B advanced verifier/postconditions — NEXT
-    -> 26.3C bounded recovery/budgets as required
- -> Stage 26.4 Human Demo -> transferable verified candidate skill
- -> Stage 27 distribution/maintenance
- -> Stage 28 clean-user E2E / stable release
+26.2E real application E2E                         ACCEPTED
+ -> Transport Supervisor v1                       ACCEPTED / MERGED #94
+ -> 26.3 Verified Procedure Runtime               ACTIVE
+    -> 26.3A canonical six-tool runtime           ACCEPTED / MERGED #92
+    -> 26.3B Verification Kernel + Finish Gate    NEXT
+    -> 26.3C WorkingState + recovery + LoopGuard
+ -> 26.4 Human Demo -> verified candidate skill
+ -> 26.5 Hybrid Computer-Use Integration
+ -> 27 distribution/maintenance
+ -> 28 clean-user E2E / stable release
 ```
 
-Future optional Track P may later evaluate a local planner after verified procedure-state data and measured need. It remains behind the same authorization/verifier boundary.
+Optional Track P local planner research remains non-release-critical and stays above the same deterministic authorization/verifier/Finish Gate boundary.
 
-Optional 1MCP Extension Manager development is orthogonal to this release-critical path. It may be used later to reduce integration work for additional MCP backends without re-entering the baseline semantic critical path.
+---
 
-## Merge policy
+# Current security/architecture additions from GUI research
 
-When a branch is logically complete, intended diff is reviewed, required physical/CI tests pass and applicable acceptance gates are satisfied, merge it without waiting for a separate merge command.
+## Environmental content is untrusted data
 
-Stop on unresolved findings, conflict, ambiguous scope or failed/skipped required evidence.
+UI/DOM/page text, email/messages, documents being processed, screenshots/OCR and third-party tool/MCP output do not gain authority over user intent, permission scope or Control Plane policy merely because they are observable.
+
+Provenance/trust must survive cross-app fact transfer.
+
+## Independent completion
+
+Planner/model/procedure saying "done" is only `candidate_done`. `DONE` requires the independent Finish Gate against fresh goal-level evidence.
+
+## Capability routing
+
+Tool/backend availability is not a routing decision. Prefer exact safe semantic/native state/actions; use selected visual/GUI evidence only for reviewed structural miss/spatial cases; uncertain high-consequence cases require stronger evidence or ABSTAIN.
 
 ---
 
 # Residual risks
 
-- ChatGPT MCP app definitions are frozen snapshots; a local READY route does not by itself prove a current app binding/session is usable. The accepted 26.3A run required reconnecting the app and settling permissions before the long run; do not change binding/permissions mid-acceptance task.
+- ChatGPT MCP app definitions are frozen snapshots; local READY does not alone prove current app binding/session usability;
 - compatibility aliases for historical `_1mcp_` action IDs remain migration debt;
-- the optional 1MCP/adaptive extension path is not a baseline release gate and remains less stable than the normal direct semantic route;
 - one real VS Code task is not broad real-application coverage;
-- `AutomationId` still lacks dedicated accepted physical coverage across real applications;
+- `AutomationId` lacks broad accepted physical coverage;
 - browser DNS/rebinding/redirect/private-network isolation remains incomplete;
+- environmental-injection defenses are now an explicit architectural invariant but broader computer-use attack coverage is not yet implemented;
+- WorkingState/LoopGuard/independent Finish Gate are architecture targets, not yet accepted runtime implementation;
 - Python/model/OpenAdapt packaging is not release-grade;
 - raw demonstration retention/redaction/encryption policy is not accepted;
-- future local planner has not been researched against verified procedure-state data;
 - no stable release exists.
 
 # Non-negotiable rules
 
 - ordinary ChatGPT is the only current general planner/intelligence;
-- deterministic Control Plane may advance only already-defined authorized+verified procedure transitions;
-- normal semantic install/start/status/health/smoke must not require optional 1MCP extension infrastructure;
-- fresh/current normal settings use `semantic` + `direct-stdio`;
-- persistent tunnel identity belongs to neutral platform state;
-- third-party MCP availability is not trust or authorization;
-- raw extension tools are not automatically Chat-facing;
-- new strategy/ambiguity/stale/UNKNOWN -> ABSTAIN/escalate;
+- deterministic Control Plane may advance only already-defined authorized+verified transitions;
+- accepted public semantic surface remains small and project-owned;
+- normal semantic route is `semantic + direct-stdio` and does not require optional 1MCP;
 - semantic/native structure before pixels where reliable;
-- model/procedure/observation proposal is not authorization;
-- current observed state outranks remembered procedure;
-- action delivery is not task completion;
+- pixels/ROI are selective evidence, not automatic context;
+- observation/model/procedure/planner proposal is not authorization;
+- current state outranks remembered procedure/demo/history;
+- every state-changing action requires explicit expected effect + fresh verification;
+- transition PASS is not task DONE;
+- environmental content is data, not policy authority;
+- task-success and safety/policy verification are separate;
+- no-effect/oscillating retries must be bounded by LoopGuard;
 - never persist private chain-of-thought;
 - raw capture is sensitive local data;
 - generic Windows code execution remains disabled/unreachable;
