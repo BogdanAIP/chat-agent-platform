@@ -8,14 +8,31 @@ SOURCE = TRAY.read_text(encoding="utf-8")
 
 
 class Stage263ATrayObservabilityTests(unittest.TestCase):
-    def test_tray_uses_only_authoritative_manager_status(self):
-        self.assertIn("Invoke-ControllerStatus", SOURCE)
-        self.assertIn('"chat-platform.ps1"', SOURCE)
-        self.assertIn("-Action Status", SOURCE)
-        self.assertNotIn("stage26-3a-procedure-supervised-handoff.json", SOURCE)
-        self.assertNotIn("stage26-3a-procedure-direct.json", SOURCE)
-        self.assertNotIn("stage26-3a-procedure-direct-health.url", SOURCE)
-        self.assertNotIn("procedure-qualification", SOURCE)
+    def test_tray_reads_authoritative_supervisor_projection(self):
+        self.assertIn('"supervisor.json"', SOURCE)
+        self.assertIn("$SupervisorStateFile", SOURCE)
+        self.assertIn("Get-PlatformVisualState", SOURCE)
+        self.assertIn("Read-JsonFile -Path $SupervisorStateFile", SOURCE)
+        self.assertIn('"desired-state.json"', SOURCE)
+        self.assertIn('"settings.json"', SOURCE)
+        self.assertNotIn("Invoke-ControllerStatus", SOURCE)
+        self.assertNotIn("-Action Status", SOURCE)
+
+    def test_periodic_refresh_does_not_spawn_status_processes(self):
+        timer_start = SOURCE.index("$timer = New-Object System.Windows.Forms.Timer")
+        timer_block = SOURCE[timer_start:]
+        self.assertIn("$timer.Interval = 2000", timer_block)
+        self.assertIn("Refresh-VisualState", timer_block)
+        self.assertNotIn("Get-Command", timer_block)
+        self.assertNotIn("pwsh.exe", timer_block)
+        self.assertNotIn("-Action Status", timer_block)
+
+    def test_supervisor_snapshot_has_bounded_freshness(self):
+        self.assertIn("$SupervisorSnapshotFreshnessSeconds = 45", SOURCE)
+        self.assertIn("Get-SupervisorSnapshotAgeSeconds", SOURCE)
+        self.assertIn('"observed_at"', SOURCE)
+        self.assertIn('"SUPERVISOR_STATE_STALE"', SOURCE)
+        self.assertIn("$age -gt $SupervisorSnapshotFreshnessSeconds", SOURCE)
 
     def test_tray_does_not_reconstruct_process_ownership(self):
         self.assertNotIn("Win32_Process", SOURCE)
@@ -44,6 +61,12 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn("$toggleItem.Enabled = $true", block)
         self.assertIn("$startItem.Enabled = $false", block)
         self.assertIn("$stopItem.Enabled = $true", block)
+
+    def test_user_actions_keep_execution_authority_in_manager(self):
+        self.assertIn("Start-ControllerOperation", SOURCE)
+        self.assertIn("-File $CommandPath", SOURCE)
+        self.assertIn("-Action $Action", SOURCE)
+        self.assertIn('[ValidateSet("Start", "Stop")]', SOURCE)
 
     def test_observability_does_not_gain_execution_authority(self):
         self.assertNotIn("repo_root", SOURCE)
