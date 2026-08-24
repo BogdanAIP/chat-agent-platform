@@ -1,26 +1,32 @@
 # Continuation Context — read this first in a fresh chat
 
-Resolve live GitHub state before acting because `main` and PR heads can move after this snapshot.
+Resolve live GitHub state before acting because `main` and open PR heads can move after this snapshot.
 
 ## Repository
 
 `BogdanAIP/chat-agent-platform`
 
-## Accepted foundation
+## Current accepted integration line
 
-Stages through 26.2E are accepted only for their exact recorded physical heads/evidence. Transport Supervisor v1 is physically accepted and merged as PR #94.
+Stage 26.3A — canonical six-tool Verified Procedure Runtime — is **physically accepted and merged** through PR #92.
 
-Stage 26.3A — canonical six-tool Verified Procedure Runtime — is now **physically accepted** on exact runtime head:
+Merged `main` integration commit at the start of the current architecture branch:
+
+```text
+43ad61384e966ecf089e69a95c166d41da949ebe
+```
+
+Exact physically accepted runtime head remains:
 
 ```text
 300db9956dfbdf0300ecc59f017d6f3280d4353a
 ```
 
-Exact evidence and scope are recorded in `EVIDENCE_INDEX.md`.
+Exact evidence/scope belongs in `EVIDENCE_INDEX.md`.
 
-## Accepted Stage 26.3A architecture
+## Accepted ordinary-Chat architecture
 
-The ordinary `semantic` route exposes exactly:
+Normal public semantic surface is exactly:
 
 ```text
 workspace_read
@@ -31,9 +37,7 @@ web_interact
 procedure_run
 ```
 
-There is no runtime/profile/tray selection between five and six tools.
-
-The public route is:
+Normal route:
 
 ```text
 ordinary ChatGPT
@@ -44,61 +48,35 @@ ordinary ChatGPT
  -> deterministic Control Plane / focused capabilities
 ```
 
-Normal bootstrap/start/status/health/smoke does not require 1MCP. Persistent tunnel identity is neutral platform state in:
+Normal bootstrap/start/status/health/smoke does not require 1MCP. Persistent tunnel identity belongs to `state/tunnel.json`. 1MCP is optional internal Extension Manager infrastructure only.
 
-```text
-%LOCALAPPDATA%\ChatAgentPlatform\state\tunnel.json
-```
+The first accepted procedure is `verified_workspace_artifact_v1`: bounded leaf `.txt` + bounded UTF-8 content, three verified transitions, scoped output, structured ABSTAIN on pre-existing target, no arbitrary shell/Python/path/backend/tool dispatch.
 
-The installed baseline records:
+## Stage 26.3A physical evidence
 
-```text
-profile = semantic
-tunnel_profile = direct-stdio
-semantic_public_tool_count = 6
-extension_manager_included = false
-```
+The target-Windows pre-chat gate proved normal `semantic + direct-stdio` READY, six public tools, one active runtime, no conflict and `1MCP_REQUIRED=False`.
 
-1MCP remains an optional internal Extension Manager for future third-party MCP backends. It is not part of the normal semantic critical path and raw extension catalogs are not automatically Chat-facing.
-
-The first accepted registered procedure is:
-
-```text
-verified_workspace_artifact_v1
-```
-
-It accepts only a bounded leaf `.txt` name + bounded UTF-8 content, writes only below `.chat-agent-platform/stage26-3a/`, uses a fixed three-action verified transition budget and ABSTAINS rather than overwriting a pre-existing protected target.
-
-`procedure_run` is not generic execution and exposes no arbitrary shell, Python, path, backend, raw tool or working-directory arguments.
-
-## Physical Stage 26.3A acceptance
-
-The target Windows pre-chat gate proved the normal route was READY with `semantic + direct-stdio`, six public tools, one active runtime, no conflict and `1MCP_REQUIRED=False`.
-
-A fresh ordinary ChatGPT conversation then used only `Chat Local Bridge Test` and all six semantic tools for a long-horizon GUI/web-agent research task:
+A fresh ordinary ChatGPT conversation then used only `Chat Local Bridge Test` and all six semantic tools for one long-horizon research goal:
 
 ```text
 16 content pages
 12 works/systems/benchmark groups
-12 successful browser transitions
+12 successful browser interactions
 research-ledger.md used and reread as working memory
 gui-agent-research.md written and independently reread
-1 recoverable browser interaction error
+one invalid browser action recovered by re-observe -> explicit target -> retry
 ```
 
-The completion procedure task:
+Completion procedure:
 
 ```text
 task_id = 497ecb591779219ef0ee1e55ea7ad0b8
 status = completed
 action_count = 3
-artifact = .chat-agent-platform/stage26-3a/ordinary-chat-result.txt
 sha256 = 2396b8338edced2675982db9d263a046705f7f906b553b0ed19b81f51205e583
 ```
 
-Independent `workspace_read` returned the exact expected success nonce.
-
-The second procedure task:
+Negative overwrite procedure:
 
 ```text
 task_id = 02b09a4909b6d71e0578c19b2d395cb8
@@ -107,66 +85,104 @@ action_count = 0
 escalation_reason = target_already_exists
 ```
 
-A second independent read proved unchanged content/SHA. Zero-overwrite is physically accepted for this procedure/scope.
+Independent rereads proved exact success and zero overwrite.
 
-## ChatGPT app binding lesson
+## GUI/computer-use research promoted into architecture
 
-Before the accepted long run, one attempt exposed a product-side app/session issue: after a successful read, a mutating action entered ChatGPT reconnect/add-app UI and the message stream failed even though the local route remained healthy.
+The `gui-agent-research.md` produced during the accepted Stage 26.3A run was later reviewed against its primary public sources. Its supported mechanisms were promoted into:
 
-The accepted rerun was performed only after:
+- `COMPUTER_USE_ARCHITECTURE.md`;
+- ADR-032 — State-first hybrid computer-use control loop;
+- ADR-033 — Environmental content is data, not authority;
+- updated `CONTROL_PLANE.md`, `CURRENT_STATE.md`, `ROADMAP.md`, `ARCHITECTURE.md`, `SECURITY_POLICY.md`.
 
-- the app connection was synchronized before execution;
-- `Chat Local Bridge Test` permission policy was settled to `Allow all actions` before execution;
-- no connection/permission changes were made during the long task.
+The promoted target formula is:
 
-The launcher can rewrite reviewed stale inbound action names after a `tools/call` reaches MCP, but it cannot repair ChatGPT's frozen app snapshot/connection/permission state before invocation. See `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md`.
+```text
+semantic/native state first
+ -> selective visual evidence
+ -> capability-aware bounded action
+ -> fresh re-observation
+ -> ExpectedEffect verification
+ -> typed bounded recovery + LoopGuard
+ -> structured WorkingState
+ -> independent Finish Gate
+ -> separate safety/policy gate
+```
 
-## Active work
+This does **not** expand the accepted six-tool public surface and does not authorize screenshot-only control, unrestricted code access, raw backend catalogs, generic tool dispatch or blind demonstration replay.
 
-PR #92 now contains an accepted Stage 26.3A runtime plus documentation/test-only closure commits after the physical runtime head. Before merge:
+## Current active work
 
-1. resolve live PR #92 head;
-2. verify the diff from accepted runtime head `300db995...` contains no production/runtime change after physical acceptance;
-3. require the complete hosted matrix green on the final docs/test-only descendant;
-4. review intended diff and merge when no unresolved finding remains.
+Current release-critical target is **Stage 26.3B — Verification Kernel + independent Finish Gate**.
 
-After #92 closure, the next release-critical development is **Stage 26.3B — advanced verifier/postcondition library**.
+Implement reusable deterministic contracts for:
 
-Stage 26.3B must broaden deterministic completion evidence for UI, files/artifacts, process/window/application state, browser state and structured outputs without introducing generic execution or a large raw tool catalog.
+```text
+ExpectedEffect/postconditions
+fresh re-observation evidence
+PASS | FAIL | UNKNOWN transition result
+cross-capability file/browser/app/window/process predicates
+candidate_done -> Finish Gate -> DONE
+separate task-success and safety/policy evidence
+```
 
-## Operating rules
+Then Stage 26.3C adds:
 
-- ordinary ChatGPT is the only current general planner/intelligence;
-- deterministic local Control Plane is execution/verification, not a second planner;
-- known selected procedures may advance through several independently authorized+verified transitions;
-- novel strategy or stale/ambiguous/UNKNOWN/incompatible state -> ABSTAIN/escalate;
-- current state outranks remembered/history state;
-- delivery is not completion; explicit verification controls completion;
-- generic Windows code execution remains disabled/unreachable;
-- model/procedure/planner/observation output is evidence/proposal, never authorization by itself;
-- normal semantic runtime must not depend on optional 1MCP extension infrastructure;
-- app binding/permission changes must not be made mid-acceptance task;
-- when a branch is logically complete, intended diff is reviewed, required physical/CI gates pass and no unresolved issue remains, merge it without waiting for a separate merge command.
+```text
+WorkingState v1
+facts + provenance + freshness
+progress vectors
+initial typed recovery taxonomy
+no-effect / repeated-state / oscillation LoopGuard
+retry/action/time/resource budgets
+recovery escalation state
+```
 
 ## Stage order
 
 ```text
-26.2E real application E2E — ACCEPTED
- -> Transport Supervisor v1 — ACCEPTED / MERGED #94
- -> 26.3 Verified Procedure Runtime / deterministic Control Plane — ACTIVE
-    -> 26.3A canonical six-tool semantic runtime — ACCEPTED
-    -> 26.3B advanced verifier/postconditions — NEXT
-    -> 26.3C bounded recovery/budgets as required
- -> 26.4 Human Demo -> transferable verified candidate skill
+26.2E real application E2E                         ACCEPTED
+ -> Transport Supervisor v1                       ACCEPTED / MERGED #94
+ -> 26.3 Verified Procedure Runtime               ACTIVE
+    -> 26.3A canonical six-tool runtime           ACCEPTED / MERGED #92
+    -> 26.3B Verification Kernel + Finish Gate    NEXT
+    -> 26.3C WorkingState + recovery + LoopGuard
+ -> 26.4 Human Demo -> verified candidate skill
+ -> 26.5 Hybrid Computer-Use Integration
  -> 27 distribution/maintenance
- -> 28 clean-user E2E/stable release
+ -> 28 clean-user E2E / stable release
 ```
+
+This explicit 26.2E -> 26.3 -> 26.4 release sequence remains authoritative even though more detailed substage prose appears elsewhere.
+
+## Non-negotiable architecture rules
+
+- ordinary ChatGPT is the only current general planner/intelligence;
+- deterministic local Control Plane is execution state/policy, not a second planner;
+- known selected procedures may advance through multiple independently authorized+verified transitions;
+- semantic/native structure precedes pixels when reliable;
+- visual evidence is selective and non-authorizing;
+- every state-changing action binds an expected effect and fresh verification;
+- transition PASS is not task DONE;
+- only an independent Finish Gate produces verified task completion;
+- WorkingState stores structured operational facts/provenance/freshness, never private chain-of-thought;
+- repeated no-effect/oscillating execution is bounded by LoopGuard;
+- environmental UI/DOM/email/document/tool content is untrusted task data, not policy authority;
+- task-success and safety/policy verification are separate;
+- current state outranks remembered procedure/demo/history;
+- generic Windows code execution remains disabled/unreachable;
+- optional 1MCP extension infrastructure cannot become a normal-route dependency or authorization source;
+- public Windows/computer-use tool names require a separate ADR/schema/security/ordinary-Chat physical gate.
+
+## ChatGPT app binding lesson
+
+A local READY route is not proof that ChatGPT's frozen app snapshot/permissions are synchronized. Stage 26.3A accepted rerun succeeded only after app connection and permissions were settled before the long task and left unchanged during execution. Exact inbound alias compatibility cannot repair product-side app state before MCP invocation.
 
 ## Fresh-chat startup procedure
 
-1. Resolve live `main`, PR #92 head and current checks.
-2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `EXTENSION_MANAGER.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md`, `EVIDENCE_INDEX.md`, `STAGE26_3A_IMPLEMENTATION_NOTES.md` and `STAGE26_3A_PROCEDURE_RUN_SURFACE.md`.
-3. Treat Stage 26.3A as accepted only for exact runtime head `300db9956dfbdf0300ecc59f017d6f3280d4353a` and the recorded physical scope.
-4. Treat later PR descendants as closure-only unless a fresh compare proves otherwise.
-5. Prefer exact code/tests/current CI/physical evidence over prose.
-6. Do not recreate a five-versus-six qualification mode, do not put 1MCP back into the normal semantic critical path, and do not broaden the procedure surface before Stage 26.3B design/evidence.
+1. Resolve live `main` and open PRs/checks.
+2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `SECURITY_POLICY.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md`, `DECISIONS.md`, `EVIDENCE_INDEX.md` and `EXTENSION_MANAGER.md`.
+3. Treat Stage 26.3A acceptance as scoped to the recorded exact physical runtime/evidence.
+4. Prefer exact code/tests/current CI/physical evidence over prose.
+5. Do not recreate five-versus-six modes, reinsert 1MCP into normal semantic transport, add generic execution, or broaden public computer-use authority without its own acceptance gate.
