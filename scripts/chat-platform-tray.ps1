@@ -149,34 +149,7 @@ function Read-JsonStateFile {
     }
 }
 
-function Get-QualificationTunnelProcess {
-    $direct = Read-JsonStateFile -Path $QualificationDirectState
-    if ($null -eq $direct -or $null -eq $direct.PSObject.Properties['pid']) {
-        return $null
-    }
-
-    try {
-        $pidValue = [int]$direct.pid
-        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" -ErrorAction SilentlyContinue
-        if ($null -eq $process) { return $null }
-        if ([string]$process.Name -ne "tunnel-client.exe") { return $null }
-        if (
-            [string]::IsNullOrWhiteSpace([string]$process.CommandLine) -or
-            [string]$process.CommandLine -notmatch [regex]::Escape($QualificationHealthUrlFile)
-        ) {
-            return $null
-        }
-        return $process
-    }
-    catch {
-        return $null
-    }
-}
-
 function Test-QualificationReady {
-    if ($null -eq (Get-QualificationTunnelProcess)) {
-        return $false
-    }
     if (-not (Test-Path -LiteralPath $QualificationHealthUrlFile -PathType Leaf)) {
         return $false
     }
@@ -222,8 +195,12 @@ function Get-QualificationVisualState {
 
     $direct = Read-JsonStateFile -Path $QualificationDirectState
     $desired = Read-JsonStateFile -Path $DesiredStateFile
-    $process = Get-QualificationTunnelProcess
-    $running = ($null -ne $process)
+    $directReceiptPresent = (
+        $null -ne $direct -and
+        $null -ne $direct.PSObject.Properties['pid'] -and
+        $null -ne $direct.PSObject.Properties['tunnel_id'] -and
+        -not [string]::IsNullOrWhiteSpace([string]$direct.tunnel_id)
+    )
     $ready = Test-QualificationReady
     $handoffRunning = (
         $null -ne $handoff.PSObject.Properties['phase'] -and
@@ -234,17 +211,17 @@ function Get-QualificationVisualState {
         $null -ne $desired.PSObject.Properties['desired_state'] -and
         [string]$desired.desired_state -eq "stopped"
     )
-    $fullyReady = ($handoffRunning -and $normalSuspended -and $running -and $ready)
+    $fullyReady = ($handoffRunning -and $normalSuspended -and $directReceiptPresent -and $ready)
 
     return [pscustomobject]@{
         mode = if ($fullyReady) { "qualification" } else { "partial" }
         profile = "procedure-qualification"
         route_owner = "qualification"
         expected_tool_count = 6
-        tunnel_running = $running
+        tunnel_running = ($directReceiptPresent -and $ready)
         tunnel_ready = $ready
         mcp_ready = $ready
-        active_count = if ($running) { 1 } else { 0 }
+        active_count = if ($directReceiptPresent -and $ready) { 1 } else { 0 }
         files_root = if ($null -ne $direct) { [string]$direct.files_root } else { [string]$handoff.files_root }
         tunnel_id = if ($null -ne $direct) { [string]$direct.tunnel_id } else { $null }
         error = if ($fullyReady) { $null } else { "Qualification handoff exists but the 6-tool route is not fully ready." }
@@ -373,8 +350,8 @@ function Set-VisualState {
         "qualification" {
             $notify.Icon = $script:BlueIcon
             $notify.Text = "Chat Agent Platform - 6 tools READY"
-            $statusItem.Text = "🔵 Qualification — 6 tools READY"
-            $detailsItem.Text = "MCP READY · Tunnel READY · owner=qualification"
+            $statusItem.Text = "🔵 Qualification - 6 tools READY"
+            $detailsItem.Text = "MCP READY | Tunnel READY | owner=qualification"
             if (-not [string]::IsNullOrWhiteSpace([string]$State.files_root)) {
                 $workspaceItem.Text = "Workspace: $($State.files_root)"
                 $workspaceItem.Visible = $true
@@ -387,12 +364,12 @@ function Set-VisualState {
         "on" {
             $notify.Icon = $script:GreenIcon
             $notify.Text = "Chat Agent Platform - ON"
-            $statusItem.Text = "🟢 Включено — $($State.profile)"
+            $statusItem.Text = "🟢 Включено - $($State.profile)"
             if ($null -ne $State.expected_tool_count) {
-                $detailsItem.Text = "MCP READY · Tunnel READY · $($State.expected_tool_count) tools"
+                $detailsItem.Text = "MCP READY | Tunnel READY | $($State.expected_tool_count) tools"
             }
             else {
-                $detailsItem.Text = "MCP READY · Tunnel READY"
+                $detailsItem.Text = "MCP READY | Tunnel READY"
             }
             $toggleItem.Enabled = $true
             $startItem.Enabled = $false
@@ -403,7 +380,7 @@ function Set-VisualState {
             $notify.Icon = $script:RedIcon
             $notify.Text = "Chat Agent Platform - OFF"
             $statusItem.Text = "🔴 Выключено"
-            $detailsItem.Text = "MCP stopped · Tunnel stopped"
+            $detailsItem.Text = "MCP stopped | Tunnel stopped"
             $toggleItem.Enabled = $true
             $startItem.Enabled = $true
             $stopItem.Enabled = $false
@@ -422,12 +399,12 @@ function Set-VisualState {
         default {
             $notify.Icon = $script:YellowIcon
             $notify.Text = "Chat Agent Platform - PARTIAL"
-            $statusItem.Text = "🟡 Частично — $($State.profile)"
+            $statusItem.Text = "🟡 Частично - $($State.profile)"
             if (-not [string]::IsNullOrWhiteSpace([string]$State.error)) {
                 $detailsItem.Text = [string]$State.error
             }
             else {
-                $detailsItem.Text = "MCP=$($State.mcp_ready) · Tunnel=$($State.tunnel_ready)"
+                $detailsItem.Text = "MCP=$($State.mcp_ready) | Tunnel=$($State.tunnel_ready)"
             }
             $toggleItem.Enabled = ($State.route_owner -ne "qualification")
             $startItem.Enabled = ($State.route_owner -ne "qualification")
@@ -459,15 +436,15 @@ function Show-StateBalloon {
 
     switch ([string]$state.mode) {
         "qualification" {
-            $notify.BalloonTipTitle = "Chat Agent Platform — Qualification"
+            $notify.BalloonTipTitle = "Chat Agent Platform - Qualification"
             $notify.BalloonTipText = "6 tools READY. MCP READY. Tunnel READY. Обычное ВКЛ/ВЫКЛ временно заблокировано."
         }
         "on" {
-            $notify.BalloonTipTitle = "Chat Agent Platform — ВКЛ"
+            $notify.BalloonTipTitle = "Chat Agent Platform - ВКЛ"
             $notify.BalloonTipText = "Профиль $($state.profile) полностью готов."
         }
         "off" {
-            $notify.BalloonTipTitle = "Chat Agent Platform — ВЫКЛ"
+            $notify.BalloonTipTitle = "Chat Agent Platform - ВЫКЛ"
             $notify.BalloonTipText = "Туннель и локальный MCP остановлены."
         }
         default {
@@ -611,7 +588,7 @@ $timer.add_Tick({
             Refresh-VisualState
 
             if ($failed) {
-                $notify.BalloonTipTitle = "Chat Agent Platform — ошибка"
+                $notify.BalloonTipTitle = "Chat Agent Platform - ошибка"
                 if ($reason) {
                     $notify.BalloonTipText = $reason.Message
                 }
