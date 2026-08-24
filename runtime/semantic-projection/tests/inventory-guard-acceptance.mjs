@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   EXPECTED_SEMANTIC_TOOLS,
   assertExpectedSemanticInventory
-} from '../lib/semantic-inventory-guard.mjs';
+} from '../bin/semantic-projection-launcher.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const canonicalEntry = path.resolve(here, '..', 'bin', 'semantic-control-plane-projection.mjs');
