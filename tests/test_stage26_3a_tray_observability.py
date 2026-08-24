@@ -34,6 +34,18 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn('"SUPERVISOR_STATE_STALE"', SOURCE)
         self.assertIn("$age -gt $SupervisorSnapshotFreshnessSeconds", SOURCE)
 
+    def test_snapshot_age_handles_convertfrom_json_datetime_without_culture_round_trip(self):
+        start = SOURCE.index("function Get-SupervisorSnapshotAgeSeconds")
+        end = SOURCE.index("function Get-PlatformVisualState", start)
+        block = SOURCE[start:end]
+        self.assertIn("$observedAt -is [datetimeoffset]", block)
+        self.assertIn("$observedAt -is [datetime]", block)
+        self.assertIn("[DateTimeKind]::Unspecified", block)
+        self.assertIn("[DateTimeKind]::Utc", block)
+        self.assertIn("[Globalization.CultureInfo]::InvariantCulture", block)
+        self.assertIn("[Globalization.DateTimeStyles]::RoundtripKind", block)
+        self.assertNotIn("Parse([string]$observedAt)", block)
+
     def test_tray_does_not_reconstruct_process_ownership(self):
         self.assertNotIn("Win32_Process", SOURCE)
         self.assertNotIn("Get-CimInstance", SOURCE)
