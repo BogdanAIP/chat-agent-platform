@@ -11,6 +11,7 @@
     "bin/semantic-projection-launcher.mjs",
     "bin/semantic-control-plane-projection.mjs",
     "bin/semantic-projection.mjs",
+    "lib/semantic-inventory-guard.mjs",
     "lib/semantic-vision-click-router.mjs",
     "lib/visual-grounding-bridge.mjs",
     "lib/runtime-backed-bridge-grounder.mjs",
@@ -18,7 +19,7 @@
   ],
   "scripts": {
     "acceptance": "node tests/acceptance.mjs && node tests/semantic-vision-click-router.mjs && node tests/semantic-vision-playwright-acceptance.mjs",
-    "acceptance:six-tool": "node tests/six-tool-acceptance.mjs",
+    "acceptance:six-tool": "node tests/six-tool-acceptance.mjs && node tests/inventory-guard-acceptance.mjs",
     "acceptance:direct-tunnel": "node tests/direct-tunnel-acceptance.mjs",
     "acceptance:credential-scrub": "node tests/credential-scrub.mjs",
     "acceptance:semantic-vision-router": "node tests/semantic-vision-click-router.mjs",
