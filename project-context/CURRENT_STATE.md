@@ -147,21 +147,31 @@ The research did **not** authorize unrestricted code access, screenshot-only con
 
 # Active release-critical work
 
-## Stage 26.3B — Verification Kernel + independent Finish Gate — NEXT
+## Stage 26.3B — Verification Kernel + independent Finish Gate — ACTIVE
 
-This is now more specific than the former generic "advanced verifier library" description.
+The first implementation slice is now active on a dedicated branch/PR and introduces the internal reusable verification contract without changing the accepted public semantic surface or action-delivery authority.
 
-Implement reusable deterministic contracts for:
+Implemented in the foundation slice:
 
 ```text
-ExpectedEffect / postcondition predicates
-fresh re-observation evidence
+ObservationRef / ObservationSnapshot
+ExpectedEffect + bounded declarative predicates
+same-subject fresh re-observation by monotonic sequence
 PASS | FAIL | UNKNOWN transition verification
-file/artifact identity/content/structure
-browser URL/document/control/final state
-process/window/application state
-cross-capability completion predicates
-candidate_done -> independent Finish Gate -> DONE
+independent Finish Gate
+separate task-success and safety/policy results
+```
+
+This is more specific than the former generic "advanced verifier library" description and is not yet Stage 26.3B acceptance.
+
+Remaining Stage 26.3B integration targets:
+
+```text
+file/artifact observation adapter + procedure migration
+browser URL/document/control/final-state verification
+process/window/application verification
+cross-capability completion predicates where required
+physical acceptance once shared verification changes production procedure/action behavior
 ```
 
 Task completion must verify fresh goal predicates, constraints, required source freshness/reconciliation, unresolved ambiguity/confirmation state and safety/policy predicates.
@@ -172,7 +182,10 @@ Rules:
 - transition PASS != task DONE;
 - current observed state outranks remembered procedure/demo/history;
 - stale/ambiguous/UNKNOWN -> zero unauthorized continuation;
-- task-success verification and safety/policy verification remain separate dimensions.
+- task-success verification and safety/policy verification remain separate dimensions;
+- `candidate_done` is only a planner proposal and cannot self-authorize completion.
+
+Canonical active implementation contract: `STAGE26_3B_VERIFICATION_KERNEL.md`.
 
 ## Stage 26.3C — WorkingState + typed recovery + LoopGuard
 
@@ -252,7 +265,7 @@ Stage 26.5 does not itself add public tools. Any Windows/computer-use public sur
  -> Transport Supervisor v1                       ACCEPTED / MERGED #94
  -> 26.3 Verified Procedure Runtime               ACTIVE
     -> 26.3A canonical six-tool runtime           ACCEPTED / MERGED #92
-    -> 26.3B Verification Kernel + Finish Gate    NEXT
+    -> 26.3B Verification Kernel + Finish Gate    ACTIVE
     -> 26.3C WorkingState + recovery + LoopGuard
  -> 26.4 Human Demo -> verified candidate skill
  -> 26.5 Hybrid Computer-Use Integration
@@ -290,7 +303,8 @@ Tool/backend availability is not a routing decision. Prefer exact safe semantic/
 - `AutomationId` lacks broad accepted physical coverage;
 - browser DNS/rebinding/redirect/private-network isolation remains incomplete;
 - environmental-injection defenses are now an explicit architectural invariant but broader computer-use attack coverage is not yet implemented;
-- WorkingState/LoopGuard/independent Finish Gate are architecture targets, not yet accepted runtime implementation;
+- Verification Kernel/Finish Gate foundation is active but not yet integrated across accepted file/browser/Windows procedure paths;
+- WorkingState/LoopGuard remain architecture targets, not accepted runtime implementation;
 - Python/model/OpenAdapt packaging is not release-grade;
 - raw demonstration retention/redaction/encryption policy is not accepted;
 - no stable release exists.
