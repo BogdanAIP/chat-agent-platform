@@ -12,11 +12,13 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         for expected in (
             '"supervisor.json"',
             '"manual-status.json"',
+            '"manager-owner.json"',
             '"operation-mode.json"',
             '"desired-state.json"',
             '"settings.json"',
             "Read-JsonFile -Path $SupervisorStateFile",
             "Read-JsonFile -Path $ManualStatusFile",
+            "Read-JsonFile -Path $ManagerOwnerFile",
         ):
             self.assertIn(expected, SOURCE)
         self.assertNotIn("Invoke-ControllerStatus", SOURCE)
@@ -26,6 +28,7 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn("System.IO.FileSystemWatcher", SOURCE)
         self.assertIn("$watcher.SynchronizingObject = $uiHost", SOURCE)
         self.assertIn("$watcher.EnableRaisingEvents = $true", SOURCE)
+        self.assertIn('"manager-owner.json"', SOURCE)
         self.assertIn("Refresh-VisualState", SOURCE)
         self.assertNotIn("$timer.Interval = 2000", SOURCE)
         self.assertNotIn("$timer.Start()", SOURCE)
@@ -45,6 +48,17 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn("$operationTimer.Stop()", SOURCE)
         self.assertIn("$script:OperationProcess.Kill($true)", SOURCE)
 
+    def test_operation_completion_never_blocks_ui_on_redirected_output(self):
+        start = SOURCE.index("function Start-ControllerOperation")
+        end = SOURCE.index("function Toggle-Platform", start)
+        block = SOURCE[start:end]
+        self.assertIn("$startInfo.RedirectStandardOutput = $false", block)
+        self.assertIn("$startInfo.RedirectStandardError = $false", block)
+        self.assertNotIn("ReadToEndAsync", SOURCE)
+        self.assertNotIn("GetAwaiter().GetResult()", SOURCE)
+        self.assertNotIn("$script:OperationStdoutTask", SOURCE)
+        self.assertNotIn("$script:OperationStderrTask", SOURCE)
+
     def test_stale_manual_completion_cannot_override_newer_desired_state(self):
         start = SOURCE.index("function Save-ManualStatusForAction")
         end = SOURCE.index("function Save-ManualStatusFromAutomaticSnapshot", start)
@@ -54,6 +68,39 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn("$currentDesiredState -ne $expectedDesiredState", block)
         self.assertIn("return", block)
 
+    def test_manual_visual_state_uses_manager_owner_success_boundary(self):
+        start = SOURCE.index("function Get-PlatformVisualState")
+        end = SOURCE.index("$script:RedIcon", start)
+        block = SOURCE[start:end]
+        self.assertIn('$operationMode -eq "manual"', block)
+        self.assertIn("Read-JsonFile -Path $ManualStatusFile", block)
+        self.assertIn("Read-JsonFile -Path $ManagerOwnerFile", block)
+        self.assertIn("Test-ManagerOwnerFromCurrentBoot", block)
+        self.assertIn('$desiredState -eq "running" -and $ownerCurrentBoot', block)
+        self.assertIn('$desiredState -eq "stopped" -and -not $ownerFilePresent', block)
+        self.assertIn('mode = "on"', block)
+        self.assertIn('mode = "off"', block)
+
+    def test_manual_owner_receipt_is_rejected_after_reboot_without_wmi(self):
+        start = SOURCE.index("function Test-ManagerOwnerFromCurrentBoot")
+        end = SOURCE.index("function Get-SettingsProjection", start)
+        block = SOURCE[start:end]
+        self.assertIn("[Environment]::TickCount64", block)
+        self.assertIn('"started_at"', block)
+        self.assertNotIn("Get-CimInstance", block)
+        self.assertNotIn("Win32_Process", block)
+
+    def test_busy_state_yields_to_authoritative_final_state(self):
+        start = SOURCE.index("function Refresh-VisualState")
+        end = SOURCE.index("function Show-StateBalloon", start)
+        block = SOURCE[start:end]
+        self.assertIn("$state = Get-PlatformVisualState", block)
+        self.assertIn("$targetReached", block)
+        self.assertIn('$script:OperationAction -eq "Start"', block)
+        self.assertIn('[string]$state.mode -eq "on"', block)
+        self.assertIn('$script:OperationAction -eq "Stop"', block)
+        self.assertIn('[string]$state.mode -eq "off"', block)
+
     def test_automatic_snapshot_freshness_matches_thirty_minute_cadence(self):
         self.assertIn("$AutomaticSnapshotFreshnessSeconds = 2100", SOURCE)
         self.assertIn("Get-SnapshotAgeSeconds", SOURCE)
@@ -61,17 +108,16 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn('"SUPERVISOR_STATE_STALE"', SOURCE)
         self.assertIn("$age -gt $AutomaticSnapshotFreshnessSeconds", SOURCE)
 
-    def test_snapshot_age_handles_convertfrom_json_datetime_without_culture_round_trip(self):
-        start = SOURCE.index("function Get-SnapshotAgeSeconds")
-        end = SOURCE.index("function Get-SettingsProjection", start)
+    def test_timestamp_parser_handles_convertfrom_json_datetime_without_culture_round_trip(self):
+        start = SOURCE.index("function ConvertTo-UtcDateTimeOffset")
+        end = SOURCE.index("function Get-OperationMode", start)
         block = SOURCE[start:end]
-        self.assertIn("$observedAt -is [datetimeoffset]", block)
-        self.assertIn("$observedAt -is [datetime]", block)
+        self.assertIn("$Value -is [datetimeoffset]", block)
+        self.assertIn("$Value -is [datetime]", block)
         self.assertIn("[DateTimeKind]::Unspecified", block)
         self.assertIn("[DateTimeKind]::Utc", block)
         self.assertIn("[Globalization.CultureInfo]::InvariantCulture", block)
         self.assertIn("[Globalization.DateTimeStyles]::RoundtripKind", block)
-        self.assertNotIn("Parse([string]$observedAt)", block)
 
     def test_manual_and_automatic_modes_are_explicit_user_controls(self):
         for expected in (
@@ -92,10 +138,12 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
             SOURCE.index("function Get-PlatformVisualState") :
             SOURCE.index("$script:RedIcon", SOURCE.index("function Get-PlatformVisualState"))
         ]
-        self.assertIn('$operationMode -eq "manual"', visual)
-        self.assertIn("Read-JsonFile -Path $ManualStatusFile", visual)
-        self.assertIn('$operationMode -eq "automatic"', visual)
-        self.assertIn("Get-SnapshotAgeSeconds -Snapshot $snapshot", visual)
+        manual_start = visual.index('$operationMode -eq "manual"')
+        automatic_start = visual.index("$snapshot = Read-JsonFile -Path $SupervisorStateFile")
+        manual_block = visual[manual_start:automatic_start]
+        automatic_block = visual[automatic_start:]
+        self.assertNotIn("Get-SnapshotAgeSeconds", manual_block)
+        self.assertIn("Get-SnapshotAgeSeconds -Snapshot $snapshot", automatic_block)
 
     def test_tray_does_not_reconstruct_process_ownership(self):
         self.assertNotIn("Win32_Process", SOURCE)
