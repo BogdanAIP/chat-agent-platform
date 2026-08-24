@@ -398,16 +398,9 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             self.profile_ci,
         )
 
-    def test_ci_parses_lifecycle_scripts_and_runs_python_tests(self):
-        for expected in (
-            "scripts/chat-platform-controller.ps1",
-            "scripts/semantic-direct-controller.ps1",
-            "scripts/chat-platform.ps1",
-            "scripts/chat-platform-tray.ps1",
-            "scripts/bootstrap-chat-platform.ps1",
-            "scripts/start-chat-profile.ps1",
-        ):
-            self.assertIn(expected, self.ci)
+    def test_ci_recursively_parses_scripts_and_runs_python_tests(self):
+        self.assertIn("Get-ChildItem -LiteralPath 'scripts' -Filter '*.ps1' -File -Recurse", self.ci)
+        self.assertIn("POWERSHELL_PARSE_COUNT", self.ci)
         self.assertIn(
             'python -m unittest discover -s tests -p "test_*.py"',
             self.ci,
