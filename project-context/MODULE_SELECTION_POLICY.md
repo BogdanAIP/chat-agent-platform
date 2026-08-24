@@ -4,6 +4,8 @@
 
 The baseline Chat-to-Local product must work with **zero new mandatory SaaS subscriptions** beyond the user's chosen ChatGPT access. A module/capability must be good enough, maintainable, secure enough for its intended scope and economically sane.
 
+The baseline normal semantic route must also remain independent of optional extension infrastructure. In particular, 1MCP or any future replacement Extension Manager must not be required to install, start, health-check or smoke-test the canonical six-tool route.
+
 ## Architecture boundary for selection
 
 Candidate components must fit one of these roles rather than blur them:
@@ -12,11 +14,18 @@ Candidate components must fit one of these roles rather than blur them:
 ordinary ChatGPT
   current general planner / strategy / adaptation
 
+project-owned canonical semantic surface
+  stable typed Chat-facing capabilities
+
 local deterministic Control Plane
   task/procedure state / policy / authorization / checkpoint / verifier / bounded recovery
 
 focused capabilities
   Files / Browser / Windows / future devices/apps
+
+internal Extension Manager
+  optional 1MCP / qualified replacement
+  third-party MCP discovery / aggregation / lifecycle / health
 
 specialist models
   bounded perception or structured proposal only
@@ -53,7 +62,8 @@ A candidate cannot become supported/default until applicable gates pass:
 - **Lifecycle:** predictable start/stop/cleanup;
 - **Chat admission:** public Chat capability changes require real Chat-facing acceptance where applicable;
 - **Recovery:** failure/ABSTAIN/retry/rollback semantics are explicit;
-- **Authority:** model/procedure/planner output cannot directly bypass deterministic capability authorization.
+- **Authority:** model/procedure/planner/extension output cannot directly bypass deterministic capability authorization;
+- **Isolation:** failure of an optional extension must not break the baseline route unless the current task explicitly depends on that extension.
 
 ## Task-selected future capabilities
 
@@ -75,7 +85,7 @@ Old research/catalog entries are candidate history, not promotion orders.
 
 ## Chat-facing typed surface
 
-Current accepted public tools:
+Current canonical public tools are exactly:
 
 ```text
 workspace_read
@@ -83,15 +93,53 @@ workspace_write
 web_open
 web_observe
 web_interact
+procedure_run
 ```
 
 Adding a backend should normally change local implementation/evidence rather than require another ChatGPT app/plugin.
 
-Do not expose hundreds of raw tools. Generic adaptive `tool_schema`/`tool_invoke` remains diagnostic infrastructure, not the ordinary-Chat product surface.
+Do not expose hundreds of raw tools. Generic adaptive `tool_schema`/`tool_invoke` or arbitrary 1MCP backend dispatch remains internal diagnostic/extension infrastructure, not the ordinary-Chat product surface.
 
 A focused projection/facade must be deterministic, typed, scope-preserving and non-planning.
 
-The current count of five is not permanent. A later ADR may add truthful desktop/procedure capabilities. Never overload current tools merely to preserve the count.
+The current count of six is not an eternal maximum. A later ADR may add truthful desktop or other capability classes. Never overload current tools merely to preserve the count.
+
+## 1MCP Extension Manager rule
+
+1MCP is retained because it can reduce future integration work for third-party MCP servers, but its role is explicitly internal and optional.
+
+Preferred future topology:
+
+```text
+ordinary ChatGPT
+ -> canonical semantic surface
+      -> project-owned capability / Control Plane
+      -> extension facade
+           -> optional 1MCP Extension Manager
+                -> selected third-party MCP backend
+```
+
+1MCP may provide:
+
+- backend catalog/discovery;
+- aggregation behind one internal endpoint;
+- enable/disable and lazy activation;
+- lifecycle/restart/health management;
+- versioned configuration for extension backends;
+- diagnostics for extension availability.
+
+1MCP must not provide:
+
+- the baseline normal semantic transport;
+- authority to bypass the Control Plane or capability policy;
+- automatic trust for newly discovered MCP servers;
+- unrestricted raw tool export to ChatGPT;
+- a mandatory dependency for baseline bootstrap/smoke/health;
+- ownership of the persistent OpenAI tunnel anchor.
+
+The neutral persistent tunnel source of truth is platform state (`state/tunnel.json`). A historical `local-1mcp.yaml` may be read only for migration of an already accepted tunnel id or used by the optional Extension Manager path itself.
+
+When a task needs an extension, prefer the smallest truthful project-owned semantic facade over exposing the backend's entire raw catalog. If an existing canonical tool can truthfully express the operation without hiding a new consequence class, the backend may remain entirely behind that tool.
 
 ## Deterministic Control Plane selection rule
 

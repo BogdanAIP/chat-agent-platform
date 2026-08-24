@@ -24,7 +24,8 @@ $TunnelDir = Join-Path $LocalRoot 'tunnel'
 
 $SemanticRuntimeHelper = Join-Path $AppScriptsDir 'semantic-projection-runtime.ps1'
 $TunnelExe = Join-Path $BinDir 'tunnel-client.exe'
-$BaselineTunnelProfile = Join-Path $TunnelDir 'local-1mcp.yaml'
+$TunnelStateFile = Join-Path $StateDir 'tunnel.json'
+$LegacyTunnelProfile = Join-Path $TunnelDir 'local-1mcp.yaml'
 $SecretFile = Join-Path $LocalRoot 'secrets\control-plane-api-key.dpapi'
 $MainSettingsFile = Join-Path $StateDir 'settings.json'
 $DirectStateFile = Join-Path $StateDir 'semantic-direct.json'
@@ -110,6 +111,49 @@ function Get-ConfiguredFilesRoot {
     throw 'Direct semantic transport requires FilesRoot. Configure the semantic profile first.'
 }
 
+function Get-PersistentTunnelId {
+    if (-not (Test-Path -LiteralPath $TunnelStateFile -PathType Leaf)) {
+        return $null
+    }
+
+    try {
+        $state = Get-Content -LiteralPath $TunnelStateFile -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "Persistent tunnel state is invalid JSON: $($_.Exception.Message)"
+    }
+
+    if (
+        $null -eq $state.PSObject.Properties['tunnel_id'] -or
+        [string]$state.tunnel_id -notmatch '^tunnel_[0-9a-f]{32}$'
+    ) {
+        throw 'Persistent tunnel state does not contain a valid tunnel_id.'
+    }
+
+    return [string]$state.tunnel_id
+}
+
+function Get-LegacyTunnelId {
+    if (-not (Test-Path -LiteralPath $LegacyTunnelProfile -PathType Leaf)) {
+        return $null
+    }
+
+    $raw = Get-Content -LiteralPath $LegacyTunnelProfile -Raw
+    $matches = @(
+        [regex]::Matches($raw, 'tunnel_[0-9a-f]{32}') |
+            ForEach-Object { $_.Value } |
+            Select-Object -Unique
+    )
+
+    if ($matches.Count -eq 1) {
+        return [string]$matches[0]
+    }
+    if ($matches.Count -gt 1) {
+        throw 'Legacy 1MCP tunnel profile contains more than one tunnel id; refusing ambiguous migration fallback.'
+    }
+    return $null
+}
+
 function Resolve-TunnelId {
     $state = Get-DirectState
     if (
@@ -120,22 +164,17 @@ function Resolve-TunnelId {
         return [string]$state.tunnel_id
     }
 
-    if (-not (Test-Path -LiteralPath $BaselineTunnelProfile -PathType Leaf)) {
-        throw "Accepted tunnel profile is missing: $BaselineTunnelProfile"
+    $persistent = Get-PersistentTunnelId
+    if (-not [string]::IsNullOrWhiteSpace($persistent)) {
+        return $persistent
     }
 
-    $raw = Get-Content -LiteralPath $BaselineTunnelProfile -Raw
-    $matches = @(
-        [regex]::Matches($raw, 'tunnel_[0-9a-f]{32}') |
-            ForEach-Object { $_.Value } |
-            Select-Object -Unique
-    )
-
-    if ($matches.Count -ne 1) {
-        throw 'Could not resolve exactly one tunnel id from the accepted local-1mcp profile.'
+    $legacy = Get-LegacyTunnelId
+    if (-not [string]::IsNullOrWhiteSpace($legacy)) {
+        return $legacy
     }
 
-    return [string]$matches[0]
+    throw "Persistent tunnel anchor is missing: $TunnelStateFile"
 }
 
 function Get-DecryptedApiKey {
@@ -811,7 +850,7 @@ function Start-DirectRuntime {
 
     $listeners = @(Get-PortListeners)
     if ($listeners.Count -gt 0) {
-        throw "Local MCP port $McpPort is occupied. Refusing direct semantic startup until the 1MCP-backed runtime is stopped."
+        throw "Local MCP port $McpPort is occupied. Refusing direct semantic startup until the existing local MCP runtime is stopped."
     }
     if (-not (Test-Path -LiteralPath $TunnelExe -PathType Leaf)) {
         throw "Installed official tunnel-client is missing: $TunnelExe"

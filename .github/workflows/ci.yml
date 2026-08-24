@@ -100,33 +100,27 @@ jobs:
             if ($raw -match [regex]::Escape($forbidden)) { throw "Privileged module '$forbidden' is forbidden in the reference config." }
           }
 
-      - name: Prove local MCP runtime on Windows
+      - name: Prove clean public semantic manager status without 1MCP
         shell: pwsh
         run: |
-          try {
-            # Hosted runners have an empty npm cache. Keep the production default
-            # strict, but give CI enough time to download pinned packages before
-            # judging MCP readiness.
-            ./scripts/start-local-bridge.ps1 -Port 3059 -ReadyTimeoutSeconds 240
-            ./scripts/status-local-bridge.ps1 -Port 3059
-          }
-          finally {
-            ./scripts/stop-local-bridge.ps1
-          }
+          $filesRoot = Join-Path $env:RUNNER_TEMP 'clean-semantic-status-workspace'
+          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+          ./scripts/chat-platform.ps1 -Action SetProfile -Profile semantic -FilesRoot $filesRoot -NoNotify
+          if ($LASTEXITCODE -ne 0) { throw 'Could not select semantic profile for clean public status proof.' }
 
-      - name: Prove clean public manager status path
-        shell: pwsh
-        run: |
-          ./scripts/stop-chat-profile.ps1
           $state = ./scripts/chat-platform.ps1 -Action Status -NoNotify |
             Out-String |
             ConvertFrom-Json
           if ($state.active_count -ne 0) {
-            throw 'Manager should report zero active profiles after cleanup.'
+            throw 'Manager should report zero active profiles on a clean runner.'
           }
           if ($state.tunnel_running -or $state.tunnel_ready) {
             throw 'Manager should not report a tunnel on a clean hosted runner.'
           }
-          if ([string]$state.settings.profile -ne 'reference') {
-            throw 'Clean manager status must preserve the reference default.'
+          if ([string]$state.settings.profile -ne 'semantic') {
+            throw 'Clean public manager status must use canonical semantic profile.'
           }
+          if ([string]$state.tunnel_binding -ne 'direct-stdio') {
+            throw 'Clean public manager status did not use direct-stdio binding.'
+          }
+          Write-Host 'BASELINE_1MCP_RUNTIME_REQUIRED=False'

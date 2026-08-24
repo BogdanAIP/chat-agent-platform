@@ -184,6 +184,35 @@ TaskState
 
 Store only structured/user-visible intent summaries and execution evidence needed for operation/debugging. Never store hidden model reasoning.
 
+### Durable checkpoint / crash-recovery invariant
+
+A persisted TaskState is not permission to infer what probably happened after a crash. Local continuation after process interruption is allowed only from a **durable, independently revalidated checkpoint** whose procedure/version, node, budgets, bound parameters and relevant external resource identities still match live state.
+
+The generic recovery rule is:
+
+```text
+load retained TaskState
+ -> validate exact procedure/version/trust admission
+ -> validate checkpoint schema/node/budgets
+ -> re-observe current external state
+ -> prove required content + resource identity/evidence
+ -> exactly one known continuation is authorized
+      -> resume
+    otherwise
+      -> ABSTAIN/escalate
+```
+
+In particular:
+
+- a verifier PASS that was never durably checkpointed does not become a remembered success after restart;
+- an ambiguous crash inside a transition must not be guessed through merely because the intended result appears plausible;
+- an existing artifact with matching content/digest is not automatically the same object created/owned by the interrupted task when stronger identity evidence is available;
+- rollback/removal must require current evidence that the resource is still the task-owned object, not just that its bytes resemble historical output;
+- completed work may be observed idempotently only when the completion evidence still matches the retained checkpoint;
+- if safe mid-transition recovery later requires write-ahead intent/transaction evidence, that mechanism must be explicit and independently tested rather than inferred from side effects.
+
+This rule applies beyond the Stage 26.3A file procedure. Future Browser/Windows procedures must define equivalent durable identity/current-state evidence appropriate to their consequence class before they can resume autonomously after interruption.
+
 ## Relationship to existing components
 
 The Control Plane does not replace accepted components:

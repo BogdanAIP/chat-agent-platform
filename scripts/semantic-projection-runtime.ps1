@@ -12,142 +12,42 @@ function Get-SemanticProjectionEntryPath {
     $manifestPath = Join-Path $projectionRoot 'package.json'
     $lockPath = Join-Path $projectionRoot 'package-lock.json'
     $corePath = Join-Path $projectionRoot 'bin\semantic-projection.mjs'
+    $controlPlaneProjectionPath = Join-Path $projectionRoot 'bin\semantic-control-plane-projection.mjs'
     $launcherPath = Join-Path $projectionRoot 'bin\semantic-projection-launcher.mjs'
+    $controlPlaneCliPath = Join-Path $RepoRoot 'runtime\control_plane\cli.py'
+    $controlPlaneProcedurePath = Join-Path $RepoRoot 'runtime\control_plane\verified_workspace_artifact.py'
     $lockMarkerPath = Join-Path $projectionRoot 'node_modules\.chat-agent-platform-lock.sha256'
 
-    foreach ($required in @($manifestPath, $corePath)) {
+    foreach ($required in @(
+        $manifestPath,
+        $corePath,
+        $controlPlaneProjectionPath,
+        $controlPlaneCliPath,
+        $controlPlaneProcedurePath
+    )) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-            throw "Semantic projection source is missing: $required"
+            throw "Semantic six-tool runtime source is missing: $required"
         }
     }
 
     if (-not (Test-Path -LiteralPath $launcherPath -PathType Leaf)) {
-        $launcherTemplate = @'
-#!/usr/bin/env node
-
-import { spawn } from 'node:child_process';
-import path from 'node:path';
-import process from 'node:process';
-import { fileURLToPath } from 'node:url';
-
-const tunnelOnlyCredentialKeys = [
-  'CONTROL_PLANE_API_KEY',
-  'OPENAI_API_KEY'
-];
-
-for (const key of tunnelOnlyCredentialKeys) {
-  delete process.env[key];
-}
-
-if (process.argv.includes('--verify-credential-scrub')) {
-  for (const key of tunnelOnlyCredentialKeys) {
-    if (Object.prototype.hasOwnProperty.call(process.env, key)) {
-      console.error(`semantic launcher failed to scrub ${key}`);
-      process.exit(1);
-    }
-  }
-  console.log('SEMANTIC_TUNNEL_CREDENTIAL_SCRUB=PASS');
-  process.exit(0);
-}
-
-const LEGACY_TOOL_ALIASES = new Map([
-  ['semantic-projection_1mcp_workspace_read', 'workspace_read'],
-  ['semantic-projection_1mcp_workspace_write', 'workspace_write'],
-  ['semantic-projection_1mcp_web_open', 'web_open'],
-  ['semantic-projection_1mcp_web_observe', 'web_observe'],
-  ['semantic-projection_1mcp_web_interact', 'web_interact']
-]);
-
-function rewriteLegacyToolCall(line) {
-  if (!line.trim()) return line;
-  try {
-    const message = JSON.parse(line);
-    if (
-      message?.method === 'tools/call' &&
-      typeof message?.params?.name === 'string' &&
-      LEGACY_TOOL_ALIASES.has(message.params.name)
-    ) {
-      message.params.name = LEGACY_TOOL_ALIASES.get(message.params.name);
-      return JSON.stringify(message);
-    }
-  } catch {}
-  return line;
-}
-
-const launcherDir = path.dirname(fileURLToPath(import.meta.url));
-const semanticEntry = path.join(launcherDir, 'semantic-projection.mjs');
-const child = spawn(process.execPath, [semanticEntry], {
-  env: process.env,
-  stdio: ['pipe', 'pipe', 'pipe'],
-  windowsHide: true
-});
-
-child.stdout.pipe(process.stdout);
-child.stderr.pipe(process.stderr);
-
-let inputBuffer = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', chunk => {
-  inputBuffer += chunk;
-  while (true) {
-    const newlineIndex = inputBuffer.indexOf('\n');
-    if (newlineIndex < 0) break;
-    let line = inputBuffer.slice(0, newlineIndex);
-    inputBuffer = inputBuffer.slice(newlineIndex + 1);
-    if (line.endsWith('\r')) line = line.slice(0, -1);
-    const outgoing = `${rewriteLegacyToolCall(line)}\n`;
-    if (!child.stdin.write(outgoing)) {
-      process.stdin.pause();
-      child.stdin.once('drain', () => process.stdin.resume());
-    }
-  }
-});
-
-process.stdin.on('end', () => {
-  if (inputBuffer.length > 0) {
-    child.stdin.write(rewriteLegacyToolCall(inputBuffer));
-    inputBuffer = '';
-  }
-  child.stdin.end();
-});
-
-function forwardSignal(signal) {
-  if (!child.killed) {
-    try { child.kill(signal); } catch {}
-  }
-}
-
-process.on('SIGINT', () => forwardSignal('SIGINT'));
-process.on('SIGTERM', () => forwardSignal('SIGTERM'));
-
-child.on('error', error => {
-  console.error(`semantic launcher child process failed: ${error.message}`);
-  process.exitCode = 1;
-});
-
-child.on('exit', (code, signal) => {
-  if (signal) {
-    process.exitCode = 1;
-    return;
-  }
-  process.exitCode = code ?? 1;
-});
-'@
-        Set-Content -LiteralPath $launcherPath -Value $launcherTemplate -Encoding utf8 -NoNewline
+        throw "Reviewed semantic launcher is missing: $launcherPath"
     }
 
     $launcherSource = Get-Content -LiteralPath $launcherPath -Raw
     $controlDelete = $launcherSource.IndexOf("delete process.env[key]", [StringComparison]::Ordinal)
     $controlName = $launcherSource.IndexOf("'CONTROL_PLANE_API_KEY'", [StringComparison]::Ordinal)
     $openAiName = $launcherSource.IndexOf("'OPENAI_API_KEY'", [StringComparison]::Ordinal)
-    $semanticEntryMarker = $launcherSource.IndexOf("path.join(launcherDir, 'semantic-projection.mjs')", [StringComparison]::Ordinal)
+    $openAiAdminName = $launcherSource.IndexOf("'OPENAI_ADMIN_KEY'", [StringComparison]::Ordinal)
+    $semanticEntryMarker = $launcherSource.IndexOf("path.join(launcherDir, 'semantic-control-plane-projection.mjs')", [StringComparison]::Ordinal)
     $childSpawn = $launcherSource.IndexOf("spawn(process.execPath, [semanticEntry]", [StringComparison]::Ordinal)
     $legacyAliases = @(
         'semantic-projection_1mcp_workspace_read',
         'semantic-projection_1mcp_workspace_write',
         'semantic-projection_1mcp_web_open',
         'semantic-projection_1mcp_web_observe',
-        'semantic-projection_1mcp_web_interact'
+        'semantic-projection_1mcp_web_interact',
+        'semantic-projection_1mcp_procedure_run'
     )
     $legacyAliasContractOk = $true
     foreach ($legacyAlias in $legacyAliases) {
@@ -160,13 +60,32 @@ child.on('exit', (code, signal) => {
         $controlDelete -lt 0 -or
         $controlName -lt 0 -or
         $openAiName -lt 0 -or
+        $openAiAdminName -lt 0 -or
         $semanticEntryMarker -lt 0 -or
         $childSpawn -lt 0 -or
         -not $legacyAliasContractOk -or
         $controlDelete -gt $childSpawn -or
         $semanticEntryMarker -gt $childSpawn
     ) {
-        throw 'Semantic projection credential-scrub compatibility launcher failed its runtime contract.'
+        throw 'Semantic six-tool credential-scrub compatibility launcher failed its runtime contract.'
+    }
+
+    $controlPlaneSource = Get-Content -LiteralPath $controlPlaneProjectionPath -Raw
+    $publicTools = @(
+        'workspace_read',
+        'workspace_write',
+        'web_open',
+        'web_observe',
+        'web_interact',
+        'procedure_run'
+    )
+    foreach ($toolName in $publicTools) {
+        if ($controlPlaneSource.IndexOf("server.registerTool('$toolName'", [StringComparison]::Ordinal) -lt 0) {
+            throw "Canonical semantic six-tool projection is missing '$toolName'."
+        }
+    }
+    if ([regex]::Matches($controlPlaneSource, 'server\.registerTool\(').Count -ne 6) {
+        throw 'Canonical semantic projection must register exactly six public tools.'
     }
 
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
@@ -196,6 +115,7 @@ child.on('exit', (code, signal) => {
     $packageFiles = @($manifest.files | ForEach-Object { [string]$_ })
     $expectedFiles = @(
         'bin/semantic-projection-launcher.mjs',
+        'bin/semantic-control-plane-projection.mjs',
         'bin/semantic-projection.mjs',
         'lib/semantic-vision-click-router.mjs',
         'lib/visual-grounding-bridge.mjs',
@@ -238,6 +158,7 @@ child.on('exit', (code, signal) => {
     $nodeName = if ($IsWindows) { 'node.exe' } else { 'node' }
     $npmName = if ($IsWindows) { 'npm.cmd' } else { 'npm' }
     $null = Get-Command $nodeName -ErrorAction Stop
+    $null = Get-Command 'python' -ErrorAction Stop
     $npm = (Get-Command $npmName -ErrorAction Stop).Source
 
     function Test-DependenciesReady {

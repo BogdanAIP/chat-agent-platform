@@ -1,20 +1,19 @@
 # Module / Capability Catalog
 
-Status synchronized through accepted Stage 26.2D Windows routing and active Stage 26.2E real-application qualification.
+Status synchronized through accepted Stage 26.2E + Transport Supervisor v1 and active Stage 26.3A canonical six-tool integration.
 
 Resolve live `main` and relevant PR heads before work.
 
 ## Operating constraint
 
-Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources unless the user explicitly re-enables them later.
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources unless the user explicitly requests them.
 
 ## Status meanings
 
-- **PRODUCT-ACCEPTED** — normal product/ordinary-Chat path for the scoped contract.
+- **PRODUCT-ACCEPTED** — normal product/ordinary-Chat path for the scoped accepted contract.
 - **ACCEPTED-INFRASTRUCTURE** — maintained internal runtime/lifecycle foundation.
 - **ACCEPTED-SPECIALIST** — bounded specialist backend behind a focused boundary.
-- **TARGET-QUALIFIED** — exact component/path physically passed target qualification but is not yet in normal product execution.
-- **ADAPT-CANDIDATE** — reusable upstream mechanism needing project integration/policy wrapping.
+- **TARGET-QUALIFIED** — exact component/path physically passed target qualification but is not yet in normal accepted product execution.
 - **ACTIVE-INTEGRATION** — current product-integration work.
 - **FUTURE-SCOPED-GATE** — planned capability requiring explicit evidence.
 - **OPTIONAL-RESEARCH** — only if later measurements justify it; not release-critical.
@@ -25,41 +24,39 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 
 | Capability class | Current implementation/direction | Status | Decision |
 |---|---|---|---|
-| General planner / manager | ordinary ChatGPT | PRODUCT-ACCEPTED | Only current open-ended task/strategy/planning layer. |
+| General planner / manager | ordinary ChatGPT | PRODUCT-ACCEPTED | Only current open-ended goal/strategy/planning layer. |
 | Chat reachability | OpenAI Secure MCP Tunnel + official tunnel-client | PRODUCT-ACCEPTED | Normal ordinary-Chat reachability. |
-| Public semantic transport | direct stdio secure launcher -> semantic-projection | PRODUCT-ACCEPTED | Truthful deterministic compatibility path. |
-| Internal MCP aggregation/lifecycle | 1MCP | ACCEPTED-INFRASTRUCTURE / DIAGNOSTIC | Internal diagnostics/adaptive lifecycle; not normal public semantic hop. |
-| Windows manager ownership | authoritative runtime owner + installed/source coordination | ACCEPTED-INFRASTRUCTURE | Lifecycle/config/diagnostics only; not procedure Control Plane. |
+| Transport supervision | accepted Transport Supervisor v1 | PRODUCT-ACCEPTED / ACCEPTED-INFRASTRUCTURE | Persistent desired state/runtime owner, bounded recovery, console-free Windows persistence. |
+| Public semantic transport | direct stdio secure launcher -> canonical semantic projection | PRODUCT-ACCEPTED foundation / ACTIVE-INTEGRATION surface change | Stage 26.3A candidate route always reaches the canonical six-tool projection. |
+| Internal MCP aggregation/lifecycle | 1MCP | ACCEPTED-INFRASTRUCTURE / DIAGNOSTIC | Internal diagnostics/adaptive lifecycle; not the normal public semantic contract. |
+| Windows manager ownership | authoritative runtime owner + installed/source coordination | ACCEPTED-INFRASTRUCTURE | Lifecycle/config/diagnostics only; not the procedure planner. |
 | Scoped files | official Filesystem backend behind semantic projection | PRODUCT-ACCEPTED | `workspace_read` / `workspace_write`. |
 | Browser | pinned Playwright path behind semantic projection | PRODUCT-ACCEPTED | `web_open` / `web_observe` / `web_interact`. |
-| Semantic capability projection | deterministic five-tool compatibility boundary | PRODUCT-ACCEPTED | Not planner, workflow engine or procedure Control Plane. |
+| Semantic capability projection | canonical six-tool candidate boundary | ACTIVE-INTEGRATION | Exactly five reviewed file/browser semantics + typed bounded `procedure_run`; no 5/6 public mode switch. |
+| Deterministic execution Control Plane | TaskState + exact registered procedure + authorization/checkpoint/verifier/budgets | ACTIVE-INTEGRATION | Stage 26.3A implementation exists behind `procedure_run`; not a general planner. |
+| Verified Procedure Runtime | `verified_workspace_artifact_v1` first bounded procedure | ACTIVE-INTEGRATION | Three verified transitions, durable checkpoints, fail-closed ABSTAIN/no-overwrite. |
 | Local visual grounding | llama.cpp + LFM2.5-VL-450M F16 | ACCEPTED-SPECIALIST | Local/on-demand/perception-only; replaceable. |
-| Browser semantic -> vision routing | Stage 25.2 internal escalation | PRODUCT-ACCEPTED | Semantic first; bounded visual fallback only. |
-| Procedural compiler + IR | OpenAdapt Flow 1.31.0 `Workflow` / `ProgramGraph` | TARGET-QUALIFIED | ADOPT behind project boundaries. |
-| Procedural lifecycle | OpenAdapt `SkillLibrary` + learn/teach/regression mechanics | ADAPT-CANDIDATE | Reuse mechanics; project trust stays candidate-first. |
-| Human/desktop capture | OpenAdapt Capture 1.2.2 + Flow adapter | TARGET-QUALIFIED | Stage 26.1B physically accepted; transfer integration remains later. |
+| Browser semantic -> vision routing | Stage 25.2 bounded internal escalation | PRODUCT-ACCEPTED | Semantic first; bounded visual fallback only. |
+| Procedural compiler + IR | OpenAdapt Flow 1.31.0 `Workflow` / `ProgramGraph` | TARGET-QUALIFIED | Candidate IR/mechanics behind project boundaries. |
+| Procedural lifecycle | OpenAdapt `SkillLibrary` + learn/teach/regression mechanics | FUTURE-SCOPED-GATE | Reuse mechanics only after project trust/verification integration. |
+| Human/desktop capture | OpenAdapt Capture 1.2.2 + Flow adapter | TARGET-QUALIFIED | Capture foundation accepted; transfer integration is later Stage 26.4. |
 | Typed Windows executor | pinned OpenAdapt `WindowsBackend` + hardened agent + production wrapper | ACCEPTED-INFRASTRUCTURE | No generic exec; bounded typed actions. |
-| Window-scoped Windows UI resolution | PID -> Win32 HWND -> exact window -> bounded native UIA | ACCEPTED-INFRASTRUCTURE | Stage 26.1E accepted and promoted. |
+| Window-scoped Windows UI resolution | PID -> HWND -> exact window -> bounded native UIA | ACCEPTED-INFRASTRUCTURE | Stage 26.1E accepted and promoted. |
 | Runtime verifier foundation | before/after evidence + `PASS|FAIL|UNKNOWN` | ACCEPTED-INFRASTRUCTURE | Delivery is not success; UNKNOWN never silently advances. |
-| Production Windows runtime | `runtime/windows` bounded observation/actuation/verification | ACCEPTED-INFRASTRUCTURE | Stage 26.2A merged #87. |
-| Desktop observation | canonical read-only `DesktopState` | ACCEPTED-INFRASTRUCTURE | Stage 26.2B merged #88; evidence only. |
-| Desktop F16 Grounder | native exact-window proposal adapter | ACCEPTED-SPECIALIST | Stage 26.2C merged #89; proposal-only. |
-| Windows UIA -> vision router | deterministic structure first + bounded visual fallback + freshness/native guards | ACCEPTED-INFRASTRUCTURE | Stage 26.2D physically accepted/merged #90. |
-| Native visual point guard | foreground HWND + WindowFromPoint/root HWND/PID | ACCEPTED-INFRASTRUCTURE | Stage 26.2D accepted; no focus stealing. |
-| Real application Windows E2E | isolated VS Code + disposable TEMP artifact | ACTIVE-INTEGRATION | Stage 26.2E gate. |
-| Deterministic execution Control Plane | TaskState + ProgramGraph progression + policy/authorization + checkpoint/verifier/recovery/budgets | FUTURE-SCOPED-GATE / AUTHORITATIVE DIRECTION | Implement in Stage 26.3 after real-app E2E; not a general planner. |
-| Verified Procedure Runtime | selected ProgramGraph + live state + deterministic Control Plane | FUTURE-SCOPED-GATE | May advance known verified transitions locally; escalates novel strategy to ChatGPT. |
+| Production Windows runtime | `runtime/windows` bounded observation/actuation/verification | ACCEPTED-INFRASTRUCTURE | Stage 26.2A accepted/merged. |
+| Desktop observation | canonical read-only `DesktopState` | ACCEPTED-INFRASTRUCTURE | Evidence only. |
+| Desktop F16 Grounder | native exact-window proposal adapter | ACCEPTED-SPECIALIST | Proposal-only. |
+| Windows UIA -> vision router | deterministic structure first + bounded visual fallback + freshness/native guards | ACCEPTED-INFRASTRUCTURE | Physically accepted Stage 26.2D. |
+| Native visual point guard | foreground HWND + WindowFromPoint/root HWND/PID | ACCEPTED-INFRASTRUCTURE | No focus stealing. |
+| Real application Windows E2E | isolated VS Code + disposable TEMP artifact | PRODUCT-ACCEPTED scoped foundation | Stage 26.2E physically accepted for one exact task; not broad app accuracy. |
 | Human demonstration transfer | Capture -> candidate procedure -> changed-state verified replay | FUTURE-SCOPED-GATE | Stage 26.4; not blind macro replay. |
-| Procedure-state dataset | structured verified state-transition examples | OPTIONAL-RESEARCH | Supports later evaluation/training; not a release prerequisite. |
-| Specialized local reasoning | `SpecializedReasoningBackend` proposal-only | OPTIONAL-RESEARCH | Structured specialist decisions only; not a general planner. |
-| Future local general planner | Track P: shadow -> bounded subtask -> optional local mode | OPTIONAL-RESEARCH / FUTURE | After verified data + measured offline/latency/parallel/deployment need; always behind deterministic Control Plane. |
+| Procedure-state dataset | structured verified state-transition examples | OPTIONAL-RESEARCH | Supports later evaluation/training; not release prerequisite. |
+| Specialized local reasoning | proposal-only specialist interface | OPTIONAL-RESEARCH | Not a general planner. |
+| Future local general planner | Track P: shadow -> bounded subtask -> optional local mode | OPTIONAL-RESEARCH / FUTURE | Only after verified data + measured need; always behind Control Plane authorization/verifier. |
 | Multi-chat orchestration | upper-layer controller over ordinary Chat sessions | PARALLEL-TRACK | Outside Windows/procedure safety core. |
-| Distribution/cockpit reference | OpenAdapt Desktop packaging/Tauri/sidecar patterns | ADAPT-CANDIDATE | Stage 27 reference; verify runtime compatibility. |
 | Distribution/maintenance | installer/update/repair/doctor/uninstall/rollback/restart recovery | FUTURE-SCOPED-GATE | Stage 27. |
 
 ## Planner / Control Plane terminology
-
-Do not use `Control Plane` as a synonym for `planner`.
 
 ```text
 general planner
@@ -68,14 +65,16 @@ general planner
 
 local deterministic Control Plane
  = execution state/policy/procedure/verifier/recovery
- = Stage 26.3 direction
+ = active Stage 26.3 integration
 
 future local planner
  = optional Track P research
  = not current product path
 ```
 
-## Current public surface
+Do not use `Control Plane` as a synonym for `planner`.
+
+## Current Stage 26.3A candidate public surface
 
 ```text
 workspace_read
@@ -83,71 +82,37 @@ workspace_write
 web_open
 web_observe
 web_interact
+procedure_run
 ```
 
-A later ADR decides truthful desktop/procedure capabilities. Never hide native desktop actions behind `web_interact` and never add generic opaque `tool_invoke` merely to preserve a small count.
+There is no runtime/profile/tray switch between five and six tools.
+
+The historical five-tool file/browser projection remains an internal implementation/regression layer only. Old Stage 24/25 five-tool evidence remains valid for its exact historical scope but does not define the current candidate inventory.
+
+The normal semantic startup guard must refuse READY unless live inventory equals the exact six canonical names.
+
+`procedure_run` may invoke only registered bounded procedures and does not expose generic shell/Python/opaque `tool_invoke` dispatch.
+
+## Stage 26.3A physical acceptance gate
+
+After hosted CI is green on one exact PR #92 head:
+
+```text
+install exact head on target Windows
+ -> start normal semantic route
+ -> tray normal READY
+ -> exactly six live tools
+ -> ordinary Chat one-goal task
+ -> actual procedure_run
+ -> independent workspace_read final verification
+ -> protected pre-existing target => ABSTAIN/no overwrite
+```
+
+Until this physical gate passes, the six-tool surface is an active candidate, not a physically product-accepted Stage 26.3A contract.
 
 ## Accepted Windows evidence lineage
 
-### 26.1B Capture
-
-Physical head: `7a9daa9329d81994833c22b4ca2e321927527dcc`.
-
-### 26.1C executor
-
-Physical head: `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`.
-
-Authenticated loopback, legacy exec absent/disabled, typed actions, stale frame/context refusal, focus/fingerprint binding and bounded input were accepted.
-
-### 26.1D / 26.1E
-
-Desktop-wide p50/p95 ~183.6/185.6 s was reduced by exact-window UIA to 3.324/3.720 s, with 97 controlled scoped resolutions and zero Desktop fallback/binding failures/ambiguities/false/unrelated-window actions.
-
-### 26.2A
-
-Physical production runtime head: `6ae5c3a9e624c8c341857c025625b203b796b41c`.
-
-### 26.2B
-
-Exact physically tested DesktopState runtime head: `dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`.
-
-Historical constant action counters from the first observer qualification are not accepted measurements; read-only behavior is established by code/source-boundary tests.
-
-### 26.2C
-
-Exact physically accepted Grounder head: `eadf8ff5a873936441891a66b616c83c62736152`.
-
-The physical `1. Benchmark start` -> `Benchmark start` case supports one narrow ordinal-prefix policy, not broad fuzzy matching.
-
-### 26.2D
-
-Exact physically accepted PR head: `1c74713edcd6321d5583a39234929169e68b5ac1`.
-
-Merged #90 integration main: `42d4130d59e23e2c2b1771ac428467efe27a4b98`.
-
-Physical evidence proves one bounded structure-first Windows visual fallback and negative refusal cases, not global application accuracy.
-
-## Active 26.2E evidence model
-
-Do not fabricate `false_action_count=0` constants. Current measurable contract is:
-
-```text
-specific TEMP containment
-unique Code.exe PID/HWND/DesktopState
-focused editor evidence
-wrong verifier expectation -> FAIL -> ABSTAIN before action
-fresh pre-action same-window + same-focused-editor fingerprint
-native foreground/hit-test guard
-exactly one guarded keyboard delivery
-exact saved-file size + SHA-256
-expected-only workspace
-same current window identity
-exact qualification window close
-natural CLI exit
-TEMP cleanup / rollback PASS
-```
-
-Forced CLI termination is cleanup-only and must make acceptance fail.
+Exact Stage 26.1/26.2 physical heads, result directories and scoped measurements live in `EVIDENCE_INDEX.md` and accepted historical stage documents. Do not duplicate them here as current planning state.
 
 ## Future planner acceptance rule
 

@@ -19,6 +19,7 @@ if (!workspaceStat?.isDirectory()) {
 }
 
 const expectedTools = [
+  'procedure_run',
   'web_interact',
   'web_observe',
   'web_open',
@@ -27,6 +28,7 @@ const expectedTools = [
 ];
 
 const legacyTools = [
+  'semantic-projection_1mcp_procedure_run',
   'semantic-projection_1mcp_web_interact',
   'semantic-projection_1mcp_web_observe',
   'semantic-projection_1mcp_web_open',
@@ -177,9 +179,30 @@ try {
   assert.equal(findDone.isError, undefined, textOf(findDone));
   assert(textOf(findDone).includes('DIRECT_TUNNEL_BROWSER_DONE'), textOf(findDone));
 
-  // Frozen ChatGPT action snapshots from the old Stage 24 1MCP route used
-  // server-qualified action IDs. The launcher must accept those exact IDs as
-  // compatibility aliases without republishing them in tools/list.
+  const procedure = await client.callTool({
+    name: 'procedure_run',
+    arguments: {
+      procedure: 'verified_workspace_artifact_v1',
+      artifact_name: 'direct-tunnel-result.txt',
+      content: 'DIRECT_TUNNEL_PROCEDURE_OK'
+    }
+  });
+  assert.equal(procedure.isError, undefined, textOf(procedure));
+  const procedurePayload = procedure.structuredContent ?? JSON.parse(textOf(procedure));
+  assert.equal(procedurePayload.status, 'completed', textOf(procedure));
+  assert.equal(procedurePayload.action_count, 3, textOf(procedure));
+
+  const procedurePath = '.chat-agent-platform/stage26-3a/direct-tunnel-result.txt';
+  const procedureRead = await client.callTool({
+    name: 'workspace_read',
+    arguments: { operation: 'read_text', path: procedurePath }
+  });
+  assert.equal(procedureRead.isError, undefined, textOf(procedureRead));
+  assert(textOf(procedureRead).includes('DIRECT_TUNNEL_PROCEDURE_OK'), textOf(procedureRead));
+
+  // Frozen ChatGPT action snapshots from the old Stage 24 route used
+  // server-qualified action IDs. The launcher accepts those aliases without
+  // republishing them in tools/list.
   const legacyRead = await client.callTool({
     name: 'semantic-projection_1mcp_workspace_read',
     arguments: { operation: 'read_text', path: 'direct-input.txt' }
@@ -229,9 +252,10 @@ try {
   assert(textOf(legacyFindDone).includes('DIRECT_TUNNEL_BROWSER_DONE'), textOf(legacyFindDone));
 
   console.log('DIRECT_SEMANTIC_PROTOCOL_ERA=modern');
-  console.log('DIRECT_SEMANTIC_TOOL_COUNT=5');
+  console.log('DIRECT_SEMANTIC_TOOL_COUNT=6');
   console.log('DIRECT_SEMANTIC_FILESYSTEM=PASS');
   console.log('DIRECT_SEMANTIC_BROWSER=PASS');
+  console.log('DIRECT_SEMANTIC_PROCEDURE=PASS');
   console.log('DIRECT_SEMANTIC_LEGACY_ACTION_COMPAT=PASS');
   console.log('DIRECT_SEMANTIC_NEGATIVE_CASES=PASS');
   console.log(`DIRECT_SEMANTIC_CONNECT_MS=${connectMs}`);

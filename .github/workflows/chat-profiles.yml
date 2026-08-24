@@ -3,47 +3,37 @@ name: Chat Profile Acceptance
 on:
   pull_request:
     paths:
-      - "runtime/chat-profiles/**"
-      - "runtime/1mcp-adaptive-shim/**"
+      - "runtime/chat-profiles/files-readonly/**"
+      - "runtime/chat-profiles/browser-isolated/**"
+      - "runtime/chat-profiles/semantic/**"
       - "runtime/semantic-projection/**"
-      - "scripts/start-chat-profile.ps1"
-      - "scripts/start-semantic-profile.ps1"
-      - "scripts/semantic-projection-runtime.ps1"
       - "scripts/semantic-direct-controller.ps1"
-      - "scripts/status-chat-profile.ps1"
-      - "scripts/stop-chat-profile.ps1"
-      - "scripts/start-local-bridge.ps1"
-      - "scripts/status-local-bridge.ps1"
-      - "scripts/stop-local-bridge.ps1"
       - "scripts/chat-platform-controller.ps1"
       - "scripts/chat-platform.ps1"
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
-      - "tests/adaptive-mcp-acceptance.mjs"
-      - "tests/test_adaptive_profile.py"
+      - "scripts/bootstrap-tunnel-runtime.ps1"
+      - "scripts/bootstrap-manager-runtime.ps1"
+      - "scripts/bootstrap-manager-lifecycle.ps1"
+      - "tests/test_extension_manager_boundary.py"
       - ".github/workflows/chat-profiles.yml"
       - "project-context/STAGE24_LEAST_PRIVILEGE.md"
   push:
     branches: [main]
     paths:
-      - "runtime/chat-profiles/**"
-      - "runtime/1mcp-adaptive-shim/**"
+      - "runtime/chat-profiles/files-readonly/**"
+      - "runtime/chat-profiles/browser-isolated/**"
+      - "runtime/chat-profiles/semantic/**"
       - "runtime/semantic-projection/**"
-      - "scripts/start-chat-profile.ps1"
-      - "scripts/start-semantic-profile.ps1"
-      - "scripts/semantic-projection-runtime.ps1"
       - "scripts/semantic-direct-controller.ps1"
-      - "scripts/status-chat-profile.ps1"
-      - "scripts/stop-chat-profile.ps1"
-      - "scripts/start-local-bridge.ps1"
-      - "scripts/status-local-bridge.ps1"
-      - "scripts/stop-local-bridge.ps1"
       - "scripts/chat-platform-controller.ps1"
       - "scripts/chat-platform.ps1"
       - "scripts/chat-platform-tray.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
-      - "tests/adaptive-mcp-acceptance.mjs"
-      - "tests/test_adaptive_profile.py"
+      - "scripts/bootstrap-tunnel-runtime.ps1"
+      - "scripts/bootstrap-manager-runtime.ps1"
+      - "scripts/bootstrap-manager-lifecycle.ps1"
+      - "tests/test_extension_manager_boundary.py"
       - ".github/workflows/chat-profiles.yml"
   workflow_dispatch:
 
@@ -57,7 +47,7 @@ concurrency:
 jobs:
   windows-profiles:
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -67,28 +57,21 @@ jobs:
         shell: pwsh
         run: |
           node --version
-          npx --version
-          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
-          if (-not (Test-Path $chrome)) { throw 'Google Chrome is required for browser acceptance.' }
-          $env:PATH = "$(Split-Path $chrome -Parent);$env:PATH"
+          npm --version
+          python --version
 
-      - name: Parse profile lifecycle scripts
+      - name: Parse baseline profile and manager scripts
         shell: pwsh
         run: |
           foreach ($script in @(
-            'scripts/start-local-bridge.ps1',
-            'scripts/status-local-bridge.ps1',
-            'scripts/stop-local-bridge.ps1',
-            'scripts/start-chat-profile.ps1',
-            'scripts/start-semantic-profile.ps1',
-            'scripts/semantic-projection-runtime.ps1',
             'scripts/semantic-direct-controller.ps1',
-            'scripts/status-chat-profile.ps1',
-            'scripts/stop-chat-profile.ps1',
             'scripts/chat-platform-controller.ps1',
             'scripts/chat-platform.ps1',
             'scripts/chat-platform-tray.ps1',
-            'scripts/bootstrap-chat-platform.ps1'
+            'scripts/bootstrap-chat-platform.ps1',
+            'scripts/bootstrap-tunnel-runtime.ps1',
+            'scripts/bootstrap-manager-runtime.ps1',
+            'scripts/bootstrap-manager-lifecycle.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -96,208 +79,63 @@ jobs:
             if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
           }
 
-      - name: Enforce pinned direct profiles, semantic projection, and adaptive catalog
+      - name: Enforce pinned compatibility profiles and six-tool semantic projection
         shell: pwsh
         run: |
           $files = Get-Content 'runtime/chat-profiles/files-readonly/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
           $browser = Get-Content 'runtime/chat-profiles/browser-isolated/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
           $semantic = Get-Content 'runtime/chat-profiles/semantic/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
-          $adaptive = Get-Content 'runtime/chat-profiles/adaptive/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
 
           $fileServers = @($files.mcpServers.PSObject.Properties)
           $browserServers = @($browser.mcpServers.PSObject.Properties)
           $semanticServers = @($semantic.mcpServers.PSObject.Properties)
-          $adaptiveServers = @($adaptive.mcpServers.PSObject.Properties)
-          if ($fileServers.Count -ne 1 -or $fileServers[0].Name -ne 'filesystem') { throw 'Files profile must contain only filesystem.' }
-          if ($browserServers.Count -ne 1 -or $browserServers[0].Name -ne 'playwright') { throw 'Browser profile must contain only playwright.' }
+          if ($fileServers.Count -ne 1 -or $fileServers[0].Name -ne 'filesystem') { throw 'Files compatibility profile must contain only filesystem.' }
+          if ($browserServers.Count -ne 1 -or $browserServers[0].Name -ne 'playwright') { throw 'Browser compatibility profile must contain only playwright.' }
           if ($semanticServers.Count -ne 1 -or $semanticServers[0].Name -ne 'semantic-projection') { throw 'Semantic profile must contain only semantic-projection.' }
           if ([string]$semantic.mcpServers.'semantic-projection'.command -ne 'node') { throw 'Semantic profile must directly launch Node.' }
           if (@($semantic.mcpServers.'semantic-projection'.args).Count -ne 1 -or [string]$semantic.mcpServers.'semantic-projection'.args[0] -ne '${CHAT_SEMANTIC_PROJECTION_ENTRY}') { throw 'Semantic entrypoint contract drifted.' }
-          if ($adaptiveServers.Count -ne 2) { throw 'Adaptive catalog must contain exactly filesystem and playwright for this acceptance stage.' }
-          foreach ($name in @('filesystem','playwright')) {
-            $entry = @($adaptiveServers | Where-Object Name -eq $name)
-            if ($entry.Count -ne 1) { throw "Adaptive catalog is missing $name." }
-            if (-not [bool]$entry[0].Value.disabled) { throw "Adaptive backend $name must start disabled." }
-          }
+          if (@($semantic.mcpServers.'semantic-projection'.tags) -notcontains 'procedure' -or @($semantic.mcpServers.'semantic-projection'.tags) -notcontains 'control-plane') { throw 'Semantic profile must permanently expose the bounded procedure/control-plane capability.' }
 
           $fileRaw = Get-Content 'runtime/chat-profiles/files-readonly/mcp.json' -Raw -Encoding utf8
           $browserRaw = Get-Content 'runtime/chat-profiles/browser-isolated/mcp.json' -Raw -Encoding utf8
           $semanticRaw = Get-Content 'runtime/chat-profiles/semantic/mcp.json' -Raw -Encoding utf8
-          $adaptiveRaw = Get-Content 'runtime/chat-profiles/adaptive/mcp.json' -Raw -Encoding utf8
-          foreach ($raw in @($fileRaw,$adaptiveRaw)) {
-            if ($raw -notmatch [regex]::Escape('@modelcontextprotocol/server-filesystem@2026.7.10')) { throw 'Filesystem pin drifted.' }
-          }
-          foreach ($raw in @($browserRaw,$adaptiveRaw)) {
-            if ($raw -notmatch [regex]::Escape('@playwright/mcp@0.0.78')) { throw 'Playwright pin drifted.' }
-          }
+          if ($fileRaw -notmatch [regex]::Escape('@modelcontextprotocol/server-filesystem@2026.7.10')) { throw 'Filesystem pin drifted.' }
+          if ($browserRaw -notmatch [regex]::Escape('@playwright/mcp@0.0.78')) { throw 'Playwright pin drifted.' }
           foreach ($tool in @('create_directory','write_file','edit_file','move_file')) {
-            if (@($files.mcpServers.filesystem.disabledTools) -notcontains $tool) { throw "Files profile must disable $tool." }
-            if (@($adaptive.mcpServers.filesystem.disabledTools) -notcontains $tool) { throw "Adaptive filesystem must disable $tool." }
+            if (@($files.mcpServers.filesystem.disabledTools) -notcontains $tool) { throw "Files compatibility profile must disable $tool." }
           }
           foreach ($tool in @('browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
-            if (@($browser.mcpServers.playwright.disabledTools) -notcontains $tool) { throw "Browser profile must disable $tool." }
-            if (@($adaptive.mcpServers.playwright.disabledTools) -notcontains $tool) { throw "Adaptive Playwright must disable $tool." }
+            if (@($browser.mcpServers.playwright.disabledTools) -notcontains $tool) { throw "Browser compatibility profile must disable $tool." }
           }
-          if ($fileRaw -match '@playwright/mcp|browser_') { throw 'Direct files profile contains browser capability.' }
-          if ($browserRaw -match 'server-filesystem|CHAT_LOCAL_FILES_ROOT') { throw 'Direct browser profile contains filesystem capability.' }
+          if ($fileRaw -match '@playwright/mcp|browser_') { throw 'Files compatibility profile contains browser capability.' }
+          if ($browserRaw -match 'server-filesystem|CHAT_LOCAL_FILES_ROOT') { throw 'Browser compatibility profile contains filesystem capability.' }
           foreach ($forbidden in @('api_key','subscription','browserbase','apify','firecrawl')) {
-            if (($fileRaw + $browserRaw + $semanticRaw + $adaptiveRaw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
+            if (($fileRaw + $browserRaw + $semanticRaw).ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
           }
 
-      - name: Prove profile stop is idempotent
-        shell: pwsh
-        run: |
-          ./scripts/stop-chat-profile.ps1
-          ./scripts/stop-chat-profile.ps1
-          ./scripts/stop-local-bridge.ps1
-          ./scripts/stop-local-bridge.ps1
-
-      - name: Prove direct profile switching and isolation
-        shell: pwsh
-        run: |
-          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-profile-files'
-          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
-          Set-Content -LiteralPath (Join-Path $filesRoot 'marker.txt') -Value 'CHAT_PROFILE_FILES_OK' -Encoding utf8
-          try {
-            ./scripts/start-chat-profile.ps1 -Profile files-readonly -FilesRoot $filesRoot -Port 3066 -ReadyTimeoutSeconds 240
-            $filesStatus = ./scripts/status-chat-profile.ps1 -Port 3066 | Out-String | ConvertFrom-Json
-            if ($filesStatus.active_count -ne 1 -or $filesStatus.active_profile -ne 'files-readonly' -or $filesStatus.conflict) { throw 'files-readonly was not the only active profile.' }
-
-            ./scripts/start-chat-profile.ps1 -Profile browser-isolated -Port 3066 -ReadyTimeoutSeconds 240
-            $browserStatus = ./scripts/status-chat-profile.ps1 -Port 3066 | Out-String | ConvertFrom-Json
-            if ($browserStatus.active_count -ne 1 -or $browserStatus.active_profile -ne 'browser-isolated' -or $browserStatus.conflict) { throw 'browser-isolated did not replace files-readonly.' }
-          }
-          finally {
-            ./scripts/stop-chat-profile.ps1
-          }
-
-      - name: Prove promoted semantic profile routes through the public manager
+      - name: Prove promoted six-tool semantic profile routes through the public manager
         shell: pwsh
         run: |
           $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-semantic-manager-files'
           New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
           Set-Content -LiteralPath (Join-Path $filesRoot 'input.txt') -Value 'SEMANTIC_MANAGER_OK' -Encoding utf8
 
-          try {
-            ./scripts/chat-platform.ps1 -Action SetProfile -Profile semantic -FilesRoot $filesRoot -NoNotify
-            if ($LASTEXITCODE -ne 0) { throw 'Public manager could not select promoted semantic profile.' }
+          ./scripts/chat-platform.ps1 -Action SetProfile -Profile semantic -FilesRoot $filesRoot -NoNotify
+          if ($LASTEXITCODE -ne 0) { throw 'Public manager could not select promoted semantic profile.' }
 
-            $managerStatus = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if ([bool]$managerStatus.mcp_ready -or [bool]$managerStatus.tunnel_running -or [bool]$managerStatus.tunnel_ready -or [int]$managerStatus.active_count -ne 0 -or [bool]$managerStatus.conflict) { throw 'Fresh promoted semantic route must remain stopped before hosted tunnel startup.' }
-            if (-not [string]::IsNullOrWhiteSpace([string]$managerStatus.active_profile)) { throw 'Fresh promoted semantic route unexpectedly reported an active profile.' }
-            if ([string]$managerStatus.tunnel_binding -ne 'direct-stdio') { throw 'Public semantic profile did not route to direct stdio.' }
-            if ([string]$managerStatus.settings.profile -ne 'semantic') { throw 'Public manager did not persist semantic as the selected profile.' }
-            if ([string]$managerStatus.settings.tunnel_profile -ne 'direct-stdio') { throw 'Promoted semantic settings retained the legacy 1MCP tunnel marker.' }
-            if ([System.IO.Path]::GetFullPath([string]$managerStatus.settings.files_root) -ne [System.IO.Path]::GetFullPath($filesRoot)) { throw 'Public manager did not persist the semantic FilesRoot.' }
+          $managerStatus = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+          if ([bool]$managerStatus.mcp_ready -or [bool]$managerStatus.tunnel_running -or [bool]$managerStatus.tunnel_ready -or [int]$managerStatus.active_count -ne 0 -or [bool]$managerStatus.conflict) { throw 'Fresh promoted semantic route must remain stopped before hosted tunnel startup.' }
+          if (-not [string]::IsNullOrWhiteSpace([string]$managerStatus.active_profile)) { throw 'Fresh promoted semantic route unexpectedly reported an active profile.' }
+          if ([string]$managerStatus.tunnel_binding -ne 'direct-stdio') { throw 'Public semantic profile did not route to direct stdio.' }
+          if ([string]$managerStatus.settings.profile -ne 'semantic') { throw 'Public manager did not persist semantic as the selected profile.' }
+          if ([string]$managerStatus.settings.tunnel_profile -ne 'direct-stdio') { throw 'Promoted semantic settings retained the legacy 1MCP tunnel marker.' }
+          if ([System.IO.Path]::GetFullPath([string]$managerStatus.settings.files_root) -ne [System.IO.Path]::GetFullPath($filesRoot)) { throw 'Public manager did not persist the semantic FilesRoot.' }
 
-            $installedController = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\app\scripts\semantic-direct-controller.ps1'
-            if (-not (Test-Path -LiteralPath $installedController -PathType Leaf)) { throw 'Public semantic routing did not install the stable direct controller.' }
-            $sourceHash = (Get-FileHash -LiteralPath 'scripts/semantic-direct-controller.ps1' -Algorithm SHA256).Hash
-            $installedHash = (Get-FileHash -LiteralPath $installedController -Algorithm SHA256).Hash
-            if ($sourceHash -ne $installedHash) { throw 'Installed direct controller differs from the reviewed source.' }
+          $installedController = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\app\scripts\semantic-direct-controller.ps1'
+          if (-not (Test-Path -LiteralPath $installedController -PathType Leaf)) { throw 'Public semantic routing did not install the stable direct controller.' }
+          $sourceHash = (Get-FileHash -LiteralPath 'scripts/semantic-direct-controller.ps1' -Algorithm SHA256).Hash
+          $installedHash = (Get-FileHash -LiteralPath $installedController -Algorithm SHA256).Hash
+          if ($sourceHash -ne $installedHash) { throw 'Installed direct controller differs from the reviewed source.' }
 
-            ./scripts/chat-platform.ps1 -Action SetProfile -Profile reference -NoNotify
-            if ($LASTEXITCODE -ne 0) { throw 'Public manager could not restore the safe reference profile.' }
-            $reset = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if ([string]$reset.settings.profile -ne 'reference') { throw 'Public manager did not restore the safe reference default after semantic acceptance.' }
-            if ([string]$reset.settings.tunnel_profile -ne 'local-1mcp') { throw 'Reference profile did not restore its accepted 1MCP tunnel marker.' }
-
-            Write-Host 'SEMANTIC_PUBLIC_MANAGER_ROUTING=PASS'
-          }
-          finally {
-            ./scripts/stop-chat-profile.ps1
-          }
-
-      - name: Prove public manager can observe and clean conflicting runtime scopes
-        shell: pwsh
-        run: |
-          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-profile-conflict-files'
-          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
-          Set-Content -LiteralPath (Join-Path $filesRoot 'marker.txt') -Value 'CHAT_PROFILE_CONFLICT_OK' -Encoding utf8
-          $env:CHAT_LOCAL_FILES_ROOT = $filesRoot
-          try {
-            ./scripts/start-local-bridge.ps1 -Port 3071 -ConfigPath runtime/chat-profiles/files-readonly/mcp.json -HealthServerName filesystem -ReadyTimeoutSeconds 240
-            ./scripts/start-local-bridge.ps1 -Port 3072 -ConfigPath runtime/chat-profiles/browser-isolated/mcp.json -HealthServerName playwright -ReadyTimeoutSeconds 240
-            $conflict = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if ($conflict.active_count -ne 2 -or -not $conflict.conflict) { throw 'Manager did not preserve active_count=2 conflict state.' }
-            ./scripts/chat-platform.ps1 -Action Toggle -NoNotify
-            $clean = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if ($clean.active_count -ne 0 -or $clean.conflict) { throw 'Manager did not clean conflicting Runtime Scopes.' }
-          }
-          finally {
-            Remove-Item Env:CHAT_LOCAL_FILES_ROOT -ErrorAction SilentlyContinue
-            ./scripts/stop-chat-profile.ps1
-          }
-
-  adaptive-runtime:
-    runs-on: windows-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Adaptive environment
-        shell: pwsh
-        run: |
-          node --version
-          npx --version
-          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
-          if (-not (Test-Path $chrome)) { throw 'Google Chrome is required for adaptive browser acceptance.' }
-          $env:PATH = "$(Split-Path $chrome -Parent);$env:PATH"
-
-      - name: Prove adaptive lazy runtime can activate backends on demand
-        shell: pwsh
-        run: |
-          $port = 3050
-          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-adaptive-files'
-          $marker = Join-Path $filesRoot 'marker.txt'
-          $adaptiveConfig = 'runtime/chat-profiles/adaptive/mcp.json'
-          $adaptiveConfigBackup = Join-Path $env:RUNNER_TEMP 'adaptive-mcp.original.json'
-          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
-          Set-Content -LiteralPath $marker -Value 'CHAT_ADAPTIVE_FILES_OK' -Encoding utf8
-          Copy-Item -LiteralPath $adaptiveConfig -Destination $adaptiveConfigBackup
-
-          try {
-            ./scripts/chat-platform.ps1 -Action SetProfile -Profile adaptive -FilesRoot $filesRoot -NoNotify
-            ./scripts/start-chat-profile.ps1 -Profile adaptive -FilesRoot $filesRoot -Port $port -ReadyTimeoutSeconds 240
-            $adaptiveStatus = ./scripts/status-chat-profile.ps1 -Port $port | Out-String | ConvertFrom-Json
-            if ($adaptiveStatus.active_count -ne 1 -or $adaptiveStatus.active_profile -ne 'adaptive' -or $adaptiveStatus.conflict) { throw 'adaptive was not the only active profile.' }
-
-            $managerStatus = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if (-not $managerStatus.mcp_ready -or $managerStatus.active_profile -ne 'adaptive' -or $managerStatus.active_count -ne 1 -or $managerStatus.conflict) { throw 'Public manager did not recognize the ready adaptive profile.' }
-            if ($managerStatus.tunnel_running -or $managerStatus.tunnel_ready) { throw 'Hosted adaptive acceptance unexpectedly found a tunnel.' }
-            if ([string]$managerStatus.settings.profile -ne 'adaptive') { throw 'Public manager did not persist adaptive as the selected profile.' }
-            if ([System.IO.Path]::GetFullPath([string]$managerStatus.settings.files_root) -ne [System.IO.Path]::GetFullPath($filesRoot)) { throw 'Public manager did not persist the adaptive FilesRoot.' }
-
-            $acceptance = node tests/adaptive-mcp-acceptance.mjs "http://127.0.0.1:$port/mcp" $marker 2>&1 | Out-String
-            Write-Host $acceptance
-            if ($LASTEXITCODE -ne 0) { throw "Adaptive MCP session acceptance failed: $acceptance" }
-            if ($acceptance -notmatch 'ADAPTIVE_MCP_ACCEPTANCE=passed') { throw "Adaptive MCP session acceptance did not report success: $acceptance" }
-
-            $backendProcesses = @(Get-CimInstance Win32_Process | Where-Object {
-              $_.Name -eq 'node.exe' -and (
-                $_.CommandLine -like '*server-filesystem*' -or
-                $_.CommandLine -like '*playwright*mcp*'
-              )
-            })
-            if ($backendProcesses.Count -ne 0) {
-              $details = $backendProcesses | Select-Object ProcessId,ParentProcessId,CommandLine | Out-String
-              throw "Adaptive backend process remained after disable: $details"
-            }
-
-            ./scripts/chat-platform.ps1 -Action Toggle -NoNotify
-            $stopped = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if ($stopped.active_count -ne 0 -or $stopped.tunnel_running) { throw 'Public manager toggle did not stop the adaptive Runtime Scope.' }
-            ./scripts/chat-platform.ps1 -Action SetProfile -Profile reference -NoNotify
-            $reset = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
-            if ([string]$reset.settings.profile -ne 'reference') { throw 'Public manager did not restore the safe reference default after adaptive acceptance.' }
-          }
-          finally {
-            try {
-              ./scripts/stop-chat-profile.ps1
-            }
-            finally {
-              Copy-Item -LiteralPath $adaptiveConfigBackup -Destination $adaptiveConfig -Force
-            }
-          }
+          Write-Host 'SEMANTIC_PUBLIC_MANAGER_ROUTING=PASS'
+          Write-Host 'SEMANTIC_PUBLIC_MANAGER_1MCP_REQUIRED=False'

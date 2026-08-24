@@ -105,6 +105,7 @@ try {
     $baseUrl = "http://127.0.0.1:$Port"
     $tools = @(Get-SemanticToolNames -BaseUrl $baseUrl)
     $expected = @(
+        'procedure_run',
         'web_interact',
         'web_observe',
         'web_open',
@@ -120,7 +121,7 @@ try {
     Write-Host 'CHAT_PROFILE=semantic'
     Write-Host "ONE_MCP=$stablePkg"
     Write-Host "MCP_URL=$baseUrl/mcp"
-    Write-Host 'SEMANTIC_TOOL_COUNT=5'
+    Write-Host 'SEMANTIC_TOOL_COUNT=6'
 }
 catch {
     & npx.cmd -y $stablePkg serve --config $semanticConfig --stop *> $null

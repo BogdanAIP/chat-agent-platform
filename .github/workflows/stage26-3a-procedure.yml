@@ -1,0 +1,106 @@
+name: Stage 26.3A Six-Tool Semantic Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/control_plane/**"
+      - "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs"
+      - "runtime/semantic-projection/bin/semantic-projection-launcher.mjs"
+      - "runtime/semantic-projection/tests/six-tool-acceptance.mjs"
+      - "runtime/semantic-projection/package.json"
+      - "runtime/semantic-projection/package-lock.json"
+      - "runtime/chat-profiles/semantic/**"
+      - "tests/test_stage26_3a_*.py"
+      - "project-context/STAGE26_3A_*.md"
+      - ".github/workflows/stage26-3a-procedure.yml"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/control_plane/**"
+      - "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs"
+      - "runtime/semantic-projection/bin/semantic-projection-launcher.mjs"
+      - "runtime/semantic-projection/tests/six-tool-acceptance.mjs"
+      - "runtime/semantic-projection/package.json"
+      - "runtime/semantic-projection/package-lock.json"
+      - "runtime/chat-profiles/semantic/**"
+      - "tests/test_stage26_3a_*.py"
+      - "project-context/STAGE26_3A_*.md"
+      - ".github/workflows/stage26-3a-procedure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage26-3a-six-tool-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  six-tool-semantic:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          python --version
+
+      - name: Install locked semantic dependencies
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm ci --ignore-scripts --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Run Stage 26.3A Python contracts
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p "test_stage26_3a_*.py"
+          if ($LASTEXITCODE -ne 0) { throw "Stage 26.3A Python contracts failed with exit code $LASTEXITCODE" }
+
+      - name: Prove canonical semantic surface is exactly six tools
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm run acceptance:six-tool
+            if ($LASTEXITCODE -ne 0) { throw "Six-tool semantic acceptance failed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Run internal semantic base regressions
+        shell: pwsh
+        run: |
+          Push-Location 'runtime/semantic-projection'
+          try {
+            npm run acceptance
+            if ($LASTEXITCODE -ne 0) { throw "Internal semantic base acceptance regressed with exit code $LASTEXITCODE" }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Parse canonical semantic launcher
+        shell: pwsh
+        run: |
+          $script = 'scripts/semantic-direct-controller.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD $script), [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) { throw "$script has PowerShell syntax errors: $($errors -join '; ')" }
+          Write-Host 'STAGE26_3A_SINGLE_SIX_TOOL_SURFACE=PASS'

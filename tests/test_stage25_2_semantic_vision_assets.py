@@ -6,27 +6,49 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-projection.mjs"
+PUBLIC = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-control-plane-projection.mjs"
 ROUTER = ROOT / "runtime" / "semantic-projection" / "lib" / "semantic-vision-click-router.mjs"
 TARGET_NODE = ROOT / "runtime" / "semantic-projection" / "tests" / "target-stage25-2-real-f16-escalation.mjs"
 TARGET_WRAPPER = ROOT / "scripts" / "test-stage25-2-real-f16-escalation.ps1"
-BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
+BOOTSTRAP_MANAGER = ROOT / "scripts" / "bootstrap-manager-runtime.ps1"
 
 
 class Stage252SemanticVisionAssetsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.core = CORE.read_text(encoding="utf-8")
+        cls.public = PUBLIC.read_text(encoding="utf-8")
         cls.router = ROUTER.read_text(encoding="utf-8")
         cls.target_node = TARGET_NODE.read_text(encoding="utf-8")
         cls.target_wrapper = TARGET_WRAPPER.read_text(encoding="utf-8")
-        cls.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
+        cls.bootstrap_manager = BOOTSTRAP_MANAGER.read_text(encoding="utf-8")
 
-    def test_public_surface_stays_exactly_five_tools(self) -> None:
-        self.assertEqual(self.core.count("server.registerTool("), 5)
+    def test_public_surface_is_canonical_six_tools(self) -> None:
+        self.assertEqual(self.public.count("server.registerTool("), 6)
+        for name in (
+            "workspace_read",
+            "workspace_write",
+            "web_open",
+            "web_observe",
+            "web_interact",
+            "procedure_run",
+        ):
+            self.assertIn(f"'{name}'", self.public)
+        for forbidden in (
+            "tool_invoke",
+            "tool_schema",
+            "mcp_enable",
+            "browser_evaluate",
+            "browser_file_upload",
+        ):
+            self.assertNotIn(forbidden, self.public)
+
+    def test_internal_visual_base_keeps_reviewed_semantic_capabilities(self) -> None:
         for name in ("workspace_read", "workspace_write", "web_open", "web_observe", "web_interact"):
             self.assertIn(f"'{name}'", self.core)
         for forbidden in ("tool_invoke", "tool_schema", "mcp_enable", "browser_evaluate", "browser_file_upload"):
             self.assertNotIn(forbidden, self.core)
+        self.assertNotIn("procedure_run", self.core)
 
     def test_visual_escalation_is_bounded_inside_web_interact(self) -> None:
         for marker in (
@@ -98,8 +120,10 @@ class Stage252SemanticVisionAssetsTests(unittest.TestCase):
             "local_vision_adapter\\native_bbox.py",
             "local_vision_adapter\\production_grounder.py",
             "local-vision-runtime.json",
+            "semantic-control-plane-projection.mjs",
+            "control_plane\\cli.py",
         ):
-            self.assertIn(marker, self.bootstrap)
+            self.assertIn(marker, self.bootstrap_manager)
 
 
 if __name__ == "__main__":

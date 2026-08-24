@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -75,15 +76,27 @@ class DocumentationConsistencyTests(unittest.TestCase):
                     self.assertNotIn(phrase, text)
 
     def test_current_stage_order_is_consistent(self) -> None:
-        roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
-        current = (CONTEXT / "CURRENT_STATE.md").read_text(encoding="utf-8")
-        continuation = (CONTEXT / "CONTINUATION_CONTEXT.md").read_text(encoding="utf-8")
-        for text in (roadmap, current, continuation):
-            self.assertIn("26.2E", text)
-            self.assertIn("26.3", text)
-            self.assertIn("26.4", text)
-            self.assertLess(text.index("26.2E"), text.index("26.3"))
-            self.assertLess(text.index("26.3"), text.index("26.4"))
+        files = (
+            CONTEXT / "ROADMAP.md",
+            CONTEXT / "CURRENT_STATE.md",
+            CONTEXT / "CONTINUATION_CONTEXT.md",
+        )
+        # Current documents may legitimately mention the active Stage 26.3 near
+        # the top.  What matters is that each document still contains an
+        # explicit release-order sequence 26.2E -> 26.3 -> 26.4.  Do not use
+        # first-occurrence indexes: those confuse status prose with stage order.
+        ordered_sequence = re.compile(
+            r"26\.2E[\s\S]{0,4000}?26\.3[\s\S]{0,4000}?26\.4",
+            re.IGNORECASE,
+        )
+        for path in files:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.name):
+                self.assertRegex(
+                    text,
+                    ordered_sequence,
+                    f"{path.name} must contain an explicit 26.2E -> 26.3 -> 26.4 release sequence",
+                )
 
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")

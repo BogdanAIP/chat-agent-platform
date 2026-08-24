@@ -6,11 +6,11 @@ Always resolve live `main` and relevant PR heads before new work. Exact code/tes
 
 ## Operating constraint
 
-Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources unless the user explicitly re-enables them.
+Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources unless the user explicitly requests them.
 
 ## Product boundary
 
-Ordinary ChatGPT is the only **current general planner/intelligence**. The local platform has a deterministic execution **Control Plane**, not a second current general-planning brain.
+Ordinary ChatGPT is the only **current general planner/intelligence**. The local platform has a deterministic execution **Control Plane**, not a second general-planning brain.
 
 ```text
 ordinary ChatGPT
@@ -20,7 +20,7 @@ ordinary ChatGPT
 OpenAI Secure MCP Tunnel
   -> official tunnel-client
   -> secure semantic launcher
-  -> direct stdio semantic-projection
+  -> canonical six-tool semantic projection
         |
         v
 local deterministic execution Control Plane + focused capabilities
@@ -30,7 +30,9 @@ The Control Plane may keep TaskState/checkpoints, advance a selected verified pr
 
 A true local planner is future optional Track P, not current production architecture and not a Stage 27/28 prerequisite. See `CONTROL_PLANE.md`.
 
-Current public semantic tools remain exactly:
+## Accepted Stage 26.3A public semantic surface
+
+The normal `semantic` route exposes exactly:
 
 ```text
 workspace_read
@@ -38,161 +40,148 @@ workspace_write
 web_open
 web_observe
 web_interact
+procedure_run
 ```
+
+There is no runtime/profile/tray choice between five and six tools.
+
+The old separate `procedure-qualification` route was removed. The public launcher always routes through the canonical six-tool projection. A private five-capability file/browser implementation remains only as an internal implementation/regression layer and is not selectable or Chat-facing.
+
+The ordinary semantic startup guard refuses READY unless live `tools/list` is exactly the six canonical names.
+
+The tray has one normal semantic READY state; no separate qualification state/color remains.
+
+## Normal transport vs optional extensions
+
+Normal semantic transport is direct stdio and does not depend on 1MCP.
+
+```text
+ordinary ChatGPT
+ -> Secure MCP Tunnel
+ -> official tunnel-client
+ -> semantic launcher
+ -> six canonical tools
+```
+
+The persistent accepted `tunnel_*` id is stored in neutral platform state:
+
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\state\tunnel.json
+```
+
+An existing installed legacy profile at:
+
+```text
+%LOCALAPPDATA%\ChatAgentPlatform\tunnel\local-1mcp.yaml
+```
+
+may be read only as a bounded migration fallback for one already accepted tunnel id. It is not the normal semantic source of truth and fresh normal bootstrap does not recreate it as the normal route.
+
+Fresh/current normal bootstrap initializes the semantic core directly:
+
+```text
+verified tunnel-client + neutral tunnel state
+ -> verified six-tool bundle
+ -> DPAPI runtime key
+ -> existing safe FilesRoot OR %LOCALAPPDATA%\ChatAgentPlatform\workspace
+ -> profile = semantic
+ -> tunnel binding = direct-stdio
+ -> six-tool smoke
+ -> stopped
+```
+
+After bootstrap, public `Status` and the tray resolve through the direct semantic controller rather than legacy `status-chat-profile.ps1`; they do not query `npx @1mcp/agent` merely to report a stopped normal platform.
+
+Baseline manager metadata records:
+
+```text
+semantic_public_tool_count = 6
+extension_manager_included = false
+```
+
+1MCP is retained only as an optional internal Extension Manager for future third-party MCP backends. Its absence/failure must not block baseline six-tool bootstrap/start/status/health/smoke. Raw backend tools are not exported directly to ordinary ChatGPT; supported extensions remain behind project-owned typed semantic facades and the same authorization boundary.
+
+Canonical operational contract: `EXTENSION_MANAGER.md`.
 
 ---
 
 # Accepted foundation
 
-## Stage 24 / 24.1 — semantic surface and direct tunnel — ACCEPTED
+## Stage 24 / 24.1 — typed semantic file/browser foundation and direct tunnel — ACCEPTED
 
-Five public semantic tools, Windows lifecycle and direct stdio semantic tunnel are accepted foundations. 1MCP remains internal diagnostic/adaptive/aggregation infrastructure.
+Historical five-tool file/browser semantics, Windows lifecycle and direct stdio transport are accepted foundations for their exact tested scope. They do not define the current public inventory.
 
 ## Stage 25 / 25.1 / 25.2 — browser semantic + local vision — ACCEPTED
 
-Accepted local visual baseline:
+Accepted local visual baseline remains structure-first, proposal-only and behind deterministic authorization.
+
+## Stage 26.1A-E / 26.2A-E — Windows capability foundation — ACCEPTED
+
+Accepted Windows work includes OpenAdapt qualification, bounded capture/executor, warm latency characterization, window-scoped UIA, production Windows runtime, DesktopState, native local Grounder, deterministic UIA->vision routing and the first isolated real VS Code application E2E.
+
+Exact physical heads/result directories and scoped measurements are authoritative in `EVIDENCE_INDEX.md` and the accepted historical stage documents.
+
+One accepted VS Code task is not universal desktop accuracy.
+
+## Transport Supervisor v1 — ACCEPTED / MERGED #94
+
+Transport Supervisor v1 is the accepted reliability foundation. It provides persistent desired state/runtime ownership, bounded recovery, console-free Windows persistence and health-driven restart semantics around the normal route.
+
+Accepted `main` foundation after #94:
 
 ```text
-llama.cpp b10448 / ad1de39e0
-LFM2.5-VL-450M F16 + F16 mmproj
-CPU 8 threads
-ctx 2048
+2f33997d3fbaa1fc52d437c00be7f16e55bdde5e
 ```
 
-Vision remains structure-first, proposal-only and behind deterministic authorization.
+## Stage 26.3A — canonical six-tool verified procedure runtime — PHYSICALLY ACCEPTED
 
----
-
-# Stage 26 accepted evidence
-
-## Stage 26.1A — OpenAdapt core qualification — ACCEPTED
+Exact accepted runtime head:
 
 ```text
-openadapt-flow 1.31.0 @ d7f58d9f35c8369f16a9b378f23952d425334ad7
-openadapt-capture 1.2.2 @ bcf12942d61d66b64d94e645e9124273a5cc5963
+300db9956dfbdf0300ecc59f017d6f3280d4353a
 ```
 
-## Stage 26.1B — bounded Windows Capture — ACCEPTED
-
-Physical qualification head: `7a9daa9329d81994833c22b4ca2e321927527dcc`.
-
-## Stage 26.1C — hardened typed Windows executor — ACCEPTED / MERGED #83
-
-Physical accepted head: `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`.
-
-## Stage 26.1D — warm latency baseline — ACCEPTED / MERGED #84
+Target Windows physical pre-chat gate proved:
 
 ```text
-p50 = 183606.855 ms
-p95 = 185567.403 ms
+profile = semantic
+tunnel binding = direct-stdio
+semantic_public_tool_count = 6
+extension_manager_included = false
+1MCP_REQUIRED = false
+runtime_ready = true
+mcp_ready = true
+tunnel_ready = true
+active_count = 1
+conflict = false
 ```
 
-## Stage 26.1E — window-scoped UIA — ACCEPTED / MERGED #85
+A fresh ordinary ChatGPT conversation using only `Chat Local Bridge Test` then completed one long-horizon research task through all six semantic tools. It used `research-ledger.md` as working memory, visited 16 content pages, analyzed 12 works/systems/benchmark groups, recovered from one invalid browser interaction, wrote and independently reread `gui-agent-research.md`, then completed the registered `verified_workspace_artifact_v1` procedure.
 
-Physical accepted head: `66390aca1dadf57c4f11568ec311ad6fcdbd7596`.
+First `procedure_run` task:
 
 ```text
-WINDOW_SCOPED_FIND_CALLS=97
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-UNRELATED_WINDOW_ACTION_COUNT=0
-FALSE_ACTION_COUNT=0
-p50=3323.570 ms
-p95=3720.061 ms
+497ecb591779219ef0ee1e55ea7ad0b8
+status = completed
+action_count = 3
+artifact = .chat-agent-platform/stage26-3a/ordinary-chat-result.txt
+sha256 = 2396b8338edced2675982db9d263a046705f7f906b553b0ed19b81f51205e583
 ```
 
-Controlled WinForms evidence only; not universal Windows accuracy.
+Independent `workspace_read` returned the exact expected success nonce.
 
-## Stage 26.2A — Production Windows Runtime Foundation — ACCEPTED / MERGED #87
-
-Physical accepted runtime head: `6ae5c3a9e624c8c341857c025625b203b796b41c`.
-
-Maintained `runtime/windows/` owns bounded actuation, verifier foundation and PID/HWND window-scoped UIA.
-
-## Stage 26.2B — Desktop Observation / DesktopState — ACCEPTED / MERGED #88
-
-Exact physically tested runtime head:
-
-`dcf20a7b15a4e0a353b1e75be50d4a2cbaa66c0a`
-
-DesktopState is bounded read-only evidence carrying session/application/process/window identity, native coordinate space, UIA controls, frame/screenshot digests, provenance and freshness inputs. Observation is not authorization.
-
-## Stage 26.2C — Native Desktop LFM2.5-VL Grounder — ACCEPTED / MERGED #89
-
-Exact physically accepted runtime head:
-
-`eadf8ff5a873936441891a66b616c83c62736152`
-
-Grounder remains proposal-only and exact-window/evidence-bound.
-
-## Stage 26.2D — deterministic UIA -> vision routing — ACCEPTED / MERGED #90
-
-Integration merge before 26.2E:
-
-`main = 42d4130d59e23e2c2b1771ac428467efe27a4b98`
-
-Exact physically accepted PR head:
-
-`1c74713edcd6321d5583a39234929169e68b5ac1`
-
-This physically proves one controlled structure-first visual-fallback path with deterministic evidence authorization, fresh same-window checks, native foreground/hit-test guard and one guarded click. It is not general application accuracy.
-
-## Stage 26.2E — first real application E2E — ACCEPTED / PR #91
-
-Exact physically accepted qualification head:
-
-`457db0b634f2e47f53d41e359a238840fa3ca2ee`
-
-Physical result directory:
-
-`C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\real-app-e2e\vscode-20260821-171448`
-
-Accepted task: isolated VS Code + one disposable `.txt` under a specifically prefixed `%TEMP%` root.
-
-Key physical evidence:
+Second `procedure_run` task:
 
 ```text
-PROJECT_HEAD=457db0b634f2e47f53d41e359a238840fa3ca2ee
-WINDOW_BINDING_PASS=True
-DESKTOP_OBSERVATION_PASS=True
-FOCUSED_EDITOR_PRECONDITION_PASS=True
-FOCUSED_EDITOR_ROLE=textbox
-FRESH_PRE_ACTION_STATE_PASS=True
-NATIVE_POINT_GUARD_PASS=True
-KEYBOARD_FOCUS_GUARD_MODE=window_scoped_focused_observation_fingerprint
-KEYBOARD_FOCUS_GUARD_ARMED_PASS=True
-KEYBOARD_FOCUS_GUARD_PASS=True
-MISMATCH_PROBE_VERIFICATION_STATUS=fail
-MISMATCH_PROBE_DECISION=abstain
-MISMATCH_PROBE_ZERO_ACTION_PASS=True
-GUARDED_KEYBOARD_DELIVERY_PASS=True
-KEYBOARD_ACTION_COUNT=1
-COMPLETION_VERIFICATION_STATUS=pass
-COMPLETION_VERIFICATION_PASS=True
-CURRENT_STATE_VERIFICATION_PASS=True
-WORKSPACE_EXPECTED_ONLY_PASS=True
-KEYBOARD_FOCUS_GUARD_ARMS=1
-KEYBOARD_FOCUS_GUARD_CALLS=1
-KEYBOARD_FOCUS_GUARD_PASSES=1
-KEYBOARD_FOCUS_GUARD_FAILURES=0
-DESKTOP_FALLBACK_CALLS=0
-WINDOW_BINDING_FAILURES=0
-WINDOW_BINDING_AMBIGUITIES=0
-CLEANUP_REVALIDATION_PASS=True
-APPLICATION_CLEANUP_PASS=True
-CLI_PROCESS_RETURNCODE=0
-CLI_PROCESS_EXIT_PASS=True
-FORCED_CLI_CLEANUP=False
-APP_ROOT_CLEANUP_PASS=True
-ROLLBACK_PASS=True
-STAGE26_2E_REAL_APPLICATION_E2E_RESULT=PASSED
-QUALIFICATION_EXIT_CODE=0
+02b09a4909b6d71e0578c19b2d395cb8
+status = abstained
+action_count = 0
+escalation_reason = target_already_exists
 ```
 
-Important real-app finding: Monaco's true keyboard target is an intentionally hidden `textbox` with zero geometry. Production authorization now binds the exact hidden focused observation fingerprint inside the exact PID/HWND/process-generation window. The top-level point guard remains a separate foreground/root-window guard and is not treated as Monaco control geometry.
+A second independent `workspace_read` proved the original bytes/SHA were unchanged. This is the accepted physical zero-overwrite gate.
 
-This proves one real VS Code text-edit task with independent postcondition and rollback. It does not prove universal desktop accuracy.
+Exact locator and scoped measurements are recorded in `EVIDENCE_INDEX.md`.
 
 ---
 
@@ -200,57 +189,29 @@ This proves one real VS Code text-edit task with independent postcondition and r
 
 ## Stage 26.3 — Verified Procedure Runtime / deterministic execution Control Plane — ACTIVE
 
-The next problem is no longer “can the Windows runtime perform one safe real-app action?” That is now physically accepted.
+Stage 26.3A is accepted. The next work is to broaden deterministic verification and procedure coverage without weakening the small semantic surface or introducing generic execution.
 
-The next problem is **autonomous verified progression of a known procedure without using the user as a PowerShell operator**.
+### Stage 26.3B — advanced verifier/postcondition library — NEXT
 
-Target flow:
+Broaden deterministic completion evidence for UI, files/artifacts, process/window/application state, browser state and structured outputs.
 
-```text
-user gives one goal to ordinary ChatGPT
- -> ChatGPT selects an allowed known procedure + parameters
- -> local deterministic Control Plane
-      load ProgramGraph
-      bind TaskState/checkpoint
-      observe current state
-      select exactly one permitted known transition
-      authorize action from current evidence
-      execute bounded capability
-      re-observe
-      verify postcondition
-      checkpoint + advance
-      repeat while state remains known/permitted
- -> verified completion
-    OR ABSTAIN/escalation to ChatGPT
-```
+Requirements:
 
-The first end-to-end Stage 26.3 acceptance should specifically remove intermediate manual command entry. One user goal should be enough to initiate a bounded known procedure; the platform should continue deterministic transitions and return completion/evidence or a truthful escalation.
-
-### Stage 26.3A — candidate-first procedural trust
-
-A successful trajectory may become a project CANDIDATE, but never permanent trust from one demonstration alone:
-
-```text
-DEMO / successful trajectory
- -> CAPTURE
- -> COMPILE
- -> CANDIDATE
- -> replay / regression / variant evidence
- -> trusted reusable
- -> stale / quarantined / disabled / rollback as evidence degrades
-```
-
-### Stage 26.3B — advanced verifier/postcondition library
-
-Expand deterministic completion evidence for UI, files/artifacts, process/window/application state, browser state and structured outputs.
+- action delivery remains distinct from task completion;
+- current observed state outranks remembered procedure state;
+- each consequence has explicit postconditions;
+- stale/ambiguous/UNKNOWN evidence causes ABSTAIN/escalation;
+- retries and recovery remain bounded and typed;
+- new procedures remain explicit registered capabilities, not generic shell/Python/tool dispatch;
+- project-owned semantic tools remain small and stable.
 
 ### Stage 26.3C — checkpoints / bounded recovery / budgets
 
-Longer procedures require explicit checkpoints, retry ceilings, safe known recovery branches, action/time/resource budgets and deterministic escalation reasons.
+Extend longer procedures only where 26.3B evidence demonstrates a concrete need. Preserve explicit checkpoints, retry ceilings, safe known recovery branches, action/time/resource budgets and deterministic escalation reasons.
 
 ## Stage 26.4 — Human Demo -> transferable verified candidate skill
 
-Human demonstration transfer follows only after the verified procedure runtime is accepted. Live re-resolution and verifier-controlled progression are required; macro replay is insufficient.
+Human demonstration transfer follows the accepted verified procedure runtime. Live re-resolution and verifier-controlled progression are required; macro replay is insufficient.
 
 ---
 
@@ -258,18 +219,19 @@ Human demonstration transfer follows only after the verified procedure runtime i
 
 ```text
 Stage 26.2E real application E2E — ACCEPTED
- -> Stage 26.3 Verified Procedure Runtime / deterministic execution Control Plane — ACTIVE
-    -> 26.3A candidate-first procedural trust
-    -> 26.3B advanced verifier/postcondition library
-    -> checkpoint / bounded recovery / resource-budget integration
+ -> Transport Supervisor v1 — ACCEPTED / MERGED #94
+ -> Stage 26.3 Verified Procedure Runtime — ACTIVE
+    -> 26.3A canonical six-tool semantic runtime — ACCEPTED
+    -> 26.3B advanced verifier/postconditions — NEXT
+    -> 26.3C bounded recovery/budgets as required
  -> Stage 26.4 Human Demo -> transferable verified candidate skill
  -> Stage 27 distribution/maintenance
  -> Stage 28 clean-user E2E / stable release
 ```
 
-The deterministic Control Plane is not a second current general planner. It progresses only selected known procedure transitions under current-state authorization and verification. Novel strategy remains with ChatGPT.
+Future optional Track P may later evaluate a local planner after verified procedure-state data and measured need. It remains behind the same authorization/verifier boundary.
 
-Future optional Track P may later evaluate a local planner in shadow/bounded/general modes after verified procedure-state data and measured need. It remains behind the same authorization/verifier boundary.
+Optional 1MCP Extension Manager development is orthogonal to this release-critical path. It may be used later to reduce integration work for additional MCP backends without re-entering the baseline semantic critical path.
 
 ## Merge policy
 
@@ -281,10 +243,11 @@ Stop on unresolved findings, conflict, ambiguous scope or failed/skipped require
 
 # Residual risks
 
+- ChatGPT MCP app definitions are frozen snapshots; a local READY route does not by itself prove a current app binding/session is usable. The accepted 26.3A run required reconnecting the app and settling permissions before the long run; do not change binding/permissions mid-acceptance task.
+- compatibility aliases for historical `_1mcp_` action IDs remain migration debt;
+- the optional 1MCP/adaptive extension path is not a baseline release gate and remains less stable than the normal direct semantic route;
 - one real VS Code task is not broad real-application coverage;
 - `AutomationId` still lacks dedicated accepted physical coverage across real applications;
-- Verified Procedure Runtime/Control Plane is not yet integrated or physically accepted;
-- ordinary Chat -> local autonomous procedure execution without intermediate user commands is not yet physically accepted;
 - browser DNS/rebinding/redirect/private-network isolation remains incomplete;
 - Python/model/OpenAdapt packaging is not release-grade;
 - raw demonstration retention/redaction/encryption policy is not accepted;
@@ -295,6 +258,11 @@ Stop on unresolved findings, conflict, ambiguous scope or failed/skipped require
 
 - ordinary ChatGPT is the only current general planner/intelligence;
 - deterministic Control Plane may advance only already-defined authorized+verified procedure transitions;
+- normal semantic install/start/status/health/smoke must not require optional 1MCP extension infrastructure;
+- fresh/current normal settings use `semantic` + `direct-stdio`;
+- persistent tunnel identity belongs to neutral platform state;
+- third-party MCP availability is not trust or authorization;
+- raw extension tools are not automatically Chat-facing;
 - new strategy/ambiguity/stale/UNKNOWN -> ABSTAIN/escalate;
 - semantic/native structure before pixels where reliable;
 - model/procedure/observation proposal is not authorization;

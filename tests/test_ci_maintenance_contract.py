@@ -28,9 +28,10 @@ class CiMaintenanceContractTests(unittest.TestCase):
         accepted, not_accepted = text.split("## Not yet accepted", maxsplit=1)
         self.assertIn("Transport Supervisor console-free Scheduled Task launch", accepted)
         self.assertIn("Transport Supervisor persistent desired-state / runtime-owner split", accepted)
+        self.assertIn("Stage 26.3A normal six-tool ordinary-Chat verified procedure runtime", accepted)
         self.assertNotIn("Transport Supervisor v1 (#94)", not_accepted)
-        self.assertNotIn("Stage 26.3 Verified Procedure Runtime", accepted)
-        self.assertIn("Stage 26.3 Verified Procedure Runtime", not_accepted)
+        self.assertNotIn("Stage 26.3B advanced verifier/postcondition library", accepted)
+        self.assertIn("Stage 26.3B advanced verifier/postcondition library", not_accepted)
 
 
 if __name__ == "__main__":
