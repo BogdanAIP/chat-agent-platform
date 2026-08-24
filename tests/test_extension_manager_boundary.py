@@ -8,8 +8,10 @@ SEMANTIC = (ROOT / '.github' / 'workflows' / 'semantic-projection.yml').read_tex
 EXTENSIONS = (ROOT / '.github' / 'workflows' / 'extension-manager.yml').read_text(encoding='utf-8')
 CI = (ROOT / '.github' / 'workflows' / 'ci.yml').read_text(encoding='utf-8')
 BOOTSTRAP = (ROOT / 'scripts' / 'bootstrap-chat-platform.ps1').read_text(encoding='utf-8')
+LIFECYCLE = (ROOT / 'scripts' / 'bootstrap-manager-lifecycle.ps1').read_text(encoding='utf-8')
 MANAGER = (ROOT / 'scripts' / 'bootstrap-manager-runtime.ps1').read_text(encoding='utf-8')
 INSTALLER = (ROOT / 'scripts' / 'install-extension-manager.ps1').read_text(encoding='utf-8')
+EXTENSION_DOC = (ROOT / 'project-context' / 'EXTENSION_MANAGER.md').read_text(encoding='utf-8')
 
 
 class ExtensionManagerBoundaryTests(unittest.TestCase):
@@ -48,6 +50,8 @@ class ExtensionManagerBoundaryTests(unittest.TestCase):
     def test_general_ci_does_not_start_1mcp_runtime(self):
         self.assertNotIn('Prove local MCP runtime on Windows', CI)
         self.assertNotIn('./scripts/start-local-bridge.ps1 -Port 3059', CI)
+        self.assertNotIn('./scripts/stop-chat-profile.ps1', CI)
+        self.assertIn('Prove clean public semantic manager status without 1MCP', CI)
         self.assertIn('BASELINE_1MCP_RUNTIME_REQUIRED=False', CI)
 
     def test_optional_extension_workflow_owns_all_live_1mcp_runtime_acceptance(self):
@@ -77,11 +81,26 @@ class ExtensionManagerBoundaryTests(unittest.TestCase):
         self.assertNotIn('tunnel.json', INSTALLER)
         self.assertNotIn('desired-state.json', INSTALLER)
 
-    def test_normal_bootstrap_remains_1mcp_independent(self):
+    def test_normal_bootstrap_uses_semantic_core_not_legacy_install(self):
         self.assertNotIn('OneMcpPackage', BOOTSTRAP)
         self.assertNotIn("Require-Command 'npx.cmd'", BOOTSTRAP)
+        self.assertNotIn('Install-ChatManager -CommandPath', BOOTSTRAP)
+        self.assertIn('Initialize-ChatSemanticCore', BOOTSTRAP)
         self.assertIn('NORMAL_SEMANTIC_1MCP_REQUIRED=False', BOOTSTRAP)
         self.assertIn('EXTENSION_MANAGER=optional-1mcp', BOOTSTRAP)
+        self.assertIn('Save-ChatProtectedApiKeyIfMissing', LIFECYCLE)
+        self.assertIn('-Action SetProfile', LIFECYCLE)
+        self.assertIn('-Profile semantic', LIFECYCLE)
+        self.assertIn('DEFAULT_TUNNEL_BINDING=direct-stdio', LIFECYCLE)
+        self.assertIn('LEGACY_1MCP_INSTALL_PATH_USED=False', LIFECYCLE)
+
+    def test_extension_manager_doc_matches_runtime_paths_and_default(self):
+        self.assertIn(r'%LOCALAPPDATA%\ChatAgentPlatform\tunnel\local-1mcp.yaml', EXTENSION_DOC)
+        self.assertNotIn(r'%LOCALAPPDATA%\ChatAgentPlatform\config\openai-tunnel-client\local-1mcp.yaml', EXTENSION_DOC)
+        self.assertIn('extension_manager_included = false', EXTENSION_DOC)
+        self.assertIn('profile = semantic', EXTENSION_DOC)
+        self.assertIn('tunnel binding = direct-stdio', EXTENSION_DOC)
+        self.assertIn('normal bootstrap does not call the legacy 1MCP-oriented controller install path', EXTENSION_DOC)
 
 
 if __name__ == '__main__':
