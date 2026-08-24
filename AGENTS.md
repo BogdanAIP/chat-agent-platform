@@ -41,9 +41,11 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 Stage 26.3A is accepted and merged through PR #92. The reviewed GUI/computer-use architecture promotion is merged through PR #98.
 
 ```text
-current main integration = b74c715d9f2ac6fe7f759e7fb57108feebf797c0
-physical runtime head    = 300db9956dfbdf0300ecc59f017d6f3280d4353a
+Stage 26.3B base integration = b74c715d9f2ac6fe7f759e7fb57108feebf797c0
+physical runtime head        = 300db9956dfbdf0300ecc59f017d6f3280d4353a
 ```
+
+The exact live `main` must always be resolved from GitHub rather than inferred from this stage-base snapshot.
 
 The accepted ordinary-Chat semantic surface is exactly:
 
