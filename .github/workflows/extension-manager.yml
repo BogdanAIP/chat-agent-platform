@@ -1,0 +1,152 @@
+name: Optional Extension Manager Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/chat-profiles/adaptive/**"
+      - "runtime/1mcp-adaptive-shim/**"
+      - "scripts/start-chat-profile.ps1"
+      - "scripts/status-chat-profile.ps1"
+      - "scripts/stop-chat-profile.ps1"
+      - "scripts/start-local-bridge.ps1"
+      - "scripts/status-local-bridge.ps1"
+      - "scripts/stop-local-bridge.ps1"
+      - "scripts/chat-platform-controller.ps1"
+      - "scripts/chat-platform.ps1"
+      - "scripts/bootstrap-manager-runtime.ps1"
+      - "tests/adaptive-mcp-acceptance.mjs"
+      - "tests/test_adaptive_profile.py"
+      - ".github/workflows/extension-manager.yml"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/chat-profiles/adaptive/**"
+      - "runtime/1mcp-adaptive-shim/**"
+      - "scripts/start-chat-profile.ps1"
+      - "scripts/status-chat-profile.ps1"
+      - "scripts/stop-chat-profile.ps1"
+      - "scripts/start-local-bridge.ps1"
+      - "scripts/status-local-bridge.ps1"
+      - "scripts/stop-local-bridge.ps1"
+      - "scripts/chat-platform-controller.ps1"
+      - "scripts/chat-platform.ps1"
+      - "scripts/bootstrap-manager-runtime.ps1"
+      - "tests/adaptive-mcp-acceptance.mjs"
+      - "tests/test_adaptive_profile.py"
+      - ".github/workflows/extension-manager.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extension-manager-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  adaptive-1mcp:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Extension Manager environment
+        shell: pwsh
+        run: |
+          node --version
+          npx --version
+          python --version
+          $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+          if (-not (Test-Path $chrome)) { throw 'Google Chrome is required for adaptive browser acceptance.' }
+          $env:PATH = "$(Split-Path $chrome -Parent);$env:PATH"
+
+      - name: Enforce optional adaptive catalog contract
+        shell: pwsh
+        run: |
+          $adaptive = Get-Content 'runtime/chat-profiles/adaptive/mcp.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $servers = @($adaptive.mcpServers.PSObject.Properties)
+          if ($servers.Count -ne 2) { throw 'Adaptive Extension Manager catalog must contain exactly filesystem and playwright for this acceptance stage.' }
+          foreach ($name in @('filesystem','playwright')) {
+            $entry = @($servers | Where-Object Name -eq $name)
+            if ($entry.Count -ne 1) { throw "Adaptive catalog is missing $name." }
+            if (-not [bool]$entry[0].Value.disabled) { throw "Adaptive backend $name must start disabled." }
+          }
+
+          $raw = Get-Content 'runtime/chat-profiles/adaptive/mcp.json' -Raw -Encoding utf8
+          if ($raw -notmatch [regex]::Escape('@modelcontextprotocol/server-filesystem@2026.7.10')) { throw 'Adaptive filesystem pin drifted.' }
+          if ($raw -notmatch [regex]::Escape('@playwright/mcp@0.0.78')) { throw 'Adaptive Playwright pin drifted.' }
+          foreach ($tool in @('create_directory','write_file','edit_file','move_file')) {
+            if (@($adaptive.mcpServers.filesystem.disabledTools) -notcontains $tool) { throw "Adaptive filesystem must disable $tool." }
+          }
+          foreach ($tool in @('browser_run_code_unsafe','browser_evaluate','browser_file_upload','browser_network_request')) {
+            if (@($adaptive.mcpServers.playwright.disabledTools) -notcontains $tool) { throw "Adaptive Playwright must disable $tool." }
+          }
+          foreach ($forbidden in @('api_key','subscription','browserbase','apify','firecrawl')) {
+            if ($raw.ToLowerInvariant() -match $forbidden) { throw "Unexpected paid/cloud dependency marker: $forbidden" }
+          }
+
+      - name: Run adaptive profile Python contracts
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_adaptive_profile
+          if ($LASTEXITCODE -ne 0) { throw "Adaptive profile contracts failed with exit code $LASTEXITCODE" }
+
+      - name: Prove optional 1MCP Extension Manager can activate backends on demand
+        shell: pwsh
+        run: |
+          $port = 3050
+          $filesRoot = Join-Path $env:RUNNER_TEMP 'chat-adaptive-files'
+          $marker = Join-Path $filesRoot 'marker.txt'
+          $adaptiveConfig = 'runtime/chat-profiles/adaptive/mcp.json'
+          $adaptiveConfigBackup = Join-Path $env:RUNNER_TEMP 'adaptive-mcp.original.json'
+          New-Item -ItemType Directory -Force -Path $filesRoot | Out-Null
+          Set-Content -LiteralPath $marker -Value 'CHAT_ADAPTIVE_FILES_OK' -Encoding utf8
+          Copy-Item -LiteralPath $adaptiveConfig -Destination $adaptiveConfigBackup
+
+          try {
+            ./scripts/chat-platform.ps1 -Action SetProfile -Profile adaptive -FilesRoot $filesRoot -NoNotify
+            ./scripts/start-chat-profile.ps1 -Profile adaptive -FilesRoot $filesRoot -Port $port -ReadyTimeoutSeconds 240
+            $adaptiveStatus = ./scripts/status-chat-profile.ps1 -Port $port | Out-String | ConvertFrom-Json
+            if ($adaptiveStatus.active_count -ne 1 -or $adaptiveStatus.active_profile -ne 'adaptive' -or $adaptiveStatus.conflict) { throw 'adaptive was not the only active extension profile.' }
+
+            $managerStatus = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if (-not $managerStatus.mcp_ready -or $managerStatus.active_profile -ne 'adaptive' -or $managerStatus.active_count -ne 1 -or $managerStatus.conflict) { throw 'Manager did not recognize the ready optional adaptive profile.' }
+            if ($managerStatus.tunnel_running -or $managerStatus.tunnel_ready) { throw 'Optional Extension Manager acceptance unexpectedly found a normal tunnel.' }
+
+            $acceptance = node tests/adaptive-mcp-acceptance.mjs "http://127.0.0.1:$port/mcp" $marker 2>&1 | Out-String
+            Write-Host $acceptance
+            if ($LASTEXITCODE -ne 0) { throw "Adaptive MCP session acceptance failed: $acceptance" }
+            if ($acceptance -notmatch 'ADAPTIVE_MCP_ACCEPTANCE=passed') { throw "Adaptive MCP session acceptance did not report success: $acceptance" }
+
+            $backendProcesses = @(Get-CimInstance Win32_Process | Where-Object {
+              $_.Name -eq 'node.exe' -and (
+                $_.CommandLine -like '*server-filesystem*' -or
+                $_.CommandLine -like '*playwright*mcp*'
+              )
+            })
+            if ($backendProcesses.Count -ne 0) {
+              $details = $backendProcesses | Select-Object ProcessId,ParentProcessId,CommandLine | Out-String
+              throw "Adaptive backend process remained after disable: $details"
+            }
+
+            ./scripts/chat-platform.ps1 -Action Toggle -NoNotify
+            $stopped = ./scripts/chat-platform.ps1 -Action Status -NoNotify | Out-String | ConvertFrom-Json
+            if ($stopped.active_count -ne 0 -or $stopped.tunnel_running) { throw 'Manager toggle did not stop the optional adaptive Runtime Scope.' }
+            ./scripts/chat-platform.ps1 -Action SetProfile -Profile reference -NoNotify
+          }
+          finally {
+            try {
+              ./scripts/stop-chat-profile.ps1
+            }
+            finally {
+              Copy-Item -LiteralPath $adaptiveConfigBackup -Destination $adaptiveConfig -Force
+            }
+          }
+
+      - name: Declare extension boundary
+        shell: pwsh
+        run: |
+          Write-Host 'EXTENSION_MANAGER=1mcp-optional-internal'
+          Write-Host 'BASELINE_SEMANTIC_DEPENDENCY=False'
