@@ -207,40 +207,121 @@ function Install-ChatOfficialTunnelClient {
     }
 }
 
+function Read-ChatTunnelState {
+    param([Parameter(Mandatory)] [string]$TunnelStateFile)
+
+    if (-not (Test-Path -LiteralPath $TunnelStateFile -PathType Leaf)) {
+        return $null
+    }
+
+    try {
+        $state = Get-Content -LiteralPath $TunnelStateFile -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "Persistent tunnel state is invalid JSON: $($_.Exception.Message)"
+    }
+
+    if (
+        $null -eq $state.PSObject.Properties['tunnel_id'] -or
+        [string]$state.tunnel_id -notmatch '^tunnel_[0-9a-f]{32}$'
+    ) {
+        throw 'Persistent tunnel state does not contain a valid tunnel_id.'
+    }
+
+    return $state
+}
+
+function Save-ChatTunnelState {
+    param(
+        [Parameter(Mandatory)] [string]$TunnelStateFile,
+        [Parameter(Mandatory)] [string]$TunnelId,
+        [Parameter(Mandatory)] [ValidateSet('explicit', 'existing-state', 'legacy-profile-migration')]
+        [string]$Source
+    )
+
+    if ($TunnelId -notmatch '^tunnel_[0-9a-f]{32}$') {
+        throw 'TunnelId has invalid format. Expected tunnel_ followed by 32 lowercase hexadecimal characters.'
+    }
+
+    $parent = Split-Path -Parent $TunnelStateFile
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    $temporary = "$TunnelStateFile.new"
+    [ordered]@{
+        schema_version = 1
+        tunnel_id = $TunnelId
+        source = $Source
+        updated_at = (Get-Date).ToUniversalTime().ToString('o')
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $temporary -Encoding utf8
+    Move-Item -LiteralPath $temporary -Destination $TunnelStateFile -Force
+}
+
+function Get-ChatTunnelIdFromLegacyProfile {
+    param([string]$LegacyTunnelProfile)
+
+    if (
+        [string]::IsNullOrWhiteSpace($LegacyTunnelProfile) -or
+        -not (Test-Path -LiteralPath $LegacyTunnelProfile -PathType Leaf)
+    ) {
+        return $null
+    }
+
+    $raw = Get-Content -LiteralPath $LegacyTunnelProfile -Raw
+    $matches = @(
+        [regex]::Matches($raw, 'tunnel_[0-9a-f]{32}') |
+            ForEach-Object { $_.Value } |
+            Select-Object -Unique
+    )
+    if ($matches.Count -eq 1) {
+        return [string]$matches[0]
+    }
+    if ($matches.Count -gt 1) {
+        throw 'Legacy tunnel profile contains more than one tunnel id; refusing ambiguous migration.'
+    }
+    return $null
+}
+
 function Resolve-ChatTunnelId {
     param(
         [string]$RequestedTunnelId,
-        [Parameter(Mandatory)] [string]$TunnelProfile
+        [Parameter(Mandatory)] [string]$TunnelStateFile,
+        [string]$LegacyTunnelProfile
     )
 
     if (-not [string]::IsNullOrWhiteSpace($RequestedTunnelId)) {
         $candidate = $RequestedTunnelId.Trim()
-    }
-    elseif (Test-Path -LiteralPath $TunnelProfile -PathType Leaf) {
-        $raw = Get-Content -LiteralPath $TunnelProfile -Raw
-        $matches = @(
-            [regex]::Matches($raw, 'tunnel_[0-9a-f]{32}') |
-                ForEach-Object { $_.Value } |
-                Select-Object -Unique
-        )
-        if ($matches.Count -eq 1) {
-            $candidate = [string]$matches[0]
-            Write-Host 'TUNNEL_ID_SOURCE=existing-profile'
+        if ($candidate -notmatch '^tunnel_[0-9a-f]{32}$') {
+            throw 'TunnelId has invalid format. Expected tunnel_ followed by 32 lowercase hexadecimal characters.'
         }
-        else {
-            $candidate = (Read-Host 'Вставь CONTROL_PLANE_TUNNEL_ID (tunnel_ + 32 hex символа)').Trim()
-        }
-    }
-    else {
-        $candidate = (Read-Host 'Вставь CONTROL_PLANE_TUNNEL_ID (tunnel_ + 32 hex символа)').Trim()
+        Save-ChatTunnelState -TunnelStateFile $TunnelStateFile -TunnelId $candidate -Source explicit
+        Write-Host 'TUNNEL_ID_SOURCE=explicit'
+        return $candidate
     }
 
+    $state = Read-ChatTunnelState -TunnelStateFile $TunnelStateFile
+    if ($null -ne $state) {
+        $candidate = [string]$state.tunnel_id
+        Write-Host 'TUNNEL_ID_SOURCE=state/tunnel.json'
+        return $candidate
+    }
+
+    $legacy = Get-ChatTunnelIdFromLegacyProfile -LegacyTunnelProfile $LegacyTunnelProfile
+    if (-not [string]::IsNullOrWhiteSpace($legacy)) {
+        Save-ChatTunnelState -TunnelStateFile $TunnelStateFile -TunnelId $legacy -Source legacy-profile-migration
+        Write-Host 'TUNNEL_ID_SOURCE=legacy-profile-migration'
+        return $legacy
+    }
+
+    $candidate = (Read-Host 'Вставь CONTROL_PLANE_TUNNEL_ID (tunnel_ + 32 hex символа)').Trim()
     if ($candidate -notmatch '^tunnel_[0-9a-f]{32}$') {
         throw 'TunnelId has invalid format. Expected tunnel_ followed by 32 lowercase hexadecimal characters.'
     }
+    Save-ChatTunnelState -TunnelStateFile $TunnelStateFile -TunnelId $candidate -Source explicit
+    Write-Host 'TUNNEL_ID_SOURCE=interactive-explicit'
     return $candidate
 }
 
+# Optional compatibility helper for the internal 1MCP Extension Manager path.
+# The normal six-tool semantic bootstrap does not call this function.
 function Test-ChatTunnelProfileContract {
     param(
         [Parameter(Mandatory)] [string]$Path,
@@ -267,7 +348,7 @@ function Test-ChatTunnelProfileContract {
     )
 }
 
-function Initialize-ChatOfficialTunnelProfile {
+function Initialize-ChatExtensionManagerTunnelProfile {
     param(
         [Parameter(Mandatory)] [string]$TunnelExe,
         [Parameter(Mandatory)] [string]$TunnelDir,
@@ -281,18 +362,18 @@ function Initialize-ChatOfficialTunnelProfile {
     $profileValid = Test-ChatTunnelProfileContract -Path $TunnelProfile -ResolvedTunnelId $ResolvedTunnelId -McpUrl $McpUrl
 
     if (-not $Reconfigure -and $profileValid) {
-        Write-Host "TUNNEL_PROFILE=$TunnelProfile"
-        Write-Host 'TUNNEL_PROFILE_SOURCE=existing-validated'
+        Write-Host "EXTENSION_MANAGER_TUNNEL_PROFILE=$TunnelProfile"
+        Write-Host 'EXTENSION_MANAGER_TUNNEL_PROFILE_SOURCE=existing-validated'
         return
     }
 
     if ((Test-Path -LiteralPath $TunnelProfile) -and -not $profileValid) {
-        Write-Host 'TUNNEL_PROFILE_COMPATIBILITY=reconfigure-required'
+        Write-Host 'EXTENSION_MANAGER_TUNNEL_PROFILE_COMPATIBILITY=reconfigure-required'
     }
     if (Test-Path -LiteralPath $TunnelProfile) {
         $backup = "$TunnelProfile.bootstrap-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         Copy-Item -LiteralPath $TunnelProfile -Destination $backup -Force
-        Write-Host "TUNNEL_PROFILE_BACKUP=$backup"
+        Write-Host "EXTENSION_MANAGER_TUNNEL_PROFILE_BACKUP=$backup"
     }
 
     $args = @(
@@ -307,12 +388,12 @@ function Initialize-ChatOfficialTunnelProfile {
     )
     $output = @(& $TunnelExe @args 2>&1)
     if ($LASTEXITCODE -ne 0) {
-        throw "Official tunnel-client init failed: $($output -join ' ')"
+        throw "Optional Extension Manager tunnel profile init failed: $($output -join ' ')"
     }
     if (-not (Test-ChatTunnelProfileContract -Path $TunnelProfile -ResolvedTunnelId $ResolvedTunnelId -McpUrl $McpUrl)) {
-        throw 'Official tunnel-client created a profile that does not satisfy the local bridge contract.'
+        throw 'Optional Extension Manager tunnel profile does not satisfy its local bridge contract.'
     }
 
-    Write-Host "TUNNEL_PROFILE=$TunnelProfile"
-    Write-Host 'TUNNEL_PROFILE_SOURCE=official-tunnel-client-init'
+    Write-Host "EXTENSION_MANAGER_TUNNEL_PROFILE=$TunnelProfile"
+    Write-Host 'EXTENSION_MANAGER_TUNNEL_PROFILE_SOURCE=official-tunnel-client-init'
 }
