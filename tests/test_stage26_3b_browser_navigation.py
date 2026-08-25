@@ -59,7 +59,7 @@ class BrowserNavigationVerificationTests(unittest.TestCase):
             expected_url="https://example.com/redirect",
         )
         self.assertEqual(result["status"], "fail")
-        self.assertEqual(result["verification"]["reason"], "predicate_mismatch")
+        self.assertEqual(result["verification"]["reason"], "expected_effect_failed")
 
     def test_ambiguous_final_observation_is_unknown(self):
         result = verify_navigation_transition(
