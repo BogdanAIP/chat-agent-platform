@@ -13,6 +13,7 @@ current code/tests/CI/physical evidence
  > CONTINUATION_CONTEXT.md / START_HERE.md / CURRENT_STATE.md
  > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / ROADMAP.md
  > reviewed architecture extensions such as AVO_LONG_HORIZON_ARCHITECTURE.md
+   and CONVERSATION_BRIDGE_ARCHITECTURE.md
  > current policy/catalog docs
  > EVIDENCE_INDEX.md for exact accepted evidence navigation
  > active stage contract
@@ -29,7 +30,7 @@ ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md
   = durable boundaries and invariants
 
 reviewed architecture-extension documents
-  = source-specific mechanisms already mapped into ADRs/canonical architecture;
+  = source-specific or future-track mechanisms already mapped into ADRs/canonical architecture;
     they cannot override the canonical documents or claim implementation acceptance
 
 CURRENT_STATE.md / ROADMAP.md
@@ -66,6 +67,7 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution state/policy, verification, recovery, completion, stagnation escalation and procedure-lineage evidence. |
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid observation, capability routing, ExpectedEffect verification, WorkingState, LoopGuard, Finish Gate and environmental-content trust boundary. Implementation is staged. |
 | `AVO_LONG_HORIZON_ARCHITECTURE.md` | REVIEWED ARCHITECTURAL EXTENSION | NVIDIA AVO/persistent-memory/supervision/lineage review; project consequences are promoted through ADR-034, Control Plane and Roadmap. Does not claim runtime acceptance or override canonical architecture. |
+| `CONVERSATION_BRIDGE_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / TRACK M | CtxPort-derived conversation/session adapter lessons, Browser Companion boundary, ConversationSnapshot/HandoffPack contracts and one-manager/one-worker verified-handoff direction. Not implemented, not release-critical, no public-tool expansion. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence + optional/future tracks. |
 | `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which documents may define current state. |
 | `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads, result locators and scoped measurements. |
@@ -75,7 +77,7 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | File | Status | Use |
 |---|---|---|
 | `CONSTRAINTS.md` | CURRENT POLICY | Hard project constraints. |
-| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority; ADR-034 = verified skill lineage and stagnation escalation. |
+| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority; ADR-034 = verified skill lineage and stagnation escalation; ADR-035 = bounded Conversation Bridge / future Track M multi-chat direction. |
 | `DEVELOPMENT_PRINCIPLES.md` | CURRENT POLICY | Development/acceptance principles. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
 | `COST_POLICY.md` | CURRENT POLICY | Baseline cost/subscription constraints. |
@@ -102,6 +104,8 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE STAGE 26.3B IMPLEMENTATION CONTRACT | Verification Kernel foundation, fresh ExpectedEffect verification, PASS/FAIL/UNKNOWN semantics and independent Finish Gate. No Stage 26.3B acceptance claim yet. |
 
 Stage 26.3A is accepted/merged through PR #92. Current release-critical implementation is Stage 26.3B Verification Kernel + independent Finish Gate. Its first internal kernel slice is active; capability adapters, migration of the accepted file procedure and any required physical integration gate remain before Stage 26.3B can be accepted. Stage 26.3C then adds WorkingState + typed recovery + LoopGuard + StagnationReport, and Stage 26.4 adds verified candidate-skill lineage/evolution. These current directions are governed by `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, ADR-034, `CURRENT_STATE.md`, `ROADMAP.md` and the active Stage 26.3B contract rather than by an old Stage 26.3A “pending” phrase.
+
+Track M Conversation Bridge work is explicitly **parallel/future**. ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md` may define its intended boundaries, but they do not alter the current Stage 26 critical path or imply that authenticated user-browser multi-chat control is implemented.
 
 Current normal transport/extension invariants:
 
@@ -153,6 +157,8 @@ Historical references placing 1MCP in the normal bridge path remain valid only f
 The Stage 26.3A locally generated `gui-agent-research.md` is **research evidence**, not a repository source of truth. Its independently checked/generalized conclusions have been promoted into `COMPUTER_USE_ARCHITECTURE.md`, ADR-032/033, `CONTROL_PLANE.md`, `CURRENT_STATE.md`, `ROADMAP.md` and `SECURITY_POLICY.md`.
 
 The 2026-08-25 NVIDIA AVO review is recorded in `AVO_LONG_HORIZON_ARCHITECTURE.md`. It is a **reviewed architecture extension**, not physical evidence. Its adopted mechanisms are promoted through ADR-034 into `CONTROL_PLANE.md` and `ROADMAP.md`; source-specific claims in that review cannot override current code/tests/CI/physical evidence or the canonical architecture documents.
+
+The 2026-08-25 CtxPort review is recorded as project-specific future architecture in `CONVERSATION_BRIDGE_ARCHITECTURE.md` and ADR-035. CtxPort remains an external MIT implementation/reference source; its presence or absence is not runtime evidence, and Track M remains non-release-critical until separately implemented and physically qualified.
 
 ## Architecture terminology all future docs must preserve
 
@@ -206,6 +212,18 @@ semantic/native state first
 
 It is not the normal semantic transport, does not own the persistent tunnel anchor, does not grant trust/authorization and does not directly publish raw backend catalogs.
 
+### Future Conversation Bridge / Track M
+
+```text
+Browser Companion in authenticated user browser
+ -> ConversationObserver / bounded ConversationActuator
+ -> ConversationSnapshot
+ -> WorkingState-derived HandoffPack
+ -> verified Manager -> Worker handoff
+```
+
+It is a future parallel layer, not a current planner, not a replacement for the isolated Browser capability, not a public-tool expansion and not evidence that multi-chat orchestration is implemented. Credentials remain inside the browser-companion boundary and worker content remains environmental data.
+
 ### Future local planner
 
 Optional Track P research only after verified data/need:
@@ -228,5 +246,6 @@ Any architecture-changing PR must audit/update this map when it:
 - changes computer-use observation/verification/recovery/completion boundaries;
 - changes skill/procedure lineage or long-horizon stagnation-escalation semantics;
 - changes the Extension Manager/persistent tunnel boundary;
+- changes Conversation Bridge / authenticated-browser / multi-chat handoff boundaries;
 - promotes a research track into the release-critical roadmap;
 - changes the public Chat-facing capability surface.

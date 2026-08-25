@@ -36,6 +36,7 @@ Canonical contracts:
 - `CONTROL_PLANE.md`
 - `COMPUTER_USE_ARCHITECTURE.md`
 - `AVO_LONG_HORIZON_ARCHITECTURE.md` for the reviewed long-horizon lineage/stagnation extension
+- `CONVERSATION_BRIDGE_ARCHITECTURE.md` for non-release-critical future Track M multi-chat/session handoff
 
 Accepted public semantic tools remain exactly:
 
@@ -466,9 +467,97 @@ AVO demonstrates that richer agent harnesses can materially improve long-horizon
 
 No planner may grant itself execution authority.
 
-# Parallel Track M — multi-chat orchestration
+# Parallel Track M — multi-chat orchestration / Conversation Bridge
 
-Separate upper layer. It is not Windows/procedure safety core and is not a release prerequisite.
+Track M is a separate future upper/work-distribution layer. It is **not** part of the Stage 26 release-critical sequence, does not replace ordinary ChatGPT as the current general planner, and does not change the accepted six-tool public surface.
+
+Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md` and ADR-035.
+
+The first problem is not "many agents". It is a verified transport boundary between the current manager ChatGPT and one authenticated worker chat.
+
+Target placement:
+
+```text
+ordinary ChatGPT Manager
+        |
+        v
+WorkingState / HandoffPack
+        |
+        v
+Deterministic Control Plane
+        |
+        v
+Conversation Bridge
+        |
+        v
+project-owned Browser Companion in user browser
+        |
+        +----> ChatGPT worker conversation
+        +----> future Claude/Gemini adapters
+```
+
+The Browser Companion exists because the current accepted Browser backend is isolated/headless and is not the user's already-authenticated browser session.
+
+Track M reuses the existing state-first and verification rules:
+
+```text
+observe worker session
+ -> bind ExpectedEffect
+ -> authorize one bounded submit_message
+ -> re-observe exact conversation/message state
+ -> verify PASS | FAIL | UNKNOWN
+ -> observe fresh settled worker response
+ -> record selected result/evidence in WorkingState
+ -> ordinary ChatGPT decides the next strategy
+```
+
+Target data contracts:
+
+```text
+ConversationSnapshot
+  stable platform/session/conversation/message identity
+  active branch
+  content hashes
+  generation state
+  adapter/provenance/freshness
+
+HandoffPack
+  task/subgoal
+  user constraints
+  verified completed state
+  authoritative facts + provenance/freshness
+  open questions
+  artifact/evidence refs
+  selected context + recent messages
+  context budget
+```
+
+Do not use whole-transcript Markdown replay as the primary memory model. Full conversation history is evidence and may be retrieved when needed; `WorkingState` remains the durable operational source for task progress.
+
+Platform-native/private session APIs may be optional read fast paths only. Required fallback order remains:
+
+```text
+validated platform-native read
+ -> DOM / accessibility / structural state
+ -> selected GUI / visual fallback
+```
+
+Credentials stay inside the browser companion. Cookies/bearer tokens/private auth headers are never exported to the planner, MCP payload or WorkingState.
+
+Suggested future sequence after the relevant state/verification foundations exist:
+
+```text
+M0 ConversationSnapshot + adapter contracts / fixtures
+ -> M1 read-only ChatGPT Browser Companion observer
+ -> M2 one Manager ChatGPT -> one Worker ChatGPT verified handoff E2E
+ -> M3 HandoffPack + WorkingState integration / response monitoring
+ -> M4 explicit multi-worker task/session ownership
+ -> M5 optional Claude/Gemini/other adapters
+```
+
+CtxPort may be reused selectively under MIT terms for implementation mechanisms such as adapter registry structure, ChatGPT active-branch linearization, message flattening, optional fetch-by-id and dynamic-page observation. CtxPort itself, its clipboard/UI/export workflow and Markdown bundle formats are not product/runtime dependencies.
+
+Multiple worker chats must not be introduced before the one-manager/one-worker path has explicit identity, delivery verification, response freshness, bounded failure/recovery and physical user-browser evidence.
 
 ---
 
@@ -502,6 +591,8 @@ Fresh-user operation without git checkout or developer-only PowerShell/Python se
 - current observed state outranks procedure/demo/history/lineage;
 - generic Windows code execution remains disabled/unreachable;
 - normal semantic route does not require optional 1MCP;
+- Track M worker conversations are external environmental actors/data sources and cannot grant capability or policy authority;
+- Conversation Bridge credentials remain inside the browser-companion boundary;
 - preserve exact physical evidence heads in `EVIDENCE_INDEX.md`.
 
 # Merge policy

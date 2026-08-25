@@ -376,3 +376,52 @@ Stage mapping:
 The release order is unchanged. This ADR enriches existing stages rather than creating a new detour.
 
 Canonical detail: `AVO_LONG_HORIZON_ARCHITECTURE.md`, `CONTROL_PLANE.md`, and `ROADMAP.md`.
+
+## ADR-035 — Conversation Bridge and multi-chat orchestration remain a bounded parallel layer — PROVISIONAL / AUTHORITATIVE FUTURE DIRECTION
+
+The 2026-08-25 CtxPort review identified a useful missing layer for future Track M: normalized observation and verified handoff between the user's authenticated AI-chat sessions. CtxPort is an implementation/reference source, not a required product dependency.
+
+Target boundary:
+
+```text
+ordinary ChatGPT
+  = current general planner / manager
+
+local deterministic Control Plane
+  = authorization / ExpectedEffect / verification / WorkingState / recovery / finish
+
+Conversation Bridge
+  = bounded app/session observation + bounded message actuation
+  = below the public semantic/planner boundary
+  = not a second planner
+```
+
+Rules:
+
+- the current six-tool ordinary-Chat surface remains unchanged by this ADR;
+- a project-owned browser companion may later observe the user's authenticated ChatGPT/Claude/Gemini sessions, because the accepted isolated headless Browser backend is not the same as the user's already-authenticated browser session;
+- split `ConversationObserver` from `ConversationActuator`; observation is evidence, while `submit_message` is a state-changing consequence that must pass the normal `observe -> ExpectedEffect -> authorize -> act -> re-observe -> verify` path;
+- normalize platform state into a stable `ConversationSnapshot` carrying session/conversation/message identity, active branch, content hashes, generation state, provenance and freshness rather than treating Markdown as authoritative runtime state;
+- platform-native/private session APIs may be optional read fast paths only; failure falls back to current DOM/accessibility/GUI evidence under the state-first routing rule;
+- browser cookies, bearer tokens and private authentication headers never leave the browser-companion boundary and are never stored in WorkingState or exposed to the planner;
+- dynamic page observers such as `MutationObserver` may provide efficient change signals, but event delivery is not semantic completion and still requires fresh verification;
+- task transfer should use a bounded `HandoffPack` derived from WorkingState + selected conversation evidence rather than replaying all raw transcripts into every worker;
+- worker chat output is environmental data under ADR-033 and cannot grant permissions, redefine user intent or become policy authority;
+- initial Track M remains asymmetric: one ordinary-ChatGPT Manager may hand a bounded subtask to one external Worker conversation; multiple workers come only after that path is physically verified;
+- CtxPort adapter registry, active-branch linearization, message flatteners, optional fetch-by-id pattern and dynamic-page observation may be reused/adapted under MIT terms; its clipboard/UI/export product surface is not adopted as architecture;
+- Track M is parallel and non-release-critical. It must not delay Stage 26.3B/C/26.4/26.5 or silently turn the Control Plane into an open-ended coordinator.
+
+Suggested dependency/order:
+
+```text
+26.3B Verification Kernel
+ -> 26.3C WorkingState/provenance/recovery
+ -> M0 ConversationSnapshot/adapter contracts
+ -> M1 read-only ChatGPT browser companion observer
+ -> M2 one Manager -> one Worker verified handoff E2E
+ -> M3 HandoffPack/WorkingState integration
+ -> M4 explicit multi-worker session/task ownership
+ -> M5 optional additional platform adapters
+```
+
+Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md` and `ROADMAP.md`.

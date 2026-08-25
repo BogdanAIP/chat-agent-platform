@@ -33,6 +33,8 @@ Canonical architecture:
 - `CONTROL_PLANE.md`
 - `COMPUTER_USE_ARCHITECTURE.md`
 
+Future parallel multi-chat/session transport is documented separately in `CONVERSATION_BRIDGE_ARCHITECTURE.md` / ADR-035. It is not current runtime capability.
+
 ## Accepted public semantic surface
 
 The normal `semantic` route exposes exactly:
@@ -275,13 +277,33 @@ Stage 26.5 does not itself add public tools. Any Windows/computer-use public sur
 
 Optional Track P local planner research remains non-release-critical and stays above the same deterministic authorization/verifier/Finish Gate boundary.
 
+## Parallel Track M — Conversation Bridge / multi-chat — DOCUMENTED FUTURE ONLY
+
+ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md` now define a future path for using authenticated AI-chat sessions as bounded worker conversations.
+
+Current reality:
+
+```text
+implemented Conversation Bridge = no
+implemented Browser Companion = no
+implemented ConversationSnapshot = no
+implemented HandoffPack = no
+verified Manager -> Worker E2E = no
+multi-worker orchestration = no
+public tool change = no
+```
+
+The intended first future path remains one ordinary-ChatGPT Manager -> one Worker conversation with explicit session/message identity, ExpectedEffect verification, response freshness and WorkingState-derived handoff. Multiple workers come later.
+
+CtxPort is an external MIT architecture/code reference only. It is not installed, vendored or required by the current runtime.
+
 ---
 
 # Current security/architecture additions from GUI research
 
 ## Environmental content is untrusted data
 
-UI/DOM/page text, email/messages, documents being processed, screenshots/OCR and third-party tool/MCP output do not gain authority over user intent, permission scope or Control Plane policy merely because they are observable.
+UI/DOM/page text, email/messages, documents being processed, screenshots/OCR, third-party tool/MCP output and future worker-chat responses do not gain authority over user intent, permission scope or Control Plane policy merely because they are observable.
 
 Provenance/trust must survive cross-app fact transfer.
 
@@ -305,6 +327,7 @@ Tool/backend availability is not a routing decision. Prefer exact safe semantic/
 - environmental-injection defenses are now an explicit architectural invariant but broader computer-use attack coverage is not yet implemented;
 - Verification Kernel/Finish Gate foundation is active but not yet integrated across accepted file/browser/Windows procedure paths;
 - WorkingState/LoopGuard remain architecture targets, not accepted runtime implementation;
+- Track M Conversation Bridge/Browser Companion is documentation only; authenticated user-browser session access, credential isolation, worker message identity and handoff verification are unimplemented;
 - Python/model/OpenAdapt packaging is not release-grade;
 - raw demonstration retention/redaction/encryption policy is not accepted;
 - no stable release exists.
@@ -326,5 +349,6 @@ Tool/backend availability is not a routing decision. Prefer exact safe semantic/
 - no-effect/oscillating retries must be bounded by LoopGuard;
 - never persist private chain-of-thought;
 - raw capture is sensitive local data;
+- future browser-companion credentials must remain inside that boundary and never enter planner/WorkingState/MCP payloads;
 - generic Windows code execution remains disabled/unreachable;
 - preserve fail-closed behavior over benchmark hit rate.
