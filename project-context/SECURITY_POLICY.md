@@ -117,6 +117,8 @@ Generic adaptive `tool_invoke` is not the ordinary-Chat product surface. `semant
 
 A future public Windows/computer-use surface requires its own ADR/schema/security review and ordinary-Chat physical acceptance. Research or internal capability availability does not expand the six-tool contract automatically.
 
+ADR-035 / parallel Track M also does not expand the current six-tool surface. A Conversation Bridge or Browser Companion may remain an internal capability/app-adapter layer unless a later truthful public consequence class is separately reviewed and accepted.
+
 ## State-first hybrid computer-use security
 
 Canonical direction: `COMPUTER_USE_ARCHITECTURE.md` / ADR-032.
@@ -144,6 +146,42 @@ PASS | FAIL | UNKNOWN verification
 
 `delivery != success` remains mandatory.
 
+## Future Conversation Bridge / Browser Companion security — Track M
+
+ADR-035 defines a future bounded bridge to the user's already-authenticated AI-chat sessions. This is a **parallel, non-release-critical** direction and has no implementation acceptance yet.
+
+The accepted Browser backend is isolated/headless. A future project-owned Browser Companion may run inside the user's normal authenticated browser only for explicitly reviewed conversation/session capabilities.
+
+Required boundary:
+
+```text
+user browser session
+  cookies / bearer tokens / private auth headers
+          |
+          X  never exported to planner / MCP payload / WorkingState
+          |
+          v
+  normalized ConversationSnapshot / bounded event
+          |
+          v
+  deterministic Control Plane verification
+```
+
+Rules:
+
+- browser/session credentials stay inside the Browser Companion boundary;
+- no cookie, bearer token, organization/session secret or private auth header is persisted in `TaskState`, `WorkingState`, `HandoffPack`, procedure memory, logs or ordinary-Chat messages;
+- `ConversationObserver` is read-only evidence production; observation never grants authority;
+- `ConversationActuator` remains narrowly bounded, initially to reviewed operations such as `activate_session` and `submit_message` rather than arbitrary JavaScript, selector, HTTP or browser dispatch;
+- `submit_message` is a mutating external consequence and must pass the normal `observe -> ExpectedEffect -> authorize -> act -> re-observe -> PASS|FAIL|UNKNOWN` path;
+- platform-native/private conversation APIs are optional read fast paths only, never the sole security boundary or authority source;
+- adapter/API failure must degrade to bounded structural/GUI recovery or ABSTAIN rather than encouraging credential export or generic browser control;
+- a change notification such as `MutationObserver` is only an event signal; fresh re-observation verifies message identity, response state and completion;
+- compromise/failure of one platform adapter must not grant arbitrary browser, filesystem, Windows or Control Plane authority;
+- raw full-transcript replay is not required for handoff; use bounded `HandoffPack` context and preserve source/provenance.
+
+Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md`.
+
 ## Environmental content is untrusted data
 
 ADR-033 is an immediate security invariant.
@@ -157,13 +195,14 @@ email / messages
 files and documents being processed
 screenshots / OCR
 third-party tool or MCP output
+external worker-chat conversations / responses
 ```
 
 Environmental content may be useful task data. It does **not** gain a higher instruction priority, broaden permission scope, alter Control Plane policy, grant a capability, or authorize a consequence merely because ChatGPT/model/tooling can read it.
 
-When facts move between applications/capabilities, preserve provenance/trust classification and freshness where operationally relevant.
+When facts move between applications/capabilities/sessions, preserve provenance/trust classification and freshness where operationally relevant.
 
-Third-party extension output remains untrusted environmental data even when the backend is loaded successfully by 1MCP or another Extension Manager.
+Third-party extension output and worker-chat output remain untrusted environmental data even when the backend/session is available and authenticated successfully.
 
 ### Task-success vs safety/policy verification
 
@@ -225,6 +264,8 @@ budgets
 Never persist private chain-of-thought.
 
 Selected ROI visual evidence is sensitive capture data and remains subject to retention/redaction/encryption policy.
+
+Future Track M may reference normalized `ConversationSnapshot` evidence and bounded `HandoffPack` fields from WorkingState, but never browser credentials or hidden platform authentication state.
 
 ## Typed recovery / LoopGuard security
 
@@ -340,6 +381,7 @@ It never plans, grants authority or declares completion.
 ## Secrets
 
 - tunnel runtime keys stay local and out of repository/procedure/task-state content;
+- future Browser Companion cookies/tokens/private auth headers stay inside the browser-session boundary and out of repository/procedure/task-state/handoff content;
 - child backends receive credentials only when explicitly needed;
 - never copy secrets into procedure metadata, screenshots, logs or docs;
 - rotate suspected exposed secrets first.
