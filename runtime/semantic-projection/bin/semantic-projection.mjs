@@ -12,6 +12,10 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod/v4';
 
+import {
+  parsePlaywrightSnapshotResult,
+  verifyPlaywrightNavigation,
+} from '../lib/browser-verification-bridge.mjs';
 import { createSemanticVisionClickRouter } from '../lib/semantic-vision-click-router.mjs';
 
 const VERSION = '0.1.0';
@@ -183,6 +187,48 @@ async function callBackend(kind, toolName, args) {
   return normalizeBackendResult(await client.callTool({ name: toolName, arguments: args }));
 }
 
+async function captureBrowserObservation() {
+  const snapshot = await callBackend('playwright', 'browser_snapshot', {});
+  return parsePlaywrightSnapshotResult(snapshot);
+}
+
+function browserVerifiedResult(delivery, verification, operationName) {
+  const result = normalizeBackendResult(delivery);
+  const status = verification?.status ?? 'unknown';
+  const reason = verification?.verification?.reason ?? 'browser_verification_missing_reason';
+  result.content = [
+    ...result.content,
+    {
+      type: 'text',
+      text: `${operationName} final-state verification=${status}; reason=${reason}`,
+    },
+  ];
+  result.structuredContent = {
+    ...(delivery?.structuredContent !== undefined ? { backend: delivery.structuredContent } : {}),
+    browser_verification: verification,
+  };
+  if (status !== 'pass') result.isError = true;
+  return result;
+}
+
+function browserDeliveredButUnverifiedResult(delivery, operationName, error) {
+  const result = normalizeBackendResult(delivery);
+  const reason = error instanceof Error ? error.message : String(error);
+  result.content = [
+    ...result.content,
+    {
+      type: 'text',
+      text: `${operationName} action was delivered, but fresh final-state verification could not complete: ${reason}`,
+    },
+  ];
+  result.structuredContent = {
+    ...(delivery?.structuredContent !== undefined ? { backend: delivery.structuredContent } : {}),
+    browser_verification: { status: 'unknown', reason: 'verification_runtime_unavailable' },
+  };
+  result.isError = true;
+  return result;
+}
+
 async function getSemanticVisionRouter() {
   const { client } = await getBackend('playwright');
   if (!semanticVisionRouter || semanticVisionClient !== client) {
@@ -229,7 +275,7 @@ const server = new McpServer(
   { name: 'chat-semantic-projection', version: VERSION },
   {
     instructions:
-      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use an isolated headless Playwright session. For click only, a reviewed text-labeled visual fallback may run internally after a fresh accessibility snapshot proves zero exact targetText candidates. One exact candidate is clicked semantically; a unique enabled button may also be selected when all same-name alternatives are disabled. Unresolved ambiguity and semantic action errors fail closed without vision.'
+      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use an isolated headless Playwright session. web_open is accepted only after a fresh independent browser_snapshot proves the exact canonical final URL and document state. For click only, a reviewed text-labeled visual fallback may run internally after a fresh accessibility snapshot proves zero exact targetText candidates. One exact candidate is clicked semantically; a unique enabled button may also be selected when all same-name alternatives are disabled. Unresolved ambiguity and semantic action errors fail closed without vision.'
   }
 );
 
@@ -272,10 +318,11 @@ server.registerTool('workspace_write', {
 
 server.registerTool('web_open', {
   title: 'Open Web Page',
-  description: 'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows.',
+  description: 'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows. Success requires fresh post-navigation verification of the exact canonical final URL and document snapshot.',
   inputSchema: z.object({ url: z.string().url().max(4096) }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
 }, async ({ url }) => {
+  let delivery = null;
   try {
     const parsed = new URL(url);
     if (!['http:', 'https:'].includes(parsed.protocol)) return toolError('web_open accepts only HTTP or HTTPS URLs.');
@@ -284,8 +331,26 @@ server.registerTool('web_open', {
     if (!networkPolicy.allowed) {
       return toolError(`web_open rejects direct ${networkPolicy.scope} destinations by default: ${parsed.hostname}. Loopback remains allowed; broader private-network access requires a separately reviewed capability.`);
     }
-    return await callBackend('playwright', 'browser_navigate', { url: parsed.href });
-  } catch (error) { return toolError(`web_open failed: ${error instanceof Error ? error.message : String(error)}`); }
+
+    const before = await captureBrowserObservation();
+    delivery = await callBackend('playwright', 'browser_navigate', { url: parsed.href });
+    if (delivery.isError) return delivery;
+
+    try {
+      const after = await captureBrowserObservation();
+      const verification = await verifyPlaywrightNavigation({
+        before,
+        after,
+        expectedUrl: parsed.href,
+      });
+      return browserVerifiedResult(delivery, verification, 'web_open');
+    } catch (error) {
+      return browserDeliveredButUnverifiedResult(delivery, 'web_open', error);
+    }
+  } catch (error) {
+    if (delivery && !delivery.isError) return browserDeliveredButUnverifiedResult(delivery, 'web_open', error);
+    return toolError(`web_open failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 });
 
 server.registerTool('web_observe', {

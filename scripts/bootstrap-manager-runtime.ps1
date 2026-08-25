@@ -94,6 +94,7 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
         'bin/semantic-projection-launcher.mjs',
         'bin/semantic-control-plane-projection.mjs',
         'bin/semantic-projection.mjs',
+        'lib/browser-verification-bridge.mjs',
         'lib/semantic-vision-click-router.mjs',
         'lib/visual-grounding-bridge.mjs',
         'lib/runtime-backed-bridge-grounder.mjs',
@@ -101,6 +102,9 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
     )
     $controlPlaneFiles = @(
         '__init__.py',
+        'browser_observation.py',
+        'browser_transition.py',
+        'browser_transition_cli.py',
         'cli.py',
         'file_artifact_observation.py',
         'verification.py',
@@ -201,6 +205,17 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
         throw 'Installed canonical semantic projection must register exactly six tools.'
     }
 
+    $browserSource = Get-Content -LiteralPath (Join-Path $semanticRoot 'bin\semantic-projection.mjs') -Raw
+    $browserBridgeSource = Get-Content -LiteralPath (Join-Path $semanticRoot 'lib\browser-verification-bridge.mjs') -Raw
+    if (
+        $browserSource.IndexOf('verifyPlaywrightNavigation', [StringComparison]::Ordinal) -lt 0 -or
+        $browserSource.IndexOf('captureBrowserObservation', [StringComparison]::Ordinal) -lt 0 -or
+        $browserBridgeSource.IndexOf('browser_transition_cli.py', [StringComparison]::Ordinal) -lt 0 -or
+        $browserBridgeSource.IndexOf('browser_evaluate', [StringComparison]::Ordinal) -ge 0
+    ) {
+        throw 'Installed browser Verification Kernel bridge failed its reviewed contract.'
+    }
+
     $visionConfig = Get-Content -LiteralPath $visionConfigPath -Raw | ConvertFrom-Json
     if (
         [string]$visionConfig.profile -ne 'lfm25-vl-450m-f16' -or
@@ -277,11 +292,15 @@ function Install-ChatManagerBundle {
         @('runtime\semantic-projection\bin\semantic-projection-launcher.mjs', 'runtime\semantic-projection\bin\semantic-projection-launcher.mjs'),
         @('runtime\semantic-projection\bin\semantic-control-plane-projection.mjs', 'runtime\semantic-projection\bin\semantic-control-plane-projection.mjs'),
         @('runtime\semantic-projection\bin\semantic-projection.mjs', 'runtime\semantic-projection\bin\semantic-projection.mjs'),
+        @('runtime\semantic-projection\lib\browser-verification-bridge.mjs', 'runtime\semantic-projection\lib\browser-verification-bridge.mjs'),
         @('runtime\semantic-projection\lib\semantic-vision-click-router.mjs', 'runtime\semantic-projection\lib\semantic-vision-click-router.mjs'),
         @('runtime\semantic-projection\lib\visual-grounding-bridge.mjs', 'runtime\semantic-projection\lib\visual-grounding-bridge.mjs'),
         @('runtime\semantic-projection\lib\runtime-backed-bridge-grounder.mjs', 'runtime\semantic-projection\lib\runtime-backed-bridge-grounder.mjs'),
         @('runtime\semantic-projection\lib\runtime-backed-visual-grounder.mjs', 'runtime\semantic-projection\lib\runtime-backed-visual-grounder.mjs'),
         @('runtime\control_plane\__init__.py', 'runtime\control_plane\__init__.py'),
+        @('runtime\control_plane\browser_observation.py', 'runtime\control_plane\browser_observation.py'),
+        @('runtime\control_plane\browser_transition.py', 'runtime\control_plane\browser_transition.py'),
+        @('runtime\control_plane\browser_transition_cli.py', 'runtime\control_plane\browser_transition_cli.py'),
         @('runtime\control_plane\cli.py', 'runtime\control_plane\cli.py'),
         @('runtime\control_plane\file_artifact_observation.py', 'runtime\control_plane\file_artifact_observation.py'),
         @('runtime\control_plane\verification.py', 'runtime\control_plane\verification.py'),
