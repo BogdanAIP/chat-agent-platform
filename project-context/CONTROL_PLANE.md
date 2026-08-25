@@ -13,6 +13,8 @@ This distinction remains mandatory:
 
 Canonical computer-use extension: `COMPUTER_USE_ARCHITECTURE.md`.
 
+Long-horizon lineage/stagnation extension: `AVO_LONG_HORIZON_ARCHITECTURE.md` and ADR-034.
+
 ## Target architecture
 
 ```text
@@ -26,6 +28,7 @@ GENERAL PLANNER / MANAGER
   procedure selection
   adaptation / novel-state decisions
   candidate_done proposal
+  skill-candidate revision proposal
   |
   | structured goal / procedure / parameters
   v
@@ -38,10 +41,12 @@ DETERMINISTIC LOCAL CONTROL PLANE
   checkpoints
   transition verifier
   typed recovery + LoopGuard
+  StagnationReport
   resource/action/time budgets
   independent Finish Gate
   safety/policy gate
   escalation rules
+  verified Skill / Procedure Lineage evidence
   |
   +-------------------+-------------------+
   |                   |                   |
@@ -66,6 +71,9 @@ Files               Browser             Windows
                 advance              recovery/ABSTAIN
                                            |
                                            v
+                               StagnationReport when needed
+                                           |
+                                           v
                                         ChatGPT
 
 candidate_done
@@ -83,7 +91,8 @@ Ordinary ChatGPT owns open-ended semantic planning:
 - adapting when live state requires a novel strategy;
 - deciding what new information or capability is needed;
 - resolving semantic ambiguity that deterministic policy cannot reduce;
-- replanning after deterministic recovery options are exhausted.
+- replanning after deterministic recovery options are exhausted;
+- proposing revised candidate procedures/skills after objective evaluation evidence exposes a weakness or improvement opportunity.
 
 ChatGPT may propose `candidate_done`. It does not unilaterally declare verified completion.
 
@@ -102,7 +111,8 @@ Once ChatGPT selects a bounded goal/procedure, the local Control Plane may progr
 - transition verification;
 - typed deterministic recovery branches;
 - `LoopGuard` state and retry/action/time/resource budgets;
-- procedure trust state;
+- structured `StagnationReport` generation when bounded recovery is exhausted;
+- procedure trust state and version/lineage evidence;
 - independent task completion predicates;
 - safety/policy predicates;
 - escalation reason.
@@ -236,6 +246,8 @@ It must not contain hidden model chain-of-thought.
 
 Selected ROI visual evidence may be referenced when operationally useful, subject to capture privacy/retention policy. Episodic memory may retrieve verified procedures/trajectories, but historical experience remains non-authorizing and current state outranks it.
 
+AVO-style persistent-memory lessons are adopted only through this structured boundary: durable evaluation evidence, compact failure summaries, lineage/version metadata and verified progress may survive context boundaries; private hidden reasoning does not become stored execution state.
+
 ## Typed recovery
 
 Common cross-capability failure classes begin with:
@@ -285,6 +297,82 @@ verified progress vector
 ```
 
 An identical state/action fingerprint must not be repeated indefinitely without new evidence or verified progress. Recovery escalation may increase after failure; it cannot reset silently merely because the planner phrases the same action differently.
+
+## StagnationReport
+
+When LoopGuard concludes that deterministic recovery has plateaued, escalation should carry enough evidence for the general planner to change strategy without replaying the entire raw history.
+
+Target report:
+
+```text
+StagnationReport
+  task_id / subgoal_id
+  verified progress vector
+  repeated state/action fingerprints
+  no-effect / retry / oscillation counters
+  attempted typed recovery classes
+  fresh evidence references
+  exhausted + remaining budgets
+  admitted alternatives already tried
+  unresolved failure class / ambiguity
+```
+
+Normal boundary:
+
+```text
+LoopGuard detects stagnation
+ -> prevent further equivalent effects
+ -> emit StagnationReport
+ -> ordinary ChatGPT decides novel strategy
+ -> new proposal returns through normal authorization
+```
+
+The Control Plane may summarize deterministic operational evidence. It must not invent an unconstrained new strategy and must not persist private model chain-of-thought in the report.
+
+## Procedure / Skill Lineage
+
+Reusable procedures should be treated as versioned evidence-backed candidates rather than one mutable trusted blob.
+
+Conceptual lineage record:
+
+```text
+SkillLineageEntry
+  skill_id
+  candidate_id
+  parent_candidate_id(s)
+  procedure/version identity
+  source
+  applicability/preconditions
+  evaluation suite / task variants
+  verifier evidence references
+  objective metrics / success counters
+  compact failure summary
+  promotion state
+```
+
+Lineage rules:
+
+- lineage/history is evidence, not authorization;
+- trusted parent status does not automatically transfer to a child;
+- failed/unverified variants may remain diagnostic records but cannot become trusted executable procedures;
+- only independently verified candidates are eligible for promotion;
+- current live state and current capability policy outrank lineage;
+- objective optimization metrics apply only after required correctness/safety predicates pass.
+
+After Stage 26.3B/C foundations, bounded candidate evolution may use:
+
+```text
+ChatGPT proposes candidate revision
+ -> Control Plane loads admitted evaluation procedure
+ -> authorize bounded effects
+ -> execute
+ -> re-observe
+ -> verify / Finish Gate
+ -> record metrics + evidence in lineage
+ -> ChatGPT may propose next candidate
+```
+
+This captures the useful AVO variation/lineage loop while keeping open-ended candidate design above the deterministic execution boundary.
 
 ## Capability-aware routing
 
@@ -342,11 +430,15 @@ Required invariants:
 - model output is not authorization;
 - procedure selection is not authorization;
 - trusted procedure status is not blanket authorization;
+- lineage/parent trust is not child authorization;
+- supervisor/stagnation advice is not authorization;
 - action delivery is not completion;
 - current observed state outranks remembered procedure;
 - stale/ambiguous/UNKNOWN causes zero unauthorized continuation;
 - generic Windows code execution remains disabled/unreachable;
 - private chain-of-thought is never persisted as task/procedure state.
+
+This aligns with the external agent-stack security rule that upper layers propose while the authoritative infrastructure below decides what effects are allowed.
 
 ## Environmental-content trust boundary
 
@@ -391,11 +483,11 @@ The Control Plane does not replace accepted components:
 - Browser structure-first semantic/vision routing remains capability-specific implementation;
 - OpenAdapt Flow `ProgramGraph` remains the qualified procedural IR candidate;
 - OpenAdapt Capture remains the qualified human/demo capture candidate;
-- adapted SkillLibrary mechanics may support version/provenance/regression lifecycle;
+- adapted SkillLibrary mechanics may support version/provenance/regression lifecycle and the new Skill / Procedure Lineage record;
 - LFM2.5-VL remains bounded perception proposal only;
 - Filesystem/Playwright remain focused capabilities.
 
-`COMPUTER_USE_ARCHITECTURE.md` defines how these capability-specific pieces should converge on common long-horizon contracts without creating a generic agent gateway.
+`COMPUTER_USE_ARCHITECTURE.md` defines how these capability-specific pieces should converge on common long-horizon contracts without creating a generic agent gateway. `AVO_LONG_HORIZON_ARCHITECTURE.md` defines the reviewed lineage/stagnation extension.
 
 ## What the Control Plane must not become
 
@@ -407,9 +499,10 @@ It must not:
 - expose arbitrary `server + tool + args` dispatch;
 - become a generic shell/Python executor;
 - bypass capability authorization because a procedure/model/planner requested an action;
+- treat lineage or supervisor guidance as action authority;
 - hide native desktop/workflow consequences behind misleading harmless tool semantics;
 - use model confidence as a substitute for verified outcomes;
-- silently turn a single demonstration into permanent trust;
+- silently turn a single demonstration or a trusted parent into permanent child trust;
 - treat environmental UI/tool content as authority over user intent or policy.
 
 ## Stage mapping
@@ -420,8 +513,8 @@ Current release-critical order:
 26.2E real application E2E                         ACCEPTED
  -> 26.3A verified procedure runtime              ACCEPTED
  -> 26.3B Verification Kernel + Finish Gate       NEXT
- -> 26.3C WorkingState + typed recovery + LoopGuard
- -> 26.4 Human Demo -> transferable verified candidate skill
+ -> 26.3C WorkingState + typed recovery + LoopGuard + StagnationReport
+ -> 26.4 Human Demo -> transferable verified candidate skill + Skill Lineage
  -> 26.5 Hybrid Computer-Use Integration
  -> 27 Distribution & Maintenance
  -> 28 Clean User E2E / stable release
@@ -440,7 +533,7 @@ P0 shadow planner
    -> no authorization / no actuation
 
 P1 bounded subtask planner
-   -> explicitly scoped task classes
+   -> explicitly scoped workloads
    -> deterministic Control Plane remains authoritative
 
 P2 optional local general-planner mode
@@ -448,7 +541,7 @@ P2 optional local general-planner mode
    -> never silently replaces ChatGPT default
 ```
 
-Even in P2, the planner remains above the same capability policy, verification, Finish Gate and safety boundaries.
+Even in P2, the planner remains above the same capability policy, verification, Finish Gate and safety boundaries. AVO demonstrates that a richer agent harness can improve long-horizon behavior, but it does not move the project's authority boundary or automatically promote Track P.
 
 ## Terminology rule
 
@@ -460,6 +553,8 @@ Use these terms consistently:
 - **transition verifier:** verifies one expected action effect;
 - **Finish Gate:** independently verifies task-level completion;
 - **LoopGuard:** detects bounded repeated/no-effect/oscillating execution;
+- **StagnationReport:** structured deterministic evidence summary emitted when bounded recovery stalls and novel strategy is required;
+- **Skill / Procedure Lineage:** versioned ancestry + objective evaluation evidence for candidate procedures; evidence, never authority;
 - **specialist model:** bounded perception or structured proposal; non-authorizing;
 - **future local planner:** optional Track P research.
 
