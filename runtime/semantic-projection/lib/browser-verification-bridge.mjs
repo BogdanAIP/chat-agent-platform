@@ -50,6 +50,24 @@ function controlValueFromLine(line, role) {
   return value.length <= 4096 ? value : null;
 }
 
+function stripSnapshotFence(value) {
+  let snapshotText = value.trim();
+  if (snapshotText.startsWith('```yaml')) snapshotText = snapshotText.slice('```yaml'.length).trimStart();
+  else if (snapshotText.startsWith('```')) snapshotText = snapshotText.slice(3).trimStart();
+  if (snapshotText.endsWith('```')) snapshotText = snapshotText.slice(0, -3).trimEnd();
+  return snapshotText;
+}
+
+function snapshotSection(rawText) {
+  const section = rawText.match(/^[ \t]*### Snapshot[ \t]*$/m);
+  if (!section || section.index === undefined) return null;
+  const start = section.index + section[0].length;
+  let body = rawText.slice(start).replace(/^\r?\n/, '');
+  const nextSection = body.search(/^[ \t]*### [^\r\n]+[ \t]*$/m);
+  if (nextSection >= 0) body = body.slice(0, nextSection);
+  return body.trim();
+}
+
 export function parsePlaywrightSnapshotResult(result) {
   if (result?.isError) throw new Error('playwright snapshot returned an error');
   const rawText = textOf(result);
@@ -59,18 +77,25 @@ export function parsePlaywrightSnapshotResult(result) {
   }
 
   // Keep metadata parsing line-local. JavaScript \s includes newlines, which can
-  // otherwise make an empty Page Title consume the following Page Snapshot line.
+  // otherwise make an empty Page Title consume the following section/header.
   const urlMatch = rawText.match(/^[ \t]*- Page URL:[ \t]*(.*?)[ \t]*$/m);
   const titleMatch = rawText.match(/^[ \t]*- Page Title:[ \t]*(.*?)[ \t]*$/m);
-  const marker = rawText.match(/^[ \t]*- Page Snapshot:[ \t]*$/m);
-  if (!urlMatch || !titleMatch || !marker || marker.index === undefined) {
-    throw new Error('playwright snapshot is missing Page URL, Page Title or Page Snapshot');
+  if (!urlMatch || !titleMatch) {
+    throw new Error('playwright snapshot is missing Page URL or Page Title');
   }
 
-  let snapshotText = rawText.slice(marker.index + marker[0].length).trim();
-  if (snapshotText.startsWith('```yaml')) snapshotText = snapshotText.slice('```yaml'.length).trimStart();
-  else if (snapshotText.startsWith('```')) snapshotText = snapshotText.slice(3).trimStart();
-  if (snapshotText.endsWith('```')) snapshotText = snapshotText.slice(0, -3).trimEnd();
+  // @playwright/mcp 0.0.78 returns explicit browser_snapshot content in a
+  // separate "### Snapshot" section. Keep the older inline Page Snapshot form
+  // as a bounded compatibility fallback for previously observed transports.
+  let snapshotPayload = snapshotSection(rawText);
+  if (snapshotPayload === null) {
+    const marker = rawText.match(/^[ \t]*- Page Snapshot:[ \t]*$/m);
+    if (!marker || marker.index === undefined) {
+      throw new Error('playwright snapshot is missing Snapshot content');
+    }
+    snapshotPayload = rawText.slice(marker.index + marker[0].length).trim();
+  }
+  const snapshotText = stripSnapshotFence(snapshotPayload);
 
   const controls = [];
   for (const line of snapshotText.split(/\r?\n/)) {
