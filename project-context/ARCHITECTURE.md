@@ -66,6 +66,8 @@ Canonical detail:
 
 A future local general planner is optional Track P research and remains above the same deterministic authority/verification/Finish Gate boundaries.
 
+A future multi-chat/session transport layer is separate parallel Track M. It is governed by ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md`; it does not change the current planner boundary or public tool inventory.
+
 ---
 
 # Accepted ordinary-Chat path
@@ -217,6 +219,27 @@ ObservationEnvelope
 ```
 
 Do not flatten rich capability-native state into a lossy universal screenshot/text blob.
+
+## Future Conversation Bridge / authenticated user-browser app adapter
+
+The accepted Browser backend is intentionally isolated/headless. Future Track M may add a **separate project-owned Browser Companion** for the user's authenticated browser session so existing ChatGPT/Claude/Gemini conversations can be observed and used as bounded worker sessions.
+
+Target separation:
+
+```text
+ConversationObserver
+  -> read-only ConversationSnapshot evidence
+
+ConversationActuator
+  -> bounded activate_session / submit_message consequence
+  -> normal Control Plane authorization + ExpectedEffect + re-observation + verification
+```
+
+`ConversationSnapshot` is capability-native app/session state and may be referenced by `ObservationEnvelope` / `WorkingState`; Markdown transcript export is not authoritative runtime state.
+
+Platform-native/session APIs may be optional validated read fast paths, followed by DOM/accessibility and then selected GUI/visual fallback when needed. Browser cookies/tokens remain inside the companion boundary and are never planner/WorkingState/MCP payload data.
+
+This is future parallel Track M only. It adds no current public tool, no second planner and no implementation acceptance. Canonical detail: ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md`.
 
 ## Capability-aware routing
 
@@ -426,6 +449,7 @@ email/messages
 files/documents being processed
 screenshots/OCR
 third-party MCP/tool output
+external worker-chat conversations
 ```
 
 may be useful task input but cannot redefine user intent, broaden permission scope, modify Control Plane policy or grant action authority merely because the planner/model can read it.
@@ -616,77 +640,6 @@ component/noisy recovery evaluation
 
 This stage does not automatically change the public six-tool surface. Public Windows/computer-use semantics require separate acceptance.
 
----
-
-# Evaluation direction
-
-External benchmarks are diagnostic evidence sources, not automatic release gates.
-
-Layer testing:
-
-```text
-component/primitive diagnostics
- -> capability integration
- -> noisy/recovery fixtures
- -> long-horizon verified procedures
- -> selected reproducible external benchmark runs
-```
-
-Relevant references include ComponentBench, WebArena/BrowserGym, OSWorld 2.0, OSWorld-Noisy and MobileWorldSafety. Benchmark-specific tricks must not leak into production policy unless promoted as a project-owned invariant.
+Parallel Track M may later reuse these state/app-adapter contracts for authenticated AI-chat worker sessions, but it is not a Stage 26 acceptance requirement.
 
 ---
-
-# Optional specialist reasoning
-
-A future `SpecializedReasoningBackend` may receive structured goal/state/procedure evidence and return proposal/confidence/ABSTAIN only. It is non-authorizing and does not replace deterministic verifiers when stronger predicates exist.
-
-# Future local planner — Track P
-
-A local general planner remains optional future research after verified procedure/WorkingState data and measured need exist.
-
-```text
-P0 shadow planner
- -> proposal only / no actuation
-
-P1 bounded subtask planner
- -> explicitly scoped workloads
-
-P2 optional local general-planner mode
- -> only after measured parity/safety/resource evidence
-```
-
-Even a future planner remains above the same capability authorization, transition verifier, Finish Gate and safety/policy boundaries.
-
-# Multi-chat orchestration
-
-Separate upper layer, not Windows/procedure safety core and not a release prerequisite.
-
----
-
-# Security/privacy boundaries
-
-- tunnel reachability is not action authority;
-- normal semantic transport remains direct stdio and does not depend on 1MCP;
-- persistent tunnel identity is neutral platform state;
-- optional extension availability does not grant trust/routing/authorization;
-- local inference is bounded, on-demand and non-authorizing;
-- semantic/native state precedes pixels where reliable;
-- every mutation binds expected effect + fresh verification;
-- transition PASS is not task DONE;
-- environmental UI/DOM/tool content is untrusted task data, not policy authority;
-- task-success and safety/policy verification remain separate;
-- raw demonstrations/ROI capture are sensitive local data;
-- private chain-of-thought is never task/procedure memory;
-- generic Windows code execution remains disabled/unreachable;
-- stale, ambiguous or UNKNOWN state fails closed;
-- artifact/model/Python/OpenAdapt reproducibility must become release-grade before stable distribution.
-
-## Windows manager
-
-Manager/tray owns lifecycle/configuration/diagnostics only. It is neither the planner nor the procedure Control Plane.
-
-# Ownership rule
-
-The repository owns thin integration assets: pinned configs, lifecycle/bootstrap, deterministic compatibility adapters, trust/policy/checkpoint/verifier/recovery seams, focused missing-boundary adapters, tests and authoritative context.
-
-It does not own a generic AI gateway, unrestricted workflow brain, universal raw-tool dispatcher, generic model-serving platform or duplicate OpenAdapt implementation while qualified upstream mechanisms cover those needs.
