@@ -4,7 +4,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 
-const MAX_PLAYWRIGHT_SNAPSHOT_CHARS = 1_100_000;
+const MAX_PLAYWRIGHT_SNAPSHOT_CHARS = 1_000_000;
 const MAX_VERIFIER_RESPONSE_BYTES = 128_000;
 const VERIFIER_TIMEOUT_MS = 7_500;
 const SAFE_CHILD_ENV_ALLOWLIST = new Set([
@@ -58,9 +58,11 @@ export function parsePlaywrightSnapshotResult(result) {
     throw new Error('playwright snapshot exceeds the bounded observation limit');
   }
 
-  const urlMatch = rawText.match(/^\s*- Page URL:\s*(.*?)\s*$/m);
-  const titleMatch = rawText.match(/^\s*- Page Title:\s*(.*?)\s*$/m);
-  const marker = rawText.match(/^\s*- Page Snapshot:\s*$/m);
+  // Keep metadata parsing line-local. JavaScript \s includes newlines, which can
+  // otherwise make an empty Page Title consume the following Page Snapshot line.
+  const urlMatch = rawText.match(/^[ \t]*- Page URL:[ \t]*(.*?)[ \t]*$/m);
+  const titleMatch = rawText.match(/^[ \t]*- Page Title:[ \t]*(.*?)[ \t]*$/m);
+  const marker = rawText.match(/^[ \t]*- Page Snapshot:[ \t]*$/m);
   if (!urlMatch || !titleMatch || !marker || marker.index === undefined) {
     throw new Error('playwright snapshot is missing Page URL, Page Title or Page Snapshot');
   }
