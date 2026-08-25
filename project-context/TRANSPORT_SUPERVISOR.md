@@ -1,360 +1,278 @@
 # Transport Reliability / Self-Healing Supervisor
 
-Status: **PLANNED / CROSS-CUTTING RELIABILITY TRACK**.
+Status: **ACCEPTED RELIABILITY FOUNDATION; LOW-POWER OPERATOR MODES TARGET-QUALIFIED; ORDINARY-CHAT ON/OFF GATES PASSED**.
 
-This document records the transport-reliability work selected after the 2026-08-21 repository audit and repeated real failures of the ordinary-Chat Secure MCP Tunnel path.
+This document defines the current transport reliability boundary for the ordinary-Chat Secure MCP Tunnel path. Transport Supervisor v1 was accepted through PR #94. PR #100 refines its idle operating model after target-Windows measurements showed that the previous tray/status cadence and 10-second supervisor cadence produced unnecessary transient PowerShell/WMI activity.
 
-It is **not** accepted product functionality yet and it does **not** replace the active Stage 26.3 Verified Procedure Runtime work. Stage 26.3 remains the release-critical deterministic execution-Control-Plane track. Transport reliability is a separate lifecycle/operations boundary that should be hardened before we rely on hosted ordinary-Chat E2E as an always-available capability.
+Transport reliability remains a lifecycle/operations boundary. It does not replace the Stage 26.3 deterministic procedure Control Plane and it does not create another planner.
 
-## Why this track exists
-
-The accepted normal transport remains:
+## Normal transport
 
 ```text
 ordinary ChatGPT
  -> Chat Local Bridge Test
  -> OpenAI Secure MCP Tunnel
  -> official tunnel-client
- -> secure direct stdio launcher
- -> semantic-projection
- -> scoped local capabilities
+ -> direct stdio secure semantic launcher
+ -> canonical six-tool semantic projection
+ -> deterministic Control Plane / focused capabilities
 ```
 
-Stage 24.1 proved this direct stdio path and removed 1MCP from the normal semantic critical path. 1MCP remains internal diagnostic/adaptive/aggregation infrastructure only.
+1MCP is optional internal Extension Manager infrastructure and is not a normal-route dependency or authorization source.
 
-The 2026-08-21 audit found that current manager health is not equivalent to end-to-end availability. On `main`, `scripts/semantic-direct-controller.ps1` treats the official tunnel client's local `/readyz` result as both `tunnel_ready` and `mcp_ready`. The tray can therefore become green while the ChatGPT/OpenAI route is unavailable above the local client.
+## Authority boundary
 
-A real failure observed from `Chat Local Bridge Test` returned an OpenAI-side `MCP SSE probe returned 404` for the configured `tunnel_*` resource. That request did not prove a local semantic or 1MCP failure. Current local restart/status logic cannot reliably distinguish this class from recoverable local transport failures.
-
-The goal is therefore not an impossible promise that the OpenAI service can never fail. The goal is a transport that is **self-healing for recoverable local/network failures, fail-closed for non-recoverable remote failures, and diagnostically truthful at every layer**.
-
-## Audit baseline
-
-### Already present and reusable
-
-The repository already has most of the skeleton required for a supervisor:
-
-- persistent installation under `%LOCALAPPDATA%\ChatAgentPlatform`;
-- official pinned `tunnel-client` installation and hash verification;
-- `CONTROL_PLANE_API_KEY` protected with Windows DPAPI `CurrentUser`;
-- a persistent tunnel id; the direct controller already stores `tunnel_id` in `semantic-direct.json`;
-- exact owned-process discovery;
-- official local health URL file and `/readyz` probing;
-- direct stdio semantic transport;
-- idempotent Start/Stop lifecycle;
-- target evidence that a killed tunnel-client can be recreated by an explicit manager `Start`;
-- a tray process that already polls manager status;
-- structured local logs and state files;
-- CI, CodeQL and secret-history scanning.
-
-Do **not** duplicate these mechanisms.
-
-### Current gaps
-
-The audit identified the following reliability gaps on `main`:
-
-1. **Health conflation.** `mcp_ready` and `tunnel_ready` are derived from the same local readiness result instead of independent evidence.
-2. **No explicit remote-control-plane dimension.** The manager does not currently expose remote tunnel metadata/auth/poll health as separate status.
-3. **No long-lived desired-state reconciler.** Recovery happens when an operator invokes Start; there is no independent process continuously restoring the requested state.
-4. **Tray is UI, not supervision.** Closing/restarting the tray must not decide whether transport recovery exists.
-5. **No failure-class-aware recovery state machine.** Process death, local MCP failure, network loss, 401, 403, remote resource loss and OpenAI product-side route failures must not all trigger the same restart.
-6. **No restart-storm protection with indefinite low-rate recovery.** A self-healing service needs burst backoff plus continued future re-probing; it must neither spin forever nor permanently give up on a transient outage.
-7. **No reboot/logon/resume recovery contract.** The current manager is not yet an always-on user-context service boundary.
-8. **No truthful ChatGPT-route dimension.** Local/control-plane health cannot by itself prove that a particular ChatGPT app is presently routed to the tunnel.
-9. **No dedicated fault-injection acceptance matrix for the transport supervisor.** Existing direct-tunnel tests prove startup/lifecycle/equivalence, not long-lived recovery.
-
-### Existing experimental branch
-
-An unmerged branch already exists:
-
-```text
-chat/tunnel-reliability-e2e-health
-```
-
-At audit time it is three commits ahead of `main` and modifies:
-
-```text
-scripts/semantic-direct-controller.ps1
-scripts/tunnel-reliability-health.ps1
-tests/test_tunnel_reliability_health.py
-```
-
-It contains useful prototype ideas: distinct local/remote health, `admin tunnels get`, control-plane poll freshness, recovery state and a watchdog loop.
-
-It is **not authoritative or accepted**. It has no open PR, does not yet provide the intended independent supervisor/tray architecture, its tests mostly exercise the health classifier rather than the complete watchdog lifecycle, and the audited controller contains at least one malformed `Stop-Process` invocation in the semantic-child cleanup path. Future implementation may salvage reviewed pieces, but must not promote this branch by assumption.
-
-## Architectural target
-
-### Boundary
-
-The supervisor belongs to the existing Windows manager/lifecycle boundary:
-
-```text
-ordinary ChatGPT                      local deterministic procedure Control Plane
-      |                                             |
-      v                                             v
-OpenAI Secure MCP Tunnel                     task/procedure execution
-      |
-      v
-Transport Supervisor
-  -> desired transport state
-  -> lifecycle ownership
-  -> health observation
-  -> bounded recovery
-  -> status cache / diagnostics
-      |
-      +-> tunnel-client
-      +-> secure semantic launcher / semantic-projection
-```
-
-The Transport Supervisor is **not**:
+The Transport Supervisor may only maintain platform-owned transport/runtime state required by the user's explicit desired state. It is not:
 
 - a general planner;
 - the Stage 26.3 procedure Control Plane;
 - a capability authorization engine;
-- a generic process manager for unrelated applications;
-- a tunnel CRUD administrator by default;
-- a reason to expose shell/Python execution to ChatGPT.
+- a generic process manager;
+- a generic shell/Python execution surface;
+- a tunnel CRUD administrator by default.
 
-Its authority is limited to the platform-owned transport/runtime processes and state required to maintain the user's explicit desired platform state.
+The persistent `tunnel_*` id remains the stable anchor. Normal recovery restarts/reconnects replaceable local processes around that same id. Routine recovery must not delete/recreate/rotate the remote tunnel resource.
 
-### Persistent tunnel resource as anchor
+The runtime remains in the current Windows user context because the accepted credential storage uses DPAPI `CurrentUser`.
 
-The accepted `tunnel_*` id should remain a stable anchor.
+## Persistent state and ownership
 
-Normal recovery must restart/reconnect replaceable local pieces around the same id:
-
-```text
-persistent tunnel id
-      |
-      +-> replaceable tunnel-client process
-      +-> replaceable semantic child process
-      +-> replaceable network connection / poll loop
-```
-
-Do not automatically delete/recreate/rotate a tunnel resource as routine recovery. A new tunnel id can require ChatGPT connector/app rebinding and increases privilege requirements.
-
-The long-lived supervisor must **not require `OPENAI_ADMIN_KEY` by default**. Continue using the least-privilege runtime key already stored with DPAPI. Read-only remote-health checks may use only officially supported runtime-key operations. Tunnel create/update/delete remains an explicit operator/admin workflow if ever needed.
-
-## Required health model
-
-The supervisor must expose independent evidence rather than one green boolean.
-
-Minimum machine-readable dimensions:
+The current lifecycle separates user intent, runtime ownership and readiness evidence:
 
 ```text
-desired_state                 running | stopped
-supervisor_state              starting | healthy | degraded | recovering | backoff | blocked | stopped
+state/desired-state.json
+  -> requested running | stopped state
 
-semantic_process              running | stopped | unknown
-mcp_ready                     true | false | unknown
+state/manager-owner.json
+  -> authoritative manager ownership receipt
 
-tunnel_process                running | stopped | conflict | unknown
-tunnel_local_health           true | false | unknown
-tunnel_local_ready            true | false | unknown
-control_plane_poll_health     true | false | unknown
-control_plane_poll_age        seconds | null
+state/semantic-direct.json
+  -> direct runtime/tunnel identity
 
-remote_tunnel_status          ready | unauthorized | forbidden | resource_missing | unavailable | unknown
-openai_control_ready          true | false | unknown
+state/supervisor.json
+  -> last automatic deep-reconcile snapshot
 
-chatgpt_route_status          pass | fail | stale | not_checked
-last_chatgpt_e2e_at           timestamp | null
+state/manual-status.json
+  -> lightweight Manual readiness/diagnostic receipt
 
-health_code                   stable machine-readable reason
-last_recovery                 structured receipt
-recovery_count                integer
-next_retry_at                 timestamp | null
+state/operation-mode.json
+  -> manual | automatic
 ```
 
-Names may evolve during implementation, but the semantic distinction must remain.
+`desired-state.json` is user intent. `manager-owner.json` proves manager ownership; it is not by itself a READY proof. In Manual mode the visible READY boundary also requires the persisted local MCP/tunnel readiness fields and a control-plane poll confirmation. A stale lifecycle completion must never overwrite newer user intent.
 
-### Important end-to-end boundary
+## Operator modes
 
-`openai_control_ready=true` is **not proof of `chatgpt_route_status=pass`**.
+PR #100 introduces two explicit persistent modes.
 
-The local supervisor can prove local runtime and supported remote-control-plane facts. Only an actual ChatGPT tool call can prove the final app/connector route. Therefore the status model must preserve `not_checked`/`stale` rather than fabricate end-to-end success.
+### Manual
 
-A successful hosted semantic call may update a last-known E2E receipt, but stale historical success must never mask current local/control-plane failure.
+Manual mode is the low-background explicit-control mode. Manual + OFF is the zero-periodic-work state.
 
-## Failure taxonomy and recovery policy
+```text
+Manual + OFF
+ -> supervisor Scheduled Task is not running a reconcile loop
+ -> tunnel-client is stopped
+ -> semantic node runtime is stopped
+ -> no periodic manager Status call
+ -> no periodic WMI/CIM process scan
+ -> no periodic network health probe
+ -> tray waits on FileSystemWatcher events
+```
 
-At minimum classify these cases separately:
+Start/Stop remains explicit through the public manager. During an explicit Start/Stop action the tray uses a short-lived 250 ms completion timer.
 
-| Failure | Local automatic action |
+After a successful local Manual Start, if the state is still yellow, the tray performs only a bounded readiness-confirmation loop by launching the installed `tunnel-client health` command directly. It does not launch PowerShell and does not reconstruct ownership through WMI/CIM. The confirmation requires local process/health/ready evidence plus a successful control-plane poll. Failed confirmation attempts back off from 2 seconds up to 30 seconds and each health process is bounded to 8 seconds. Once READY is confirmed, that confirmation loop stops and the tray returns to event-driven idle behavior.
+
+Therefore Manual green means that the manager-owned local runtime and control-plane path were successfully confirmed for the current running state. It does **not** mean that the tray continuously probes OpenAI or continuously proves the current ChatGPT app session after green.
+
+The tray does not reconstruct process ownership with WMI. `manual-status.json` is a readiness/diagnostic receipt and must not become a contradictory authority source.
+
+### Automatic
+
+Automatic mode is an opt-in low-frequency reliability monitor.
+
+```text
+switch to Automatic
+ -> one immediate supervisor Reconcile
+ -> launcher sleeps for 30 minutes
+ -> one next Reconcile
+ -> repeat while mode remains Automatic
+```
+
+The Scheduled Task remains registered and its console-free `wscript.exe` launcher reads `operation-mode.json` directly through `Scripting.FileSystemObject`; reading the mode does not launch PowerShell. A deep reconcile launches one bounded PowerShell process, waits for it, and then the launcher is dormant for 30 minutes.
+
+Switching back to Manual causes the automatic launcher/task to stop. Switching modes does not implicitly reverse the user's desired running/stopped state.
+
+## Tray model
+
+The tray is a low-power status/control client, not a second supervisor.
+
+It reads cached/persisted state and reacts to file changes through `FileSystemWatcher`. It does not perform an idle `-Action Status` loop and it does not poll WMI/process ownership.
+
+Visible states are intentionally simple:
+
+```text
+red    = explicitly stopped
+yellow = switching / local runtime or control-plane confirmation incomplete
+green  = manager-owned local runtime + MCP/tunnel + control-plane poll confirmed
+```
+
+Green is deliberately stronger than ownership alone, but it is still not a continuous end-to-end claim about the current ChatGPT app/connector session. Only a real ordinary-Chat semantic tool call proves that final route at that moment.
+
+## Health model
+
+Local runtime health, remote/control-plane health and ChatGPT-route health remain distinct evidence layers.
+
+Minimum semantic distinction:
+
+```text
+desired_state
+runtime / semantic process
+mcp_ready
+tunnel process / local health / local ready
+control-plane poll freshness
+remote tunnel metadata status
+openai_control_ready
+chatgpt_route_status
+health_code
+recovery action / retry state
+```
+
+Important invariant:
+
+```text
+local health != remote/control-plane health != ChatGPT route health
+```
+
+`openai_control_ready=true` is not proof that a particular ChatGPT app/connector route is currently usable. Only a real ordinary-Chat semantic tool call proves that final route.
+
+## Startup failure handling
+
+A transient remote/control-plane outage must not destroy an otherwise healthy local runtime.
+
+The direct semantic startup path uses a real wall-clock 45-second local readiness budget. Local startup success requires tunnel process health, MCP readiness and exactly one expected semantic child. A missing fresh control-plane poll is recorded as degraded remote evidence rather than used as a reason to tear down the healthy local runtime.
+
+Manual tray readiness remains stricter than local startup survival: after the manager owns the local runtime, the tray stays yellow until its bounded `tunnel-client health --require-control-plane-poll` confirmation succeeds. This separates two concerns:
+
+```text
+preserve healthy local runtime across transient network failure
+!=
+claim green before control-plane confirmation
+```
+
+## Failure classification and recovery
+
+Failures are classified before recovery. Representative policy:
+
+| Failure class | Automatic action |
 |---|---|
-| owned tunnel process died | restart owned transport, verify |
-| semantic/MCP child unavailable | restart/recreate owned runtime path, verify |
-| local health endpoint stale/unready | bounded reconnect/restart, verify |
-| control-plane poll stale/disconnected | reconnect/restart after network-aware checks |
-| network unavailable | wait; do not restart-storm |
-| transient OpenAI 5xx/service unavailable | backoff + re-probe; preserve local desired state |
-| 401 authentication failure | block restart loop; report `AUTH_REQUIRED` |
-| 403 permission failure | block restart loop; report `PERMISSION_REQUIRED` |
-| remote tunnel resource conclusively missing | block local restart loop; report `REMOTE_TUNNEL_RESOURCE_MISSING` / rebind requirement |
-| ChatGPT/app-side route failure while local/control plane remain healthy | report product/route failure; do not destroy healthy local runtime merely to look active |
-| ambiguous/unknown evidence | conservative degraded state; bounded diagnostics; no destructive guessing |
+| owned tunnel process died | bounded restart owned runtime, verify |
+| semantic/MCP child unavailable | bounded restart owned runtime, verify |
+| local health stale/unready | bounded restart/reconnect, verify |
+| control-plane poll stale/disconnected | network-aware bounded recovery |
+| network unavailable | wait/backoff; do not restart-storm |
+| transient OpenAI 5xx/service unavailable | `wait_and_probe`; preserve healthy local runtime |
+| remote metadata rate limit | `wait_and_probe` |
+| 401 authentication failure | block destructive restart loop; report auth requirement |
+| 403 permission failure | block destructive restart loop; report permission requirement |
+| conclusive remote resource loss | block local restart loop; require operator/rebind action |
+| ChatGPT/app route failure with healthy local runtime | report route failure; do not destroy healthy local runtime |
+| ambiguous/unknown evidence | conservative degraded state; no destructive guessing |
 
-Do not infer `REMOTE_TUNNEL_RESOURCE_MISSING` from any generic 404 unless the officially supported remote metadata operation unambiguously establishes that result.
+`REMOTE_METADATA_UNAVAILABLE` and `REMOTE_METADATA_RATE_LIMITED` are non-destructive remote-observation failures: the correct action is `wait_and_probe`, not local runtime churn.
 
-### Backoff must be self-healing, not permanently self-disabling
+## Resource model
 
-Use two recovery tempos:
+The original Supervisor v1 accepted a frequent reconciliation loop as a correctness fallback. Physical target use later showed that the combined tray + supervisor cadence was too expensive for an otherwise idle laptop.
 
-1. **bounded fast recovery** for fresh local failures, e.g. short delays such as 0/2/10/30 seconds;
-2. **long-lived degraded retry** after the burst budget is exhausted, e.g. low-rate periodic re-probes while desired state remains `running`.
-
-A transient network/OpenAI outage must be able to recover hours later without the user reopening PowerShell. `RECOVERY_EXHAUSTED` must not become a permanent dead state for failures still classified as recoverable.
-
-Authentication/permission/resource-loss states are different: they may remain `blocked` until operator action or credential/configuration change is detected.
-
-Add jitter and a single-instance recovery lock so multiple components cannot create restart storms.
-
-## Supervisor process model
-
-Preferred target:
+The qualified low-power model is now:
 
 ```text
-Windows user logon
- -> one Chat Agent Platform Supervisor in the same user context
- -> read desired_state
- -> reconcile owned transport/runtime
- -> periodically observe health
- -> recover when allowed
- -> write atomic status/receipts
+Manual + OFF:
+  zero periodic platform work
+
+Manual + ON, before READY confirmation:
+  bounded direct tunnel-client health confirmation with backoff
+  no PowerShell/WMI ownership/status loop
+
+Manual + ON, after READY confirmation:
+  runtime remains running
+  tray returns to event-driven idle
+  no periodic deep supervisor reconcile
+
+Automatic:
+  one deep reconcile immediately
+  then 30-minute dormant interval
 ```
 
-Use the same user context because current secrets are DPAPI `CurrentUser`. Do not move the runtime to `LocalSystem` without a separate credential/storage review.
+Heavy capabilities such as Playwright or local visual models remain task-driven/on-demand.
 
-The supervisor must be independent from tray lifetime. The tray becomes a status/control client:
+The resource acceptance metric is physical behavior, not an estimated interval. PR #100 target evidence is indexed in `EVIDENCE_INDEX.md`.
 
-```text
-Supervisor = owns reconciliation
-Tray       = displays status + requests Start/Stop/Repair
-```
+## Console-free Windows persistence
 
-Closing the tray must not silently kill a platform whose `desired_state=running`.
+The supervisor and status indicator are installed as current-user Scheduled Tasks with limited privileges and console-free `wscript.exe` launchers. The supervisor task remains independent from tray lifetime.
 
-A Windows Scheduled Task at user logon is the preferred initial persistence mechanism unless a later release-grade service design proves a better fit. Sleep/resume and network-change handling may be event-assisted, but a low-cost periodic reconciliation loop remains the correctness fallback.
+The launcher must not create a visible PowerShell console window during normal operation. Manual mode may leave the supervisor task in `Ready` rather than `Running`; this is expected.
 
-## Resource budget
+## Current accepted/qualified physical evidence
 
-The supervisor must remain lightweight and must not make heavy specialist models always-on.
+Transport Supervisor v1 already has accepted target evidence for:
 
-Initial design targets, to be measured on the real target Windows machine:
+- killed tunnel-client recovery;
+- network disconnect/reconnect behavior;
+- sleep/resume;
+- reboot/logon restoration;
+- ordinary-Chat semantic E2E after reboot;
+- resource/recovery latency;
+- console-free task launch;
+- persistent desired-state/runtime-owner separation.
 
-- local cheap health observation roughly every 10 seconds while healthy;
-- remote/control-plane observation roughly every 30–60 seconds while healthy, with cache/rate protection;
-- more active probing only during bounded recovery;
-- tray reads cached status instead of launching expensive full diagnostics every 2 seconds;
-- local VLM, Playwright browser and other heavy capabilities remain task-driven/on-demand where their existing lifecycle allows it.
+PR #100 additionally qualified on the target Windows laptop:
 
-Acceptance must record real Working Set, process count and idle CPU rather than rely on estimates.
+- tray/status reduction removed the old 2-second manager status path;
+- Manual + OFF leaves no tunnel-client/node runtime and produced zero measured CPU delta for the remaining background tray PowerShell over a 60-second idle observation;
+- Automatic performed one immediate Reconcile and then left `supervisor.json` unchanged for the following 60 seconds, consistent with the 30-minute dormant interval;
+- during that Automatic observation the local runtime/MCP/tunnel were ready; transient `REMOTE_METADATA_UNAVAILABLE` was truthfully reported without restart churn;
+- a later physical failure exposed that startup incorrectly destroyed the local runtime after transient control-plane TLS timeouts; the startup boundary was corrected so locally healthy runtime survives that outage;
+- Manual green was tightened so ownership alone is insufficient: current-run local readiness and a successful control-plane poll confirmation are required;
+- all seven required GitHub workflows passed on exact head `092081be7d99dbeee6f092a6d48066d1a95e37c2`;
+- on that exact installed head, a fresh ordinary-Chat `Chat Local Bridge Test` `workspace_read(operation=roots)` succeeded and returned the configured `ordinary-chat-E4F49B4A` workspace;
+- after explicit Manual OFF/red, the same ordinary-Chat call no longer reached the local tool and ended with remote `HTTP 504`, proving the route was unavailable while the local runtime was stopped.
 
-## Upstream-first rule
+Exact heads and measurements belong in `EVIDENCE_INDEX.md`, not here.
 
-Before implementing custom supervision, inspect the **latest stable, published** official `openai/tunnel-client` release and determine whether it already provides production-suitable runtime supervision/status primitives.
+## Acceptance boundaries
 
-The project currently pins reviewed `tunnel-client v0.0.11`. Do not silently switch to unreleased `master` behavior. If a later stable release provides equivalent lifecycle/recovery functions, prefer adopting and qualifying that upstream capability over duplicating it in PowerShell.
+Automated CI/contract tests must continue to protect:
 
-Any version change requires the existing supply-chain discipline: exact release review, checksum pinning, CI and target acceptance.
+- exactly six public semantic tools;
+- direct-stdio normal binding;
+- no normal-route 1MCP dependency;
+- bounded Start/Stop authority in the manager;
+- one authoritative manager-owned runtime;
+- explicit Stop wins over stale recovery/start completions;
+- no plaintext tunnel credentials in logs/state;
+- console-free task launch;
+- event-driven Manual idle after READY and zero-periodic Manual + OFF behavior;
+- Manual green requires confirmed local readiness plus control-plane poll, not ownership alone;
+- no recurring deep reconcile in Manual mode;
+- 30-minute Automatic cadence;
+- failure-class-aware non-destructive handling of transient remote/control-plane outages.
 
-## Intended implementation shape
-
-Likely project-owned assets:
-
-```text
-scripts/chat-platform-supervisor.ps1        # new: desired-state reconciliation loop
-scripts/semantic-direct-controller.ps1      # refactor: bounded lifecycle/probes, not endless ownership loop
-scripts/chat-platform-tray.ps1              # refactor: display/control client
-scripts/bootstrap-chat-platform.ps1         # install supervisor + persistence
-
-%LOCALAPPDATA%\ChatAgentPlatform\state\
-  supervisor.json                            # atomic current status
-  desired-state.json                         # explicit running/stopped request
-  semantic-direct.json                       # existing runtime/tunnel identity
-
-%LOCALAPPDATA%\ChatAgentPlatform\logs\
-  supervisor.log
-  controller.log
-  semantic-direct-tunnel-*.log
-```
-
-Exact file names may change after implementation review. Preserve one authoritative runtime owner and existing manager-operation serialization.
-
-## Acceptance matrix
-
-The track is not accepted until both automated and physical Windows tests prove recovery and truthful blocking.
-
-### Automated / fault-injection gates
-
-Required cases include:
-
-1. healthy state keeps exactly one owner/process set;
-2. killed tunnel-client is recreated once, not duplicated;
-3. unavailable semantic child becomes `LOCAL_MCP_UNAVAILABLE` and is recovered or truthfully degraded;
-4. stale control-plane poll is distinct from local `/readyz`;
-5. simulated network loss causes wait/backoff, not restart storm;
-6. recovery resumes after a long transient outage without manual Start;
-7. 401 does not restart-loop;
-8. 403 does not restart-loop;
-9. conclusive remote resource loss does not restart-loop or auto-create a new tunnel;
-10. healthy local/control-plane state plus simulated ChatGPT-route failure does not trigger destructive local churn;
-11. malformed/corrupt supervisor state fails closed and remains repairable;
-12. concurrent Start/Stop/Repair cannot create multiple authoritative owners;
-13. logs/status never contain plaintext tunnel credentials;
-14. tray status is derived from supervisor status, not from an independent conflicting process scan.
-
-### Physical target Windows gates
-
-Deliberately exercise:
-
-```text
-healthy baseline
- -> kill tunnel-client
- -> automatic verified recovery
-
-healthy baseline
- -> network disconnect
- -> no restart storm
- -> network reconnect
- -> automatic verified recovery
-
-healthy baseline
- -> sleep/resume
- -> automatic verified recovery
-
-user logon / reboot
- -> supervisor starts automatically
- -> desired running state is restored
-
-ordinary ChatGPT
- -> semantic tool call
- -> last ChatGPT E2E receipt updated
-```
-
-Also measure idle resource use and recovery latency.
-
-If an OpenAI product-side failure is present during the test, the correct result may be truthful `CHATGPT_ROUTE=FAIL` with local/control-plane layers green. That is a diagnostic success, not permission to fake a green E2E state.
+Physical target checks remain required when lifecycle/resource behavior changes. A passing unit/CI suite alone cannot prove idle CPU or end-to-end ordinary-Chat connectivity.
 
 ## Relationship to Stage 26.3 and Stage 27
 
-This work is cross-cutting:
+- Stage 26.3 owns deterministic verified procedure execution.
+- Transport Supervisor owns availability/lifecycle of the ChatGPT-to-local transport.
+- Stage 27 distribution/maintenance will later absorb the accepted supervisor into update/repair/doctor/uninstall/key-rotation/lifecycle UX.
 
-- Stage 26.3 continues to define deterministic verified procedure execution;
-- Transport Supervisor defines availability/lifecycle of the ChatGPT-to-local transport used to reach those capabilities;
-- Stage 27 distribution/maintenance will later absorb the accepted supervisor into installer/update/repair/doctor/uninstall/key-rotation/lifecycle UI.
+These authority boundaries must remain separate.
 
-Do not merge transport recovery logic into the Stage 26.3 procedure Control Plane. They have different authority and failure semantics.
+## Residual work
 
-The supervisor is operationally high priority because future hosted Stage 26.3 physical E2E should not require repeated manual tunnel diagnosis/restart just to reach the capability under test.
+Remote OpenAI/network availability cannot be guaranteed by the local platform. Manual green is not a continuously refreshed ordinary-Chat E2E monitor after the initial current-run confirmation; a real ChatGPT semantic call remains the authoritative route proof when that distinction matters.
 
-## Definition of done
-
-Transport reliability is accepted only when all of the following are true:
-
-```text
-local health != remote health != ChatGPT route health
-```
-
-is represented truthfully; recoverable local/network failures restore themselves; non-recoverable authentication/permission/resource failures stop destructive retry loops; transient failures remain re-probed indefinitely at a safe rate; Windows logon/reboot/sleep-resume behavior is proven; tray and logs expose the actual failure layer; secrets remain isolated; and ordinary ChatGPT can again use the accepted semantic surface after recovery without the user acting as a PowerShell operator.
+Observed ordinary-Chat `workspace_read(operation=roots)` latency after reconnect/restart improved across repeated successful calls from approximately `51 s -> 16 s -> 5.085 s`. The local semantic projection also lazily starts and caches its filesystem MCP backend on first use, so cold and warm calls are not equivalent. This latency is accepted as non-critical for the current transport correctness gate and optimization is explicitly deferred in favor of capability development. Future work may profile local cold-start versus OpenAI/tunnel delivery latency, but must not restore recurring PowerShell/WMI polling merely to reduce first-call latency.

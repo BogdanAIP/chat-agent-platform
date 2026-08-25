@@ -152,10 +152,13 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         stop_chat = (ROOT / "scripts" / "stop-chat-profile.ps1").read_text(encoding="utf-8")
         self.assertIn("-notin @(0, 3, 7)", stop_chat)
 
-    def test_tray_uses_authoritative_serialized_manager_status_only(self):
-        self.assertIn("Invoke-ControllerStatus", self.tray)
-        self.assertIn('"chat-platform.ps1"', self.tray)
-        self.assertIn("-Action Status", self.tray)
+    def test_tray_uses_authoritative_supervisor_projection_only(self):
+        self.assertIn('"supervisor.json"', self.tray)
+        self.assertIn("Read-JsonFile -Path $SupervisorStateFile", self.tray)
+        self.assertIn('"desired-state.json"', self.tray)
+        self.assertIn('"settings.json"', self.tray)
+        self.assertNotIn("Invoke-ControllerStatus", self.tray)
+        self.assertNotIn("-Action Status", self.tray)
         self.assertNotIn("chat-platform-controller.ps1", self.tray)
         self.assertNotIn("Win32_Process", self.tray)
         self.assertNotIn("server.pid", self.tray)
@@ -195,9 +198,11 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
         self.assertNotIn("Accepted tunnel profile is missing", self.direct)
         self.assertNotIn("accepted local-1mcp profile", self.direct)
 
-    def test_tray_green_requires_controller_mcp_and_tunnel_readiness(self):
-        self.assertIn("[bool]$state.mcp_ready", self.tray)
-        self.assertIn("[bool]$state.tunnel_ready", self.tray)
+    def test_tray_green_requires_supervisor_runtime_mcp_and_tunnel_readiness(self):
+        self.assertIn('"runtime_ready" -DefaultValue $false', self.tray)
+        self.assertIn('"mcp_ready" -DefaultValue $false', self.tray)
+        self.assertIn('"tunnel_local_ready" -DefaultValue $false', self.tray)
+        self.assertIn("$runtimeReady -and $mcpReady -and $tunnelReady", self.tray)
         self.assertIn('$mode = "on"', self.tray)
 
     def test_platform_start_rolls_back_on_partial_failure(self):

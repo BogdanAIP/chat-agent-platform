@@ -19,10 +19,21 @@ class TransportSupervisorConsoleFreeLauncherContractTests(unittest.TestCase):
         self.assertIn("@($SourceSupervisorLauncher, $InstalledSupervisorLauncher)", INSTALLER)
         self.assertIn("Remove-Item -LiteralPath $InstalledSupervisorLauncher", INSTALLER)
 
-    def test_launcher_starts_supervisor_hidden_without_waiting(self):
-        self.assertIn('shell.Run command, 0, False', LAUNCHER)
-        self.assertIn('" -Action Run"', LAUNCHER)
+    def test_launcher_uses_one_shot_reconcile_and_thirty_minute_sleep(self):
+        self.assertIn('shell.Run(command, 0, True)', LAUNCHER)
+        self.assertIn('" -Action Reconcile"', LAUNCHER)
+        self.assertIn("AutomaticHealthIntervalMilliseconds = 1800000", LAUNCHER)
+        self.assertIn("WScript.Sleep AutomaticHealthIntervalMilliseconds", LAUNCHER)
+        self.assertNotIn('" -Action Run"', LAUNCHER)
         self.assertIn("WScript.Arguments.Count <> 2", LAUNCHER)
+
+    def test_manual_mode_exits_without_starting_supervisor_loop(self):
+        first_manual_gate = LAUNCHER.index("If IsManualMode(modePath) Then")
+        first_reconcile = LAUNCHER.index('" -Action Reconcile"')
+        self.assertLess(first_manual_gate, first_reconcile)
+        self.assertIn('operation-mode.json', LAUNCHER)
+        self.assertIn('"manual"', LAUNCHER)
+        self.assertIn("WScript.Quit 0", LAUNCHER)
 
     def test_task_keeps_current_user_limited_context(self):
         self.assertIn("New-ScheduledTaskTrigger -AtLogOn -User $identity", INSTALLER)
