@@ -76,17 +76,18 @@ export function parsePlaywrightSnapshotResult(result) {
     throw new Error('playwright snapshot exceeds the bounded observation limit');
   }
 
-  // Keep metadata parsing line-local. JavaScript \s includes newlines, which can
-  // otherwise make an empty Page Title consume the following section/header.
+  // Playwright emits Page Title only when it is non-empty. about:blank therefore
+  // has a Page URL but no Page Title line; normalize the missing title to "".
+  // Keep metadata parsing line-local so section boundaries are never consumed.
   const urlMatch = rawText.match(/^[ \t]*- Page URL:[ \t]*(.*?)[ \t]*$/m);
   const titleMatch = rawText.match(/^[ \t]*- Page Title:[ \t]*(.*?)[ \t]*$/m);
-  if (!urlMatch || !titleMatch) {
-    throw new Error('playwright snapshot is missing Page URL or Page Title');
+  if (!urlMatch) {
+    throw new Error('playwright snapshot is missing Page URL');
   }
 
-  // @playwright/mcp 0.0.78 returns explicit browser_snapshot content in a
-  // separate "### Snapshot" section. Keep the older inline Page Snapshot form
-  // as a bounded compatibility fallback for previously observed transports.
+  // @playwright/mcp 0.0.78 renders explicit browser_snapshot state as
+  // "### Page" followed by a separate "### Snapshot" section. Keep the older
+  // inline Page Snapshot form as a bounded compatibility fallback.
   let snapshotPayload = snapshotSection(rawText);
   if (snapshotPayload === null) {
     const marker = rawText.match(/^[ \t]*- Page Snapshot:[ \t]*$/m);
@@ -119,7 +120,7 @@ export function parsePlaywrightSnapshotResult(result) {
 
   return {
     url: urlMatch[1],
-    title: titleMatch[1],
+    title: titleMatch?.[1] ?? '',
     document_id: null,
     snapshot_text: snapshotText,
     controls,
