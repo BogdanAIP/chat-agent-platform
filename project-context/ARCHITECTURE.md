@@ -220,13 +220,22 @@ ObservationEnvelope
 
 Do not flatten rich capability-native state into a lossy universal screenshot/text blob.
 
-## Future Conversation Bridge / authenticated user-browser app adapter
+## Future Conversation Bridge / authenticated user-browser app adapters
 
-The accepted Browser backend is intentionally isolated/headless. Future Track M may add a **separate project-owned Browser Companion** for the user's authenticated browser session so existing ChatGPT/Claude/Gemini conversations can be observed and used as bounded worker sessions.
+The accepted Browser backend is intentionally isolated/headless. Future Track M may add a **separate project-owned Browser Companion** for the user's authenticated browser session so existing AI-chat conversations can be observed and used as bounded worker sessions.
 
-Target separation:
+The architecture is provider-open. ChatGPT, Claude, Gemini, DeepSeek, Qwen, Grok, Doubao, Kimi, Perplexity, Poe, Open WebUI, LibreChat and future services are adapter/profile examples, not a closed support enum.
+
+Target structure:
 
 ```text
+Conversation Bridge
+  -> open-ended Adapter Registry
+       -> validated native/declarative profile adapter
+       -> GenericChatAdapter DOM/accessibility fallback
+       -> selected GUI/visual fallback
+       -> ABSTAIN if state remains ambiguous/unsafe
+
 ConversationObserver
   -> read-only ConversationSnapshot evidence
 
@@ -235,9 +244,11 @@ ConversationActuator
   -> normal Control Plane authorization + ExpectedEffect + re-observation + verification
 ```
 
-`ConversationSnapshot` is capability-native app/session state and may be referenced by `ObservationEnvelope` / `WorkingState`; Markdown transcript export is not authoritative runtime state.
+New providers should normally require a declarative profile and, only for genuine platform-specific behavior, a small reviewed hook. Provider/application/adapter IDs are open-ended strings. Application/surface identity is distinct from optional model identity; one application may host multiple models and model identity may remain unknown.
 
-Platform-native/session APIs may be optional validated read fast paths, followed by DOM/accessibility and then selected GUI/visual fallback when needed. Browser cookies/tokens remain inside the companion boundary and are never planner/WorkingState/MCP payload data.
+`ConversationSnapshot` is capability-native app/session state and may be referenced by `ObservationEnvelope` / `WorkingState`; Markdown transcript export is not authoritative runtime state. Generic routes may explicitly leave provider/session/message IDs unknown rather than inventing stable identity.
+
+Platform-native/session APIs may be optional validated read fast paths. Acquisition mechanisms such as reviewed browser-session REST/GraphQL/DOM reads remain separable from normalization and never become generic HTTP/JavaScript authority. Browser cookies/tokens remain inside the companion boundary and are never planner/WorkingState/MCP payload data.
 
 This is future parallel Track M only. It adds no current public tool, no second planner and no implementation acceptance. Canonical detail: ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md`.
 
@@ -309,9 +320,9 @@ UNKNOWN -> better evidence OR ABSTAIN/escalate
 
 A planner/model/procedure cannot convert FAIL/UNKNOWN into PASS by assertion.
 
-### Active Stage 26.3B verification foundation
+### Active Stage 26.3B verification foundation and first integration
 
-The current internal kernel now represents this contract with:
+The merged internal kernel represents this contract with:
 
 ```text
 ObservationRef
@@ -326,7 +337,7 @@ verification
 
 Freshness requires the same stream/capability/subject and a strictly higher sequence. Stale, mismatched-stream, ambiguous or incomplete required evidence produces `UNKNOWN`.
 
-Normalized evidence is restricted to bounded plain data and detached from caller mutation. This is an internal foundation only; accepted production procedures are not yet migrated to it.
+Normalized evidence is restricted to bounded plain data and detached from caller mutation. PR #102 implements the first production-path integration: a rooted/race-aware file-artifact observation stream kernel-gates `verified_workspace_artifact_v1` transitions and its same-batch Finish Gate while preserving existing exclusive-create/no-overwrite, checkpoint, rollback and budget contracts. That integration is not accepted until the current exact head completes hosted CI and target-Windows ordinary-Chat completion + zero-overwrite evidence.
 
 ---
 
@@ -615,7 +626,7 @@ This is the first accepted slice of deterministic local multi-transition autonom
 
 ## Stage 26.3B — Verification Kernel + Finish Gate — ACTIVE
 
-The first internal foundation is implemented and hosted-testable, but Stage 26.3B is not accepted yet. Remaining work is capability integration: file/artifact adapter and accepted procedure migration first, then Browser and Windows/application/process verification, cross-capability completion predicates where required, and the appropriate physical gate when production procedure/action behavior changes.
+The reusable kernel foundation is merged through PR #99. PR #102 implements and locally/previously hosted-tests the first capability integration: bounded file/artifact observation, migration of `verified_workspace_artifact_v1`, and same-batch goal+safety Finish Gate evidence. The rebased current exact head still requires fresh hosted CI and the ordinary-Chat target-Windows completion + zero-overwrite regression before merge. Browser URL/document/control/result verification, Windows/process/application verification and cross-capability predicates remain before Stage 26.3B acceptance.
 
 ## Stage 26.3C — WorkingState + typed recovery + LoopGuard
 
@@ -685,7 +696,7 @@ Even a future planner remains above the same capability authorization, transitio
 
 # Multi-chat orchestration — Track M
 
-Separate future upper/work-distribution layer, not Windows/procedure safety core and not a release prerequisite. The intended Conversation Bridge / Browser Companion / verified Manager -> Worker handoff boundary is defined by ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md`.
+Separate future upper/work-distribution layer, not Windows/procedure safety core and not a release prerequisite. The intended provider-open Conversation Bridge / Adapter Registry / Browser Companion / verified Manager -> Worker boundary is defined by ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md`. New services normally extend through declarative profiles + small hooks, then provider-agnostic DOM/accessibility and selected GUI fallbacks; they do not require duplicated Control Plane/verification architecture.
 
 ---
 
@@ -704,6 +715,7 @@ Separate future upper/work-distribution layer, not Windows/procedure safety core
 - raw demonstrations/ROI capture are sensitive local data;
 - private chain-of-thought is never task/procedure memory;
 - future Browser Companion credentials must remain inside that browser boundary;
+- future conversation profiles/hooks are capability hints, not authority;
 - generic Windows code execution remains disabled/unreachable;
 - stale, ambiguous or UNKNOWN state fails closed;
 - artifact/model/Python/OpenAdapt reproducibility must become release-grade before stable distribution.

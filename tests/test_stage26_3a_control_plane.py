@@ -45,6 +45,22 @@ class Stage263AControlPlaneTests(unittest.TestCase):
             )
             self.assertEqual(result["current_node"], "completed")
             self.assertIsNone(result["escalation_reason"])
+            self.assertEqual(
+                result["transition_receipts"][0]["kernel_verification"]["status"],
+                "pass",
+            )
+            self.assertEqual(
+                result["transition_receipts"][1]["kernel_verification"]["status"],
+                "pass",
+            )
+            self.assertNotIn(
+                "predicate_results",
+                result["transition_receipts"][0]["kernel_verification"],
+            )
+            self.assertEqual(
+                result["transition_receipts"][2]["kernel_verification"]["finish_gate"]["status"],
+                "done",
+            )
             relative = result["artifact_relative_path"]
             self.assertEqual(relative, ".chat-agent-platform/stage26-3a/autonomy-proof.txt")
             self.assertEqual((workspace / relative).read_text(encoding="utf-8"), "AUTONOMY_OK")
@@ -76,6 +92,23 @@ class Stage263AControlPlaneTests(unittest.TestCase):
             self.assertEqual(result["transition_receipts"], [])
             self.assertEqual(target.read_text(encoding="utf-8"), "DO_NOT_TOUCH")
             self.assertFalse(any(target_dir.glob("*.staging")))
+
+    def test_oversized_preexisting_target_is_reported_without_digesting_it(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            target_dir = workspace / ".chat-agent-platform" / "stage26-3a"
+            target_dir.mkdir(parents=True)
+            target = target_dir / "large.txt"
+            target.write_bytes(b"X" * (16_384 + 1))
+
+            result = self._run(workspace, Path(state_dir), name="large.txt", content="NEW")
+
+            self.assertEqual(result["status"], "abstained")
+            self.assertEqual(result["escalation_reason"], "target_already_exists")
+            self.assertEqual(result["action_count"], 0)
+            self.assertEqual(result["final_verification"]["size"], 16_385)
+            self.assertIsNone(result["final_verification"]["sha256"])
+            self.assertEqual(target.stat().st_size, 16_385)
 
     def test_candidate_requires_explicit_qualification_admission(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:

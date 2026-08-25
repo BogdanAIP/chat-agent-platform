@@ -5,10 +5,23 @@ import json
 import os
 import re
 import secrets
+import stat as stat_module
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from .file_artifact_observation import FileArtifactObservationStream, observe_file_state
+from .verification import (
+    ExpectedEffect,
+    FinishStatus,
+    ObservationSnapshot,
+    StatePredicate,
+    VerificationResult,
+    VerificationStatus,
+    evaluate_finish_gate,
+    verify_expected_effect,
+)
 
 
 PROCEDURE_ID = "verified_workspace_artifact_v1"
@@ -34,18 +47,20 @@ def _sha256(data: bytes) -> str:
 
 
 def _evidence(path: Path) -> dict[str, Any]:
-    if not path.is_file():
-        return {"exists": False, "size": None, "sha256": None}
-    data = path.read_bytes()
-    return {"exists": True, "size": len(data), "sha256": _sha256(data)}
+    state, complete, ambiguous = observe_file_state(path, max_bytes=MAX_CONTENT_BYTES)
+    return {
+        "exists": state.get("exists", False),
+        "size": state.get("size"),
+        "sha256": state.get("sha256") if complete and not ambiguous else None,
+    }
 
 
 def _file_identity(path: Path) -> dict[str, int] | None:
     try:
-        stat = path.stat()
+        stat = path.lstat()
     except FileNotFoundError:
         return None
-    if not path.is_file():
+    if not stat_module.S_ISREG(stat.st_mode):
         return None
     return {"device": int(stat.st_dev), "inode": int(stat.st_ino)}
 
@@ -65,8 +80,93 @@ def _same_file_identity(path: Path, expected: dict[str, Any] | None) -> bool:
         return False
 
 
-def _expected_evidence(size: int, sha256: str) -> dict[str, Any]:
-    return {"exists": True, "size": size, "sha256": sha256}
+def _file_predicates(
+    name: str,
+    *,
+    size: int,
+    sha256: str,
+    identity: dict[str, Any] | None = None,
+) -> tuple[StatePredicate, ...]:
+    predicates = (
+        StatePredicate.equals(name, "exists", expected=True),
+        StatePredicate.equals(name, "kind", expected="file"),
+        StatePredicate.equals(name, "size", expected=size),
+        StatePredicate.equals(name, "sha256", expected=sha256),
+    )
+    if identity is None:
+        return predicates + (StatePredicate.present(name, "identity"),)
+    return predicates + (StatePredicate.equals(name, "identity", expected=identity),)
+
+
+def _missing_predicates(name: str) -> tuple[StatePredicate, ...]:
+    return (
+        StatePredicate.equals(name, "exists", expected=False),
+        StatePredicate.equals(name, "kind", expected="missing"),
+        StatePredicate.equals(name, "size", expected=None),
+        StatePredicate.equals(name, "sha256", expected=None),
+        StatePredicate.equals(name, "identity", expected=None),
+    )
+
+
+def _verify_transition(
+    *,
+    effect_id: str,
+    before: ObservationSnapshot,
+    after: ObservationSnapshot,
+    predicates: tuple[StatePredicate, ...],
+    evidence_batch_id: str | None = None,
+) -> VerificationResult:
+    effect = ExpectedEffect(
+        effect_id=effect_id,
+        before=before.ref,
+        predicates=predicates,
+    )
+    return verify_expected_effect(effect, after, evidence_batch_id=evidence_batch_id)
+
+
+def _verify_current_state(
+    observer: FileArtifactObservationStream,
+    *,
+    effect_id: str,
+    predicates: tuple[StatePredicate, ...],
+) -> tuple[VerificationResult, ObservationSnapshot]:
+    before = observer.observe()
+    after = observer.observe()
+    return (
+        _verify_transition(
+            effect_id=effect_id,
+            before=before,
+            after=after,
+            predicates=predicates,
+        ),
+        after,
+    )
+
+
+def _observed_evidence(snapshot: ObservationSnapshot, name: str) -> dict[str, Any]:
+    value = snapshot.state[name]
+    return {
+        "exists": value.get("exists", False),
+        "size": value.get("size"),
+        "sha256": value.get("sha256"),
+    }
+
+
+def _observed_identity(snapshot: ObservationSnapshot, name: str) -> dict[str, int] | None:
+    value = snapshot.state[name].get("identity")
+    if value is None:
+        return None
+    return {"device": int(value["device"]), "inode": int(value["inode"])}
+
+
+def _kernel_receipt(result: VerificationResult) -> dict[str, Any]:
+    return {
+        "effect_id": result.effect_id,
+        "status": result.status.value,
+        "reason": result.reason,
+        "observation": result.observation.as_dict() if result.observation is not None else None,
+        "evidence_batch_id": result.evidence_batch_id,
+    }
 
 
 def _safe_child(root: Path, child: Path) -> Path:
@@ -121,6 +221,7 @@ def _record_transition(
     to_node: str,
     action: str,
     verification: dict[str, Any],
+    kernel_verification: dict[str, Any],
 ) -> None:
     task_state["current_node"] = to_node
     task_state["transition_receipts"].append(
@@ -130,6 +231,7 @@ def _record_transition(
             "to_node": to_node,
             "action": action,
             "verification": verification,
+            "kernel_verification": kernel_verification,
             "verified_at": _utc_now(),
         }
     )
@@ -273,7 +375,6 @@ def run_verified_workspace_artifact(
     if len(content_bytes) > MAX_CONTENT_BYTES:
         raise ValueError("UTF-8 content exceeds the procedure byte budget")
     expected_sha = _sha256(content_bytes)
-    expected = _expected_evidence(len(content_bytes), expected_sha)
 
     reserved_root = _safe_child(
         workspace_root,
@@ -328,6 +429,23 @@ def run_verified_workspace_artifact(
         task_state.setdefault("target_file_identity", None)
         task_state["resumed_at"] = _utc_now()
 
+    observer = FileArtifactObservationStream(
+        root=workspace_root,
+        subject=f"{PROCEDURE_ID}:{task_id}",
+        paths={"staging": staging, "target": target},
+        max_bytes=MAX_CONTENT_BYTES,
+    )
+    expected_file_predicates = _file_predicates(
+        "staging",
+        size=len(content_bytes),
+        sha256=expected_sha,
+    )
+    expected_target_predicates = _file_predicates(
+        "target",
+        size=len(content_bytes),
+        sha256=expected_sha,
+    )
+
     def checkpoint() -> None:
         if int(task_state["action_count"]) > MAX_ACTIONS:
             raise RuntimeError("action budget exceeded")
@@ -336,9 +454,22 @@ def run_verified_workspace_artifact(
         _write_checkpoint(state_root, task_state)
 
     if task_state["status"] == "completed":
-        final = _evidence(target)
-        if final != expected or not _same_file_identity(target, task_state.get("target_file_identity")):
+        completed_result, completed_snapshot = _verify_current_state(
+            observer,
+            effect_id="completed_checkpoint_current_state",
+            predicates=(
+                *_file_predicates(
+                    "target",
+                    size=len(content_bytes),
+                    sha256=expected_sha,
+                    identity=task_state.get("target_file_identity"),
+                ),
+                *_missing_predicates("staging"),
+            ),
+        )
+        if completed_result.status is not VerificationStatus.PASS:
             raise ValueError("completed checkpoint no longer matches current target identity")
+        final = _observed_evidence(completed_snapshot, "target")
         return _result(
             task_state,
             artifact_relative_path=relative_target,
@@ -367,45 +498,61 @@ def run_verified_workspace_artifact(
     # no workspace artifact or reserved directory is created on an abstaining
     # precondition path.
     if node == "preflight":
-        if target.exists():
+        preflight = observer.observe()
+        if preflight.ambiguous:
+            task_state["status"] = "abstained"
+            task_state["escalation_reason"] = "preflight_observation_unknown"
+            checkpoint()
+            return _result(
+                task_state,
+                artifact_relative_path=relative_target,
+                final_verification=_observed_evidence(preflight, "target"),
+                rollback={"staging_removed": False, "target_removed": False},
+                resumed=resume_task_id is not None,
+            )
+        if preflight.state["target"].get("exists") is True:
             task_state["status"] = "abstained"
             task_state["escalation_reason"] = "target_already_exists"
             checkpoint()
             return _result(
                 task_state,
                 artifact_relative_path=relative_target,
-                final_verification=_evidence(target),
+                final_verification=_observed_evidence(preflight, "target"),
                 rollback={"staging_removed": True, "target_removed": False},
                 resumed=resume_task_id is not None,
             )
-        if staging.exists():
+        if preflight.state["staging"].get("exists") is True:
             task_state["status"] = "abstained"
             task_state["escalation_reason"] = "unexpected_staging_state"
             checkpoint()
             return _result(
                 task_state,
                 artifact_relative_path=relative_target,
-                final_verification=_evidence(target),
+                final_verification=_observed_evidence(preflight, "target"),
                 rollback={"staging_removed": False, "target_removed": False},
                 resumed=resume_task_id is not None,
             )
     elif node == "staged_verified":
-        if _evidence(staging) != expected or not _same_file_identity(
-            staging, task_state.get("staging_file_identity")
-        ):
+        resume_staged, resume_staged_snapshot = _verify_current_state(
+            observer,
+            effect_id="resume_staged_current_state",
+            predicates=(
+                *_file_predicates(
+                    "staging",
+                    size=len(content_bytes),
+                    sha256=expected_sha,
+                    identity=task_state.get("staging_file_identity"),
+                ),
+                *_missing_predicates("target"),
+            ),
+        )
+        if resume_staged.status is not VerificationStatus.PASS:
             task_state["status"] = "abstained"
-            task_state["escalation_reason"] = "resume_staging_identity_mismatch"
-            checkpoint()
-            return _result(
-                task_state,
-                artifact_relative_path=relative_target,
-                final_verification=_evidence(target),
-                rollback={"staging_removed": False, "target_removed": False},
-                resumed=True,
+            task_state["escalation_reason"] = (
+                "resume_unexpected_target_state"
+                if resume_staged_snapshot.state["target"].get("exists") is True
+                else "resume_staging_identity_mismatch"
             )
-        if target.exists():
-            task_state["status"] = "abstained"
-            task_state["escalation_reason"] = "resume_unexpected_target_state"
             checkpoint()
             return _result(
                 task_state,
@@ -415,12 +562,25 @@ def run_verified_workspace_artifact(
                 resumed=True,
             )
     elif node == "final_verified":
-        if (
-            _evidence(staging) != expected
-            or not _same_file_identity(staging, task_state.get("staging_file_identity"))
-            or _evidence(target) != expected
-            or not _same_file_identity(target, task_state.get("target_file_identity"))
-        ):
+        resume_final, _ = _verify_current_state(
+            observer,
+            effect_id="resume_final_current_state",
+            predicates=(
+                *_file_predicates(
+                    "staging",
+                    size=len(content_bytes),
+                    sha256=expected_sha,
+                    identity=task_state.get("staging_file_identity"),
+                ),
+                *_file_predicates(
+                    "target",
+                    size=len(content_bytes),
+                    sha256=expected_sha,
+                    identity=task_state.get("target_file_identity"),
+                ),
+            ),
+        )
+        if resume_final.status is not VerificationStatus.PASS:
             task_state["status"] = "abstained"
             task_state["escalation_reason"] = "resume_final_identity_mismatch"
             checkpoint()
@@ -440,15 +600,23 @@ def run_verified_workspace_artifact(
     try:
         if node == "preflight":
             # Transition 1: exclusive staging create -> exact digest + file identity.
+            stage_before = observer.observe()
             with staging.open("xb") as handle:
                 handle.write(content_bytes)
                 handle.flush()
                 os.fsync(handle.fileno())
             staging_owned = True
             task_state["action_count"] = int(task_state["action_count"]) + 1
-            staged = _evidence(staging)
-            staging_identity = _file_identity(staging)
-            if staged != expected or staging_identity is None:
+            stage_after = observer.observe()
+            stage_result = _verify_transition(
+                effect_id="stage_create",
+                before=stage_before,
+                after=stage_after,
+                predicates=(*expected_file_predicates, *_missing_predicates("target")),
+            )
+            staged = _observed_evidence(stage_after, "staging")
+            staging_identity = _observed_identity(stage_after, "staging")
+            if stage_result.status is not VerificationStatus.PASS or staging_identity is None:
                 task_state["status"] = "abstained"
                 task_state["escalation_reason"] = "staging_postcondition_failed"
                 raise RuntimeError("staging postcondition failed")
@@ -460,27 +628,55 @@ def run_verified_workspace_artifact(
                 to_node="staged_verified",
                 action="exclusive_create_staging",
                 verification=staged,
+                kernel_verification=_kernel_receipt(stage_result),
             )
             checkpoint()
             node = "staged_verified"
 
         if node == "staged_verified":
             # Transition 2: exclusive final create. 'x' prevents overwrite races.
+            final_before_check, final_before = _verify_current_state(
+                observer,
+                effect_id="final_create_precondition",
+                predicates=(
+                    *_file_predicates(
+                        "staging",
+                        size=len(content_bytes),
+                        sha256=expected_sha,
+                        identity=task_state.get("staging_file_identity"),
+                    ),
+                    *_missing_predicates("target"),
+                ),
+            )
+            if final_before_check.status is not VerificationStatus.PASS:
+                task_state["status"] = "abstained"
+                task_state["escalation_reason"] = "final_create_precondition_failed"
+                raise RuntimeError("final create precondition failed")
             with target.open("xb") as handle:
                 handle.write(content_bytes)
                 handle.flush()
                 os.fsync(handle.fileno())
             target_owned = True
             task_state["action_count"] = int(task_state["action_count"]) + 1
-            final_after_create = _evidence(target)
-            staging_after_final = _evidence(staging)
-            target_identity = _file_identity(target)
-            if (
-                final_after_create != expected
-                or staging_after_final != expected
-                or target_identity is None
-                or not _same_file_identity(staging, task_state.get("staging_file_identity"))
-            ):
+            final_after = observer.observe()
+            final_result = _verify_transition(
+                effect_id="final_create",
+                before=final_before,
+                after=final_after,
+                predicates=(
+                    *_file_predicates(
+                        "staging",
+                        size=len(content_bytes),
+                        sha256=expected_sha,
+                        identity=task_state.get("staging_file_identity"),
+                    ),
+                    *expected_target_predicates,
+                ),
+            )
+            final_after_create = _observed_evidence(final_after, "target")
+            staging_after_final = _observed_evidence(final_after, "staging")
+            target_identity = _observed_identity(final_after, "target")
+            if final_result.status is not VerificationStatus.PASS or target_identity is None:
                 task_state["status"] = "abstained"
                 task_state["escalation_reason"] = "final_create_postcondition_failed"
                 raise RuntimeError("final create postcondition failed")
@@ -492,36 +688,70 @@ def run_verified_workspace_artifact(
                 to_node="final_verified",
                 action="exclusive_create_final",
                 verification={"target": final_after_create, "staging": staging_after_final},
+                kernel_verification=_kernel_receipt(final_result),
             )
             checkpoint()
             node = "final_verified"
 
         if node == "final_verified":
             # Transition 3: remove only our exact staging object, then verify both.
-            if (
-                _evidence(staging) != expected
-                or not _same_file_identity(staging, task_state.get("staging_file_identity"))
-            ):
+            cleanup_before_check, cleanup_before = _verify_current_state(
+                observer,
+                effect_id="staging_cleanup_precondition",
+                predicates=(
+                    *_file_predicates(
+                        "staging",
+                        size=len(content_bytes),
+                        sha256=expected_sha,
+                        identity=task_state.get("staging_file_identity"),
+                    ),
+                    *_file_predicates(
+                        "target",
+                        size=len(content_bytes),
+                        sha256=expected_sha,
+                        identity=task_state.get("target_file_identity"),
+                    ),
+                ),
+            )
+            if cleanup_before_check.status is not VerificationStatus.PASS:
                 task_state["status"] = "abstained"
-                task_state["escalation_reason"] = "staging_changed_before_cleanup"
-                raise RuntimeError("staging identity changed before cleanup")
-            if (
-                _evidence(target) != expected
-                or not _same_file_identity(target, task_state.get("target_file_identity"))
-            ):
-                task_state["status"] = "abstained"
-                task_state["escalation_reason"] = "target_changed_before_cleanup"
-                raise RuntimeError("target identity changed before cleanup")
+                task_state["escalation_reason"] = "cleanup_precondition_failed"
+                raise RuntimeError("cleanup precondition failed")
             staging.unlink()
             staging_owned = False
             task_state["action_count"] = int(task_state["action_count"]) + 1
-            final_verification = _evidence(target)
-            cleanup_verification = {"staging_exists": staging.exists()}
-            if (
-                final_verification != expected
-                or cleanup_verification["staging_exists"]
-                or not _same_file_identity(target, task_state.get("target_file_identity"))
-            ):
+            completion_after = observer.observe()
+            evidence_batch_id = f"{task_id}:completion:{task_state['action_count']}"
+            goal_result = _verify_transition(
+                effect_id="completion_target",
+                before=cleanup_before,
+                after=completion_after,
+                predicates=_file_predicates(
+                    "target",
+                    size=len(content_bytes),
+                    sha256=expected_sha,
+                    identity=task_state.get("target_file_identity"),
+                ),
+                evidence_batch_id=evidence_batch_id,
+            )
+            safety_result = _verify_transition(
+                effect_id="completion_staging_absent",
+                before=cleanup_before,
+                after=completion_after,
+                predicates=_missing_predicates("staging"),
+                evidence_batch_id=evidence_batch_id,
+            )
+            finish_gate = evaluate_finish_gate(
+                evidence_batch_id=evidence_batch_id,
+                candidate_done=True,
+                goal_results=(goal_result,),
+                safety_results=(safety_result,),
+            )
+            final_verification = _observed_evidence(completion_after, "target")
+            cleanup_verification = {
+                "staging_exists": bool(completion_after.state["staging"]["exists"])
+            }
+            if finish_gate.status is not FinishStatus.DONE:
                 task_state["status"] = "abstained"
                 task_state["escalation_reason"] = "completion_postcondition_failed"
                 raise RuntimeError("completion postcondition failed")
@@ -532,6 +762,11 @@ def run_verified_workspace_artifact(
                 to_node="completed",
                 action="remove_verified_staging",
                 verification={"target": final_verification, **cleanup_verification},
+                kernel_verification={
+                    "goal": _kernel_receipt(goal_result),
+                    "safety": _kernel_receipt(safety_result),
+                    "finish_gate": finish_gate.as_dict(),
+                },
             )
             task_state["status"] = "completed"
             task_state["completed_at"] = _utc_now()

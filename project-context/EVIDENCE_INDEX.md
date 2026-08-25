@@ -68,7 +68,7 @@ Exact code/tests/current CI and the original physical result remain more authori
 
 The following are current work and must not be added to the accepted table until their own gates pass:
 
-- Stage 26.3B advanced verifier/postcondition library and broader procedure catalog;
+- Stage 26.3B advanced verifier/postcondition library, including the file/artifact kernel integration, later capability adapters and broader procedure catalog;
 - broad cross-application Windows accuracy;
 - release-grade distribution/maintenance and clean-user stable release.
 

@@ -143,7 +143,7 @@ The 2026-08-24 Stage 26.3A GUI-agent research is promoted through `COMPUTER_USE_
 
 Primary objective: make verification a reusable cross-capability contract instead of stage-specific ad hoc checks.
 
-The first active foundation slice introduces:
+The merged foundation provides:
 
 ```text
 ObservationRef / ObservationSnapshot
@@ -169,15 +169,17 @@ Minimum task completion dimensions:
 
 Task-success, unresolved completion requirements and safety evidence remain distinct even if evaluated at the same completion boundary.
 
-The foundation slice is **not Stage 26.3B acceptance**. Remaining work before acceptance:
+The kernel foundation is **not Stage 26.3B acceptance**. PR #102 now implements the first capability integration: a bounded rooted file/artifact observation stream and migration of `verified_workspace_artifact_v1` onto the shared kernel/Finish Gate while preserving exclusive-create/no-overwrite and rollback budgets.
+
+Remaining work before acceptance:
 
 ```text
-file/artifact normalized observation adapter
-migrate verified_workspace_artifact_v1 onto shared kernel
+hosted CI on the current rebased exact PR #102 head
+ordinary-Chat target-Windows completion + zero-overwrite physical regression for that exact head
 browser URL/document/control/result verification adapter
 process/window/application verification adapter
 cross-capability task predicates where real procedures require them
-physical acceptance once shared verification changes a production action/procedure path
+appropriate physical acceptance when later production action paths change
 ```
 
 Non-negotiable:
@@ -473,7 +475,7 @@ Track M is a separate future upper/work-distribution layer. It is **not** part o
 
 Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md` and ADR-035.
 
-The first problem is not "many agents". It is a verified transport boundary between the current manager ChatGPT and one authenticated worker chat.
+The first problem is not "many agents". It is a verified transport boundary between the current manager ChatGPT and one authenticated worker conversation. The architecture below that boundary is provider-open: ChatGPT, Claude, Gemini, DeepSeek, Qwen, Grok, Doubao, Kimi, Perplexity, Poe, Open WebUI, LibreChat and future services are adapter/profile examples rather than a closed support enum.
 
 Target placement:
 
@@ -490,10 +492,18 @@ Deterministic Control Plane
 Conversation Bridge
         |
         v
-project-owned Browser Companion in user browser
-        |
-        +----> ChatGPT worker conversation
-        +----> future Claude/Gemini adapters
+Adapter Registry
+   |          |          |
+native/    Generic     selected
+profile    ChatAdapter   GUI/visual
+adapters   DOM / A11y    fallback
+   |          |          |
+   +----------+----------+
+              |
+              v
+project-owned Browser Companion in authenticated user browser
+              |
+              +----> any qualified AI-chat application/surface
 ```
 
 The Browser Companion exists because the current accepted Browser backend is isolated/headless and is not the user's already-authenticated browser session.
@@ -501,7 +511,8 @@ The Browser Companion exists because the current accepted Browser backend is iso
 Track M reuses the existing state-first and verification rules:
 
 ```text
-observe worker session
+select strongest valid adapter route
+ -> observe worker session
  -> bind ExpectedEffect
  -> authorize one bounded submit_message
  -> re-observe exact conversation/message state
@@ -511,15 +522,19 @@ observe worker session
  -> ordinary ChatGPT decides the next strategy
 ```
 
-Target data contracts:
+Target data contracts separate application/surface identity from optional model identity:
 
 ```text
 ConversationSnapshot
-  stable platform/session/conversation/message identity
-  active branch
+  surface/application id      # open-ended string
+  provider/service id         # open-ended string / unknown allowed
+  adapter id/version/route
+  optional model identity
+  stable session/conversation/message identity where available
+  active branch where the platform exposes one
   content hashes
   generation state
-  adapter/provenance/freshness
+  provenance/freshness
 
 HandoffPack
   task/subgoal
@@ -534,28 +549,51 @@ HandoffPack
 
 Do not use whole-transcript Markdown replay as the primary memory model. Full conversation history is evidence and may be retrieved when needed; `WorkingState` remains the durable operational source for task progress.
 
-Platform-native/private session APIs may be optional read fast paths only. Required fallback order remains:
+Default provider-extension path:
 
 ```text
-validated platform-native read
- -> DOM / accessibility / structural state
- -> selected GUI / visual fallback
+small declarative profile
+ -> optional reviewed custom hook for true provider quirks
+ -> shared Adapter Registry / observation / actuation / verification machinery
 ```
 
-Credentials stay inside the browser companion. Cookies/bearer tokens/private auth headers are never exported to the planner, MCP payload or WorkingState.
+Required degradation ladder:
+
+```text
+validated native/profile route
+ -> GenericChatAdapter via DOM/accessibility/structural state
+ -> selected GUI / visual fallback
+ -> ABSTAIN when state remains ambiguous or unsafe
+```
+
+A provider UI/API change should degrade one route rather than require a core architecture rewrite. A new brand normally requires a profile/hook, not duplicated Control Plane, WorkingState, verifier or Finish Gate logic.
+
+Credentials stay inside the Browser Companion. Cookies/bearer tokens/private auth headers are never exported to the planner, MCP payload or WorkingState. Platform profiles/hooks remain hints/capability declarations, never authority.
 
 Suggested future sequence after the relevant state/verification foundations exist:
 
 ```text
-M0 ConversationSnapshot + adapter contracts / fixtures
- -> M1 read-only ChatGPT Browser Companion observer
- -> M2 one Manager ChatGPT -> one Worker ChatGPT verified handoff E2E
+M0 Adapter Registry + open-ended profile/schema + ConversationSnapshot fixtures
+ -> M1 Browser Companion + GenericChatAdapter + one validated reference adapter
+ -> M2 one Manager ChatGPT -> one Worker conversation verified handoff E2E
  -> M3 HandoffPack + WorkingState integration / response monitoring
- -> M4 explicit multi-worker task/session ownership
- -> M5 optional Claude/Gemini/other adapters
+ -> M4 additional declarative/provider adapters + capability discovery
+ -> M5 explicit multi-worker task/session ownership
+ -> M6 broader provider/application matrix under the same contract
 ```
 
-CtxPort may be reused selectively under MIT terms for implementation mechanisms such as adapter registry structure, ChatGPT active-branch linearization, message flattening, optional fetch-by-id and dynamic-page observation. CtxPort itself, its clipboard/UI/export workflow and Markdown bundle formats are not product/runtime dependencies.
+Adapter acceptance is capability-specific rather than binary:
+
+```text
+DISCOVERED
+ -> FIXTURE-TESTED
+ -> READ-VERIFIED
+ -> WRITE-VERIFIED
+ -> PHYSICALLY-ACCEPTED
+ -> DEGRADED / INCOMPATIBLE when evidence stops holding
+```
+
+CtxPort may be reused selectively under MIT terms for implementation mechanisms such as adapter registry structure, open-ended provider IDs, declarative manifest/profile + hooks, ChatGPT active-branch linearization, separation of fetch/acquisition from normalization and dynamic-page observation. CtxPort itself, its clipboard/UI/export workflow and Markdown bundle formats are not product/runtime dependencies.
 
 Multiple worker chats must not be introduced before the one-manager/one-worker path has explicit identity, delivery verification, response freshness, bounded failure/recovery and physical user-browser evidence.
 
@@ -568,33 +606,3 @@ Installer/update/repair/doctor/uninstall/rollback/restart recovery/key rotation/
 # Stage 28 — Clean User E2E / first stable release
 
 Fresh-user operation without git checkout or developer-only PowerShell/Python setup, through the accepted product capability surface.
-
----
-
-# Cross-cutting invariants
-
-- ordinary ChatGPT is the only current general planner/intelligence;
-- deterministic Control Plane is execution-state/policy machinery, not a second planner;
-- accepted public surface remains small and project-owned;
-- semantic/native state precedes pixels when reliable;
-- visual evidence is selective, bound to current state and non-authorizing;
-- every mutation has an expected effect and fresh post-action verification;
-- transition PASS is not task DONE;
-- only an independent Finish Gate confirms task completion;
-- WorkingState stores structured operational facts/provenance/freshness, never private reasoning;
-- repeated no-effect/oscillating actions are bounded by LoopGuard;
-- LoopGuard stagnation escalation produces structured evidence for the planner rather than silently granting the local runtime new strategic freedom;
-- Skill / Procedure Lineage is evidence and version history, not authority;
-- candidate skill promotion requires independent verifier/regression evidence;
-- environmental UI/DOM/tool content is untrusted data, not policy authority;
-- task-success and safety/policy verification are separate;
-- current observed state outranks procedure/demo/history/lineage;
-- generic Windows code execution remains disabled/unreachable;
-- normal semantic route does not require optional 1MCP;
-- Track M worker conversations are external environmental actors/data sources and cannot grant capability or policy authority;
-- Conversation Bridge credentials remain inside the browser-companion boundary;
-- preserve exact physical evidence heads in `EVIDENCE_INDEX.md`.
-
-# Merge policy
-
-A logically complete branch with reviewed intended diff, passing required CI/physical gates and no unresolved findings should be merged without waiting for a separate merge command.

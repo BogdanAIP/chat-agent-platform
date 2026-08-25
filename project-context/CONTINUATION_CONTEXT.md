@@ -130,13 +130,14 @@ separate task-success and safety/policy evidence
 
 Freshness requires the same observation stream/capability/subject and a strictly higher sequence; a higher sequence from another stream is not proof of freshness. `candidate_done` remains only a planner proposal.
 
-This first slice is **not Stage 26.3B acceptance** and does not change the public six-tool surface or accepted action-delivery path.
+The kernel foundation is merged through PR #99. The current locally tested integration slice adds the bounded file/artifact adapter and moves `verified_workspace_artifact_v1` transition decisions plus completion onto the common kernel. It preserves the public six-tool surface, exclusive-create/no-overwrite behavior, checkpoint compatibility, resume and identity-bound rollback.
+
+This integration is **not Stage 26.3B acceptance**. Because it changes the accepted production procedure path, the exact head still requires hosted CI and an ordinary-Chat target-Windows completion + zero-overwrite physical regression before merge.
 
 Remaining Stage 26.3B work:
 
 ```text
-file/artifact observation adapter
-migrate verified_workspace_artifact_v1 onto shared kernel
+physical completion + zero-overwrite regression for the migrated file procedure
 browser URL/document/control/result verification adapters
 Windows/application/process verification adapters
 cross-capability task predicates where required

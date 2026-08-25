@@ -59,8 +59,13 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 | Environmental-content trust classification | UI/DOM/email/docs/OCR/tool output/worker-chat output treated as untrusted task data re policy/authority | ACCEPTED SECURITY INVARIANT | ADR-033; provenance survives cross-capability/session transfer. |
 | Task-success vs safety verification | separate result dimensions | ACCEPTED DIRECTION / ACTIVE-INTEGRATION | Stage 26.3B and later safety evaluation. |
 | Conversation Bridge | normalized AI-chat session observation + bounded message actuation below Control Plane | PARALLEL-TRACK / FUTURE-SCOPED-GATE | ADR-035 / Track M; no current public-tool expansion and not a planner. |
+| Conversation Adapter Registry | open-ended adapter/profile registry selected by observed surface + capabilities | PARALLEL-TRACK / FUTURE-SCOPED-GATE | Provider/application IDs are strings, not a closed vendor enum; named services are adapter examples only. |
+| Declarative conversation profiles | URL/origin matching + capability declarations + semantic hints + optional small hooks | PARALLEL-TRACK / FUTURE-SCOPED-GATE | Default extension path for new AI-chat services; avoid a duplicate backend per vendor. |
+| GenericChatAdapter | provider-agnostic DOM/accessibility chat observation/action fallback | PARALLEL-TRACK / FUTURE-SCOPED-GATE | Unknown/stale provider profile should degrade here before visual fallback or ABSTAIN. |
+| Conversation visual fallback | selected GUI/visual grounding after semantic routes are insufficient | PARALLEL-TRACK / FUTURE-SCOPED-GATE | Same state-first authority rule; visual route is fallback, not a second authority. |
 | Browser Companion | project-owned extension in user's authenticated browser session | PARALLEL-TRACK / FUTURE-SCOPED-GATE | Future M1; credentials remain inside browser boundary; starts read-only. |
-| ConversationSnapshot | stable platform/session/conversation/message identity + active branch + hashes + generation state + provenance/freshness | PARALLEL-TRACK / FUTURE-SCOPED-GATE | Future M0/M1 operational observation contract; Markdown is not source of truth. |
+| ConversationSnapshot | surface/application + open-ended provider/adapter + optional model identity + stable session/message evidence where available | PARALLEL-TRACK / FUTURE-SCOPED-GATE | Future M0/M1 operational observation contract; unknown IDs remain explicit; Markdown is not source of truth. |
+| Conversation adapter acceptance | discovered -> fixture-tested -> read/write verified -> physically accepted/degraded | PARALLEL-TRACK / FUTURE-SCOPED-GATE | Adapter presence does not itself grant mutation authority. |
 | HandoffPack | bounded task-specific context derived from WorkingState + selected conversation evidence | PARALLEL-TRACK / FUTURE-SCOPED-GATE | Future M2/M3; avoid whole-transcript replay. |
 | Procedure-state dataset | structured verified state-transition examples | OPTIONAL-RESEARCH | Supports later evaluation/training; not release prerequisite. |
 | Specialized local reasoning | proposal-only specialist interface | OPTIONAL-RESEARCH | Not a general planner or authorization source. |
@@ -125,7 +130,16 @@ semantic/native state first
 
 This direction does not authorize a screenshot-only loop, unrestricted program-state/code access, generic raw-tool dispatcher or new public Windows tool names.
 
-Track M reuses the same state-first rule for authenticated AI-chat sessions: validated platform-native read when available, then DOM/accessibility, then selected GUI/visual fallback.
+Track M reuses the same state-first rule for authenticated AI-chat surfaces:
+
+```text
+validated native/profile route
+ -> GenericChatAdapter DOM/accessibility route
+ -> selected GUI/visual fallback
+ -> ABSTAIN when state remains ambiguous/unsafe
+```
+
+A provider UI/API change should therefore degrade one route rather than requiring a core architecture rewrite.
 
 ## Stage order
 

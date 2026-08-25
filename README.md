@@ -182,9 +182,11 @@ independent Finish Gate
 separate task-success / unresolved / safety dimensions
 ```
 
+Kernel foundation слит через PR #99. Текущий integration slice в PR #102 добавляет bounded rooted file/artifact observation stream, переводит все переходы `verified_workspace_artifact_v1` на общий kernel и проверяет финальные target-goal + staging-absence safety evidence через один Finish Gate batch. Внешний six-tool surface, checkpoint schema, resume, exclusive-create/no-overwrite и identity-bound rollback сохранены.
+
 Fresh verification требует тот же observation stream/capability/subject и строго больший sequence. Более высокий sequence из другого stream не считается свежим доказательством. Planner может сказать только `candidate_done`; реальный `DONE` выдаёт отдельный Finish Gate.
 
-Это ещё **не acceptance Stage 26.3B**. Дальше нужны file/artifact adapter и миграция принятой процедуры, затем Browser/Windows adapters и физический gate после изменения production procedure/action path.
+Это ещё **не acceptance Stage 26.3B**. File integration требует hosted CI и physical ordinary-Chat completion + zero-overwrite regression на точном head. Затем нужны Browser/Windows adapters, cross-capability predicates и соответствующие физические gates при изменении production action paths.
 
 Затем Stage 26.3C:
 

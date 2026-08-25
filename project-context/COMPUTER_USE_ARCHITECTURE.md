@@ -437,7 +437,7 @@ The current six-tool public surface remains accepted until a later reviewed capa
 
 ## Stage 26.3B — Verification Kernel + Finish Gate — ACTIVE
 
-Current foundation:
+Current foundation and first file integration:
 
 ```text
 ObservationRef / ObservationSnapshot
@@ -447,9 +447,11 @@ ExpectedEffect / declarative predicates
 PASS | FAIL | UNKNOWN
 evidence_batch_id-bound Finish Gate
 separate task completion and safety/policy evidence
+bounded file/artifact observation stream
+verified_workspace_artifact_v1 transition + Finish Gate migration
 ```
 
-Remaining Stage 26.3B work includes truthful file/browser/Windows observation adapters, migration of accepted procedure checks onto the kernel, cross-capability completion predicates where needed and physical acceptance once production procedure/action behavior changes.
+The file integration is locally tested but still needs hosted CI and the ordinary-Chat physical completion/zero-overwrite regression. Remaining Stage 26.3B work then includes truthful Browser/Windows observation adapters, cross-capability completion predicates where needed and physical acceptance whenever those adapters change production procedure/action behavior.
 
 Model-assisted ambiguous judging, if ever added, remains non-authorizing evidence and must not replace system/native predicates when available.
 
