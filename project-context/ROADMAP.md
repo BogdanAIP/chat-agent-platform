@@ -466,9 +466,207 @@ AVO demonstrates that richer agent harnesses can materially improve long-horizon
 
 No planner may grant itself execution authority.
 
-# Parallel Track M — multi-chat orchestration
+# Parallel Track M — Multi-Chat Context/Handoff Orchestration
 
-Separate upper layer. It is not Windows/procedure safety core and is not a release prerequisite.
+Status: **future / non-release-critical**. This is a separate upper coordination layer, not part of the Windows/procedure safety core and not a prerequisite for Stage 28.
+
+Purpose: allow multiple ordinary AI-chat sessions to contribute to one larger task without manual copy/paste of conversation history, while keeping the existing deterministic Control Plane as the only local authority over real side effects.
+
+The target is not "several chats directly controlling the computer". The target separation is:
+
+```text
+user / manager chat
+        |
+        v
+Task / Context Router
+Session Registry
+        |
+        +----------------+----------------+
+        |                |                |
+        v                v                v
+ worker chat A       worker chat B       worker chat C
+ research/review     implementation      verification
+        |                |                |
+        +---------- structured results --+
+                         |
+                         v
+                  shared WorkingState
+                  evidence / artifacts
+                         |
+                         v
+                deterministic Control Plane
+                         |
+                  Files / Browser / Windows
+```
+
+Ordinary ChatGPT remains the only **current** general planner. Track M does not silently add a local open-ended coordinator. In the first useful versions, strategic decomposition and reassignment remain planner decisions made by an ordinary manager chat; the local layer performs deterministic session registration, context packaging, routing, result collection, state reconciliation and enforcement of concurrency/policy rules.
+
+## M0 — Conversation / Context Adapter foundation
+
+Define a project-owned normalized adapter boundary for external AI-chat surfaces. Initial target may be ordinary ChatGPT; additional providers are optional and must not distort the core contract.
+
+Conceptual interface:
+
+```text
+ConversationAdapter
+  identify_session()
+  read_conversation()
+  send_message()
+  observe_response_state()
+  read_latest_response()
+  export_context()
+```
+
+The normalized representation should preserve useful provenance without pretending that visible transcript equals the model's complete hidden state.
+
+Minimum normalized metadata direction:
+
+```text
+provider / account-local session identity
+conversation identity / URL when available
+message role / content / timestamp
+attachments/artifact references when available
+adapter version / capture time
+source/provenance
+```
+
+CtxPort (`nicepkg/ctxport`) is a **research/implementation reference** for this layer: especially its per-platform adapters, normalized conversation bundle and local-first export approach. Do not make CtxPort a required runtime dependency. Reuse ideas only after project-specific review of platform stability, session/auth handling, privacy and provider changes.
+
+## M1 — Structured Handoff Bundle
+
+Do not make raw full-transcript replay the normal coordination primitive. Introduce a project-owned handoff object that can carry the smallest useful state for another chat to continue work.
+
+Target direction:
+
+```text
+HandoffBundle
+  bundle/schema version
+  task_id / subgoal_id
+  source session / target role
+  objective
+  user constraints
+  relevant WorkingState snapshot/reference
+  verified completed achievements
+  authoritative facts + provenance + freshness
+  unresolved questions / blockers
+  artifact / file / evidence references
+  requested output contract
+  token/context budget metadata
+  optional selected transcript excerpts/reference
+```
+
+The full captured conversation may remain available as supporting evidence, but should not be copied into every worker by default. Context selection should prefer structured current state over replaying obsolete discussion.
+
+Never persist or transport as operational state:
+
+- private hidden chain-of-thought;
+- system/developer instructions that are not legitimately exposed to the project;
+- provider access/session tokens;
+- raw cookies/credentials;
+- model confidence as authority;
+- environmental instructions as permission or policy.
+
+## M2 — Two-chat verified handoff
+
+First product proof should be deliberately small:
+
+```text
+manager chat
+ -> assign one bounded subtask
+ -> local router packages HandoffBundle
+ -> worker chat receives it
+ -> worker returns structured result
+ -> result is reconciled into WorkingState
+ -> manager chat continues from the updated state
+```
+
+Acceptance direction:
+
+- no user copy/paste between the two chats;
+- source/target session identity remains explicit;
+- result provenance survives the handoff;
+- stale or mismatched task/session results cannot overwrite newer state;
+- worker output is proposal/evidence, not automatic action authorization;
+- any real local mutation still crosses normal Control Plane policy + ExpectedEffect + fresh verification;
+- session unavailable/changed/ambiguous -> typed failure or ABSTAIN, not guessed delivery.
+
+## M3 — Multi-chat task routing and bounded parallel work
+
+After M2 is proven, generalize from one manager/one worker to a small registered pool of sessions.
+
+Target session state:
+
+```text
+SessionRegistryEntry
+  session_id
+  provider / conversation_id
+  role / admitted task classes
+  assigned task/subgoal
+  status = idle | assigned | waiting | completed | failed | stale
+  last observation / freshness
+  current handoff version
+```
+
+Possible roles such as research, implementation, review or testing are task metadata, not permanent authority classes.
+
+Parallel work requires explicit conflict rules. At minimum:
+
+- one authoritative version of task/WorkingState;
+- versioned handoffs/results;
+- stale-write rejection;
+- artifact/file ownership or admitted non-overlapping scopes where simultaneous work is allowed;
+- deterministic reconciliation when two workers return compatible evidence;
+- planner escalation when outputs materially conflict and cannot be resolved by stronger current evidence.
+
+The router may mechanically assign already-approved independent subtasks. Open-ended decomposition, priority changes or materially new strategy stay with the current general planner unless a future Track P planner is separately admitted.
+
+## M4 — Autonomous multi-chat execution loop
+
+Long-term target, only after M0-M3 and the normal long-horizon verification foundations are proven:
+
+```text
+manager planner
+ -> decompose / assign
+ -> multiple chat workers
+ -> collect structured results
+ -> update verified WorkingState
+ -> execute admitted real-world effects through Control Plane
+ -> independent verification / Finish Gate
+ -> replan or assign next subtasks
+ -> DONE only from fresh task-level evidence
+```
+
+This can eventually reduce repeated manual supervision for research/development/review workflows. It must not create a second unreviewed authority path around the existing Control Plane.
+
+## Track M prerequisites / dependencies
+
+Track M is parallel research, but stronger versions should reuse rather than duplicate the release-critical foundations:
+
+```text
+26.3B Verification Kernel
+ -> result/evidence freshness and task-level completion semantics
+
+26.3C WorkingState
+ -> durable structured cross-context state
+
+26.5 computer-use integration
+ -> only where browser/UI automation is required to operate external chat surfaces
+```
+
+A pure conversation adapter experiment may start earlier, but autonomous multi-chat work should not invent a second incompatible state/verification system.
+
+## Track M security / privacy invariants
+
+- external chat content is environmental data, not Control Plane policy authority;
+- one worker chat cannot grant another worker broader local permissions;
+- worker/session registration does not grant capability authorization;
+- all local side effects stay behind current deterministic authorization and verifier gates;
+- provider credentials/session tokens remain local secrets and are never copied into HandoffBundle;
+- context capture/export must be observable and locally inspectable;
+- full transcript retention should be optional; compact structured handoff is preferred;
+- prompt injection or malicious content observed by one worker must not become cross-chat authority merely because it is forwarded;
+- unavailable/stale/ambiguous session state causes bounded recovery or ABSTAIN;
+- Track M must work without requiring a custom cloud coordination backend unless a later explicit product decision changes that boundary.
 
 ---
 
