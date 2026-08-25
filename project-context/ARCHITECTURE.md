@@ -643,3 +643,77 @@ This stage does not automatically change the public six-tool surface. Public Win
 Parallel Track M may later reuse these state/app-adapter contracts for authenticated AI-chat worker sessions, but it is not a Stage 26 acceptance requirement.
 
 ---
+
+# Evaluation direction
+
+External benchmarks are diagnostic evidence sources, not automatic release gates.
+
+Layer testing:
+
+```text
+component/primitive diagnostics
+ -> capability integration
+ -> noisy/recovery fixtures
+ -> long-horizon verified procedures
+ -> selected reproducible external benchmark runs
+```
+
+Relevant references include ComponentBench, WebArena/BrowserGym, OSWorld 2.0, OSWorld-Noisy and MobileWorldSafety. Benchmark-specific tricks must not leak into production policy unless promoted as a project-owned invariant.
+
+---
+
+# Optional specialist reasoning
+
+A future `SpecializedReasoningBackend` may receive structured goal/state/procedure evidence and return proposal/confidence/ABSTAIN only. It is non-authorizing and does not replace deterministic verifiers when stronger predicates exist.
+
+# Future local planner — Track P
+
+A local general planner remains optional future research after verified procedure/WorkingState data and measured need exist.
+
+```text
+P0 shadow planner
+ -> proposal only / no actuation
+
+P1 bounded subtask planner
+ -> explicitly scoped workloads
+
+P2 optional local general-planner mode
+ -> only after measured parity/safety/resource evidence
+```
+
+Even a future planner remains above the same capability authorization, transition verifier, Finish Gate and safety/policy boundaries.
+
+# Multi-chat orchestration — Track M
+
+Separate future upper/work-distribution layer, not Windows/procedure safety core and not a release prerequisite. The intended Conversation Bridge / Browser Companion / verified Manager -> Worker handoff boundary is defined by ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md`.
+
+---
+
+# Security/privacy boundaries
+
+- tunnel reachability is not action authority;
+- normal semantic transport remains direct stdio and does not depend on 1MCP;
+- persistent tunnel identity is neutral platform state;
+- optional extension availability does not grant trust/routing/authorization;
+- local inference is bounded, on-demand and non-authorizing;
+- semantic/native state precedes pixels where reliable;
+- every mutation binds expected effect + fresh verification;
+- transition PASS is not task DONE;
+- environmental UI/DOM/tool content, including future worker-chat responses, is untrusted task data, not policy authority;
+- task-success and safety/policy verification remain separate;
+- raw demonstrations/ROI capture are sensitive local data;
+- private chain-of-thought is never task/procedure memory;
+- future Browser Companion credentials must remain inside that browser boundary;
+- generic Windows code execution remains disabled/unreachable;
+- stale, ambiguous or UNKNOWN state fails closed;
+- artifact/model/Python/OpenAdapt reproducibility must become release-grade before stable distribution.
+
+## Windows manager
+
+Manager/tray owns lifecycle/configuration/diagnostics only. It is neither the planner nor the procedure Control Plane.
+
+# Ownership rule
+
+The repository owns thin integration assets: pinned configs, lifecycle/bootstrap, deterministic compatibility adapters, trust/policy/checkpoint/verifier/recovery seams, focused missing-boundary adapters, tests and authoritative context.
+
+It does not own a generic AI gateway, unrestricted workflow brain, universal raw-tool dispatcher, generic model-serving platform or duplicate OpenAdapt implementation while qualified upstream mechanisms cover those needs.
