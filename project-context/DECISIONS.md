@@ -329,3 +329,50 @@ Rules:
 Implementation is staged through 26.3B safety/completion evidence, 26.3C WorkingState provenance, and later computer-use safety evaluation. This invariant is immediately binding on new designs even before all corresponding runtime machinery exists.
 
 Canonical detail: `COMPUTER_USE_ARCHITECTURE.md` and `SECURITY_POLICY.md`.
+
+## ADR-034 — Verified skill lineage and stagnation escalation — PROVISIONAL / AUTHORITATIVE DIRECTION
+
+The 2026-08-25 NVIDIA AVO review strengthens the project's long-horizon architecture without changing the planner/authority boundary.
+
+External mechanisms reviewed:
+
+- AVO replaces one-shot candidate generation with an iterative agent loop grounded in execution feedback and prior lineage;
+- persistent memory preserves useful state across long sessions;
+- a supervisor detects stagnation/repeated unproductive cycles;
+- NVIDIA's related agent-stack security guidance states the boundary as `Above proposes; below decides`.
+
+Project adoption:
+
+```text
+WorkingState
+ + LoopGuard
+ + StagnationReport
+ + versioned Skill / Procedure Lineage
+ + bounded objective candidate-improvement loop
+```
+
+Rules:
+
+- `LoopGuard` remains deterministic no-progress/repetition/oscillation detection; when local recovery is exhausted it emits a structured `StagnationReport` for ordinary ChatGPT rather than inventing a new open-ended strategy locally;
+- `StagnationReport` contains progress/evidence/failure/retry/budget summaries, never private hidden chain-of-thought;
+- a reusable skill/procedure has explicit candidate ancestry plus verifier/evaluation evidence; lineage is historical evidence, not action authority;
+- a trusted parent does not automatically make a child trusted;
+- failed/unverified variants may remain as compact diagnostics but cannot become trusted executable skills;
+- candidate improvement follows `propose -> bounded execute -> re-observe -> verify -> measure -> diagnose -> revise`; correctness/safety/Finish Gate predicates remain hard gates and cannot be replaced by one scalar score;
+- promotion requires independent verifier evidence and relevant regression/variant coverage;
+- current live state outranks lineage/history;
+- AVO-style autonomy never broadens permissions: planner/supervisor/skill improver stays on the proposal side, while deterministic Control Plane/capability infrastructure remains authoritative below;
+- the project does not adopt unrestricted coding-agent authority or persistence of private model reasoning merely because AVO uses a broader coding harness.
+
+Stage mapping:
+
+```text
+26.3B verifier / Finish Gate foundation
+ -> 26.3C WorkingState + LoopGuard + StagnationReport
+ -> 26.4 Skill Lineage + bounded candidate evolution / promotion
+ -> 26.5 use verified lineage/recovery across hybrid computer-use tasks
+```
+
+The release order is unchanged. This ADR enriches existing stages rather than creating a new detour.
+
+Canonical detail: `AVO_LONG_HORIZON_ARCHITECTURE.md`, `CONTROL_PLANE.md`, and `ROADMAP.md`.
