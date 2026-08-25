@@ -16,6 +16,7 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
             '"operation-mode.json"',
             '"desired-state.json"',
             '"settings.json"',
+            '"semantic-direct.json"',
             "Read-JsonFile -Path $SupervisorStateFile",
             "Read-JsonFile -Path $ManualStatusFile",
             "Read-JsonFile -Path $ManagerOwnerFile",
@@ -24,7 +25,7 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertNotIn("Invoke-ControllerStatus", SOURCE)
         self.assertNotIn("-Action Status", SOURCE)
 
-    def test_idle_refresh_is_event_driven_not_periodic(self):
+    def test_steady_idle_refresh_is_event_driven_not_periodic(self):
         self.assertIn("System.IO.FileSystemWatcher", SOURCE)
         self.assertIn("$watcher.SynchronizingObject = $uiHost", SOURCE)
         self.assertIn("$watcher.EnableRaisingEvents = $true", SOURCE)
@@ -32,6 +33,7 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn("Refresh-VisualState", SOURCE)
         self.assertNotIn("$timer.Interval = 2000", SOURCE)
         self.assertNotIn("$timer.Start()", SOURCE)
+        self.assertIn("Steady idle observation is event-driven", SOURCE)
 
     def test_operation_timer_runs_only_for_explicit_user_lifecycle_action(self):
         self.assertIn("$operationTimer.Interval = 250", SOURCE)
@@ -68,7 +70,15 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn("$currentDesiredState -ne $expectedDesiredState", block)
         self.assertIn("return", block)
 
-    def test_manual_visual_state_uses_manager_owner_success_boundary(self):
+    def test_successful_manual_start_is_pending_until_remote_poll_confirms(self):
+        start = SOURCE.index("function Save-ManualStatusForAction")
+        end = SOURCE.index("function Save-ManualStatusFromAutomaticSnapshot", start)
+        block = SOURCE[start:end]
+        self.assertIn("control_plane_poll_ok = $false", block)
+        self.assertIn('"REMOTE_TUNNEL_DISCONNECTED"', block)
+        self.assertNotIn('health_code = if ($running) { "READY" }', block)
+
+    def test_manual_visual_state_requires_owner_and_control_plane_confirmation(self):
         start = SOURCE.index("function Get-PlatformVisualState")
         end = SOURCE.index("$script:RedIcon", start)
         block = SOURCE[start:end]
@@ -76,10 +86,13 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn("Read-JsonFile -Path $ManualStatusFile", block)
         self.assertIn("Read-JsonFile -Path $ManagerOwnerFile", block)
         self.assertIn("Test-ManagerOwnerFromCurrentBoot", block)
-        self.assertIn('$desiredState -eq "running" -and $ownerCurrentBoot', block)
+        self.assertIn("$manualPollConfirmed", block)
+        self.assertIn("$manualReady = (", block)
+        self.assertIn('$desiredState -eq "running" -and $manualReady', block)
         self.assertIn('$desiredState -eq "stopped" -and -not $ownerFilePresent', block)
         self.assertIn('mode = "on"', block)
         self.assertIn('mode = "off"', block)
+        self.assertIn("связь туннеля с OpenAI ещё не подтверждена", block)
 
     def test_manual_owner_receipt_is_rejected_after_reboot_without_wmi(self):
         start = SOURCE.index("function Test-ManagerOwnerFromCurrentBoot")
@@ -89,6 +102,43 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         self.assertIn('"started_at"', block)
         self.assertNotIn("Get-CimInstance", block)
         self.assertNotIn("Win32_Process", block)
+
+    def test_manual_remote_confirmation_uses_tunnel_health_not_powershell_status(self):
+        start = SOURCE.index("function Start-ManualRemoteProbeProcess")
+        end = SOURCE.index("function Complete-ManualRemoteProbeIfReady", start)
+        block = SOURCE[start:end]
+        self.assertIn("$startInfo.FileName = $TunnelExe", block)
+        self.assertIn('"health"', block)
+        self.assertIn('"--json"', block)
+        self.assertIn('"--url-file", $DirectHealthUrlFile', block)
+        self.assertIn('"--require-control-plane-poll"', block)
+        self.assertIn("System.Diagnostics.ProcessStartInfo", block)
+        self.assertNotIn("pwsh", block.lower())
+        self.assertNotIn("Get-CimInstance", block)
+        self.assertNotIn("Win32_Process", block)
+
+    def test_manual_remote_probe_is_only_active_while_unconfirmed(self):
+        start = SOURCE.index("function Ensure-ManualRemoteProbe")
+        end = SOURCE.index("function Set-VisualState", start)
+        block = SOURCE[start:end]
+        self.assertIn('[string]$State.operation_mode -eq "manual"', block)
+        self.assertIn('[string]$State.desired_state -eq "running"', block)
+        self.assertIn('[string]$State.mode -ne "on"', block)
+        self.assertIn("$ownerCurrentBoot", block)
+        self.assertIn("-not (Test-OperationRunning)", block)
+        self.assertIn("$manualProbeTimer.Start()", block)
+        self.assertIn("Stop-ManualRemoteProbe", block)
+
+    def test_manual_remote_probe_backs_off_and_stops_after_confirmation(self):
+        self.assertIn("$ManualProbeInitialBackoffSeconds = 2", SOURCE)
+        self.assertIn("$ManualProbeMaximumBackoffSeconds = 30", SOURCE)
+        self.assertIn("function Schedule-NextManualRemoteProbe", SOURCE)
+        complete_start = SOURCE.index("function Complete-ManualRemoteProbeIfReady")
+        complete_end = SOURCE.index("function Ensure-ManualRemoteProbe", complete_start)
+        complete = SOURCE[complete_start:complete_end]
+        self.assertIn("$manualProbeTimer.Stop()", complete)
+        self.assertIn("Schedule-NextManualRemoteProbe", complete)
+        self.assertIn("$pollOk", complete)
 
     def test_busy_state_yields_to_authoritative_final_state(self):
         start = SOURCE.index("function Refresh-VisualState")
@@ -133,7 +183,7 @@ class Stage263ATrayObservabilityTests(unittest.TestCase):
         ):
             self.assertIn(expected, SOURCE)
 
-    def test_manual_mode_has_no_snapshot_freshness_poll(self):
+    def test_manual_mode_has_no_supervisor_snapshot_freshness_poll(self):
         visual = SOURCE[
             SOURCE.index("function Get-PlatformVisualState") :
             SOURCE.index("$script:RedIcon", SOURCE.index("function Get-PlatformVisualState"))
