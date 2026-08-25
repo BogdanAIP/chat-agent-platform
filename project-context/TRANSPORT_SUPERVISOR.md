@@ -1,6 +1,6 @@
 # Transport Reliability / Self-Healing Supervisor
 
-Status: **ACCEPTED RELIABILITY FOUNDATION; LOW-POWER OPERATOR MODES QUALIFIED ON TARGET, PENDING PR #100 MERGE**.
+Status: **ACCEPTED RELIABILITY FOUNDATION; LOW-POWER OPERATOR MODES TARGET-QUALIFIED; ORDINARY-CHAT ON/OFF GATES PASSED**.
 
 This document defines the current transport reliability boundary for the ordinary-Chat Secure MCP Tunnel path. Transport Supervisor v1 was accepted through PR #94. PR #100 refines its idle operating model after target-Windows measurements showed that the previous tray/status cadence and 10-second supervisor cadence produced unnecessary transient PowerShell/WMI activity.
 
@@ -37,14 +37,14 @@ The runtime remains in the current Windows user context because the accepted cre
 
 ## Persistent state and ownership
 
-The current lifecycle separates user intent from runtime ownership:
+The current lifecycle separates user intent, runtime ownership and readiness evidence:
 
 ```text
 state/desired-state.json
   -> requested running | stopped state
 
 state/manager-owner.json
-  -> authoritative manager-owned runtime receipt while running
+  -> authoritative manager ownership receipt
 
 state/semantic-direct.json
   -> direct runtime/tunnel identity
@@ -53,13 +53,13 @@ state/supervisor.json
   -> last automatic deep-reconcile snapshot
 
 state/manual-status.json
-  -> lightweight compatibility/status receipt for manual operation
+  -> lightweight Manual readiness/diagnostic receipt
 
 state/operation-mode.json
   -> manual | automatic
 ```
 
-`desired-state.json` is user intent. `manager-owner.json` is the authoritative ownership boundary for a successfully running manager-owned runtime. A stale completion must never overwrite newer user intent.
+`desired-state.json` is user intent. `manager-owner.json` proves manager ownership; it is not by itself a READY proof. In Manual mode the visible READY boundary also requires the persisted local MCP/tunnel readiness fields and a control-plane poll confirmation. A stale lifecycle completion must never overwrite newer user intent.
 
 ## Operator modes
 
@@ -67,7 +67,7 @@ PR #100 introduces two explicit persistent modes.
 
 ### Manual
 
-Manual mode is the zero-periodic-work operator mode.
+Manual mode is the low-background explicit-control mode. Manual + OFF is the zero-periodic-work state.
 
 ```text
 Manual + OFF
@@ -80,9 +80,13 @@ Manual + OFF
  -> tray waits on FileSystemWatcher events
 ```
 
-Start/Stop remains explicit through the public manager. During a user Start/Stop action only, the tray uses a short-lived 250 ms completion timer. Idle observation is event-driven.
+Start/Stop remains explicit through the public manager. During an explicit Start/Stop action the tray uses a short-lived 250 ms completion timer.
 
-The tray does not reconstruct process ownership with WMI. For manual running/stopped truth it uses persisted manager state, especially `desired-state.json` plus `manager-owner.json`. `manual-status.json` is not allowed to become a contradictory source of authority.
+After a successful local Manual Start, if the state is still yellow, the tray performs only a bounded readiness-confirmation loop by launching the installed `tunnel-client health` command directly. It does not launch PowerShell and does not reconstruct ownership through WMI/CIM. The confirmation requires local process/health/ready evidence plus a successful control-plane poll. Failed confirmation attempts back off from 2 seconds up to 30 seconds and each health process is bounded to 8 seconds. Once READY is confirmed, that confirmation loop stops and the tray returns to event-driven idle behavior.
+
+Therefore Manual green means that the manager-owned local runtime and control-plane path were successfully confirmed for the current running state. It does **not** mean that the tray continuously probes OpenAI or continuously proves the current ChatGPT app session after green.
+
+The tray does not reconstruct process ownership with WMI. `manual-status.json` is a readiness/diagnostic receipt and must not become a contradictory authority source.
 
 ### Automatic
 
@@ -110,11 +114,11 @@ Visible states are intentionally simple:
 
 ```text
 red    = explicitly stopped
-yellow = switching / state not yet verified
-green  = manager-owned local runtime ready
+yellow = switching / local runtime or control-plane confirmation incomplete
+green  = manager-owned local runtime + MCP/tunnel + control-plane poll confirmed
 ```
 
-A green local tray state does not claim that the current ChatGPT app route has been freshly proven end-to-end.
+Green is deliberately stronger than ownership alone, but it is still not a continuous end-to-end claim about the current ChatGPT app/connector session. Only a real ordinary-Chat semantic tool call proves that final route at that moment.
 
 ## Health model
 
@@ -142,6 +146,20 @@ local health != remote/control-plane health != ChatGPT route health
 ```
 
 `openai_control_ready=true` is not proof that a particular ChatGPT app/connector route is currently usable. Only a real ordinary-Chat semantic tool call proves that final route.
+
+## Startup failure handling
+
+A transient remote/control-plane outage must not destroy an otherwise healthy local runtime.
+
+The direct semantic startup path uses a real wall-clock 45-second local readiness budget. Local startup success requires tunnel process health, MCP readiness and exactly one expected semantic child. A missing fresh control-plane poll is recorded as degraded remote evidence rather than used as a reason to tear down the healthy local runtime.
+
+Manual tray readiness remains stricter than local startup survival: after the manager owns the local runtime, the tray stays yellow until its bounded `tunnel-client health --require-control-plane-poll` confirmation succeeds. This separates two concerns:
+
+```text
+preserve healthy local runtime across transient network failure
+!=
+claim green before control-plane confirmation
+```
 
 ## Failure classification and recovery
 
@@ -174,9 +192,13 @@ The qualified low-power model is now:
 Manual + OFF:
   zero periodic platform work
 
-Manual + ON:
+Manual + ON, before READY confirmation:
+  bounded direct tunnel-client health confirmation with backoff
+  no PowerShell/WMI ownership/status loop
+
+Manual + ON, after READY confirmation:
   runtime remains running
-  tray remains event-driven
+  tray returns to event-driven idle
   no periodic deep supervisor reconcile
 
 Automatic:
@@ -210,10 +232,14 @@ Transport Supervisor v1 already has accepted target evidence for:
 PR #100 additionally qualified on the target Windows laptop:
 
 - tray/status reduction removed the old 2-second manager status path;
-- manual Start/Stop correctly transitions runtime ownership and tray state;
 - Manual + OFF leaves no tunnel-client/node runtime and produced zero measured CPU delta for the remaining background tray PowerShell over a 60-second idle observation;
 - Automatic performed one immediate Reconcile and then left `supervisor.json` unchanged for the following 60 seconds, consistent with the 30-minute dormant interval;
-- during that Automatic observation the local runtime/MCP/tunnel were ready; transient `REMOTE_METADATA_UNAVAILABLE` was truthfully reported without restart churn.
+- during that Automatic observation the local runtime/MCP/tunnel were ready; transient `REMOTE_METADATA_UNAVAILABLE` was truthfully reported without restart churn;
+- a later physical failure exposed that startup incorrectly destroyed the local runtime after transient control-plane TLS timeouts; the startup boundary was corrected so locally healthy runtime survives that outage;
+- Manual green was tightened so ownership alone is insufficient: current-run local readiness and a successful control-plane poll confirmation are required;
+- all seven required GitHub workflows passed on exact head `092081be7d99dbeee6f092a6d48066d1a95e37c2`;
+- on that exact installed head, a fresh ordinary-Chat `Chat Local Bridge Test` `workspace_read(operation=roots)` succeeded and returned the configured `ordinary-chat-E4F49B4A` workspace;
+- after explicit Manual OFF/red, the same ordinary-Chat call no longer reached the local tool and ended with remote `HTTP 504`, proving the route was unavailable while the local runtime was stopped.
 
 Exact heads and measurements belong in `EVIDENCE_INDEX.md`, not here.
 
@@ -229,10 +255,11 @@ Automated CI/contract tests must continue to protect:
 - explicit Stop wins over stale recovery/start completions;
 - no plaintext tunnel credentials in logs/state;
 - console-free task launch;
-- event-driven idle tray behavior;
+- event-driven Manual idle after READY and zero-periodic Manual + OFF behavior;
+- Manual green requires confirmed local readiness plus control-plane poll, not ownership alone;
 - no recurring deep reconcile in Manual mode;
 - 30-minute Automatic cadence;
-- failure-class-aware non-destructive handling of remote metadata outages.
+- failure-class-aware non-destructive handling of transient remote/control-plane outages.
 
 Physical target checks remain required when lifecycle/resource behavior changes. A passing unit/CI suite alone cannot prove idle CPU or end-to-end ordinary-Chat connectivity.
 
@@ -246,6 +273,6 @@ These authority boundaries must remain separate.
 
 ## Residual work
 
-The low-power operator-mode change does not claim that remote OpenAI service availability can be guaranteed. It also does not replace the need for a fresh ordinary-Chat semantic E2E when the final ChatGPT route itself is part of an acceptance gate.
+Remote OpenAI/network availability cannot be guaranteed by the local platform. Manual green is not a continuously refreshed ordinary-Chat E2E monitor after the initial current-run confirmation; a real ChatGPT semantic call remains the authoritative route proof when that distinction matters.
 
-Future optimization may reduce the approximately minute-scale cold Manual Start latency, but that latency is separate from the idle-CPU regression addressed by PR #100 and must not be optimized by restoring recurring background polling.
+Observed ordinary-Chat `workspace_read(operation=roots)` latency after reconnect/restart improved across repeated successful calls from approximately `51 s -> 16 s -> 5.085 s`. The local semantic projection also lazily starts and caches its filesystem MCP backend on first use, so cold and warm calls are not equivalent. This latency is accepted as non-critical for the current transport correctness gate and optimization is explicitly deferred in favor of capability development. Future work may profile local cold-start versus OpenAI/tunnel delivery latency, but must not restore recurring PowerShell/WMI polling merely to reduce first-call latency.
