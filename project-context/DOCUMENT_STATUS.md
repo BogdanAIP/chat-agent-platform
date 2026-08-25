@@ -12,6 +12,7 @@ Before using any document as current architecture, resolve live GitHub state and
 current code/tests/CI/physical evidence
  > CONTINUATION_CONTEXT.md / START_HERE.md / CURRENT_STATE.md
  > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / ROADMAP.md
+ > reviewed architecture extensions such as AVO_LONG_HORIZON_ARCHITECTURE.md
  > current policy/catalog docs
  > EVIDENCE_INDEX.md for exact accepted evidence navigation
  > active stage contract
@@ -26,6 +27,10 @@ A status/planning phrase inside a historical file describes the time that revisi
 ```text
 ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md
   = durable boundaries and invariants
+
+reviewed architecture-extension documents
+  = source-specific mechanisms already mapped into ADRs/canonical architecture;
+    they cannot override the canonical documents or claim implementation acceptance
 
 CURRENT_STATE.md / ROADMAP.md
   = current accepted boundary, active work, current residual risks
@@ -58,8 +63,9 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and operating constraints. |
 | `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted boundary, active work and residual risks. Stage 26.3A is accepted/merged; 26.3B is next. |
 | `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/layer/authority boundaries. |
-| `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution state/policy, verification, recovery and completion. |
+| `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution state/policy, verification, recovery, completion, stagnation escalation and procedure-lineage evidence. |
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid observation, capability routing, ExpectedEffect verification, WorkingState, LoopGuard, Finish Gate and environmental-content trust boundary. Implementation is staged. |
+| `AVO_LONG_HORIZON_ARCHITECTURE.md` | REVIEWED ARCHITECTURAL EXTENSION | NVIDIA AVO/persistent-memory/supervision/lineage review; project consequences are promoted through ADR-034, Control Plane and Roadmap. Does not claim runtime acceptance or override canonical architecture. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence + optional/future tracks. |
 | `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which documents may define current state. |
 | `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads, result locators and scoped measurements. |
@@ -69,7 +75,7 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | File | Status | Use |
 |---|---|---|
 | `CONSTRAINTS.md` | CURRENT POLICY | Hard project constraints. |
-| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority. |
+| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority; ADR-034 = verified skill lineage and stagnation escalation. |
 | `DEVELOPMENT_PRINCIPLES.md` | CURRENT POLICY | Development/acceptance principles. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
 | `COST_POLICY.md` | CURRENT POLICY | Baseline cost/subscription constraints. |
@@ -78,7 +84,7 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | `EXTENSION_MANAGER.md` | CURRENT OPERATING CONTRACT | Optional 1MCP Extension Manager role and lifecycle/promotion boundary. |
 | `TYPED_CAPABILITY_PROJECTION.md` | CURRENT CAPABILITY CONTRACT | Historical typed five-tool foundation plus accepted canonical six-tool surface; `procedure_run` remains typed/bounded, not generic execution. |
 | `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | CURRENT TEMPORARY MIGRATION COMPATIBILITY | Exact bounded historical inbound alias families only; aliases are not published tools and cannot repair ChatGPT-side app snapshot/permission state before MCP invocation. |
-| `TRANSPORT_SUPERVISOR.md` | ACCEPTED CURRENT RELIABILITY FOUNDATION | Self-healing Secure MCP Tunnel lifecycle, layered health and bounded recovery accepted through #94. |
+| `TRANSPORT_SUPERVISOR.md` | ACCEPTED CURRENT RELIABILITY FOUNDATION | Self-healing Secure MCP Tunnel lifecycle, layered health and bounded recovery accepted through #94 and low-power Manual/Automatic refinements merged through #100. |
 | `TRANSPORT_SUPERVISOR_IMPLEMENTATION_NOTES.md` | ACCEPTED QUALIFICATION NOTES | Transport Supervisor v1 implementation/qualification contract. |
 | `TRANSPORT_SUPERVISOR_REBOOT_EVIDENCE.md` | ACCEPTED PHYSICAL EVIDENCE | Exact Windows reboot/logon evidence. |
 | `TRANSPORT_SUPERVISOR_ATTEMPT_HISTORY.md` | HISTORICAL QUALIFICATION ATTEMPT LOG | Historical diagnostics only. |
@@ -94,7 +100,7 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACCEPTED STAGE 26.3A IMPLEMENTATION/EVIDENCE NOTES | Canonical six-tool runtime, checkpoint/resume, identity rules and accepted physical boundary. |
 | `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACCEPTED STAGE 26.3A PUBLIC-SURFACE CONTRACT | `procedure_run` is part of the accepted normal semantic six-tool surface; no separate qualification profile remains. |
 
-Stage 26.3A is accepted/merged through PR #92. Current release-critical implementation target is Stage 26.3B Verification Kernel + independent Finish Gate, followed by Stage 26.3C WorkingState + typed recovery + LoopGuard. These current directions are governed by `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `CURRENT_STATE.md` and `ROADMAP.md` rather than by an old Stage 26.3A “pending” phrase.
+Stage 26.3A is accepted/merged through PR #92. Current release-critical implementation target is Stage 26.3B Verification Kernel + independent Finish Gate, followed by Stage 26.3C WorkingState + typed recovery + LoopGuard + StagnationReport. Stage 26.4 then adds verified candidate-skill lineage/evolution. These current directions are governed by `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, ADR-034, `CURRENT_STATE.md` and `ROADMAP.md` rather than by an old Stage 26.3A “pending” phrase.
 
 Current normal transport/extension invariants:
 
@@ -145,6 +151,8 @@ Historical references placing 1MCP in the normal bridge path remain valid only f
 
 The Stage 26.3A locally generated `gui-agent-research.md` is **research evidence**, not a repository source of truth. Its independently checked/generalized conclusions have been promoted into `COMPUTER_USE_ARCHITECTURE.md`, ADR-032/033, `CONTROL_PLANE.md`, `CURRENT_STATE.md`, `ROADMAP.md` and `SECURITY_POLICY.md`.
 
+The 2026-08-25 NVIDIA AVO review is recorded in `AVO_LONG_HORIZON_ARCHITECTURE.md`. It is a **reviewed architecture extension**, not physical evidence. Its adopted mechanisms are promoted through ADR-034 into `CONTROL_PLANE.md` and `ROADMAP.md`; source-specific claims in that review cannot override current code/tests/CI/physical evidence or the canonical architecture documents.
+
 ## Architecture terminology all future docs must preserve
 
 ### Current general planner
@@ -164,12 +172,14 @@ capability policy / authorization
 ExpectedEffect + transition verifier
 checkpoints
 bounded typed recovery + LoopGuard
+StagnationReport escalation
 resource/action/time budgets
 independent Finish Gate
 safety/policy gate
+Skill / Procedure Lineage evidence
 ```
 
-May advance known authorized+verified procedure transitions without a ChatGPT round trip after every low-level action. It is not a second general planner.
+May advance known authorized+verified procedure transitions without a ChatGPT round trip after every low-level action. It is not a second general planner. `StagnationReport` carries structured deterministic evidence back to the planner when bounded recovery stalls; it does not add local open-ended strategy.
 
 ### State-first hybrid computer use
 
@@ -215,6 +225,7 @@ Any architecture-changing PR must audit/update this map when it:
 - closes/opens an active stage;
 - changes general-planner or Control Plane responsibility;
 - changes computer-use observation/verification/recovery/completion boundaries;
+- changes skill/procedure lineage or long-horizon stagnation-escalation semantics;
 - changes the Extension Manager/persistent tunnel boundary;
 - promotes a research track into the release-critical roadmap;
 - changes the public Chat-facing capability surface.
