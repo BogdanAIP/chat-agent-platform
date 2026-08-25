@@ -32,6 +32,24 @@ class SemanticDirectStartupBudgetTests(unittest.TestCase):
         self.assertIn("[int]$TimeoutMilliseconds = $LocalHealthTimeoutMilliseconds", block)
         self.assertIn("-TimeoutMilliseconds $TimeoutMilliseconds", block)
 
+    def test_transient_control_plane_poll_failure_does_not_block_local_startup(self):
+        start = SOURCE.index("function Start-DirectRuntime")
+        end = SOURCE.index("Initialize-Directories\n\ntry", start)
+        block = SOURCE[start:end]
+        wait_start = block.index("$startupClock = [System.Diagnostics.Stopwatch]::StartNew()")
+        wait_block = block[wait_start:]
+
+        local_ready_start = wait_block.index("if (\n            [bool]$local.healthz_ok")
+        local_ready_end = wait_block.index(") {", local_ready_start)
+        local_ready_condition = wait_block[local_ready_start:local_ready_end]
+
+        self.assertIn("[bool]$local.healthz_ok", local_ready_condition)
+        self.assertIn("[bool]$local.readyz_ok", local_ready_condition)
+        self.assertIn("[bool]$local.process_ok", local_ready_condition)
+        self.assertNotIn("[bool]$local.poll_ok", local_ready_condition)
+        self.assertIn("$lastHealthCode = if ([bool]$local.poll_ok)", wait_block)
+        self.assertIn("'REMOTE_TUNNEL_DISCONNECTED'", wait_block)
+
 
 if __name__ == "__main__":
     unittest.main()
