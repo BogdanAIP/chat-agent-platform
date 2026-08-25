@@ -60,10 +60,17 @@ $SettingsFile = Join-Path $StateDir "settings.json"
 $OperationModeFile = Join-Path $StateDir "operation-mode.json"
 $ManualStatusFile = Join-Path $StateDir "manual-status.json"
 $ManagerOwnerFile = Join-Path $StateDir "manager-owner.json"
+$DirectStateFile = Join-Path $StateDir "semantic-direct.json"
+$DirectHealthUrlFile = Join-Path $StateDir "semantic-direct-health.url"
+$TunnelExe = Join-Path $LocalRoot "bin\tunnel-client.exe"
 $ControllerLog = Join-Path $LocalRoot "logs\controller.log"
 $SupervisorTaskName = "Chat Agent Platform Transport Supervisor"
 $AutomaticSnapshotFreshnessSeconds = 2100
+$ManualConfirmationFreshnessSeconds = 120
 $OperationTimeoutSeconds = 120
+$ManualProbeInitialBackoffSeconds = 2
+$ManualProbeMaximumBackoffSeconds = 30
+$ManualProbeProcessTimeoutSeconds = 8
 
 New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 
@@ -294,14 +301,15 @@ function Save-ManualStatusForAction {
 
     $settings = Get-SettingsProjection
     Write-AtomicJson -Path $ManualStatusFile -Value ([ordered]@{
-        schema_version = 1
+        schema_version = 2
         source = "manual_user_action"
         desired_state = $expectedDesiredState
         profile = [string]$settings.profile
         runtime_ready = $running
         mcp_ready = $running
         tunnel_local_ready = $running
-        health_code = if ($running) { "READY" } else { "STOPPED" }
+        control_plane_poll_ok = $false
+        health_code = if ($running) { "REMOTE_TUNNEL_DISCONNECTED" } else { "STOPPED" }
         observed_at = [datetimeoffset]::UtcNow.ToString("o")
     })
 }
@@ -317,25 +325,93 @@ function Save-ManualStatusFromAutomaticSnapshot {
         $runtimeReady = $false
         $mcpReady = $false
         $tunnelReady = $false
+        $pollConfirmed = $false
         $healthCode = if ($DesiredState -eq "stopped") { "STOPPED" } else { "MANUAL_STATE_UNVERIFIED" }
         $profile = [string]$settings.profile
     }
     else {
-        $runtimeReady = [bool](Get-PropertyValue -Object $Snapshot -Name "runtime_ready" -DefaultValue $false)
         $mcpReady = [bool](Get-PropertyValue -Object $Snapshot -Name "mcp_ready" -DefaultValue $false)
         $tunnelReady = [bool](Get-PropertyValue -Object $Snapshot -Name "tunnel_local_ready" -DefaultValue $false)
+        $runtimeReady = ($mcpReady -and $tunnelReady)
+        $snapshotAge = Get-SnapshotAgeSeconds -Snapshot $Snapshot
+        $pollConfirmed = (
+            [bool](Get-PropertyValue -Object $Snapshot -Name "control_plane_poll_fresh" -DefaultValue $false) -and
+            $null -ne $snapshotAge -and
+            $snapshotAge -le $ManualConfirmationFreshnessSeconds
+        )
         $healthCode = [string](Get-PropertyValue -Object $Snapshot -Name "health_code" -DefaultValue "MANUAL_STATE_UNVERIFIED")
+        if ($DesiredState -eq "running" -and $runtimeReady -and -not $pollConfirmed) {
+            $healthCode = "REMOTE_TUNNEL_DISCONNECTED"
+        }
         $profile = [string](Get-PropertyValue -Object $Snapshot -Name "profile" -DefaultValue ([string]$settings.profile))
     }
 
     Write-AtomicJson -Path $ManualStatusFile -Value ([ordered]@{
-        schema_version = 1
+        schema_version = 2
         source = "automatic_handoff"
         desired_state = $DesiredState
         profile = $profile
         runtime_ready = $runtimeReady
         mcp_ready = $mcpReady
         tunnel_local_ready = $tunnelReady
+        control_plane_poll_ok = $pollConfirmed
+        health_code = $healthCode
+        observed_at = [datetimeoffset]::UtcNow.ToString("o")
+    })
+}
+
+function Save-ManualRemoteProbeStatus {
+    param(
+        [bool]$HealthzOk,
+        [bool]$ReadyzOk,
+        [bool]$ProcessOk,
+        [bool]$PollOk
+    )
+
+    if ((Get-OperationMode) -ne "manual") {
+        return
+    }
+
+    $desired = Read-JsonFile -Path $DesiredStateFile
+    $desiredState = [string](Get-PropertyValue -Object $desired -Name "desired_state" -DefaultValue "unknown")
+    if ($desiredState -ne "running") {
+        return
+    }
+
+    $owner = Read-JsonFile -Path $ManagerOwnerFile
+    if (-not (Test-ManagerOwnerFromCurrentBoot -Owner $owner)) {
+        return
+    }
+
+    $tunnelLocalReady = ($HealthzOk -and $ProcessOk)
+    $mcpReady = ($tunnelLocalReady -and $ReadyzOk)
+    $confirmed = ($mcpReady -and $PollOk)
+    $healthCode = if (-not $ProcessOk) {
+        "LOCAL_TUNNEL_NOT_RUNNING"
+    }
+    elseif (-not $HealthzOk) {
+        "LOCAL_TUNNEL_NOT_HEALTHY"
+    }
+    elseif (-not $ReadyzOk) {
+        "LOCAL_MCP_UNAVAILABLE"
+    }
+    elseif (-not $PollOk) {
+        "REMOTE_TUNNEL_DISCONNECTED"
+    }
+    else {
+        "READY"
+    }
+
+    $settings = Get-SettingsProjection
+    Write-AtomicJson -Path $ManualStatusFile -Value ([ordered]@{
+        schema_version = 2
+        source = "manual_remote_probe"
+        desired_state = "running"
+        profile = [string]$settings.profile
+        runtime_ready = $mcpReady
+        mcp_ready = $mcpReady
+        tunnel_local_ready = $tunnelLocalReady
+        control_plane_poll_ok = $confirmed
         health_code = $healthCode
         observed_at = [datetimeoffset]::UtcNow.ToString("o")
     })
@@ -348,14 +424,24 @@ function Get-PlatformVisualState {
     $desiredState = [string](Get-PropertyValue -Object $desired -Name "desired_state" -DefaultValue "unknown")
 
     if ($operationMode -eq "manual") {
-        # Keep the legacy receipt readable for compatibility/diagnostics, but do
-        # not make the visible Manual state depend on a tray timer callback.
         $manualSnapshot = Read-JsonFile -Path $ManualStatusFile
         $ownerFilePresent = Test-Path -LiteralPath $ManagerOwnerFile -PathType Leaf
         $owner = Read-JsonFile -Path $ManagerOwnerFile
         $ownerCurrentBoot = ($ownerFilePresent -and (Test-ManagerOwnerFromCurrentBoot -Owner $owner))
         $profile = [string](Get-PropertyValue -Object $manualSnapshot -Name "profile" -DefaultValue ([string]$settings.profile))
         $toolCount = if ($profile -in @("semantic", "semantic-direct")) { 6 } else { $null }
+        $manualRuntimeReady = [bool](Get-PropertyValue -Object $manualSnapshot -Name "runtime_ready" -DefaultValue $false)
+        $manualMcpReady = [bool](Get-PropertyValue -Object $manualSnapshot -Name "mcp_ready" -DefaultValue $false)
+        $manualTunnelReady = [bool](Get-PropertyValue -Object $manualSnapshot -Name "tunnel_local_ready" -DefaultValue $false)
+        $manualPollConfirmed = [bool](Get-PropertyValue -Object $manualSnapshot -Name "control_plane_poll_ok" -DefaultValue $false)
+        $manualHealthCode = [string](Get-PropertyValue -Object $manualSnapshot -Name "health_code" -DefaultValue "MANUAL_STATE_UNVERIFIED")
+        $manualReady = (
+            $ownerCurrentBoot -and
+            $manualRuntimeReady -and
+            $manualMcpReady -and
+            $manualTunnelReady -and
+            $manualPollConfirmed
+        )
 
         if ($desiredState -eq "stopped" -and -not $ownerFilePresent) {
             return [pscustomobject]@{
@@ -373,7 +459,7 @@ function Get-PlatformVisualState {
             }
         }
 
-        if ($desiredState -eq "running" -and $ownerCurrentBoot) {
+        if ($desiredState -eq "running" -and $manualReady) {
             return [pscustomobject]@{
                 mode = "on"
                 operation_mode = $operationMode
@@ -392,6 +478,12 @@ function Get-PlatformVisualState {
         $manualError = if ($desiredState -eq "running" -and $ownerFilePresent -and -not $ownerCurrentBoot) {
             "Ручной запуск не подтверждён в текущем сеансе Windows."
         }
+        elseif ($desiredState -eq "running" -and $ownerCurrentBoot -and -not ($manualRuntimeReady -and $manualMcpReady -and $manualTunnelReady)) {
+            "Локальный runtime не подтверждён."
+        }
+        elseif ($desiredState -eq "running" -and $ownerCurrentBoot -and -not $manualPollConfirmed) {
+            "Локальный runtime запущен; связь туннеля с OpenAI ещё не подтверждена."
+        }
         elseif ($desiredState -eq "running") {
             "Ручной запуск ещё выполняется."
         }
@@ -408,10 +500,10 @@ function Get-PlatformVisualState {
             profile = $profile
             expected_tool_count = $toolCount
             desired_state = $desiredState
-            runtime_ready = $false
-            mcp_ready = $false
-            tunnel_ready = $false
-            health_code = "MANUAL_STATE_UNVERIFIED"
+            runtime_ready = $manualRuntimeReady
+            mcp_ready = $manualMcpReady
+            tunnel_ready = $manualTunnelReady
+            health_code = $manualHealthCode
             files_root = [string]$settings.files_root
             error = $manualError
         }
@@ -538,10 +630,16 @@ $notify.ContextMenuStrip = $menu
 $script:OperationProcess = $null
 $script:OperationAction = $null
 $script:OperationStartedAt = $null
+$script:ManualProbeProcess = $null
+$script:ManualProbeStartedAt = $null
+$script:ManualProbeBackoffSeconds = $ManualProbeInitialBackoffSeconds
+$script:ManualProbeNextAt = [datetimeoffset]::MinValue
 $script:LastState = $null
 
 $operationTimer = New-Object System.Windows.Forms.Timer
 $operationTimer.Interval = 250
+$manualProbeTimer = New-Object System.Windows.Forms.Timer
+$manualProbeTimer.Interval = 1000
 
 function Test-OperationRunning {
     if ($null -eq $script:OperationProcess) {
@@ -561,6 +659,187 @@ function Clear-OperationProcess {
     }
     $script:OperationProcess = $null
     $script:OperationStartedAt = $null
+}
+
+function Clear-ManualProbeProcess {
+    if ($null -ne $script:ManualProbeProcess) {
+        try { $script:ManualProbeProcess.Dispose() } catch {}
+    }
+    $script:ManualProbeProcess = $null
+    $script:ManualProbeStartedAt = $null
+}
+
+function Stop-ManualRemoteProbe {
+    $manualProbeTimer.Stop()
+    if ($null -ne $script:ManualProbeProcess) {
+        try {
+            if (-not $script:ManualProbeProcess.HasExited) {
+                $script:ManualProbeProcess.Kill($true)
+                $script:ManualProbeProcess.WaitForExit(2000) | Out-Null
+            }
+        }
+        catch {}
+    }
+    Clear-ManualProbeProcess
+    $script:ManualProbeBackoffSeconds = $ManualProbeInitialBackoffSeconds
+    $script:ManualProbeNextAt = [datetimeoffset]::MinValue
+}
+
+function Schedule-NextManualRemoteProbe {
+    $delay = [int]$script:ManualProbeBackoffSeconds
+    $script:ManualProbeNextAt = [datetimeoffset]::UtcNow.AddSeconds($delay)
+    $script:ManualProbeBackoffSeconds = [math]::Min(
+        $ManualProbeMaximumBackoffSeconds,
+        [math]::Max($ManualProbeInitialBackoffSeconds, ($delay * 2))
+    )
+}
+
+function Start-ManualRemoteProbeProcess {
+    if ($null -ne $script:ManualProbeProcess) {
+        return
+    }
+
+    $directState = Read-JsonFile -Path $DirectStateFile
+    $pidValue = 0
+    try {
+        $pidValue = [int](Get-PropertyValue -Object $directState -Name "pid" -DefaultValue 0)
+    }
+    catch {
+        $pidValue = 0
+    }
+
+    if (
+        $pidValue -le 0 -or
+        -not (Test-Path -LiteralPath $TunnelExe -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $DirectHealthUrlFile -PathType Leaf)
+    ) {
+        Schedule-NextManualRemoteProbe
+        return
+    }
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $TunnelExe
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @(
+        "health",
+        "--json",
+        "--url-file", $DirectHealthUrlFile,
+        "--pid", [string]$pidValue,
+        "--require-control-plane-poll"
+    )) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) {
+            $process.Dispose()
+            Schedule-NextManualRemoteProbe
+            return
+        }
+    }
+    catch {
+        $process.Dispose()
+        Schedule-NextManualRemoteProbe
+        return
+    }
+
+    $script:ManualProbeProcess = $process
+    $script:ManualProbeStartedAt = [datetimeoffset]::UtcNow
+}
+
+function Complete-ManualRemoteProbeIfReady {
+    if ($null -eq $script:ManualProbeProcess) {
+        return
+    }
+
+    if (-not $script:ManualProbeProcess.HasExited) {
+        if (
+            $null -ne $script:ManualProbeStartedAt -and
+            ([datetimeoffset]::UtcNow - $script:ManualProbeStartedAt).TotalSeconds -lt $ManualProbeProcessTimeoutSeconds
+        ) {
+            return
+        }
+        try { $script:ManualProbeProcess.Kill($true) } catch {}
+        try { $script:ManualProbeProcess.WaitForExit(2000) | Out-Null } catch {}
+        Clear-ManualProbeProcess
+        Schedule-NextManualRemoteProbe
+        return
+    }
+
+    $stdout = ""
+    try { $stdout = $script:ManualProbeProcess.StandardOutput.ReadToEnd() } catch {}
+    Clear-ManualProbeProcess
+
+    $report = $null
+    if (-not [string]::IsNullOrWhiteSpace($stdout)) {
+        try { $report = $stdout | ConvertFrom-Json -ErrorAction Stop } catch {}
+    }
+    if ($null -eq $report) {
+        Schedule-NextManualRemoteProbe
+        return
+    }
+
+    $healthz = Get-PropertyValue -Object $report -Name "healthz"
+    $readyz = Get-PropertyValue -Object $report -Name "readyz"
+    $poll = Get-PropertyValue -Object $report -Name "control_plane_poll"
+    $processState = Get-PropertyValue -Object $report -Name "process"
+    $healthzOk = [bool](Get-PropertyValue -Object $healthz -Name "ok" -DefaultValue $false)
+    $readyzOk = [bool](Get-PropertyValue -Object $readyz -Name "ok" -DefaultValue $false)
+    $pollOk = [bool](Get-PropertyValue -Object $poll -Name "ok" -DefaultValue $false)
+    $processOk = if ($null -eq $processState) {
+        $true
+    }
+    else {
+        [bool](Get-PropertyValue -Object $processState -Name "running" -DefaultValue $false)
+    }
+
+    Save-ManualRemoteProbeStatus `
+        -HealthzOk $healthzOk `
+        -ReadyzOk $readyzOk `
+        -ProcessOk $processOk `
+        -PollOk $pollOk
+
+    if ($healthzOk -and $readyzOk -and $processOk -and $pollOk) {
+        $script:ManualProbeBackoffSeconds = $ManualProbeInitialBackoffSeconds
+        $script:ManualProbeNextAt = [datetimeoffset]::MinValue
+        $manualProbeTimer.Stop()
+        Refresh-VisualState
+        return
+    }
+
+    Schedule-NextManualRemoteProbe
+}
+
+function Ensure-ManualRemoteProbe {
+    param([Parameter(Mandatory)] [psobject]$State)
+
+    $owner = Read-JsonFile -Path $ManagerOwnerFile
+    $ownerCurrentBoot = Test-ManagerOwnerFromCurrentBoot -Owner $owner
+    $needed = (
+        [string]$State.operation_mode -eq "manual" -and
+        [string]$State.desired_state -eq "running" -and
+        [string]$State.mode -ne "on" -and
+        $ownerCurrentBoot -and
+        -not (Test-OperationRunning)
+    )
+
+    if (-not $needed) {
+        if ($manualProbeTimer.Enabled -or $null -ne $script:ManualProbeProcess) {
+            Stop-ManualRemoteProbe
+        }
+        return
+    }
+
+    if (-not $manualProbeTimer.Enabled) {
+        $script:ManualProbeBackoffSeconds = $ManualProbeInitialBackoffSeconds
+        $script:ManualProbeNextAt = [datetimeoffset]::UtcNow
+        $manualProbeTimer.Start()
+    }
 }
 
 function Set-VisualState {
@@ -635,6 +914,7 @@ function Set-VisualState {
 
 function Refresh-VisualState {
     $state = Get-PlatformVisualState
+    Ensure-ManualRemoteProbe -State $state
 
     if (Test-OperationRunning) {
         $targetReached = (
@@ -694,6 +974,7 @@ function Start-ControllerOperation {
         return
     }
 
+    Stop-ManualRemoteProbe
     Clear-OperationProcess
     Set-VisualState -State ([pscustomobject]@{
         mode = "busy"
@@ -768,6 +1049,8 @@ function Set-PlatformOperationMode {
     if ((Get-OperationMode) -eq $Mode) {
         return
     }
+
+    Stop-ManualRemoteProbe
 
     if ($Mode -eq "manual") {
         $snapshot = Read-JsonFile -Path $SupervisorStateFile
@@ -866,6 +1149,35 @@ $operationTimer.add_Tick({
     }
 })
 
+$manualProbeTimer.add_Tick({
+    if ((Get-OperationMode) -ne "manual" -or (Test-OperationRunning)) {
+        Stop-ManualRemoteProbe
+        return
+    }
+
+    if ($null -ne $script:ManualProbeProcess) {
+        Complete-ManualRemoteProbeIfReady
+        return
+    }
+
+    if ([datetimeoffset]::UtcNow -lt $script:ManualProbeNextAt) {
+        return
+    }
+
+    $state = Get-PlatformVisualState
+    $owner = Read-JsonFile -Path $ManagerOwnerFile
+    if (
+        [string]$state.desired_state -ne "running" -or
+        [string]$state.mode -eq "on" -or
+        -not (Test-ManagerOwnerFromCurrentBoot -Owner $owner)
+    ) {
+        Stop-ManualRemoteProbe
+        return
+    }
+
+    Start-ManualRemoteProbeProcess
+})
+
 $powerItem.add_Click({ Toggle-Platform })
 $notify.add_DoubleClick({ Toggle-Platform })
 $manualModeItem.add_Click({
@@ -890,7 +1202,10 @@ $logItem.add_Click({
     }
 })
 
-# Idle observation is event-driven. There is no periodic health/status timer.
+# Steady idle observation is event-driven. The manual probe timer is enabled
+# only while an explicit Manual ON state is still waiting for its first fresh
+# control-plane confirmation; it uses tunnel-client health directly and stops
+# permanently after confirmation or when the state/mode changes.
 $uiHost = New-Object System.Windows.Forms.Form
 $uiHost.ShowInTaskbar = $false
 $uiHost.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedToolWindow
@@ -947,6 +1262,8 @@ $exitItem.add_Click({
     $watcher.Dispose()
     $operationTimer.Stop()
     $operationTimer.Dispose()
+    Stop-ManualRemoteProbe
+    $manualProbeTimer.Dispose()
 
     if (Test-OperationRunning) {
         try { $script:OperationProcess.Kill($true) } catch {}
