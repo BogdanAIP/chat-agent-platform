@@ -99,7 +99,13 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
         'lib/runtime-backed-bridge-grounder.mjs',
         'lib/runtime-backed-visual-grounder.mjs'
     )
-    $controlPlaneFiles = @('__init__.py', 'cli.py', 'verified_workspace_artifact.py')
+    $controlPlaneFiles = @(
+        '__init__.py',
+        'cli.py',
+        'file_artifact_observation.py',
+        'verification.py',
+        'verified_workspace_artifact.py'
+    )
     $visionScripts = @(
         'local-vision-runtime.ps1',
         'local-vision-runtime-watchdog.ps1',
@@ -277,6 +283,8 @@ function Install-ChatManagerBundle {
         @('runtime\semantic-projection\lib\runtime-backed-visual-grounder.mjs', 'runtime\semantic-projection\lib\runtime-backed-visual-grounder.mjs'),
         @('runtime\control_plane\__init__.py', 'runtime\control_plane\__init__.py'),
         @('runtime\control_plane\cli.py', 'runtime\control_plane\cli.py'),
+        @('runtime\control_plane\file_artifact_observation.py', 'runtime\control_plane\file_artifact_observation.py'),
+        @('runtime\control_plane\verification.py', 'runtime\control_plane\verification.py'),
         @('runtime\control_plane\verified_workspace_artifact.py', 'runtime\control_plane\verified_workspace_artifact.py'),
         @('config\local-vision-runtime.json', 'config\local-vision-runtime.json'),
         @('runtime\local_vision_adapter\__init__.py', 'runtime\local_vision_adapter\__init__.py'),

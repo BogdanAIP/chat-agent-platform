@@ -7,6 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
 BOOTSTRAP_MANAGER = ROOT / "scripts" / "bootstrap-manager-runtime.ps1"
+SEMANTIC_WORKFLOW = ROOT / ".github" / "workflows" / "semantic-projection.yml"
 
 
 class BootstrapSemanticBundleTests(unittest.TestCase):
@@ -14,6 +15,7 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
         cls.manager = BOOTSTRAP_MANAGER.read_text(encoding="utf-8")
+        cls.semantic_workflow = SEMANTIC_WORKFLOW.read_text(encoding="utf-8")
         cls.combined = f"{cls.bootstrap}\n{cls.manager}"
 
     def test_installed_semantic_bundle_keeps_secure_six_tool_entry_lockfile_and_vision_bridge(self) -> None:
@@ -28,6 +30,8 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'runtime\\semantic-projection\\lib\\runtime-backed-bridge-grounder.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-visual-grounder.mjs',
             'runtime\\control_plane\\cli.py',
+            'runtime\\control_plane\\file_artifact_observation.py',
+            'runtime\\control_plane\\verification.py',
             'runtime\\control_plane\\verified_workspace_artifact.py',
             'config\\local-vision-runtime.json',
             'runtime\\local_vision_adapter\\native_bbox.py',
@@ -74,6 +78,8 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'runtime\\semantic-projection\\lib\\runtime-backed-bridge-grounder.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-visual-grounder.mjs',
             'runtime\\control_plane\\cli.py',
+            'runtime\\control_plane\\file_artifact_observation.py',
+            'runtime\\control_plane\\verification.py',
             'runtime\\control_plane\\verified_workspace_artifact.py',
             'runtime\\local_vision_adapter\\native_bbox.py',
             'runtime\\local_vision_adapter\\production_grounder.py',
@@ -85,6 +91,15 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
         self.assertIn("bootstrap-manager-runtime.ps1", self.bootstrap)
         self.assertIn("Install-ChatManagerBundle", self.bootstrap)
         self.assertIn("SEMANTIC_PUBLIC_TOOL_COUNT=6", self.bootstrap)
+
+    def test_standalone_layout_fixture_copies_shared_verification_modules(self) -> None:
+        for marker in (
+            "runtime/control_plane/file_artifact_observation.py",
+            "runtime/control_plane/verification.py",
+            "control_plane/file_artifact_observation.py",
+            "control_plane/verification.py",
+        ):
+            self.assertIn(marker, self.semantic_workflow)
 
 
 if __name__ == "__main__":

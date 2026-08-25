@@ -209,6 +209,8 @@ jobs:
             'runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs',
             'runtime/control_plane/__init__.py',
             'runtime/control_plane/cli.py',
+            'runtime/control_plane/file_artifact_observation.py',
+            'runtime/control_plane/verification.py',
             'runtime/control_plane/verified_workspace_artifact.py',
             'runtime/local_vision_adapter/__init__.py',
             'runtime/local_vision_adapter/benchmark.py',
@@ -232,6 +234,8 @@ jobs:
           foreach ($required in @(
             (Join-Path $installedRuntime 'semantic-projection/bin/semantic-control-plane-projection.mjs'),
             (Join-Path $installedRuntime 'control_plane/cli.py'),
+            (Join-Path $installedRuntime 'control_plane/file_artifact_observation.py'),
+            (Join-Path $installedRuntime 'control_plane/verification.py'),
             (Join-Path $installedRuntime 'semantic-projection/lib/semantic-vision-click-router.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/runtime-backed-visual-grounder.mjs'),
             (Join-Path $installedRuntime 'local_vision_adapter/native_bbox.py'),

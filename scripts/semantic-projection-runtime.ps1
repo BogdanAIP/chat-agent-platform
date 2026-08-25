@@ -15,6 +15,8 @@ function Get-SemanticProjectionEntryPath {
     $controlPlaneProjectionPath = Join-Path $projectionRoot 'bin\semantic-control-plane-projection.mjs'
     $launcherPath = Join-Path $projectionRoot 'bin\semantic-projection-launcher.mjs'
     $controlPlaneCliPath = Join-Path $RepoRoot 'runtime\control_plane\cli.py'
+    $controlPlaneObservationPath = Join-Path $RepoRoot 'runtime\control_plane\file_artifact_observation.py'
+    $controlPlaneVerificationPath = Join-Path $RepoRoot 'runtime\control_plane\verification.py'
     $controlPlaneProcedurePath = Join-Path $RepoRoot 'runtime\control_plane\verified_workspace_artifact.py'
     $lockMarkerPath = Join-Path $projectionRoot 'node_modules\.chat-agent-platform-lock.sha256'
 
@@ -23,6 +25,8 @@ function Get-SemanticProjectionEntryPath {
         $corePath,
         $controlPlaneProjectionPath,
         $controlPlaneCliPath,
+        $controlPlaneObservationPath,
+        $controlPlaneVerificationPath,
         $controlPlaneProcedurePath
     )) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {

@@ -6,6 +6,11 @@ transitions.  It does not expose generic code execution or persist private
 reasoning.
 """
 
+from .file_artifact_observation import (
+    FILE_ARTIFACT_CAPABILITY,
+    FileArtifactObservationStream,
+)
+
 from .verification import (
     ExpectedEffect,
     FinishGateResult,
@@ -27,6 +32,8 @@ from .verified_workspace_artifact import (
 
 __all__ = [
     "ExpectedEffect",
+    "FILE_ARTIFACT_CAPABILITY",
+    "FileArtifactObservationStream",
     "FinishGateResult",
     "FinishStatus",
     "ObservationRef",

@@ -300,6 +300,8 @@ class ChatPlatformControllerAssetsTests(unittest.TestCase):
             "runtime\\semantic-projection\\package.json",
             "runtime\\semantic-projection\\bin\\semantic-control-plane-projection.mjs",
             "runtime\\control_plane\\cli.py",
+            "runtime\\control_plane\\file_artifact_observation.py",
+            "runtime\\control_plane\\verification.py",
             "runtime\\control_plane\\verified_workspace_artifact.py",
         ):
             self.assertIn(expected, self.bootstrap_manager)

@@ -151,7 +151,7 @@ The research did **not** authorize unrestricted code access, screenshot-only con
 
 ## Stage 26.3B — Verification Kernel + independent Finish Gate — ACTIVE
 
-The first implementation slice is now active on a dedicated branch/PR and introduces the internal reusable verification contract without changing the accepted public semantic surface or action-delivery authority.
+The internal reusable Verification Kernel foundation is merged through PR #99. The current PR #102 integration slice adds the first truthful file/artifact observation stream and migrates the accepted `verified_workspace_artifact_v1` procedure without changing the public semantic surface or action authority.
 
 Implemented in the foundation slice:
 
@@ -164,16 +164,28 @@ independent Finish Gate
 separate task-success and safety/policy results
 ```
 
-This is more specific than the former generic "advanced verifier library" description and is not yet Stage 26.3B acceptance.
+Implemented and locally/hosted-tested in the current file integration slice before the required new exact-head requalification:
+
+```text
+bounded rooted file/artifact observation stream
+non-following kind + digest + filesystem identity evidence
+incomplete/ambiguous observation -> UNKNOWN
+all verified_workspace_artifact_v1 transitions kernel-gated
+completion target goal and staging-absence safety -> same-batch Finish Gate
+legacy checkpoint/result compatibility + unchanged exclusive-create/rollback budgets
+installed semantic bundle includes kernel + adapter
+```
+
+This is not Stage 26.3B acceptance. PR #102 was rebased onto the current Track M documentation line, so its new exact head must complete hosted CI again and then pass the ordinary-Chat target-Windows completion + zero-overwrite physical regression before merge.
 
 Remaining Stage 26.3B integration targets:
 
 ```text
-file/artifact observation adapter + procedure migration
+hosted CI + physical ordinary-Chat completion/zero-overwrite regression for exact PR #102 head
 browser URL/document/control/final-state verification
 process/window/application verification
 cross-capability completion predicates where required
-physical acceptance once shared verification changes production procedure/action behavior
+appropriate physical acceptance when later production action paths change
 ```
 
 Task completion must verify fresh goal predicates, constraints, required source freshness/reconciliation, unresolved ambiguity/confirmation state and safety/policy predicates.
@@ -279,13 +291,15 @@ Optional Track P local planner research remains non-release-critical and stays a
 
 ## Parallel Track M — Conversation Bridge / multi-chat — DOCUMENTED FUTURE ONLY
 
-ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md` now define a future path for using authenticated AI-chat sessions as bounded worker conversations.
+ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md` define a future provider-open path for using authenticated AI-chat sessions as bounded worker conversations.
 
 Current reality:
 
 ```text
 implemented Conversation Bridge = no
 implemented Browser Companion = no
+implemented Adapter Registry = no
+implemented GenericChatAdapter = no
 implemented ConversationSnapshot = no
 implemented HandoffPack = no
 verified Manager -> Worker E2E = no
@@ -293,7 +307,9 @@ multi-worker orchestration = no
 public tool change = no
 ```
 
-The intended first future path remains one ordinary-ChatGPT Manager -> one Worker conversation with explicit session/message identity, ExpectedEffect verification, response freshness and WorkingState-derived handoff. Multiple workers come later.
+The architecture is not limited to ChatGPT/Claude/Gemini. Named services such as DeepSeek, Qwen, Grok, Doubao, Kimi, Perplexity, Poe, Open WebUI and LibreChat are future adapter/profile examples. The target extension model is an open-ended Adapter Registry with declarative profiles, small reviewed platform hooks, a provider-agnostic `GenericChatAdapter`, then selected GUI/visual fallback and ABSTAIN when state remains ambiguous.
+
+The intended first future path remains one ordinary-ChatGPT Manager -> one Worker conversation with explicit session/message identity where available, ExpectedEffect verification, response freshness and WorkingState-derived handoff. Multiple workers come later.
 
 CtxPort is an external MIT architecture/code reference only. It is not installed, vendored or required by the current runtime.
 
@@ -325,9 +341,9 @@ Tool/backend availability is not a routing decision. Prefer exact safe semantic/
 - `AutomationId` lacks broad accepted physical coverage;
 - browser DNS/rebinding/redirect/private-network isolation remains incomplete;
 - environmental-injection defenses are now an explicit architectural invariant but broader computer-use attack coverage is not yet implemented;
-- Verification Kernel/Finish Gate foundation is active but not yet integrated across accepted file/browser/Windows procedure paths;
+- Verification Kernel file integration is implemented in PR #102 but the rebased exact head still requires hosted CI and target-Windows ordinary-Chat completion + zero-overwrite evidence; Browser/Windows verification adapters remain unimplemented;
 - WorkingState/LoopGuard remain architecture targets, not accepted runtime implementation;
-- Track M Conversation Bridge/Browser Companion is documentation only; authenticated user-browser session access, credential isolation, worker message identity and handoff verification are unimplemented;
+- Track M Conversation Bridge/Browser Companion/Adapter Registry is documentation only; authenticated user-browser session access, credential isolation, generic/provider adapters, worker message identity and handoff verification are unimplemented;
 - Python/model/OpenAdapt packaging is not release-grade;
 - raw demonstration retention/redaction/encryption policy is not accepted;
 - no stable release exists.
@@ -350,5 +366,6 @@ Tool/backend availability is not a routing decision. Prefer exact safe semantic/
 - never persist private chain-of-thought;
 - raw capture is sensitive local data;
 - future browser-companion credentials must remain inside that boundary and never enter planner/WorkingState/MCP payloads;
+- future conversation provider/profile definitions are hints/capability declarations, not action authority;
 - generic Windows code execution remains disabled/unreachable;
 - preserve fail-closed behavior over benchmark hit rate.

@@ -87,6 +87,8 @@ function Assert-ChatBootstrapEnvironment {
         (Join-Path $PSScriptRoot 'chat-platform-tray.ps1'),
         (Join-Path $RepoRoot 'runtime\semantic-projection\bin\semantic-control-plane-projection.mjs'),
         (Join-Path $RepoRoot 'runtime\control_plane\cli.py'),
+        (Join-Path $RepoRoot 'runtime\control_plane\file_artifact_observation.py'),
+        (Join-Path $RepoRoot 'runtime\control_plane\verification.py'),
         (Join-Path $RepoRoot 'runtime\control_plane\verified_workspace_artifact.py')
     )) {
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {

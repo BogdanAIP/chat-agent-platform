@@ -6,7 +6,7 @@
 
 Stage 26.3A is physically accepted and merged. Stage 26.3B extracts reusable verification semantics from capability/procedure-specific checks before broader recovery or computer-use authority is added.
 
-This document describes the first implementation slice only. It does **not** claim Stage 26.3B physical acceptance or completion.
+The kernel foundation is merged. The file/artifact integration slice is implemented and locally tested, but it does **not** claim Stage 26.3B physical acceptance or completion.
 
 ## Purpose
 
@@ -55,6 +55,22 @@ It introduces:
 - `evaluate_finish_gate(...)` — independent completion decision preserving task-success, unresolved requirements and safety as separate dimensions.
 
 The package exports this contract from `runtime.control_plane` without adding any Chat-facing tool.
+
+## File/artifact integration slice
+
+`runtime/control_plane/file_artifact_observation.py` now provides the first production capability adapter. One fixed stream observes a bounded set of paths below one configured root and emits normalized file state:
+
+```text
+exists / kind / size / sha256 / filesystem identity
+complete / ambiguous
+same-stream monotonic sequence + canonical fingerprint
+```
+
+The adapter uses non-following metadata, bounded reads and before/after identity/state checks. Symlinks are reported as symlinks rather than followed as ordinary files. Oversized or unreadable evidence is incomplete; a path/object race is ambiguous. Neither condition can become transition `PASS`.
+
+`verified_workspace_artifact_v1` now uses this stream and the common kernel for current-state checks and all three transition postconditions while preserving its request/result surface, checkpoint schema, old-checkpoint resume compatibility, exclusive-create/no-overwrite behavior, identity-bound rollback and action/runtime budgets. Transition receipts retain the accepted compact `verification` payload and add `kernel_verification` evidence.
+
+The cleanup transition submits separately bound target-goal and staging-absence safety results to the independent Finish Gate. Only same-batch `PASS + PASS` can move the procedure to `completed`.
 
 ## Normalized evidence boundary
 
@@ -177,8 +193,7 @@ Task-success, safety and unresolved completion state remain separate fields.
 
 This first slice does not yet:
 
-- migrate accepted `verified_workspace_artifact_v1` onto the common kernel;
-- add Filesystem/Browser/Windows production observation adapters;
+- add Browser/Windows production observation adapters;
 - alter action authorization or delivery;
 - add typed recovery or LoopGuard (Stage 26.3C);
 - persist WorkingState;
@@ -186,17 +201,16 @@ This first slice does not yet:
 - add Windows/computer-use public authority;
 - claim a new target-Windows physical result.
 
-Because this module is not yet wired into an action-delivery/public semantic path, this slice is hosted-testable without claiming new physical capability. Later integration that changes accepted runtime behavior requires the appropriate regression/physical gate.
+The kernel foundation was hosted-testable without a physical claim. The file adapter and procedure migration now change an accepted production procedure path, so hosted CI is necessary but not sufficient: the exact integration head requires the ordinary-Chat target-Windows regression/physical gate before merge or acceptance.
 
 ## Remaining Stage 26.3B work
 
-1. define a truthful normalized observation adapter/constructor for accepted file/artifact evidence;
-2. migrate `verified_workspace_artifact_v1` transition checks onto the shared kernel while preserving checkpoint/resume/rollback and zero-overwrite behavior;
-3. add Browser URL/document/control/result verification;
-4. add Windows/application/process verification over accepted `DesktopState`/identity evidence;
-5. add cross-capability task predicates where a real procedure requires them;
-6. run physical acceptance when shared verification changes a production procedure/action path;
-7. only then declare Stage 26.3B accepted and advance Stage 26.3C.
+1. pass hosted CI and physical ordinary-Chat regression for the migrated file procedure, including completion and zero-overwrite;
+2. add Browser URL/document/control/result verification;
+3. add Windows/application/process verification over accepted `DesktopState`/identity evidence;
+4. add cross-capability task predicates where a real procedure requires them;
+5. run any further physical gates when those adapters enter production action paths;
+6. only then declare Stage 26.3B accepted and advance Stage 26.3C.
 
 ## Invariants
 

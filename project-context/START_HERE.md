@@ -135,11 +135,12 @@ separate task-success / unresolved / safety evidence
 
 Fresh verification requires the same observation stream/capability/subject and a strictly higher sequence. Completion evidence must be observation-bound and belong to the same requested evidence batch; old or unbound PASS receipts cannot produce `DONE`.
 
-This is **not yet Stage 26.3B acceptance**. Remaining implementation work includes:
+The kernel foundation is merged through PR #99. The current locally tested slice adds the bounded file/artifact observation stream, kernel-gates all `verified_workspace_artifact_v1` transitions and uses the same-batch Finish Gate for target-goal plus staging-absence safety evidence.
+
+This is **not yet Stage 26.3B acceptance**. Remaining work includes:
 
 ```text
-file/artifact normalized observation adapter
-migrate verified_workspace_artifact_v1 onto shared kernel
+hosted CI + ordinary-Chat physical completion/zero-overwrite regression for the integration head
 browser URL/document/control/result verification
 process/window/application verification
 cross-capability completion predicates where required
