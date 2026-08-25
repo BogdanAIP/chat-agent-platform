@@ -913,6 +913,9 @@ function Start-DirectRuntime {
     # WMI scans plus local and remote health work, so the nominal 45-second
     # budget could stretch to many minutes. Use a real wall-clock deadline and
     # poll only tunnel-client's local health endpoint while the child starts.
+    # A fresh control-plane poll is diagnostic remote evidence, not a local
+    # startup prerequisite: transient TLS/network failure must not tear down a
+    # healthy tunnel-client + semantic child that can reconnect on its own.
     $ready = $false
     $lastHealthCode = 'LOCAL_TUNNEL_NOT_HEALTHY'
     $startupClock = [System.Diagnostics.Stopwatch]::StartNew()
@@ -944,7 +947,6 @@ function Start-DirectRuntime {
         if (
             [bool]$local.healthz_ok -and
             [bool]$local.readyz_ok -and
-            [bool]$local.poll_ok -and
             [bool]$local.process_ok
         ) {
             # One bounded ownership scan after local readiness is enough to
@@ -953,7 +955,12 @@ function Start-DirectRuntime {
             $semanticProcesses = @(Get-SemanticProcesses)
             if ($semanticProcesses.Count -eq 1) {
                 $ready = $true
-                $lastHealthCode = 'READY'
+                $lastHealthCode = if ([bool]$local.poll_ok) {
+                    'READY'
+                }
+                else {
+                    'REMOTE_TUNNEL_DISCONNECTED'
+                }
                 break
             }
             if ($semanticProcesses.Count -gt 1) {
@@ -965,8 +972,11 @@ function Start-DirectRuntime {
         elseif (-not [bool]$local.healthz_ok) {
             $lastHealthCode = 'LOCAL_TUNNEL_NOT_HEALTHY'
         }
-        elseif (-not [bool]$local.poll_ok) {
-            $lastHealthCode = 'REMOTE_TUNNEL_DISCONNECTED'
+        elseif (-not [bool]$local.readyz_ok) {
+            $lastHealthCode = 'LOCAL_MCP_UNAVAILABLE'
+        }
+        elseif (-not [bool]$local.process_ok) {
+            $lastHealthCode = 'LOCAL_TUNNEL_NOT_RUNNING'
         }
         else {
             $lastHealthCode = 'LOCAL_MCP_UNAVAILABLE'
