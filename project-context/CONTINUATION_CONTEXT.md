@@ -8,15 +8,15 @@ Resolve live GitHub state before acting because `main` and open PR heads can mov
 
 ## Current accepted integration line
 
-Stage 26.3A — canonical six-tool Verified Procedure Runtime — is **physically accepted and merged** through PR #92.
+Stage 26.3A — canonical six-tool Verified Procedure Runtime — is **physically accepted and merged** through PR #92. The reviewed Stage 26.3A GUI/computer-use research promotion is merged through PR #98.
 
-Merged `main` integration commit at the start of the current architecture branch:
+Current `main` integration commit at the start of Stage 26.3B:
 
 ```text
-43ad61384e966ecf089e69a95c166d41da949ebe
+b74c715d9f2ac6fe7f759e7fb57108feebf797c0
 ```
 
-Exact physically accepted runtime head remains:
+Exact physically accepted Stage 26.3A runtime head remains:
 
 ```text
 300db9956dfbdf0300ecc59f017d6f3280d4353a
@@ -114,17 +114,33 @@ This does **not** expand the accepted six-tool public surface and does not autho
 
 ## Current active work
 
-Current release-critical target is **Stage 26.3B — Verification Kernel + independent Finish Gate**.
+Current release-critical implementation is **Stage 26.3B — Verification Kernel + independent Finish Gate**.
 
-Implement reusable deterministic contracts for:
+The first internal foundation slice now defines:
 
 ```text
-ExpectedEffect/postconditions
-fresh re-observation evidence
+ObservationRef / ObservationSnapshot
+capability + subject + observation-stream identity
+monotonic fresh re-observation sequence
+ExpectedEffect + bounded declarative predicates
 PASS | FAIL | UNKNOWN transition result
-cross-capability file/browser/app/window/process predicates
-candidate_done -> Finish Gate -> DONE
+independent Finish Gate
 separate task-success and safety/policy evidence
+```
+
+Freshness requires the same observation stream/capability/subject and a strictly higher sequence; a higher sequence from another stream is not proof of freshness. `candidate_done` remains only a planner proposal.
+
+This first slice is **not Stage 26.3B acceptance** and does not change the public six-tool surface or accepted action-delivery path.
+
+Remaining Stage 26.3B work:
+
+```text
+file/artifact observation adapter
+migrate verified_workspace_artifact_v1 onto shared kernel
+browser URL/document/control/result verification adapters
+Windows/application/process verification adapters
+cross-capability task predicates where required
+physical gate when production procedure/action behavior changes
 ```
 
 Then Stage 26.3C adds:
@@ -146,7 +162,7 @@ recovery escalation state
  -> Transport Supervisor v1                       ACCEPTED / MERGED #94
  -> 26.3 Verified Procedure Runtime               ACTIVE
     -> 26.3A canonical six-tool runtime           ACCEPTED / MERGED #92
-    -> 26.3B Verification Kernel + Finish Gate    NEXT
+    -> 26.3B Verification Kernel + Finish Gate    ACTIVE
     -> 26.3C WorkingState + recovery + LoopGuard
  -> 26.4 Human Demo -> verified candidate skill
  -> 26.5 Hybrid Computer-Use Integration
@@ -182,7 +198,7 @@ A local READY route is not proof that ChatGPT's frozen app snapshot/permissions 
 ## Fresh-chat startup procedure
 
 1. Resolve live `main` and open PRs/checks.
-2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `SECURITY_POLICY.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md`, `DECISIONS.md`, `EVIDENCE_INDEX.md` and `EXTENSION_MANAGER.md`.
-3. Treat Stage 26.3A acceptance as scoped to the recorded exact physical runtime/evidence.
+2. Read this file, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `SECURITY_POLICY.md`, `ROADMAP.md`, `DOCUMENT_STATUS.md`, `DECISIONS.md`, `EVIDENCE_INDEX.md`, `EXTENSION_MANAGER.md` and the active `STAGE26_3B_VERIFICATION_KERNEL.md` contract.
+3. Treat Stage 26.3A acceptance as scoped to the recorded exact physical runtime/evidence; do not extend it to Stage 26.3B merely because shared verification code exists.
 4. Prefer exact code/tests/current CI/physical evidence over prose.
 5. Do not recreate five-versus-six modes, reinsert 1MCP into normal semantic transport, add generic execution, or broaden public computer-use authority without its own acceptance gate.

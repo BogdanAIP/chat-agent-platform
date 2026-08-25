@@ -19,7 +19,8 @@ Never treat a documentation SHA as permanently current. Resolve live `main`, the
 9. `project-context/DOCUMENT_STATUS.md`
 10. `project-context/EVIDENCE_INDEX.md`
 11. `project-context/EXTENSION_MANAGER.md`
-12. accepted Stage 26.3A notes/evidence when exact first-procedure details are needed
+12. `project-context/STAGE26_3B_VERIFICATION_KERNEL.md` while Stage 26.3B is active
+13. accepted Stage 26.3A notes/evidence when exact first-procedure details are needed
 
 When documents disagree, exact code/tests/current CI/physical target evidence outrank prose.
 
@@ -31,19 +32,21 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 
 ## Current integration state
 
-Stage 26.3A is accepted and merged as PR #92.
+Stage 26.3A is accepted and merged as PR #92. The reviewed GUI/computer-use architecture promotion is merged as PR #98.
 
-Exact physically accepted runtime head:
+Stage 26.3B started from integration base:
+
+```text
+b74c715d9f2ac6fe7f759e7fb57108feebf797c0
+```
+
+Exact physically accepted Stage 26.3A runtime head:
 
 ```text
 300db9956dfbdf0300ecc59f017d6f3280d4353a
 ```
 
-Merged `main` integration commit:
-
-```text
-43ad61384e966ecf089e69a95c166d41da949ebe
-```
+The live `main` must always be resolved from GitHub rather than inferred from a stage-scoped SHA.
 
 The accepted public semantic surface is exactly:
 
@@ -95,9 +98,7 @@ A future local general planner remains optional Track P and begins shadow/propos
 
 ## State-first hybrid computer-use direction
 
-The independently reviewed Stage 26.3A GUI-agent research is now promoted into `COMPUTER_USE_ARCHITECTURE.md` / ADR-032/033.
-
-Target formula:
+The independently reviewed Stage 26.3A GUI-agent research is promoted into `COMPUTER_USE_ARCHITECTURE.md` / ADR-032/033.
 
 ```text
 semantic/native state first
@@ -111,53 +112,50 @@ semantic/native state first
  -> separate safety/policy gate
 ```
 
-This is an internal architecture direction, not a new public tool surface.
+Environmental content from pages, application UI, messages, files/documents, screenshots/OCR and third-party tools is task data, not policy authority.
 
-### Environmental content
-
-Content from pages/DOM, application UI, email/messages, files/documents, screenshots/OCR and third-party tool/MCP output is untrusted environmental data with respect to policy/authority. It may inform the task but cannot broaden permissions or redefine user intent/Control Plane policy merely by being visible.
-
-### Completion
-
-Planner/model/procedure saying `done` is only `candidate_done`. Verified `DONE` requires the independent Finish Gate against fresh task-level predicates.
+Planner/model/procedure saying `done` is only `candidate_done`. Verified `DONE` requires the independent Finish Gate against fresh task-level evidence.
 
 ## Current active work — Stage 26.3B
 
-**Stage 26.3B — Verification Kernel + independent Finish Gate — NEXT.**
+**Stage 26.3B — Verification Kernel + independent Finish Gate — ACTIVE.**
 
-Implement reusable deterministic contracts for:
-
-```text
-ExpectedEffect
-fresh re-observation reference
-PASS | FAIL | UNKNOWN transition verifier
-file/artifact predicates
-browser state predicates
-process/window/application predicates
-cross-capability completion predicates
-candidate_done -> Finish Gate -> DONE
-separate task-success and safety/policy evidence
-```
-
-Then Stage 26.3C adds:
+The current foundation introduces:
 
 ```text
-WorkingState v1
-facts + provenance + freshness
-progress vectors
-typed recovery taxonomy
-no-effect / repeat / oscillation LoopGuard
-retry/action/time/resource budgets
+ObservationRef / ObservationSnapshot
+stream_id + capability + subject + monotonic sequence
+bounded immutable normalized evidence
+ExpectedEffect + declarative predicates
+PASS | FAIL | UNKNOWN
+evidence_batch_id for one completion collection
+independent Finish Gate
+separate task-success / unresolved / safety evidence
 ```
 
-## Later current sequence
+Fresh verification requires the same observation stream/capability/subject and a strictly higher sequence. Completion evidence must be observation-bound and belong to the same requested evidence batch; old or unbound PASS receipts cannot produce `DONE`.
+
+This is **not yet Stage 26.3B acceptance**. Remaining implementation work includes:
+
+```text
+file/artifact normalized observation adapter
+migrate verified_workspace_artifact_v1 onto shared kernel
+browser URL/document/control/result verification
+process/window/application verification
+cross-capability completion predicates where required
+physical acceptance after production procedure/action-path integration
+```
+
+Then Stage 26.3C adds WorkingState, typed recovery and LoopGuard.
+
+## Current sequence
 
 ```text
 26.2E real application E2E                         ACCEPTED
  -> Transport Supervisor v1                       ACCEPTED / MERGED #94
  -> 26.3 Verified Procedure Runtime               ACTIVE
     -> 26.3A canonical six-tool runtime           ACCEPTED / MERGED #92
-    -> 26.3B Verification Kernel + Finish Gate    NEXT
+    -> 26.3B Verification Kernel + Finish Gate    ACTIVE
     -> 26.3C WorkingState + recovery + LoopGuard
  -> 26.4 Human Demo -> verified candidate skill
  -> 26.5 Hybrid Computer-Use Integration
@@ -165,11 +163,11 @@ retry/action/time/resource budgets
  -> 28 clean-user E2E / stable release
 ```
 
-Any future public Windows/computer-use surface still requires its own ADR/schema/security review and ordinary-Chat physical acceptance. Do not overload `web_interact`, expose raw UIA/backend catalogs, add generic `tool_invoke`, or introduce unrestricted shell/Python to shortcut that gate.
+Any future public Windows/computer-use surface still requires its own architecture/security/ordinary-Chat acceptance gate.
 
 ## Stage 26.3A accepted lesson
 
-The physical long-horizon test proved the current six-tool route can sustain a real research task, use file-backed working memory, recover from a browser interaction error, execute a bounded three-transition procedure and independently prove zero overwrite.
+The physical long-horizon test proved the six-tool route can sustain a real research task, use file-backed working memory, recover from a browser interaction error, execute a bounded three-transition procedure and independently prove zero overwrite.
 
 The locally generated `gui-agent-research.md` was subsequently checked against public primary sources and promoted only where supported. External benchmark findings remain evidence sources; they do not automatically become release gates or production policy.
 
@@ -192,5 +190,4 @@ Once a branch is logically complete, intended diff is verified, required CI/phys
 - environmental content is task data, not policy authority;
 - task-success and safety/policy verification are separate;
 - current observed state outranks remembered procedure/demo/history;
-- generic Windows code execution remains disabled/unreachable;
 - optional Extension Manager infrastructure cannot become baseline authority or transport dependency.

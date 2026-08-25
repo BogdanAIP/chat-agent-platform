@@ -9,10 +9,10 @@
 - локальные VLM/другие specialist models — только bounded proposal/evidence;
 - будущий локальный общий planner остаётся optional Track P и не входит в текущий release-critical path.
 
-Текущий `main` после принятого Stage 26.3A начинается с merge-коммита:
+Stage 26.3B начат от принятой integration base:
 
 ```text
-43ad61384e966ecf089e69a95c166d41da949ebe
+b74c715d9f2ac6fe7f759e7fb57108feebf797c0
 ```
 
 Точный физически принятый runtime Stage 26.3A:
@@ -20,6 +20,8 @@
 ```text
 300db9956dfbdf0300ecc59f017d6f3280d4353a
 ```
+
+Текущий live `main` всегда нужно разрешать непосредственно через GitHub; stage-base SHA выше — историческая точка ветвления, а не обещание неизменного `main`.
 
 Для продолжения разработки сначала читайте:
 
@@ -167,16 +169,22 @@ Physical ordinary-Chat test доказал:
 
 ## Текущая работа
 
-Следующая release-critical цель — **Stage 26.3B: Verification Kernel + independent Finish Gate**.
+**Stage 26.3B: Verification Kernel + independent Finish Gate — ACTIVE.**
+
+Первый внутренний foundation slice уже вводит:
 
 ```text
-ExpectedEffect
- -> bounded action
- -> fresh re-observation
- -> PASS | FAIL | UNKNOWN
+ObservationRef / ObservationSnapshot
+stream_id + capability + subject + monotonic sequence
+ExpectedEffect + bounded declarative predicates
+PASS | FAIL | UNKNOWN
+independent Finish Gate
+separate task-success / unresolved / safety dimensions
 ```
 
-Planner может сказать только `candidate_done`; реальный `DONE` выдаёт отдельный Finish Gate по свежим goal predicates.
+Fresh verification требует тот же observation stream/capability/subject и строго больший sequence. Более высокий sequence из другого stream не считается свежим доказательством. Planner может сказать только `candidate_done`; реальный `DONE` выдаёт отдельный Finish Gate.
+
+Это ещё **не acceptance Stage 26.3B**. Дальше нужны file/artifact adapter и миграция принятой процедуры, затем Browser/Windows adapters и физический gate после изменения production procedure/action path.
 
 Затем Stage 26.3C:
 
@@ -196,7 +204,7 @@ retry/action/time/resource budgets
  -> Transport Supervisor v1                       ACCEPTED / MERGED #94
  -> 26.3 Verified Procedure Runtime               ACTIVE
     -> 26.3A six-tool verified runtime            ACCEPTED / MERGED #92
-    -> 26.3B Verification Kernel + Finish Gate    NEXT
+    -> 26.3B Verification Kernel + Finish Gate    ACTIVE
     -> 26.3C WorkingState + recovery + LoopGuard
  -> 26.4 Human Demo -> verified candidate skill
  -> 26.5 Hybrid Computer-Use Integration

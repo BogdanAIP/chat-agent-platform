@@ -38,12 +38,14 @@ Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not
 
 ## Current accepted integration
 
-Stage 26.3A is accepted and merged through PR #92.
+Stage 26.3A is accepted and merged through PR #92. The reviewed GUI/computer-use architecture promotion is merged through PR #98.
 
 ```text
-main integration commit = 43ad61384e966ecf089e69a95c166d41da949ebe
-physical runtime head   = 300db9956dfbdf0300ecc59f017d6f3280d4353a
+Stage 26.3B base integration = b74c715d9f2ac6fe7f759e7fb57108feebf797c0
+physical runtime head        = 300db9956dfbdf0300ecc59f017d6f3280d4353a
 ```
+
+The exact live `main` must always be resolved from GitHub rather than inferred from this stage-base snapshot.
 
 The accepted ordinary-Chat semantic surface is exactly:
 
@@ -148,7 +150,7 @@ Typed recovery is bounded. Repeating identical/no-effect/oscillating state-actio
  -> Transport Supervisor v1                       ACCEPTED / MERGED #94
  -> 26.3 Verified Procedure Runtime               ACTIVE
     -> 26.3A canonical six-tool runtime           ACCEPTED / MERGED #92
-    -> 26.3B Verification Kernel + Finish Gate    NEXT
+    -> 26.3B Verification Kernel + Finish Gate    ACTIVE
     -> 26.3C WorkingState + recovery + LoopGuard
  -> 26.4 Human Demo -> verified candidate skill
  -> 26.5 Hybrid Computer-Use Integration
@@ -157,7 +159,7 @@ Typed recovery is bounded. Repeating identical/no-effect/oscillating state-actio
 
 ### 26.3B
 
-Build reusable deterministic `ExpectedEffect` / fresh postcondition verification and the independent Finish Gate across files, Browser, Windows/application/process state and structured outputs.
+The internal Verification Kernel foundation is active: stream-bound fresh observation references, bounded declarative `ExpectedEffect` predicates, `PASS | FAIL | UNKNOWN`, and an independent Finish Gate with separate task-success/safety dimensions. It is not yet Stage 26.3B acceptance; file/browser/Windows adapters and production-procedure integration remain.
 
 ### 26.3C
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-**AUTHORITATIVE ARCHITECTURAL DIRECTION.** Stage 26.3A has physically accepted the first deterministic multi-transition procedure slice. Stage 26.3B/C now generalize verification, completion, WorkingState and bounded recovery before broader computer-use authority is added.
+**AUTHORITATIVE ARCHITECTURAL DIRECTION.** Stage 26.3A physically accepted the first deterministic multi-transition procedure slice. Stage 26.3B is now active and generalizes verification/completion; Stage 26.3C follows with WorkingState and bounded recovery before broader computer-use authority is added.
 
 This distinction remains mandatory:
 
@@ -193,6 +193,27 @@ UNKNOWN
 
 Prefer deterministic/native/system-of-record predicates where practical. A model may assist an ambiguous classification as non-authorizing evidence, but cannot replace stronger available predicates.
 
+### Stage 26.3B active foundation
+
+The current internal verification foundation implements:
+
+```text
+ObservationRef
+  capability + subject + stream_id + monotonic sequence + fingerprint
+ObservationSnapshot
+  bounded immutable normalized evidence
+ExpectedEffect
+  bounded equals/present/absent predicates
+verification
+  PASS | FAIL | UNKNOWN
+```
+
+Freshness requires the same observation stream/capability/subject and a strictly higher sequence. Stale, mismatched-stream, ambiguous or incomplete required evidence yields `UNKNOWN` rather than guessed success.
+
+Normalized evidence is bounded plain data and detached from caller mutation; arbitrary custom comparison/executable objects are not admitted into the verifier.
+
+This is the foundation of active Stage 26.3B, not Stage 26.3B acceptance. Production file/browser/Windows adapters and procedure integration remain staged work.
+
 ## Independent Finish Gate
 
 Transition verification answers: **did this step produce its expected effect?**
@@ -221,6 +242,8 @@ required artifact/application/browser state
 unresolved ambiguity/confirmation state
 safety/policy predicates
 ```
+
+The active foundation binds completion checks to one explicit `evidence_batch_id`. Goal/safety/constraint/freshness results used for one decision must be observation-bound and belong to that same evidence collection. Unbound or old/mixed-batch PASS receipts become `UNKNOWN` for completion.
 
 A file merely existing is not sufficient when content/identity/structure matters. A browser click succeeding is not sufficient when server-side or DOM state defines completion. A produced artifact is not sufficient when required semantic correctness remains unverified.
 
@@ -496,8 +519,8 @@ It must not:
 - infer an arbitrary new user goal;
 - freely rewrite the selected strategy;
 - dynamically invent unconstrained workflows;
-- expose arbitrary `server + tool + args` dispatch;
-- become a generic shell/Python executor;
+- expose arbitrary backend dispatch;
+- become an unrestricted execution surface;
 - bypass capability authorization because a procedure/model/planner requested an action;
 - treat lineage or supervisor guidance as action authority;
 - hide native desktop/workflow consequences behind misleading harmless tool semantics;
@@ -512,7 +535,7 @@ Current release-critical order:
 ```text
 26.2E real application E2E                         ACCEPTED
  -> 26.3A verified procedure runtime              ACCEPTED
- -> 26.3B Verification Kernel + Finish Gate       NEXT
+ -> 26.3B Verification Kernel + Finish Gate       ACTIVE
  -> 26.3C WorkingState + typed recovery + LoopGuard + StagnationReport
  -> 26.4 Human Demo -> transferable verified candidate skill + Skill Lineage
  -> 26.5 Hybrid Computer-Use Integration

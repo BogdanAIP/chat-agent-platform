@@ -249,6 +249,8 @@ verification result = PASS | FAIL | UNKNOWN
 
 Delivery receipts remain evidence of delivery only. They never imply success.
 
+The active Stage 26.3B foundation now gives this contract an internal deterministic representation: stream-bound `ObservationRef`, immutable bounded normalized `ObservationSnapshot`, declarative `ExpectedEffect` predicates and explicit `PASS | FAIL | UNKNOWN` results. This is foundation code only; capability adapters and production-procedure migration remain staged.
+
 ## 2.3 Independent finish gate
 
 Transition verification and task completion are different layers.
@@ -277,7 +279,9 @@ no unresolved required ambiguity/confirmation
 required safety predicates satisfied
 ```
 
-For file tasks this may mean path + existence + identity/content/hash/structure. For browser/app tasks it may mean URL/document/server-side/app state. Complex procedures may require a conjunction of checkpoint predicates.
+The active Stage 26.3B foundation requires completion verification receipts to be tied to concrete observations and to one explicit `evidence_batch_id`; unbound or mixed/older batch PASS receipts become `UNKNOWN` rather than being composed into `DONE`.
+
+For file tasks completion may require path + existence + identity/content/hash/structure. For browser/app tasks it may require URL/document/server-side/app state. Complex procedures may require a conjunction of checkpoint predicates.
 
 ## 2.4 Structured WorkingState, not raw history replay
 
@@ -417,7 +421,7 @@ The research does **not** authorize the following changes:
 - screenshot-only computer use as the normal control loop;
 - unrestricted code/program-state access from StateAct;
 - exposing raw UIA/DOM/backend graphs as hundreds of ChatGPT tools;
-- generic `tool_invoke`, arbitrary shell/Python, or arbitrary backend dispatch;
+- generic `tool_invoke`, backend dispatch or unrestricted execution surfaces;
 - blind absolute-coordinate replay from demonstrations;
 - replaying every screenshot/action in long-horizon context;
 - learned memory/router/critic components before project traces demonstrate a measured need;
@@ -431,19 +435,23 @@ The current six-tool public surface remains accepted until a later reviewed capa
 
 # 4. Stage mapping
 
-## Stage 26.3B — Verification Kernel + Finish Gate
+## Stage 26.3B — Verification Kernel + Finish Gate — ACTIVE
 
-Next release-critical work:
+Current foundation:
 
 ```text
-ExpectedEffect / verification contract
-cross-capability postcondition primitives
-fresh re-observation evidence
-independent candidate_done -> DONE finish gate
+ObservationRef / ObservationSnapshot
+same-stream/capability/subject freshness
+bounded immutable normalized evidence
+ExpectedEffect / declarative predicates
+PASS | FAIL | UNKNOWN
+evidence_batch_id-bound Finish Gate
 separate task completion and safety/policy evidence
 ```
 
-Start with deterministic verifiers. Model-assisted ambiguous judging, if ever added, remains non-authorizing evidence and must not replace system/native predicates when available.
+Remaining Stage 26.3B work includes truthful file/browser/Windows observation adapters, migration of accepted procedure checks onto the kernel, cross-capability completion predicates where needed and physical acceptance once production procedure/action behavior changes.
+
+Model-assisted ambiguous judging, if ever added, remains non-authorizing evidence and must not replace system/native predicates when available.
 
 ## Stage 26.3C — WorkingState + Typed Recovery + LoopGuard
 
@@ -521,11 +529,9 @@ Benchmark-specific optimizations must not leak into production policy unless the
 
 # 6. Implementation order
 
-The research is therefore converted into this concrete order:
-
 ```text
 26.3A verified procedure runtime                         ACCEPTED
- -> 26.3B Verification Kernel + independent Finish Gate NEXT
+ -> 26.3B Verification Kernel + independent Finish Gate ACTIVE
  -> 26.3C WorkingState + typed recovery + LoopGuard
  -> 26.4 demonstration -> verified candidate skill
  -> 26.5 hybrid computer-use integration

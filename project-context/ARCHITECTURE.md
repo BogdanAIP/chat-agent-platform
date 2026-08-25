@@ -7,7 +7,13 @@ Resolve live `main` and relevant open PR heads before new work. Historical accep
 Stage 26.3A was merged through PR #92 into:
 
 ```text
-main = 43ad61384e966ecf089e69a95c166d41da949ebe
+43ad61384e966ecf089e69a95c166d41da949ebe
+```
+
+The reviewed GUI/computer-use architecture promotion was then merged through PR #98. Stage 26.3B started from integration base:
+
+```text
+b74c715d9f2ac6fe7f759e7fb57108feebf797c0
 ```
 
 The exact physically accepted Stage 26.3A runtime head remains:
@@ -15,6 +21,8 @@ The exact physically accepted Stage 26.3A runtime head remains:
 ```text
 300db9956dfbdf0300ecc59f017d6f3280d4353a
 ```
+
+Always resolve live `main` directly from GitHub rather than treating either stage-scoped SHA as permanently current.
 
 ## Product boundary
 
@@ -131,7 +139,7 @@ It must not:
 - run hidden open-ended plans;
 - become procedural memory;
 - become a generic model/tool gateway;
-- expose disguised `tool_invoke`;
+- expose disguised generic dispatch;
 - hide native desktop/workflow consequence classes behind misleading semantics.
 
 ---
@@ -278,6 +286,25 @@ UNKNOWN -> better evidence OR ABSTAIN/escalate
 
 A planner/model/procedure cannot convert FAIL/UNKNOWN into PASS by assertion.
 
+### Active Stage 26.3B verification foundation
+
+The current internal kernel now represents this contract with:
+
+```text
+ObservationRef
+  capability + subject + stream_id + monotonic sequence + fingerprint
+ObservationSnapshot
+  bounded immutable normalized evidence
+ExpectedEffect
+  bounded equals/present/absent predicates
+verification
+  PASS | FAIL | UNKNOWN
+```
+
+Freshness requires the same stream/capability/subject and a strictly higher sequence. Stale, mismatched-stream, ambiguous or incomplete required evidence produces `UNKNOWN`.
+
+Normalized evidence is restricted to bounded plain data and detached from caller mutation. This is an internal foundation only; accepted production procedures are not yet migrated to it.
+
 ---
 
 # Independent Finish Gate
@@ -308,6 +335,8 @@ safety/policy predicates
 ```
 
 Prefer system/native/system-of-record predicates when available. Model-assisted ambiguous judgments remain non-authorizing evidence.
+
+The active foundation binds Finish Gate inputs to one explicit `evidence_batch_id`. Completion checks must carry concrete observation evidence from that requested collection. Unbound or old/mixed-batch PASS receipts are `UNKNOWN` for completion rather than reusable proof.
 
 ---
 
@@ -560,9 +589,9 @@ This is the first accepted slice of deterministic local multi-transition autonom
 
 # Current release-critical implementation
 
-## Stage 26.3B — Verification Kernel + Finish Gate — NEXT
+## Stage 26.3B — Verification Kernel + Finish Gate — ACTIVE
 
-Generalize deterministic postconditions across files, Browser, Windows/app/process state and structured outputs. Add explicit `ExpectedEffect`, fresh re-observation references and independent task-level completion predicates.
+The first internal foundation is implemented and hosted-testable, but Stage 26.3B is not accepted yet. Remaining work is capability integration: file/artifact adapter and accepted procedure migration first, then Browser and Windows/application/process verification, cross-capability completion predicates where required, and the appropriate physical gate when production procedure/action behavior changes.
 
 ## Stage 26.3C — WorkingState + typed recovery + LoopGuard
 

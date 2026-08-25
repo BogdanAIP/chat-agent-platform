@@ -6,6 +6,19 @@ transitions.  It does not expose generic code execution or persist private
 reasoning.
 """
 
+from .verification import (
+    ExpectedEffect,
+    FinishGateResult,
+    FinishStatus,
+    ObservationRef,
+    ObservationSnapshot,
+    PredicateOperator,
+    StatePredicate,
+    VerificationResult,
+    VerificationStatus,
+    evaluate_finish_gate,
+    verify_expected_effect,
+)
 from .verified_workspace_artifact import (
     PROCEDURE_ID,
     PROCEDURE_VERSION,
@@ -13,7 +26,18 @@ from .verified_workspace_artifact import (
 )
 
 __all__ = [
+    "ExpectedEffect",
+    "FinishGateResult",
+    "FinishStatus",
+    "ObservationRef",
+    "ObservationSnapshot",
+    "PredicateOperator",
     "PROCEDURE_ID",
     "PROCEDURE_VERSION",
+    "StatePredicate",
+    "VerificationResult",
+    "VerificationStatus",
+    "evaluate_finish_gate",
     "run_verified_workspace_artifact",
+    "verify_expected_effect",
 ]
