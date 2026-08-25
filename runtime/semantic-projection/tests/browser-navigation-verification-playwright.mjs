@@ -80,7 +80,7 @@ try {
   });
   assert.equal(redirected.isError, true, 'redirect must not be silently promoted before redirect policy is reviewed');
   assert.equal(redirected.structuredContent?.browser_verification?.status, 'fail');
-  assert.equal(redirected.structuredContent?.browser_verification?.verification?.reason, 'predicate_mismatch');
+  assert.equal(redirected.structuredContent?.browser_verification?.verification?.reason, 'expected_effect_failed');
   assert(textOf(redirected).includes('web_open final-state verification=fail'), textOf(redirected));
 
   const redirectSnapshot = await client.callTool({ name: 'web_observe', arguments: { operation: 'snapshot' } });
