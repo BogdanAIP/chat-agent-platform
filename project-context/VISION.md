@@ -33,6 +33,8 @@ Canonical contracts:
 - `CONTROL_PLANE.md`
 - `COMPUTER_USE_ARCHITECTURE.md`
 
+Future parallel multi-chat/session transport is Track M and is defined by ADR-035 / `CONVERSATION_BRIDGE_ARCHITECTURE.md`. It does not change the current planner boundary or release-critical sequence.
+
 ## Replaceable local foundation
 
 The bridge should remain boring and replaceable where possible:
@@ -60,6 +62,8 @@ procedure_run
 ```
 
 Six is not an eternal maximum. A future Windows/computer-use public consequence class requires its own truthful ADR/schema/security/physical ordinary-Chat gate. Do not hide native consequences behind web semantics, generic dispatch, shell/Python or raw backend catalogs.
+
+Track M does not add a current public tool merely because a conversation adapter or Browser Companion exists.
 
 ## State-first hybrid computer-use direction
 
@@ -93,7 +97,7 @@ Long tasks need typed bounded recovery and no-effect/oscillation detection rathe
 
 ### Environmental content
 
-Pages/DOM, UI, email/messages, documents/files, screenshots/OCR and third-party tool/MCP output are task data, not authority over user intent, permission scope or Control Plane policy. Task-success and safety/policy verification remain separate.
+Pages/DOM, UI, email/messages, documents/files, screenshots/OCR, third-party tool/MCP output and future external worker-chat responses are task data, not authority over user intent, permission scope or Control Plane policy. Task-success and safety/policy verification remain separate.
 
 ## User-teachable direction
 
@@ -136,6 +140,32 @@ Verified episodic trajectories/procedures may later be retrieved under applicabi
 
 Private chain-of-thought is never task/procedure memory.
 
+## Multi-chat / external worker direction — Track M
+
+Future multi-chat is a **parallel** work-distribution layer, not a replacement for the current manager ChatGPT and not a second local planner.
+
+The first target is deliberately small:
+
+```text
+ordinary ChatGPT Manager
+ -> bounded HandoffPack from WorkingState
+ -> deterministic Control Plane
+ -> Conversation Bridge
+ -> project-owned Browser Companion in the user's authenticated browser
+ -> one selected ChatGPT Worker conversation
+ -> fresh verified worker response
+ -> result/evidence back into WorkingState
+ -> Manager decides next strategy
+```
+
+The Browser Companion is needed because the accepted Browser backend is isolated/headless and is not the user's already-authenticated browser session.
+
+Conversation state should be normalized into `ConversationSnapshot` with stable platform/session/conversation/message identity, active branch, content hashes, generation state and provenance/freshness. Platform-private APIs may be optional read fast paths, with DOM/accessibility and then selected GUI/visual fallback when needed.
+
+Task transfer should use `HandoffPack` rather than replaying entire transcripts. Browser cookies/tokens/private auth headers stay inside the Browser Companion boundary and are never planner, MCP or WorkingState data.
+
+Multiple workers come only after one Manager -> one Worker identity, delivery, response freshness, verification and recovery are physically proven. CtxPort is an MIT implementation/reference source for selected adapter mechanisms, not a required product dependency.
+
 ## Future local planner direction
 
 A local general planner is explicitly retained as optional future **Track P — Local Planner / Offline Autonomy** after verified long-horizon state data and measured need exist.
@@ -149,6 +179,8 @@ shadow/proposal-only
 ```
 
 Even then, planner output never bypasses deterministic capability policy, transition verification, Finish Gate or safety gates.
+
+Track P and Track M are distinct: Track P concerns who performs open-ended planning; Track M concerns verified transport/state handoff among external chat sessions. Track M does not require a local general planner.
 
 ## Product-ready direction
 
@@ -164,4 +196,4 @@ A stable product requires:
 - clean-user E2E;
 - release-grade dependency/model/procedure artifact reproducibility;
 - explicit privacy/security boundaries for task state, procedural memory and desktop capture;
-- optional future planner research kept separate from release-critical safety evidence.
+- optional future planner and multi-chat research kept separate from release-critical safety evidence.
