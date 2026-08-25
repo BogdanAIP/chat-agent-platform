@@ -13,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
 from runtime.control_plane.browser_transition import verify_navigation_transition  # noqa: E402
 
 
-MAX_REQUEST_BYTES = 2_200_000
+MAX_REQUEST_BYTES = 2_400_000
 
 
 def _error(reason: str) -> dict[str, Any]:
