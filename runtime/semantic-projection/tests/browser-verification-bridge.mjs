@@ -10,9 +10,9 @@ function result(text) {
   return { content: [{ type: 'text', text }] };
 }
 
-const before = parsePlaywrightSnapshotResult(result(`### Page state
+// Exact current @playwright/mcp 0.0.78 shape: empty titles are omitted.
+const before = parsePlaywrightSnapshotResult(result(`### Page
 - Page URL: about:blank
-- Page Title: 
 
 ### Snapshot
 \`\`\`yaml
@@ -25,7 +25,7 @@ assert.deepEqual(before.controls, []);
 assert.equal(before.complete, true);
 assert.equal(before.settled, true);
 
-const after = parsePlaywrightSnapshotResult(result(`### Page state
+const after = parsePlaywrightSnapshotResult(result(`### Page
 - Page URL: https://example.com/
 - Page Title: Example
 
@@ -46,6 +46,7 @@ assert.deepEqual(after.controls.find(control => control.control_id === 'e1'), {
 assert.equal(after.controls.find(control => control.control_id === 'e2')?.value, 'HELLO');
 assert.equal(after.controls.find(control => control.control_id === 'e3')?.checked, true);
 
+// Preserve bounded compatibility with the older inline Page Snapshot shape.
 const legacyInline = parsePlaywrightSnapshotResult(result(`### Page state
 - Page URL: https://legacy.example/
 - Page Title: Legacy
@@ -74,8 +75,8 @@ const redirectMismatch = await verifyPlaywrightNavigation({
 assert.equal(redirectMismatch.status, 'fail');
 
 assert.throws(
-  () => parsePlaywrightSnapshotResult(result('### Page state\n- Page URL: https://example.com/')),
-  /missing Page URL or Page Title/,
+  () => parsePlaywrightSnapshotResult(result('### Snapshot\n```yaml\n- heading Missing page\n```')),
+  /missing Page URL/,
 );
 
 console.log('BROWSER_VERIFICATION_BRIDGE=PASS');
