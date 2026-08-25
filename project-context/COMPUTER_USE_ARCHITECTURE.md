@@ -421,7 +421,7 @@ The research does **not** authorize the following changes:
 - screenshot-only computer use as the normal control loop;
 - unrestricted code/program-state access from StateAct;
 - exposing raw UIA/DOM/backend graphs as hundreds of ChatGPT tools;
-- generic backend dispatch or unrestricted execution surfaces;
+- generic `tool_invoke`, backend dispatch or unrestricted execution surfaces;
 - blind absolute-coordinate replay from demonstrations;
 - replaying every screenshot/action in long-horizon context;
 - learned memory/router/critic components before project traces demonstrate a measured need;

@@ -19,10 +19,12 @@ Chat Agent Platform
       ExpectedEffect + transition verification
       checkpoints
       typed recovery + LoopGuard
+      StagnationReport escalation
       action/time/resource budgets
       independent Finish Gate
       safety/policy gate
   + verified procedural memory
+  + versioned Skill / Procedure Lineage
   + optional specialist proposals
   + future optional local general planner research
 ```
@@ -33,6 +35,7 @@ Canonical contracts:
 
 - `CONTROL_PLANE.md`
 - `COMPUTER_USE_ARCHITECTURE.md`
+- `AVO_LONG_HORIZON_ARCHITECTURE.md` for the reviewed long-horizon lineage/stagnation extension
 
 Accepted public semantic tools remain exactly:
 
@@ -79,7 +82,7 @@ Exact physical evidence belongs in `EVIDENCE_INDEX.md` and historical stage docu
 
 ## Transport Supervisor v1 — ACCEPTED / MERGED #94
 
-Persistent desired state/runtime ownership, layered health, bounded recovery and console-free Scheduled Task persistence are accepted infrastructure.
+Persistent desired state/runtime ownership, layered health, bounded recovery and console-free Scheduled Task persistence are accepted infrastructure. PR #100 later qualified the low-power Manual/Automatic operating model and final ordinary-Chat ON/OFF route gates.
 
 ## Stage 26.3A — canonical six-tool Verified Procedure Runtime — ACCEPTED / MERGED #92
 
@@ -99,6 +102,22 @@ Physical ordinary-Chat evidence proved one long-horizon task using all six seman
 
 This establishes the first real long-horizon deterministic procedure boundary. It does not authorize arbitrary shell/Python or broad Windows consequences.
 
+## NVIDIA AVO long-horizon architecture review — REVIEWED / PROMOTED
+
+The 2026-08-25 review of NVIDIA Agentic Variation Operators and NVIDIA's related agent-stack security guidance was promoted through ADR-034 and `AVO_LONG_HORIZON_ARCHITECTURE.md`.
+
+Supported project mechanisms:
+
+```text
+durable structured state across context boundaries
+LoopGuard -> structured StagnationReport -> ChatGPT replan
+versioned Skill / Procedure Lineage
+bounded candidate improvement grounded in objective execution feedback
+above proposes; deterministic infrastructure below decides
+```
+
+The review does **not** change the release order or make the local Control Plane a second planner. It also does not treat NVIDIA's ARC-AGI-3 public-set result as proof for screenshot-first GUI control; that AVO configuration used an exact text-grid observation interface.
+
 ---
 
 # Stage 26 — current release-critical sequence
@@ -117,7 +136,7 @@ Explicit release order:
  -> 28 Clean User E2E / stable release
 ```
 
-The 2026-08-24 Stage 26.3A GUI-agent research is now promoted into this order through `COMPUTER_USE_ARCHITECTURE.md` and ADR-032/033.
+The 2026-08-24 Stage 26.3A GUI-agent research is promoted through `COMPUTER_USE_ARCHITECTURE.md` and ADR-032/033. The 2026-08-25 AVO review enriches 26.3C/26.4 through ADR-034 without inserting a new stage.
 
 ## 26.3B — Verification Kernel + independent Finish Gate — ACTIVE
 
@@ -171,6 +190,8 @@ stale / mismatched-stream / ambiguous / UNKNOWN -> zero unauthorized continuatio
 
 Active implementation contract: `STAGE26_3B_VERIFICATION_KERNEL.md`.
 
+AVO-style iterative improvement is intentionally **not** implemented before this stage because candidate evolution without objective correctness/finish verification would optimize an unreliable signal.
+
 ## 26.3C — WorkingState + Typed Recovery + LoopGuard
 
 Generalize long-horizon state and recovery before broad GUI authority.
@@ -191,7 +212,7 @@ retry/recovery history
 action/time/resource budgets
 ```
 
-Never persist private chain-of-thought.
+Never persist private chain-of-thought. AVO's demonstrated value of persistent memory is adopted as durable structured evidence/state, not unrestricted model-reasoning persistence.
 
 ### Initial typed recovery vocabulary
 
@@ -236,6 +257,35 @@ verified progress vector
 
 Identical state/action repetition without new evidence or verified progress must terminate/escalate rather than loop.
 
+### StagnationReport
+
+When bounded recovery is exhausted, LoopGuard should emit a compact structured report rather than only a generic failure:
+
+```text
+StagnationReport
+  task / subgoal identity
+  verified progress vector
+  repeated state/action fingerprints
+  no-effect / retry / oscillation counters
+  attempted recovery classes
+  fresh evidence references
+  exhausted + remaining budgets
+  admitted alternatives already tried
+  unresolved failure / ambiguity
+```
+
+Normal path:
+
+```text
+LoopGuard detects stagnation
+ -> stop repeated effects
+ -> StagnationReport
+ -> ordinary ChatGPT chooses novel strategy
+ -> new proposal returns through normal authorization
+```
+
+The report contains operational evidence summaries, never private hidden reasoning. This adopts the useful supervisory role demonstrated by AVO without adding a second local general planner.
+
 ## 26.4 — Human Demo -> Transferable Verified Candidate Skill
 
 Use qualified OpenAdapt Capture/Flow substrate, but compile demonstrations into flexible verified procedure guidance rather than macro replay.
@@ -259,12 +309,59 @@ live state > demonstration
 
 Historical coordinates/action sequence are not executable authority. One demonstration never becomes permanent trust automatically.
 
+### Skill / Procedure Lineage
+
+A reusable skill is versioned evidence, not one mutable opaque blob.
+
+Target lineage fields:
+
+```text
+skill_id
+candidate_id
+parent candidate(s)
+procedure/version identity
+source = demonstration | ChatGPT_revision | human_revision | migration
+applicability/preconditions
+evaluation suite / task variants
+verifier evidence references
+objective metrics / success counters
+failure summary
+promotion state
+```
+
+Rules:
+
+- lineage does not grant action authority;
+- a trusted parent does not automatically make a child trusted;
+- failed/unverified candidates may be retained as compact diagnostics but not trusted executable skills;
+- current live state outranks historical lineage;
+- promotion requires independent evidence across relevant regression/variant cases.
+
+### Bounded candidate-improvement loop
+
+After 26.3B/C foundations exist:
+
+```text
+candidate
+ -> execute admitted evaluation task
+ -> re-observe
+ -> verify correctness / goal predicates
+ -> measure objective metrics
+ -> classify failures
+ -> ChatGPT proposes revision
+ -> new candidate in lineage
+ -> regression / variant evaluation
+```
+
+Useful metrics may include verified success rate, verified recovery rate, action count, latency where meaningful, abstention correctness, regression count and resource cost. No scalar score replaces hard correctness/safety/Finish Gate predicates.
+
 Promotion:
 
 ```text
 CANDIDATE
  -> same/near-state replay evidence
  -> changed-state/task variant evidence
+ -> objective comparison against parent/baseline
  -> trusted reusable
  -> stale / quarantined / disabled as evidence degrades
 ```
@@ -284,6 +381,8 @@ common grounding proposal identity/confidence/ambiguity fields
 semantic/native state first
 selective screenshot/ROI evidence
 cross-app typed fact provenance
+verified skill lineage applicability across real apps
+StagnationReport / recovery across capability boundaries
 component-level interaction regression corpus
 recovery/noisy-state E2E
 ```
@@ -305,6 +404,7 @@ component/primitive diagnostics
  -> capability integration tests
  -> noisy/recovery fixtures
  -> long-horizon verified procedures
+ -> skill-lineage regression/variant suites
  -> selected reproducible external benchmark runs
 ```
 
@@ -314,7 +414,8 @@ Reference mechanisms:
 - WebArena / BrowserGym — functional browser correctness and normalized benchmark harness ideas;
 - OSWorld 2.0 — long-horizon freshness, hidden state, multi-source reconciliation and completion collapse;
 - OSWorld-Noisy — recoverable interruptions;
-- MobileWorldSafety — environmental injection and final-state safety predicates.
+- MobileWorldSafety — environmental injection and final-state safety predicates;
+- NVIDIA AVO — persistent state, stagnation supervision and iterative candidate improvement grounded in execution feedback/lineage; architecture reference only, not a project release benchmark.
 
 Never tune production architecture around benchmark-specific tricks without a general project-owned invariant.
 
@@ -361,6 +462,8 @@ P2 optional local general-planner mode
    -> never silently replaces ChatGPT default
 ```
 
+AVO demonstrates that richer agent harnesses can materially improve long-horizon work, but it does not by itself justify promoting Track P. Any future AVO-like local planner remains on the proposal side of the same deterministic authorization/verifier boundary.
+
 No planner may grant itself execution authority.
 
 # Parallel Track M — multi-chat orchestration
@@ -391,9 +494,12 @@ Fresh-user operation without git checkout or developer-only PowerShell/Python se
 - only an independent Finish Gate confirms task completion;
 - WorkingState stores structured operational facts/provenance/freshness, never private reasoning;
 - repeated no-effect/oscillating actions are bounded by LoopGuard;
+- LoopGuard stagnation escalation produces structured evidence for the planner rather than silently granting the local runtime new strategic freedom;
+- Skill / Procedure Lineage is evidence and version history, not authority;
+- candidate skill promotion requires independent verifier/regression evidence;
 - environmental UI/DOM/tool content is untrusted data, not policy authority;
 - task-success and safety/policy verification are separate;
-- current observed state outranks procedure/demo/history;
+- current observed state outranks procedure/demo/history/lineage;
 - generic Windows code execution remains disabled/unreachable;
 - normal semantic route does not require optional 1MCP;
 - preserve exact physical evidence heads in `EVIDENCE_INDEX.md`.
