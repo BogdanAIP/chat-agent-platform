@@ -13,7 +13,8 @@ function result(text) {
 const before = parsePlaywrightSnapshotResult(result(`### Page state
 - Page URL: about:blank
 - Page Title: 
-- Page Snapshot:
+
+### Snapshot
 \`\`\`yaml
 
 \`\`\``));
@@ -27,7 +28,8 @@ assert.equal(before.settled, true);
 const after = parsePlaywrightSnapshotResult(result(`### Page state
 - Page URL: https://example.com/
 - Page Title: Example
-- Page Snapshot:
+
+### Snapshot
 \`\`\`yaml
 - heading "Example" [level=1]
 - button "Save" [ref=e1]
@@ -43,6 +45,17 @@ assert.deepEqual(after.controls.find(control => control.control_id === 'e1'), {
 });
 assert.equal(after.controls.find(control => control.control_id === 'e2')?.value, 'HELLO');
 assert.equal(after.controls.find(control => control.control_id === 'e3')?.checked, true);
+
+const legacyInline = parsePlaywrightSnapshotResult(result(`### Page state
+- Page URL: https://legacy.example/
+- Page Title: Legacy
+- Page Snapshot:
+\`\`\`yaml
+- button "Legacy" [ref=l1]
+\`\`\``));
+assert.equal(legacyInline.url, 'https://legacy.example/');
+assert.equal(legacyInline.title, 'Legacy');
+assert.equal(legacyInline.controls[0]?.control_id, 'l1');
 
 const verified = await verifyPlaywrightNavigation({
   before,
@@ -62,7 +75,7 @@ assert.equal(redirectMismatch.status, 'fail');
 
 assert.throws(
   () => parsePlaywrightSnapshotResult(result('### Page state\n- Page URL: https://example.com/')),
-  /missing Page URL, Page Title or Page Snapshot/,
+  /missing Page URL or Page Title/,
 );
 
 console.log('BROWSER_VERIFICATION_BRIDGE=PASS');
