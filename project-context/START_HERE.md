@@ -106,9 +106,7 @@ ordinary ChatGPT
  -> deterministic Control Plane / focused capabilities
 ```
 
-1MCP is optional internal Extension Manager infrastructure only.
-
-PR #114 does not change this public surface. Its new Windows adapter is internal deterministic verification infrastructure.
+1MCP is optional internal Extension Manager infrastructure only. PR #114 does not change this public surface.
 
 ## 6. Planner / Control Plane boundary
 
@@ -131,7 +129,7 @@ semantic/native state first
  -> independent Finish Gate
 ```
 
-For Windows, accepted `DesktopState` identity evidence outranks visual similarity. The PR #114 verifier requires continuity of Windows session, executable/application identity, PID, process generation, HWND and window instance before a final-state postcondition can PASS.
+For Windows, accepted `DesktopState` identity evidence outranks visual similarity. PR #114 requires stable continuity of Windows session, executable/application identity, PID, process generation and HWND. Snapshot-local `window_instance`, control fingerprints and frame digest are recomputed/validated rather than incorrectly treated as immutable identity.
 
 ## 8. Browser Harness / ADR-036 boundary
 
@@ -154,7 +152,7 @@ PR #114 final code/docs
  -> packaging / clean-user stable release
 ```
 
-Track M multi-chat remains future/parallel. Track P local planner remains future only.
+Track M multi-chat remains future/parallel. Track P local planner is future only.
 
 ## 10. Merge rule
 
