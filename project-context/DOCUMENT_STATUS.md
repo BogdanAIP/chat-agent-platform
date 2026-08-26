@@ -22,6 +22,12 @@ current code/tests/current hosted CI/current physical evidence
 
 When two documents disagree on whether work is implemented/accepted/current, live code and exact evidence win.
 
+## Default classification rule
+
+Any `project-context/*.md` document **not explicitly listed** in this status map is **HISTORICAL / REFERENCE by default** until a reviewed change explicitly promotes it into an authoritative/current category.
+
+This is intentional: adding a research note or historical stage record must not force a central catalog update or accidentally grant that document authority over live state.
+
 ## Documentation separation rule
 
 ```text
@@ -38,7 +44,7 @@ PROJECT_RISKS
   = single authoritative ranked risk table, mitigation and close conditions
 
 ROADMAP
-  = release sequence and acceptance objectives
+  = single owner of the explicit release-stage order and acceptance objectives
 
 EVIDENCE_INDEX
   = exact accepted evidence navigation
@@ -47,7 +53,7 @@ STAGE*.md
   = active detailed implementation contract or historical qualification record
 ```
 
-Do not copy the full risk table into other documents. Do not copy detailed physical dumps into durable architecture docs.
+Do not copy the full risk table into other documents. Do not copy the full release-stage sequence into multiple live status documents. Do not copy detailed physical dumps into durable architecture docs.
 
 ## Root documents
 
@@ -70,8 +76,8 @@ Do not copy the full risk table into other documents. Do not copy detailed physi
 | `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | Planner vs deterministic execution/verification/recovery/completion boundary. |
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid computer-use contract. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
-| `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence and acceptance objectives. |
-| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | This source map. |
+| `ROADMAP.md` | AUTHORITATIVE ROADMAP | Single owner of release-critical sequence and acceptance objectives. |
+| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | This source map and default classification rule. |
 | `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads and scoped evidence locations. |
 
 ## Current Stage 26.3 documents
