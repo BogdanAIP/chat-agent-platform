@@ -174,12 +174,24 @@ const visualFallbackSchema = z.object({
   targetText: z.string().min(1).max(2048),
   semanticName: z.string().min(1).max(1024).optional()
 }).strict();
+const interactionExpectedControlSchema = z.object({
+  target: z.string().min(1).max(512).optional(),
+  present: z.boolean().optional(),
+  value: z.string().max(4096).optional(),
+  checked: z.boolean().optional(),
+  selected: z.boolean().optional(),
+  enabled: z.boolean().optional(),
+}).strict();
+const interactionExpectedSchema = z.object({
+  url: z.string().url().max(4096).optional(),
+  control: interactionExpectedControlSchema.optional(),
+}).strict();
 
 const server = new McpServer(
   { name: 'chat-semantic-control-plane', version: VERSION },
   {
     instructions:
-      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. procedure_run admits only registered bounded procedures and exposes no shell, arbitrary Python, backend selector, generic dispatch or arbitrary filesystem path.'
+      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations remain bounded and now require fresh final-state verification: type without submit may infer the typed control value, while click and type+submit require an explicit expected observable result before delivery. procedure_run admits only registered bounded procedures and exposes no shell, arbitrary Python, backend selector, generic dispatch or arbitrary filesystem path.'
   }
 );
 
@@ -225,7 +237,7 @@ server.registerTool('web_observe', {
 
 server.registerTool('web_interact', {
   title: 'Interact With Web Page',
-  description: 'Accepted semantic click/type surface with the existing reviewed guards.',
+  description: 'Accepted semantic click/type surface with fresh bounded postcondition verification. click and type+submit require expected={url and/or control state}; type without submit may infer value==text. No arbitrary selector, JavaScript or backend dispatch is exposed.',
   inputSchema: z.object({
     operation: z.enum(['click', 'type']),
     target: z.string().min(1).max(4096).optional(),
@@ -234,7 +246,8 @@ server.registerTool('web_interact', {
     text: z.string().max(200000).optional(),
     submit: z.boolean().optional(),
     slowly: z.boolean().optional(),
-    visualFallback: visualFallbackSchema.optional()
+    visualFallback: visualFallbackSchema.optional(),
+    expected: interactionExpectedSchema.optional()
   }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
 }, args => callSemantic('web_interact', args));
