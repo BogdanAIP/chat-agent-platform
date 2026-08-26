@@ -6,17 +6,7 @@ Keep ordinary ChatGPT as the **only current general planning layer** while the l
 
 The deterministic Control Plane is not a second planner. It may advance already-selected known transitions under explicit authorization/verification and must escalate when a new strategy is required.
 
-Canonical architecture/contracts:
-
-- `ARCHITECTURE.md`
-- `CONTROL_PLANE.md`
-- `COMPUTER_USE_ARCHITECTURE.md`
-- `SECURITY_POLICY.md`
-- `REAL_TASK_ACCEPTANCE.md`
-- `CURRENT_STATE.md`
-- `PROJECT_RISKS.md`
-- `TECH_DEBT.md`
-- `BROWSER_HARNESS_ARCHITECTURE.md` / ADR-036 for reviewed future Browser/local-execution direction
+Canonical architecture/contracts: `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `SECURITY_POLICY.md`, `REAL_TASK_ACCEPTANCE.md`, `CURRENT_STATE.md`, `PROJECT_RISKS.md`, `TECH_DEBT.md`; ADR-036 future Browser/local-execution direction lives in `BROWSER_HARNESS_ARCHITECTURE.md`.
 
 ## Accepted public semantic surface
 
@@ -34,10 +24,6 @@ procedure_run
 Normal transport is direct stdio through the Secure MCP Tunnel and official tunnel-client. 1MCP remains optional internal Extension Manager infrastructure.
 
 ## Acceptance-depth rule
-
-Low-level correctness is required but insufficient evidence of useful autonomy.
-
-Material capability work progresses through:
 
 ```text
 L1 — primitive / contract proof
@@ -109,21 +95,19 @@ Accepted production/evidence slices:
 
 ## Current active slice — PR #114
 
-PR #114 integrates accepted Windows `DesktopState` identity evidence with the shared Verification Kernel.
-
-It is intentionally internal and non-authorizing:
+PR #114 integrates accepted Windows `DesktopState` evidence with the shared Verification Kernel. It is internal and non-authorizing:
 
 ```text
 DesktopState BEFORE
  -> WindowsDesktopObservationStream
  -> bounded expected final state
- -> mandatory process/window identity continuity
+ -> mandatory stable process/native-window continuity
  -> DesktopState AFTER
  -> shared verify_expected_effect
  -> PASS | FAIL | UNKNOWN
 ```
 
-Mandatory continuity includes:
+Stable continuity includes:
 
 ```text
 Windows session
@@ -132,11 +116,12 @@ executable name
 PID
 process generation
 HWND
-window instance
 coordinate space
 ```
 
-A process restart, reused PID/HWND, replacement window or application-identity drift therefore cannot satisfy a similar-looking final state.
+Process restart/PID-generation drift, HWND drift or application-identity drift therefore cannot satisfy a similar-looking final state.
+
+`window_instance` is snapshot-consistency evidence, not immutable continuity identity, because the accepted Stage 26.2 digest includes window title. PR #114 recomputes it per snapshot, along with control fingerprints and frame digest. It also validates redundant freshness evidence.
 
 PR #114 adds no `desktop_*` Chat tool, no process launch authority, no generic code execution and no new Windows mutation route. It preserves the accepted Stage 26.2 legacy verifier rather than silently changing its semantics.
 
@@ -160,7 +145,7 @@ Canonical detail: `STAGE26_3B_WINDOWS_VERIFICATION.md`.
 2. representative Windows/application L3 using accepted action/observation/verifier mechanisms
 3. add cross-capability completion predicates only where a real procedure requires them
 4. run any additional physical gate required by a production-path change
-5. declare 26.3B accepted only when those required evidence gaps are closed
+5. declare 26.3B accepted only when required evidence gaps are closed
 ```
 
 ## ADR-036 relation to 26.3B
@@ -189,21 +174,7 @@ action/time/resource budgets
 
 Never persist private chain-of-thought.
 
-Initial recovery classes:
-
-```text
-target_missing
-target_ambiguous
-stale_state
-action_no_effect
-partial_effect
-unexpected_dialog
-navigation_changed
-tool_unavailable
-permission_denied
-unsafe_transition
-external_dynamic_change
-```
+Initial recovery classes include target missing/ambiguous, stale state, action no-effect, partial effect, unexpected dialog, navigation change, tool unavailable, permission denied, unsafe transition and external dynamic change.
 
 Default recovery ladder:
 
@@ -216,37 +187,15 @@ re-observe
  -> ChatGPT replan / clarification / ABSTAIN
 ```
 
-LoopGuard must terminate/escalate repeated no-effect state/action fingerprints, oscillation and exhausted budgets.
-
-Do not implement a second general planner in 26.3C. After WorkingState stabilizes, define the smallest planner-neutral proposal/escalation seam needed for future optional planners.
+LoopGuard must terminate/escalate repeated no-effect fingerprints, oscillation and exhausted budgets. Do not implement a second general planner in 26.3C.
 
 ---
 
 # Broad real-application physical coverage gate
 
-The earlier L3 gates are representative vertical proofs. This later gate broadens coverage across task families, application classes and environment variants.
+Earlier L3 gates are representative vertical proofs. This later gate broadens coverage across task families, application classes and environment variants.
 
-Minimum application classes should include multiple examples from:
-
-```text
-native Windows / Win32
-browser
-Electron application
-office-style application
-standard file/dialog flows
-```
-
-Variants should include where applicable:
-
-```text
-DPI 100 / 125 / 150%
-window moved/resized
-foreground/focus changes
-multiple similar windows
-unexpected modal/dialog
-notification/overlay/noisy state
-structure miss -> reviewed visual fallback
-```
+Minimum classes should include multiple examples from native Windows/Win32, Browser, Electron, office-style applications and standard file/dialog flows. Variants should cover DPI, moved/resized windows, focus changes, multiple similar windows, unexpected dialogs/overlays/noise and reviewed structure-to-vision fallback where applicable.
 
 The success criterion is a materially broader, characterized, repeatable accepted scope — not a universal Windows accuracy claim.
 
@@ -254,17 +203,7 @@ The success criterion is a materially broader, characterized, repeatable accepte
 
 # 26.4 — Human Demo -> verified candidate skill
 
-Compile demonstrations into:
-
-```text
-subtask goals
-verifiable completion criteria
-applicability/preconditions
-advisory target/action evidence
-versioned candidate lineage
-```
-
-Live state outranks demonstration history. Blind coordinate/action replay is not accepted. One demonstration creates at most a candidate; promotion requires independent replay/regression/variant evidence.
+Compile demonstrations into subtask goals, verifiable completion criteria, applicability/preconditions, advisory target/action evidence and versioned candidate lineage. Live state outranks demonstration history. Blind coordinate/action replay is not accepted. One demonstration creates at most a candidate; promotion requires independent replay/regression/variant evidence.
 
 Generated Browser/local helpers use the same candidate lineage discipline.
 
@@ -272,21 +211,9 @@ Generated Browser/local helpers use the same candidate lineage discipline.
 
 # 26.5 — Hybrid Computer-Use Integration
 
-Converge accepted Browser/Windows mechanisms on common long-horizon contracts without creating a universal raw-tool gateway.
+Converge accepted Browser/Windows mechanisms on common observation references, capability-aware semantic/native vs GUI routing, common grounding identity/confidence/ambiguity evidence, selective visual fallback, cross-app provenance and verified recovery.
 
-Targets:
-
-```text
-common observation references
-capability-aware semantic/native vs GUI routing
-common grounding identity/confidence/ambiguity evidence
-selective screenshot/ROI fallback
-cross-app fact provenance
-verified recovery across capability boundaries
-component + noisy-state regression corpus
-```
-
-Trusted-site full-browser/JS/CDP authority may be promoted here only after the Site Capability/network boundary is implemented, reviewed, physically accepted and backed by representative L3 evidence.
+Trusted-site full-browser/JS/CDP authority may be promoted only after the Site Capability/network boundary is implemented, reviewed, physically accepted and backed by representative L3 evidence.
 
 A future public Windows/computer-use Chat-facing surface still requires its own schema/security/ordinary-Chat physical acceptance.
 
@@ -294,29 +221,17 @@ A future public Windows/computer-use Chat-facing surface still requires its own 
 
 # Local Execution Kernel — adjacent future capability
 
-Arbitrary Python/program execution remains a separate future consequence class, not hidden Browser or `procedure_run` authority.
-
-It requires scoped grants for filesystem roots, network, executable allowlist, environment exposure, runtime/process/resource budgets and task/session lifetime. Generated code is proposal data; the deterministic Control Plane remains authoritative.
+Arbitrary Python/program execution remains a separate future consequence class, not hidden Browser or `procedure_run` authority. It requires scoped grants for filesystem roots, network, executable allowlist, environment exposure, runtime/process/resource budgets and task/session lifetime.
 
 ---
 
 # 27 — Distribution & Maintenance
 
-After the core loop and broad physical scope are credible:
-
-- simplify install/update paths;
-- reduce developer-environment assumptions;
-- make dependency/runtime ownership explicit;
-- close/reassess relevant technical debt;
-- preserve fail-closed security boundaries.
-
-Rust is not a current release prerequisite.
+After the core loop and broad physical scope are credible, simplify install/update paths, reduce developer-environment assumptions, make dependency/runtime ownership explicit, close relevant debt, and preserve fail-closed security boundaries. Rust is not a current release prerequisite.
 
 ---
 
 # 28 — Clean User E2E / stable release
-
-Target:
 
 ```text
 clean supported Windows machine/account
@@ -338,12 +253,4 @@ Future/parallel only. It must not displace unfinished release-critical capabilit
 
 # Optional Track P — local planner
 
-Future only:
-
-```text
-P0 shadow/proposal-only
- -> P1 bounded subtask planner
- -> P2 optional local general planner
-```
-
-No planner may grant itself capability authority; all planners remain above the deterministic Control Plane/verifier/Finish Gate boundary.
+Future only: shadow/proposal-only -> bounded subtask planner -> optional local general planner. No planner may grant itself capability authority; all remain above the deterministic Control Plane/verifier/Finish Gate boundary.
