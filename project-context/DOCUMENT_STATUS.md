@@ -30,6 +30,8 @@ This is intentional: adding a research note or historical stage record must not 
 
 ## Documentation separation rule
 
+Architecture documents own **durable boundaries and invariants**; evidence documents own exact accepted heads and scoped proof.
+
 ```text
 ARCHITECTURE / CONTROL_PLANE / COMPUTER_USE_ARCHITECTURE / SECURITY_POLICY
   = durable authority, safety and execution boundaries
