@@ -12,8 +12,8 @@ Before using any document as current architecture, resolve live GitHub state and
 current code/tests/CI/physical evidence
  > CONTINUATION_CONTEXT.md / START_HERE.md / CURRENT_STATE.md
  > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / ROADMAP.md
- > reviewed architecture extensions such as AVO_LONG_HORIZON_ARCHITECTURE.md
-   and CONVERSATION_BRIDGE_ARCHITECTURE.md
+ > reviewed architecture extensions such as AVO_LONG_HORIZON_ARCHITECTURE.md,
+   CONVERSATION_BRIDGE_ARCHITECTURE.md and BROWSER_HARNESS_ARCHITECTURE.md
  > current policy/catalog docs
  > EVIDENCE_INDEX.md for exact accepted evidence navigation
  > active stage contract
@@ -68,6 +68,7 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid observation, capability routing, ExpectedEffect verification, WorkingState, LoopGuard, Finish Gate and environmental-content trust boundary. Implementation is staged. |
 | `AVO_LONG_HORIZON_ARCHITECTURE.md` | REVIEWED ARCHITECTURAL EXTENSION | NVIDIA AVO/persistent-memory/supervision/lineage review; project consequences are promoted through ADR-034, Control Plane and Roadmap. Does not claim runtime acceptance or override canonical architecture. |
 | `CONVERSATION_BRIDGE_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / TRACK M | CtxPort-derived open-ended conversation adapter registry/profile/hooks, GenericChatAdapter fallback, Browser Companion boundary, ConversationSnapshot/HandoffPack contracts and verified worker-handoff direction. Not implemented, not release-critical, no public-tool expansion. |
+| `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Browser Harness-derived Site Capability Profiles, trusted-site full-browser direction, network allowlist enforcement, candidate helpers/domain knowledge and separately scoped Local Execution Kernel/Python authority. No current public-tool or runtime-authority expansion. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence + optional/future tracks. |
 | `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which documents may define current state. |
 | `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads, result locators and scoped measurements. |
@@ -77,7 +78,7 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | File | Status | Use |
 |---|---|---|
 | `CONSTRAINTS.md` | CURRENT POLICY | Hard project constraints. |
-| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority; ADR-034 = verified skill lineage and stagnation escalation; ADR-035 = bounded provider-open Conversation Bridge / future Track M direction. |
+| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority; ADR-034 = verified skill lineage and stagnation escalation; ADR-035 = bounded provider-open Conversation Bridge / future Track M direction. ADR-036 detail is staged in `BROWSER_HARNESS_ARCHITECTURE.md` and must not be treated as runtime acceptance until the ADR index/canonical architecture synchronization is complete. |
 | `DEVELOPMENT_PRINCIPLES.md` | CURRENT POLICY | Development/acceptance principles. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
 | `COST_POLICY.md` | CURRENT POLICY | Baseline cost/subscription constraints. |
@@ -106,6 +107,8 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 Stage 26.3A is accepted/merged through PR #92, and the Stage 26.3B kernel foundation is merged through PR #99. Current release-critical implementation is PR #102: the file/artifact observation adapter and migration of the accepted procedure are implemented. Because #102 was rebased onto the current documentation line, its new exact head still needs hosted CI and the ordinary-Chat physical completion + zero-overwrite regression; Browser/Windows adapters and cross-capability predicates also remain before Stage 26.3B can be accepted. Stage 26.3C then adds WorkingState + typed recovery + LoopGuard + StagnationReport, and Stage 26.4 adds verified candidate-skill lineage/evolution.
 
 Track M Conversation Bridge work is explicitly **parallel/future**. ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md` define a provider-open Adapter Registry + declarative profiles/hooks + `GenericChatAdapter`/GUI fallback architecture, but they do not alter the current Stage 26 critical path or imply that authenticated user-browser multi-chat control is implemented.
+
+The 2026-08-26 Browser Harness review is recorded in `BROWSER_HARNESS_ARCHITECTURE.md` as ADR-036 future direction. It maps trusted-site/browser authority, candidate helpers and local code execution into the existing 26.3B/C/26.4/26.5 sequence; it does not reorder that sequence, enable raw browser execution, or authorize arbitrary Python in the current runtime.
 
 Current normal transport/extension invariants:
 
@@ -160,6 +163,8 @@ The 2026-08-25 NVIDIA AVO review is recorded in `AVO_LONG_HORIZON_ARCHITECTURE.m
 
 The 2026-08-25 CtxPort review is recorded as project-specific future architecture in `CONVERSATION_BRIDGE_ARCHITECTURE.md` and ADR-035. CtxPort remains an external MIT implementation/reference source; its presence or absence is not runtime evidence, and Track M remains non-release-critical until separately implemented and physically qualified. Its adapter registry/declarative-profile/open-ended-provider lessons are architecture references, not a reason to vendor CtxPort as a required runtime.
 
+The 2026-08-26 Browser Harness review is recorded in `BROWSER_HARNESS_ARCHITECTURE.md`. It is a **reviewed architecture extension / ADR-036 future direction**, not runtime evidence. Browser Harness remains an external reference, not a required dependency; current code/tests/CI/physical evidence and canonical architecture remain authoritative over implementation status.
+
 ## Architecture terminology all future docs must preserve
 
 ### Current general planner
@@ -199,6 +204,20 @@ semantic/native state first
  -> bounded recovery
  -> independent completion
 ```
+
+### Harness-derived capability authority / ADR-036
+
+```text
+restricted browser by default
+ -> user-owned Site Capability Profile
+ -> trusted-site full-browser authority only inside reviewed origin/network scope
+
+separate Local Execution Grant
+ -> task-scoped Python/program authority
+ -> explicit filesystem/network/process/resource scope
+```
+
+Trusted destination never means trusted page instructions. Browser trust never automatically grants Windows/filesystem/Python authority, and local execution trust never automatically grants arbitrary authenticated-browser authority. Both remain below the same Control Plane authorization/verification/Finish Gate boundaries.
 
 ### Optional internal Extension Manager
 
@@ -249,6 +268,7 @@ Any architecture-changing PR must audit/update this map when it:
 - changes general-planner or Control Plane responsibility;
 - changes computer-use observation/verification/recovery/completion boundaries;
 - changes skill/procedure lineage or long-horizon stagnation-escalation semantics;
+- changes Browser Harness-derived Site Capability Profiles, browser network trust or Local Execution Grant boundaries;
 - changes the Extension Manager/persistent tunnel boundary;
 - changes Conversation Bridge / authenticated-browser / adapter-registry / multi-chat handoff boundaries;
 - promotes a research track into the release-critical roadmap;
