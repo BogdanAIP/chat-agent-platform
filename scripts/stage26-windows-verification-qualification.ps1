@@ -36,12 +36,23 @@ if ($actualHead -ne $ExpectedHead) {
     throw "EXACT_HEAD_MISMATCH expected=$ExpectedHead actual=$actualHead"
 }
 
+# Independent launcher-side preflight before any project Python qualification
+# code runs. The reusable SourceProvenanceGate below repeats this check and
+# additionally binds the critical local files to expected Git blobs + SHA-256.
+$statusPorcelain = @(& git.exe -C $repoRoot status --porcelain=v1 --untracked-files=all 2>$null)
+if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect source working-tree status.' }
+$statusPorcelain = @($statusPorcelain | Where-Object { $_ -and $_.Trim() })
+if ($statusPorcelain.Count -ne 0) {
+    throw "SOURCE_TREE_DIRTY before qualification: $($statusPorcelain -join ' | ')"
+}
+
+$sourceProvenanceGatePath = Join-Path $PSScriptRoot 'source-provenance-gate.py'
 $driverPath = Join-Path $PSScriptRoot 'stage26-windows-verification-qualification.py'
 $fixturePath = Join-Path $PSScriptRoot 'stage26-windows-hot-runtime-fixture.ps1'
 $observationPath = Join-Path $repoRoot 'runtime\windows\observation.py'
 $adapterPath = Join-Path $repoRoot 'runtime\control_plane\windows_observation.py'
 $transitionPath = Join-Path $repoRoot 'runtime\control_plane\windows_transition.py'
-foreach ($required in @($driverPath, $fixturePath, $observationPath, $adapterPath, $transitionPath)) {
+foreach ($required in @($sourceProvenanceGatePath, $driverPath, $fixturePath, $observationPath, $adapterPath, $transitionPath)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Required Windows verification asset is missing: $required"
     }
@@ -54,6 +65,7 @@ if (-not (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
 
 $timestamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
 $runDir = Join-Path $OutputRoot "windows-verification-$timestamp"
+$sourceProvenancePath = Join-Path $runDir 'source-provenance.json'
 $fixtureStatePath = Join-Path $runDir 'fixture-state.json'
 $readyPath = Join-Path $runDir 'verifier-ready.txt'
 $closePath = Join-Path $runDir 'fixture-close.txt'
@@ -67,6 +79,9 @@ $fixtureKilled = $false
 $result = [ordered]@{
     schema_version = 1
     project_head = $actualHead
+    source_provenance_pass = $false
+    source_provenance_path = $sourceProvenancePath
+    source_provenance = $null
     driver_pass = $false
     same_live_identity_pass = $false
     kernel_pass_status = $null
@@ -91,6 +106,52 @@ try {
     Write-Host ''
     Write-Host '===== STAGE 26.3B WINDOWS SHARED-KERNEL VERIFICATION QUALIFICATION =====' -ForegroundColor Cyan
     Write-Host 'The fixture is observation-only for this gate; no Windows mutation is needed.' -ForegroundColor Yellow
+
+    $criticalAssets = @(
+        'scripts/source-provenance-gate.py',
+        'scripts/stage26-windows-verification-qualification.ps1',
+        'scripts/stage26-windows-verification-qualification.py',
+        'scripts/stage26-windows-hot-runtime-fixture.ps1',
+        'runtime/control_plane/__init__.py',
+        'runtime/control_plane/verification.py',
+        'runtime/control_plane/windows_observation.py',
+        'runtime/control_plane/windows_transition.py',
+        'runtime/windows/__init__.py',
+        'runtime/windows/actuation.py',
+        'runtime/windows/verifier.py',
+        'runtime/windows/observation.py',
+        'runtime/windows/window_scoped_uia.py'
+    )
+    $relevantLockfiles = @(
+        'config/stage26-openadapt-lock.json'
+    )
+    $provenanceArgs = @(
+        $sourceProvenanceGatePath,
+        '--repo-root', $repoRoot,
+        '--expected-head', $ExpectedHead,
+        '--output', $sourceProvenancePath
+    )
+    foreach ($asset in $criticalAssets) { $provenanceArgs += @('--asset', $asset) }
+    foreach ($lockfile in $relevantLockfiles) { $provenanceArgs += @('--lockfile', $lockfile) }
+
+    & $pythonExe @provenanceArgs
+    $provenanceExit = $LASTEXITCODE
+    if (-not (Test-Path -LiteralPath $sourceProvenancePath -PathType Leaf)) {
+        throw 'Source provenance result was not written.'
+    }
+    $provenance = Get-Content -LiteralPath $sourceProvenancePath -Raw -Encoding utf8 | ConvertFrom-Json
+    $result.source_provenance = $provenance
+    $result.source_provenance_pass = [bool](
+        $provenanceExit -eq 0 -and
+        [string]$provenance.status -eq 'pass' -and
+        [bool]$provenance.working_tree_clean -and
+        [bool]$provenance.tracked_diff_empty -and
+        [bool]$provenance.untracked_empty -and
+        [string]$provenance.actual_head -eq $ExpectedHead
+    )
+    if (-not $result.source_provenance_pass) {
+        throw "SOURCE_PROVENANCE_GATE failed: $([string]$provenance.reason)"
+    }
 
     $pwsh = Get-Command pwsh.exe -ErrorAction Stop
     $fixtureArgs = @(
@@ -166,7 +227,7 @@ finally {
     }
     $result.fixture_killed = $fixtureKilled
     $result.fixture_cleanup_pass = -not $fixtureKilled
-    $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $resultPath -Encoding utf8
+    $result | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $resultPath -Encoding utf8
 }
 
 $resolverStatsPass = [bool](
@@ -176,6 +237,7 @@ $resolverStatsPass = [bool](
     $result.resolver_stats.window_binding_ambiguities -eq 0
 )
 $accepted = [bool](
+    $result.source_provenance_pass -and
     $result.driver_pass -and
     $result.same_live_identity_pass -and
     $result.kernel_pass_status -eq 'pass' -and
@@ -196,6 +258,13 @@ Write-Host ''
 Write-Host '===== STAGE 26.3B WINDOWS VERIFICATION RESULT =====' -ForegroundColor Cyan
 Write-Flag 'RESULT_PATH' $resultPath
 Write-Flag 'EXACT_HEAD' $result.project_head
+Write-Flag 'SOURCE_PROVENANCE_PATH' $result.source_provenance_path
+Write-Flag 'SOURCE_PROVENANCE_GATE' $(if ($result.source_provenance_pass) { 'PASS' } else { 'FAIL' })
+if ($null -ne $result.source_provenance) {
+    Write-Flag 'WORKING_TREE_CLEAN' $result.source_provenance.working_tree_clean
+    Write-Flag 'TRACKED_DIFF_EMPTY' $result.source_provenance.tracked_diff_empty
+    Write-Flag 'UNTRACKED_EMPTY' $result.source_provenance.untracked_empty
+}
 Write-Flag 'FIXTURE_PID' $result.fixture_pid
 Write-Flag 'SAME_LIVE_IDENTITY_PASS' $result.same_live_identity_pass
 Write-Flag 'KERNEL_PASS_STATUS' $result.kernel_pass_status
