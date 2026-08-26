@@ -6,34 +6,17 @@ Keep ordinary ChatGPT as the **only current general planning layer** while the l
 
 The deterministic Control Plane is not a second planner. It may advance already-selected known transitions under explicit authorization/verification and must escalate when a new strategy is required.
 
-Canonical architecture:
+Canonical architecture/contracts:
 
 - `ARCHITECTURE.md`
 - `CONTROL_PLANE.md`
 - `COMPUTER_USE_ARCHITECTURE.md`
 - `SECURITY_POLICY.md`
-
-Reviewed future Browser/local-execution direction:
-
-- `BROWSER_HARNESS_ARCHITECTURE.md` / ADR-036
-
-Canonical acceptance depth:
-
 - `REAL_TASK_ACCEPTANCE.md`
-
-Canonical current status:
-
 - `CURRENT_STATE.md`
-
-Canonical ranked engineering risks:
-
 - `PROJECT_RISKS.md`
-
-Canonical existing technical debt:
-
 - `TECH_DEBT.md`
-
-Do not duplicate the full risk or debt ranking here.
+- `BROWSER_HARNESS_ARCHITECTURE.md` / ADR-036 for reviewed future Browser/local-execution direction
 
 ## Accepted public semantic surface
 
@@ -52,9 +35,9 @@ Normal transport is direct stdio through the Secure MCP Tunnel and official tunn
 
 ## Acceptance-depth rule
 
-Low-level correctness is required but is not sufficient evidence of useful autonomy.
+Low-level correctness is required but insufficient evidence of useful autonomy.
 
-Material capability work should progress through:
+Material capability work progresses through:
 
 ```text
 L1 — primitive / contract proof
@@ -62,9 +45,7 @@ L1 — primitive / contract proof
  -> L3 — ordinary user-task E2E with independent Finish Gate
 ```
 
-L3 receives a natural-language goal rather than a click/type script. It must verify final independent state plus important non-target constraints. One L3 pass is scoped evidence, not a universal reliability claim.
-
-For the current Browser path, a representative physical L3 task is required after `web_interact` primitive acceptance and before moving the release-critical implementation line on to Windows/application/process verification.
+L3 receives a natural-language goal rather than a click/type script and verifies independent final state plus important non-target constraints. One L3 pass is scoped evidence, not a universal reliability claim.
 
 ## Completed foundation relevant to current work
 
@@ -72,17 +53,20 @@ For the current Browser path, a representative physical L3 task is required afte
 Stage 24/24.1 typed file/browser foundation       ACCEPTED
 Stage 25/25.1/25.2 Browser + local vision         ACCEPTED
 Stage 26.1A-E / 26.2A-E Windows foundation       ACCEPTED FOR RECORDED SCOPE
-Transport Supervisor                              ACCEPTED / MERGED #94
 Stage 26.3A canonical six-tool runtime            ACCEPTED / MERGED #92
+Transport Supervisor                              ACCEPTED / MERGED #94
 Verification Kernel foundation                    MERGED #99
 file/artifact kernel integration                  PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation                    MERGED #106
 web_open final-state verification                 PHYSICAL ACCEPTED / MERGED #107
 Browser Harness / ADR-036 docs                    MERGED #110
 web_interact postcondition verification           PHYSICAL ACCEPTED / MERGED #111
+Browser L3 real-task acceptance                   PHYSICAL ACCEPTED / MERGED #113
 ```
 
-Windows acceptance is scoped evidence, not universal Windows accuracy.
+The Browser L3 run used randomized Case Desk data and an external independent Finish Gate. Accepted evidence included exactly one target save, one target audit mutation and `NON_TARGET_MUTATION=none`.
+
+Windows acceptance remains scoped evidence, not universal Windows accuracy.
 
 ## Current release-critical sequence
 
@@ -96,9 +80,7 @@ Windows acceptance is scoped evidence, not universal Windows accuracy.
  -> 28 Clean User E2E / stable release
 ```
 
-The **Broad real-app physical coverage gate is an acceptance objective, not a new architecture stage**. It exists to stop architecture growth from outrunning proven computer-use capability.
-
-Track M multi-chat remains future/parallel. Track P local-planner work is **future only**. Neither replaces this release-critical sequence.
+The Broad real-app physical coverage gate is an acceptance objective, not a separate architecture stage. Track M multi-chat remains future/parallel. Track P local-planner work remains future only.
 
 ---
 
@@ -118,41 +100,72 @@ independent evidence-batch-bound Finish Gate
 separate task-success and safety/policy results
 ```
 
-Accepted production integrations:
+Accepted production/evidence slices:
 
 - file/artifact procedure path through PR #102;
-- production `web_open` final-state verification through physically accepted/merged PR #107;
-- production `web_interact` click/type postcondition verification through physically accepted/merged PR #111.
+- production `web_open` verification through PR #107;
+- production `web_interact` verification through PR #111;
+- first Browser L3 real-task acceptance through PR #113.
 
-Merged observation foundation:
+## Current active slice — PR #114
 
-- Browser observation stream through PR #106.
+PR #114 integrates accepted Windows `DesktopState` identity evidence with the shared Verification Kernel.
 
-Current active evidence slice:
-
-- **draft PR #113 — clean replay of the first stateful Browser L3 real-task acceptance harness directly on accepted post-#111 `main`**.
-
-Historical stacked PR #112 is superseded by #113. PR #113 must receive fresh hosted harness/contract checks on its final exact head and then pass an ordinary-Chat target-Windows L3 task from a natural user goal plus the external independent Finish Gate.
-
-Remaining 26.3B work:
+It is intentionally internal and non-authorizing:
 
 ```text
-Browser L3 real-task gate on replayed #113
-Windows/application/process verification
-representative Windows/application L3 after its verifier exists
-cross-capability completion predicates where real procedures require them
-appropriate physical gates for each changed production path
+DesktopState BEFORE
+ -> WindowsDesktopObservationStream
+ -> bounded expected final state
+ -> mandatory process/window identity continuity
+ -> DesktopState AFTER
+ -> shared verify_expected_effect
+ -> PASS | FAIL | UNKNOWN
 ```
 
-Only then declare 26.3B accepted.
+Mandatory continuity includes:
+
+```text
+Windows session
+application identity
+executable name
+PID
+process generation
+HWND
+window instance
+coordinate space
+```
+
+A process restart, reused PID/HWND, replacement window or application-identity drift therefore cannot satisfy a similar-looking final state.
+
+PR #114 adds no `desktop_*` Chat tool, no process launch authority, no generic code execution and no new Windows mutation route. It preserves the accepted Stage 26.2 legacy verifier rather than silently changing its semantics.
+
+Required acceptance sequence:
+
+```text
+freeze final #114 head
+ -> fresh hosted checks
+ -> target-Windows physical verifier qualification on same head
+ -> no unresolved review/security finding
+ -> merge #114
+ -> representative Windows/application L3 with independent Finish Gate
+```
+
+Canonical detail: `STAGE26_3B_WINDOWS_VERIFICATION.md`.
+
+## Remaining 26.3B work
+
+```text
+1. physically accept + merge PR #114
+2. representative Windows/application L3 using accepted action/observation/verifier mechanisms
+3. add cross-capability completion predicates only where a real procedure requires them
+4. run any additional physical gate required by a production-path change
+5. declare 26.3B accepted only when those required evidence gaps are closed
+```
 
 ## ADR-036 relation to 26.3B
 
-ADR-036 does **not** silently enlarge the current 26.3B acceptance objective.
-
-The current release gate remains verification correctness plus representative real-task evidence for accepted production capabilities. Site Capability Profiles / Browser Network Gate are reviewed architecture and active technical-debt direction, but broader implementation becomes a hard acceptance prerequisite only when trusted-site JS/CDP/full-browser authority is promoted.
-
-TD-001 therefore remains open through current 26.3B unless a separate reviewed PR explicitly promotes/accepts that network boundary earlier.
+ADR-036 does not silently enlarge current authority. Site Capability Profiles / Browser Network Gate remain reviewed future direction and become hard prerequisites before trusted-site JS/CDP/full-browser authority is promoted.
 
 ---
 
@@ -205,27 +218,15 @@ re-observe
 
 LoopGuard must terminate/escalate repeated no-effect state/action fingerprints, oscillation and exhausted budgets.
 
-### ADR-036 alignment
-
-If Site Capability trust or Local Execution Grants are implemented by this point, their `task | session | permanent` lifetime/provenance/budget state should use the same structured WorkingState/control-plane machinery rather than a parallel hidden permission store.
-
-This is an **integration rule**, not a requirement to implement full-browser or Local Execution Kernel during 26.3C.
-
-## Planner portability guardrail
-
-Do **not** implement a second general planner as part of 26.3C.
-
-After WorkingState v1 stabilizes, define the smallest planner-neutral proposal/escalation contract needed to prevent the lower Control Plane from depending on ChatGPT-specific planning payloads. A future second planner should first run shadow/proposal-only through that contract.
+Do not implement a second general planner in 26.3C. After WorkingState stabilizes, define the smallest planner-neutral proposal/escalation seam needed for future optional planners.
 
 ---
 
 # Broad real-application physical coverage gate
 
-This is the highest-ranked current engineering risk and must be attacked after 26.3C rather than hidden behind more architecture.
-
 The earlier L3 gates are representative vertical proofs. This later gate broadens coverage across task families, application classes and environment variants.
 
-Minimum representative matrix should cover multiple classes, for example:
+Minimum application classes should include multiple examples from:
 
 ```text
 native Windows / Win32
@@ -247,7 +248,7 @@ notification/overlay/noisy state
 structure miss -> reviewed visual fallback
 ```
 
-Success criterion is not a marketing claim of universal Windows accuracy. It is a materially broader, characterized, repeatable accepted scope than isolated component/L3 examples.
+The success criterion is a materially broader, characterized, repeatable accepted scope — not a universal Windows accuracy claim.
 
 ---
 
@@ -263,22 +264,9 @@ advisory target/action evidence
 versioned candidate lineage
 ```
 
-Live state outranks demonstration history. Blind coordinate/action replay is not accepted.
+Live state outranks demonstration history. Blind coordinate/action replay is not accepted. One demonstration creates at most a candidate; promotion requires independent replay/regression/variant evidence.
 
-One demonstration creates at most a candidate. Promotion requires independent replay/regression/variant evidence.
-
-### ADR-036 alignment
-
-Agent-generated Browser/local helpers and site/domain experience enter the same candidate/lineage discipline:
-
-```text
-generated helper
- -> CANDIDATE
- -> bounded tests / replay / variants / verifier evidence
- -> promotion or rejection
-```
-
-A one-off successful helper is not automatically a trusted durable skill.
+Generated Browser/local helpers use the same candidate lineage discipline.
 
 ---
 
@@ -298,28 +286,7 @@ verified recovery across capability boundaries
 component + noisy-state regression corpus
 ```
 
-### ADR-036 promoted Browser authority
-
-This is the natural integration stage for Browser Harness-derived capabilities **if** they are still justified by measured need:
-
-```text
-SiteCapabilityProfile
-Browser Network Gate
-trusted-site full-browser mode
-selected JS/CDP/raw-browser fallback
-background tabs
-bounded uploads/downloads
-Browser Companion / authenticated-user-browser path where separately accepted
-```
-
-Before any trusted-site JS/CDP/full-browser authority is accepted:
-
-1. the Site Capability / network boundary must be implemented below those primitives;
-2. navigation, redirect, frame, fetch/XHR, WebSocket-like and transfer destinations must respect the reviewed policy;
-3. trusted destination must remain distinct from trusted instructions;
-4. Browser trust must not grant filesystem/Windows/Python authority;
-5. hosted security/regression evidence and ordinary-Chat physical acceptance must pass on the final exact head;
-6. at least one representative L3 task must prove that the widened authority improves useful work without bypassing independent verification.
+Trusted-site full-browser/JS/CDP authority may be promoted here only after the Site Capability/network boundary is implemented, reviewed, physically accepted and backed by representative L3 evidence.
 
 A future public Windows/computer-use Chat-facing surface still requires its own schema/security/ordinary-Chat physical acceptance.
 
@@ -327,65 +294,51 @@ A future public Windows/computer-use Chat-facing surface still requires its own 
 
 # Local Execution Kernel — adjacent future capability
 
-ADR-036 retains arbitrary Python/program execution as a useful local capability, but **not inside Browser authority** and not as a hidden expansion of `web_interact`/`procedure_run`.
+Arbitrary Python/program execution remains a separate future consequence class, not hidden Browser or `procedure_run` authority.
 
-It may begin only after the relevant 26.3C state/grant foundations are available and requires a separate consequence-class/security/public-contract/physical acceptance.
-
-Target authority shape:
-
-```text
-LocalExecutionGrant
- -> filesystem roots
- -> network scope
- -> executable/program allowlist
- -> environment exposure
- -> runtime/process/resource budgets
- -> task/session lifetime
-```
-
-Generated code remains proposal data; the deterministic Control Plane remains authoritative for scope, execution and ExpectedEffect verification.
+It requires scoped grants for filesystem roots, network, executable allowlist, environment exposure, runtime/process/resource budgets and task/session lifetime. Generated code is proposal data; the deterministic Control Plane remains authoritative.
 
 ---
 
 # 27 — Distribution & Maintenance
 
-Only after the core loop and broad physical scope are credible:
+After the core loop and broad physical scope are credible:
 
-- simplify installation/update paths;
+- simplify install/update paths;
 - reduce developer-environment assumptions;
 - make dependency/runtime ownership explicit;
-- close/reassess relevant `TECH_DEBT.md` items;
+- close/reassess relevant technical debt;
 - preserve fail-closed security boundaries.
 
-The current implementation is primarily Python + Node/MJS + PowerShell/Windows glue. Rust is not a current release prerequisite.
+Rust is not a current release prerequisite.
 
 ---
 
 # 28 — Clean User E2E / stable release
 
-Target user path:
+Target:
 
 ```text
-clean machine / supported Windows account
+clean supported Windows machine/account
  -> install
  -> connect/authenticate
- -> choose/approve required capability scope
+ -> approve required capability scope
  -> normal six-tool route ready
- -> representative user task succeeds with verification
+ -> representative user task succeeds with independent verification
  -> restart/recovery/update behavior remains understandable
 ```
 
-Stable release requires accepted core behavior, clean install evidence, current documentation and no known P0/P1 debt whose close condition is required for the shipped authority.
+Stable release requires accepted core behavior, clean-install evidence, current documentation and no known P0/P1 debt required by shipped authority.
 
 ---
 
 # Parallel Track M — Conversation Bridge / multi-chat
 
-Track M remains future/parallel. It may reuse Browser Companion and verified handoff architecture only after the lower capability/state/verification boundaries are ready. It must not displace Stage 26 release-critical prerequisites.
+Future/parallel only. It must not displace unfinished release-critical capability/state/verification work.
 
 # Optional Track P — local planner
 
-Track P is **future only** optional research:
+Future only:
 
 ```text
 P0 shadow/proposal-only
@@ -393,4 +346,4 @@ P0 shadow/proposal-only
  -> P2 optional local general planner
 ```
 
-No planner may grant itself capability authority; all remain above the deterministic Control Plane/verifier/Finish Gate boundary.
+No planner may grant itself capability authority; all planners remain above the deterministic Control Plane/verifier/Finish Gate boundary.
