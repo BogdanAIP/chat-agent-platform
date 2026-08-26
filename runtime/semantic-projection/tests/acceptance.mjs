@@ -176,7 +176,7 @@ try {
     arguments: {
       operation: 'click',
       visualFallback: { targetText: 'Continue semantic test', semanticName: 'Definitely Missing', instruction: 'click Continue semantic test' },
-      expected: { control: { target: statusRef, value: 'SEMANTIC_BROWSER_DONE' } }
+      expected: { control: { target: statusRef, value: 'SEMANTIC_BROWSER_NOT_DONE' } }
     }
   });
   assert.equal(mismatchedPreflight.isError, true, 'separate semantic preflight text must be rejected');
