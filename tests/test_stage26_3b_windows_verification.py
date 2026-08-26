@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import unittest
+from pathlib import Path
 
 from runtime.control_plane.verification import VerificationStatus, verify_expected_effect
 from runtime.control_plane.windows_observation import (
@@ -14,6 +15,9 @@ from runtime.control_plane.windows_transition import (
     verify_windows_desktop_transition,
 )
 from runtime.windows.observation import Rect, build_desktop_state
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class WindowsSharedKernelVerificationTests(unittest.TestCase):
@@ -229,6 +233,36 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
                 after_raw=self.raw(),
                 expected={"run_command": "calc.exe"},
             )
+
+    def test_physical_launcher_requires_source_provenance_before_fixture(self):
+        launcher = (ROOT / "scripts" / "stage26-windows-verification-qualification.ps1").read_text(encoding="utf-8")
+        folded = launcher.casefold()
+        self.assertIn("status --porcelain=v1 --untracked-files=all", folded)
+        self.assertIn("source-provenance-gate.py", folded)
+        self.assertIn("source_provenance_gate", folded)
+        self.assertIn("working_tree_clean", folded)
+        self.assertIn("tracked_diff_empty", folded)
+        self.assertIn("untracked_empty", folded)
+        self.assertIn("config/stage26-openadapt-lock.json", folded)
+        provenance_call = folded.index("& $pythonexe @provenanceargs")
+        fixture_start = folded.index("$fixtureprocess = start-exactprocess")
+        self.assertLess(provenance_call, fixture_start)
+
+    def test_physical_driver_attests_installed_openadapt_backend(self):
+        driver = (ROOT / "scripts" / "stage26-windows-verification-qualification.py").read_text(encoding="utf-8")
+        self.assertIn('metadata.version("openadapt-flow")', driver)
+        self.assertIn('openadapt_flow.backends.win_agent.server', driver)
+        self.assertIn('"win_agent_server_sha256"', driver)
+        self.assertIn('"version_match"', driver)
+        self.assertIn('if not attestation["version_match"]', driver)
+
+    def test_windows_contract_requires_provenance_and_does_not_promote_openadapt(self):
+        contract = (ROOT / "project-context" / "STAGE26_3B_WINDOWS_VERIFICATION.md").read_text(encoding="utf-8")
+        self.assertIn("SOURCE_PROVENANCE_GATE=PASS", contract)
+        self.assertIn("OPENADAPT_VERSION_MATCH=True", contract)
+        self.assertIn("Project Verification Kernel semantics remain authoritative", contract)
+        self.assertIn("window_instance", contract)
+        self.assertIn("not a continuity predicate", contract)
 
 
 if __name__ == "__main__":
