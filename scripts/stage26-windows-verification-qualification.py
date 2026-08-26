@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import hashlib
 import json
 import sys
@@ -22,7 +21,7 @@ from runtime.control_plane.windows_transition import (
     build_windows_desktop_effect,
     verify_windows_desktop_transition,
 )
-from runtime.windows.observation import DesktopState, observe_bound_window
+from runtime.windows.observation import DesktopState, build_desktop_state, observe_bound_window
 from runtime.windows.window_scoped_uia import WindowScopedUiaResolver
 
 
@@ -64,6 +63,45 @@ def _identity_tuple(state: DesktopState) -> tuple[Any, ...]:
         state.window_instance,
         state.coordinate_space,
     )
+
+
+def _control_inputs(state: DesktopState) -> list[dict[str, Any]]:
+    return [
+        {
+            "role": control.role,
+            "name": control.name,
+            "automation_id": control.automation_id,
+            "bounds": control.bounds.to_mapping() if control.bounds is not None else None,
+            "enabled": control.enabled,
+            "visible": control.visible,
+            "focused": control.focused,
+        }
+        for control in state.controls
+    ]
+
+
+def _identity_variant(
+    state: DesktopState,
+    *,
+    process_generation: str | None = None,
+    window_handle: int | None = None,
+) -> dict[str, Any]:
+    """Build a canonical synthetic negative probe with internally valid digests."""
+
+    variant = build_desktop_state(
+        session_id=state.session_id,
+        application_identity=state.application_identity,
+        executable_name=state.executable_name,
+        process_id=state.process_id,
+        process_generation=process_generation or state.process_generation,
+        window_handle=window_handle or state.window_handle,
+        window_title=state.window_title,
+        window_bounds=state.window_bounds,
+        controls=_control_inputs(state),
+        observed_at=state.observed_at,
+        focus_evidence={"qualification_probe": "synthetic_identity_variant"},
+    )
+    return variant.to_mapping()
 
 
 def _sha256(path: Path) -> str:
@@ -149,28 +187,21 @@ def main() -> int:
         result["wrong_postcondition_status"] = wrong["status"]
         result["wrong_postcondition_fail_pass"] = wrong["status"] == "fail"
 
-        generation_drift = copy.deepcopy(second.to_mapping())
-        generation_drift["process_generation"] = second.process_generation + "-different"
-        generation_drift["freshness_evidence"]["process_generation"] = generation_drift[
-            "process_generation"
-        ]
         generation = verify_windows_desktop_transition(
             before_raw=first.to_mapping(),
-            after_raw=generation_drift,
+            after_raw=_identity_variant(
+                second,
+                process_generation=second.process_generation + "-different",
+            ),
             expected=expected,
             subject=f"fixture-pid:{fixture_pid}",
             stream_id="physical-windows-verification-generation",
         )
         result["process_generation_drift_status"] = generation["status"]
 
-        hwnd_drift = copy.deepcopy(second.to_mapping())
-        hwnd_drift["window_handle"] = second.window_handle + 1
-        hwnd_drift["window_instance"] = "f" * 64
-        hwnd_drift["freshness_evidence"]["window_handle"] = hwnd_drift["window_handle"]
-        hwnd_drift["freshness_evidence"]["window_instance"] = hwnd_drift["window_instance"]
         hwnd = verify_windows_desktop_transition(
             before_raw=first.to_mapping(),
-            after_raw=hwnd_drift,
+            after_raw=_identity_variant(second, window_handle=second.window_handle + 1),
             expected=expected,
             subject=f"fixture-pid:{fixture_pid}",
             stream_id="physical-windows-verification-hwnd",
