@@ -10,7 +10,7 @@ This slice does **not** add Windows action authority and does not add a Chat/MCP
 
 ## Accepted foundation reused
 
-The adapter consumes `DesktopState.to_mapping()` from `runtime/windows/observation.py`, which already binds:
+The adapter consumes `DesktopState.to_mapping()` from `runtime/windows/observation.py`, which already records:
 
 ```text
 Windows session
@@ -19,7 +19,7 @@ executable basename
 PID
 process generation = process creation time
 HWND
-window instance
+window_instance digest
 window title / bounds
 focused UIA control evidence
 bounded UIA controls
@@ -37,7 +37,7 @@ accepted DesktopState BEFORE
  -> WindowsDesktopObservationStream
  -> ObservationRef(sequence N)
  -> caller-declared bounded final-state expectation
- -> automatic exact identity-continuity predicates
+ -> automatic stable process/native-window continuity predicates
  -> accepted DesktopState AFTER
  -> ObservationRef(sequence N+1)
  -> shared verify_expected_effect
@@ -46,9 +46,9 @@ accepted DesktopState BEFORE
 
 `capability = windows.desktop`.
 
-The logical observation subject is supplied by the caller. The process/window identity is deliberately kept inside verifier state rather than hidden in the subject, so process/window replacement becomes an observable FAIL instead of accidentally becoming a new accepted subject.
+The logical observation subject is supplied by the caller. Stable process/window identity remains inside verifier state rather than being hidden in the subject, so process/native-window drift becomes an observable FAIL.
 
-## Mandatory identity continuity
+## Mandatory stable identity continuity
 
 Every verified transition automatically requires equality of:
 
@@ -59,20 +59,31 @@ executable_name
 process_id
 process_generation
 window_handle
-window_instance
 coordinate_space
 ```
 
-Therefore a similar-looking window cannot satisfy a postcondition after:
+This means a process restart with PID reuse, process-generation drift, HWND change, executable/application identity drift or Windows-session drift cannot satisfy an otherwise similar final state.
 
-- process restart with PID reuse;
-- process-generation change;
-- HWND reuse/change;
-- window-instance replacement;
-- executable/application identity drift;
-- Windows-session drift.
+These predicates are mandatory and cannot be disabled by the planner/caller.
 
-These identity predicates are mandatory and cannot be disabled by the planner/caller.
+### Why `window_instance` is not a continuity predicate
+
+The accepted Stage 26.2 `DesktopState` defines `window_instance` as a digest of:
+
+```text
+process_id
+process_generation
+window_handle
+window_title
+```
+
+Therefore a legitimate title change on the **same** PID/process-generation/HWND changes `window_instance`. Treating it as immutable identity would incorrectly reject valid title-changing transitions.
+
+PR #114 instead **recomputes and validates** `window_instance` independently for every snapshot. It is snapshot-consistency evidence, not a separate stable window-generation token.
+
+The same applies to control observation fingerprints and `frame_digest`: the adapter recomputes them from normalized DesktopState content and rejects contradictions before verification.
+
+Current evidence cannot distinguish a destroy/recreate event that somehow reuses the same PID/process-generation/HWND and recreates an indistinguishable title/state. PR #114 does not claim such a stronger window-generation proof. A future capability that needs that distinction must collect a stronger native generation signal rather than overloading `window_instance`.
 
 ## Bounded caller postconditions
 
@@ -92,13 +103,19 @@ Raw visible text is reduced to SHA-256 in verifier state. Screenshot bytes remai
 
 No arbitrary selector/expression, Python, PowerShell, shell, process command, Win32 call, UIA query, code execution, backend selector or generic dispatch is accepted as an expected state.
 
-## Completeness and ambiguity
+## Integrity, completeness and ambiguity
 
 The accepted exact-window observer already fails closed on non-unique bound windows, oversized UIA scans and conflicting/ambiguous focus evidence.
 
-The shared adapter additionally detects duplicate `observation_fingerprint` values. Such a snapshot is marked ambiguous; the common Verification Kernel returns `UNKNOWN`, not PASS, when unambiguous evidence is required.
+The shared adapter additionally:
 
-DesktopState freshness redundancy is checked during normalization. Contradictions between top-level process/window identity and `freshness_evidence` are rejected as invalid evidence rather than normalized away.
+- recomputes each control `observation_fingerprint`;
+- recomputes `window_instance` from process/HWND/title evidence;
+- recomputes `frame_digest` from normalized DesktopState content;
+- validates redundant `freshness_evidence` against top-level evidence;
+- detects duplicate control observation fingerprints.
+
+Digest/freshness contradictions are rejected as invalid evidence. Duplicate control fingerprints make the snapshot ambiguous; the common Verification Kernel returns `UNKNOWN`, not PASS, when unambiguous evidence is required.
 
 ## Relationship to the legacy Windows verifier
 
@@ -113,17 +130,17 @@ The qualification reuses the accepted harmless WinForms fixture and exact PID/HW
 Required final-head evidence:
 
 ```text
-same two live observations keep exact Windows identity
+two fresh live observations keep exact stable Windows identity
 same-identity declared final state -> shared-kernel PASS
 wrong declared final state -> FAIL
-synthetic process-generation drift -> FAIL
-synthetic HWND/window-instance drift -> FAIL
+canonical synthetic process-generation drift -> FAIL
+canonical synthetic HWND drift -> FAIL
 stale observation -> UNKNOWN
 no desktop fallback/binding ambiguity
 fixture cleanup succeeds
 ```
 
-Synthetic negative probes are verifier tests, not claims that the OS physically changed identity during the run. The positive identity evidence comes from two fresh observations of the actual target-Windows fixture.
+Synthetic negative probes are verifier tests, not claims that the OS physically changed identity during the run. They are rebuilt through the production `build_desktop_state` path so their snapshot-local digests remain internally valid. Positive identity evidence comes from two fresh observations of the actual target-Windows fixture.
 
 Harness:
 
