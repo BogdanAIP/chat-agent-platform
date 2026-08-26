@@ -17,6 +17,10 @@ Reviewed future Browser/local-execution direction:
 
 - `BROWSER_HARNESS_ARCHITECTURE.md` / ADR-036
 
+Canonical acceptance depth:
+
+- `REAL_TASK_ACCEPTANCE.md`
+
 Canonical current status:
 
 - `CURRENT_STATE.md`
@@ -46,6 +50,22 @@ procedure_run
 
 Normal transport is direct stdio through the Secure MCP Tunnel and official tunnel-client. 1MCP remains optional internal Extension Manager infrastructure.
 
+## Acceptance-depth rule
+
+Low-level correctness is required but is not sufficient evidence of useful autonomy.
+
+Material capability work should progress through:
+
+```text
+L1 — primitive / contract proof
+ -> L2 — multi-step workflow integration where useful
+ -> L3 — ordinary user-task E2E with independent Finish Gate
+```
+
+L3 receives a natural-language goal rather than a click/type script. It must verify final independent state plus important non-target constraints. One L3 pass is scoped evidence, not a universal reliability claim.
+
+For the current Browser path, a representative physical L3 task is required after `web_interact` primitive acceptance and before moving the release-critical implementation line on to Windows/application/process verification.
+
 ## Completed foundation relevant to current work
 
 ```text
@@ -58,6 +78,7 @@ Verification Kernel foundation                    MERGED #99
 file/artifact kernel integration                  PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation                    MERGED #106
 web_open final-state verification                 PHYSICAL ACCEPTED / MERGED #107
+Browser Harness / ADR-036 docs                    MERGED #110
 ```
 
 Windows acceptance is scoped evidence, not universal Windows accuracy.
@@ -82,7 +103,7 @@ Track M multi-chat remains future/parallel. Track P local-planner work is **futu
 
 # 26.3B — Verification Kernel + independent Finish Gate — ACTIVE
 
-Objective: one reusable verification contract across real production capabilities.
+Objective: one reusable verification contract across real production capabilities, with representative real-task evidence rather than only primitive success checks.
 
 Shared foundation:
 
@@ -109,13 +130,21 @@ Current active production slice:
 
 - **draft PR #111 — production `web_interact` click/type postcondition verification**.
 
-PR #111 requires final exact-head hosted CI and target-Windows ordinary-Chat physical evidence before merge. Historical green evidence from the former stacked branch is regression evidence only.
+PR #111 has fresh hosted CI on its current exact head and still requires target-Windows ordinary-Chat physical interaction evidence before merge.
+
+First Browser L3 evidence slice:
+
+- **draft stacked PR #112 — stateful Browser real-task acceptance harness**.
+
+PR #112 does not replace #111's primitive gate. After #111 is physically accepted and merged, #112 must be replayed on accepted `main`, pass hosted harness checks, and then pass an ordinary-Chat target-Windows L3 task from a natural user goal.
 
 Remaining 26.3B work:
 
 ```text
-PR #111 final exact-head hosted + physical acceptance
+PR #111 final exact-head physical acceptance + merge
+Browser L3 real-task gate on replayed #112
 Windows/application/process verification
+representative Windows/application L3 after its verifier exists
 cross-capability completion predicates where real procedures require them
 appropriate physical gates for each changed production path
 ```
@@ -126,7 +155,7 @@ Only then declare 26.3B accepted.
 
 ADR-036 does **not** silently enlarge the current 26.3B acceptance objective.
 
-The current release gate remains verification correctness for accepted production capabilities. Site Capability Profiles / Browser Network Gate are reviewed architecture and active technical-debt direction, but broader implementation becomes a hard acceptance prerequisite only when trusted-site JS/CDP/full-browser authority is promoted.
+The current release gate remains verification correctness plus representative real-task evidence for accepted production capabilities. Site Capability Profiles / Browser Network Gate are reviewed architecture and active technical-debt direction, but broader implementation becomes a hard acceptance prerequisite only when trusted-site JS/CDP/full-browser authority is promoted.
 
 TD-001 therefore remains open through current 26.3B unless a separate reviewed PR explicitly promotes/accepts that network boundary earlier.
 
@@ -199,6 +228,8 @@ After WorkingState v1 stabilizes, define the smallest planner-neutral proposal/e
 
 This is the highest-ranked current engineering risk and must be attacked after 26.3C rather than hidden behind more architecture.
 
+The earlier L3 gates are representative vertical proofs. This later gate broadens coverage across task families, application classes and environment variants.
+
 Minimum representative matrix should cover multiple classes, for example:
 
 ```text
@@ -221,7 +252,7 @@ notification/overlay/noisy state
 structure miss -> reviewed visual fallback
 ```
 
-Success criterion is not a marketing claim of universal Windows accuracy. It is a materially broader, characterized, repeatable accepted scope than the current isolated VS Code E2E.
+Success criterion is not a marketing claim of universal Windows accuracy. It is a materially broader, characterized, repeatable accepted scope than isolated component/L3 examples.
 
 ---
 
@@ -292,7 +323,8 @@ Before any trusted-site JS/CDP/full-browser authority is accepted:
 2. navigation, redirect, frame, fetch/XHR, WebSocket-like and transfer destinations must respect the reviewed policy;
 3. trusted destination must remain distinct from trusted instructions;
 4. Browser trust must not grant filesystem/Windows/Python authority;
-5. hosted security/regression evidence and ordinary-Chat physical acceptance must pass on the final exact head.
+5. hosted security/regression evidence and ordinary-Chat physical acceptance must pass on the final exact head;
+6. at least one representative L3 task must prove that the widened authority improves useful work without bypassing independent verification.
 
 A future public Windows/computer-use Chat-facing surface still requires its own schema/security/ordinary-Chat physical acceptance.
 

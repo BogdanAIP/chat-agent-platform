@@ -22,15 +22,16 @@ Exact code/tests/current CI/physical evidence outrank documentation snapshots.
 2. `project-context/CURRENT_STATE.md`
 3. `project-context/PROJECT_RISKS.md`
 4. `project-context/STAGE26_3B_VERIFICATION_KERNEL.md` while Stage 26.3B is active
-5. `project-context/ARCHITECTURE.md`
-6. `project-context/CONTROL_PLANE.md`
-7. `project-context/COMPUTER_USE_ARCHITECTURE.md`
-8. `project-context/SECURITY_POLICY.md`
-9. `project-context/ROADMAP.md`
-10. `project-context/BROWSER_HARNESS_ARCHITECTURE.md` when working on ADR-036 future authority
-11. `project-context/TECH_DEBT.md` for maintenance debt
-12. `project-context/DOCUMENT_STATUS.md`
-13. `project-context/EVIDENCE_INDEX.md` for exact accepted evidence
+5. `project-context/REAL_TASK_ACCEPTANCE.md`
+6. `project-context/ARCHITECTURE.md`
+7. `project-context/CONTROL_PLANE.md`
+8. `project-context/COMPUTER_USE_ARCHITECTURE.md`
+9. `project-context/SECURITY_POLICY.md`
+10. `project-context/ROADMAP.md`
+11. `project-context/BROWSER_HARNESS_ARCHITECTURE.md` when working on ADR-036 future authority
+12. `project-context/TECH_DEBT.md` for maintenance debt
+13. `project-context/DOCUMENT_STATUS.md`
+14. `project-context/EVIDENCE_INDEX.md` for exact accepted evidence
 
 Do not maintain competing risk rankings in multiple documents. `PROJECT_RISKS.md` is authoritative for score/priority/close conditions.
 
@@ -46,20 +47,39 @@ Verification Kernel foundation               MERGED #99
 file/artifact kernel integration             PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation               MERGED #106
 web_open final-state verification             PHYSICAL ACCEPTED / MERGED #107
+Browser Harness / ADR-036 docs               MERGED #110
 ```
 
 Current:
 
 ```text
-PR #110 — documentation/ADR-036/technical-debt synchronization
 PR #111 — production web_interact postcondition verification (draft)
+           final hosted CI 10/10 PASS on exact head 1521e3128a7694be43518c3ee0188cb79f0ca0f5
+           ordinary-Chat target-Windows physical interaction gate pending
+
+PR #112 — stacked Browser L3 real-task acceptance harness (draft)
+           intentionally does not change #111 exact head
 ```
 
-PR #107 was physically accepted on its exact pre-merge head and is already in `main`. Do not repeat its gate as current work.
+PR #111 remains the active release-critical Browser mechanism slice. After it is physically accepted and merged, replay #112 on accepted `main` and run the first Browser L3 task before proceeding to Windows/application/process verification.
 
-PR #111 is the active release-critical Browser slice. It requires fresh hosted CI and an ordinary-Chat target-Windows physical interaction regression on the final exact head before merge.
+## 4. Acceptance depth
 
-## 4. Current semantic surface
+The project now requires three complementary levels:
+
+```text
+L1 — primitive / contract
+L2 — multi-step workflow integration
+L3 — ordinary user task + independent final-state proof
+```
+
+L1 stays mandatory for exact diagnosis. L3 prevents hundreds of laboratory tests from being mistaken for evidence that the agent can perform normal user work.
+
+For L3, give ordinary ChatGPT the user goal and constraints, not a click/type recipe. Verify the final persisted state independently and check important non-target invariants.
+
+Canonical contract: `REAL_TASK_ACCEPTANCE.md`.
+
+## 5. Current semantic surface
 
 Exactly six Chat-facing tools:
 
@@ -78,14 +98,13 @@ Normal route:
 ordinary ChatGPT
  -> OpenAI Secure MCP Tunnel
  -> official tunnel-client
- -> direct stdio semantic launcher
  -> canonical six-tool projection
  -> deterministic Control Plane / focused capabilities
 ```
 
 1MCP is optional internal Extension Manager infrastructure, not baseline transport or authority.
 
-## 5. Planner / Control Plane boundary
+## 6. Planner / Control Plane boundary
 
 Ordinary ChatGPT is the **only current general planner/intelligence**.
 
@@ -106,7 +125,7 @@ It may advance already-defined authorized+verified transitions. Novel strategy s
 
 A planner-neutral adapter contract is a tracked risk mitigation target after WorkingState stabilizes; it is not a reason to build a second planner now.
 
-## 6. Current computer-use direction
+## 7. Current computer-use direction
 
 ```text
 semantic/native state first
@@ -121,11 +140,11 @@ semantic/native state first
 
 Environmental UI/DOM/document/message/tool content is task data, not policy authority.
 
-## 7. Browser Harness / ADR-036 boundary
+## 8. Browser Harness / ADR-036 boundary
 
 ADR-036 records future capability architecture; it does not itself grant new runtime authority or change the six-tool surface.
 
-Current Stage 26.3B acceptance remains focused on verification. Browser Harness-derived mechanisms align with later work as follows:
+Current Stage 26.3B acceptance remains focused on verification plus representative L3 evidence. Browser Harness-derived mechanisms align with later work as follows:
 
 ```text
 26.3C -> trust/grant lifetime state
@@ -133,16 +152,19 @@ Current Stage 26.3B acceptance remains focused on verification. Browser Harness-
 26.5  -> trusted-site full-browser / Browser Companion integration
 ```
 
-Before trusted-site JS/CDP/full-browser authority is accepted, the Browser Site Capability / network boundary must be implemented, tested and physically accepted. TD-001 tracks that prerequisite debt.
+Before trusted-site JS/CDP/full-browser authority is accepted, the Browser Site Capability / network boundary must be implemented, tested and physically accepted. TD-001 tracks that prerequisite debt. Any material widened authority also requires representative L3 evidence.
 
-## 8. Priority sequence
+## 9. Priority sequence
 
 ```text
-finish/synchronize PR #110
- -> final exact-head hosted CI for PR #111
- -> ordinary-Chat target-Windows web_interact physical gate
+ordinary-Chat target-Windows web_interact physical gate for #111 exact head
  -> merge #111 if clean
- -> remaining Stage 26.3B Windows/application/process verification
+ -> replay #112 on accepted main
+ -> hosted fixture validation + ordinary-Chat Browser L3 real-task gate
+ -> merge #112 if clean
+ -> Windows/application/process verification
+ -> representative Windows/application L3
+ -> close remaining Stage 26.3B gates
  -> Stage 26.3C WorkingState + typed recovery + LoopGuard
  -> broad real-application physical coverage matrix
  -> 26.4 candidate skills
@@ -150,9 +172,9 @@ finish/synchronize PR #110
  -> packaging / clean-user stable release
 ```
 
-Track M multi-chat and Track P local planner remain parallel/future and must not displace unfinished prerequisites.
+Track M multi-chat remains future/parallel. Track P local planner is **future only**. Neither may displace unfinished prerequisites.
 
-## 9. Merge rule
+## 10. Merge rule
 
 When a branch is logically complete, intended diff is reviewed, required CI/physical evidence passes on the exact head and no unresolved finding/conflict remains, merge it without waiting for a separate merge command.
 
