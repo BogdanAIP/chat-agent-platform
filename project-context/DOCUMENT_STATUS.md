@@ -12,6 +12,8 @@ current code/tests/current hosted CI/current physical evidence
  > PROJECT_RISKS.md for ranked engineering risk priority
  > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / SECURITY_POLICY.md
  > REAL_TASK_ACCEPTANCE.md for L1/L2/L3 acceptance depth
+ > SOURCE_PROVENANCE_ACCEPTANCE.md for physical source-byte binding
+ > EXTERNAL_EXECUTION_REUSE_STRATEGY.md for OpenAdapt/UFO integration boundaries
  > active Stage 26.3 contracts
  > BROWSER_HARNESS_ARCHITECTURE.md for ADR-036 reviewed future direction
  > ROADMAP.md
@@ -45,6 +47,12 @@ ROADMAP
 
 REAL_TASK_ACCEPTANCE
   = durable L1/L2/L3 acceptance contract
+
+SOURCE_PROVENANCE_ACCEPTANCE
+  = physical acceptance binding between exact head and actual executed source bytes
+
+EXTERNAL_EXECUTION_REUSE_STRATEGY
+  = durable OpenAdapt/UFO reuse boundary; external mechanics never replace project authority/verification/completion
 
 TECH_DEBT
   = current implementation/process debt
@@ -80,6 +88,8 @@ Do not copy full risk rankings, physical dumps or release-stage detail across ma
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid computer-use contract. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
 | `REAL_TASK_ACCEPTANCE.md` | AUTHORITATIVE ACCEPTANCE-DIRECTION CONTRACT | L1 primitive, L2 workflow and L3 real-task evidence. |
+| `SOURCE_PROVENANCE_ACCEPTANCE.md` | AUTHORITATIVE PHYSICAL-ACCEPTANCE METHODOLOGY | Requires clean-tree/source-hash binding so exact-head evidence proves the bytes actually executed. |
+| `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | AUTHORITATIVE INTEGRATION DIRECTION | OpenAdapt as procedure/effect-evidence substrate; UFO as selective Windows/Office component source; project Control Plane/Kernel/Finish Gate remain authoritative. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence and acceptance objectives. |
 | `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Future Site Capability/full-browser/helper/Local Execution direction; no current authority by itself. |
 | `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing implementation/process debt. |
@@ -113,11 +123,39 @@ Browser L3 real-task acceptance                 PHYSICAL ACCEPTED / MERGED #113
 Windows DesktopState shared-kernel verifier     ACTIVE DRAFT PR #114
 Windows/application L3                          NEXT AFTER #114 ACCEPTANCE
 WorkingState + recovery + LoopGuard              26.3C TARGET
+OpenAdapt procedure/effect-evidence spike        AFTER 26.3C CORE SHAPE
+selective UFO Office adapters                    LATER 26.5-ALIGNED WORK
 ```
 
 PR #113 physical Browser L3 evidence included one target save, one target audit mutation, external `FINISH_GATE=done` and `NON_TARGET_MUTATION=none` on exact physical head `5bb8897c6809cecd15f64da1a8ef6efd2fdf69bf`.
 
-PR #114 adds no public Chat/MCP tool and no Windows action authority. It adapts accepted `DesktopState` evidence to the shared Verification Kernel with mandatory continuity of Windows session, application/executable identity, PID, process generation, HWND and window instance. Physical target qualification is required on its final exact head before merge.
+The new Source Provenance contract records that PR #113's functional/final-state evidence remains accepted for its historical scope, while its source cleanliness was not proved by the older gate. Before Stage 26.3B is fully closed, repeat one representative Browser L3 under the new clean-tree/source-hash methodology rather than pretending the older gate proved it.
+
+PR #114 adds no public Chat/MCP tool and no Windows action authority. It adapts accepted `DesktopState` evidence to the shared Verification Kernel with mandatory continuity of Windows session, application/executable identity, PID, process generation, HWND and coordinate space. `window_instance` remains validated for internal consistency on each observation but is not required to remain equal when a legitimate title change changes its canonical digest. Physical target qualification is required on the final exact source-provenance-bound head before merge.
+
+## External execution reuse boundary
+
+The project may reuse mature external mechanics without importing a second authority stack:
+
+```text
+OpenAdapt
+  = internal procedure compiler/runtime/checkpoint/teach/effect-evidence substrate
+  != project WorkingState owner
+  != project PASS/DONE authority
+
+UFO
+  = selective UIA/Win32/COM/Office adapter source
+  != HostAgent/AppAgent/Galaxy production planner stack
+
+project Control Plane
+  = authority + WorkingState + recovery/budgets
+project Verification Kernel
+  = PASS | FAIL | UNKNOWN
+project Finish Gate
+  = DONE | NOT_DONE | UNKNOWN
+```
+
+Canonical detail: `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`.
 
 ## Real-task acceptance boundary
 
@@ -128,6 +166,8 @@ L3 ordinary user goal + independent final state
 ```
 
 L1/L2 remain mandatory for diagnosis/regression. L3 prevents architecture from advancing solely on laboratory-style tests. Independent Finish Gate evidence must not be planner-writable and mutation must occur through the accepted product capability surface rather than a hidden test/admin API.
+
+Every future release-critical physical gate must also satisfy `SOURCE_PROVENANCE_ACCEPTANCE.md`; L3 proves behavior, while source provenance proves what bytes were actually under test.
 
 ## ADR-036 boundary
 
@@ -157,4 +197,4 @@ ordinary ChatGPT = only current general planner
 
 ## Maintenance rule
 
-Update this map when a reviewed change alters authoritative document names/read order, planner/Control Plane responsibility, computer-use observation/verification/recovery/completion boundaries, L1/L2/L3 requirements, Browser/Local Execution authority, risk/debt/release ownership, future-track promotion, or the public Chat-facing capability surface.
+Update this map when a reviewed change alters authoritative document names/read order, planner/Control Plane responsibility, computer-use observation/verification/recovery/completion boundaries, source-provenance requirements, external execution reuse boundaries, L1/L2/L3 requirements, Browser/Local Execution authority, risk/debt/release ownership, future-track promotion, or the public Chat-facing capability surface.
