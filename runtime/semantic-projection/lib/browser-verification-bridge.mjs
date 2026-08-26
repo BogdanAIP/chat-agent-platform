@@ -15,6 +15,9 @@ const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'PROGRAMFILES', 'ProgramFiles', 'PROGRAMFILES(X86)',
   'LANG', 'LC_ALL', 'PYTHONUTF8', 'PYTHONIOENCODING'
 ]);
+const VALUE_STATE_ROLES = new Set([
+  'textbox', 'searchbox', 'combobox', 'spinbutton',
+]);
 const CHECKED_STATE_ROLES = new Set([
   'checkbox', 'menuitemcheckbox', 'menuitemradio', 'radio', 'switch',
 ]);
@@ -47,11 +50,15 @@ function decodeQuoted(value) {
 }
 
 function controlValueFromLine(line, role) {
-  if (!['textbox', 'searchbox', 'combobox', 'spinbutton'].includes(role)) return null;
+  if (!VALUE_STATE_ROLES.has(role)) return null;
   const refEnd = line.indexOf(']');
   if (refEnd < 0) return null;
   const suffix = line.slice(refEnd + 1).replace(/^\s*(?:\[[^\]]+\]\s*)*/, '').trim();
-  if (!suffix.startsWith(':')) return null;
+  // @playwright/mcp omits the `: value` suffix for an observable empty
+  // value-state control. For roles whose accessibility state has a value,
+  // absence of that suffix therefore means the observed value is "", not
+  // "unknown". This distinction is required by the pre-action delta guard.
+  if (!suffix.startsWith(':')) return '';
   const value = suffix.slice(1).trim();
   return value.length <= 4096 ? value : null;
 }
