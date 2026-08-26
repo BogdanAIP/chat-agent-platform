@@ -21,7 +21,6 @@ _IDENTITY_CONTINUITY_PATHS = (
     ("identity", "process_id"),
     ("identity", "process_generation"),
     ("identity", "window_handle"),
-    ("identity", "window_instance"),
     ("window", "coordinate_space"),
 )
 _ALLOWED_EXPECTED = {"window", "evidence"}
@@ -80,7 +79,7 @@ def _bounds(value: Any) -> dict[str, int]:
 
 
 def normalize_windows_expected(raw: Any) -> tuple[dict[str, Any], tuple[StatePredicate, ...]]:
-    """Validate bounded caller postconditions; identity continuity is added separately."""
+    """Validate bounded caller postconditions; stable identity is added separately."""
 
     if type(raw) is not dict:
         raise TypeError("Windows expected state must be a plain dict")
@@ -159,7 +158,14 @@ def build_windows_desktop_effect(
     expected: dict[str, Any],
     effect_id: str = WINDOWS_DESKTOP_EFFECT_ID,
 ) -> tuple[ExpectedEffect, dict[str, Any]]:
-    """Bind caller postconditions plus exact process/window identity continuity."""
+    """Bind caller postconditions plus stable process/native-window continuity.
+
+    `window_instance` is intentionally not a continuity predicate because the
+    accepted DesktopState definition includes window title in that digest. A
+    legitimate title change on the same PID/process-generation/HWND therefore
+    changes `window_instance`. The observation adapter independently recomputes
+    and validates that digest against each snapshot.
+    """
 
     normalized_expected, caller_predicates = normalize_windows_expected(expected)
     continuity = tuple(
@@ -194,9 +200,11 @@ def verify_windows_desktop_transition(
 ) -> dict[str, Any]:
     """Verify one bound Windows transition with the shared Verification Kernel.
 
-    The same live application/process/window identity is mandatory. A process
-    restart, HWND/window-instance drift, different executable identity, stale
-    observation, or ambiguous evidence can never be reported as PASS.
+    Stable live application/process/native-window identity is mandatory. A
+    process restart, PID/process-generation drift, HWND drift, different
+    executable identity, stale observation, or ambiguous evidence cannot PASS.
+    Snapshot-local `window_instance`/frame/control digests are independently
+    checked for internal consistency by the observation adapter.
     """
 
     stream = WindowsDesktopObservationStream(subject=subject, stream_id=stream_id)
