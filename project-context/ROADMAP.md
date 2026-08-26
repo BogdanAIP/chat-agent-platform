@@ -214,6 +214,10 @@ LoopGuard must terminate/escalate repeated no-effect fingerprints, oscillation a
 
 An OpenAdapt checkpoint may later be referenced by WorkingState for one compiled procedure, but OpenAdapt does not own cross-capability state, authority, retry budgets or completion.
 
+## Planner portability guardrail
+
+After WorkingState v1 stabilizes, define the smallest planner-neutral proposal/escalation contract needed to prevent the lower deterministic Control Plane from depending on ChatGPT-specific planning payloads. A future second planner should first run **shadow/proposal-only** through that contract. This is a portability guardrail, not current release-critical planner work.
+
 ---
 
 # Broad real-application physical coverage gate
@@ -272,3 +276,73 @@ Trusted-site full-browser/JS/CDP authority may be promoted only after the Site C
 A future public Windows/computer-use Chat-facing surface still requires its own schema/security/ordinary-Chat physical acceptance.
 
 ---
+
+# Local Execution Kernel — adjacent future capability
+
+ADR-036 retains arbitrary Python/program execution as a useful local capability, but **not inside Browser authority** and not as a hidden expansion of `web_interact`/`procedure_run`.
+
+It may begin only after the relevant 26.3C state/grant foundations are available and requires a separate consequence-class/security/public-contract/physical acceptance.
+
+Target authority shape:
+
+```text
+LocalExecutionGrant
+ -> filesystem roots
+ -> network scope
+ -> executable/program allowlist
+ -> environment exposure
+ -> runtime/process/resource budgets
+ -> task/session lifetime
+```
+
+Generated code remains proposal data; the deterministic Control Plane remains authoritative for scope, execution and ExpectedEffect verification.
+
+---
+
+# 27 — Distribution & Maintenance
+
+Only after the core loop and broad physical scope are credible:
+
+- simplify installation/update paths;
+- reduce developer-environment assumptions;
+- make dependency/runtime ownership explicit;
+- close/reassess relevant `TECH_DEBT.md` items;
+- preserve fail-closed security boundaries.
+
+The current implementation is primarily Python + Node/MJS + PowerShell/Windows glue. Rust is not a current release prerequisite.
+
+---
+
+# 28 — Clean User E2E / stable release
+
+Target user path:
+
+```text
+clean machine / supported Windows account
+ -> install
+ -> connect/authenticate
+ -> choose/approve required capability scope
+ -> normal six-tool route ready
+ -> representative user task succeeds with verification
+ -> restart/recovery/update behavior remains understandable
+```
+
+Stable release requires accepted core behavior, clean install evidence, current documentation and no known P0/P1 debt whose close condition is required for the shipped authority.
+
+---
+
+# Parallel Track M — Conversation Bridge / multi-chat
+
+Track M remains future/parallel. It may reuse Browser Companion and verified handoff architecture only after the lower capability/state/verification boundaries are ready. It must not displace Stage 26 release-critical prerequisites.
+
+# Optional Track P — local planner
+
+Track P is **future only** optional research:
+
+```text
+P0 shadow/proposal-only
+ -> P1 bounded subtask planner
+ -> P2 optional local general planner
+```
+
+No planner may grant itself capability authority; all remain above the deterministic Control Plane/verifier/Finish Gate boundary.
