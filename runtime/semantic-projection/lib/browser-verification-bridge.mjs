@@ -15,6 +15,15 @@ const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'PROGRAMFILES', 'ProgramFiles', 'PROGRAMFILES(X86)',
   'LANG', 'LC_ALL', 'PYTHONUTF8', 'PYTHONIOENCODING'
 ]);
+const VALUE_STATE_ROLES = new Set([
+  'textbox', 'searchbox', 'combobox', 'spinbutton',
+]);
+const CHECKED_STATE_ROLES = new Set([
+  'checkbox', 'menuitemcheckbox', 'menuitemradio', 'radio', 'switch',
+]);
+const SELECTED_STATE_ROLES = new Set([
+  'gridcell', 'option', 'row', 'tab', 'treeitem',
+]);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
@@ -41,13 +50,30 @@ function decodeQuoted(value) {
 }
 
 function controlValueFromLine(line, role) {
-  if (!['textbox', 'searchbox', 'combobox', 'spinbutton'].includes(role)) return null;
+  if (!VALUE_STATE_ROLES.has(role)) return null;
   const refEnd = line.indexOf(']');
   if (refEnd < 0) return null;
   const suffix = line.slice(refEnd + 1).replace(/^\s*(?:\[[^\]]+\]\s*)*/, '').trim();
-  if (!suffix.startsWith(':')) return null;
+  // @playwright/mcp omits the `: value` suffix for an observable empty
+  // value-state control. For roles whose accessibility state has a value,
+  // absence of that suffix therefore means the observed value is "", not
+  // "unknown". This distinction is required by the pre-action delta guard.
+  if (!suffix.startsWith(':')) return '';
   const value = suffix.slice(1).trim();
   return value.length <= 4096 ? value : null;
+}
+
+function checkedStateFromLine(line, role) {
+  if (/\[checked\]/.test(line)) return true;
+  if (/\[unchecked\]/.test(line)) return false;
+  if (/\[checked=(?:mixed|undefined)\]/.test(line)) return null;
+  return CHECKED_STATE_ROLES.has(role) ? false : null;
+}
+
+function selectedStateFromLine(line, role) {
+  if (/\[selected\]/.test(line)) return true;
+  if (/\[unselected\]/.test(line)) return false;
+  return SELECTED_STATE_ROLES.has(role) ? false : null;
 }
 
 function stripSnapshotFence(value) {
@@ -111,8 +137,8 @@ export function parsePlaywrightSnapshotResult(result) {
       role,
       name,
       enabled: !/\[disabled\]/.test(line),
-      checked: /\[checked\]/.test(line) ? true : (/\[unchecked\]/.test(line) ? false : null),
-      selected: /\[selected\]/.test(line) ? true : null,
+      checked: checkedStateFromLine(line, role),
+      selected: selectedStateFromLine(line, role),
       visible: true,
       value: controlValueFromLine(line, role),
     });
@@ -172,16 +198,29 @@ function runVerifier(request) {
   });
 }
 
+function requireVerifierResult(result) {
+  if (!['pass', 'fail', 'unknown'].includes(result?.status)) {
+    throw new Error(result?.reason || 'browser verifier unavailable');
+  }
+  return result;
+}
+
 export async function verifyPlaywrightNavigation({ before, after, expectedUrl }) {
-  const result = await runVerifier({
+  return requireVerifierResult(await runVerifier({
     operation: 'verify_navigation',
     subject: 'isolated-playwright-primary-page',
     before,
     after,
     expected_url: expectedUrl,
-  });
-  if (!['pass', 'fail', 'unknown'].includes(result?.status)) {
-    throw new Error(result?.reason || 'browser verifier unavailable');
-  }
-  return result;
+  }));
+}
+
+export async function verifyPlaywrightInteraction({ before, after, expected }) {
+  return requireVerifierResult(await runVerifier({
+    operation: 'verify_interaction',
+    subject: 'isolated-playwright-primary-page',
+    before,
+    after,
+    expected,
+  }));
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import {
   parsePlaywrightSnapshotResult,
+  verifyPlaywrightInteraction,
   verifyPlaywrightNavigation,
 } from '../lib/browser-verification-bridge.mjs';
 
@@ -46,6 +47,41 @@ assert.deepEqual(after.controls.find(control => control.control_id === 'e1'), {
 assert.equal(after.controls.find(control => control.control_id === 'e2')?.value, 'HELLO');
 assert.equal(after.controls.find(control => control.control_id === 'e3')?.checked, true);
 
+// @playwright/mcp omits the value suffix for an observable empty value-state
+// control. Normalize that omission to "" so pre-action verification can prove
+// that typing a non-empty value would create a real delta.
+const emptyValueState = parsePlaywrightSnapshotResult(result(`### Page
+- Page URL: https://example.com/
+- Page Title: Example
+
+### Snapshot
+\`\`\`yaml
+- textbox "Empty input" [ref=v1]
+- searchbox "Empty search" [ref=v2]
+\`\`\``));
+assert.equal(emptyValueState.controls.find(control => control.control_id === 'v1')?.value, '');
+assert.equal(emptyValueState.controls.find(control => control.control_id === 'v2')?.value, '');
+
+// @playwright/mcp omits positive-state markers when checkbox/option state is
+// false. That omission is semantically meaningful only for roles that define
+// those states; generic controls remain null rather than inferred false.
+const roleStateDefaults = parsePlaywrightSnapshotResult(result(`### Page
+- Page URL: https://example.com/
+- Page Title: Example
+
+### Snapshot
+\`\`\`yaml
+- checkbox "Off" [ref=c1]
+- radio "Radio off" [ref=r1]
+- option "Not selected" [ref=o1]
+- button "Plain" [ref=b1]
+\`\`\``));
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'c1')?.checked, false);
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'r1')?.checked, false);
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'o1')?.selected, false);
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'b1')?.checked, null);
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'b1')?.selected, null);
+
 // Preserve bounded compatibility with the older inline Page Snapshot shape.
 const legacyInline = parsePlaywrightSnapshotResult(result(`### Page state
 - Page URL: https://legacy.example/
@@ -73,6 +109,44 @@ const redirectMismatch = await verifyPlaywrightNavigation({
   expectedUrl: 'https://example.com/redirect',
 });
 assert.equal(redirectMismatch.status, 'fail');
+
+const interactionBefore = parsePlaywrightSnapshotResult(result(`### Page
+- Page URL: https://example.com/
+- Page Title: Example
+
+### Snapshot
+\`\`\`yaml
+- textbox "Semantic input" [ref=e2]: OLD
+- checkbox "Remember" [ref=e3]
+\`\`\``));
+assert.equal(interactionBefore.controls.find(control => control.control_id === 'e3')?.checked, false);
+const interactionVerified = await verifyPlaywrightInteraction({
+  before: interactionBefore,
+  after,
+  expected: {
+    control: { control_id: 'e2', value: 'HELLO' },
+  },
+});
+assert.equal(interactionVerified.status, 'pass');
+assert.equal(interactionVerified.verification.status, 'pass');
+
+const interactionMismatch = await verifyPlaywrightInteraction({
+  before: interactionBefore,
+  after,
+  expected: {
+    control: { control_id: 'e3', checked: false },
+  },
+});
+assert.equal(interactionMismatch.status, 'fail');
+
+await assert.rejects(
+  () => verifyPlaywrightInteraction({
+    before: interactionBefore,
+    after,
+    expected: { javascript: 'document.body.innerText' },
+  }),
+  /invalid_request|unsupported fields/,
+);
 
 assert.throws(
   () => parsePlaywrightSnapshotResult(result('### Snapshot\n```yaml\n- heading Missing page\n```')),
