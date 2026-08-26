@@ -53,6 +53,25 @@ try {
   assert.equal(byName.get('web_observe')?.annotations?.readOnlyHint, true);
   assert.equal(byName.get('web_interact')?.annotations?.openWorldHint, true);
 
+  const interact = byName.get('web_interact');
+  assert(interact, 'web_interact missing from canonical semantic surface');
+  const interactProperties = interact.inputSchema?.properties ?? {};
+  assert(interactProperties.expected, 'web_interact must expose bounded expected postconditions');
+  for (const forbidden of ['javascript', 'script', 'selector', 'code', 'command', 'backend', 'tool']) {
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(interactProperties, forbidden),
+      false,
+      `forbidden generic Browser authority leaked into web_interact: ${forbidden}`,
+    );
+  }
+  const expectedProperties = interactProperties.expected?.properties ?? {};
+  assert.deepEqual(Object.keys(expectedProperties).sort(), ['control', 'url']);
+  const expectedControlProperties = expectedProperties.control?.properties ?? {};
+  assert.deepEqual(
+    Object.keys(expectedControlProperties).sort(),
+    ['checked', 'enabled', 'present', 'selected', 'target', 'value'],
+  );
+
   const procedure = byName.get('procedure_run');
   assert(procedure, 'procedure_run missing from canonical semantic surface');
   assert.equal(procedure.annotations?.readOnlyHint, false);
@@ -137,6 +156,7 @@ try {
   assert.equal(fs.readFileSync(path.join(protectedDir, conflictName), 'utf8'), 'DO_NOT_OVERWRITE');
 
   console.log('SEMANTIC_PUBLIC_TOOL_COUNT=6');
+  console.log('SEMANTIC_PUBLIC_WEB_INTERACT_EXPECTED=PASS');
   console.log('SEMANTIC_PUBLIC_PROCEDURE_RUN=PASS');
   console.log('SEMANTIC_PUBLIC_INDEPENDENT_READ=PASS');
   console.log('SEMANTIC_PUBLIC_RESUME=PASS');
