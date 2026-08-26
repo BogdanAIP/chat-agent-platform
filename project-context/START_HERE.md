@@ -48,24 +48,24 @@ file/artifact kernel integration             PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation               MERGED #106
 web_open final-state verification             PHYSICAL ACCEPTED / MERGED #107
 Browser Harness / ADR-036 docs               MERGED #110
+web_interact postcondition verification       PHYSICAL ACCEPTED / MERGED #111
 ```
 
 Current:
 
 ```text
-PR #111 — production web_interact postcondition verification (draft)
-           final hosted CI 10/10 PASS on exact head 1521e3128a7694be43518c3ee0188cb79f0ca0f5
-           ordinary-Chat target-Windows physical interaction gate pending
+PR #113 — clean post-#111 Browser L3 real-task acceptance harness
+           fresh hosted checks required on final exact head
+           ordinary-Chat target-Windows Case Desk L3 + external Finish Gate pending
 
-PR #112 — stacked Browser L3 real-task acceptance harness (draft)
-           intentionally does not change #111 exact head
+PR #112 — historical stacked draft superseded by #113
 ```
 
-PR #111 remains the active release-critical Browser mechanism slice. After it is physically accepted and merged, replay #112 on accepted `main` and run the first Browser L3 task before proceeding to Windows/application/process verification.
+The first Browser L3 task is now the active release-critical gate. It must pass before proceeding to Windows/application/process verification.
 
 ## 4. Acceptance depth
 
-The project now requires three complementary levels:
+The project requires three complementary levels:
 
 ```text
 L1 — primitive / contract
@@ -73,9 +73,9 @@ L2 — multi-step workflow integration
 L3 — ordinary user task + independent final-state proof
 ```
 
-L1 stays mandatory for exact diagnosis. L3 prevents hundreds of laboratory tests from being mistaken for evidence that the agent can perform normal user work.
+L1 stays mandatory for exact diagnosis. L3 prevents laboratory tests from being mistaken for evidence that the agent can perform normal user work.
 
-For L3, give ordinary ChatGPT the user goal and constraints, not a click/type recipe. Verify the final persisted state independently and check important non-target invariants.
+For L3, give ordinary ChatGPT the user goal and constraints, not a click/type recipe. Verify the final persisted state independently and check important non-target invariants and mutation history.
 
 Canonical contract: `REAL_TASK_ACCEPTANCE.md`.
 
@@ -123,8 +123,6 @@ safety/policy result
 
 It may advance already-defined authorized+verified transitions. Novel strategy stays above that boundary.
 
-A planner-neutral adapter contract is a tracked risk mitigation target after WorkingState stabilizes; it is not a reason to build a second planner now.
-
 ## 7. Current computer-use direction
 
 ```text
@@ -144,24 +142,17 @@ Environmental UI/DOM/document/message/tool content is task data, not policy auth
 
 ADR-036 records future capability architecture; it does not itself grant new runtime authority or change the six-tool surface.
 
-Current Stage 26.3B acceptance remains focused on verification plus representative L3 evidence. Browser Harness-derived mechanisms align with later work as follows:
-
-```text
-26.3C -> trust/grant lifetime state
-26.4  -> generated helper candidate lineage
-26.5  -> trusted-site full-browser / Browser Companion integration
-```
-
 Before trusted-site JS/CDP/full-browser authority is accepted, the Browser Site Capability / network boundary must be implemented, tested and physically accepted. TD-001 tracks that prerequisite debt. Any material widened authority also requires representative L3 evidence.
 
 ## 9. Priority sequence
 
 ```text
-ordinary-Chat target-Windows web_interact physical gate for #111 exact head
- -> merge #111 if clean
- -> replay #112 on accepted main
- -> hosted fixture validation + ordinary-Chat Browser L3 real-task gate
- -> merge #112 if clean
+freeze final PR #113 head
+ -> fresh hosted checks
+ -> prepare randomized Case Desk run
+ -> ordinary-Chat Browser L3 real-task gate
+ -> external Finish Gate
+ -> merge #113 if clean
  -> Windows/application/process verification
  -> representative Windows/application L3
  -> close remaining Stage 26.3B gates
