@@ -47,6 +47,21 @@ assert.deepEqual(after.controls.find(control => control.control_id === 'e1'), {
 assert.equal(after.controls.find(control => control.control_id === 'e2')?.value, 'HELLO');
 assert.equal(after.controls.find(control => control.control_id === 'e3')?.checked, true);
 
+// @playwright/mcp omits the value suffix for an observable empty value-state
+// control. Normalize that omission to "" so pre-action verification can prove
+// that typing a non-empty value would create a real delta.
+const emptyValueState = parsePlaywrightSnapshotResult(result(`### Page
+- Page URL: https://example.com/
+- Page Title: Example
+
+### Snapshot
+\`\`\`yaml
+- textbox "Empty input" [ref=v1]
+- searchbox "Empty search" [ref=v2]
+\`\`\``));
+assert.equal(emptyValueState.controls.find(control => control.control_id === 'v1')?.value, '');
+assert.equal(emptyValueState.controls.find(control => control.control_id === 'v2')?.value, '');
+
 // @playwright/mcp omits positive-state markers when checkbox/option state is
 // false. That omission is semantically meaningful only for roles that define
 // those states; generic controls remain null rather than inferred false.
