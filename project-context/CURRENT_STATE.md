@@ -8,45 +8,46 @@ Do not preserve stale status by copying the same stage narrative into many docum
 
 ## Current live integration line
 
-At the 2026-08-26 documentation synchronization point:
+At the 2026-08-26 post-#107 synchronization point:
 
 ```text
-main = 20d06e8311ef65ee04b9a8a940c4f0d5725de0e0
-       PR #106 — Browser observation foundation
+main = 5df2e5e7378ddb9083a7c3d70a62c7bfc0f6c22d
+       PR #107 — production web_open final-state verification
+       PHYSICALLY ACCEPTED / SQUASH-MERGED
 
-active release-critical PR = #107
-       Stage 26.3B: verify Browser navigation final state
+active release-critical PR = #111
+       Stage 26.3B: verify Browser interaction postconditions
+       clean replay of former stacked #109 on accepted main
+
+parallel docs PR = #110
+       Browser Harness architecture / ADR-036 / TECH_DEBT
 ```
 
-The pre-documentation-sync PR #107 head:
+PR #107 physical acceptance proved on exact head `64184713e97bf2e150614cd93c77509c244cddec`:
 
-```text
-08671b5a8763d589bcd16da69e8ed70bcb5f9509
-```
-
-had all 11 pull-request-triggered hosted workflows green.
-
-This documentation synchronization changes the PR head. Therefore the **final exact PR head must have green hosted CI again**, then pass the required ordinary-Chat target-Windows physical Browser regression before merge. Do not reuse the older head as physical acceptance evidence for a newer commit.
+- direct navigation -> Verification Kernel `PASS`;
+- real HTTP redirect physically delivered but final canonical URL mismatch -> verification `FAIL` / fail-closed;
+- independent `web_observe` confirmed the actual final page after both cases.
 
 ## Real stopping point
 
-Development stopped after implementing production `web_open` final-state verification and completing hosted CI, immediately before the target-Windows physical Browser gate.
+Production `web_open` verification is accepted and merged. The current release-critical implementation is PR #111, which extends the same deterministic Browser verification contract to `web_interact` click/type mutations.
 
-PR #107 changes the production navigation path to:
+PR #111 target path:
 
 ```text
-validate URL/network policy
- -> fresh browser snapshot BEFORE
- -> browser_navigate
+fresh browser snapshot BEFORE
+ -> bounded expected result / pre-action delta guard
+ -> existing semantic-first or reviewed visual-fallback action
  -> fresh browser snapshot AFTER
  -> BrowserObservationStream
  -> ExpectedEffect
  -> PASS | FAIL | UNKNOWN
 ```
 
-Current first-slice policy is intentionally fail-closed on redirects: a delivered navigation to a different final URL is not reported as verified success.
+The mutation is refused before delivery when the required expected result is missing, already satisfied, or cannot be safely distinguished from the fresh pre-action state.
 
-`web_interact` click/type postcondition verification is **not** part of PR #107 and remains the next Browser slice after #107 is accepted and merged.
+PR #111 is **not accepted from inherited historical CI**. Its final exact head requires fresh hosted CI and an ordinary-Chat target-Windows physical interaction regression before merge.
 
 ## Accepted foundation relevant to current work
 
@@ -82,13 +83,19 @@ ordinary ChatGPT
 
 **PHYSICALLY ACCEPTED / MERGED #102.**
 
-`verified_workspace_artifact_v1` uses the shared Verification Kernel for all three transitions and the independent Finish Gate for final target-goal plus staging-absence safety evidence. Physical acceptance proved completion and zero overwrite on the exact accepted head.
+`verified_workspace_artifact_v1` uses the shared Verification Kernel for transition postconditions and the independent Finish Gate. Physical acceptance proved completion and zero overwrite on the exact accepted head.
 
 ### Browser observation foundation
 
 **MERGED #106.**
 
-`BrowserObservationStream` provides bounded URL/origin/document/control state and same-stream monotonic observation identity. PR #106 itself was source-only; PR #107 is the first production semantic-browser action-path integration.
+`BrowserObservationStream` provides bounded URL/origin/document/control state and same-stream monotonic observation identity.
+
+### Browser navigation verification
+
+**PHYSICALLY ACCEPTED / MERGED #107.**
+
+Production `web_open` now uses fresh before/after observation plus the shared Verification Kernel; delivery alone is not success.
 
 ## Stage 26.3B — ACTIVE
 
@@ -103,28 +110,29 @@ PASS | FAIL | UNKNOWN
 independent Finish Gate
 file/artifact production integration + physical acceptance
 Browser observation foundation
-web_open production integration in PR #107, pending final physical acceptance
+web_open production verification + physical acceptance
+web_interact production verification implemented in draft PR #111
 ```
 
 Remaining before Stage 26.3B can be accepted:
 
 ```text
-1. final exact-head hosted + ordinary-Chat target-Windows gate for PR #107
-2. web_interact click/type/control-result verification
-3. Windows/application/process verification over accepted DesktopState/identity evidence
-4. cross-capability completion predicates where real procedures require them
-5. appropriate physical acceptance when those production paths change
+1. final exact-head hosted + ordinary-Chat target-Windows gate for PR #111
+2. Windows/application/process verification over accepted DesktopState/identity evidence
+3. cross-capability completion predicates where real procedures require them
+4. appropriate physical acceptance when those production paths change
 ```
 
 Rules remain:
 
 - action delivery != transition success;
+- already-true postcondition != action success;
 - transition `PASS` != task `DONE`;
 - current observed state outranks remembered procedure/demo/history;
 - stale, mismatched-stream, ambiguous or incomplete required evidence -> `UNKNOWN`;
 - `UNKNOWN` -> zero unauthorized continuation;
 - task-success verification and safety/policy verification remain separate;
-- planner/model/procedure `candidate_done` cannot self-authorize completion.
+- planner/model/procedure/page content cannot self-authorize capability or completion.
 
 Canonical active contract: `STAGE26_3B_VERIFICATION_KERNEL.md`.
 
@@ -152,9 +160,22 @@ This stage is a prerequisite for reliable long-horizon autonomy before broader c
 
 Windows foundation is accepted only for its recorded scope, including one isolated VS Code real-application E2E. This is **not universal Windows accuracy**.
 
-After 26.3C, the next major evidence objective is a broad cross-app physical coverage gate, not another large architecture expansion. It should include representative native Windows, browser, Electron and office-style applications plus DPI/focus/dialog/noisy-state variants.
+After 26.3C, the next major evidence objective is a broad cross-app physical coverage gate covering representative native Windows, browser, Electron and office-style applications plus DPI/focus/dialog/noisy-state variants.
 
-This coverage requirement is tracked as the highest-ranked project risk in `PROJECT_RISKS.md`.
+This coverage requirement remains the highest-ranked project risk in `PROJECT_RISKS.md`.
+
+## Browser Harness / ADR-036 boundary
+
+PR #110 records future Browser Harness-derived architecture. It does **not** expand current runtime authority or silently add new Stage 26.3B acceptance gates.
+
+Current release-critical Stage 26.3B remains verification-focused. ADR-036 mechanisms are staged as integration obligations only when their owning capability is promoted:
+
+- Browser network/Site Capability policy must be closed before trusted-site JS/CDP/full-browser authority is accepted;
+- trust/grant lifetime state aligns with 26.3C WorkingState/recovery work;
+- generated helpers align with 26.4 candidate lineage;
+- full-browser/Browser Companion integration aligns with 26.5.
+
+TD-001 tracks the current Browser network hardening debt until that boundary is actually implemented and physically accepted.
 
 ## Planner boundary
 
@@ -162,7 +183,7 @@ Ordinary ChatGPT is the **only current general planner/intelligence**.
 
 The deterministic local Control Plane owns execution state/policy, capability authorization, ExpectedEffect verification, recovery budgets and completion checks for already-defined transitions. Novel strategy remains above that boundary.
 
-A future planner-neutral proposal/escalation contract is a mitigation target, not current runtime capability. Track P remains optional/future.
+Track P remains optional/future.
 
 ## Parallel Track M — future only
 
@@ -171,11 +192,12 @@ Conversation Bridge / Browser Companion / Adapter Registry / GenericChatAdapter 
 ## Current priority
 
 ```text
-PR #107 final hosted CI
- -> ordinary-Chat target-Windows Browser physical gate on same exact head
- -> merge if all findings/gates are clean
- -> web_interact verification slice
- -> remaining Stage 26.3B integrations
+PR #110 docs/ADR synchronization
+ -> PR #111 final exact-head hosted CI
+ -> ordinary-Chat target-Windows web_interact physical gate
+ -> merge #111 if clean
+ -> Windows/application/process verification
+ -> close remaining Stage 26.3B gates
  -> Stage 26.3C WorkingState/recovery/LoopGuard
  -> broad real-app physical coverage gate
  -> Stage 26.4 / 26.5
@@ -190,12 +212,12 @@ Ranked risks and their close conditions: `PROJECT_RISKS.md`.
 - normal semantic route is direct stdio and does not require 1MCP;
 - semantic/native structure before pixels where reliable;
 - pixels/ROI are selective evidence, not automatic authority;
-- observation/model/procedure/planner output is not authorization;
+- observation/model/procedure/planner/page output is not authorization;
 - every state-changing action requires an explicit expected effect + fresh verification;
 - transition `PASS` is not task `DONE`;
 - environmental UI/DOM/document/tool content is task data, not policy authority;
 - repeated no-effect/oscillating retries must be bounded by LoopGuard;
 - never persist private chain-of-thought;
 - raw capture is sensitive local data;
-- generic Windows code execution remains disabled/unreachable;
+- generic Windows code execution remains disabled/unreachable until a separately reviewed capability is accepted;
 - preserve fail-closed behavior over benchmark hit rate.
