@@ -13,31 +13,22 @@ from runtime.control_plane.windows_transition import (
     build_windows_desktop_effect,
     verify_windows_desktop_transition,
 )
+from runtime.windows.observation import Rect, build_desktop_state
 
 
 class WindowsSharedKernelVerificationTests(unittest.TestCase):
-    def raw(self, **overrides):
-        raw = {
-            "schema_version": 1,
-            "session_id": "windows-session:1",
-            "application_identity": "sha256:" + ("a" * 64),
-            "executable_name": "fixture.exe",
-            "process_id": 4242,
-            "process_generation": "123456789",
-            "window_handle": 98765,
-            "window_instance": "b" * 64,
-            "window_title": "Fixture - Before",
-            "window_bounds": {
-                "left": 10,
-                "top": 20,
-                "right": 610,
-                "bottom": 420,
-                "width": 600,
-                "height": 400,
-            },
-            "coordinate_space": "screen_physical_px",
-            "focused_control": "d" * 64,
-            "controls": [
+    def raw(
+        self,
+        *,
+        window_title: str = "Fixture - Before",
+        process_generation: str = "123456789",
+        window_handle: int = 98765,
+        application_identity: str | None = None,
+        controls=None,
+        observed_at: str = "2026-08-26T12:00:00+00:00",
+    ):
+        if controls is None:
+            controls = [
                 {
                     "role": "textbox",
                     "name": "Editor",
@@ -47,33 +38,26 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
                         "top": 50,
                         "right": 500,
                         "bottom": 300,
-                        "width": 470,
-                        "height": 250,
                     },
                     "enabled": True,
                     "visible": True,
                     "focused": True,
-                    "observation_fingerprint": "d" * 64,
                 }
-            ],
-            "visible_text": "Editor\nSave",
-            "observed_capabilities": ["win32_identity", "uia_structure", "uia_focus_state"],
-            "screenshot_digest": None,
-            "frame_digest": "c" * 64,
-            "observed_at": "2026-08-26T12:00:00+00:00",
-            "observation_source": ["win32_identity", "uia_structure"],
-            "provenance": [],
-            "freshness_evidence": {
-                "process_generation": "123456789",
-                "window_handle": 98765,
-                "window_instance": "b" * 64,
-                "structural_control_count": 1,
-                "screenshot_digest": None,
-                "focus_evidence": {"selected_source": "has_keyboard_focus"},
-            },
-        }
-        raw.update(overrides)
-        return raw
+            ]
+        state = build_desktop_state(
+            session_id="windows-session:1",
+            application_identity=application_identity or ("sha256:" + ("a" * 64)),
+            executable_name="fixture.exe",
+            process_id=4242,
+            process_generation=process_generation,
+            window_handle=window_handle,
+            window_title=window_title,
+            window_bounds=Rect(left=10, top=20, right=610, bottom=420),
+            controls=controls,
+            observed_at=observed_at,
+            focus_evidence={"selected_source": "has_keyboard_focus"},
+        )
+        return state.to_mapping()
 
     def test_normalizes_desktopstate_into_shared_observation(self):
         stream = WindowsDesktopObservationStream(subject="fixture", stream_id="win-stream")
@@ -86,22 +70,27 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
         self.assertEqual(first.ref.sequence + 1, second.ref.sequence)
         self.assertEqual(first.state["identity"]["process_generation"], "123456789")
         self.assertEqual(first.state["window"]["title"], "Fixture - Before")
-        self.assertEqual(first.state["controls"]["d" * 64]["automation_id"], "editor")
+        control_id = next(iter(first.state["controls"]))
+        self.assertEqual(first.state["controls"][control_id]["automation_id"], "editor")
 
     def test_visible_text_is_reduced_to_digest(self):
-        snapshot = WindowsDesktopObservationStream(subject="fixture").observe(self.raw())
-        expected = hashlib.sha256(b"Editor\nSave").hexdigest()
+        raw = self.raw()
+        snapshot = WindowsDesktopObservationStream(subject="fixture").observe(raw)
+        expected = hashlib.sha256(raw["visible_text"].encode("utf-8")).hexdigest()
         self.assertEqual(snapshot.state["evidence"]["visible_text_sha256"], expected)
         self.assertNotIn("visible_text", snapshot.state)
 
-    def test_same_process_window_identity_and_expected_title_pass(self):
+    def test_same_process_and_hwnd_can_verify_legitimate_title_change(self):
+        before_raw = self.raw()
+        after_raw = self.raw(
+            window_title="Fixture - Saved",
+            observed_at="2026-08-26T12:00:01+00:00",
+        )
+        self.assertNotEqual(before_raw["window_instance"], after_raw["window_instance"])
+
         result = verify_windows_desktop_transition(
-            before_raw=self.raw(),
-            after_raw=self.raw(
-                window_title="Fixture - Saved",
-                frame_digest="e" * 64,
-                observed_at="2026-08-26T12:00:01+00:00",
-            ),
+            before_raw=before_raw,
+            after_raw=after_raw,
             expected={"window": {"title": "Fixture - Saved"}},
             subject="fixture",
             stream_id="win-stream",
@@ -110,52 +99,43 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
         self.assertEqual(result["verification"]["reason"], "expected_effect_verified")
 
     def test_process_generation_drift_fails_even_when_final_title_matches(self):
-        after = self.raw(
-            window_title="Fixture - Saved",
-            process_generation="999999999",
-            observed_at="2026-08-26T12:00:01+00:00",
-        )
-        after["freshness_evidence"] = {
-            **after["freshness_evidence"],
-            "process_generation": "999999999",
-        }
         result = verify_windows_desktop_transition(
             before_raw=self.raw(),
-            after_raw=after,
+            after_raw=self.raw(
+                window_title="Fixture - Saved",
+                process_generation="999999999",
+                observed_at="2026-08-26T12:00:01+00:00",
+            ),
             expected={"window": {"title": "Fixture - Saved"}},
         )
         self.assertEqual(result["status"], "fail")
-        paths = [tuple(item["path"]) for item in result["verification"]["predicate_results"] if item["status"] == "fail"]
+        paths = [
+            tuple(item["path"])
+            for item in result["verification"]["predicate_results"]
+            if item["status"] == "fail"
+        ]
         self.assertIn(("identity", "process_generation"), paths)
 
-    def test_hwnd_and_window_instance_drift_fail(self):
-        after = self.raw(
-            window_title="Fixture - Saved",
-            window_handle=44444,
-            window_instance="f" * 64,
-            observed_at="2026-08-26T12:00:01+00:00",
-        )
-        after["freshness_evidence"] = {
-            **after["freshness_evidence"],
-            "window_handle": 44444,
-            "window_instance": "f" * 64,
-        }
+    def test_hwnd_drift_fails(self):
         result = verify_windows_desktop_transition(
             before_raw=self.raw(),
-            after_raw=after,
+            after_raw=self.raw(
+                window_title="Fixture - Saved",
+                window_handle=44444,
+                observed_at="2026-08-26T12:00:01+00:00",
+            ),
             expected={"window": {"title": "Fixture - Saved"}},
         )
         self.assertEqual(result["status"], "fail")
 
     def test_application_identity_drift_fails(self):
-        after = self.raw(
-            window_title="Fixture - Saved",
-            application_identity="sha256:" + ("9" * 64),
-            observed_at="2026-08-26T12:00:01+00:00",
-        )
         result = verify_windows_desktop_transition(
             before_raw=self.raw(),
-            after_raw=after,
+            after_raw=self.raw(
+                window_title="Fixture - Saved",
+                application_identity="sha256:" + ("9" * 64),
+                observed_at="2026-08-26T12:00:01+00:00",
+            ),
             expected={"window": {"title": "Fixture - Saved"}},
         )
         self.assertEqual(result["status"], "fail")
@@ -172,16 +152,20 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
         self.assertEqual(result["status"], "fail")
 
     def test_duplicate_observation_fingerprint_makes_verification_unknown(self):
-        duplicate = dict(self.raw()["controls"][0])
+        duplicate_control = {
+            "role": "textbox",
+            "name": "Editor",
+            "automation_id": "editor",
+            "bounds": {"left": 30, "top": 50, "right": 500, "bottom": 300},
+            "enabled": True,
+            "visible": True,
+            "focused": True,
+        }
         after = self.raw(
             window_title="Fixture - Saved",
-            controls=[self.raw()["controls"][0], duplicate],
+            controls=[duplicate_control, dict(duplicate_control)],
             observed_at="2026-08-26T12:00:01+00:00",
         )
-        after["freshness_evidence"] = {
-            **after["freshness_evidence"],
-            "structural_control_count": 2,
-        }
         result = verify_windows_desktop_transition(
             before_raw=self.raw(),
             after_raw=after,
@@ -207,6 +191,28 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
             **raw["freshness_evidence"],
             "process_generation": "different",
         }
+        with self.assertRaises(ValueError):
+            normalize_windows_desktop_observation(raw)
+
+    def test_window_instance_and_frame_digest_are_recomputed(self):
+        raw = self.raw()
+        bad_window_instance = dict(raw)
+        bad_window_instance["window_instance"] = "f" * 64
+        bad_window_instance["freshness_evidence"] = {
+            **raw["freshness_evidence"],
+            "window_instance": "f" * 64,
+        }
+        with self.assertRaises(ValueError):
+            normalize_windows_desktop_observation(bad_window_instance)
+
+        bad_frame = dict(raw)
+        bad_frame["frame_digest"] = "e" * 64
+        with self.assertRaises(ValueError):
+            normalize_windows_desktop_observation(bad_frame)
+
+    def test_control_fingerprint_is_recomputed(self):
+        raw = self.raw()
+        raw["controls"][0]["observation_fingerprint"] = "e" * 64
         with self.assertRaises(ValueError):
             normalize_windows_desktop_observation(raw)
 
