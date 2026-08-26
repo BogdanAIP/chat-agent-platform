@@ -39,8 +39,8 @@ P3 = repository/process hygiene; batch into maintenance sweeps
 | TD-005 | **P2** | Runtime-key rotation/repair/uninstall are not complete first-class flows | The runtime works, but lifecycle recovery still contains installer/operator assumptions that should become product operations. | Stage 27 | Rotation, repair and uninstall are explicit idempotent flows with rollback/error reporting and target-Windows acceptance. |
 | TD-006 | **P2** | Browser screenshot -> coordinate action has a narrow TOCTOU gap | Screenshot capture and coordinate action are separate calls. Freshness checks reduce risk but cannot make the pair atomic. | When visual browser actuation is widened/touched | Action is bound to a current frame/document/target identity strongly enough that stale visual proposals fail closed; residual race is measured and documented. |
 | TD-007 | **P2** | Loopback vision endpoint ownership is PID-checked rather than cryptographically authenticated | Same-user local process/port races are unlikely but the ownership proof is weaker than the rest of the authenticated execution boundary. | Vision/runtime hardening or packaging | Endpoint/session uses an authenticated capability/token or equivalent stronger binding, with stale/reused-process tests. |
-| TD-008 | **P3** | Stale maintenance branches remain after their useful changes moved forward | `maintenance/tech-debt-architecture-ci` and `maintenance/slim-live-context-docs` remain visible even though later `main` work superseded much of their purpose. This adds repository-state ambiguity for fresh sessions. | Next maintenance sweep after active PRs settle | Compare each branch with `main`; preserve any unique useful commits via reviewed PR/cherry-pick, then delete branches that contain no needed work. |
-| TD-009 | **P3** | Repository metadata may still describe the project as `Rust-first` | Current runtime is primarily Python + Node/MJS + PowerShell; stale metadata misleads contributors and future agents even though it does not break runtime behavior. | As soon as repository-settings write access is available | GitHub repository description matches the current architecture; no code rewrite is done merely to satisfy old metadata. |
+| TD-008 | **P3** | Diverged maintenance branches contain unintegrated unique work | `maintenance/tech-debt-architecture-ci` is 5 commits ahead / 12 behind `main`; `maintenance/slim-live-context-docs` is 6 ahead / 11 behind. They are not safe-to-delete stale pointers: unique CI/evidence/document-slimming tests and docs remain outside `main`, while overlapping files have also evolved independently. This creates repository-state ambiguity and future merge risk. | Maintenance sweep after #107/#108 settle | Review unique files/commits against current architecture; port only still-valid pieces through a fresh reviewed PR; explicitly reject superseded pieces; then delete both maintenance branches. |
+| TD-009 | **P3** | Repository metadata still describes the project as `Rust-first` | GitHub currently says `Chat-centric open-source agent platform: Rust-first local execution core`, while the runtime is primarily Python + Node/MJS + PowerShell and GitHub reports Python as the repository language. This is confirmed current metadata drift, not a hypothetical mismatch. | As soon as repository-settings write access is available | GitHub repository description matches the current architecture; no code rewrite is done merely to satisfy old metadata. |
 
 ---
 
@@ -61,6 +61,27 @@ trusted destination
 A site allowlist may broaden browser authority only inside its reviewed browser/network scope. It must never grant Windows/filesystem/Python authority or allow page content to modify the trust list.
 
 PR #107 is already tightening Browser verification for navigation final state. That is complementary correctness work, but redirect/network trust widening remains separate and must not be inferred from navigation verification alone.
+
+## TD-008 — maintenance-branch ambiguity
+
+A 2026-08-26 comparison against live `main` proved both maintenance branches are diverged and still contain unique work:
+
+```text
+maintenance/tech-debt-architecture-ci
+  ahead 5 / behind 12
+  unique-looking surface includes:
+    .github/workflows/ci.yml
+    project-context/EVIDENCE_INDEX.md
+    tests/test_ci_maintenance_contract.py
+
+maintenance/slim-live-context-docs
+  ahead 6 / behind 11
+  unique-looking surface includes:
+    project-context/ARCHITECTURE.md changes
+    tests/test_live_context_slim_contract.py
+```
+
+PR #107 overlaps some documentation-consistency/current-state work but does not contain all of those files. Therefore branch deletion is explicitly blocked until a fresh review decides which unique pieces remain valid.
 
 ## Documentation/process complexity
 
@@ -124,7 +145,8 @@ TD-001 alongside Browser policy/verification work
  -> TD-003 before stable distribution
  -> batch TD-004/005 with Stage 27 hardening
  -> TD-006/007 when their owning actuation/vision layers are widened
- -> batch TD-008/009 as repository hygiene
+ -> review/resolve TD-008 after #107/#108 settle
+ -> close TD-009 whenever repository-settings write access is available
 ```
 
 This keeps debt repayment tied to the subsystem that can actually close it instead of creating a large unrelated cleanup detour.
