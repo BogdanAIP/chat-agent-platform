@@ -172,16 +172,29 @@ function runVerifier(request) {
   });
 }
 
+function requireVerifierResult(result) {
+  if (!['pass', 'fail', 'unknown'].includes(result?.status)) {
+    throw new Error(result?.reason || 'browser verifier unavailable');
+  }
+  return result;
+}
+
 export async function verifyPlaywrightNavigation({ before, after, expectedUrl }) {
-  const result = await runVerifier({
+  return requireVerifierResult(await runVerifier({
     operation: 'verify_navigation',
     subject: 'isolated-playwright-primary-page',
     before,
     after,
     expected_url: expectedUrl,
-  });
-  if (!['pass', 'fail', 'unknown'].includes(result?.status)) {
-    throw new Error(result?.reason || 'browser verifier unavailable');
-  }
-  return result;
+  }));
+}
+
+export async function verifyPlaywrightInteraction({ before, after, expected }) {
+  return requireVerifierResult(await runVerifier({
+    operation: 'verify_interaction',
+    subject: 'isolated-playwright-primary-page',
+    before,
+    after,
+    expected,
+  }));
 }
