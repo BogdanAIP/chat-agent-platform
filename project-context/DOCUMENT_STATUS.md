@@ -31,7 +31,7 @@ Any `project-context/*.md` document not explicitly listed here is **HISTORICAL /
 
 ```text
 architecture/policy docs
-  = durable authority, safety and execution boundaries
+  = durable boundaries and invariants for authority, safety and execution
 
 CURRENT_STATE
   = concise live accepted/current boundary and next work
@@ -58,7 +58,7 @@ TECH_DEBT
   = current implementation/process debt
 
 EVIDENCE_INDEX
-  = accepted exact-head/evidence navigation
+  = exact accepted heads and scoped evidence navigation
 
 STAGE*.md
   = active implementation contract or historical qualification record
@@ -94,7 +94,7 @@ Do not copy full risk rankings, physical dumps or release-stage detail across ma
 | `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Future Site Capability/full-browser/helper/Local Execution direction; no current authority by itself. |
 | `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing implementation/process debt. |
 | `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | This map. |
-| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Accepted exact heads/evidence locations. |
+| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads and scoped evidence locations. |
 | `DECISIONS.md` | CURRENT ADR INDEX | Current architectural decisions. |
 
 ## Current Stage 26.3 documents
