@@ -13,6 +13,10 @@ Canonical architecture:
 - `COMPUTER_USE_ARCHITECTURE.md`
 - `SECURITY_POLICY.md`
 
+Reviewed future Browser/local-execution direction:
+
+- `BROWSER_HARNESS_ARCHITECTURE.md` / ADR-036
+
 Canonical current status:
 
 - `CURRENT_STATE.md`
@@ -21,7 +25,11 @@ Canonical ranked engineering risks:
 
 - `PROJECT_RISKS.md`
 
-Do not duplicate the full risk ranking here.
+Canonical existing technical debt:
+
+- `TECH_DEBT.md`
+
+Do not duplicate the full risk or debt ranking here.
 
 ## Accepted public semantic surface
 
@@ -49,6 +57,7 @@ Stage 26.3A canonical six-tool runtime            ACCEPTED / MERGED #92
 Verification Kernel foundation                    MERGED #99
 file/artifact kernel integration                  PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation                    MERGED #106
+web_open final-state verification                 PHYSICAL ACCEPTED / MERGED #107
 ```
 
 Windows acceptance is scoped evidence, not universal Windows accuracy.
@@ -67,7 +76,7 @@ Windows acceptance is scoped evidence, not universal Windows accuracy.
 
 The **Broad real-app physical coverage gate is an acceptance objective, not a new architecture stage**. It exists to stop architecture growth from outrunning proven computer-use capability.
 
-Track M multi-chat and Track P local-planner work are future/parallel and do not replace this release-critical sequence.
+Track M multi-chat remains future/parallel. Track P local-planner work is **future only**. Neither replaces this release-critical sequence.
 
 ---
 
@@ -87,31 +96,39 @@ independent evidence-batch-bound Finish Gate
 separate task-success and safety/policy results
 ```
 
-Accepted production integration:
+Accepted production integrations:
 
-- file/artifact procedure path through PR #102.
+- file/artifact procedure path through PR #102;
+- production `web_open` final-state verification through physically accepted/merged PR #107.
 
 Merged observation foundation:
 
 - Browser observation stream through PR #106.
 
-Current active PR:
+Current active production slice:
 
-- **#107 — production `web_open` final-state verification**.
+- **draft PR #111 — production `web_interact` click/type postcondition verification**.
 
-The pre-documentation-sync head `08671b5a8763d589bcd16da69e8ed70bcb5f9509` had all 11 PR workflows green. Since documentation synchronization changes the branch head, resolve the final exact head and require hosted CI green on it before the ordinary-Chat target-Windows physical Browser gate.
+PR #111 requires final exact-head hosted CI and target-Windows ordinary-Chat physical evidence before merge. Historical green evidence from the former stacked branch is regression evidence only.
 
 Remaining 26.3B work:
 
 ```text
-PR #107 final exact-head hosted + physical acceptance
-web_interact click/type/control-result verification
+PR #111 final exact-head hosted + physical acceptance
 Windows/application/process verification
 cross-capability completion predicates where real procedures require them
 appropriate physical gates for each changed production path
 ```
 
 Only then declare 26.3B accepted.
+
+## ADR-036 relation to 26.3B
+
+ADR-036 does **not** silently enlarge the current 26.3B acceptance objective.
+
+The current release gate remains verification correctness for accepted production capabilities. Site Capability Profiles / Browser Network Gate are reviewed architecture and active technical-debt direction, but broader implementation becomes a hard acceptance prerequisite only when trusted-site JS/CDP/full-browser authority is promoted.
+
+TD-001 therefore remains open through current 26.3B unless a separate reviewed PR explicitly promotes/accepts that network boundary earlier.
 
 ---
 
@@ -164,13 +181,17 @@ re-observe
 
 LoopGuard must terminate/escalate repeated no-effect state/action fingerprints, oscillation and exhausted budgets.
 
+### ADR-036 alignment
+
+If Site Capability trust or Local Execution Grants are implemented by this point, their `task | session | permanent` lifetime/provenance/budget state should use the same structured WorkingState/control-plane machinery rather than a parallel hidden permission store.
+
+This is an **integration rule**, not a requirement to implement full-browser or Local Execution Kernel during 26.3C.
+
 ## Planner portability guardrail
 
 Do **not** implement a second general planner as part of 26.3C.
 
 After WorkingState v1 stabilizes, define the smallest planner-neutral proposal/escalation contract needed to prevent the lower Control Plane from depending on ChatGPT-specific planning payloads. A future second planner should first run shadow/proposal-only through that contract.
-
-This mitigates the current sole-planner dependency without creating premature local-planner complexity.
 
 ---
 
@@ -220,6 +241,19 @@ Live state outranks demonstration history. Blind coordinate/action replay is not
 
 One demonstration creates at most a candidate. Promotion requires independent replay/regression/variant evidence.
 
+### ADR-036 alignment
+
+Agent-generated Browser/local helpers and site/domain experience enter the same candidate/lineage discipline:
+
+```text
+generated helper
+ -> CANDIDATE
+ -> bounded tests / replay / variants / verifier evidence
+ -> promotion or rejection
+```
+
+A one-off successful helper is not automatically a trusted durable skill.
+
 ---
 
 # 26.5 — Hybrid Computer-Use Integration
@@ -238,7 +272,51 @@ verified recovery across capability boundaries
 component + noisy-state regression corpus
 ```
 
-Any future public Windows/computer-use Chat-facing surface still requires its own schema/security/ordinary-Chat physical acceptance.
+### ADR-036 promoted Browser authority
+
+This is the natural integration stage for Browser Harness-derived capabilities **if** they are still justified by measured need:
+
+```text
+SiteCapabilityProfile
+Browser Network Gate
+trusted-site full-browser mode
+selected JS/CDP/raw-browser fallback
+background tabs
+bounded uploads/downloads
+Browser Companion / authenticated-user-browser path where separately accepted
+```
+
+Before any trusted-site JS/CDP/full-browser authority is accepted:
+
+1. the Site Capability / network boundary must be implemented below those primitives;
+2. navigation, redirect, frame, fetch/XHR, WebSocket-like and transfer destinations must respect the reviewed policy;
+3. trusted destination must remain distinct from trusted instructions;
+4. Browser trust must not grant filesystem/Windows/Python authority;
+5. hosted security/regression evidence and ordinary-Chat physical acceptance must pass on the final exact head.
+
+A future public Windows/computer-use Chat-facing surface still requires its own schema/security/ordinary-Chat physical acceptance.
+
+---
+
+# Local Execution Kernel — adjacent future capability
+
+ADR-036 retains arbitrary Python/program execution as a useful local capability, but **not inside Browser authority** and not as a hidden expansion of `web_interact`/`procedure_run`.
+
+It may begin only after the relevant 26.3C state/grant foundations are available and requires a separate consequence-class/security/public-contract/physical acceptance.
+
+Target authority shape:
+
+```text
+LocalExecutionGrant
+ -> filesystem roots
+ -> network scope
+ -> executable/program allowlist
+ -> environment exposure
+ -> runtime/process/resource budgets
+ -> task/session lifetime
+```
+
+Generated code remains proposal data; the deterministic Control Plane remains authoritative for scope, execution and ExpectedEffect verification.
 
 ---
 
@@ -249,34 +327,38 @@ Only after the core loop and broad physical scope are credible:
 - simplify installation/update paths;
 - reduce developer-environment assumptions;
 - make dependency/runtime ownership explicit;
+- close/reassess relevant `TECH_DEBT.md` items;
 - preserve fail-closed security boundaries.
 
 The current implementation is primarily Python + Node/MJS + PowerShell/Windows glue. Rust is not a current release prerequisite.
+
+---
 
 # 28 — Clean User E2E / stable release
 
 Target user path:
 
 ```text
-download/install
- -> connect ChatGPT
- -> grant reviewed permissions
- -> runtime READY
- -> perform representative task
- -> recover/verify/finish correctly
+clean machine / supported Windows account
+ -> install
+ -> connect/authenticate
+ -> choose/approve required capability scope
+ -> normal six-tool route ready
+ -> representative user task succeeds with verification
+ -> restart/recovery/update behavior remains understandable
 ```
 
-No stable release claim before clean-machine evidence exists.
+Stable release requires accepted core behavior, clean install evidence, current documentation and no known P0/P1 debt whose close condition is required for the shipped authority.
 
 ---
 
 # Parallel Track M — Conversation Bridge / multi-chat
 
-Future only. First target is one verified Manager -> Worker conversation boundary, then provider-open adapters/fallbacks. It must not outrun WorkingState, verification or credential-isolation prerequisites.
+Track M remains future/parallel. It may reuse Browser Companion and verified handoff architecture only after the lower capability/state/verification boundaries are ready. It must not displace Stage 26 release-critical prerequisites.
 
 # Optional Track P — local planner
 
-Future only:
+Track P is **future only** optional research:
 
 ```text
 P0 shadow/proposal-only
@@ -284,15 +366,4 @@ P0 shadow/proposal-only
  -> P2 optional local general planner
 ```
 
-Every future planner remains above the same deterministic authorization/verifier/Finish Gate boundary and may never grant itself execution authority.
-
-## Roadmap governance
-
-Before adding a new stage, major architecture document or kernel-like subsystem, state:
-
-1. the concrete observed/measured failure it prevents;
-2. why an existing shared contract cannot handle it;
-3. the physical or automated evidence that will close the work;
-4. which ranked risk in `PROJECT_RISKS.md` it reduces.
-
-Prefer improving proven capability over growing taxonomy.
+No planner may grant itself capability authority; all remain above the deterministic Control Plane/verifier/Finish Gate boundary.

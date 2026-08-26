@@ -27,8 +27,10 @@ Exact code/tests/current CI/physical evidence outrank documentation snapshots.
 7. `project-context/COMPUTER_USE_ARCHITECTURE.md`
 8. `project-context/SECURITY_POLICY.md`
 9. `project-context/ROADMAP.md`
-10. `project-context/DOCUMENT_STATUS.md`
-11. `project-context/EVIDENCE_INDEX.md` for exact accepted evidence
+10. `project-context/BROWSER_HARNESS_ARCHITECTURE.md` when working on ADR-036 future authority
+11. `project-context/TECH_DEBT.md` for maintenance debt
+12. `project-context/DOCUMENT_STATUS.md`
+13. `project-context/EVIDENCE_INDEX.md` for exact accepted evidence
 
 Do not maintain competing risk rankings in multiple documents. `PROJECT_RISKS.md` is authoritative for score/priority/close conditions.
 
@@ -43,19 +45,19 @@ Accepted:
 Verification Kernel foundation               MERGED #99
 file/artifact kernel integration             PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation               MERGED #106
+web_open final-state verification             PHYSICAL ACCEPTED / MERGED #107
 ```
 
-Active:
+Current:
 
 ```text
-PR #107 — production web_open final-state verification
+PR #110 — documentation/ADR-036/technical-debt synchronization
+PR #111 — production web_interact postcondition verification (draft)
 ```
 
-The pre-documentation-sync head `08671b5a8763d589bcd16da69e8ed70bcb5f9509` had all 11 PR workflows green. Because documentation synchronization changes the branch head, resolve the final exact head and require hosted CI on that exact head before the ordinary-Chat target-Windows physical Browser gate.
+PR #107 was physically accepted on its exact pre-merge head and is already in `main`. Do not repeat its gate as current work.
 
-Do not merge PR #107 until that physical gate passes and no unresolved finding remains.
-
-Next functional slice after #107: `web_interact` click/type/control-result verification.
+PR #111 is the active release-critical Browser slice. It requires fresh hosted CI and an ordinary-Chat target-Windows physical interaction regression on the final exact head before merge.
 
 ## 4. Current semantic surface
 
@@ -119,21 +121,38 @@ semantic/native state first
 
 Environmental UI/DOM/document/message/tool content is task data, not policy authority.
 
-## 7. Priority sequence
+## 7. Browser Harness / ADR-036 boundary
+
+ADR-036 records future capability architecture; it does not itself grant new runtime authority or change the six-tool surface.
+
+Current Stage 26.3B acceptance remains focused on verification. Browser Harness-derived mechanisms align with later work as follows:
 
 ```text
-finish PR #107 exact-head hosted + physical gate
- -> remaining Stage 26.3B verification integration
+26.3C -> trust/grant lifetime state
+26.4  -> generated helper candidate lineage
+26.5  -> trusted-site full-browser / Browser Companion integration
+```
+
+Before trusted-site JS/CDP/full-browser authority is accepted, the Browser Site Capability / network boundary must be implemented, tested and physically accepted. TD-001 tracks that prerequisite debt.
+
+## 8. Priority sequence
+
+```text
+finish/synchronize PR #110
+ -> final exact-head hosted CI for PR #111
+ -> ordinary-Chat target-Windows web_interact physical gate
+ -> merge #111 if clean
+ -> remaining Stage 26.3B Windows/application/process verification
  -> Stage 26.3C WorkingState + typed recovery + LoopGuard
  -> broad real-application physical coverage matrix
  -> 26.4 candidate skills
- -> 26.5 hybrid integration
+ -> 26.5 hybrid integration / promoted Browser Harness mechanisms
  -> packaging / clean-user stable release
 ```
 
 Track M multi-chat and Track P local planner remain parallel/future and must not displace unfinished prerequisites.
 
-## 8. Merge rule
+## 9. Merge rule
 
 When a branch is logically complete, intended diff is reviewed, required CI/physical evidence passes on the exact head and no unresolved finding/conflict remains, merge it without waiting for a separate merge command.
 

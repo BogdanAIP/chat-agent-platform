@@ -13,7 +13,9 @@ current code/tests/current hosted CI/current physical evidence
  > CURRENT_STATE.md / CONTINUATION_CONTEXT.md / START_HERE.md
  > PROJECT_RISKS.md for ranked engineering risk priority
  > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / SECURITY_POLICY.md
+ > BROWSER_HARNESS_ARCHITECTURE.md for ADR-036 reviewed future capability direction
  > ROADMAP.md
+ > TECH_DEBT.md for current implementation/process debt
  > EVIDENCE_INDEX.md for accepted exact heads/evidence navigation
  > active stage contract
  > accepted historical stage evidence
@@ -36,6 +38,10 @@ Architecture documents own **durable boundaries and invariants**; evidence docum
 ARCHITECTURE / CONTROL_PLANE / COMPUTER_USE_ARCHITECTURE / SECURITY_POLICY
   = durable authority, safety and execution boundaries
 
+BROWSER_HARNESS_ARCHITECTURE
+  = reviewed ADR-036 future capability direction;
+    cannot claim current runtime acceptance
+
 CURRENT_STATE
   = concise live accepted/current boundary and next work
 
@@ -47,6 +53,10 @@ PROJECT_RISKS
 
 ROADMAP
   = single owner of the explicit release-stage order and acceptance objectives
+
+TECH_DEBT
+  = single inventory of current implementation/process debt;
+    not feature backlog or project-risk ranking
 
 EVIDENCE_INDEX
   = exact accepted evidence navigation
@@ -77,10 +87,13 @@ Do not copy the full risk table into other documents. Do not copy the full relea
 | `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/authority boundaries. |
 | `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | Planner vs deterministic execution/verification/recovery/completion boundary. |
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid computer-use contract. |
+| `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Site Capability Profiles, trusted-site full-browser direction, candidate helpers/domain knowledge and separately scoped Local Execution Kernel/Python authority. No current runtime/public-tool authority expansion. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Single owner of release-critical sequence and acceptance objectives. |
+| `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing temporary compatibility, hardening, reproducibility and repository-hygiene debt with priority and close conditions. Future features/stages do not belong here. |
 | `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | This source map and default classification rule. |
 | `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads and scoped evidence locations. |
+| `DECISIONS.md` | CURRENT ADR INDEX | Current architectural decisions including ADR-036. |
 
 ## Current Stage 26.3 documents
 
@@ -89,28 +102,54 @@ Do not copy the full risk table into other documents. Do not copy the full relea
 | `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT 26.3 DESIGN CONTRACT | Verified procedure/candidate trust foundations. |
 | `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACCEPTED 26.3A RECORD | Accepted canonical six-tool implementation/evidence. |
 | `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACCEPTED 26.3A SURFACE CONTRACT | `procedure_run` in the six-tool surface. |
-| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE 26.3B IMPLEMENTATION CONTRACT | Shared Verification Kernel; accepted file integration; merged Browser observation foundation; PR #107 production `web_open` integration pending final exact-head physical acceptance. |
+| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE 26.3B IMPLEMENTATION CONTRACT | Shared Verification Kernel; accepted file integration; Browser observation foundation; physically accepted/merged `web_open` verification; `web_interact` verification is active in draft PR #111. |
 
 ## Current implementation snapshot
 
-At the 2026-08-26 documentation synchronization point:
+At the 2026-08-26 post-PR-#107 point:
 
 ```text
 Stage 26.3A                                      ACCEPTED / MERGED #92
 Verification Kernel foundation                  MERGED #99
 file/artifact integration                       PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation                  MERGED #106
-production web_open verification                ACTIVE PR #107
-web_interact verification                       NEXT 26.3B Browser slice
+production web_open verification                PHYSICAL ACCEPTED / MERGED #107
+web_interact verification                       ACTIVE DRAFT PR #111
 Windows/application/process verifier            REMAINING 26.3B
 WorkingState + recovery + LoopGuard              26.3C TARGET
 ```
 
-PR #107 pre-documentation-sync head `08671b5a8763d589bcd16da69e8ed70bcb5f9509` had all 11 PR workflows green. Since branch documentation changes create a new head, final acceptance must use fresh hosted CI and physical Browser evidence on the final exact head.
+PR #107 was physically accepted on exact head `64184713e97bf2e150614cd93c77509c244cddec` and squash-merged into `main` as `5df2e5e7378ddb9083a7c3d70a62c7bfc0f6c22d`. Exact gate details belong in the PR/evidence records, not duplicated here.
+
+PR #111 is a clean replay of the former stacked interaction branch directly on the accepted post-#107 `main`; it requires fresh final-head hosted and physical acceptance before merge.
+
+## ADR-036 boundary
+
+The 2026-08-26 Browser Harness review is recorded in `BROWSER_HARNESS_ARCHITECTURE.md` and ADR-036.
+
+It adopts this future authority split:
+
+```text
+restricted browser by default
+ -> user-owned Site Capability Profile
+ -> trusted-site full-browser authority only inside reviewed origin/network scope
+
+separate Local Execution Grant
+ -> task-scoped Python/program authority
+ -> explicit filesystem/network/process/resource scope
+```
+
+Important invariants:
+
+- trusted destination never means trusted page instructions;
+- Browser/site trust never automatically grants Windows/filesystem/Python authority;
+- local execution trust never automatically grants arbitrary authenticated-browser authority;
+- generated helpers remain candidate lineage until separately tested/promoted;
+- current six-tool surface and runtime authority are unchanged by ADR-036 itself.
 
 ## Future tracks
 
-`CONVERSATION_BRIDGE_ARCHITECTURE.md` / Track M and local-planner Track P remain future/parallel. They do not override the current release-critical sequence.
+`CONVERSATION_BRIDGE_ARCHITECTURE.md` / Track M, Browser Harness-derived full-browser work, Local Execution Kernel work, and local-planner Track P remain future/parallel unless promoted by the authoritative Roadmap/stage contracts. They do not override the current release-critical sequence.
 
 ## Current normal transport invariants
 
@@ -121,3 +160,15 @@ normal semantic 1MCP dependency = none
 1MCP = optional internal Extension Manager
 ordinary ChatGPT = only current general planner
 ```
+
+## Maintenance rule
+
+Update this map when a reviewed change:
+
+- changes authoritative document names/read order;
+- changes general-planner or Control Plane responsibility;
+- changes computer-use observation/verification/recovery/completion boundaries;
+- changes Browser Harness-derived Site Capability Profiles, browser network trust or Local Execution Grant boundaries;
+- changes which document owns project risk, technical debt or release order;
+- promotes a research/future track into current implementation authority;
+- changes the public Chat-facing capability surface.

@@ -438,3 +438,51 @@ Suggested dependency/order:
 ```
 
 Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md` and `ROADMAP.md`.
+
+## ADR-036 — Harness-derived scoped browser and local code authority — PROVISIONAL / AUTHORITATIVE FUTURE DIRECTION
+
+The 2026-08-26 review of `browser-use/browser-harness` supports a small-core adaptive execution model, but the project adopts it only behind existing deterministic authority boundaries.
+
+Project adoption:
+
+```text
+persistent browser substrate
+ + restricted browser by default
+ + user-owned extensible Site Capability Profiles
+ + trusted-site full-browser mode inside explicit origin/network scope
+ + agent-generated helpers/domain knowledge as candidate lineage
+ + separate task-scoped Local Execution Kernel for Python/program execution
+```
+
+Rules:
+
+- Browser Harness is an external architecture/reference source, not a required runtime dependency;
+- the current six-tool ordinary-Chat surface remains unchanged by this ADR;
+- unknown/non-trusted sites retain the current bounded semantic browser mode;
+- an explicit user-owned trust list may grant broader browser authority for one site/profile with `permanent | session | task` lifetime;
+- trusted-site authority may eventually include DOM/AX, JavaScript, selected/raw CDP, background tabs, uploads/downloads and network inspection required by the task, but only after separate implementation/security/physical acceptance;
+- the allowlist must be enforced below JavaScript/CDP at the browser/network layer and cover navigation, redirects, popups/tabs, frames, forms, fetch/XHR, WebSocket-like channels and download/upload destinations as applicable;
+- public-site trust does not silently grant private/link-local/metadata/loopback network access; those require separate policy;
+- `trust destination != trust instructions`: ADR-033 remains binding, so trusted-site content cannot widen permissions, add allowlist entries, grant local execution or redefine user intent;
+- browser/site trust never automatically grants filesystem, Windows, shell or Python authority;
+- local code authority is a separate `LocalExecutionGrant` with explicit filesystem, network, executable, environment, lifetime and resource/process scope;
+- arbitrary generated Python is architecturally allowed for legitimate local tasks under that grant; current generic Python/shell execution remains disabled/unreachable until its own implementation/security/public-contract/physical gates pass;
+- a local execution kernel should be task/session scoped rather than an immortal unrestricted interpreter; useful helpers survive tasks only through candidate/skill lineage;
+- agent-generated browser/local helpers follow ADR-034: one success creates at most CANDIDATE, and promotion requires replay/regression/variant evidence;
+- site/domain experience is advisory knowledge, separate from capability code and procedures, and cannot self-authorize actions;
+- future authenticated Browser Companion use may reuse existing user sessions while keeping cookies/tokens/private auth headers inside the browser boundary;
+- telemetry carrying task code/text/stdout/page/local-file content should default off; any optional telemetry must be explicit/minimised/redacted;
+- every browser/local mutation still follows `observe -> ExpectedEffect -> authorize -> act -> re-observe -> PASS|FAIL|UNKNOWN`, and task completion still requires the independent Finish Gate.
+
+Stage mapping:
+
+```text
+26.3B  Site Capability Policy/network-gate architecture + Browser verification foundations
+ -> 26.3C trust/grant lifetime + provenance + budgets/LoopGuard state
+ -> 26.4 generated helper/domain-skill candidate lineage and promotion evidence
+ -> 26.5 trusted-site full-browser/CDP/JS/Browser Companion integration
+```
+
+A Local Execution Kernel may begin only after 26.3C foundations and must pass a separate security/public-contract/physical acceptance. It must not be smuggled into the browser capability merely to avoid a new consequence-class review.
+
+Canonical detail: `BROWSER_HARNESS_ARCHITECTURE.md`, plus ADR-032/033/034 and the existing Control Plane/security contracts.
