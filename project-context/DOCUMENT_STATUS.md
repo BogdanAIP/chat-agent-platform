@@ -2,216 +2,130 @@
 
 ## Purpose
 
-This file prevents older stage/research documents from overriding the live architecture merely because they contain words such as `ACTIVE`, `CURRENT`, `NEXT`, `DRAFT`, `rerun required`, or an old future-stage number.
+Prevent stale stage/research/status prose from overriding live repository reality.
 
-Before using any document as current architecture, resolve live GitHub state and apply this status map.
+Before using any document as current truth, resolve live GitHub state.
 
 ## Source-of-truth order
 
 ```text
-current code/tests/CI/physical evidence
- > CONTINUATION_CONTEXT.md / START_HERE.md / CURRENT_STATE.md
- > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / ROADMAP.md
- > reviewed architecture extensions such as AVO_LONG_HORIZON_ARCHITECTURE.md,
-   CONVERSATION_BRIDGE_ARCHITECTURE.md and BROWSER_HARNESS_ARCHITECTURE.md
- > current policy/catalog docs, including TECH_DEBT.md for debt inventory
- > EVIDENCE_INDEX.md for exact accepted evidence navigation
+current code/tests/current hosted CI/current physical evidence
+ > CURRENT_STATE.md / CONTINUATION_CONTEXT.md / START_HERE.md
+ > PROJECT_RISKS.md for ranked engineering risk priority
+ > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / SECURITY_POLICY.md
+ > BROWSER_HARNESS_ARCHITECTURE.md for ADR-036 reviewed future capability direction
+ > ROADMAP.md
+ > TECH_DEBT.md for current implementation/process debt
+ > EVIDENCE_INDEX.md for accepted exact heads/evidence navigation
  > active stage contract
  > accepted historical stage evidence
  > old research/handoffs
 ```
 
-A status/planning phrase inside a historical file describes the time that revision was written. It is not a live roadmap instruction.
+When two documents disagree on whether work is implemented/accepted/current, live code and exact evidence win.
+
+## Default classification rule
+
+Any `project-context/*.md` document **not explicitly listed** in this status map is **HISTORICAL / REFERENCE by default** until a reviewed change explicitly promotes it into an authoritative/current category.
+
+This is intentional: adding a research note or historical stage record must not force a central catalog update or accidentally grant that document authority over live state.
 
 ## Documentation separation rule
 
+Architecture documents own **durable boundaries and invariants**; evidence documents own exact accepted heads and scoped proof.
+
 ```text
-ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md
-  = durable boundaries and invariants
+ARCHITECTURE / CONTROL_PLANE / COMPUTER_USE_ARCHITECTURE / SECURITY_POLICY
+  = durable authority, safety and execution boundaries
 
-reviewed architecture-extension documents
-  = source-specific or future-track mechanisms already mapped into ADRs/canonical architecture;
-    they cannot override the canonical documents or claim implementation acceptance
+BROWSER_HARNESS_ARCHITECTURE
+  = reviewed ADR-036 future capability direction;
+    cannot claim current runtime acceptance
 
-CURRENT_STATE.md / ROADMAP.md
-  = current accepted boundary, active work, current residual risks
+CURRENT_STATE
+  = concise live accepted/current boundary and next work
 
-TECH_DEBT.md
-  = current implementation/process debt only; not feature backlog or risk ranking
+CONTINUATION_CONTEXT / START_HERE
+  = fresh-session continuation/read order
 
-EVIDENCE_INDEX.md
-  = exact accepted heads, physical result locations and scoped measurements
+PROJECT_RISKS
+  = single authoritative ranked risk table, mitigation and close conditions
 
-STAGE*.md / historical handoffs
-  = detailed qualification design and attempt history
+ROADMAP
+  = single owner of the explicit release-stage order and acceptance objectives
+
+TECH_DEBT
+  = single inventory of current implementation/process debt;
+    not feature backlog or project-risk ranking
+
+EVIDENCE_INDEX
+  = exact accepted evidence navigation
+
+STAGE*.md
+  = active detailed implementation contract or historical qualification record
 ```
 
-Do not copy complete physical dumps into durable architecture documents. Promote generalized architecture/safety lessons; keep exact accepted heads and evidence locators in the evidence/stage records.
+Do not copy the full risk table into other documents. Do not copy the full release-stage sequence into multiple live status documents. Do not copy detailed physical dumps into durable architecture docs.
 
 ## Root documents
 
 | File | Status | Use |
 |---|---|---|
-| `AGENTS.md` | AUTHORITATIVE ENTRY | Fresh-session rules, source order and current boundaries. |
-| `README.md` | CURRENT PRODUCT OVERVIEW | Human-facing architecture/status summary. |
+| `AGENTS.md` | AUTHORITATIVE ENTRY | Development/merge/authority rules. |
+| `README.md` | CURRENT PRODUCT OVERVIEW | Human-facing summary. |
 | `SECURITY.md` | CURRENT SECURITY OVERVIEW | Repository/product security boundary. |
 | `LICENSE` | AUTHORITATIVE LEGAL | MIT license. |
-
-`.github/PULL_REQUEST_TEMPLATE.md` is a current process template and must track architecture/document-consistency checks.
 
 ## Authoritative live context
 
 | File | Status | Use |
 |---|---|---|
-| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Fast continuation after resolving live GitHub state. |
-| `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and operating constraints. |
-| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted boundary, active work and residual risks. Stage 26.3A is accepted/merged; 26.3B is active. |
-| `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/layer/authority boundaries. |
-| `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | General planner vs deterministic execution state/policy, verification, recovery, completion, stagnation escalation and procedure-lineage evidence. |
-| `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid observation, capability routing, ExpectedEffect verification, WorkingState, LoopGuard, Finish Gate and environmental-content trust boundary. Implementation is staged. |
-| `AVO_LONG_HORIZON_ARCHITECTURE.md` | REVIEWED ARCHITECTURAL EXTENSION | NVIDIA AVO/persistent-memory/supervision/lineage review; project consequences are promoted through ADR-034, Control Plane and Roadmap. Does not claim runtime acceptance or override canonical architecture. |
-| `CONVERSATION_BRIDGE_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / TRACK M | CtxPort-derived open-ended conversation adapter registry/profile/hooks, GenericChatAdapter fallback, Browser Companion boundary, ConversationSnapshot/HandoffPack contracts and verified worker-handoff direction. Not implemented, not release-critical, no public-tool expansion. |
-| `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Browser Harness-derived Site Capability Profiles, trusted-site full-browser direction, network allowlist enforcement, candidate helpers/domain knowledge and separately scoped Local Execution Kernel/Python authority. No current public-tool or runtime-authority expansion. |
-| `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence + optional/future tracks. |
-| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | Which documents may define current state. |
-| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads, result locators and scoped measurements. |
-
-## Current policy / design governance
-
-| File | Status | Use |
-|---|---|---|
-| `CONSTRAINTS.md` | CURRENT POLICY | Hard project constraints. |
-| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority; ADR-034 = verified skill lineage and stagnation escalation; ADR-035 = bounded provider-open Conversation Bridge / future Track M direction. ADR-036 = Harness-derived scoped browser and local-code authority direction. |
-| `DEVELOPMENT_PRINCIPLES.md` | CURRENT POLICY | Development/acceptance principles. |
+| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Exact continuation point after resolving live GitHub. |
+| `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and current focus. |
+| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted/current implementation boundary and immediate critical path. |
+| `PROJECT_RISKS.md` | AUTHORITATIVE RISK REGISTER | Ranked project risks, scores, evidence, mitigation and close conditions. |
+| `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/authority boundaries. |
+| `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | Planner vs deterministic execution/verification/recovery/completion boundary. |
+| `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid computer-use contract. |
+| `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Site Capability Profiles, trusted-site full-browser direction, candidate helpers/domain knowledge and separately scoped Local Execution Kernel/Python authority. No current runtime/public-tool authority expansion. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
-| `COST_POLICY.md` | CURRENT POLICY | Baseline cost/subscription constraints. |
-| `MODULE_CATALOG.md` | CURRENT CATALOG | Accepted/current/future capability status. |
-| `MODULE_SELECTION_POLICY.md` | CURRENT POLICY | Selection/promotion rules including Extension Manager boundary. |
-| `EXTENSION_MANAGER.md` | CURRENT OPERATING CONTRACT | Optional 1MCP Extension Manager role and lifecycle/promotion boundary. |
-| `TYPED_CAPABILITY_PROJECTION.md` | CURRENT CAPABILITY CONTRACT | Historical typed five-tool foundation plus accepted canonical six-tool surface; `procedure_run` remains typed/bounded, not generic execution. |
-| `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | CURRENT TEMPORARY MIGRATION COMPATIBILITY | Exact bounded historical inbound alias families only; aliases are not published tools and cannot repair ChatGPT-side app snapshot/permission state before MCP invocation. |
-| `TRANSPORT_SUPERVISOR.md` | ACCEPTED CURRENT RELIABILITY FOUNDATION | Self-healing Secure MCP Tunnel lifecycle, layered health and bounded recovery accepted through #94 and low-power Manual/Automatic refinements merged through #100. |
-| `TRANSPORT_SUPERVISOR_IMPLEMENTATION_NOTES.md` | ACCEPTED QUALIFICATION NOTES | Transport Supervisor v1 implementation/qualification contract. |
-| `TRANSPORT_SUPERVISOR_REBOOT_EVIDENCE.md` | ACCEPTED PHYSICAL EVIDENCE | Exact Windows reboot/logon evidence. |
-| `TRANSPORT_SUPERVISOR_ATTEMPT_HISTORY.md` | HISTORICAL QUALIFICATION ATTEMPT LOG | Historical diagnostics only. |
-| `VISION.md` | CURRENT PRODUCT DIRECTION | Long-term product direction; subordinate to architecture/roadmap for exact stage status. |
-| `HANDOFF_TEMPLATE.md` | CURRENT PROCESS TEMPLATE | Required future handoff fields. |
-| `KNOWN_ISSUES.md` | CURRENT ISSUE INDEX | Broad current unresolved limitations/issues + explicitly closed history; not the ranked debt register. |
-| `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing temporary compatibility, hardening, reproducibility and repository-hygiene debt with priority and concrete close conditions. Future features/stages do not belong here. |
+| `ROADMAP.md` | AUTHORITATIVE ROADMAP | Single owner of release-critical sequence and acceptance objectives. |
+| `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing temporary compatibility, hardening, reproducibility and repository-hygiene debt with priority and close conditions. Future features/stages do not belong here. |
+| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | This source map and default classification rule. |
+| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads and scoped evidence locations. |
+| `DECISIONS.md` | CURRENT ADR INDEX | Current architectural decisions including ADR-036. |
 
-## Stage 26.3 current/accepted documents
+## Current Stage 26.3 documents
 
 | File | Status | Use |
 |---|---|---|
-| `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT STAGE 26.3 DESIGN CONTRACT | Verified Procedure Runtime, candidate-first procedural trust and deterministic progression invariants. |
-| `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACCEPTED STAGE 26.3A IMPLEMENTATION/EVIDENCE NOTES | Canonical six-tool runtime, checkpoint/resume, identity rules and accepted physical boundary. |
-| `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACCEPTED STAGE 26.3A PUBLIC-SURFACE CONTRACT | `procedure_run` is part of the accepted normal semantic six-tool surface; no separate qualification profile remains. |
-| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE STAGE 26.3B IMPLEMENTATION CONTRACT | Verification Kernel foundation plus current PR #102 file/artifact adapter and accepted-procedure migration. New exact-head hosted CI, physical integration evidence and later capability adapters remain; no Stage 26.3B acceptance claim yet. |
+| `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT 26.3 DESIGN CONTRACT | Verified procedure/candidate trust foundations. |
+| `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACCEPTED 26.3A RECORD | Accepted canonical six-tool implementation/evidence. |
+| `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACCEPTED 26.3A SURFACE CONTRACT | `procedure_run` in the six-tool surface. |
+| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE 26.3B IMPLEMENTATION CONTRACT | Shared Verification Kernel; accepted file integration; Browser observation foundation; physically accepted/merged `web_open` verification; `web_interact` verification is the next active Browser slice. |
 
-Stage 26.3A is accepted/merged through PR #92, and the Stage 26.3B kernel foundation is merged through PR #99. Current release-critical implementation is PR #102: the file/artifact observation adapter and migration of the accepted procedure are implemented. Because #102 was rebased onto the current documentation line, its new exact head still needs hosted CI and the ordinary-Chat physical completion + zero-overwrite regression; Browser/Windows adapters and cross-capability predicates also remain before Stage 26.3B can be accepted. Stage 26.3C then adds WorkingState + typed recovery + LoopGuard + StagnationReport, and Stage 26.4 adds verified candidate-skill lineage/evolution.
+## Current implementation snapshot
 
-Track M Conversation Bridge work is explicitly **parallel/future**. ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md` define a provider-open Adapter Registry + declarative profiles/hooks + `GenericChatAdapter`/GUI fallback architecture, but they do not alter the current Stage 26 critical path or imply that authenticated user-browser multi-chat control is implemented.
-
-The 2026-08-26 Browser Harness review is recorded in `BROWSER_HARNESS_ARCHITECTURE.md` as ADR-036 future direction. It maps trusted-site/browser authority, candidate helpers and local code execution into the existing 26.3B/C/26.4/26.5 sequence; it does not reorder that sequence, enable raw browser execution, or authorize arbitrary Python in the current runtime.
-
-`TECH_DEBT.md` is deliberately maintenance-only. It must not be used to reclassify unfinished Stage 26 work as debt or to bypass the authoritative Roadmap ordering. `PROJECT_RISKS.md`, when present on the active integration line, owns project-risk ranking; `TECH_DEBT.md` owns debt inventory.
-
-Current normal transport/extension invariants:
+At the 2026-08-26 post-PR-#107 point:
 
 ```text
-public semantic inventory = exactly six tools
-normal semantic binding = direct-stdio
-normal semantic 1MCP dependency = none
-persistent tunnel source = state/tunnel.json
-legacy local-1mcp.yaml = migration fallback / optional extension path only
-1MCP = optional internal Extension Manager
+Stage 26.3A                                      ACCEPTED / MERGED #92
+Verification Kernel foundation                  MERGED #99
+file/artifact integration                       PHYSICAL ACCEPTED / MERGED #102
+Browser observation foundation                  MERGED #106
+production web_open verification                PHYSICAL ACCEPTED / MERGED #107
+web_interact verification                       ACTIVE DRAFT PR #109
+Windows/application/process verifier            REMAINING 26.3B
+WorkingState + recovery + LoopGuard              26.3C TARGET
 ```
 
-## Accepted foundation documents — historical evidence
+PR #107 was physically accepted on exact head `64184713e97bf2e150614cd93c77509c244cddec` and squash-merged into `main` as `5df2e5e7378ddb9083a7c3d70a62c7bfc0f6c22d`. Exact gate details belong in the PR/evidence records, not duplicated here.
 
-The files below preserve stage-specific evidence/design from their own time. Old planning/status prose cannot override live context.
+## ADR-036 boundary
 
-| File | Status | Important note |
-|---|---|---|
-| `BRIDGE_ACCEPTANCE.md` | ACCEPTED HISTORICAL FOUNDATION | Evidence log intentionally points current architecture elsewhere. |
-| `DIRECT_SEMANTIC_TUNNEL.md` | ACCEPTED HISTORICAL FOUNDATION | Stage 24.1 transport evidence; historical tool counts are stage-scoped. |
-| `STAGE22_LEGACY_REDUCTION.md` | ACCEPTED HISTORICAL STAGE | References then-current architecture only. |
-| `STAGE24_LEAST_PRIVILEGE.md` | ACCEPTED HISTORICAL STAGE | Opening “current Stage 24” wording is historical. |
-| `STAGE25_1_VISION_INTEGRATION.md` | ACCEPTED HISTORICAL STAGE | Accepted Stage 25.1 evidence. |
-| `STAGE26_1A_OPENADAPT_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Historical qualification evidence. |
-| `STAGE26_1B_OPENADAPT_CAPTURE_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Accepted capture evidence. |
-| `STAGE26_1C_WINDOWS_EXECUTOR_QUALIFICATION.md` | ACCEPTED HISTORICAL STAGE | Final accepted physical head `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`; #83 merged. |
-| `STAGE26_1D_WINDOWS_HOT_RUNTIME_BENCHMARK.md` | ACCEPTED HISTORICAL STAGE | Physical benchmark evidence. |
-| `STAGE26_1E_WINDOW_SCOPED_UIA_RESOLVER.md` | ACCEPTED HISTORICAL STAGE | Physical resolver evidence. |
-| `STAGE26_2A_PRODUCTION_WINDOWS_RUNTIME.md` | ACCEPTED HISTORICAL STAGE | Stage 26.2A accepted/merged #87. |
-| `STAGE26_2B_DESKTOP_OBSERVATION.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #88. |
-| `STAGE26_2C_DESKTOP_GROUNDER.md` | ACCEPTED HISTORICAL STAGE | Accepted/merged #89. |
-| `STAGE26_2D_WINDOWS_VISION_ROUTING.md` | ACCEPTED HISTORICAL STAGE | Physical head `1c74713edcd6321d5583a39234929169e68b5ac1`; #90 merged. |
-| `STAGE26_2E_REAL_APPLICATION_E2E.md` | ACCEPTED HISTORICAL EVIDENCE | Physical runtime/qualification head `457db0b634f2e47f53d41e359a238840fa3ca2ee`; isolated VS Code gate passed. |
+The 2026-08-26 Browser Harness review is recorded in `BROWSER_HARNESS_ARCHITECTURE.md` and ADR-036.
 
-Exact physical data in historical documents remains valid only for the scoped code/head/test it names. Historical five-tool counts do not define the current accepted six-tool inventory.
-
-Historical references placing 1MCP in the normal bridge path remain valid only for their own stage and do not override current direct-stdio normal transport.
-
-## Research / superseded planning documents
-
-| File | Status | Notes |
-|---|---|---|
-| `ACTIVE_VISUAL_GROUNDING.md` | HISTORICAL RESEARCH / STAGE 25 DESIGN | Old visual-grounding implementation order is historical. |
-| `LOCAL_SPECIALIST_INFERENCE.md` | HISTORICAL RESEARCH / SPECIALIST TRACK | Current specialist/planner boundary is governed by `CONTROL_PLANE.md` and current catalog. |
-| `STAGE25_MODEL_PROFILES.md` | HISTORICAL RESEARCH | Old profile selection notes are not current runtime. |
-| `STAGE25_TARGET_BENCHMARKS.md` | HISTORICAL EVIDENCE/RESEARCH | Preserve measurements; opening ACTIVE wording is date-scoped. |
-| `STAGE25_CHAT_HANDOFF_2026-08-17.md` | HISTORICAL HANDOFF | Explicitly obsolete continuation guidance. |
-
-The Stage 26.3A locally generated `gui-agent-research.md` is **research evidence**, not a repository source of truth. Its independently checked/generalized conclusions have been promoted into `COMPUTER_USE_ARCHITECTURE.md`, ADR-032/033, `CONTROL_PLANE.md`, `CURRENT_STATE.md`, `ROADMAP.md` and `SECURITY_POLICY.md`.
-
-The 2026-08-25 NVIDIA AVO review is recorded in `AVO_LONG_HORIZON_ARCHITECTURE.md`. It is a **reviewed architecture extension**, not physical evidence. Its adopted mechanisms are promoted through ADR-034 into `CONTROL_PLANE.md` and `ROADMAP.md`; source-specific claims in that review cannot override current code/tests/CI/physical evidence or the canonical architecture documents.
-
-The 2026-08-25 CtxPort review is recorded as project-specific future architecture in `CONVERSATION_BRIDGE_ARCHITECTURE.md` and ADR-035. CtxPort remains an external MIT implementation/reference source; its presence or absence is not runtime evidence, and Track M remains non-release-critical until separately implemented and physically qualified. Its adapter registry/declarative-profile/open-ended-provider lessons are architecture references, not a reason to vendor CtxPort as a required runtime.
-
-The 2026-08-26 Browser Harness review is recorded in `BROWSER_HARNESS_ARCHITECTURE.md`. It is a **reviewed architecture extension / ADR-036 future direction**, not runtime evidence. Browser Harness remains an external reference, not a required dependency; current code/tests/CI/physical evidence and canonical architecture remain authoritative over implementation status.
-
-## Architecture terminology all future docs must preserve
-
-### Current general planner
-
-```text
-ordinary ChatGPT
-```
-
-Owns open-ended goal interpretation, strategy, procedure selection and novel-state adaptation.
-
-### Deterministic local execution Control Plane
-
-```text
-TaskState / WorkingState
-ProgramGraph progression
-capability policy / authorization
-ExpectedEffect + transition verifier
-checkpoints
-bounded typed recovery + LoopGuard
-StagnationReport escalation
-resource/action/time budgets
-independent Finish Gate
-safety/policy gate
-Skill / Procedure Lineage evidence
-```
-
-May advance known authorized+verified procedure transitions without a ChatGPT round trip after every low-level action. It is not a second general planner. `StagnationReport` carries structured deterministic evidence back to the planner when bounded recovery stalls; it does not add local open-ended strategy.
-
-### State-first hybrid computer use
-
-```text
-semantic/native state first
- -> selective visual evidence
- -> bounded action
- -> fresh re-observation
- -> transition verification
- -> bounded recovery
- -> independent completion
-```
-
-### Harness-derived capability authority / ADR-036
+It adopts this future authority split:
 
 ```text
 restricted browser by default
@@ -223,60 +137,36 @@ separate Local Execution Grant
  -> explicit filesystem/network/process/resource scope
 ```
 
-Trusted destination never means trusted page instructions. Browser trust never automatically grants Windows/filesystem/Python authority, and local execution trust never automatically grants arbitrary authenticated-browser authority. Both remain below the same Control Plane authorization/verification/Finish Gate boundaries.
+Important invariants:
 
-### Optional internal Extension Manager
+- trusted destination never means trusted page instructions;
+- Browser/site trust never automatically grants Windows/filesystem/Python authority;
+- local execution trust never automatically grants arbitrary authenticated-browser authority;
+- generated helpers remain candidate lineage until separately tested/promoted;
+- current six-tool surface and runtime authority are unchanged by ADR-036 itself.
 
-```text
-1MCP or qualified replacement
- -> extension discovery / aggregation
- -> enable-disable / lazy lifecycle
- -> health / restart
- -> selected third-party MCP backends
-```
+## Future tracks
 
-It is not the normal semantic transport, does not own the persistent tunnel anchor, does not grant trust/authorization and does not directly publish raw backend catalogs.
+`CONVERSATION_BRIDGE_ARCHITECTURE.md` / Track M, Browser Harness-derived full-browser work, Local Execution Kernel work, and local-planner Track P remain future/parallel unless promoted by the authoritative Roadmap/stage contracts. They do not override the current release-critical sequence.
 
-### Future Conversation Bridge / Track M
+## Current normal transport invariants
 
 ```text
-Browser Companion in authenticated user browser
- -> open-ended Conversation Adapter Registry
- -> declarative provider/application profiles + small reviewed hooks
- -> GenericChatAdapter DOM/accessibility fallback
- -> selected GUI/visual fallback or ABSTAIN
- -> ConversationObserver / bounded ConversationActuator
- -> ConversationSnapshot
- -> WorkingState-derived HandoffPack
- -> verified Manager -> Worker handoff
+public semantic inventory = exactly six tools
+normal semantic binding = direct stdio
+normal semantic 1MCP dependency = none
+1MCP = optional internal Extension Manager
+ordinary ChatGPT = only current general planner
 ```
-
-It is a future parallel layer, not a current planner, not a replacement for the isolated Browser capability, not a public-tool expansion and not evidence that multi-chat orchestration is implemented. Credentials remain inside the browser-companion boundary and worker content remains environmental data. Provider/application identity is not the same as model identity, and new AI services should normally require a profile/hook rather than a core architecture change.
-
-### Future local planner
-
-Optional Track P research only after verified data/need:
-
-```text
-P0 shadow/proposal-only
- -> P1 bounded subtask planner
- -> P2 optional local general-planner mode
-```
-
-Even if later accepted it remains above deterministic capability authorization, transition verifier, Finish Gate and safety boundaries.
 
 ## Maintenance rule
 
-Any architecture-changing PR must audit/update this map when it:
+Update this map when a reviewed change:
 
 - changes authoritative document names/read order;
-- closes/opens an active stage;
 - changes general-planner or Control Plane responsibility;
 - changes computer-use observation/verification/recovery/completion boundaries;
-- changes skill/procedure lineage or long-horizon stagnation-escalation semantics;
 - changes Browser Harness-derived Site Capability Profiles, browser network trust or Local Execution Grant boundaries;
-- changes the Extension Manager/persistent tunnel boundary;
-- changes Conversation Bridge / authenticated-browser / adapter-registry / multi-chat handoff boundaries;
-- adds/removes/reprioritizes a debt item that changes release or subsystem maintenance assumptions;
-- promotes a research track into the release-critical roadmap;
+- changes which document owns project risk, technical debt or release order;
+- promotes a research/future track into current implementation authority;
 - changes the public Chat-facing capability surface.
