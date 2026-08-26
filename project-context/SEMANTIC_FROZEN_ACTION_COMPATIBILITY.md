@@ -43,9 +43,9 @@ Historical semantic-projection family:
 semantic-projection_1mcp_workspace_read        -> workspace_read
 semantic-projection_1mcp_workspace_write       -> workspace_write
 semantic-projection_1mcp_web_open              -> web_open
-semantic-projection_1mcp_web_observe           -> web_observe
-semantic-projection_1mcp_web_interact          -> web_interact
-semantic-projection_1mcp_procedure_run         -> procedure_run
+semantic-projection_1mcp_web_observe            -> web_observe
+semantic-projection_1mcp_web_interact           -> web_interact
+semantic-projection_1mcp_procedure_run          -> procedure_run
 ```
 
 Former Stage 26.3A procedure-qualification family:
@@ -76,6 +76,40 @@ Therefore the launcher can repair a stale inbound tool **name**, but it cannot r
 - a reconnect/re-add flow that interrupts the current conversation stream before `tools/call` is sent.
 
 This distinction is release-critical. A successful old frozen-name call proves only that the inbound alias reached the canonical runtime; it does not prove that the current ChatGPT app snapshot is synchronized with the six-tool server.
+
+## 2026-08-26 PR #111 schema-evolution observation
+
+The first target-Windows ordinary-Chat physical gate for PR #111 produced a second concrete frozen-snapshot failure mode on exact runtime head `1521e3128a7694be43518c3ee0188cb79f0ca0f5`.
+
+The installed/public six-tool server on that exact head already declared `web_interact.expected` in the canonical Zod/MCP schema and the backend required that bounded ExpectedEffect for `click` / `type+submit`. However, the existing `Chat Local Bridge Test` app snapshot rejected `expected` before the call reached MCP with:
+
+```text
+Additional properties are not allowed ('expected' was unexpected)
+```
+
+Physical evidence on the same run showed:
+
+```text
+type without submit                    PASS
+click without expected                 refused before delivery
+click with expected                    blocked by frozen ChatGPT schema
+positive checkbox expected-effect path not reachable
+post-delivery wrong-expected path      not reachable
+ambiguity path requiring expected      not reachable as specified
+```
+
+This is not evidence that the exact-head runtime omitted the field. It is evidence that **input-schema evolution on an existing canonical tool name is not automatically delivered into an already-bound ChatGPT app snapshot**.
+
+Operational consequence for development/qualification:
+
+1. after a public tool input-schema change, reconnect/re-add/rebind the ChatGPT app outside an active tool call;
+2. start a fresh ordinary Chat conversation after the rebind;
+3. keep connection/permission state fixed during the physical gate;
+4. prove the new field is actually accepted from ordinary Chat before interpreting later gate failures as runtime failures.
+
+A UI Refresh alone remains insufficient evidence because frozen action definitions have previously survived Refresh.
+
+Product consequence: do not assume in-place public schema changes are migration-safe merely because the live MCP server and hosted six-tool tests are correct. Stable releases need either a proven app-schema migration/rebind flow or a separately reviewed versioning/evolution rule for public tool schemas.
 
 ## 2026-08-24 interrupted app-session observation
 

@@ -14,6 +14,7 @@ current code/tests/current hosted CI/current physical evidence
  > PROJECT_RISKS.md for ranked engineering risk priority
  > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / SECURITY_POLICY.md
  > BROWSER_HARNESS_ARCHITECTURE.md for ADR-036 reviewed future capability direction
+ > REAL_TASK_ACCEPTANCE.md for L1/L2/L3 acceptance depth
  > ROADMAP.md
  > TECH_DEBT.md for current implementation/process debt
  > EVIDENCE_INDEX.md for accepted exact heads/evidence navigation
@@ -41,6 +42,10 @@ ARCHITECTURE / CONTROL_PLANE / COMPUTER_USE_ARCHITECTURE / SECURITY_POLICY
 BROWSER_HARNESS_ARCHITECTURE
   = reviewed ADR-036 future capability direction;
     cannot claim current runtime acceptance
+
+REAL_TASK_ACCEPTANCE
+  = durable L1/L2/L3 acceptance-depth contract;
+    cannot by itself claim a specific physical task passed
 
 CURRENT_STATE
   = concise live accepted/current boundary and next work
@@ -88,6 +93,7 @@ Do not copy the full risk table into other documents. Do not copy the full relea
 | `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | Planner vs deterministic execution/verification/recovery/completion boundary. |
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid computer-use contract. |
 | `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Site Capability Profiles, trusted-site full-browser direction, candidate helpers/domain knowledge and separately scoped Local Execution Kernel/Python authority. No current runtime/public-tool authority expansion. |
+| `REAL_TASK_ACCEPTANCE.md` | AUTHORITATIVE ACCEPTANCE-DIRECTION CONTRACT | Defines L1 primitive, L2 workflow and L3 real user-task evidence; representative L3 is required before a major capability path is treated as proven for realistic autonomous use. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Single owner of release-critical sequence and acceptance objectives. |
 | `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing temporary compatibility, hardening, reproducibility and repository-hygiene debt with priority and close conditions. Future features/stages do not belong here. |
@@ -106,7 +112,7 @@ Do not copy the full risk table into other documents. Do not copy the full relea
 
 ## Current implementation snapshot
 
-At the 2026-08-26 post-PR-#107 point:
+At the 2026-08-26 post-PR-#110 point:
 
 ```text
 Stage 26.3A                                      ACCEPTED / MERGED #92
@@ -114,14 +120,32 @@ Verification Kernel foundation                  MERGED #99
 file/artifact integration                       PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation                  MERGED #106
 production web_open verification                PHYSICAL ACCEPTED / MERGED #107
-web_interact verification                       ACTIVE DRAFT PR #111
+Browser Harness / ADR-036 docs                  MERGED #110
+web_interact verification                       ACTIVE DRAFT PR #111; hosted CI green, physical gate pending
+Browser L3 real-task harness                    STACKED DRAFT PR #112
 Windows/application/process verifier            REMAINING 26.3B
 WorkingState + recovery + LoopGuard              26.3C TARGET
 ```
 
-PR #107 was physically accepted on exact head `64184713e97bf2e150614cd93c77509c244cddec` and squash-merged into `main` as `5df2e5e7378ddb9083a7c3d70a62c7bfc0f6c22d`. Exact gate details belong in the PR/evidence records, not duplicated here.
+PR #107 was physically accepted on exact head `64184713e97bf2e150614cd93c77509c244cddec`. Exact gate details belong in the PR/evidence records, not duplicated here.
 
-PR #111 is a clean replay of the former stacked interaction branch directly on the accepted post-#107 `main`; it requires fresh final-head hosted and physical acceptance before merge.
+PR #111 is a clean one-commit runtime/test diff on post-#110 `main`; its final hosted CI is green and target-Windows ordinary-Chat physical interaction acceptance remains required before merge.
+
+PR #112 is intentionally stacked on #111 so it does not alter #111's exact head. It adds the first randomized stateful Browser L3 harness and the L1/L2/L3 acceptance contract. After #111 merges, #112 must be replayed on accepted `main` before its own physical L3 evidence is collected.
+
+## Real-task acceptance boundary
+
+The project now distinguishes:
+
+```text
+L1 primitive / contract proof
+L2 multi-step component workflow
+L3 ordinary user goal + independent final state
+```
+
+L1/L2 remain mandatory for diagnosis and regression. L3 is required to prevent architecture from advancing solely on laboratory-style tests.
+
+L3 harness state may be independently observable by the Finish Gate, but mutation must still occur through the accepted product capability surface rather than a hidden test/admin API.
 
 ## ADR-036 boundary
 
@@ -145,7 +169,8 @@ Important invariants:
 - Browser/site trust never automatically grants Windows/filesystem/Python authority;
 - local execution trust never automatically grants arbitrary authenticated-browser authority;
 - generated helpers remain candidate lineage until separately tested/promoted;
-- current six-tool surface and runtime authority are unchanged by ADR-036 itself.
+- current six-tool surface and runtime authority are unchanged by ADR-036 itself;
+- any later material authority expansion also requires representative L3 evidence, not only primitive contract tests.
 
 ## Future tracks
 
@@ -168,6 +193,7 @@ Update this map when a reviewed change:
 - changes authoritative document names/read order;
 - changes general-planner or Control Plane responsibility;
 - changes computer-use observation/verification/recovery/completion boundaries;
+- changes L1/L2/L3 real-task acceptance requirements;
 - changes Browser Harness-derived Site Capability Profiles, browser network trust or Local Execution Grant boundaries;
 - changes which document owns project risk, technical debt or release order;
 - promotes a research/future track into current implementation authority;

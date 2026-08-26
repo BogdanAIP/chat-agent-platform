@@ -12,11 +12,15 @@ Current state:
 - file/artifact production integration: **PHYSICALLY ACCEPTED / MERGED #102**;
 - Browser observation foundation: **MERGED #106**;
 - production `web_open` final-state verification: **PHYSICALLY ACCEPTED / MERGED #107**;
-- production `web_interact` postcondition verification: **IMPLEMENTED IN DRAFT PR #111, pending fresh final exact-head hosted CI + ordinary-Chat target-Windows physical acceptance**;
+- Browser Harness / ADR-036 architecture docs: **MERGED #110**;
+- production `web_interact` postcondition verification: **PHYSICALLY ACCEPTED / MERGED #111**;
+- first Browser L3 real-task harness: **ACTIVE DRAFT PR #113**, clean replay of superseded stacked PR #112;
 - Windows/application/process verification: not yet implemented;
 - Stage 26.3B overall: **not yet accepted**.
 
-PR #111 is the clean post-#107 replay of the previous stacked interaction branch. Its initial repository tree was byte-identical to the final previously green interaction tree, but that historical CI is only regression evidence. Acceptance requires fresh hosted CI and physical evidence on the **final exact PR #111 head** after all documentation/code changes.
+PR #111 was physically accepted on exact head `1521e3128a7694be43518c3ee0188cb79f0ca0f5` and squash-merged into `main` as `f7bba9eddd7c449306b7c9de18bc9e19849fd86f`.
+
+The first physical #111 attempt failed because the already-bound ChatGPT app definition rejected the new `expected` field before the call reached the runtime. The exact runtime head was unchanged, a full app rebind made the field available, and the complete interaction gate then passed. Acceptance comes from that final complete PASS, not from the failed first attempt.
 
 ## Core contract
 
@@ -44,6 +48,20 @@ independent Finish Gate
         v
 DONE | NOT_DONE | UNKNOWN
 ```
+
+## Acceptance depth
+
+Stage 26.3B distinguishes three evidence levels:
+
+```text
+L1 — primitive / contract proof
+L2 — multi-step workflow/component integration
+L3 — ordinary user goal + independent final-state proof
+```
+
+L1/L2 remain mandatory for diagnosis and regression. L3 is required because many passing primitive tests do not prove that the planner can identify the correct target, choose a route, compose several verified transitions and stop on independently verified completion.
+
+Canonical acceptance-depth contract: `REAL_TASK_ACCEPTANCE.md`.
 
 ## Shared Verification Kernel
 
@@ -91,8 +109,6 @@ same-stream monotonic sequence + canonical fingerprint
 
 PR #102 physical acceptance proved fresh create, all three kernel transition checks `pass`, cleanup Finish Gate `done`, independent reread exactness, and zero-overwrite on a repeated target.
 
-Exact accepted heads/evidence belong in `EVIDENCE_INDEX.md` and accepted stage evidence, not duplicated here.
-
 ## Browser observation foundation
 
 `runtime/control_plane/browser_observation.py` provides bounded Browser state:
@@ -115,8 +131,6 @@ PR #106 merged this observation foundation without changing production Browser b
 
 ## Accepted production `web_open` verification — PR #107
 
-PR #107 integrated the first production Browser action path with the shared kernel and was physically accepted on target Windows ordinary Chat before merge.
-
 Accepted path:
 
 ```text
@@ -133,23 +147,11 @@ validate target URL/network policy
  -> PASS | FAIL | UNKNOWN
 ```
 
-Accepted semantics:
+Accepted semantics include `action delivery != verification`, fail-closed wrong final URL handling, no arbitrary JavaScript/browser evaluation, no generic backend selector, and exactly six public semantic tools.
 
-- action delivery is not verification;
-- a delivered navigation whose final state is `FAIL` or `UNKNOWN` is not returned as verified success;
-- redirects remain fail-closed in this slice: wrong final canonical URL => verification failure;
-- no arbitrary JavaScript/browser evaluation is introduced;
-- no generic backend/tool selector is introduced;
-- Browser verification code ships in the installed semantic bundle;
-- public semantic inventory remains exactly six tools.
+## Accepted production `web_interact` verification — PR #111
 
-The physical gate proved direct navigation `PASS` and a real HTTP redirect that was delivered but returned verification `FAIL`, followed by independent observation of the actual redirected final page.
-
-## Production `web_interact` verification — draft PR #111
-
-PR #111 extends the same Browser observation/verifier contract to production click/type interaction without adding a public tool.
-
-Target path:
+Accepted path:
 
 ```text
 validate bounded web_interact request
@@ -163,8 +165,6 @@ validate bounded web_interact request
  -> ExpectedEffect over BrowserObservationStream
  -> PASS | FAIL | UNKNOWN
 ```
-
-### Bounded interaction postconditions
 
 `web_interact.expected` admits only an explicit observable result:
 
@@ -181,88 +181,48 @@ one bound control state:
 
 It does **not** admit arbitrary JavaScript, selectors, expressions, code, raw CDP, backend names or generic downstream dispatch.
 
-For `type` without submit, the runtime may derive:
+For `type` without submit, the runtime may derive `expected.control.value == typed text` when target/text fit the bounded verifier representation. Generic `click` and `type+submit` require an explicit observable `expected` result before mutation.
 
-```text
-expected.control.value == typed text
-```
+A postcondition can prove an action only when the fresh pre-action observation can distinguish the requested future state from the current state. Therefore mutation is refused before delivery when all declared expected predicates are already satisfied or when the expected result cannot be safely distinguished from fresh pre-action state.
 
-when target/text fit the bounded verifier representation.
-
-For generic `click` and `type+submit`, an explicit observable `expected` result is required before mutation.
-
-### Pre-action delta guard
-
-A postcondition can prove an action only when the fresh pre-action observation can distinguish the requested future state from the current state.
-
-Therefore mutation is refused before delivery when:
-
-```text
-all declared expected predicates are already satisfied BEFORE
-```
-
-or when the expected result cannot be safely distinguished from fresh pre-action state.
-
-If at least one declared predicate is definitely not yet satisfied, the action may proceed; final success still depends on the fresh AFTER observation and the shared Verification Kernel.
-
-This prevents repeated/no-op interaction from being labelled successful merely because an already-true postcondition remains true.
-
-### Browser observation parser hardening
-
-The Playwright accessibility snapshot adapter normalizes only role-owned state:
-
-- checkbox/radio/switch-family roles may infer `checked=false` when the positive marker is absent;
-- selected-state roles may infer `selected=false` when the positive marker is absent;
-- generic controls retain `null` for states they do not own;
-- observable empty textbox/searchbox state is normalized to `value=""`, not `null`.
-
-The empty-value distinction is required so pre-action verification can distinguish an observed empty field from an unknown value.
-
-### Regression coverage
-
-The interaction branch contains real Playwright coverage for:
+The accepted physical regression covered:
 
 ```text
 type -> expected value                         PASS
 checkbox click -> expected checked state      PASS
-click -> expected control disappearance       PASS
 click without expected                        zero action
-type+submit without expected                  zero action
 already-satisfied expected before click       zero action
 delivered action + wrong postcondition        FAIL, not success
 semantic ambiguity                            ABSTAIN / zero arbitrary selection
 ```
 
-Six-tool, Direct Tunnel, semantic/vision, packaging and security regressions remain part of the hosted gate.
+Independent observation after the deliberately wrong `enabled=false` expectation proved that the click was physically delivered, the checkbox toggled, the control remained enabled, and verification returned `expected_effect_failed`. This is direct physical evidence that delivery is not success.
 
-Historical hosted success on the pre-replay tree is useful regression evidence only. PR #111 requires fresh hosted evidence on its final exact head.
+## First Browser L3 real-task gate — PR #113
 
-## PR #111 acceptance gate
+The primitive #111 gate proves the interaction mechanism. It does not by itself prove that ordinary ChatGPT can use the mechanism to solve a normal task.
 
-Because PR #111 changes an accepted production mutation path, hosted CI alone is insufficient.
+PR #113 adds the clean post-#111 replay of a stateful local `Case Desk` fixture with multiple similar records and randomized task identity/data on every physical run.
 
-Required sequence:
+The user-facing task is natural-language outcome/constraint text. The harness does **not** prescribe the sequence of clicks or field operations.
 
-```text
-final exact PR #111 head
- -> hosted CI green on that exact head
- -> ordinary-Chat target-Windows web_interact physical regression on same exact head
- -> no unresolved review/security/contract finding
- -> merge
-```
-
-The physical regression must cover at minimum:
+Independent fixture evidence lives outside Chat `FilesRoot` and includes persisted state, audit history and the Finish Gate. The Finish Gate requires all of:
 
 ```text
-verified type -> actual value changed + PASS
-verified click -> declared state changed + PASS
-wrong expected -> FAIL
-missing expected -> zero action
-already-satisfied expected -> zero action
-semantic-first / visual-fallback safety behavior preserved
+target case exists
+address == requested address
+status == Approved
+comment == requested comment
+old target address no longer used in target
+similar non-target records unchanged
+only the target case was ever mutated
 ```
 
-Do not reuse hosted or physical evidence from an older head after documentation/code changes.
+Initial state must be `not_done`. Only the correct persisted target state with preserved decoys and target-only mutation history becomes `done`.
+
+The planner may inspect the UI and use the accepted six-tool surface. It must not mutate fixture state through a hidden administrative/test API or rewrite Finish Gate evidence through `workspace_write`.
+
+Hosted fixture smoke validates the harness itself. It is not L3 acceptance. Actual L3 acceptance requires ordinary Chat on target Windows against the randomized fixture on the final exact PR #113 head, followed by the external checker reading the independent fixture evidence.
 
 ## Finish Gate contract
 
@@ -284,19 +244,23 @@ Task success and safety remain separate results. Missing required evidence yield
 
 ## Remaining Stage 26.3B work
 
-1. obtain final exact-head hosted + physical `web_interact` evidence for PR #111 and merge it;
-2. add Windows/application/process verification over accepted `DesktopState`/identity evidence;
-3. add cross-capability completion predicates only where real procedures require them;
-4. run physical gates whenever those integrations change production action/completion behavior;
-5. only then declare Stage 26.3B accepted and advance Stage 26.3C.
+1. freeze one final PR #113 head and require fresh hosted harness/contract checks;
+2. prepare a randomized Case Desk run, pass the ordinary-Chat target-Windows Browser L3 task, and pass the external Finish Gate;
+3. merge PR #113 if clean;
+4. add Windows/application/process verification over accepted `DesktopState`/identity evidence;
+5. add a representative Windows/application L3 task after that verifier exists;
+6. add cross-capability completion predicates only where real procedures require them;
+7. run physical gates whenever those integrations change production action/completion behavior;
+8. only then declare Stage 26.3B accepted and advance Stage 26.3C.
 
-ADR-036 / Browser Harness-derived wider Browser authority does not bypass this sequence. Future trusted-site JS/CDP/full-browser capabilities remain under the same authorization, ExpectedEffect, fresh re-observation and Finish Gate boundaries.
+ADR-036 / Browser Harness-derived wider Browser authority does not bypass this sequence. Future trusted-site JS/CDP/full-browser capabilities remain under the same authorization, ExpectedEffect, fresh re-observation, Finish Gate and representative L3-evidence boundaries.
 
 ## Invariants
 
 ```text
 action delivered != transition verified
 transition PASS != task DONE
+many primitive PASS results != realistic user-task acceptance
 already-true postcondition != action success
 unobservable pre-action delta -> zero mutation
 current observed state > remembered procedure/demo/history
