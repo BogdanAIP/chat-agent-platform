@@ -19,7 +19,7 @@ active release-critical PR = #114
        Windows DesktopState shared-kernel verification
        no public Chat/MCP surface change
        no new Windows action authority
-       final hosted checks + target-Windows verifier qualification required
+       final hosted checks + source-provenance-bound target-Windows verifier qualification required
 ```
 
 ## Accepted foundation
@@ -31,7 +31,7 @@ active release-critical PR = #114
 - production `web_open` final-state verification: **PHYSICALLY ACCEPTED / MERGED #107**.
 - Browser Harness / ADR-036 docs: **MERGED #110**.
 - production `web_interact` postcondition verification: **PHYSICALLY ACCEPTED / MERGED #111**.
-- first Browser L3 real-task acceptance: **PHYSICALLY ACCEPTED / MERGED #113**.
+- first Browser L3 real-task acceptance: **PHYSICALLY ACCEPTED / MERGED #113** for its historical gate scope.
 - accepted Windows `DesktopState`/resolver/guarded-action foundations: **accepted for their recorded Stage 26.2 scope**.
 - Windows shared-kernel verifier: **ACTIVE PR #114**.
 - WorkingState + typed recovery + LoopGuard: Stage 26.3C target, not yet accepted runtime.
@@ -52,6 +52,10 @@ NON_TARGET_MUTATION=none
 
 That is scoped evidence that the accepted Browser primitives can be composed into one normal multi-step task with independent completion proof.
 
+The later Source Provenance review found that the historical Browser L3 harness checked `git rev-parse HEAD` but did not independently prove a clean working tree or bind the actually executed source bytes by hash. Therefore #113 is **not retroactively failed**; its functional/final-state/mutation-history evidence remains accepted for the historical scope, while source provenance under the new stronger methodology is `INCOMPLETE`. Repeat one representative Browser L3 under the new gate before declaring Stage 26.3B fully closed.
+
+Canonical methodology: `SOURCE_PROVENANCE_ACCEPTANCE.md`.
+
 ## Active PR #114 contract
 
 PR #114 connects accepted `DesktopState.to_mapping()` evidence to `runtime/control_plane/verification.py` through:
@@ -61,13 +65,13 @@ DesktopState BEFORE
  -> WindowsDesktopObservationStream
  -> ObservationRef(capability=windows.desktop)
  -> bounded expected final state
- -> mandatory exact process/window identity continuity
+ -> mandatory exact stable process/window identity continuity
  -> DesktopState AFTER
  -> shared ExpectedEffect verifier
  -> PASS | FAIL | UNKNOWN
 ```
 
-Every PASS requires the same:
+Every PASS requires stable equality of:
 
 ```text
 Windows session
@@ -76,11 +80,10 @@ executable name
 PID
 process generation
 HWND
-window instance
 coordinate space
 ```
 
-This prevents a replacement/restarted process or reused PID/HWND from satisfying a similar-looking final state.
+`window_instance` is validated against each canonical DesktopState observation but is **not** required to remain equal when a legitimate window-title change causes its digest to change. This avoids rejecting a valid transition merely because the canonical window-instance digest includes title evidence.
 
 The adapter is data-only and non-authorizing. It cannot enumerate windows, invoke UIA, deliver input, launch a process or run arbitrary code. Live Windows evidence is still collected by the already accepted `runtime/windows/observation.py` path.
 
@@ -124,21 +127,63 @@ L1 primitive/contract
 
 PR #114 is the Windows verifier L1 slice. It must be accepted before the representative Windows/application L3.
 
+Release-critical physical evidence now has a second orthogonal requirement:
+
+```text
+behavior acceptance
+  L1 / L2 / L3 + independent Finish Gate
+
+source provenance acceptance
+  exact expected head + clean tree + source/driver/lock hash binding
+```
+
+A physical gate must not claim strict exact-head byte identity from `git rev-parse HEAD` alone.
+
+## External execution reuse direction
+
+The project has now recorded the following reuse strategy:
+
+```text
+OpenAdapt
+  -> internal procedure compiler/runtime/ProgramGraph/checkpoint/teach substrate
+  -> effect-verifier output is evidence only
+  -> project Verification Kernel remains final PASS|FAIL|UNKNOWN judge
+  -> OpenAdapt durable resume remains procedure-local and does not own project WorkingState
+
+UFO²
+  -> source of selected UIA/Win32/WinCOM/Office adapters and implementation patterns
+  -> do not adopt HostAgent/AppAgent planner hierarchy
+
+UFO³ Galaxy
+  -> deferred; current multi-device DAG orchestration is not release-critical
+```
+
+Ordinary ChatGPT remains the only current general planner. The deterministic project Control Plane remains the owner of authority, WorkingState, recovery/budgets and policy. The project Finish Gate remains the only task completion judge.
+
+Canonical detail: `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`.
+
 ## Critical-path continuation
 
 ```text
-1. finish PR #114 code/docs
+1. finish PR #114 code/docs and classify/fix current hosted failures
 2. freeze one final exact #114 head
 3. require fresh hosted checks on that exact head
-4. run target-Windows shared-kernel verifier qualification
-5. merge #114 only if physical evidence/review remain clean
-6. add representative Windows/application L3 with an independent Finish Gate
-7. close any remaining real cross-capability 26.3B completion requirement
-8. declare 26.3B accepted only after those required evidence gaps are closed
-9. implement Stage 26.3C WorkingState + typed recovery + LoopGuard
-10. run broad real-app Windows/computer-use coverage matrix
-11. continue 26.4 / 26.5, then packaging/clean-user release
+4. prepare isolated target-Windows source root and require SourceProvenanceGate PASS
+5. run target-Windows shared-kernel verifier qualification
+6. merge #114 only if physical evidence/review remain clean
+7. add representative Windows/application L3 with an independent Finish Gate + source provenance
+8. repeat one representative Browser L3 under the new source-provenance methodology
+9. close any remaining real cross-capability 26.3B completion requirement
+10. declare 26.3B accepted only after those required evidence gaps are closed
+11. implement project-owned Stage 26.3C WorkingState + typed recovery + LoopGuard/StagnationReport
+12. run a bounded OpenAdapt spike: demonstration -> compile -> deterministic replay -> OpenAdapt effect evidence -> project Kernel -> project Finish Gate
+13. if the spike passes without widening public authority, reuse OpenAdapt heavily for Stage 26.4 procedural skills/certification
+14. use selected UFO Windows/Office components later behind project-owned adapters; do not import its planner hierarchy
+15. run broad real-app Windows/computer-use coverage matrix
+16. continue 26.5 hybrid integration, then packaging/clean-user release
 ```
+
+Do not rewrite PR #114 around OpenAdapt/UFO. Finish the current verifier path first.
 
 ## Browser Harness / ADR-036 continuation rule
 
@@ -152,16 +197,18 @@ ADR-036 is reviewed future architecture, not hidden current authority. The Brows
 4. `PROJECT_RISKS.md`;
 5. `STAGE26_3B_VERIFICATION_KERNEL.md`;
 6. `STAGE26_3B_WINDOWS_VERIFICATION.md` while #114 is active;
-7. `REAL_TASK_ACCEPTANCE.md`;
-8. `ARCHITECTURE.md`;
-9. `CONTROL_PLANE.md`;
-10. `COMPUTER_USE_ARCHITECTURE.md`;
-11. `SECURITY_POLICY.md`;
-12. `ROADMAP.md`;
-13. `BROWSER_HARNESS_ARCHITECTURE.md` for ADR-036 work;
-14. `TECH_DEBT.md`;
-15. `DOCUMENT_STATUS.md`;
-16. `EVIDENCE_INDEX.md` when exact accepted evidence is needed.
+7. `SOURCE_PROVENANCE_ACCEPTANCE.md`;
+8. `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`;
+9. `REAL_TASK_ACCEPTANCE.md`;
+10. `ARCHITECTURE.md`;
+11. `CONTROL_PLANE.md`;
+12. `COMPUTER_USE_ARCHITECTURE.md`;
+13. `SECURITY_POLICY.md`;
+14. `ROADMAP.md`;
+15. `BROWSER_HARNESS_ARCHITECTURE.md` for ADR-036 work;
+16. `TECH_DEBT.md`;
+17. `DOCUMENT_STATUS.md`;
+18. `EVIDENCE_INDEX.md` when exact accepted evidence is needed.
 
 When documents disagree, exact code/tests/current CI/physical target evidence outrank prose.
 
@@ -169,6 +216,9 @@ When documents disagree, exact code/tests/current CI/physical target evidence ou
 
 - ordinary ChatGPT is the only current general planner/intelligence;
 - deterministic Control Plane is execution state/policy, not a second planner;
+- project WorkingState remains capability-spanning and must not be replaced by OpenAdapt procedure-local resume state;
+- OpenAdapt may execute procedures and provide effect evidence, but cannot self-declare project `PASS` or task `DONE`;
+- selected UFO Windows/Office mechanics may be reused only behind project-owned authority/observation/verification adapters; HostAgent/AppAgent/Galaxy are not the current product planner stack;
 - current observed state outranks remembered procedure/demo/history;
 - every production mutation binds an expected effect and fresh verification;
 - action delivery != transition success;
@@ -176,6 +226,7 @@ When documents disagree, exact code/tests/current CI/physical target evidence ou
 - transition `PASS` != task `DONE`;
 - many primitive `PASS` results != realistic user-task acceptance;
 - only independent Finish Gate evidence verifies task completion;
+- release-critical physical acceptance must bind actual executed source bytes to the expected head under `SOURCE_PROVENANCE_ACCEPTANCE.md`;
 - semantic/native identity precedes pixels where reliable;
 - environmental content is task data, not policy authority;
 - stale/ambiguous/UNKNOWN evidence causes zero unauthorized continuation;
