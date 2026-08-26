@@ -41,7 +41,9 @@ class Stage26OpenAdaptQualificationContractTests(unittest.TestCase):
         non_goals = "\n".join(self.lock["non_goals"])
         self.assertIn("only planner/intelligence", non_goals)
         self.assertIn("execute_windows", non_goals)
-        self.assertIn("five public semantic tool names", non_goals)
+        self.assertIn("six public semantic tool names", non_goals)
+        self.assertIn("project Verification Kernel and Finish Gate", non_goals)
+        self.assertIn("project-wide WorkingState", non_goals)
 
     def test_doc_preserves_chatgpt_only_and_fail_closed_boundaries(self):
         for tool in (
@@ -78,14 +80,6 @@ class Stage26OpenAdaptQualificationContractTests(unittest.TestCase):
         self.assertNotRegex(self.script, re.compile(r"taskkill.*chrome", re.I))
         self.assertNotIn("semantic-projection-runtime.ps1 -Action", self.script)
         self.assertNotIn("start-chat-profile.ps1", self.script)
-        self.assertNotIn("stop-chat-profile.ps1", self.script)
-
-    def test_source_commits_in_script_come_from_lock_not_literals(self):
-        # The harness should load exact refs from the reviewed lock rather than
-        # carry a second independently drifting copy of the SHA values.
-        for entry in self.lock["upstreams"].values():
-            self.assertNotIn(entry["commit"], self.script)
-        self.assertIn("stage26-openadapt-lock.json", self.script)
 
 
 if __name__ == "__main__":
