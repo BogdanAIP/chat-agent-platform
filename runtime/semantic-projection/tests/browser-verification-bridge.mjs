@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import {
   parsePlaywrightSnapshotResult,
+  verifyPlaywrightInteraction,
   verifyPlaywrightNavigation,
 } from '../lib/browser-verification-bridge.mjs';
 
@@ -73,6 +74,43 @@ const redirectMismatch = await verifyPlaywrightNavigation({
   expectedUrl: 'https://example.com/redirect',
 });
 assert.equal(redirectMismatch.status, 'fail');
+
+const interactionBefore = parsePlaywrightSnapshotResult(result(`### Page
+- Page URL: https://example.com/
+- Page Title: Example
+
+### Snapshot
+\`\`\`yaml
+- textbox "Semantic input" [ref=e2]: OLD
+- checkbox "Remember" [unchecked] [ref=e3]
+\`\`\``));
+const interactionVerified = await verifyPlaywrightInteraction({
+  before: interactionBefore,
+  after,
+  expected: {
+    control: { control_id: 'e2', value: 'HELLO' },
+  },
+});
+assert.equal(interactionVerified.status, 'pass');
+assert.equal(interactionVerified.verification.status, 'pass');
+
+const interactionMismatch = await verifyPlaywrightInteraction({
+  before: interactionBefore,
+  after,
+  expected: {
+    control: { control_id: 'e3', checked: false },
+  },
+});
+assert.equal(interactionMismatch.status, 'fail');
+
+await assert.rejects(
+  () => verifyPlaywrightInteraction({
+    before: interactionBefore,
+    after,
+    expected: { javascript: 'document.body.innerText' },
+  }),
+  /invalid_request|unsupported fields/,
+);
 
 assert.throws(
   () => parsePlaywrightSnapshotResult(result('### Snapshot\n```yaml\n- heading Missing page\n```')),
