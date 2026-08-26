@@ -54,6 +54,17 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _digest(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def _bounded_text(
     value: Any,
     *,
@@ -150,7 +161,7 @@ def _string_list(value: Any, *, name: str, max_items: int = 64) -> list[str]:
     return result
 
 
-def _normalize_control(raw: Any) -> tuple[str, dict[str, Any]]:
+def _normalize_control(raw: Any) -> tuple[str, dict[str, Any], dict[str, Any]]:
     if type(raw) is not dict:
         raise TypeError("desktop control must be a plain dict")
     if set(raw) != _REQUIRED_CONTROL_FIELDS:
@@ -169,7 +180,11 @@ def _normalize_control(raw: Any) -> tuple[str, dict[str, Any]]:
         max_chars=MAX_WINDOWS_ID_CHARS,
     )
     assert role is not None and name is not None and automation_id is not None
-    return fingerprint, {
+    normalized_name = " ".join(name.split())
+    if name != normalized_name:
+        raise ValueError("desktop control name is not normalized DesktopState text")
+
+    state = {
         "role": role,
         "name": name,
         "automation_id": automation_id,
@@ -178,6 +193,10 @@ def _normalize_control(raw: Any) -> tuple[str, dict[str, Any]]:
         "visible": _bounded_bool_or_none(raw["visible"], name="desktop control visible"),
         "focused": _bounded_bool_or_none(raw["focused"], name="desktop control focused"),
     }
+    if _digest(state) != fingerprint:
+        raise ValueError("desktop control observation_fingerprint contradicts control state")
+    full_mapping = {**state, "observation_fingerprint": fingerprint}
+    return fingerprint, state, full_mapping
 
 
 def normalize_windows_desktop_observation(raw: Any) -> tuple[dict[str, Any], bool, bool, str]:
@@ -241,6 +260,20 @@ def normalize_windows_desktop_observation(raw: Any) -> tuple[dict[str, Any], boo
     assert frame_digest is not None
     assert observed_at is not None
 
+    normalized_title = " ".join(window_title.split())
+    if window_title != normalized_title:
+        raise ValueError("window_title is not normalized DesktopState text")
+    expected_window_instance = _digest(
+        {
+            "process_id": process_id,
+            "process_generation": process_generation,
+            "window_handle": window_handle,
+            "window_title": window_title,
+        }
+    )
+    if window_instance != expected_window_instance:
+        raise ValueError("window_instance contradicts process/HWND/title evidence")
+
     visible_text = _bounded_text(
         raw["visible_text"],
         name="visible_text",
@@ -260,8 +293,10 @@ def normalize_windows_desktop_observation(raw: Any) -> tuple[dict[str, Any], boo
 
     controls: dict[str, dict[str, Any]] = {}
     collisions: set[str] = set()
+    full_controls: list[dict[str, Any]] = []
     for raw_control in raw_controls:
-        control_id, control = _normalize_control(raw_control)
+        control_id, control, full_control = _normalize_control(raw_control)
+        full_controls.append(full_control)
         if control_id in collisions:
             continue
         if control_id in controls:
@@ -270,6 +305,24 @@ def normalize_windows_desktop_observation(raw: Any) -> tuple[dict[str, Any], boo
             continue
         controls[control_id] = control
     controls = {key: controls[key] for key in sorted(controls)}
+
+    expected_frame_digest = _digest(
+        {
+            "session_id": session_id,
+            "application_identity": application_identity,
+            "process_id": process_id,
+            "process_generation": process_generation,
+            "window_handle": window_handle,
+            "window_instance": window_instance,
+            "window_title": window_title,
+            "window_bounds": window_bounds,
+            "coordinate_space": coordinate_space,
+            "controls": full_controls,
+            "screenshot_digest": screenshot_digest,
+        }
+    )
+    if frame_digest != expected_frame_digest:
+        raise ValueError("frame_digest contradicts normalized DesktopState evidence")
 
     freshness = raw["freshness_evidence"]
     if type(freshness) is not dict:
@@ -328,9 +381,7 @@ def normalize_windows_desktop_observation(raw: Any) -> tuple[dict[str, Any], boo
             "screenshot_digest": screenshot_digest,
         },
     }
-    state["desktop_state_sha256"] = hashlib.sha256(
-        json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    state["desktop_state_sha256"] = _digest(state)
     return state, True, bool(collisions), observed_at
 
 
@@ -366,14 +417,9 @@ class WindowsDesktopObservationStream:
     def observe(self, raw: dict[str, Any]) -> ObservationSnapshot:
         state, complete, ambiguous, observed_at = normalize_windows_desktop_observation(raw)
         self._sequence += 1
-        fingerprint = hashlib.sha256(
-            json.dumps(
-                {"state": state, "complete": complete, "ambiguous": ambiguous},
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()
+        fingerprint = _digest(
+            {"state": state, "complete": complete, "ambiguous": ambiguous}
+        )
         return ObservationSnapshot(
             ref=ObservationRef(
                 capability=WINDOWS_DESKTOP_CAPABILITY,
