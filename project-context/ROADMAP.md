@@ -2,43 +2,30 @@
 
 ## Goal
 
-Keep ordinary ChatGPT as the **only current general intelligence/planning layer**, while the local platform becomes a deterministic execution system with bounded capabilities, persistent verified state, authorization, recovery, procedural memory and selective specialist perception.
+Keep ordinary ChatGPT as the **only current general planning layer** while the local platform becomes a deterministic execution system with bounded capabilities, verified state, authorization, recovery, procedural memory and selective specialist perception.
 
-```text
-ordinary ChatGPT
-  = task understanding / strategy / procedure selection / novel adaptation
+The deterministic Control Plane is not a second planner. It may advance already-selected known transitions under explicit authorization/verification and must escalate when a new strategy is required.
 
-Chat Agent Platform
-  = scoped Files / Browser / Windows capabilities
-  + semantic/native state observation
-  + selective visual grounding
-  + deterministic execution Control Plane
-      TaskState / WorkingState
-      ProgramGraph progression
-      policy / authorization
-      ExpectedEffect + transition verification
-      checkpoints
-      typed recovery + LoopGuard
-      StagnationReport escalation
-      action/time/resource budgets
-      independent Finish Gate
-      safety/policy gate
-  + verified procedural memory
-  + versioned Skill / Procedure Lineage
-  + optional specialist proposals
-  + future optional local general planner research
-```
+Canonical architecture:
 
-The local deterministic Control Plane is not a second planner. It may advance an already-selected known procedure through independently authorized and verified transitions. Novel strategy and incompatible live state escalate to ordinary ChatGPT.
-
-Canonical contracts:
-
+- `ARCHITECTURE.md`
 - `CONTROL_PLANE.md`
 - `COMPUTER_USE_ARCHITECTURE.md`
-- `AVO_LONG_HORIZON_ARCHITECTURE.md` for the reviewed long-horizon lineage/stagnation extension
-- `CONVERSATION_BRIDGE_ARCHITECTURE.md` for non-release-critical future Track M multi-chat/session handoff
+- `SECURITY_POLICY.md`
 
-Accepted public semantic tools remain exactly:
+Canonical current status:
+
+- `CURRENT_STATE.md`
+
+Canonical ranked engineering risks:
+
+- `PROJECT_RISKS.md`
+
+Do not duplicate the full risk ranking here.
+
+## Accepted public semantic surface
+
+Exactly:
 
 ```text
 workspace_read
@@ -49,175 +36,106 @@ web_interact
 procedure_run
 ```
 
-Normal transport is `semantic + direct-stdio`; 1MCP is an optional internal Extension Manager, not a baseline dependency.
+Normal transport is direct stdio through the Secure MCP Tunnel and official tunnel-client. 1MCP remains optional internal Extension Manager infrastructure.
 
----
-
-# Completed foundation
-
-## Stage 21 — Native ChatGPT <-> local MCP — DONE
-
-Secure MCP Tunnel + official tunnel-client + real local MCP round trip accepted.
-
-## Stage 22 — universal core reduction — DONE
-
-Old generic agent/gateway core removed from active architecture.
-
-## Stage 23 — quality-first module selection — DONE
-
-Focused capability/upstream selection and promotion policy accepted.
-
-## Stage 24 / 24.1 — typed semantic file/browser + direct tunnel — DONE
-
-Historical five-tool file/browser foundation accepted for its tested scope. It no longer defines the current public inventory.
-
-## Stage 25 / 25.1 / 25.2 — Browser semantic + local vision — DONE
-
-Structure first, specialist proposal only, deterministic authorization, ABSTAIN on unresolved evidence.
-
-## Stage 26.1A-E / 26.2A-E — Windows capability foundation — DONE
-
-Accepted work includes OpenAdapt qualification, bounded capture/executor, window-scoped UIA, production Windows runtime, `DesktopState`, local Grounder, deterministic UIA->vision routing and the first isolated VS Code real-application E2E.
-
-Exact physical evidence belongs in `EVIDENCE_INDEX.md` and historical stage documents.
-
-## Transport Supervisor v1 — ACCEPTED / MERGED #94
-
-Persistent desired state/runtime ownership, layered health, bounded recovery and console-free Scheduled Task persistence are accepted infrastructure. PR #100 later qualified the low-power Manual/Automatic operating model and final ordinary-Chat ON/OFF route gates.
-
-## Stage 26.3A — canonical six-tool Verified Procedure Runtime — ACCEPTED / MERGED #92
-
-Exact physically accepted runtime head:
+## Completed foundation relevant to current work
 
 ```text
-300db9956dfbdf0300ecc59f017d6f3280d4353a
+Stage 24/24.1 typed file/browser foundation       ACCEPTED
+Stage 25/25.1/25.2 Browser + local vision         ACCEPTED
+Stage 26.1A-E / 26.2A-E Windows foundation       ACCEPTED FOR RECORDED SCOPE
+Transport Supervisor                              ACCEPTED / MERGED #94
+Stage 26.3A canonical six-tool runtime            ACCEPTED / MERGED #92
+Verification Kernel foundation                    MERGED #99
+file/artifact kernel integration                  PHYSICAL ACCEPTED / MERGED #102
+Browser observation foundation                    MERGED #106
 ```
 
-Merged integration commit:
+Windows acceptance is scoped evidence, not universal Windows accuracy.
+
+## Current release-critical sequence
 
 ```text
-43ad61384e966ecf089e69a95c166d41da949ebe
-```
-
-Physical ordinary-Chat evidence proved one long-horizon task using all six semantic tools, real working-memory files, browser recovery, one completed three-transition `procedure_run`, independent result reread and a second zero-action `ABSTAIN` on protected-target overwrite.
-
-This establishes the first real long-horizon deterministic procedure boundary. It does not authorize arbitrary shell/Python or broad Windows consequences.
-
-## NVIDIA AVO long-horizon architecture review — REVIEWED / PROMOTED
-
-The 2026-08-25 review of NVIDIA Agentic Variation Operators and NVIDIA's related agent-stack security guidance was promoted through ADR-034 and `AVO_LONG_HORIZON_ARCHITECTURE.md`.
-
-Supported project mechanisms:
-
-```text
-durable structured state across context boundaries
-LoopGuard -> structured StagnationReport -> ChatGPT replan
-versioned Skill / Procedure Lineage
-bounded candidate improvement grounded in objective execution feedback
-above proposes; deterministic infrastructure below decides
-```
-
-The review does **not** change the release order or make the local Control Plane a second planner. It also does not treat NVIDIA's ARC-AGI-3 public-set result as proof for screenshot-first GUI control; that AVO configuration used an exact text-grid observation interface.
-
----
-
-# Stage 26 — current release-critical sequence
-
-Explicit release order:
-
-```text
-26.2E real application E2E                         ACCEPTED
- -> 26.3 Verified Procedure Runtime / Control Plane ACTIVE
-    -> 26.3A six-tool verified procedure runtime   ACCEPTED
-    -> 26.3B Verification Kernel + Finish Gate     ACTIVE
-    -> 26.3C WorkingState + typed recovery + LoopGuard
- -> 26.4 Human Demo -> transferable verified candidate skill
+26.3B Verification Kernel + production adapters   ACTIVE
+ -> 26.3C WorkingState + typed recovery + LoopGuard
+ -> Broad real-app physical coverage gate
+ -> 26.4 Human Demo -> verified candidate skill
  -> 26.5 Hybrid Computer-Use Integration
  -> 27 Distribution & Maintenance
  -> 28 Clean User E2E / stable release
 ```
 
-The 2026-08-24 Stage 26.3A GUI-agent research is promoted through `COMPUTER_USE_ARCHITECTURE.md` and ADR-032/033. The 2026-08-25 AVO review enriches 26.3C/26.4 through ADR-034 without inserting a new stage.
+The **Broad real-app physical coverage gate is an acceptance objective, not a new architecture stage**. It exists to stop architecture growth from outrunning proven computer-use capability.
 
-## 26.3B — Verification Kernel + independent Finish Gate — ACTIVE
+Track M multi-chat and Track P local-planner work are future/parallel and do not replace this release-critical sequence.
 
-Primary objective: make verification a reusable cross-capability contract instead of stage-specific ad hoc checks.
+---
 
-The merged foundation provides:
+# 26.3B — Verification Kernel + independent Finish Gate — ACTIVE
+
+Objective: one reusable verification contract across real production capabilities.
+
+Shared foundation:
 
 ```text
 ObservationRef / ObservationSnapshot
-capability + subject + observation-stream identity
-same-stream monotonic freshness
-ExpectedEffect / bounded declarative postconditions
-PASS | FAIL | UNKNOWN transition result
-independent Finish Gate
-separate task-success and safety/policy evidence
+same-stream capability + subject identity
+monotonic fresh re-observation
+ExpectedEffect + bounded declarative predicates
+PASS | FAIL | UNKNOWN
+independent evidence-batch-bound Finish Gate
+separate task-success and safety/policy results
 ```
 
-Freshness does not rely on wall-clock plausibility. Verification requires evidence from the same observation stream/capability/subject and a strictly higher sequence; mismatched streams, stale state, ambiguity or incomplete required evidence yield `UNKNOWN` rather than guessed success.
+Accepted production integration:
 
-The Finish Gate is task-level and independent of planner confidence or action-history plausibility. `candidate_done` is only a proposal.
+- file/artifact procedure path through PR #102.
 
-Minimum task completion dimensions:
+Merged observation foundation:
 
-- requested goal predicates hold;
-- user constraints remain satisfied;
-- required dynamic/authoritative sources are fresh/reconciled;
-- no required ambiguity or confirmation remains unresolved;
-- safety/policy predicates hold.
+- Browser observation stream through PR #106.
 
-Task-success, unresolved completion requirements and safety evidence remain distinct even if evaluated at the same completion boundary.
+Current active PR:
 
-The kernel foundation is **not Stage 26.3B acceptance**. PR #102 now implements the first capability integration: a bounded rooted file/artifact observation stream and migration of `verified_workspace_artifact_v1` onto the shared kernel/Finish Gate while preserving exclusive-create/no-overwrite and rollback budgets.
+- **#107 — production `web_open` final-state verification**.
 
-Remaining work before acceptance:
+The pre-documentation-sync head `08671b5a8763d589bcd16da69e8ed70bcb5f9509` had all 11 PR workflows green. Since documentation synchronization changes the branch head, resolve the final exact head and require hosted CI green on it before the ordinary-Chat target-Windows physical Browser gate.
+
+Remaining 26.3B work:
 
 ```text
-hosted CI on the current rebased exact PR #102 head
-ordinary-Chat target-Windows completion + zero-overwrite physical regression for that exact head
-browser URL/document/control/result verification adapter
-process/window/application verification adapter
-cross-capability task predicates where real procedures require them
-appropriate physical acceptance when later production action paths change
+PR #107 final exact-head hosted + physical acceptance
+web_interact click/type/control-result verification
+Windows/application/process verification
+cross-capability completion predicates where real procedures require them
+appropriate physical gates for each changed production path
 ```
 
-Non-negotiable:
+Only then declare 26.3B accepted.
 
-```text
-action delivered != transition verified
-transition verified != task completed
-current observed state > remembered procedure state
-stale / mismatched-stream / ambiguous / UNKNOWN -> zero unauthorized continuation
-```
+---
 
-Active implementation contract: `STAGE26_3B_VERIFICATION_KERNEL.md`.
+# 26.3C — WorkingState + typed recovery + LoopGuard
 
-AVO-style iterative improvement is intentionally **not** implemented before this stage because candidate evolution without objective correctness/finish verification would optimize an unreliable signal.
+Objective: make long-horizon continuation/recovery reliable before broader authority.
 
-## 26.3C — WorkingState + Typed Recovery + LoopGuard
-
-Generalize long-horizon state and recovery before broad GUI authority.
-
-### WorkingState v1
-
-Persist only structured operational state:
+WorkingState v1 should contain structured operational state only:
 
 ```text
 user constraints
-subgoals / progress vector
-verified completed achievements
-authoritative facts + provenance + freshness
+subgoals + progress vector
+verified achievements
+facts + provenance + freshness
 open ambiguities/questions
 evidence references
-expected/observed state deltas
+expected/observed deltas
 retry/recovery history
 action/time/resource budgets
 ```
 
-Never persist private chain-of-thought. AVO's demonstrated value of persistent memory is adopted as durable structured evidence/state, not unrestricted model-reasoning persistence.
+Never persist private chain-of-thought.
 
-### Initial typed recovery vocabulary
+Initial recovery classes:
 
 ```text
 target_missing
@@ -233,7 +151,7 @@ unsafe_transition
 external_dynamic_change
 ```
 
-Default ladder:
+Default recovery ladder:
 
 ```text
 re-observe
@@ -244,365 +162,137 @@ re-observe
  -> ChatGPT replan / clarification / ABSTAIN
 ```
 
-### LoopGuard
+LoopGuard must terminate/escalate repeated no-effect state/action fingerprints, oscillation and exhausted budgets.
 
-Track repeated/no-progress behavior through:
+## Planner portability guardrail
+
+Do **not** implement a second general planner as part of 26.3C.
+
+After WorkingState v1 stabilizes, define the smallest planner-neutral proposal/escalation contract needed to prevent the lower Control Plane from depending on ChatGPT-specific planning payloads. A future second planner should first run shadow/proposal-only through that contract.
+
+This mitigates the current sole-planner dependency without creating premature local-planner complexity.
+
+---
+
+# Broad real-application physical coverage gate
+
+This is the highest-ranked current engineering risk and must be attacked after 26.3C rather than hidden behind more architecture.
+
+Minimum representative matrix should cover multiple classes, for example:
 
 ```text
-state + subgoal + action fingerprint
-no-effect count
-action-family retry count
-oscillation A -> B -> A -> B
-subgoal/global budgets
-recovery escalation level
-verified progress vector
+native Windows / Win32
+browser
+Electron application
+office-style application
+standard file/dialog flows
 ```
 
-Identical state/action repetition without new evidence or verified progress must terminate/escalate rather than loop.
-
-### StagnationReport
-
-When bounded recovery is exhausted, LoopGuard should emit a compact structured report rather than only a generic failure:
+Variants should include where applicable:
 
 ```text
-StagnationReport
-  task / subgoal identity
-  verified progress vector
-  repeated state/action fingerprints
-  no-effect / retry / oscillation counters
-  attempted recovery classes
-  fresh evidence references
-  exhausted + remaining budgets
-  admitted alternatives already tried
-  unresolved failure / ambiguity
+DPI 100 / 125 / 150%
+window moved/resized
+foreground/focus changes
+multiple similar windows
+unexpected modal/dialog
+notification/overlay/noisy state
+structure miss -> reviewed visual fallback
 ```
 
-Normal path:
+Success criterion is not a marketing claim of universal Windows accuracy. It is a materially broader, characterized, repeatable accepted scope than the current isolated VS Code E2E.
+
+---
+
+# 26.4 — Human Demo -> verified candidate skill
+
+Compile demonstrations into:
 
 ```text
-LoopGuard detects stagnation
- -> stop repeated effects
- -> StagnationReport
- -> ordinary ChatGPT chooses novel strategy
- -> new proposal returns through normal authorization
-```
-
-The report contains operational evidence summaries, never private hidden reasoning. This adopts the useful supervisory role demonstrated by AVO without adding a second local general planner.
-
-## 26.4 — Human Demo -> Transferable Verified Candidate Skill
-
-Use qualified OpenAdapt Capture/Flow substrate, but compile demonstrations into flexible verified procedure guidance rather than macro replay.
-
-Target representation:
-
-```text
-demonstration
- -> subtask goals
- -> verifiable completion criteria
- -> advisory target/action evidence
- -> applicability/preconditions
- -> project CANDIDATE
-```
-
-Replay rule:
-
-```text
-live state > demonstration
-```
-
-Historical coordinates/action sequence are not executable authority. One demonstration never becomes permanent trust automatically.
-
-### Skill / Procedure Lineage
-
-A reusable skill is versioned evidence, not one mutable opaque blob.
-
-Target lineage fields:
-
-```text
-skill_id
-candidate_id
-parent candidate(s)
-procedure/version identity
-source = demonstration | ChatGPT_revision | human_revision | migration
+subtask goals
+verifiable completion criteria
 applicability/preconditions
-evaluation suite / task variants
-verifier evidence references
-objective metrics / success counters
-failure summary
-promotion state
+advisory target/action evidence
+versioned candidate lineage
 ```
 
-Rules:
+Live state outranks demonstration history. Blind coordinate/action replay is not accepted.
 
-- lineage does not grant action authority;
-- a trusted parent does not automatically make a child trusted;
-- failed/unverified candidates may be retained as compact diagnostics but not trusted executable skills;
-- current live state outranks historical lineage;
-- promotion requires independent evidence across relevant regression/variant cases.
+One demonstration creates at most a candidate. Promotion requires independent replay/regression/variant evidence.
 
-### Bounded candidate-improvement loop
+---
 
-After 26.3B/C foundations exist:
+# 26.5 — Hybrid Computer-Use Integration
 
-```text
-candidate
- -> execute admitted evaluation task
- -> re-observe
- -> verify correctness / goal predicates
- -> measure objective metrics
- -> classify failures
- -> ChatGPT proposes revision
- -> new candidate in lineage
- -> regression / variant evaluation
-```
-
-Useful metrics may include verified success rate, verified recovery rate, action count, latency where meaningful, abstention correctness, regression count and resource cost. No scalar score replaces hard correctness/safety/Finish Gate predicates.
-
-Promotion:
-
-```text
-CANDIDATE
- -> same/near-state replay evidence
- -> changed-state/task variant evidence
- -> objective comparison against parent/baseline
- -> trusted reusable
- -> stale / quarantined / disabled as evidence degrades
-```
-
-Raw human demonstration privacy/retention/redaction/encryption policy is required before broad product capture.
-
-## 26.5 — Hybrid Computer-Use Integration
-
-Purpose: converge accepted Browser/Windows capability-specific mechanisms on common long-horizon contracts without creating a universal raw-tool gateway.
+Converge accepted Browser/Windows mechanisms on common long-horizon contracts without creating a universal raw-tool gateway.
 
 Targets:
 
 ```text
-ObservationEnvelope references across Browser/Windows
-capability-aware semantic-vs-GUI routing
-common grounding proposal identity/confidence/ambiguity fields
-semantic/native state first
-selective screenshot/ROI evidence
-cross-app typed fact provenance
-verified skill lineage applicability across real apps
-StagnationReport / recovery across capability boundaries
-component-level interaction regression corpus
-recovery/noisy-state E2E
+common observation references
+capability-aware semantic/native vs GUI routing
+common grounding identity/confidence/ambiguity evidence
+selective screenshot/ROI fallback
+cross-app fact provenance
+verified recovery across capability boundaries
+component + noisy-state regression corpus
 ```
 
-The router must choose capabilities from explicit preconditions/evidence. Tool availability alone is not a routing decision.
-
-A truthful Windows/computer-use public Chat-facing surface still requires a separate ADR/schema/security review and physical ordinary-Chat acceptance under ADR-024. Stage 26.5 does **not** promise exact future tool names and does not automatically expand the accepted six-tool surface.
+Any future public Windows/computer-use Chat-facing surface still requires its own schema/security/ordinary-Chat physical acceptance.
 
 ---
 
-# Evaluation track for computer use
+# 27 — Distribution & Maintenance
 
-External benchmarks are useful diagnostic/evaluation sources, not automatic release gates.
+Only after the core loop and broad physical scope are credible:
 
-Layer evaluation as:
+- simplify installation/update paths;
+- reduce developer-environment assumptions;
+- make dependency/runtime ownership explicit;
+- preserve fail-closed security boundaries.
+
+The current implementation is primarily Python + Node/MJS + PowerShell/Windows glue. Rust is not a current release prerequisite.
+
+# 28 — Clean User E2E / stable release
+
+Target user path:
 
 ```text
-component/primitive diagnostics
- -> capability integration tests
- -> noisy/recovery fixtures
- -> long-horizon verified procedures
- -> skill-lineage regression/variant suites
- -> selected reproducible external benchmark runs
+download/install
+ -> connect ChatGPT
+ -> grant reviewed permissions
+ -> runtime READY
+ -> perform representative task
+ -> recover/verify/finish correctly
 ```
 
-Reference mechanisms:
-
-- ComponentBench — component-level route/action diagnostics and observation-space sensitivity;
-- WebArena / BrowserGym — functional browser correctness and normalized benchmark harness ideas;
-- OSWorld 2.0 — long-horizon freshness, hidden state, multi-source reconciliation and completion collapse;
-- OSWorld-Noisy — recoverable interruptions;
-- MobileWorldSafety — environmental injection and final-state safety predicates;
-- NVIDIA AVO — persistent state, stagnation supervision and iterative candidate improvement grounded in execution feedback/lineage; architecture reference only, not a project release benchmark.
-
-Never tune production architecture around benchmark-specific tricks without a general project-owned invariant.
+No stable release claim before clean-machine evidence exists.
 
 ---
 
-# Optional internal Extension Manager track
+# Parallel Track M — Conversation Bridge / multi-chat
 
-1MCP remains a replaceable internal manager/aggregator for future third-party MCP backends.
+Future only. First target is one verified Manager -> Worker conversation boundary, then provider-open adapters/fallbacks. It must not outrun WorkingState, verification or credential-isolation prerequisites.
 
-```text
-canonical project-owned semantic surface
- -> typed adapter / capability policy
- -> optional 1MCP Extension Manager
- -> selected third-party MCP backend
-```
+# Optional Track P — local planner
 
-Backend availability is not trust, routing authority or action authorization. Raw catalogs are not automatically published to ChatGPT.
-
----
-
-# Optional Research Track R — Specialized reasoning
-
-Specialized models may later propose structured choices/confidence/ABSTAIN after enough verified procedure-state data exists. They remain non-authorizing and do not replace deterministic verifiers when stronger predicates exist.
-
-# Optional Future Track P — Local Planner / Offline Autonomy
-
-A local general planner remains in the long-term roadmap but is **not part of the current release-critical path**.
-
-Earliest prerequisite: verified long-horizon procedure/WorkingState data plus a measured reason to move planning local.
+Future only:
 
 ```text
-P0 shadow planner
-   sees structured goal/state/procedure evidence
-   -> proposal only
-   -> no authorization / no actuation
-   -> benchmark against ordinary ChatGPT
-
-P1 bounded subtask planner
-   -> explicitly scoped workloads
-   -> deterministic Control Plane remains authoritative
-
-P2 optional local general-planner mode
-   -> only after parity/safety/resource evidence
-   -> never silently replaces ChatGPT default
+P0 shadow/proposal-only
+ -> P1 bounded subtask planner
+ -> P2 optional local general planner
 ```
 
-AVO demonstrates that richer agent harnesses can materially improve long-horizon work, but it does not by itself justify promoting Track P. Any future AVO-like local planner remains on the proposal side of the same deterministic authorization/verifier boundary.
+Every future planner remains above the same deterministic authorization/verifier/Finish Gate boundary and may never grant itself execution authority.
 
-No planner may grant itself execution authority.
+## Roadmap governance
 
-# Parallel Track M — multi-chat orchestration / Conversation Bridge
+Before adding a new stage, major architecture document or kernel-like subsystem, state:
 
-Track M is a separate future upper/work-distribution layer. It is **not** part of the Stage 26 release-critical sequence, does not replace ordinary ChatGPT as the current general planner, and does not change the accepted six-tool public surface.
+1. the concrete observed/measured failure it prevents;
+2. why an existing shared contract cannot handle it;
+3. the physical or automated evidence that will close the work;
+4. which ranked risk in `PROJECT_RISKS.md` it reduces.
 
-Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md` and ADR-035.
-
-The first problem is not "many agents". It is a verified transport boundary between the current manager ChatGPT and one authenticated worker conversation. The architecture below that boundary is provider-open: ChatGPT, Claude, Gemini, DeepSeek, Qwen, Grok, Doubao, Kimi, Perplexity, Poe, Open WebUI, LibreChat and future services are adapter/profile examples rather than a closed support enum.
-
-Target placement:
-
-```text
-ordinary ChatGPT Manager
-        |
-        v
-WorkingState / HandoffPack
-        |
-        v
-Deterministic Control Plane
-        |
-        v
-Conversation Bridge
-        |
-        v
-Adapter Registry
-   |          |          |
-native/    Generic     selected
-profile    ChatAdapter   GUI/visual
-adapters   DOM / A11y    fallback
-   |          |          |
-   +----------+----------+
-              |
-              v
-project-owned Browser Companion in authenticated user browser
-              |
-              +----> any qualified AI-chat application/surface
-```
-
-The Browser Companion exists because the current accepted Browser backend is isolated/headless and is not the user's already-authenticated browser session.
-
-Track M reuses the existing state-first and verification rules:
-
-```text
-select strongest valid adapter route
- -> observe worker session
- -> bind ExpectedEffect
- -> authorize one bounded submit_message
- -> re-observe exact conversation/message state
- -> verify PASS | FAIL | UNKNOWN
- -> observe fresh settled worker response
- -> record selected result/evidence in WorkingState
- -> ordinary ChatGPT decides the next strategy
-```
-
-Target data contracts separate application/surface identity from optional model identity:
-
-```text
-ConversationSnapshot
-  surface/application id      # open-ended string
-  provider/service id         # open-ended string / unknown allowed
-  adapter id/version/route
-  optional model identity
-  stable session/conversation/message identity where available
-  active branch where the platform exposes one
-  content hashes
-  generation state
-  provenance/freshness
-
-HandoffPack
-  task/subgoal
-  user constraints
-  verified completed state
-  authoritative facts + provenance/freshness
-  open questions
-  artifact/evidence refs
-  selected context + recent messages
-  context budget
-```
-
-Do not use whole-transcript Markdown replay as the primary memory model. Full conversation history is evidence and may be retrieved when needed; `WorkingState` remains the durable operational source for task progress.
-
-Default provider-extension path:
-
-```text
-small declarative profile
- -> optional reviewed custom hook for true provider quirks
- -> shared Adapter Registry / observation / actuation / verification machinery
-```
-
-Required degradation ladder:
-
-```text
-validated native/profile route
- -> GenericChatAdapter via DOM/accessibility/structural state
- -> selected GUI / visual fallback
- -> ABSTAIN when state remains ambiguous or unsafe
-```
-
-A provider UI/API change should degrade one route rather than require a core architecture rewrite. A new brand normally requires a profile/hook, not duplicated Control Plane, WorkingState, verifier or Finish Gate logic.
-
-Credentials stay inside the Browser Companion. Cookies/bearer tokens/private auth headers are never exported to the planner, MCP payload or WorkingState. Platform profiles/hooks remain hints/capability declarations, never authority.
-
-Suggested future sequence after the relevant state/verification foundations exist:
-
-```text
-M0 Adapter Registry + open-ended profile/schema + ConversationSnapshot fixtures
- -> M1 Browser Companion + GenericChatAdapter + one validated reference adapter
- -> M2 one Manager ChatGPT -> one Worker conversation verified handoff E2E
- -> M3 HandoffPack + WorkingState integration / response monitoring
- -> M4 additional declarative/provider adapters + capability discovery
- -> M5 explicit multi-worker task/session ownership
- -> M6 broader provider/application matrix under the same contract
-```
-
-Adapter acceptance is capability-specific rather than binary:
-
-```text
-DISCOVERED
- -> FIXTURE-TESTED
- -> READ-VERIFIED
- -> WRITE-VERIFIED
- -> PHYSICALLY-ACCEPTED
- -> DEGRADED / INCOMPATIBLE when evidence stops holding
-```
-
-CtxPort may be reused selectively under MIT terms for implementation mechanisms such as adapter registry structure, open-ended provider IDs, declarative manifest/profile + hooks, ChatGPT active-branch linearization, separation of fetch/acquisition from normalization and dynamic-page observation. CtxPort itself, its clipboard/UI/export workflow and Markdown bundle formats are not product/runtime dependencies.
-
-Multiple worker chats must not be introduced before the one-manager/one-worker path has explicit identity, delivery verification, response freshness, bounded failure/recovery and physical user-browser evidence.
-
----
-
-# Stage 27 — Distribution & Maintenance
-
-Installer/update/repair/doctor/uninstall/rollback/restart recovery/key rotation/artifact validation/lifecycle UI. Release-grade Python/model/OpenAdapt reproducibility is required.
-
-# Stage 28 — Clean User E2E / first stable release
-
-Fresh-user operation without git checkout or developer-only PowerShell/Python setup, through the accepted product capability surface.
+Prefer improving proven capability over growing taxonomy.

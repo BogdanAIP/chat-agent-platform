@@ -15,6 +15,7 @@ on:
       - "scripts/chat-platform-controller.ps1"
       - "scripts/chat-platform.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/bootstrap-manager-runtime.ps1"
       - "scripts/local-vision-runtime.ps1"
       - "scripts/local-vision-runtime-watchdog.ps1"
       - "scripts/verify-local-vision-listener.ps1"
@@ -37,6 +38,7 @@ on:
       - "scripts/chat-platform-controller.ps1"
       - "scripts/chat-platform.ps1"
       - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/bootstrap-manager-runtime.ps1"
       - "scripts/local-vision-runtime.ps1"
       - "scripts/local-vision-runtime-watchdog.ps1"
       - "scripts/verify-local-vision-listener.ps1"
@@ -114,6 +116,20 @@ jobs:
           }
           if ($source -match "command:\s*'npx'" -or $source -match "command:\s*'cmd'.*npx") {
             throw 'Semantic projection must not perform downstream npm installs at tool-call time.'
+          }
+
+          $inner = Get-Content 'runtime/semantic-projection/bin/semantic-projection.mjs' -Raw -Encoding utf8
+          $bridge = Get-Content 'runtime/semantic-projection/lib/browser-verification-bridge.mjs' -Raw -Encoding utf8
+          if ($inner -notmatch 'verifyPlaywrightNavigation' -or $inner -notmatch 'captureBrowserObservation') {
+            throw 'Semantic projection is missing Browser Verification Kernel integration.'
+          }
+          if ($bridge -notmatch 'browser_transition_cli\.py') {
+            throw 'Browser verification bridge is not bound to the reviewed Python verifier.'
+          }
+          foreach ($forbidden in @('browser_evaluate','browser_run_code_unsafe','child_process.exec','shell: true')) {
+            if ($bridge -match [regex]::Escape($forbidden)) {
+              throw "Browser verification bridge contains forbidden marker '$forbidden'."
+            }
           }
 
           $launcher = Get-Content 'runtime/semantic-projection/bin/semantic-projection-launcher.mjs' -Raw -Encoding utf8
@@ -203,11 +219,15 @@ jobs:
             'runtime/semantic-projection/bin/semantic-projection-launcher.mjs',
             'runtime/semantic-projection/bin/semantic-control-plane-projection.mjs',
             'runtime/semantic-projection/bin/semantic-projection.mjs',
+            'runtime/semantic-projection/lib/browser-verification-bridge.mjs',
             'runtime/semantic-projection/lib/semantic-vision-click-router.mjs',
             'runtime/semantic-projection/lib/visual-grounding-bridge.mjs',
             'runtime/semantic-projection/lib/runtime-backed-bridge-grounder.mjs',
             'runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs',
             'runtime/control_plane/__init__.py',
+            'runtime/control_plane/browser_observation.py',
+            'runtime/control_plane/browser_transition.py',
+            'runtime/control_plane/browser_transition_cli.py',
             'runtime/control_plane/cli.py',
             'runtime/control_plane/file_artifact_observation.py',
             'runtime/control_plane/verification.py',
@@ -233,6 +253,10 @@ jobs:
 
           foreach ($required in @(
             (Join-Path $installedRuntime 'semantic-projection/bin/semantic-control-plane-projection.mjs'),
+            (Join-Path $installedRuntime 'semantic-projection/lib/browser-verification-bridge.mjs'),
+            (Join-Path $installedRuntime 'control_plane/browser_observation.py'),
+            (Join-Path $installedRuntime 'control_plane/browser_transition.py'),
+            (Join-Path $installedRuntime 'control_plane/browser_transition_cli.py'),
             (Join-Path $installedRuntime 'control_plane/cli.py'),
             (Join-Path $installedRuntime 'control_plane/file_artifact_observation.py'),
             (Join-Path $installedRuntime 'control_plane/verification.py'),
@@ -248,6 +272,7 @@ jobs:
             }
           }
           Write-Host 'SEMANTIC_INSTALLED_SIX_TOOL_BUNDLE=PASS'
+          Write-Host 'SEMANTIC_INSTALLED_BROWSER_VERIFIER=PASS'
 
           Push-Location (Join-Path $installedRuntime 'semantic-projection')
           try {

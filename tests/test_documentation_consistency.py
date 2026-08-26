@@ -10,12 +10,31 @@ CONTEXT = ROOT / "project-context"
 
 
 class DocumentationConsistencyTests(unittest.TestCase):
-    def test_every_project_context_markdown_file_is_classified(self) -> None:
+    def test_authoritative_project_context_documents_are_classified_and_default_is_explicit(self) -> None:
         status = (CONTEXT / "DOCUMENT_STATUS.md").read_text(encoding="utf-8")
-        names = sorted(path.name for path in CONTEXT.glob("*.md"))
-        self.assertGreater(len(names), 20)
-        missing = [name for name in names if f"`{name}`" not in status]
-        self.assertEqual(missing, [], f"unclassified project-context docs: {missing}")
+        required = (
+            "CONTINUATION_CONTEXT.md",
+            "START_HERE.md",
+            "CURRENT_STATE.md",
+            "PROJECT_RISKS.md",
+            "ARCHITECTURE.md",
+            "CONTROL_PLANE.md",
+            "COMPUTER_USE_ARCHITECTURE.md",
+            "SECURITY_POLICY.md",
+            "ROADMAP.md",
+            "DOCUMENT_STATUS.md",
+            "EVIDENCE_INDEX.md",
+            "STAGE26_3B_VERIFICATION_KERNEL.md",
+        )
+        for name in required:
+            with self.subTest(name=name):
+                self.assertIn(f"`{name}`", status)
+
+        # Do not force DOCUMENT_STATUS to enumerate every historical/research
+        # markdown file forever. Unlisted project-context documents are
+        # deliberately non-authoritative until explicitly promoted.
+        self.assertIn("not explicitly listed", status)
+        self.assertIn("HISTORICAL / REFERENCE by default", status)
 
     def test_authoritative_docs_use_current_planner_control_plane_boundary(self) -> None:
         files = [
@@ -24,6 +43,7 @@ class DocumentationConsistencyTests(unittest.TestCase):
             CONTEXT / "CONTINUATION_CONTEXT.md",
             CONTEXT / "START_HERE.md",
             CONTEXT / "CURRENT_STATE.md",
+            CONTEXT / "PROJECT_RISKS.md",
             CONTEXT / "ARCHITECTURE.md",
             CONTEXT / "CONTROL_PLANE.md",
             CONTEXT / "COMPUTER_USE_ARCHITECTURE.md",
@@ -78,36 +98,29 @@ class DocumentationConsistencyTests(unittest.TestCase):
                 with self.subTest(path=path.name, phrase=phrase):
                     self.assertNotIn(phrase, text)
 
-    def test_current_stage_order_is_consistent(self) -> None:
-        files = (
-            CONTEXT / "ROADMAP.md",
-            CONTEXT / "CURRENT_STATE.md",
-            CONTEXT / "CONTINUATION_CONTEXT.md",
-        )
-        # Current documents may legitimately mention active later stages near
-        # the top. What matters is that each still contains an explicit
-        # release-order sequence 26.2E -> 26.3 -> 26.4.
+    def test_release_order_has_one_authoritative_owner(self) -> None:
+        roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
+        current = (CONTEXT / "CURRENT_STATE.md").read_text(encoding="utf-8")
+        continuation = (CONTEXT / "CONTINUATION_CONTEXT.md").read_text(encoding="utf-8")
+
+        # ROADMAP owns the explicit release order. Current-state/continuation
+        # docs should point to it rather than duplicating a brittle stage list.
         ordered_sequence = re.compile(
-            r"26\.2E[\s\S]{0,4000}?26\.3[\s\S]{0,4000}?26\.4",
+            r"26\.3B[\s\S]{0,3000}?26\.3C[\s\S]{0,3000}?26\.4[\s\S]{0,3000}?26\.5",
             re.IGNORECASE,
         )
-        for path in files:
-            text = path.read_text(encoding="utf-8")
-            with self.subTest(path=path.name):
-                self.assertRegex(
-                    text,
-                    ordered_sequence,
-                    f"{path.name} must contain an explicit 26.2E -> 26.3 -> 26.4 release sequence",
-                )
+        self.assertRegex(roadmap, ordered_sequence)
+        self.assertIn("ROADMAP.md", current)
+        self.assertIn("ROADMAP.md", continuation)
 
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
         control = (CONTEXT / "CONTROL_PLANE.md").read_text(encoding="utf-8")
-        self.assertIn("Optional Future Track P", roadmap)
-        self.assertIn("not part of the current release-critical path", control)
-        self.assertIn("P0 shadow planner", roadmap)
-        self.assertIn("proposal only", roadmap)
+        self.assertIn("Optional Track P", roadmap)
+        self.assertIn("future only", roadmap.casefold())
+        self.assertIn("shadow/proposal-only", roadmap)
         self.assertIn("deterministic Control Plane", roadmap)
+        self.assertIn("not part of the current release-critical path", control)
 
     def test_computer_use_architecture_preserves_small_surface_and_independent_completion(self) -> None:
         computer_use = (CONTEXT / "COMPUTER_USE_ARCHITECTURE.md").read_text(encoding="utf-8")

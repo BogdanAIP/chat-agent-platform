@@ -78,6 +78,11 @@ def canonicalize_browser_url(value: Any) -> tuple[str, str]:
     if raw != raw.strip() or any(ord(char) < 32 for char in raw):
         raise ValueError("browser url contains surrounding whitespace or control characters")
 
+    # The isolated Playwright session starts at this one browser-internal state.
+    # It is admissible only as observation evidence, never as a web_open target.
+    if raw.lower() == "about:blank":
+        return "about:blank", "about:"
+
     try:
         parsed = urlsplit(raw)
         port = parsed.port
@@ -86,7 +91,7 @@ def canonicalize_browser_url(value: Any) -> tuple[str, str]:
 
     scheme = parsed.scheme.lower()
     if scheme not in {"http", "https"}:
-        raise ValueError("browser url must use http or https")
+        raise ValueError("browser url must use http or https, except observed about:blank")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("browser url must not contain credentials")
     if not parsed.hostname:
@@ -238,6 +243,14 @@ def normalize_browser_observation(raw: Any) -> tuple[dict[str, Any], bool, bool]
         "control_count": len(raw_controls),
         "verified_control_count": len(controls),
     }
+    state["page_state_sha256"] = hashlib.sha256(
+        json.dumps(
+            state,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
     return state, complete, declared_ambiguous or bool(collisions)
 
 

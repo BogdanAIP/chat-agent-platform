@@ -25,10 +25,14 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'runtime\\semantic-projection\\bin\\semantic-projection-launcher.mjs',
             'runtime\\semantic-projection\\bin\\semantic-control-plane-projection.mjs',
             'runtime\\semantic-projection\\bin\\semantic-projection.mjs',
+            'runtime\\semantic-projection\\lib\\browser-verification-bridge.mjs',
             'runtime\\semantic-projection\\lib\\semantic-vision-click-router.mjs',
             'runtime\\semantic-projection\\lib\\visual-grounding-bridge.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-bridge-grounder.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-visual-grounder.mjs',
+            'runtime\\control_plane\\browser_observation.py',
+            'runtime\\control_plane\\browser_transition.py',
+            'runtime\\control_plane\\browser_transition_cli.py',
             'runtime\\control_plane\\cli.py',
             'runtime\\control_plane\\file_artifact_observation.py',
             'runtime\\control_plane\\verification.py',
@@ -45,6 +49,8 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'delete process.env[key]',
             "semantic-control-plane-projection.mjs",
             "server.registerTool('$toolName'",
+            'verifyPlaywrightNavigation',
+            'captureBrowserObservation',
         ):
             self.assertIn(marker, self.combined)
 
@@ -73,10 +79,14 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'runtime\\semantic-projection\\bin\\semantic-projection-launcher.mjs',
             'runtime\\semantic-projection\\bin\\semantic-control-plane-projection.mjs',
             'runtime\\semantic-projection\\bin\\semantic-projection.mjs',
+            'runtime\\semantic-projection\\lib\\browser-verification-bridge.mjs',
             'runtime\\semantic-projection\\lib\\semantic-vision-click-router.mjs',
             'runtime\\semantic-projection\\lib\\visual-grounding-bridge.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-bridge-grounder.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-visual-grounder.mjs',
+            'runtime\\control_plane\\browser_observation.py',
+            'runtime\\control_plane\\browser_transition.py',
+            'runtime\\control_plane\\browser_transition_cli.py',
             'runtime\\control_plane\\cli.py',
             'runtime\\control_plane\\file_artifact_observation.py',
             'runtime\\control_plane\\verification.py',
@@ -91,15 +101,36 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
         self.assertIn("bootstrap-manager-runtime.ps1", self.bootstrap)
         self.assertIn("Install-ChatManagerBundle", self.bootstrap)
         self.assertIn("SEMANTIC_PUBLIC_TOOL_COUNT=6", self.bootstrap)
+        for marker in (
+            'runtime\\semantic-projection\\lib\\browser-verification-bridge.mjs',
+            'runtime\\control_plane\\browser_observation.py',
+            'runtime\\control_plane\\browser_transition.py',
+            'runtime\\control_plane\\browser_transition_cli.py',
+        ):
+            self.assertIn(marker, self.bootstrap)
 
     def test_standalone_layout_fixture_copies_shared_verification_modules(self) -> None:
         for marker in (
+            "runtime/control_plane/browser_observation.py",
+            "runtime/control_plane/browser_transition.py",
+            "runtime/control_plane/browser_transition_cli.py",
             "runtime/control_plane/file_artifact_observation.py",
             "runtime/control_plane/verification.py",
+            "runtime/semantic-projection/lib/browser-verification-bridge.mjs",
+            "control_plane/browser_observation.py",
+            "control_plane/browser_transition.py",
+            "control_plane/browser_transition_cli.py",
             "control_plane/file_artifact_observation.py",
             "control_plane/verification.py",
+            "SEMANTIC_INSTALLED_BROWSER_VERIFIER=PASS",
         ):
             self.assertIn(marker, self.semantic_workflow)
+
+    def test_browser_verifier_bridge_is_bounded_and_not_generic_dispatch(self) -> None:
+        self.assertIn("browser_transition_cli.py", self.manager)
+        self.assertIn("browser Verification Kernel bridge", self.manager)
+        self.assertIn("browser_evaluate", self.manager)
+        self.assertIn("-ge 0", self.manager)
 
 
 if __name__ == "__main__":
