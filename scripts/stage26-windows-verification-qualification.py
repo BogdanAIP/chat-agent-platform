@@ -6,6 +6,7 @@ import json
 import sys
 import time
 import traceback
+from importlib import metadata
 from pathlib import Path
 from typing import Any, Callable
 
@@ -22,7 +23,7 @@ from runtime.control_plane.windows_transition import (
     verify_windows_desktop_transition,
 )
 from runtime.windows.observation import DesktopState, build_desktop_state, observe_bound_window
-from runtime.windows.window_scoped_uia import WindowScopedUiaResolver
+from runtime.windows.window_scoped_uia import WindowScopedUiaResolver, _upstream
 
 
 FIXTURE_WINDOW_NAME = "Stage 26 capture qualification fixture"
@@ -108,6 +109,39 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _openadapt_attestation() -> dict[str, Any]:
+    """Bind the installed UIA backend used by this physical run to the project pin.
+
+    SourceProvenanceGate binds the lockfile inside the exact Git tree. This
+    record additionally captures the actual installed distribution version and
+    the SHA-256 of the win_agent server module imported by the resolver.
+    """
+
+    lock_path = REPO_ROOT / "config" / "stage26-openadapt-lock.json"
+    lock = _read_json(lock_path)
+    expected_version = str(lock["upstreams"]["openadapt_flow"]["declared_version"])
+    expected_commit = str(lock["upstreams"]["openadapt_flow"]["commit"])
+    installed_version = metadata.version("openadapt-flow")
+    server = _upstream()
+    server_file_raw = getattr(server, "__file__", None)
+    if not server_file_raw:
+        raise RuntimeError("OpenAdapt win_agent server module has no source path")
+    server_path = Path(server_file_raw).resolve()
+    if not server_path.is_file():
+        raise RuntimeError(f"OpenAdapt win_agent server source is missing: {server_path}")
+    return {
+        "lockfile": str(lock_path),
+        "lockfile_sha256": _sha256(lock_path),
+        "repository": str(lock["upstreams"]["openadapt_flow"]["repository"]),
+        "expected_commit": expected_commit,
+        "expected_version": expected_version,
+        "installed_version": installed_version,
+        "version_match": installed_version == expected_version,
+        "win_agent_server_path": str(server_path),
+        "win_agent_server_sha256": _sha256(server_path),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", required=True)
@@ -130,6 +164,7 @@ def main() -> int:
         "observation_adapter_sha256": _sha256(observation_adapter),
         "transition_adapter_sha256": _sha256(transition_adapter),
         "driver_source_sha256": _sha256(driver_path),
+        "openadapt_attestation": None,
         "fixture_process_id": None,
         "same_live_identity_pass": False,
         "kernel_pass_status": None,
@@ -148,6 +183,14 @@ def main() -> int:
     }
 
     try:
+        attestation = _openadapt_attestation()
+        result["openadapt_attestation"] = attestation
+        if not attestation["version_match"]:
+            raise RuntimeError(
+                "installed openadapt-flow does not match project lock: "
+                f"expected={attestation['expected_version']} actual={attestation['installed_version']}"
+            )
+
         ready_path.write_text("READY\n", encoding="ascii")
         fixture = _wait_state(
             fixture_state_path,
@@ -223,7 +266,8 @@ def main() -> int:
 
         stats = resolver.stats
         result["pass"] = bool(
-            result["same_live_identity_pass"]
+            attestation["version_match"]
+            and result["same_live_identity_pass"]
             and verified["status"] == "pass"
             and verified["verification"]["reason"] == "expected_effect_verified"
             and result["wrong_postcondition_fail_pass"]
@@ -249,6 +293,12 @@ def main() -> int:
     print(f"OBSERVATION_ADAPTER_SHA256={result['observation_adapter_sha256']}")
     print(f"TRANSITION_ADAPTER_SHA256={result['transition_adapter_sha256']}")
     print(f"DRIVER_SOURCE_SHA256={result['driver_source_sha256']}")
+    if result["openadapt_attestation"] is not None:
+        attestation = result["openadapt_attestation"]
+        print(f"OPENADAPT_EXPECTED_VERSION={attestation['expected_version']}")
+        print(f"OPENADAPT_INSTALLED_VERSION={attestation['installed_version']}")
+        print(f"OPENADAPT_VERSION_MATCH={attestation['version_match']}")
+        print(f"OPENADAPT_WIN_AGENT_SERVER_SHA256={attestation['win_agent_server_sha256']}")
     print(f"SAME_LIVE_IDENTITY_PASS={result['same_live_identity_pass']}")
     print(f"KERNEL_PASS_STATUS={result['kernel_pass_status']}")
     print(f"KERNEL_PASS_REASON={result['kernel_pass_reason']}")
