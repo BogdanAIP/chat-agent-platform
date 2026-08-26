@@ -25,7 +25,8 @@ class RealTaskAcceptanceContractTests(unittest.TestCase):
         windows_verifier = roadmap.index('Current active slice — PR #114', browser_l3)
         self.assertLess(browser_l3, windows_verifier)
         self.assertIn('PHYSICAL ACCEPTED / MERGED #113', roadmap)
-        self.assertIn('target-Windows verifier qualification required on final exact head', roadmap)
+        self.assertIn('SourceProvenanceGate PASS on the same exact head', roadmap)
+        self.assertIn('target-Windows physical verifier qualification', roadmap)
 
     def test_document_status_promotes_real_task_contract(self):
         status = (ROOT / 'project-context' / 'DOCUMENT_STATUS.md').read_text(encoding='utf-8')
