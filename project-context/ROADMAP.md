@@ -79,6 +79,7 @@ file/artifact kernel integration                  PHYSICAL ACCEPTED / MERGED #10
 Browser observation foundation                    MERGED #106
 web_open final-state verification                 PHYSICAL ACCEPTED / MERGED #107
 Browser Harness / ADR-036 docs                    MERGED #110
+web_interact postcondition verification           PHYSICAL ACCEPTED / MERGED #111
 ```
 
 Windows acceptance is scoped evidence, not universal Windows accuracy.
@@ -120,29 +121,23 @@ separate task-success and safety/policy results
 Accepted production integrations:
 
 - file/artifact procedure path through PR #102;
-- production `web_open` final-state verification through physically accepted/merged PR #107.
+- production `web_open` final-state verification through physically accepted/merged PR #107;
+- production `web_interact` click/type postcondition verification through physically accepted/merged PR #111.
 
 Merged observation foundation:
 
 - Browser observation stream through PR #106.
 
-Current active production slice:
+Current active evidence slice:
 
-- **draft PR #111 — production `web_interact` click/type postcondition verification**.
+- **draft PR #113 — clean replay of the first stateful Browser L3 real-task acceptance harness directly on accepted post-#111 `main`**.
 
-PR #111 has fresh hosted CI on its current exact head and still requires target-Windows ordinary-Chat physical interaction evidence before merge.
-
-First Browser L3 evidence slice:
-
-- **draft stacked PR #112 — stateful Browser real-task acceptance harness**.
-
-PR #112 does not replace #111's primitive gate. After #111 is physically accepted and merged, #112 must be replayed on accepted `main`, pass hosted harness checks, and then pass an ordinary-Chat target-Windows L3 task from a natural user goal.
+Historical stacked PR #112 is superseded by #113. PR #113 must receive fresh hosted harness/contract checks on its final exact head and then pass an ordinary-Chat target-Windows L3 task from a natural user goal plus the external independent Finish Gate.
 
 Remaining 26.3B work:
 
 ```text
-PR #111 final exact-head physical acceptance + merge
-Browser L3 real-task gate on replayed #112
+Browser L3 real-task gate on replayed #113
 Windows/application/process verification
 representative Windows/application L3 after its verifier exists
 cross-capability completion predicates where real procedures require them
