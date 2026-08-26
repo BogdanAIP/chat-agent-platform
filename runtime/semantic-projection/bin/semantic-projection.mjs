@@ -197,6 +197,55 @@ function normalizeInteractionExpected(args) {
   return normalized;
 }
 
+function assessInteractionExpectedBefore(before, expected) {
+  let mismatch = false;
+  let unknown = false;
+
+  if (before?.settled !== true || before?.complete !== true || before?.ambiguous === true) {
+    unknown = true;
+  }
+
+  if (expected.url !== undefined) {
+    try {
+      const observedUrl = normalizeExpectedBrowserUrl(before.url);
+      if (observedUrl !== expected.url) mismatch = true;
+    } catch {
+      unknown = true;
+    }
+  }
+
+  if (expected.control !== undefined) {
+    const expectedControl = expected.control;
+    const matches = Array.isArray(before?.controls)
+      ? before.controls.filter(control => control?.control_id === expectedControl.control_id)
+      : [];
+    if (matches.length > 1) {
+      unknown = true;
+    } else {
+      const observed = matches[0] ?? null;
+      if (expectedControl.present === false) {
+        if (observed !== null) mismatch = true;
+      } else if (observed === null) {
+        mismatch = true;
+      } else {
+        const fields = ['value', 'checked', 'selected', 'enabled'];
+        for (const field of fields) {
+          if (expectedControl[field] === undefined) continue;
+          if (observed[field] === null || observed[field] === undefined) {
+            unknown = true;
+          } else if (observed[field] !== expectedControl[field]) {
+            mismatch = true;
+          }
+        }
+      }
+    }
+  }
+
+  if (mismatch) return { status: 'delta_required', reason: 'expected_not_yet_satisfied' };
+  if (unknown) return { status: 'unknown', reason: 'expected_before_state_not_fully_observable' };
+  return { status: 'already_satisfied', reason: 'expected_already_satisfied' };
+}
+
 async function createBackend(kind) {
   let spec;
   let requiredTools;
@@ -346,7 +395,7 @@ const server = new McpServer(
   { name: 'chat-semantic-projection', version: VERSION },
   {
     instructions:
-      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use an isolated headless Playwright session. web_open is accepted only after a fresh independent browser_snapshot proves the exact canonical final URL and document state. web_interact mutations are accepted only after fresh post-action verification of a bounded declared result; type without submit may infer the typed control value, while click and type+submit require an explicit expected result before delivery. For click only, a reviewed text-labeled visual fallback may run internally after a fresh accessibility snapshot proves zero exact targetText candidates. One exact candidate is clicked semantically; a unique enabled button may also be selected when all same-name alternatives are disabled. Unresolved ambiguity and semantic action errors fail closed without vision.'
+      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use an isolated headless Playwright session. web_open is accepted only after a fresh independent browser_snapshot proves the exact canonical final URL and document state. web_interact mutations are accepted only after fresh post-action verification of a bounded declared result; type without submit may infer the typed control value, while click and type+submit require an explicit expected result before delivery. A web_interact action is also refused before delivery when the declared expected result is already satisfied or cannot be safely distinguished from the fresh pre-action state. For click only, a reviewed text-labeled visual fallback may run internally after a fresh accessibility snapshot proves zero exact targetText candidates. One exact candidate is clicked semantically; a unique enabled button may also be selected when all same-name alternatives are disabled. Unresolved ambiguity and semantic action errors fail closed without vision.'
   }
 );
 
@@ -446,7 +495,7 @@ server.registerTool('web_observe', {
 
 server.registerTool('web_interact', {
   title: 'Interact With Web Page',
-  description: 'Interact with the isolated browser using click or type, with fresh before/after verification of a bounded observable postcondition. type without submit may infer the target control value; click and type+submit require expected={url and/or control state} before delivery. click may optionally use the existing reviewed text-labeled visual fallback. Generic page-change heuristics, arbitrary JavaScript, file upload, direct network inspection and backend/tool selection are not accepted.',
+  description: 'Interact with the isolated browser using click or type, with fresh before/after verification of a bounded observable postcondition. type without submit may infer the target control value; click and type+submit require expected={url and/or control state} before delivery. The action is refused when expected is already satisfied or cannot be safely distinguished from the fresh pre-action state. click may optionally use the existing reviewed text-labeled visual fallback. Generic page-change heuristics, arbitrary JavaScript, file upload, direct network inspection and backend/tool selection are not accepted.',
   inputSchema: z.object({
     operation: z.enum(['click', 'type']), target: z.string().min(1).max(4096).optional(),
     element: z.string().min(1).max(1024).optional(), doubleClick: z.boolean().optional(),
@@ -480,6 +529,13 @@ server.registerTool('web_interact', {
     }
 
     const before = await captureBrowserObservation();
+    const preflight = assessInteractionExpectedBefore(before, expected);
+    if (preflight.status === 'already_satisfied') {
+      return toolError('web_interact refused action before delivery: expected postcondition is already satisfied by the fresh pre-action observation.');
+    }
+    if (preflight.status !== 'delta_required') {
+      return toolError('web_interact refused action before delivery: expected postcondition cannot be safely distinguished from the fresh pre-action observation.');
+    }
 
     if (args.operation === 'click') {
       if (args.visualFallback !== undefined) {
