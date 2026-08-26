@@ -127,6 +127,24 @@ try {
   assert.equal(agree.checked, true);
   console.log('BROWSER_INTERACTION_CHECKED_VERIFY=PASS');
 
+  // An expected result that is already true before the action proves no delta.
+  // The click must be refused before delivery and the checkbox must stay true.
+  const alreadySatisfied = await client.callTool({
+    name: 'web_interact',
+    arguments: {
+      operation: 'click',
+      target: agree.control_id,
+      element: 'Agree',
+      expected: { control: { target: agree.control_id, checked: true } },
+    },
+  });
+  assert.equal(alreadySatisfied?.isError, true, textOf(alreadySatisfied));
+  assert(textOf(alreadySatisfied).includes('already satisfied'), textOf(alreadySatisfied));
+  snapshot = await observe(client);
+  agree = controlByName(snapshot.parsed, 'Agree');
+  assert.equal(agree.checked, true);
+  console.log('BROWSER_INTERACTION_ALREADY_SATISFIED_ZERO_ACTION=PASS');
+
   // A click may prove a concrete structural effect such as disappearance.
   const remove = controlByName(snapshot.parsed, 'Remove me');
   const removed = await client.callTool({
@@ -172,18 +190,20 @@ try {
   assert.equal(nameInput.value, 'HELLO');
   console.log('BROWSER_INTERACTION_SUBMIT_MISSING_EXPECTED_ZERO_ACTION=PASS');
 
-  // Delivery and verification are separate: deliberately request the wrong
-  // postcondition. The checkbox toggles, but the tool must report verification
-  // failure rather than success.
+  // Delivery and verification are separate. The requested enabled=false state
+  // is not true before the click, so preflight permits delivery; the click only
+  // toggles checked state and does not disable the control, so final verification
+  // must fail rather than becoming success merely because an action occurred.
   agree = controlByName(snapshot.parsed, 'Agree');
   assert.equal(agree.checked, true);
+  assert.equal(agree.enabled, true);
   const mismatch = await client.callTool({
     name: 'web_interact',
     arguments: {
       operation: 'click',
       target: agree.control_id,
       element: 'Agree',
-      expected: { control: { target: agree.control_id, checked: true } },
+      expected: { control: { target: agree.control_id, enabled: false } },
     },
   });
   assert.equal(mismatch?.isError, true, textOf(mismatch));
@@ -191,6 +211,7 @@ try {
   snapshot = await observe(client);
   agree = controlByName(snapshot.parsed, 'Agree');
   assert.equal(agree.checked, false);
+  assert.equal(agree.enabled, true);
   console.log('BROWSER_INTERACTION_DELIVERY_NOT_SUCCESS=PASS');
 
   console.log('BROWSER_INTERACTION_VERIFICATION_PLAYWRIGHT=PASS');
