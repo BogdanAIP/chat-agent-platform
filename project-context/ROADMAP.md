@@ -76,7 +76,7 @@ Windows acceptance is scoped evidence, not universal Windows accuracy.
 
 The **Broad real-app physical coverage gate is an acceptance objective, not a new architecture stage**. It exists to stop architecture growth from outrunning proven computer-use capability.
 
-Track M multi-chat and Track P local-planner work are future/parallel and do not replace this release-critical sequence.
+Track M multi-chat remains future/parallel. Track P local-planner work is **future only**. Neither replaces this release-critical sequence.
 
 ---
 
@@ -358,7 +358,7 @@ Track M remains future/parallel. It may reuse Browser Companion and verified han
 
 # Optional Track P — local planner
 
-Track P remains optional research:
+Track P is **future only** optional research:
 
 ```text
 P0 shadow/proposal-only
