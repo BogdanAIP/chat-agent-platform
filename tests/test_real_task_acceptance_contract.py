@@ -21,7 +21,7 @@ class RealTaskAcceptanceContractTests(unittest.TestCase):
 
     def test_roadmap_requires_browser_l3_before_windows_verifier(self):
         roadmap = (ROOT / 'project-context' / 'ROADMAP.md').read_text(encoding='utf-8')
-        browser_l3 = roadmap.index('Browser L3 real-task gate on replayed #112')
+        browser_l3 = roadmap.index('Browser L3 real-task gate on replayed #113')
         windows_verifier = roadmap.index('Windows/application/process verification', browser_l3)
         self.assertLess(browser_l3, windows_verifier)
 
