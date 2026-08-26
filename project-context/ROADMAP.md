@@ -6,7 +6,7 @@ Keep ordinary ChatGPT as the **only current general planning layer** while the l
 
 The deterministic Control Plane is not a second planner. It may advance already-selected known transitions under explicit authorization/verification and must escalate when a new strategy is required.
 
-Canonical architecture/contracts: `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `SECURITY_POLICY.md`, `REAL_TASK_ACCEPTANCE.md`, `CURRENT_STATE.md`, `PROJECT_RISKS.md`, `TECH_DEBT.md`; ADR-036 future Browser/local-execution direction lives in `BROWSER_HARNESS_ARCHITECTURE.md`.
+Canonical architecture/contracts: `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `SECURITY_POLICY.md`, `REAL_TASK_ACCEPTANCE.md`, `SOURCE_PROVENANCE_ACCEPTANCE.md`, `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`, `CURRENT_STATE.md`, `PROJECT_RISKS.md`, `TECH_DEBT.md`; ADR-036 future Browser/local-execution direction lives in `BROWSER_HARNESS_ARCHITECTURE.md`.
 
 ## Accepted public semantic surface
 
@@ -33,6 +33,18 @@ L1 — primitive / contract proof
 
 L3 receives a natural-language goal rather than a click/type script and verifies independent final state plus important non-target constraints. One L3 pass is scoped evidence, not a universal reliability claim.
 
+Release-critical physical acceptance has an orthogonal source-provenance requirement:
+
+```text
+behavior evidence
+  L1 / L2 / L3 + independent Finish Gate
+
+source evidence
+  exact expected head + clean tree + critical source/driver/lock hash binding
+```
+
+`git rev-parse HEAD` alone is not sufficient proof of the bytes actually executed.
+
 ## Completed foundation relevant to current work
 
 ```text
@@ -52,21 +64,24 @@ Browser L3 real-task acceptance                   PHYSICAL ACCEPTED / MERGED #11
 
 The Browser L3 run used randomized Case Desk data and an external independent Finish Gate. Accepted evidence included exactly one target save, one target audit mutation and `NON_TARGET_MUTATION=none`.
 
+The later Source Provenance review found that the historical #113 harness proved the named head and independent task result but did not separately prove a clean working tree/source-byte binding. #113 is not retroactively failed; before Stage 26.3B closes, repeat one representative Browser L3 under the stronger provenance methodology.
+
 Windows acceptance remains scoped evidence, not universal Windows accuracy.
 
 ## Current release-critical sequence
 
 ```text
 26.3B Verification Kernel + production adapters   ACTIVE
- -> 26.3C WorkingState + typed recovery + LoopGuard
+ -> 26.3C project-owned WorkingState + typed recovery + LoopGuard
  -> Broad real-app physical coverage gate
+ -> bounded OpenAdapt integration spike
  -> 26.4 Human Demo -> verified candidate skill
- -> 26.5 Hybrid Computer-Use Integration
+ -> 26.5 Hybrid Computer-Use Integration / selective Office reuse
  -> 27 Distribution & Maintenance
  -> 28 Clean User E2E / stable release
 ```
 
-The Broad real-app physical coverage gate is an acceptance objective, not a separate architecture stage. Track M multi-chat remains future/parallel. Track P local-planner work remains future only.
+The Broad real-app physical coverage gate is an acceptance objective, not a separate architecture stage. Track M multi-chat remains future/parallel. Track P local-planner work remains future only. UFO³ Galaxy remains deferred until multi-device orchestration becomes an observed product bottleneck.
 
 ---
 
@@ -91,7 +106,7 @@ Accepted production/evidence slices:
 - file/artifact procedure path through PR #102;
 - production `web_open` verification through PR #107;
 - production `web_interact` verification through PR #111;
-- first Browser L3 real-task acceptance through PR #113.
+- first Browser L3 real-task acceptance through PR #113 for its historical physical-gate scope.
 
 ## Current active slice — PR #114
 
@@ -130,22 +145,26 @@ Required acceptance sequence:
 ```text
 freeze final #114 head
  -> fresh hosted checks
- -> target-Windows physical verifier qualification on same head
+ -> isolated target-Windows source root
+ -> SourceProvenanceGate PASS on the same exact head
+ -> target-Windows physical verifier qualification
  -> no unresolved review/security finding
  -> merge #114
- -> representative Windows/application L3 with independent Finish Gate
+ -> representative Windows/application L3 with independent Finish Gate + source provenance
+ -> repeat representative Browser L3 under SourceProvenanceGate
 ```
 
-Canonical detail: `STAGE26_3B_WINDOWS_VERIFICATION.md`.
+Canonical detail: `STAGE26_3B_WINDOWS_VERIFICATION.md` and `SOURCE_PROVENANCE_ACCEPTANCE.md`.
 
 ## Remaining 26.3B work
 
 ```text
-1. physically accept + merge PR #114
+1. hosted + source-provenance-bound physical acceptance and merge of PR #114
 2. representative Windows/application L3 using accepted action/observation/verifier mechanisms
-3. add cross-capability completion predicates only where a real procedure requires them
-4. run any additional physical gate required by a production-path change
-5. declare 26.3B accepted only when required evidence gaps are closed
+3. one representative Browser L3 repeat under the new source-provenance methodology
+4. add cross-capability completion predicates only where a real procedure requires them
+5. run any additional physical gate required by a production-path change
+6. declare 26.3B accepted only when required evidence gaps are closed
 ```
 
 ## ADR-036 relation to 26.3B
@@ -154,11 +173,13 @@ ADR-036 does not silently enlarge current authority. Site Capability Profiles / 
 
 ---
 
-# 26.3C — WorkingState + typed recovery + LoopGuard
+# 26.3C — Project-owned WorkingState + typed recovery + LoopGuard
 
 Objective: make long-horizon continuation/recovery reliable before broader authority.
 
-WorkingState v1 should contain structured operational state only:
+WorkingState v1 remains **project-owned and capability-spanning**. It must not be replaced by OpenAdapt procedure-local checkpoint/resume state.
+
+WorkingState should contain structured operational state only:
 
 ```text
 user constraints
@@ -170,6 +191,8 @@ evidence references
 expected/observed deltas
 retry/recovery history
 action/time/resource budgets
+active capability/grant state
+procedure id/version/node + optional external checkpoint reference
 ```
 
 Never persist private chain-of-thought.
@@ -189,6 +212,8 @@ re-observe
 
 LoopGuard must terminate/escalate repeated no-effect fingerprints, oscillation and exhausted budgets. Do not implement a second general planner in 26.3C.
 
+An OpenAdapt checkpoint may later be referenced by WorkingState for one compiled procedure, but OpenAdapt does not own cross-capability state, authority, retry budgets or completion.
+
 ---
 
 # Broad real-application physical coverage gate
@@ -201,9 +226,36 @@ The success criterion is a materially broader, characterized, repeatable accepte
 
 ---
 
+# Pre-26.4 — bounded OpenAdapt integration spike
+
+After the project-owned 26.3C core shape is accepted, run a bounded spike rather than rewriting the Control Plane around OpenAdapt:
+
+```text
+human demonstration
+ -> OpenAdapt Capture / Flow compile
+ -> ProgramGraph / deterministic replay
+ -> OpenAdapt effect-verifier verdict + evidence
+ -> project OpenAdaptEffectEvidenceAdapter
+ -> project ObservationSnapshot / ExpectedEffect
+ -> PROJECT Verification Kernel
+ -> PROJECT independent Finish Gate
+```
+
+OpenAdapt `CONFIRMED`, `REFUTED` and `INDETERMINATE` are upstream evidence states. They are not unconditional aliases for project `PASS`, `FAIL` and `UNKNOWN`; the project Kernel also checks subject, freshness, selected verifier/effect-contract identity and provenance.
+
+The spike must add no raw per-workflow MCP catalog, `execute_windows`, generic shell/Python authority or second planner. Healthy deterministic replay should require zero model calls where the pinned OpenAdapt substrate supports that path.
+
+If the spike passes, promote selective reuse for 26.4. If it fails these boundaries, keep OpenAdapt qualified but outside the production procedure path.
+
+Canonical boundary: `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`.
+
+---
+
 # 26.4 — Human Demo -> verified candidate skill
 
 Compile demonstrations into subtask goals, verifiable completion criteria, applicability/preconditions, advisory target/action evidence and versioned candidate lineage. Live state outranks demonstration history. Blind coordinate/action replay is not accepted. One demonstration creates at most a candidate; promotion requires independent replay/regression/variant evidence.
+
+If the bounded spike is accepted, prefer pinned OpenAdapt for mature mechanics such as Capture/compile/ProgramGraph/deterministic replay/checkpoint/teach/certification/effect-coverage rather than reimplementing them. OpenAdapt skill/certification status remains upstream evidence; project trust/promotion still requires project verification and Finish Gate evidence.
 
 Generated Browser/local helpers use the same candidate lineage discipline.
 
@@ -213,44 +265,10 @@ Generated Browser/local helpers use the same candidate lineage discipline.
 
 Converge accepted Browser/Windows mechanisms on common observation references, capability-aware semantic/native vs GUI routing, common grounding identity/confidence/ambiguity evidence, selective visual fallback, cross-app provenance and verified recovery.
 
+For Office/Windows breadth, evaluate focused UFO²-derived UIA/Win32/WinCOM/application adapters one application at a time behind project-owned capability, identity, observation, ExpectedEffect and verification contracts. Do **not** adopt UFO HostAgent/AppAgent planner hierarchy or UFO³ Galaxy as the current production planning layer.
+
 Trusted-site full-browser/JS/CDP authority may be promoted only after the Site Capability/network boundary is implemented, reviewed, physically accepted and backed by representative L3 evidence.
 
 A future public Windows/computer-use Chat-facing surface still requires its own schema/security/ordinary-Chat physical acceptance.
 
 ---
-
-# Local Execution Kernel — adjacent future capability
-
-Arbitrary Python/program execution remains a separate future consequence class, not hidden Browser or `procedure_run` authority. It requires scoped grants for filesystem roots, network, executable allowlist, environment exposure, runtime/process/resource budgets and task/session lifetime.
-
----
-
-# 27 — Distribution & Maintenance
-
-After the core loop and broad physical scope are credible, simplify install/update paths, reduce developer-environment assumptions, make dependency/runtime ownership explicit, close relevant debt, and preserve fail-closed security boundaries. Rust is not a current release prerequisite.
-
----
-
-# 28 — Clean User E2E / stable release
-
-```text
-clean supported Windows machine/account
- -> install
- -> connect/authenticate
- -> approve required capability scope
- -> normal six-tool route ready
- -> representative user task succeeds with independent verification
- -> restart/recovery/update behavior remains understandable
-```
-
-Stable release requires accepted core behavior, clean-install evidence, current documentation and no known P0/P1 debt required by shipped authority.
-
----
-
-# Parallel Track M — Conversation Bridge / multi-chat
-
-Future/parallel only. It must not displace unfinished release-critical capability/state/verification work.
-
-# Optional Track P — local planner
-
-Future only: shadow/proposal-only -> bounded subtask planner -> optional local general planner. No planner may grant itself capability authority; all remain above the deterministic Control Plane/verifier/Finish Gate boundary.
