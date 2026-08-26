@@ -15,6 +15,12 @@ const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'PROGRAMFILES', 'ProgramFiles', 'PROGRAMFILES(X86)',
   'LANG', 'LC_ALL', 'PYTHONUTF8', 'PYTHONIOENCODING'
 ]);
+const CHECKED_STATE_ROLES = new Set([
+  'checkbox', 'menuitemcheckbox', 'menuitemradio', 'radio', 'switch',
+]);
+const SELECTED_STATE_ROLES = new Set([
+  'gridcell', 'option', 'row', 'tab', 'treeitem',
+]);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
@@ -48,6 +54,19 @@ function controlValueFromLine(line, role) {
   if (!suffix.startsWith(':')) return null;
   const value = suffix.slice(1).trim();
   return value.length <= 4096 ? value : null;
+}
+
+function checkedStateFromLine(line, role) {
+  if (/\[checked\]/.test(line)) return true;
+  if (/\[unchecked\]/.test(line)) return false;
+  if (/\[checked=(?:mixed|undefined)\]/.test(line)) return null;
+  return CHECKED_STATE_ROLES.has(role) ? false : null;
+}
+
+function selectedStateFromLine(line, role) {
+  if (/\[selected\]/.test(line)) return true;
+  if (/\[unselected\]/.test(line)) return false;
+  return SELECTED_STATE_ROLES.has(role) ? false : null;
 }
 
 function stripSnapshotFence(value) {
@@ -111,8 +130,8 @@ export function parsePlaywrightSnapshotResult(result) {
       role,
       name,
       enabled: !/\[disabled\]/.test(line),
-      checked: /\[checked\]/.test(line) ? true : (/\[unchecked\]/.test(line) ? false : null),
-      selected: /\[selected\]/.test(line) ? true : null,
+      checked: checkedStateFromLine(line, role),
+      selected: selectedStateFromLine(line, role),
       visible: true,
       value: controlValueFromLine(line, role),
     });
