@@ -14,7 +14,7 @@ current code/tests/CI/physical evidence
  > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / ROADMAP.md
  > reviewed architecture extensions such as AVO_LONG_HORIZON_ARCHITECTURE.md,
    CONVERSATION_BRIDGE_ARCHITECTURE.md and BROWSER_HARNESS_ARCHITECTURE.md
- > current policy/catalog docs
+ > current policy/catalog docs, including TECH_DEBT.md for debt inventory
  > EVIDENCE_INDEX.md for exact accepted evidence navigation
  > active stage contract
  > accepted historical stage evidence
@@ -35,6 +35,9 @@ reviewed architecture-extension documents
 
 CURRENT_STATE.md / ROADMAP.md
   = current accepted boundary, active work, current residual risks
+
+TECH_DEBT.md
+  = current implementation/process debt only; not feature backlog or risk ranking
 
 EVIDENCE_INDEX.md
   = exact accepted heads, physical result locations and scoped measurements
@@ -78,7 +81,7 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | File | Status | Use |
 |---|---|---|
 | `CONSTRAINTS.md` | CURRENT POLICY | Hard project constraints. |
-| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority; ADR-034 = verified skill lineage and stagnation escalation; ADR-035 = bounded provider-open Conversation Bridge / future Track M direction. ADR-036 detail is staged in `BROWSER_HARNESS_ARCHITECTURE.md` and must not be treated as runtime acceptance until the ADR index/canonical architecture synchronization is complete. |
+| `DECISIONS.md` | CURRENT ADR INDEX | Decisions governing development. ADR-031 = optional internal Extension Manager; ADR-032 = state-first hybrid computer-use loop; ADR-033 = environmental content is data, not authority; ADR-034 = verified skill lineage and stagnation escalation; ADR-035 = bounded provider-open Conversation Bridge / future Track M direction. ADR-036 = Harness-derived scoped browser and local-code authority direction. |
 | `DEVELOPMENT_PRINCIPLES.md` | CURRENT POLICY | Development/acceptance principles. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
 | `COST_POLICY.md` | CURRENT POLICY | Baseline cost/subscription constraints. |
@@ -93,7 +96,8 @@ Do not copy complete physical dumps into durable architecture documents. Promote
 | `TRANSPORT_SUPERVISOR_ATTEMPT_HISTORY.md` | HISTORICAL QUALIFICATION ATTEMPT LOG | Historical diagnostics only. |
 | `VISION.md` | CURRENT PRODUCT DIRECTION | Long-term product direction; subordinate to architecture/roadmap for exact stage status. |
 | `HANDOFF_TEMPLATE.md` | CURRENT PROCESS TEMPLATE | Required future handoff fields. |
-| `KNOWN_ISSUES.md` | CURRENT ISSUE INDEX | Current unresolved issues + explicitly closed history. |
+| `KNOWN_ISSUES.md` | CURRENT ISSUE INDEX | Broad current unresolved limitations/issues + explicitly closed history; not the ranked debt register. |
+| `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing temporary compatibility, hardening, reproducibility and repository-hygiene debt with priority and concrete close conditions. Future features/stages do not belong here. |
 
 ## Stage 26.3 current/accepted documents
 
@@ -109,6 +113,8 @@ Stage 26.3A is accepted/merged through PR #92, and the Stage 26.3B kernel founda
 Track M Conversation Bridge work is explicitly **parallel/future**. ADR-035 and `CONVERSATION_BRIDGE_ARCHITECTURE.md` define a provider-open Adapter Registry + declarative profiles/hooks + `GenericChatAdapter`/GUI fallback architecture, but they do not alter the current Stage 26 critical path or imply that authenticated user-browser multi-chat control is implemented.
 
 The 2026-08-26 Browser Harness review is recorded in `BROWSER_HARNESS_ARCHITECTURE.md` as ADR-036 future direction. It maps trusted-site/browser authority, candidate helpers and local code execution into the existing 26.3B/C/26.4/26.5 sequence; it does not reorder that sequence, enable raw browser execution, or authorize arbitrary Python in the current runtime.
+
+`TECH_DEBT.md` is deliberately maintenance-only. It must not be used to reclassify unfinished Stage 26 work as debt or to bypass the authoritative Roadmap ordering. `PROJECT_RISKS.md`, when present on the active integration line, owns project-risk ranking; `TECH_DEBT.md` owns debt inventory.
 
 Current normal transport/extension invariants:
 
@@ -271,5 +277,6 @@ Any architecture-changing PR must audit/update this map when it:
 - changes Browser Harness-derived Site Capability Profiles, browser network trust or Local Execution Grant boundaries;
 - changes the Extension Manager/persistent tunnel boundary;
 - changes Conversation Bridge / authenticated-browser / adapter-registry / multi-chat handoff boundaries;
+- adds/removes/reprioritizes a debt item that changes release or subsystem maintenance assumptions;
 - promotes a research track into the release-critical roadmap;
 - changes the public Chat-facing capability surface.
