@@ -39,11 +39,13 @@ async function startFixtureServer() {
     response.end(`<!doctype html>
       <html><body>
         <h1>Semantic Projection Test</h1>
-        <button id="continue" onclick="document.getElementById('status').textContent='SEMANTIC_BROWSER_DONE'">Continue semantic test</button>
-        <p id="status">waiting</p>
-        <button id="delete-a" onclick="document.getElementById('delete-status').textContent='DELETE_A_CLICKED'">Delete</button>
-        <button id="delete-b" onclick="document.getElementById('delete-status').textContent='DELETE_B_CLICKED'">Delete</button>
-        <p id="delete-status">DELETE_NOT_CLICKED</p>
+        <button id="continue" onclick="document.getElementById('status').value='SEMANTIC_BROWSER_DONE'">Continue semantic test</button>
+        <label for="status">Status</label>
+        <input id="status" aria-label="Status" value="waiting" readonly />
+        <button id="delete-a" onclick="document.getElementById('delete-status').value='DELETE_A_CLICKED'">Delete</button>
+        <button id="delete-b" onclick="document.getElementById('delete-status').value='DELETE_B_CLICKED'">Delete</button>
+        <label for="delete-status">Delete status</label>
+        <input id="delete-status" aria-label="Delete status" value="DELETE_NOT_CLICKED" readonly />
         <label for="semantic-input">Semantic input</label>
         <input id="semantic-input" aria-label="Semantic input" />
       </body></html>`);
@@ -91,7 +93,10 @@ try {
   assert(interactSchema?.properties?.visualFallback, 'web_interact must expose bounded visualFallback input inside the existing tool');
   assert(interactSchema.properties.visualFallback.properties?.targetText);
   assert(interactSchema.properties.visualFallback.properties?.instruction);
+  assert(interactSchema?.properties?.expected, 'web_interact must expose bounded expected postconditions');
+  assert.deepEqual(Object.keys(interactSchema.properties.expected.properties ?? {}).sort(), ['control', 'url']);
   console.log('SEMANTIC_PROJECTION_VISUAL_FALLBACK_SCHEMA=PASS');
+  console.log('SEMANTIC_PROJECTION_EXPECTED_SCHEMA=PASS');
 
   const roots = await client.callTool({ name: 'workspace_read', arguments: { operation: 'roots' } });
   assert.equal(roots.isError, undefined, textOf(roots));
@@ -122,10 +127,14 @@ try {
 
   const open = await client.callTool({ name: 'web_open', arguments: { url: `${fixture.baseUrl}/` } });
   assert.equal(open.isError, undefined, textOf(open));
+  assert.equal(open.structuredContent?.browser_verification?.status, 'pass', textOf(open));
 
   const findButton = await client.callTool({ name: 'web_observe', arguments: { operation: 'find', text: 'Continue semantic test' } });
   assert.equal(findButton.isError, undefined, textOf(findButton));
   const buttonRef = accessibilityRefOnMatchingLine(findButton, 'Continue semantic test', 'button search');
+  const findStatusBefore = await client.callTool({ name: 'web_observe', arguments: { operation: 'find', regex: 'textbox "Status"' } });
+  assert.equal(findStatusBefore.isError, undefined, textOf(findStatusBefore));
+  const statusRef = accessibilityRefOnMatchingLine(findStatusBefore, 'textbox "Status"', 'status search');
 
   const fallbackSemanticClick = await client.callTool({
     name: 'web_interact',
@@ -133,18 +142,27 @@ try {
       operation: 'click',
       target: buttonRef,
       element: 'Continue semantic test button',
-      visualFallback: { targetText: 'Continue semantic test', instruction: 'click Continue semantic test' }
+      visualFallback: { targetText: 'Continue semantic test', instruction: 'click Continue semantic test' },
+      expected: { control: { target: statusRef, value: 'SEMANTIC_BROWSER_DONE' } }
     }
   });
   assert.equal(fallbackSemanticClick.isError, undefined, textOf(fallbackSemanticClick));
+  assert.equal(fallbackSemanticClick.structuredContent?.browser_verification?.status, 'pass', textOf(fallbackSemanticClick));
   const findDone = await client.callTool({ name: 'web_observe', arguments: { operation: 'find', text: 'SEMANTIC_BROWSER_DONE' } });
   assert.equal(findDone.isError, undefined, textOf(findDone));
   assert(textOf(findDone).includes('SEMANTIC_BROWSER_DONE'), textOf(findDone));
   console.log('SEMANTIC_PROJECTION_PUBLIC_SEMANTIC_FIRST=PASS');
 
+  const findDeleteStatus = await client.callTool({ name: 'web_observe', arguments: { operation: 'find', regex: 'textbox "Delete status"' } });
+  assert.equal(findDeleteStatus.isError, undefined, textOf(findDeleteStatus));
+  const deleteStatusRef = accessibilityRefOnMatchingLine(findDeleteStatus, 'textbox "Delete status"', 'delete status search');
   const ambiguous = await client.callTool({
     name: 'web_interact',
-    arguments: { operation: 'click', visualFallback: { targetText: 'Delete', instruction: 'click Delete' } }
+    arguments: {
+      operation: 'click',
+      visualFallback: { targetText: 'Delete', instruction: 'click Delete' },
+      expected: { control: { target: deleteStatusRef, value: 'DELETE_A_CLICKED' } }
+    }
   });
   assert.equal(ambiguous.isError, undefined, textOf(ambiguous));
   assert(textOf(ambiguous).includes('abstained with no action: semantic-ambiguity-visual-escalation-not-promoted'), textOf(ambiguous));
@@ -157,7 +175,8 @@ try {
     name: 'web_interact',
     arguments: {
       operation: 'click',
-      visualFallback: { targetText: 'Continue semantic test', semanticName: 'Definitely Missing', instruction: 'click Continue semantic test' }
+      visualFallback: { targetText: 'Continue semantic test', semanticName: 'Definitely Missing', instruction: 'click Continue semantic test' },
+      expected: { control: { target: statusRef, value: 'SEMANTIC_BROWSER_DONE' } }
     }
   });
   assert.equal(mismatchedPreflight.isError, true, 'separate semantic preflight text must be rejected');
@@ -177,6 +196,7 @@ try {
   const inputRef = accessibilityRefOnMatchingLine(findInput, 'textbox "Semantic input"', 'input search');
   const type = await client.callTool({ name: 'web_interact', arguments: { operation: 'type', target: inputRef, element: 'Semantic input', text: 'SEMANTIC_TYPED_OK' } });
   assert.equal(type.isError, undefined, textOf(type));
+  assert.equal(type.structuredContent?.browser_verification?.status, 'pass', textOf(type));
   const snapshot = await client.callTool({ name: 'web_observe', arguments: { operation: 'snapshot', target: inputRef } });
   assert.equal(snapshot.isError, undefined, textOf(snapshot));
   assert(textOf(snapshot).includes('SEMANTIC_TYPED_OK'), textOf(snapshot));
