@@ -61,8 +61,9 @@ async function startFixtureServer() {
         <head><title>Direct Semantic Tunnel Test</title></head>
         <body>
           <h1>Direct Semantic Tunnel Test</h1>
-          <button id="continue" onclick="document.getElementById('status').textContent='DIRECT_TUNNEL_BROWSER_DONE'">Continue direct tunnel test</button>
-          <p id="status">waiting</p>
+          <button id="continue" onclick="document.getElementById('status').value='DIRECT_TUNNEL_BROWSER_DONE'">Continue direct tunnel test</button>
+          <label for="status">Direct tunnel status</label>
+          <input id="status" aria-label="Direct tunnel status" value="waiting" readonly />
         </body>
       </html>`);
   });
@@ -111,6 +112,8 @@ try {
   const inventory = await client.listTools();
   const names = inventory.tools.map(tool => tool.name).sort();
   assert.deepEqual(names, expectedTools, `unexpected direct-tunnel tool surface: ${names.join(', ')}`);
+  const interactSchema = inventory.tools.find(tool => tool.name === 'web_interact')?.inputSchema;
+  assert(interactSchema?.properties?.expected, 'direct tunnel must expose bounded web_interact expected postconditions');
 
   for (const forbidden of [
     'tool_invoke',
@@ -150,6 +153,7 @@ try {
     arguments: { url: `${fixture.baseUrl}/` }
   });
   assert.equal(open.isError, undefined, textOf(open));
+  assert.equal(open.structuredContent?.browser_verification?.status, 'pass', textOf(open));
 
   const findButton = await client.callTool({
     name: 'web_observe',
@@ -161,16 +165,28 @@ try {
     'Continue direct tunnel test',
     'direct tunnel button search'
   );
+  const findStatus = await client.callTool({
+    name: 'web_observe',
+    arguments: { operation: 'find', regex: 'textbox "Direct tunnel status"' }
+  });
+  assert.equal(findStatus.isError, undefined, textOf(findStatus));
+  const statusRef = accessibilityRefOnMatchingLine(
+    findStatus,
+    'textbox "Direct tunnel status"',
+    'direct tunnel status search'
+  );
 
   const click = await client.callTool({
     name: 'web_interact',
     arguments: {
       operation: 'click',
       target: buttonRef,
-      element: 'Continue direct tunnel test button'
+      element: 'Continue direct tunnel test button',
+      expected: { control: { target: statusRef, value: 'DIRECT_TUNNEL_BROWSER_DONE' } }
     }
   });
   assert.equal(click.isError, undefined, textOf(click));
+  assert.equal(click.structuredContent?.browser_verification?.status, 'pass', textOf(click));
 
   const findDone = await client.callTool({
     name: 'web_observe',
@@ -202,7 +218,9 @@ try {
 
   // Frozen ChatGPT action snapshots from the old Stage 24 route used
   // server-qualified action IDs. The launcher accepts those aliases without
-  // republishing them in tools/list.
+  // republishing them in tools/list. Compatibility aliases inherit the current
+  // bounded arguments/verification semantics; they do not preserve unsafe old
+  // click behavior after the canonical action contract is hardened.
   const legacyRead = await client.callTool({
     name: 'semantic-projection_1mcp_workspace_read',
     arguments: { operation: 'read_text', path: 'direct-input.txt' }
@@ -222,6 +240,7 @@ try {
     arguments: { url: `${fixture.baseUrl}/` }
   });
   assert.equal(legacyOpen.isError, undefined, textOf(legacyOpen));
+  assert.equal(legacyOpen.structuredContent?.browser_verification?.status, 'pass', textOf(legacyOpen));
 
   const legacyFindButton = await client.callTool({
     name: 'semantic-projection_1mcp_web_observe',
@@ -233,16 +252,28 @@ try {
     'Continue direct tunnel test',
     'legacy direct tunnel button search'
   );
+  const legacyFindStatus = await client.callTool({
+    name: 'semantic-projection_1mcp_web_observe',
+    arguments: { operation: 'find', regex: 'textbox "Direct tunnel status"' }
+  });
+  assert.equal(legacyFindStatus.isError, undefined, textOf(legacyFindStatus));
+  const legacyStatusRef = accessibilityRefOnMatchingLine(
+    legacyFindStatus,
+    'textbox "Direct tunnel status"',
+    'legacy direct tunnel status search'
+  );
 
   const legacyClick = await client.callTool({
     name: 'semantic-projection_1mcp_web_interact',
     arguments: {
       operation: 'click',
       target: legacyButtonRef,
-      element: 'Continue direct tunnel test button'
+      element: 'Continue direct tunnel test button',
+      expected: { control: { target: legacyStatusRef, value: 'DIRECT_TUNNEL_BROWSER_DONE' } }
     }
   });
   assert.equal(legacyClick.isError, undefined, textOf(legacyClick));
+  assert.equal(legacyClick.structuredContent?.browser_verification?.status, 'pass', textOf(legacyClick));
 
   const legacyFindDone = await client.callTool({
     name: 'semantic-projection_1mcp_web_observe',
@@ -255,6 +286,7 @@ try {
   console.log('DIRECT_SEMANTIC_TOOL_COUNT=6');
   console.log('DIRECT_SEMANTIC_FILESYSTEM=PASS');
   console.log('DIRECT_SEMANTIC_BROWSER=PASS');
+  console.log('DIRECT_SEMANTIC_BROWSER_VERIFICATION=PASS');
   console.log('DIRECT_SEMANTIC_PROCEDURE=PASS');
   console.log('DIRECT_SEMANTIC_LEGACY_ACTION_COMPAT=PASS');
   console.log('DIRECT_SEMANTIC_NEGATIVE_CASES=PASS');
