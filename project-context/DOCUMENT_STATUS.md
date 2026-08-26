@@ -102,7 +102,7 @@ Do not copy the full risk table into other documents. Do not copy the full relea
 | `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT 26.3 DESIGN CONTRACT | Verified procedure/candidate trust foundations. |
 | `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACCEPTED 26.3A RECORD | Accepted canonical six-tool implementation/evidence. |
 | `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACCEPTED 26.3A SURFACE CONTRACT | `procedure_run` in the six-tool surface. |
-| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE 26.3B IMPLEMENTATION CONTRACT | Shared Verification Kernel; accepted file integration; Browser observation foundation; physically accepted/merged `web_open` verification; `web_interact` verification is the next active Browser slice. |
+| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE 26.3B IMPLEMENTATION CONTRACT | Shared Verification Kernel; accepted file integration; Browser observation foundation; physically accepted/merged `web_open` verification; `web_interact` verification is active in draft PR #111. |
 
 ## Current implementation snapshot
 
@@ -114,12 +114,14 @@ Verification Kernel foundation                  MERGED #99
 file/artifact integration                       PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation                  MERGED #106
 production web_open verification                PHYSICAL ACCEPTED / MERGED #107
-web_interact verification                       ACTIVE DRAFT PR #109
+web_interact verification                       ACTIVE DRAFT PR #111
 Windows/application/process verifier            REMAINING 26.3B
 WorkingState + recovery + LoopGuard              26.3C TARGET
 ```
 
 PR #107 was physically accepted on exact head `64184713e97bf2e150614cd93c77509c244cddec` and squash-merged into `main` as `5df2e5e7378ddb9083a7c3d70a62c7bfc0f6c22d`. Exact gate details belong in the PR/evidence records, not duplicated here.
+
+PR #111 is a clean replay of the former stacked interaction branch directly on the accepted post-#107 `main`; it requires fresh final-head hosted and physical acceptance before merge.
 
 ## ADR-036 boundary
 
