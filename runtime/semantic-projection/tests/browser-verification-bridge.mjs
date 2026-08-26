@@ -47,6 +47,26 @@ assert.deepEqual(after.controls.find(control => control.control_id === 'e1'), {
 assert.equal(after.controls.find(control => control.control_id === 'e2')?.value, 'HELLO');
 assert.equal(after.controls.find(control => control.control_id === 'e3')?.checked, true);
 
+// @playwright/mcp omits positive-state markers when checkbox/option state is
+// false. That omission is semantically meaningful only for roles that define
+// those states; generic controls remain null rather than inferred false.
+const roleStateDefaults = parsePlaywrightSnapshotResult(result(`### Page
+- Page URL: https://example.com/
+- Page Title: Example
+
+### Snapshot
+\`\`\`yaml
+- checkbox "Off" [ref=c1]
+- radio "Radio off" [ref=r1]
+- option "Not selected" [ref=o1]
+- button "Plain" [ref=b1]
+\`\`\``));
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'c1')?.checked, false);
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'r1')?.checked, false);
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'o1')?.selected, false);
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'b1')?.checked, null);
+assert.equal(roleStateDefaults.controls.find(control => control.control_id === 'b1')?.selected, null);
+
 // Preserve bounded compatibility with the older inline Page Snapshot shape.
 const legacyInline = parsePlaywrightSnapshotResult(result(`### Page state
 - Page URL: https://legacy.example/
@@ -82,8 +102,9 @@ const interactionBefore = parsePlaywrightSnapshotResult(result(`### Page
 ### Snapshot
 \`\`\`yaml
 - textbox "Semantic input" [ref=e2]: OLD
-- checkbox "Remember" [unchecked] [ref=e3]
+- checkbox "Remember" [ref=e3]
 \`\`\``));
+assert.equal(interactionBefore.controls.find(control => control.control_id === 'e3')?.checked, false);
 const interactionVerified = await verifyPlaywrightInteraction({
   before: interactionBefore,
   after,
