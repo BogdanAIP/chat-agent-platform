@@ -11,24 +11,23 @@ Resolve live GitHub state before acting. This file records the continuation poin
 At the 2026-08-26 synchronization point:
 
 ```text
-main = 82802dc619b0410b34859ed9ee362442b1f202f9
-       PR #110 — Browser Harness architecture / ADR-036 / TECH_DEBT
-       MERGED
+main = f7bba9eddd7c449306b7c9de18bc9e19849fd86f
+       PR #111 — web_interact postcondition verification
+       PHYSICALLY ACCEPTED / MERGED
 
-active release-critical PR = #111
-       web_interact postcondition verification
-       exact head 1521e3128a7694be43518c3ee0188cb79f0ca0f5
-       final hosted CI = 10/10 PASS
-       ordinary-Chat target-Windows physical interaction acceptance pending
-
-stacked evidence PR = #112
+active release-critical PR = #113
        first Browser L3 real-task acceptance harness
-       must be replayed on accepted main after #111 merges
+       clean replay directly on accepted post-#111 main
+       fresh hosted checks required on final head
+       ordinary-Chat target-Windows Case Desk L3 still required
+
+historical stacked PR = #112
+       superseded by clean replay #113 after #111 merged
 ```
 
 PR #107 remains physically accepted/merged Browser navigation evidence. Do not repeat its gate as current work.
 
-The next decision point is physical acceptance of #111. If that passes, merge #111, replay #112 on the new `main`, require fresh hosted checks, then run the first natural-language Browser L3 task before starting the Windows/application/process verifier.
+The next decision point is acceptance of the first Browser L3 task. Freeze #113 on a final exact head, require fresh hosted checks, prepare one randomized Case Desk run, let ordinary Chat solve only the natural-language goal, then run the external Finish Gate. Only after that may #113 merge and the release-critical line move to Windows/application/process verification.
 
 ## Accepted foundation
 
@@ -38,10 +37,16 @@ The next decision point is physical acceptance of #111. If that passes, merge #1
 - Browser observation foundation: **MERGED #106**.
 - production `web_open` final-state verification: **PHYSICALLY ACCEPTED / MERGED #107**.
 - Browser Harness / ADR-036 architecture docs: **MERGED #110**.
-- production `web_interact` postcondition verification: **implemented in draft PR #111; hosted CI green; physical acceptance pending**.
-- Browser L3 real-task harness: **stacked draft PR #112**.
+- production `web_interact` postcondition verification: **PHYSICALLY ACCEPTED / MERGED #111**.
+- Browser L3 real-task harness: **ACTIVE DRAFT PR #113**, clean replay of superseded stacked #112.
 - Windows/application/process Verification Kernel adapter: not yet implemented.
 - WorkingState + typed recovery + LoopGuard: Stage 26.3C target, not yet accepted runtime.
+
+## PR #111 physical-schema finding
+
+The first ordinary-Chat #111 gate failed because the already-bound ChatGPT app definition rejected the new `expected` field even though the exact-head six-tool runtime already published it. The exact runtime head was kept unchanged, `Chat Local Bridge Test` was fully rebound, and a fresh conversation then accepted `expected` and passed the diagnostic checkbox interaction.
+
+The complete physical interaction gate was rerun on that same exact head and passed all required cases, including positive type/click verification, zero-action preflight refusals, delivered-but-wrong-postcondition failure, and ambiguity abstention. This is the acceptance evidence for #111; the first failed run is only migration evidence.
 
 ## Current public semantic surface
 
@@ -83,7 +88,7 @@ network/URL policy
  -> PASS | FAIL | UNKNOWN
 ```
 
-PR #111 extends that model to interaction:
+Accepted `web_interact`:
 
 ```text
 fresh BEFORE
@@ -95,11 +100,11 @@ fresh BEFORE
  -> PASS | FAIL | UNKNOWN
 ```
 
-Missing expected state, already-satisfied expected state, or an unobservable/ambiguous pre-action delta must produce zero mutation rather than guessed success.
+Missing expected state, already-satisfied expected state, or an unobservable/ambiguous pre-action delta produces zero mutation rather than guessed success.
 
 ## Real-task acceptance contract
 
-The project now distinguishes:
+The project distinguishes:
 
 ```text
 L1 primitive/contract
@@ -107,33 +112,32 @@ L1 primitive/contract
  -> L3 ordinary user goal + independent final state
 ```
 
-L1 remains mandatory and diagnosable. L3 is the proof that ordinary ChatGPT can choose a route through several accepted transitions and reach independently verified completion rather than merely passing laboratory primitives.
+L1 remains mandatory and diagnosable. L3 proves that ordinary ChatGPT can choose a route through several accepted transitions and reach independently verified completion rather than merely passing laboratory primitives.
 
-PR #112's `Case Desk` fixture randomizes task/case identity, contains similar customer records, persists server-side state/audit evidence, and has an independent Finish Gate that requires the exact requested target changes while proving decoys stayed unchanged.
+PR #113's `Case Desk` fixture randomizes task/case identity, contains similar customer records, persists server-side state/audit evidence outside the Chat-writable workspace, tracks every mutated case, and has an independent Finish Gate that requires the exact requested target changes while proving decoys stayed unchanged and only the target was ever mutated.
 
 Canonical detail: `REAL_TASK_ACCEPTANCE.md`.
 
 ## Critical-path continuation
 
 ```text
-1. keep PR #111 exact head unchanged
-2. run ordinary-Chat target-Windows web_interact physical regression on 1521e3128a7694be43518c3ee0188cb79f0ca0f5
-3. merge #111 only if physical evidence/reviews remain clean
-4. replay stacked PR #112 directly on the new accepted main
-5. require fresh hosted harness/contract checks on final #112 head
-6. run ordinary-Chat target-Windows Browser L3 real-task gate on that same head
-7. merge #112 only if independent Finish Gate and non-target checks pass
-8. implement Windows/application/process verification
-9. add representative Windows/application L3 after that verifier exists
-10. close remaining Stage 26.3B integration/physical gates
-11. implement Stage 26.3C WorkingState + recovery + LoopGuard
-12. run broad real-app Windows/computer-use coverage matrix
-13. continue 26.4 / 26.5, then packaging/clean-user release
+1. freeze the clean post-#111 PR #113 replay on one exact head
+2. require fresh hosted checks on that head
+3. prepare a randomized Case Desk physical run
+4. ordinary Chat uses only the accepted six semantic tools to solve the natural-language task
+5. run the external Finish Gate against fixture evidence outside Chat FilesRoot
+6. merge #113 only if independent state + mutation-history evidence passes
+7. implement Windows/application/process verification
+8. add representative Windows/application L3 after that verifier exists
+9. close remaining Stage 26.3B integration/physical gates
+10. implement Stage 26.3C WorkingState + recovery + LoopGuard
+11. run broad real-app Windows/computer-use coverage matrix
+12. continue 26.4 / 26.5, then packaging/clean-user release
 ```
 
 ## Browser Harness / ADR-036 continuation rule
 
-ADR-036 is reviewed future architecture, not a hidden expansion of the current Browser authority.
+ADR-036 is reviewed future architecture, not a hidden expansion of current Browser authority.
 
 ```text
 current 26.3B = verification correctness + representative L3 evidence
@@ -146,17 +150,7 @@ The Browser network/Site Capability boundary must be implemented and accepted **
 
 ## Risk priority
 
-Do not reconstruct project priorities from scattered prose. The authoritative ranked risk register is:
-
-`project-context/PROJECT_RISKS.md`
-
-Current top three remain:
-
-1. broad real-application Windows/computer-use coverage not yet proven;
-2. verified long-horizon loop not yet complete across capabilities;
-3. sole current general-planner dependency on ordinary ChatGPT.
-
-The full scores, evidence and close conditions live only in the risk register.
+Do not reconstruct project priorities from scattered prose. The authoritative ranked risk register is `project-context/PROJECT_RISKS.md`.
 
 ## Fresh-chat read order
 
