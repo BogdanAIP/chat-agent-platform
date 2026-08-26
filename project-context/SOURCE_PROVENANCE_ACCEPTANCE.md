@@ -1,6 +1,6 @@
 # Source Provenance Acceptance Contract
 
-Status: **AUTHORITATIVE PHYSICAL-ACCEPTANCE METHODOLOGY**
+Status: **AUTHORITATIVE PHYSICAL-ACCEPTANCE METHODOLOGY — common gate implemented in PR #114, acceptance pending**
 
 ## Purpose
 
@@ -14,13 +14,13 @@ git rev-parse HEAD == EXPECTED_HEAD
 
 is necessary but insufficient because tracked files may be locally modified and untracked files may influence execution while `HEAD` remains unchanged.
 
-For a project whose acceptance model is based on independently verifiable evidence, this gap is treated as **P1 methodology debt** until the common gate is implemented.
+For a project whose acceptance model is based on independently verifiable evidence, this was identified as a **P1 methodology defect**. PR #114 introduces the reusable implementation in `scripts/source-provenance-gate.py` and wires it into the Windows physical qualification path. The methodology becomes accepted for release-critical use only after that exact implementation passes hosted tests and target-Windows physical qualification.
 
 ---
 
 ## 1. SourceProvenanceGate
 
-Every release-critical target-machine physical acceptance run must eventually bind one `SourceProvenanceGate` result to its evidence.
+Every release-critical target-machine physical acceptance run must bind one `SourceProvenanceGate` result to its evidence.
 
 Minimum required fields:
 
@@ -51,6 +51,17 @@ relevant dependency/lock configuration is bound by hash
 
 The gate must fail closed rather than silently accepting an unverifiable checkout.
 
+Current PR #114 implementation additionally records, for each bound project file:
+
+```text
+expected Git blob from EXPECTED_HEAD
+local Git clean-filtered blob
+local raw SHA-256
+local byte size
+```
+
+This matters on Windows because Git may legitimately apply line-ending clean filters. The Git-blob comparison proves committed content after Git's configured clean transformation, while raw SHA-256 records the exact local bytes used by the run.
+
 ---
 
 ## 2. Clean working-tree rule
@@ -61,11 +72,13 @@ At minimum the qualification source root must satisfy the equivalent of:
 git status --porcelain=v1 --untracked-files=all
 ```
 
-returning no entries.
+returning no entries. The common implementation also checks staged and unstaged diffs independently.
 
 The implementation may use a detached worktree or another isolated checkout, but isolation alone is not proof. The actual run must record and verify cleanliness before executing release-critical qualification logic.
 
 If the physical gate intentionally generates files inside the source checkout, those generated paths must be explicitly excluded by a reviewed rule or, preferably, written outside the source checkout. Broad wildcard exclusions are not acceptable substitutes for a clean source tree.
+
+The PR #114 Windows harness writes provenance/result evidence outside the source checkout. It also performs a launcher-side clean-tree preflight **before** starting the Windows fixture, then invokes the reusable Python gate for the full hash binding.
 
 ---
 
@@ -98,11 +111,18 @@ Preferred evidence form:
     "tracked_diff_empty": true,
     "untracked_empty": true,
     "critical_assets": {
-      "runtime/...": "sha256:...",
-      "scripts/...": "sha256:..."
+      "runtime/...": {
+        "git_blob_expected": "...",
+        "git_blob_local_clean_filtered": "...",
+        "matches_expected_blob": true,
+        "sha256": "..."
+      }
     },
     "lockfiles": {
-      "...": "sha256:..."
+      "...": {
+        "matches_expected_blob": true,
+        "sha256": "..."
+      }
     }
   }
 }
@@ -146,9 +166,9 @@ Previously accepted physical results are not automatically invalidated merely be
 In particular, Browser L3 PR #113 has:
 
 ```text
-functional result                PASS
-independent final-state evidence PASS
-mutation-history evidence        PASS
+functional result                         PASS
+independent final-state evidence          PASS
+mutation-history evidence                 PASS
 source provenance under this new contract INCOMPLETE
 ```
 
@@ -171,7 +191,7 @@ resolve live PR/final head
  -> prepare isolated target-machine source root
  -> SourceProvenanceGate PASS
  -> run physical capability/L3 qualification
- -> independent Finish Gate / checker
+ -> independent Finish Gate / checker where applicable
  -> bind result to same source-provenance evidence
  -> review no unresolved finding
  -> merge
@@ -212,7 +232,7 @@ classify reproducible semantic-fixture defect vs environment/runner drift
 then change settling/timeout behavior only with evidence
 ```
 
-Flaky infrastructure still blocks release-critical acceptance until characterized or isolated; it should not be mislabeled as a product semantic failure.
+Uncharacterized infrastructure instability still blocks release-critical acceptance; it should not be mislabeled as a product semantic failure.
 
 ---
 
@@ -231,9 +251,44 @@ compatibility-test result
 
 An upstream version string alone is not enough if locally installed bytes may differ.
 
+PR #114 applies this rule to the existing accepted Windows resolver dependency on OpenAdapt Flow: the project lockfile is source-bound by the common gate, and the physical Python driver additionally records the installed `openadapt-flow` version plus SHA-256 of the actual imported `openadapt_flow.backends.win_agent.server` source file. Physical acceptance requires the installed version to match the locked declared version.
+
 ---
 
-## 9. Non-goals
+## 9. Current implementation and promotion state
+
+Common implementation introduced in PR #114:
+
+```text
+scripts/source-provenance-gate.py
+```
+
+Hosted regression coverage:
+
+```text
+tests/test_source_provenance_gate.py
+  clean exact-head checkout -> PASS
+  tracked modification      -> FAIL
+  untracked file            -> FAIL
+  evidence output inside source checkout -> rejected
+```
+
+The current Windows physical launcher also requires:
+
+```text
+SOURCE_PROVENANCE_GATE=PASS
+WORKING_TREE_CLEAN=True
+TRACKED_DIFF_EMPTY=True
+UNTRACKED_EMPTY=True
+```
+
+before the overall Windows qualification may pass.
+
+Until PR #114 itself passes fresh hosted checks and the target-Windows physical run on one final head, the implementation is **implemented/pending acceptance**, not accepted historical evidence.
+
+---
+
+## 10. Non-goals
 
 This methodology does not require:
 
