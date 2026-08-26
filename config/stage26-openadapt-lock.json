@@ -63,6 +63,8 @@
     "Do not expose generated per-workflow MCP tools to ChatGPT during qualification.",
     "Do not replace ordinary ChatGPT as the only planner/intelligence.",
     "Do not route Chat-facing requests to OpenAdapt win_agent execute_windows during qualification.",
-    "Do not change the accepted five public semantic tool names."
+    "Do not change the accepted six public semantic tool names.",
+    "Do not treat an OpenAdapt effect-verifier verdict as project PASS or task DONE without project Verification Kernel and Finish Gate evaluation.",
+    "Do not replace project-wide WorkingState with OpenAdapt procedure-local checkpoint or resume state."
   ]
 }
