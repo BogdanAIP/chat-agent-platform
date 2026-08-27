@@ -82,6 +82,15 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         self.assertIn("byte_lock_guardian=pass", prepare)
         self.assertIn("semantic_transport_pid", prepare)
 
+    def test_guardian_ready_handshake_uses_numeric_utc_ticks_not_datetime_string_parsing(self):
+        guardian = GUARDIAN.read_text(encoding="utf-8").casefold()
+        prepare = PREPARE.read_text(encoding="utf-8").casefold()
+        self.assertIn("ready_time_ticks = $readyutc.ticks", guardian)
+        self.assertIn("$guardianreadytimeticks = [long]$guardianready.ready_time_ticks", prepare)
+        self.assertIn("[datetime]::new($guardianreadytimeticks, [datetimekind]::utc)", prepare)
+        self.assertIn("guardian_ready_time_ticks = $guardianreadytimeticks", prepare)
+        self.assertNotIn("datetimeoffset]::parse([string]$guardianready.ready_at", prepare)
+
     def test_fixture_exposes_authenticated_quiesce_and_atomic_snapshot(self):
         text = FIXTURE.read_text(encoding="utf-8").casefold()
         self.assertIn("--gate-token", text)
