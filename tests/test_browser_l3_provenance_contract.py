@@ -91,6 +91,17 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         self.assertIn("guardian_ready_time_ticks = $guardianreadytimeticks", prepare)
         self.assertNotIn("[datetimeoffset]::parse([string]$guardianready.ready_at", prepare)
 
+    def test_semantic_transport_generation_manifest_field_matches_checker(self):
+        prepare = PREPARE.read_text(encoding="utf-8").casefold()
+        checker = CHECKER.read_text(encoding="utf-8").casefold()
+        self.assertIn(
+            "semantic_transport_start_time_ticks = [long]$semantictransport.process_start_time_ticks",
+            prepare,
+        )
+        self.assertIn("$manifest.semantic_transport_start_time_ticks", checker)
+        self.assertNotIn("semantic_transport_process_start_time_ticks", prepare)
+        self.assertNotIn("semantic_transport_process_start_time_ticks", checker)
+
     def test_fixture_exposes_authenticated_quiesce_and_atomic_snapshot(self):
         text = FIXTURE.read_text(encoding="utf-8").casefold()
         self.assertIn("--gate-token", text)
