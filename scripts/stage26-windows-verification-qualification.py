@@ -6,6 +6,7 @@ import json
 import sys
 import time
 import traceback
+from datetime import datetime
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Callable
@@ -105,6 +106,13 @@ def _identity_variant(
     return variant.to_mapping()
 
 
+def _parse_time(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("qualification observation time must be timezone-aware")
+    return parsed
+
+
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -167,15 +175,21 @@ def main() -> int:
         "openadapt_attestation": None,
         "fixture_process_id": None,
         "same_live_identity_pass": False,
+        "first_observed_at": None,
+        "second_observed_at": None,
+        "live_observation_time_advanced_pass": False,
         "kernel_pass_status": None,
         "kernel_pass_reason": None,
         "wrong_postcondition_status": None,
         "process_generation_drift_status": None,
         "hwnd_drift_status": None,
         "stale_observation_status": None,
+        "non_advancing_time_status": None,
+        "non_advancing_time_reason": None,
         "identity_drift_fail_pass": False,
         "wrong_postcondition_fail_pass": False,
         "stale_unknown_pass": False,
+        "non_advancing_time_unknown_pass": False,
         "resolver_stats": None,
         "pass": False,
         "error": None,
@@ -207,6 +221,11 @@ def main() -> int:
         second = observe_bound_window(resolver, FIXTURE_WINDOW_NAME)
         result["resolver_stats"] = vars(resolver.stats).copy()
         result["same_live_identity_pass"] = _identity_tuple(first) == _identity_tuple(second)
+        result["first_observed_at"] = first.observed_at
+        result["second_observed_at"] = second.observed_at
+        result["live_observation_time_advanced_pass"] = bool(
+            _parse_time(second.observed_at) > _parse_time(first.observed_at)
+        )
 
         expected = {"window": {"title": first.window_title}}
         verified = verify_windows_desktop_transition(
@@ -264,15 +283,33 @@ def main() -> int:
         result["stale_observation_status"] = stale.status.value
         result["stale_unknown_pass"] = stale.status is VerificationStatus.UNKNOWN
 
+        non_advancing_after = second.to_mapping()
+        non_advancing_after["observed_at"] = first.observed_at
+        non_advancing = verify_windows_desktop_transition(
+            before_raw=first.to_mapping(),
+            after_raw=non_advancing_after,
+            expected=expected,
+            subject=f"fixture-pid:{fixture_pid}",
+            stream_id="physical-windows-verification-non-advancing-time",
+        )
+        result["non_advancing_time_status"] = non_advancing["status"]
+        result["non_advancing_time_reason"] = non_advancing["verification"]["reason"]
+        result["non_advancing_time_unknown_pass"] = bool(
+            non_advancing["status"] == "unknown"
+            and non_advancing["verification"]["reason"] == "stale_observation_time"
+        )
+
         stats = resolver.stats
         result["pass"] = bool(
             attestation["version_match"]
             and result["same_live_identity_pass"]
+            and result["live_observation_time_advanced_pass"]
             and verified["status"] == "pass"
             and verified["verification"]["reason"] == "expected_effect_verified"
             and result["wrong_postcondition_fail_pass"]
             and result["identity_drift_fail_pass"]
             and result["stale_unknown_pass"]
+            and result["non_advancing_time_unknown_pass"]
             and first.process_id == fixture_pid
             and second.process_id == fixture_pid
             and stats.desktop_fallback_calls == 0
@@ -300,15 +337,21 @@ def main() -> int:
         print(f"OPENADAPT_VERSION_MATCH={attestation['version_match']}")
         print(f"OPENADAPT_WIN_AGENT_SERVER_SHA256={attestation['win_agent_server_sha256']}")
     print(f"SAME_LIVE_IDENTITY_PASS={result['same_live_identity_pass']}")
+    print(f"FIRST_OBSERVED_AT={result['first_observed_at']}")
+    print(f"SECOND_OBSERVED_AT={result['second_observed_at']}")
+    print(f"LIVE_OBSERVATION_TIME_ADVANCED_PASS={result['live_observation_time_advanced_pass']}")
     print(f"KERNEL_PASS_STATUS={result['kernel_pass_status']}")
     print(f"KERNEL_PASS_REASON={result['kernel_pass_reason']}")
     print(f"WRONG_POSTCONDITION_STATUS={result['wrong_postcondition_status']}")
     print(f"PROCESS_GENERATION_DRIFT_STATUS={result['process_generation_drift_status']}")
     print(f"HWND_DRIFT_STATUS={result['hwnd_drift_status']}")
     print(f"STALE_OBSERVATION_STATUS={result['stale_observation_status']}")
+    print(f"NON_ADVANCING_TIME_STATUS={result['non_advancing_time_status']}")
+    print(f"NON_ADVANCING_TIME_REASON={result['non_advancing_time_reason']}")
     print(f"IDENTITY_DRIFT_FAIL_PASS={result['identity_drift_fail_pass']}")
     print(f"WRONG_POSTCONDITION_FAIL_PASS={result['wrong_postcondition_fail_pass']}")
     print(f"STALE_UNKNOWN_PASS={result['stale_unknown_pass']}")
+    print(f"NON_ADVANCING_TIME_UNKNOWN_PASS={result['non_advancing_time_unknown_pass']}")
     print(f"ERROR={result['error']}")
     print(f"PASS={result['pass']}")
     return 0 if result["pass"] else 1
