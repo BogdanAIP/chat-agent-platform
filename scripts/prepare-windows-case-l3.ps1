@@ -317,6 +317,9 @@ TASK_END
     Write-Host 'SOURCE_PROVENANCE_GATE=PASS'
     Write-Host 'INSTALLED_RUNTIME_PROVENANCE=PASS'
     Write-Host 'WINDOWS_RUNTIME_ATTESTATION=PASS'
+    Write-Host "OPENADAPT_VERSION_MATCH=$([bool]$runtimeAttestation.version_match)"
+    Write-Host "OPENADAPT_INSTALLED_VERSION=$([string]$runtimeAttestation.installed_version)"
+    Write-Host "OPENADAPT_WIN_AGENT_SERVER_SHA256=$([string]$runtimeAttestation.win_agent_server_sha256)"
     Write-Host 'INITIAL_FINISH_GATE=NOT_DONE'
     Write-Host 'CHAT_APP_REBIND_REQUIRED=True'
     Write-Host "CHECK_COMMAND=& '$($SourceRoot)\scripts\check-windows-case-l3.ps1' -QualificationRoot '$qualificationRoot'"
