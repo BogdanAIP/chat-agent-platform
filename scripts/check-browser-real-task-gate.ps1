@@ -37,10 +37,7 @@ function Get-NodeModulePath {
 }
 
 function Test-InstalledAssetMatch {
-  param(
-    [Parameter(Mandatory = $true)][string]$SourcePath,
-    [Parameter(Mandatory = $true)][string]$InstalledPath
-  )
+  param([Parameter(Mandatory = $true)][string]$SourcePath, [Parameter(Mandatory = $true)][string]$InstalledPath)
   if (-not (Test-Path -LiteralPath $SourcePath -PathType Leaf)) { return $false }
   if (-not (Test-Path -LiteralPath $InstalledPath -PathType Leaf)) { return $false }
   return (Get-Sha256 -Path $SourcePath) -ceq (Get-Sha256 -Path $InstalledPath)
@@ -56,11 +53,7 @@ function Test-ProcessGeneration {
   if ($null -eq $process) { return $false }
   try {
     $process.Refresh()
-    return (
-      -not $process.HasExited -and
-      $process.ProcessName -ceq $ProcessName -and
-      $process.StartTime.ToUniversalTime().Ticks -eq $StartTimeTicks
-    )
+    return (-not $process.HasExited -and $process.ProcessName -ceq $ProcessName -and $process.StartTime.ToUniversalTime().Ticks -eq $StartTimeTicks)
   }
   catch { return $false }
 }
@@ -75,25 +68,16 @@ function Stop-VerifiedProcessSafely {
   if ($null -eq $process) { return $true }
   try {
     $process.Refresh()
-    if (
-      $process.ProcessName -cne $ProcessName -or
-      $process.StartTime.ToUniversalTime().Ticks -ne $StartTimeTicks
-    ) {
-      return $false
-    }
+    if ($process.ProcessName -cne $ProcessName -or $process.StartTime.ToUniversalTime().Ticks -ne $StartTimeTicks) { return $false }
     $process.Kill()
     $process.WaitForExit(5000) | Out-Null
   }
   catch { return $false }
-
   $after = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
   if ($null -eq $after) { return $true }
   try {
     $after.Refresh()
-    return (
-      $after.ProcessName -cne $ProcessName -or
-      $after.StartTime.ToUniversalTime().Ticks -ne $StartTimeTicks
-    )
+    return ($after.ProcessName -cne $ProcessName -or $after.StartTime.ToUniversalTime().Ticks -ne $StartTimeTicks)
   }
   catch { return $true }
 }
@@ -103,9 +87,7 @@ $ExpectedHead = $ExpectedHead.ToLowerInvariant()
 $manifestPath = Join-Path $QualificationRoot 'gate-manifest.json'
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw "Gate manifest missing: $manifestPath" }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding utf8 | ConvertFrom-Json
-if ([string]$manifest.exact_head -cne $ExpectedHead) {
-  throw "EXACT_HEAD_MISMATCH expected=$ExpectedHead actual=$($manifest.exact_head)"
-}
+if ([string]$manifest.exact_head -cne $ExpectedHead) { throw "EXACT_HEAD_MISMATCH expected=$ExpectedHead actual=$($manifest.exact_head)" }
 
 $fixturePid = [int]$manifest.fixture_pid
 $guardianPid = [int]$manifest.guardian_pid
@@ -135,21 +117,13 @@ try {
   $fixtureFull = [System.IO.Path]::GetFullPath($fixtureRoot).TrimEnd('\')
   $workspaceFull = [System.IO.Path]::GetFullPath($workspaceRoot).TrimEnd('\')
   $qualificationFull = [System.IO.Path]::GetFullPath($QualificationRoot).TrimEnd('\')
-  if ($fixtureFull.StartsWith($workspaceFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Fixture evidence must not live inside the Chat workspace root.'
-  }
+  if ($fixtureFull.StartsWith($workspaceFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) { throw 'Fixture evidence must not live inside the Chat workspace root.' }
   foreach ($path in @($sourceProvenancePath, $installedProvenancePath, $frozenCheckerPath, $frozenProvenancePath, $frozenGuardianPath, $manifestPath, $PSCommandPath)) {
     $full = [System.IO.Path]::GetFullPath($path)
-    if ($full.StartsWith($workspaceFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
-      throw "Independent Browser L3 evidence/code must not live inside the Chat workspace: $path"
-    }
-    if (-not $full.StartsWith($qualificationFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
-      throw "Independent Browser L3 evidence/code escaped qualification root: $path"
-    }
+    if ($full.StartsWith($workspaceFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) { throw "Independent Browser L3 evidence/code must not live inside the Chat workspace: $path" }
+    if (-not $full.StartsWith($qualificationFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) { throw "Independent Browser L3 evidence/code escaped qualification root: $path" }
   }
-  if ([System.IO.Path]::GetFullPath($frozenCheckerPath) -cne [System.IO.Path]::GetFullPath($PSCommandPath)) {
-    throw 'Finish Gate must execute the checker path frozen by preparation.'
-  }
+  if ([System.IO.Path]::GetFullPath($frozenCheckerPath) -cne [System.IO.Path]::GetFullPath($PSCommandPath)) { throw 'Finish Gate must execute the checker path frozen by preparation.' }
 
   if ((Get-Sha256 -Path $PSCommandPath) -cne [string]$manifest.frozen_checker_sha256) { throw 'Frozen Browser Finish Gate checker hash drifted.' }
   if ((Get-Sha256 -Path $frozenProvenancePath) -cne [string]$manifest.frozen_provenance_gate_sha256) { throw 'Frozen Source Provenance Gate hash drifted.' }
@@ -157,44 +131,31 @@ try {
 
   $initialSource = Get-Content -LiteralPath $sourceProvenancePath -Raw -Encoding utf8 | ConvertFrom-Json
   $initialInstalled = Get-Content -LiteralPath $installedProvenancePath -Raw -Encoding utf8 | ConvertFrom-Json
-  if (
-    [string]$initialSource.status -ne 'pass' -or
-    [string]$initialSource.actual_head -ne $ExpectedHead -or
-    -not [bool]$initialSource.working_tree_clean -or
-    -not [bool]$initialSource.tracked_diff_empty -or
-    -not [bool]$initialSource.untracked_empty -or
-    -not [bool]$initialInstalled.all_match -or
-    -not [bool]$initialInstalled.dependencies_match_exact_lock -or
-    [string]$initialInstalled.exact_head -ne $ExpectedHead -or
-    @($initialInstalled.dependencies).Count -ne 3
-  ) { throw 'Initial Browser L3 provenance evidence was not a clean exact-head/exact-lock PASS.' }
+  if ([string]$initialSource.status -ne 'pass' -or [string]$initialSource.actual_head -ne $ExpectedHead -or -not [bool]$initialSource.working_tree_clean -or -not [bool]$initialSource.tracked_diff_empty -or -not [bool]$initialSource.untracked_empty -or -not [bool]$initialInstalled.all_match -or -not [bool]$initialInstalled.dependencies_match_exact_lock -or [string]$initialInstalled.exact_head -ne $ExpectedHead -or @($initialInstalled.dependencies).Count -ne 3) {
+    throw 'Initial Browser L3 provenance evidence was not a clean exact-head/exact-lock PASS.'
+  }
 
-  if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
-    throw 'Browser byte-lock guardian generation was not live at Finish Gate start.'
+  $guardianReadyTimeTicks = [long]$manifest.guardian_ready_time_ticks
+  if ($guardianReadyTimeTicks -le 0) { throw 'Browser byte-lock guardian READY timestamp is missing.' }
+  if ([long]$manifest.semantic_transport_process_start_time_ticks -lt $guardianReadyTimeTicks) {
+    throw 'Direct semantic transport predates verified byte-lock acquisition.'
   }
-  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_start_time_ticks))) {
-    throw 'Direct semantic transport process generation drifted before Finish Gate.'
+  if ([long]$manifest.fixture_process_start_time_ticks -lt $guardianReadyTimeTicks) {
+    throw 'Browser L3 fixture predates verified byte-lock acquisition.'
   }
-  if (-not (Test-ProcessGeneration -ProcessId $fixturePid -ProcessName ([string]$manifest.fixture_process_name) -StartTimeTicks ([long]$manifest.fixture_process_start_time_ticks))) {
-    throw 'Browser L3 fixture process generation was not live at Finish Gate proof time.'
-  }
+
+  if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) { throw 'Browser byte-lock guardian generation was not live at Finish Gate start.' }
+  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_process_start_time_ticks))) { throw 'Direct semantic transport process generation drifted before Finish Gate.' }
+  if (-not (Test-ProcessGeneration -ProcessId $fixturePid -ProcessName ([string]$manifest.fixture_process_name) -StartTimeTicks ([long]$manifest.fixture_process_start_time_ticks))) { throw 'Browser L3 fixture process generation was not live at Finish Gate proof time.' }
 
   $freezeUri = [System.Uri]::new([System.Uri]([string]$manifest.start_url), '__gate/freeze')
   $freezeResponse = Invoke-RestMethod -Uri $freezeUri -Method Post -Headers @{ 'X-Gate-Token' = [string]$manifest.gate_token } -TimeoutSec 5
-  if ([string]$freezeResponse.status -ne 'frozen' -or [string]$freezeResponse.generation -cne [string]$manifest.fixture_generation) {
-    throw 'Browser L3 fixture did not enter the expected frozen generation.'
-  }
+  if ([string]$freezeResponse.status -ne 'frozen' -or [string]$freezeResponse.generation -cne [string]$manifest.fixture_generation) { throw 'Browser L3 fixture did not enter the expected frozen generation.' }
   $health = Invoke-RestMethod -Uri ([System.Uri]::new([System.Uri]([string]$manifest.start_url), 'health')) -Method Get -TimeoutSec 5
-  if (-not [bool]$health.frozen -or [string]$health.generation -cne [string]$manifest.fixture_generation) {
-    throw 'Browser L3 fixture health did not confirm the frozen generation.'
-  }
+  if (-not [bool]$health.frozen -or [string]$health.generation -cne [string]$manifest.fixture_generation) { throw 'Browser L3 fixture health did not confirm the frozen generation.' }
 
-  if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
-    throw 'Browser byte-lock guardian did not remain live through fixture freeze.'
-  }
-  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_start_time_ticks))) {
-    throw 'Direct semantic transport process generation changed during Browser L3 run.'
-  }
+  if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) { throw 'Browser byte-lock guardian did not remain live through fixture freeze.' }
+  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_process_start_time_ticks))) { throw 'Direct semantic transport process generation changed during Browser L3 run.' }
 
   $criticalAssets = @(
     'runtime/semantic-projection/bin/semantic-projection-launcher.mjs',
@@ -230,13 +191,7 @@ try {
   & $python @provenanceArgs
   if ($LASTEXITCODE -ne 0) { throw 'Browser L3 source provenance revalidation failed.' }
   $recheck = Get-Content -LiteralPath $recheckPath -Raw -Encoding utf8 | ConvertFrom-Json
-  if (
-    [string]$recheck.status -ne 'pass' -or
-    [string]$recheck.actual_head -ne $ExpectedHead -or
-    -not [bool]$recheck.working_tree_clean -or
-    -not [bool]$recheck.tracked_diff_empty -or
-    -not [bool]$recheck.untracked_empty
-  ) { throw 'Browser L3 source provenance revalidation did not PASS.' }
+  if ([string]$recheck.status -ne 'pass' -or [string]$recheck.actual_head -ne $ExpectedHead -or -not [bool]$recheck.working_tree_clean -or -not [bool]$recheck.tracked_diff_empty -or -not [bool]$recheck.untracked_empty) { throw 'Browser L3 source provenance revalidation did not PASS.' }
 
   $appRoot = [string]$initialInstalled.installed_root
   $installedMappings = @(
@@ -260,79 +215,55 @@ try {
     @('scripts\semantic-projection-runtime.ps1', 'scripts\semantic-projection-runtime.ps1')
   )
   foreach ($mapping in $installedMappings) {
-    if (-not (Test-InstalledAssetMatch -SourcePath (Join-Path $sourceRoot ([string]$mapping[0])) -InstalledPath (Join-Path $appRoot ([string]$mapping[1])))) {
-      throw "Installed Browser L3 runtime byte drift: $([string]$mapping[0])"
-    }
+    if (-not (Test-InstalledAssetMatch -SourcePath (Join-Path $sourceRoot ([string]$mapping[0])) -InstalledPath (Join-Path $appRoot ([string]$mapping[1])))) { throw "Installed Browser L3 runtime byte drift: $([string]$mapping[0])" }
   }
 
   $sourceLockPath = Join-Path $sourceRoot 'runtime\semantic-projection\package-lock.json'
-  if ((Get-Sha256 -Path $sourceLockPath) -cne [string]$initialInstalled.package_lock_sha256) {
-    throw 'Browser L3 package-lock bytes drifted during run.'
-  }
+  if ((Get-Sha256 -Path $sourceLockPath) -cne [string]$initialInstalled.package_lock_sha256) { throw 'Browser L3 package-lock bytes drifted during run.' }
   $sourceLock = Get-Content -LiteralPath $sourceLockPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
   $installedPackageRoot = Join-Path $appRoot 'runtime\semantic-projection'
   foreach ($dependency in @($initialInstalled.dependencies)) {
     $packageName = [string]$dependency.package
     $lockRecord = $sourceLock['packages']["node_modules/$packageName"]
-    if (
-      $null -eq $lockRecord -or
-      [string]$lockRecord['version'] -cne [string]$dependency.lock_version -or
-      [string]$lockRecord['integrity'] -cne [string]$dependency.lock_integrity
-    ) { throw "Exact-lock record drifted for $packageName." }
+    if ($null -eq $lockRecord -or [string]$lockRecord['version'] -cne [string]$dependency.lock_version -or [string]$lockRecord['integrity'] -cne [string]$dependency.lock_integrity) { throw "Exact-lock record drifted for $packageName." }
     $installedPath = Get-NodeModulePath -Root $installedPackageRoot -PackageName $packageName
-    if ((Get-DirectoryDigest -Root $installedPath) -cne [string]$dependency.installed_directory_sha256) {
-      throw "Installed Playwright dependency package bytes drifted during Browser L3 run: $packageName"
-    }
+    if ((Get-DirectoryDigest -Root $installedPath) -cne [string]$dependency.installed_directory_sha256) { throw "Installed Playwright dependency package bytes drifted during Browser L3 run: $packageName" }
   }
 
-  if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
-    throw 'Browser byte-lock guardian did not remain live through final provenance revalidation.'
-  }
+  if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) { throw 'Browser byte-lock guardian did not remain live through final provenance revalidation.' }
 
   $snapshotPath = Join-Path $fixtureRoot 'frozen-snapshot.json'
   if (-not (Test-Path -LiteralPath $snapshotPath -PathType Leaf)) { throw 'Frozen Browser L3 atomic snapshot is missing.' }
   $snapshot = Get-Content -LiteralPath $snapshotPath -Raw -Encoding utf8 | ConvertFrom-Json
-  if (-not [bool]$snapshot.frozen -or [string]$snapshot.fixture_generation -cne [string]$manifest.fixture_generation) {
-    throw 'Frozen Browser L3 snapshot generation mismatch.'
-  }
+  if (-not [bool]$snapshot.frozen -or [string]$snapshot.fixture_generation -cne [string]$manifest.fixture_generation) { throw 'Frozen Browser L3 snapshot generation mismatch.' }
   $finish = $snapshot.finish
   $state = $snapshot.state
   $seed = $snapshot.seed
   $audit = @($snapshot.audit)
 
-  $requiredChecks = @('target_exists', 'address_exact', 'status_exact', 'comment_exact', 'old_address_absent_in_target', 'decoys_unchanged', 'only_target_ever_mutated')
-  if ([string]$finish.status -ne 'done') { throw "FINISH_GATE_NOT_DONE status=$($finish.status)" }
-  foreach ($name in $requiredChecks) {
+  foreach ($name in @('target_exists', 'address_exact', 'status_exact', 'comment_exact', 'old_address_absent_in_target', 'decoys_unchanged', 'only_target_ever_mutated')) {
     $property = $finish.checks.PSObject.Properties[$name]
     if ($null -eq $property -or -not [bool]$property.Value) { throw "FINISH_CHECK_FAILED=$name" }
   }
-
+  if ([string]$finish.status -ne 'done') { throw "FINISH_GATE_NOT_DONE status=$($finish.status)" }
   $targetId = [string]$seed.target_id
   if ([string]$finish.target_id -ne $targetId) { throw 'Finish Gate target identity drifted.' }
   if ([int]$finish.save_count -ne 1) { throw "Browser L3 requires exactly one persisted save; observed=$($finish.save_count)" }
   $mutated = @($finish.mutated_ids)
   if ($mutated.Count -ne 1 -or [string]$mutated[0] -ne $targetId) { throw "UNEXPECTED_MUTATION_SET=$($mutated -join ',')" }
-
   $target = @($state.cases | Where-Object { [string]$_.id -eq $targetId })
   if ($target.Count -ne 1) { throw 'Target case missing or duplicated in final snapshot.' }
   if ([string]$target[0].address -ne [string]$seed.expected.address) { throw 'Final address mismatch.' }
   if ([string]$target[0].status -ne [string]$seed.expected.status) { throw 'Final status mismatch.' }
   if ([string]$target[0].comment -ne [string]$seed.expected.comment) { throw 'Final comment mismatch.' }
-
   $auditCount = $audit.Count
   if ($auditCount -ne 1) { throw "Browser L3 requires exactly one audit mutation; observed=$auditCount" }
-  if ([string]$audit[0].id -ne $targetId -or [string]$audit[0].event -ne 'save') {
-    throw 'Frozen Browser L3 audit mutation does not identify the single target save.'
-  }
-
+  if ([string]$audit[0].id -ne $targetId -or [string]$audit[0].event -ne 'save') { throw 'Frozen Browser L3 audit mutation does not identify the single target save.' }
   $validated = $true
 }
-catch {
-  $mainError = $_
-}
+catch { $mainError = $_ }
 finally {
   $fixtureCleanupPass = Stop-VerifiedProcessSafely -ProcessId $fixturePid -ProcessName ([string]$manifest.fixture_process_name) -StartTimeTicks ([long]$manifest.fixture_process_start_time_ticks)
-
   $guardianCurrent = Get-Process -Id $guardianPid -ErrorAction SilentlyContinue
   if ($null -eq $guardianCurrent) {
     $guardianCleanupPass = $true
@@ -345,10 +276,7 @@ finally {
     } catch { }
     $guardianCleanupPass = Stop-VerifiedProcessSafely -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks)
   }
-  else {
-    $guardianCleanupPass = $false
-  }
-
+  else { $guardianCleanupPass = $false }
   Write-Host "FIXTURE_CLEANUP_PASS=$fixtureCleanupPass"
   Write-Host "BYTE_LOCK_GUARDIAN_CLEANUP_PASS=$guardianCleanupPass"
 }
