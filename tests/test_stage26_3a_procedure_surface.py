@@ -101,19 +101,26 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         self.assertNotIn("qualification-only", source.lower())
         self.assertFalse(OBSOLETE_PROJECTION.exists())
 
-    def test_procedure_run_schema_is_closed_and_has_no_generic_dispatch(self) -> None:
+    def test_procedure_run_schema_is_closed_registry_and_has_no_generic_dispatch(self) -> None:
         source = CONTROL_PLANE.read_text(encoding="utf-8")
         self.assertIn("server.registerTool('procedure_run'", source)
         self.assertIn("z.literal('verified_workspace_artifact_v1')", source)
+        self.assertIn("z.literal(WINDOWS_CASE_PROCEDURE)", source)
+        self.assertIn("z.union([", source)
         self.assertIn("resume_task_id", source)
+        self.assertIn("case_id", source)
+        self.assertIn("status: z.enum(['Approved', 'Needs Review'])", source)
         self.assertIn("const controlPlaneCli = path.join(repoRoot, 'runtime', 'control_plane', 'cli.py')", source)
-        self.assertIn("spawn('python', [controlPlaneCli]", source)
+        self.assertIn("spawn(python, [controlPlaneCli]", source)
         for forbidden in (
             "args.command",
             "args.path",
             "args.backend",
             "args.tool",
             "args.server",
+            "request.command",
+            "request.path",
+            "request.backend",
             "shell: true",
             "eval(",
             "exec(",
