@@ -89,7 +89,7 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         self.assertIn("$guardianreadytimeticks = [long]$guardianready.ready_time_ticks", prepare)
         self.assertIn("[datetime]::new($guardianreadytimeticks, [datetimekind]::utc)", prepare)
         self.assertIn("guardian_ready_time_ticks = $guardianreadytimeticks", prepare)
-        self.assertNotIn("datetimeoffset]::parse([string]$guardianready.ready_at", prepare)
+        self.assertNotIn("[datetimeoffset]::parse([string]$guardianready.ready_at", prepare)
 
     def test_fixture_exposes_authenticated_quiesce_and_atomic_snapshot(self):
         text = FIXTURE.read_text(encoding="utf-8").casefold()
