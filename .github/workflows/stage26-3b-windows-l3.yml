@@ -65,14 +65,16 @@ jobs:
           python -m unittest tests.test_stage26_3b_windows_verification
           if ($LASTEXITCODE -ne 0) { throw "Windows Verification Kernel contract failed with exit code $LASTEXITCODE" }
 
-      - name: L3 request and visible-state helper contracts
+      - name: L3 request visible-state and settle helper contracts
         id: app_helpers
         continue-on-error: true
         shell: pwsh
         run: |
           python -m unittest `
             tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_windows_case_request_is_bounded_and_session_bound `
-            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_visible_state_postconditions_are_exact_digest_inputs
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_visible_state_postconditions_are_exact_digest_inputs `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_postcondition_settle_uses_fresh_observations_without_repeating_action `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_postcondition_settle_never_synthesizes_pass_after_timeout
           if ($LASTEXITCODE -ne 0) { throw "Windows L3 helper contracts failed with exit code $LASTEXITCODE" }
 
       - name: L3 procedure CLI and public-schema contracts
