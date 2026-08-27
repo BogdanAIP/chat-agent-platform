@@ -48,11 +48,11 @@ function Test-InstalledAssetMatch {
 
 function Test-ProcessGeneration {
   param(
-    [Parameter(Mandatory = $true)][int]$Pid,
+    [Parameter(Mandatory = $true)][int]$ProcessId,
     [Parameter(Mandatory = $true)][string]$ProcessName,
     [Parameter(Mandatory = $true)][long]$StartTimeTicks
   )
-  $process = Get-Process -Id $Pid -ErrorAction SilentlyContinue
+  $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
   if ($null -eq $process) { return $false }
   try {
     $process.Refresh()
@@ -67,11 +67,11 @@ function Test-ProcessGeneration {
 
 function Stop-VerifiedProcessSafely {
   param(
-    [Parameter(Mandatory = $true)][int]$Pid,
+    [Parameter(Mandatory = $true)][int]$ProcessId,
     [Parameter(Mandatory = $true)][string]$ProcessName,
     [Parameter(Mandatory = $true)][long]$StartTimeTicks
   )
-  $process = Get-Process -Id $Pid -ErrorAction SilentlyContinue
+  $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
   if ($null -eq $process) { return $true }
   try {
     $process.Refresh()
@@ -88,7 +88,7 @@ function Stop-VerifiedProcessSafely {
   }
   catch { return $false }
 
-  $after = Get-Process -Id $Pid -ErrorAction SilentlyContinue
+  $after = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
   if ($null -eq $after) { return $true }
   try {
     $after.Refresh()
@@ -173,13 +173,13 @@ try {
     @($initialInstalled.dependencies).Count -ne 3
   ) { throw 'Initial Browser L3 provenance evidence was not a clean exact-head/exact-lock PASS.' }
 
-  if (-not (Test-ProcessGeneration -Pid $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
+  if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
     throw 'Browser byte-lock guardian generation was not live at Finish Gate start.'
   }
-  if (-not (Test-ProcessGeneration -Pid ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_start_time_ticks))) {
+  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_start_time_ticks))) {
     throw 'Direct semantic transport process generation drifted before Finish Gate.'
   }
-  if (-not (Test-ProcessGeneration -Pid $fixturePid -ProcessName ([string]$manifest.fixture_process_name) -StartTimeTicks ([long]$manifest.fixture_process_start_time_ticks))) {
+  if (-not (Test-ProcessGeneration -ProcessId $fixturePid -ProcessName ([string]$manifest.fixture_process_name) -StartTimeTicks ([long]$manifest.fixture_process_start_time_ticks))) {
     throw 'Browser L3 fixture process generation was not live at Finish Gate proof time.'
   }
 
@@ -198,10 +198,10 @@ try {
 
   # The byte-lock guardian must still be the exact process generation that
   # acquired verified handles before semantic runtime and fixture startup.
-  if (-not (Test-ProcessGeneration -Pid $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
+  if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
     throw 'Browser byte-lock guardian did not remain live through fixture freeze.'
   }
-  if (-not (Test-ProcessGeneration -Pid ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_start_time_ticks))) {
+  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_start_time_ticks))) {
     throw 'Direct semantic transport process generation changed during Browser L3 run.'
   }
 
@@ -292,7 +292,7 @@ try {
     }
   }
 
-  if (-not (Test-ProcessGeneration -Pid $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
+  if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
     throw 'Browser byte-lock guardian did not remain live through final provenance revalidation.'
   }
 
@@ -338,19 +338,19 @@ catch {
   $mainError = $_
 }
 finally {
-  $fixtureCleanupPass = Stop-VerifiedProcessSafely -Pid $fixturePid -ProcessName ([string]$manifest.fixture_process_name) -StartTimeTicks ([long]$manifest.fixture_process_start_time_ticks)
+  $fixtureCleanupPass = Stop-VerifiedProcessSafely -ProcessId $fixturePid -ProcessName ([string]$manifest.fixture_process_name) -StartTimeTicks ([long]$manifest.fixture_process_start_time_ticks)
 
   $guardianCurrent = Get-Process -Id $guardianPid -ErrorAction SilentlyContinue
   if ($null -eq $guardianCurrent) {
     $guardianCleanupPass = $true
   }
-  elseif (Test-ProcessGeneration -Pid $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks)) {
+  elseif (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks)) {
     try {
       [System.IO.File]::WriteAllText([string]$manifest.guardian_stop_path, "stop`n", [System.Text.UTF8Encoding]::new($false))
       $guardianCurrent.Refresh()
       $guardianCurrent.WaitForExit(5000) | Out-Null
     } catch { }
-    $guardianCleanupPass = Stop-VerifiedProcessSafely -Pid $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks)
+    $guardianCleanupPass = Stop-VerifiedProcessSafely -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks)
   }
   else {
     # PID was reused. Do not kill the replacement process.
