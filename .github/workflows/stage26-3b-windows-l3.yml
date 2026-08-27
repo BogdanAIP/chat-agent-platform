@@ -1,0 +1,106 @@
+name: Stage 26.3B Windows Application L3 Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/control_plane/**"
+      - "runtime/windows/**"
+      - "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs"
+      - "runtime/semantic-projection/tests/six-tool-acceptance.mjs"
+      - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/bootstrap-windows-procedure-runtime.ps1"
+      - "scripts/prepare-windows-case-l3.ps1"
+      - "scripts/check-windows-case-l3.ps1"
+      - "scripts/stage26-windows-case-desk-fixture.ps1"
+      - "scripts/stage26-windows-runtime-attestation.py"
+      - "tests/test_stage26_3a_procedure_surface*.py"
+      - "tests/test_stage26_3b_windows*.py"
+      - ".github/workflows/stage26-3b-windows-l3.yml"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/control_plane/**"
+      - "runtime/windows/**"
+      - "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs"
+      - "runtime/semantic-projection/tests/six-tool-acceptance.mjs"
+      - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/bootstrap-windows-procedure-runtime.ps1"
+      - "scripts/prepare-windows-case-l3.ps1"
+      - "scripts/check-windows-case-l3.ps1"
+      - "scripts/stage26-windows-case-desk-fixture.ps1"
+      - "scripts/stage26-windows-runtime-attestation.py"
+      - "tests/test_stage26_3a_procedure_surface*.py"
+      - "tests/test_stage26_3b_windows*.py"
+      - ".github/workflows/stage26-3b-windows-l3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage26-3b-windows-l3-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-application-l3-contract:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment
+        shell: pwsh
+        run: |
+          python --version
+          node --version
+          pwsh --version
+
+      - name: Run Windows Verification and application L3 contracts
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p "test_stage26_3b_windows*.py"
+          if ($LASTEXITCODE -ne 0) { throw "Windows Stage 26.3B contracts failed with exit code $LASTEXITCODE" }
+
+      - name: Preserve closed six-tool procedure surface contract
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3a_procedure_surface tests.test_stage26_3a_procedure_surface_security
+          if ($LASTEXITCODE -ne 0) { throw "Closed six-tool procedure surface contract failed with exit code $LASTEXITCODE" }
+
+      - name: Parse Windows L3 PowerShell gate scripts
+        shell: pwsh
+        run: |
+          $scripts = @(
+            'scripts/bootstrap-windows-procedure-runtime.ps1',
+            'scripts/prepare-windows-case-l3.ps1',
+            'scripts/check-windows-case-l3.ps1',
+            'scripts/stage26-windows-case-desk-fixture.ps1'
+          )
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $script), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) {
+              throw "$script has PowerShell syntax errors: $($errors -join '; ')"
+            }
+          }
+          Write-Host 'WINDOWS_APPLICATION_L3_POWERSHELL_PARSE=PASS'
+
+      - name: Parse Windows L3 Python runtime assets
+        shell: pwsh
+        run: |
+          python -m py_compile `
+            runtime/control_plane/windows_case_update.py `
+            scripts/stage26-windows-runtime-attestation.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 Python parse failed with exit code $LASTEXITCODE" }
+          Write-Host 'WINDOWS_APPLICATION_L3_PYTHON_PARSE=PASS'
+
+      - name: Report hosted qualification boundary
+        shell: pwsh
+        run: |
+          Write-Host 'STAGE26_3B_WINDOWS_APPLICATION_L3_HOSTED=PASS'
+          Write-Host 'TARGET_WINDOWS_PHYSICAL_L3_STILL_REQUIRED=True'
