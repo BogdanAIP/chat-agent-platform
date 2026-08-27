@@ -59,7 +59,8 @@ class RealTaskAcceptanceContractTests(unittest.TestCase):
         self.assertNotIn('FINISH_GATE_FILE', challenge_section)
         self.assertNotIn('SERVER_STATE_FILE', challenge_section)
         self.assertNotIn('AUDIT_FILE', challenge_section)
-        self.assertIn('fixture-state is outside the Chat workspace', prepare)
+        self.assertIn('fixture/provenance/frozen-gate evidence is outside Chat workspace', prepare)
+        self.assertIn('exact source/runtime/dependency bytes are write/delete locked until Finish Gate cleanup', prepare)
 
     def test_external_checker_requires_independent_state_and_target_only_history(self):
         checker = (ROOT / 'scripts' / 'check-browser-real-task-gate.ps1').read_text(encoding='utf-8')
@@ -68,7 +69,8 @@ class RealTaskAcceptanceContractTests(unittest.TestCase):
         self.assertIn("'decoys_unchanged'", folded)
         self.assertIn('fixture evidence must not live inside the chat workspace root', folded)
         self.assertIn('unexpected_mutation_set', folded)
-        self.assertIn('audit_wrong_target_mutation', folded)
+        self.assertIn('frozen browser l3 audit mutation does not identify the single target save', folded)
+        self.assertIn('frozen-snapshot.json', folded)
         self.assertIn('stage26_3b_browser_real_task_gate=pass', folded)
 
 
