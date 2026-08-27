@@ -12,7 +12,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from runtime.control_plane.verified_workspace_artifact import (  # noqa: E402
+    PROCEDURE_ID as WORKSPACE_ARTIFACT_PROCEDURE_ID,
     run_verified_workspace_artifact,
+)
+from runtime.control_plane.windows_case_update import (  # noqa: E402
+    PROCEDURE_ID as WINDOWS_CASE_PROCEDURE_ID,
+    run_windows_case_update,
 )
 
 
@@ -26,6 +31,31 @@ def _error(reason: str) -> dict[str, Any]:
         "reason": reason,
         "action_count": 0,
     }
+
+
+def _dispatch_registered_procedure(
+    request: dict[str, Any],
+    *,
+    workspace_root: Path,
+    state_root: Path,
+    candidate_admission: str | None,
+) -> dict[str, Any]:
+    procedure = request.get("procedure")
+    if procedure == WORKSPACE_ARTIFACT_PROCEDURE_ID:
+        return run_verified_workspace_artifact(
+            request,
+            workspace_root=workspace_root,
+            state_root=state_root,
+            candidate_admission=candidate_admission,
+        )
+    if procedure == WINDOWS_CASE_PROCEDURE_ID:
+        return run_windows_case_update(
+            request,
+            workspace_root=workspace_root,
+            state_root=state_root,
+            candidate_admission=candidate_admission,
+        )
+    raise ValueError("unknown or unregistered procedure")
 
 
 def main() -> int:
@@ -50,7 +80,7 @@ def main() -> int:
         return 2
 
     try:
-        result = run_verified_workspace_artifact(
+        result = _dispatch_registered_procedure(
             request,
             workspace_root=Path(workspace),
             state_root=Path(state_root),
