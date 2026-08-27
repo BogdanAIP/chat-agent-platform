@@ -29,6 +29,23 @@ function textOf(result) {
   return (result.content ?? []).filter(block => block.type === 'text').map(block => block.text).join('\n');
 }
 
+function closedSchemaVariants(schema) {
+  const variants = Array.isArray(schema?.anyOf)
+    ? schema.anyOf
+    : Array.isArray(schema?.oneOf)
+      ? schema.oneOf
+      : [schema];
+  assert.equal(variants.length, 2, 'procedure_run must expose exactly two registered closed procedure schemas');
+  return variants;
+}
+
+function procedureLiteral(schema) {
+  const procedure = schema?.properties?.procedure;
+  if (typeof procedure?.const === 'string') return procedure.const;
+  if (Array.isArray(procedure?.enum) && procedure.enum.length === 1) return procedure.enum[0];
+  return null;
+}
+
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-six-tool-workspace-'));
 const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-six-tool-state-'));
 const client = new Client({ name: 'six-tool-semantic-acceptance', version: '1.0.0' });
@@ -77,10 +94,38 @@ try {
   assert.equal(procedure.annotations?.readOnlyHint, false);
   assert.equal(procedure.annotations?.destructiveHint, true);
   assert.equal(procedure.annotations?.openWorldHint, false);
-  const properties = procedure.inputSchema?.properties ?? {};
-  assert.deepEqual(Object.keys(properties).sort(), ['artifact_name', 'content', 'procedure', 'resume_task_id']);
-  for (const forbidden of ['path', 'command', 'python', 'backend', 'tool', 'args']) {
-    assert.equal(Object.prototype.hasOwnProperty.call(properties, forbidden), false, `forbidden procedure selector leaked: ${forbidden}`);
+
+  const variants = closedSchemaVariants(procedure.inputSchema);
+  const byProcedure = new Map(variants.map(variant => [procedureLiteral(variant), variant]));
+  assert.deepEqual(
+    [...byProcedure.keys()].sort(),
+    ['verified_workspace_artifact_v1', 'windows_case_update_v1'],
+    'procedure_run registry literals drifted',
+  );
+
+  const workspaceProcedure = byProcedure.get('verified_workspace_artifact_v1');
+  const windowsProcedure = byProcedure.get('windows_case_update_v1');
+  assert(workspaceProcedure, 'verified_workspace_artifact_v1 schema missing');
+  assert(windowsProcedure, 'windows_case_update_v1 schema missing');
+  assert.equal(workspaceProcedure.additionalProperties, false);
+  assert.equal(windowsProcedure.additionalProperties, false);
+  assert.deepEqual(
+    Object.keys(workspaceProcedure.properties ?? {}).sort(),
+    ['artifact_name', 'content', 'procedure', 'resume_task_id'],
+  );
+  assert.deepEqual(
+    Object.keys(windowsProcedure.properties ?? {}).sort(),
+    ['case_id', 'note', 'procedure', 'status'],
+  );
+  for (const variant of variants) {
+    const properties = variant.properties ?? {};
+    for (const forbidden of ['path', 'command', 'python', 'backend', 'tool', 'args', 'pid', 'hwnd', 'server']) {
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(properties, forbidden),
+        false,
+        `forbidden procedure authority leaked into ${procedureLiteral(variant)}: ${forbidden}`,
+      );
+    }
   }
 
   fs.writeFileSync(path.join(workspace, 'input.txt'), 'SIX_TOOL_READ_OK', 'utf8');
@@ -157,6 +202,7 @@ try {
 
   console.log('SEMANTIC_PUBLIC_TOOL_COUNT=6');
   console.log('SEMANTIC_PUBLIC_WEB_INTERACT_EXPECTED=PASS');
+  console.log('SEMANTIC_PUBLIC_PROCEDURE_REGISTRY=PASS');
   console.log('SEMANTIC_PUBLIC_PROCEDURE_RUN=PASS');
   console.log('SEMANTIC_PUBLIC_INDEPENDENT_READ=PASS');
   console.log('SEMANTIC_PUBLIC_RESUME=PASS');
