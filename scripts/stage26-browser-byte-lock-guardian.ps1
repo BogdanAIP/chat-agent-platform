@@ -55,13 +55,15 @@ try {
     $streams.Add($stream)
   }
 
+  $readyUtc = (Get-Date).ToUniversalTime()
   $ready = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     pid = $PID
     process_name = (Get-Process -Id $PID).ProcessName
     process_start_time_ticks = (Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks
     locked_file_count = $streams.Count
-    ready_at = (Get-Date).ToUniversalTime().ToString('o')
+    ready_time_ticks = $readyUtc.Ticks
+    ready_at = $readyUtc.ToString('o')
   }
   [System.IO.File]::WriteAllText(
     $ReadyPath,
