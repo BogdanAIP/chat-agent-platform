@@ -136,11 +136,15 @@ $form = New-Object System.Windows.Forms.Form
 $form.Text = "Case Desk — Windows L3 $RunId"
 $form.Name = 'Stage26WindowsCaseDesk'
 $form.AccessibleName = "Case Desk $RunId"
-$form.StartPosition = 'CenterScreen'
+$form.StartPosition = 'Manual'
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 $form.MinimizeBox = $false
 $form.ClientSize = New-Object System.Drawing.Size(920, 650)
+$workingArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$fixtureLeft = [Math]::Max([int]$workingArea.Left, [int]($workingArea.Right - $form.Width - 16))
+$fixtureTop = [Math]::Max([int]$workingArea.Top, [int]($workingArea.Top + 16))
+$form.Location = New-Object System.Drawing.Point($fixtureLeft, $fixtureTop)
 $form.TopMost = $true
 
 $titleLabel = New-Object System.Windows.Forms.Label
