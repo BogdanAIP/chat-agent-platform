@@ -198,8 +198,16 @@ if (Test-Path -LiteralPath $activeSessionPath -PathType Leaf) {
 }
 
 $baseSuffix = Get-Random -Minimum 2100 -Maximum 8900
-$suffixes = @($baseSuffix, $baseSuffix + 1, $baseSuffix + 10, $baseSuffix + 11)
-$targetIndex = Get-Random -Minimum 0 -Maximum $suffixes.Count
+$suffixes = [int[]]@(
+    $baseSuffix
+    ($baseSuffix + 1)
+    ($baseSuffix + 10)
+    ($baseSuffix + 11)
+)
+if (@($suffixes).Count -ne 4) {
+    throw "Case Desk suffix cardinality invariant failed: expected=4 actual=$(@($suffixes).Count)"
+}
+$targetIndex = Get-Random -Minimum 0 -Maximum @($suffixes).Count
 $targetSuffix = $suffixes[$targetIndex]
 $targetId = "CASE-$RunId-$('{0:0000}' -f $targetSuffix)"
 $requestedStatus = if ((Get-Random -Minimum 0 -Maximum 2) -eq 0) { 'Approved' } else { 'Needs Review' }
@@ -207,8 +215,11 @@ $expectedNote = "Reviewed by ordinary Chat $RunId"
 
 $clients = @('Marina Volkova', 'Marina Volkova', 'Maria Volkova', 'Marina Volkov')
 $statuses = @('Pending', 'Approved', 'Pending', 'Needs Review')
+if (@($clients).Count -ne @($suffixes).Count -or @($statuses).Count -ne @($suffixes).Count) {
+    throw "Case Desk fixture cardinality invariant failed: suffixes=$(@($suffixes).Count) clients=$(@($clients).Count) statuses=$(@($statuses).Count)"
+}
 $cases = @()
-for ($i = 0; $i -lt $suffixes.Count; $i += 1) {
+for ($i = 0; $i -lt @($suffixes).Count; $i += 1) {
     $caseId = "CASE-$RunId-$('{0:0000}' -f $suffixes[$i])"
     $cases += @([ordered]@{
         id = $caseId
@@ -332,6 +343,7 @@ TASK_END
     Write-Host "CHALLENGE_FILE=$challengePath"
     Write-Host "TARGET_CASE=$targetId"
     Write-Host "EXPECTED_STATUS=$requestedStatus"
+    Write-Host "CASE_FIXTURE_CARDINALITY=$(@($cases).Count)"
     Write-Host "FIXTURE_PID=$($fixtureProcess.Id)"
     Write-Host 'SOURCE_PROVENANCE_GATE=PASS'
     Write-Host 'INSTALLED_RUNTIME_PROVENANCE=PASS'
