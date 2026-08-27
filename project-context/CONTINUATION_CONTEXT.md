@@ -1,6 +1,6 @@
 # Continuation Context — read this first in a fresh chat
 
-Resolve live GitHub state before acting. This file records the continuation point, not a promise that listed SHAs are still current.
+Resolve live GitHub state before acting. This file records the continuation point; exact code/tests/current CI/physical evidence outrank prose when they disagree.
 
 ## Repository
 
@@ -8,45 +8,112 @@ Resolve live GitHub state before acting. This file records the continuation poin
 
 ## Current real stopping point
 
-At the 2026-08-27 synchronization point:
+At the 2026-08-27 synchronization point for the Track M documentation replay:
 
 ```text
-main = cc0fa3d1b7afe9d833334ae68482d2d3dca4b818
-       PR #114 — Windows DesktopState shared-kernel verification
+main = 500bfc646a14892ea655369c20c8f8d725fccfeb
+       PR #117 — CAP-M0 Verification Kernel guarantee mutation pilot
+       ACCEPTED / MERGED
+
+previous release-critical merge = e965e7b5466446c9f065f6b57f438f25168bed9a
+       PR #115 — Windows/application real-task L3
        PHYSICALLY ACCEPTED / MERGED
 
-active release-critical PR = #115
-       representative Windows/application real-task L3
-       canonical public surface remains six tools
-       Draft until final hosted + target-Windows ordinary-Chat L3 acceptance
+active architecture/docs replay = PR #116
+       Track M Agent Session / Delegation + ADR-037
+       documentation/architecture only
+       no runtime/public-tool authority
 ```
 
-PR #114 target-Windows physical acceptance used exact clean head:
-
-`ce3f533d12ab0a5ea0c9a4804accb32cf377ac0e`
-
-It proved source provenance PASS, OpenAdapt 1.31.0 match, same live Windows identity, advancing observation time, expected-effect PASS, wrong-postcondition FAIL, process-generation/HWND drift FAIL, stale/non-advancing UNKNOWN, and clean cleanup.
+Always resolve live GitHub before acting because `main` and PR heads may advance after this snapshot.
 
 ## Accepted foundation
 
 - Stage 26.3A six-tool Verified Procedure Runtime: **ACCEPTED / MERGED #92**.
 - Verification Kernel foundation: **MERGED #99**.
-- file/artifact integration: **PHYSICALLY ACCEPTED / MERGED #102**.
+- file/artifact kernel integration: **PHYSICALLY ACCEPTED / MERGED #102**.
 - Browser observation foundation: **MERGED #106**.
 - production `web_open` final-state verification: **PHYSICALLY ACCEPTED / MERGED #107**.
 - Browser Harness / ADR-036 docs: **MERGED #110**.
 - production `web_interact` postcondition verification: **PHYSICALLY ACCEPTED / MERGED #111**.
 - first Browser L3 real-task acceptance: **PHYSICALLY ACCEPTED / MERGED #113** for its historical gate scope.
-- accepted Windows `DesktopState`/resolver/guarded-action foundations: **accepted for their recorded Stage 26.2 scope**.
 - Windows shared-kernel verifier: **PHYSICALLY ACCEPTED / MERGED #114**.
-- representative Windows/application L3: **ACTIVE DRAFT PR #115**.
-- WorkingState + typed recovery + LoopGuard: Stage 26.3C target, not yet accepted runtime.
+- representative Windows/application L3: **PHYSICALLY ACCEPTED / MERGED #115**.
+- CAP-M0 curated Verification Kernel mutation pilot: **ACCEPTED / MERGED #117**.
+- WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport: Stage 26.3C target, not yet accepted runtime.
+- Agent Session / Delegation Track M and CapabilityRegistry/Event/Policy ADR-037: **PROVISIONAL FUTURE ARCHITECTURE**, no current runtime/public-tool authority.
 
-## Browser L3 evidence now accepted
+## Accepted Windows/application L3 evidence — PR #115
 
-PR #113 physical run used randomized Case Desk data and gave ordinary Chat only the natural-language outcome/constraints.
+The final ordinary-Chat physical gate used exact frozen head:
 
-The external checker outside Chat `FilesRoot` reported:
+`5ae5d5ac52f391b1a58662e94a976c6ab8d48c62`
+
+Run `B1802720` gave ordinary Chat only the natural-language Case Desk task through the canonical six semantic tools. The bounded `windows_case_update_v1` procedure completed five transitions:
+
+```text
+select_case
+focus_note
+enter_note
+set_status
+save_case
+```
+
+Local procedure evidence reported:
+
+```text
+status=completed
+action_count=5
+local_execution_verified=true
+all five kernel_verification.status=pass
+local_goal_verification.status=pass
+local_safety_verification.status=pass
+```
+
+The frozen independent Finish Gate then reported:
+
+```text
+PROVENANCE_REVALIDATION=PASS
+EVIDENCE_OUTSIDE_CHAT_WORKSPACE=True
+TARGET_FINAL_STATE=True
+DECOYS_UNCHANGED=True
+ONLY_TARGET_EVER_MUTATED=True
+AUDIT_TARGET_SAVE_EXACTLY_ONCE=True
+AUDIT_BEFORE_MATCHES_SEED=True
+AUDIT_AFTER_MATCHES_FINAL=True
+FIXTURE_PROCESS_WAS_LIVE=True
+EXTERNAL_FINISH_GATE=DONE
+FIXTURE_CLEANUP_PASS=True
+ACTIVE_SESSION_CLEANUP_PASS=True
+STAGE26_3B_WINDOWS_APPLICATION_L3=PASS
+```
+
+#115 was then squash-merged as `e965e7b5466446c9f065f6b57f438f25168bed9a`.
+
+## CAP-M0 mutation assurance — PR #117
+
+#117 was replayed onto post-#115 `main` and accepted on exact head:
+
+`e99de4ea89e6a763e3db6671e710cf06c4e5bb17`
+
+It adds a curated 12-mutant Verification Kernel pilot without modifying production verifier behavior. Mutation targets are isolated temporary copies. Acceptance requires:
+
+```text
+baseline PASS
+12 / 12 KILLED
+0 SURVIVED
+0 ERROR
+named detector assertion failure only counts as KILLED
+exact mutated-source binding required
+```
+
+Fresh replay checks on that head passed the dedicated CAP-M0 workflow, general CI, CodeQL and Secret History Scan. #117 was squash-merged as current `main=500bfc646a14892ea655369c20c8f8d725fccfeb`.
+
+Canonical detail: `MUTATION_ASSURANCE.md`.
+
+## Browser L3 evidence and remaining provenance gap
+
+PR #113 physical Browser L3 reported:
 
 ```text
 STAGE26_3B_BROWSER_REAL_TASK_GATE=PASS
@@ -56,83 +123,11 @@ FINISH_GATE=done
 NON_TARGET_MUTATION=none
 ```
 
-That is scoped evidence that the accepted Browser primitives can be composed into one normal multi-step task with independent completion proof.
+Its functional/final-state/mutation-history evidence remains accepted for the historical scope. A later Source Provenance review found that the historical harness did not independently bind a clean tree and all actually executed source bytes under the stronger methodology.
 
-The later Source Provenance review found that the historical Browser L3 harness checked `git rev-parse HEAD` but did not independently prove a clean working tree or bind the actually executed source bytes by hash. Therefore #113 is **not retroactively failed**; its functional/final-state/mutation-history evidence remains accepted for the historical scope, while source provenance under the stronger methodology is `INCOMPLETE`. Repeat one representative Browser L3 under the new gate before declaring Stage 26.3B fully closed.
+Therefore #113 is **not retroactively failed**, but one representative Browser L3 must be repeated with the stronger Source Provenance Gate before Stage 26.3B is declared fully closed.
 
 Canonical methodology: `SOURCE_PROVENANCE_ACCEPTANCE.md`.
-
-## Accepted PR #114 contract
-
-PR #114 connects accepted `DesktopState.to_mapping()` evidence to `runtime/control_plane/verification.py` through:
-
-```text
-DesktopState BEFORE
- -> WindowsDesktopObservationStream
- -> ObservationRef(capability=windows.desktop)
- -> bounded expected final state
- -> mandatory exact stable process/window identity continuity
- -> DesktopState AFTER
- -> shared ExpectedEffect verifier
- -> PASS | FAIL | UNKNOWN
-```
-
-Every PASS requires stable equality of:
-
-```text
-Windows session
-application identity
-executable name
-PID
-process generation
-HWND
-coordinate space
-```
-
-`window_instance` is validated against each canonical DesktopState observation but is **not** required to remain equal when a legitimate window-title change causes its digest to change. This avoids rejecting a valid transition merely because the canonical window-instance digest includes title evidence.
-
-The older `runtime/windows/verifier.py` API remains preserved for Stage 26.2 compatibility.
-
-Canonical detail: `STAGE26_3B_WINDOWS_VERIFICATION.md`.
-
-## Active PR #115 contract
-
-PR #115 keeps the public semantic surface exactly six tools and changes only the closed registry behind `procedure_run`:
-
-```text
-verified_workspace_artifact_v1
-windows_case_update_v1
-```
-
-The Windows candidate accepts only:
-
-```text
-case_id
-note
-status = Approved | Needs Review
-```
-
-Chat cannot submit PID, HWND, backend, interpreter, executable, command, Python, arbitrary path, fixture-state/audit path or generic action list. The target process/window comes from one short-lived externally prepared session outside Chat `FilesRoot`.
-
-The randomized local WinForms Case Desk contains one intended record plus similar decoys. The procedure performs only five bounded transitions:
-
-```text
-select intended case
- -> focus exact note control
- -> type exact note
- -> set requested status
- -> save exact case
-```
-
-Every transition uses accepted Windows action mechanics followed by fresh `DesktopState` and the shared #114 Verification Kernel. A delivery receipt explicitly does not verify outcome.
-
-Persistent fixture state and mutation audit change only in the Save handler. Selection, text entry and draft status do not mutate persisted case records.
-
-The procedure cannot declare whole-task DONE. Its local completion keeps `external_l3_finish_gate_required` unresolved. The external checker separately proves exact final target state, unchanged decoys, exactly one intended save, mutation history, source/install/runtime provenance, live fixture at proof time and clean cleanup.
-
-Because #115 changes the existing `procedure_run` input schema, the final ordinary-Chat physical gate requires a freshly rebound client-visible Chat action schema. This is orthogonal interface-compatibility evidence, not a new L-stage.
-
-Canonical detail: `STAGE26_3B_VERIFICATION_KERNEL.md`.
 
 ## Current public semantic surface
 
@@ -158,122 +153,209 @@ ordinary ChatGPT
  -> deterministic Control Plane / focused capabilities
 ```
 
-1MCP is optional internal Extension Manager infrastructure only.
+1MCP remains optional internal Extension Manager infrastructure only.
 
-## Acceptance depth
+A future new consequence class requires its own reviewed contract. Do not hide desktop/session/project/local-code authority behind generic dispatch or misleading existing tool semantics.
+
+## Acceptance depth and provenance
 
 ```text
-L1 primitive/contract
+L1 primitive / contract
  -> L2 multi-step workflow integration where useful
  -> L3 ordinary user goal + independent final state/history
 ```
 
-#114 is the accepted Windows verifier L1 slice. #115 is the representative Windows/application L3 composition proof.
-
-Release-critical physical evidence has an orthogonal source requirement:
+Release-critical physical evidence additionally requires:
 
 ```text
 behavior acceptance
   L1 / L2 / L3 + independent Finish Gate
 
 source provenance acceptance
-  exact expected head + clean tree + source/driver/lock hash binding
+  exact expected head
+  + clean tree
+  + critical source/driver/lock hash binding
+  + installed/runtime binding where applicable
 ```
 
-A physical gate must not claim strict exact-head byte identity from `git rev-parse HEAD` alone.
+`git rev-parse HEAD` alone is not proof of executed bytes.
+
+## Stage 26.3C compatibility direction
+
+After the remaining 26.3B Browser provenance repeat, implement project-owned WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport.
+
+WorkingState remains capability-spanning and must not be replaced by OpenAdapt procedure-local resume state or any future vendor session/task store.
+
+26.3C should avoid hard-coding:
+
+```text
+one task -> one procedure -> one executor
+```
+
+Useful optional planner-neutral seams include:
+
+```text
+actor_ref
+delegation_ref
+execution_environment_ref
+budget_ref
+evidence_refs
+```
+
+Generic mutating outcomes should support:
+
+```text
+NOT_APPLIED
+APPLIED_BUT_ACK_FAILED
+OUTCOME_UNKNOWN
+```
+
+For `OUTCOME_UNKNOWN`, reconcile the same logical operation from fresh authoritative state before retry.
+
+ADR-037 additionally permits only the smallest typed internal event/read-only capability-descriptor seams needed by existing recovery/LoopGuard/Finish Gate work. It must not turn 26.3C into marketplace, scheduler, connector or Track M runtime work.
+
+## Track M — future Agent Session / Delegation direction
+
+Track M is a future parallel work-distribution capability beneath the existing ordinary-ChatGPT manager + deterministic Control Plane boundary.
+
+Keep these identities separate:
+
+```text
+HarnessSession
+Conversation / Chat
+DelegationTask
+MessageDelivery
+ExecutionEnvironment
+```
+
+Preferred route is target-surface-specific:
+
+```text
+reviewed official/project-owned harness API or host protocol when available
+ -> validated provider/session native route
+ -> Browser Companion + GenericChatAdapter DOM/accessibility for web-chat surfaces
+ -> reviewed GUI fallback
+ -> ABSTAIN
+```
+
+Browser Companion remains the primary cross-provider adapter family for authenticated web AI conversations. Stronger native APIs are optional per-surface routes, not a replacement for the web-chat product target.
+
+Important invariants:
+
+- HandoffPack is task/environmental data; capability grants remain Control Plane authority state;
+- discoverability is not lifecycle ownership;
+- worker result must correlate to a concrete DelegationTask/work unit;
+- queued send is distinct from stronger steer/interrupt effects;
+- mutating session/message effects use stable `operation_id` and reconcile ambiguous outcomes before retry;
+- event/idle/completion notifications trigger fresh observation but are not completion proof;
+- workers do not inherit manager lifecycle authority by default;
+- initial multi-worker topology defaults to `max_spawn_depth = 1`;
+- project/workspace/worktree lifecycle is a separate stronger consequence class;
+- Track M adds no current public tool/runtime authority and must not delay Stage 26.
+
+Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md`, ADR-035, `CONTROL_PLANE.md`, `SECURITY_POLICY.md`, `MODULE_CATALOG.md`, `ROADMAP.md`.
+
+## ADR-037 — CapabilityRegistry + TypedEventBus / PolicyHooks
+
+Future substrate:
+
+```text
+CapabilityRegistry
+  = project-owned semantic discovery/availability/health/trust metadata
+  != authorization
+  != generic dispatch
+
+TypedEventBus
+  = typed lifecycle events / observation triggers
+  != external-effect success proof
+  != WorkingState
+
+PolicyHooks
+  = registered bounded deterministic policy handlers
+  != second planner
+  != Verification Kernel / Finish Gate replacement
+```
+
+Raw provider/MCP catalogs must never become trusted planner-visible capability semantics automatically. Events trigger fresh authoritative observation where effect state matters. Hook output cannot widen grants or upgrade `FAIL/UNKNOWN` to `PASS` or `NOT_DONE/UNKNOWN` to `DONE`.
+
+Canonical detail: `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` and ADR-037 in `DECISIONS.md`.
 
 ## External execution reuse direction
 
-The project has recorded the following reuse strategy:
-
 ```text
 OpenAdapt
-  -> internal procedure/compiler/runtime mechanics where separately qualified
+  -> selected bounded procedure/compiler/runtime mechanics where qualified
   -> effect-verifier output is evidence only
-  -> project Verification Kernel remains final PASS|FAIL|UNKNOWN judge
-  -> OpenAdapt durable resume remains procedure-local and does not own project WorkingState
+  -> project Verification Kernel remains PASS|FAIL|UNKNOWN authority
+  -> procedure-local resume never replaces project WorkingState
 
 UFO²
-  -> source of selected UIA/Win32/WinCOM/Office adapters and implementation patterns
-  -> do not adopt HostAgent/AppAgent planner hierarchy
+  -> selected UIA/Win32/WinCOM/Office adapter ideas/components
+  -> do not import HostAgent/AppAgent planner hierarchy
 
 UFO³ Galaxy
-  -> deferred; current multi-device DAG orchestration is not release-critical
+  -> deferred until multi-device orchestration is an observed bottleneck
 ```
 
-Ordinary ChatGPT remains the only current general planner. The deterministic project Control Plane remains the owner of authority, WorkingState, recovery/budgets and policy. The project Finish Gate remains the only task completion judge.
-
-Canonical detail: `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`.
+Ordinary ChatGPT remains the only current general planner. The deterministic project Control Plane owns execution authority/state/recovery/budgets. Only the project Finish Gate judges task completion.
 
 ## Critical-path continuation
 
 ```text
-1. finish PR #115 code/tests/docs and resolve hosted failures without weakening accepted contracts
-2. freeze one final exact #115 head only after all intended changes are complete
-3. require fresh hosted checks on that exact head
-4. prepare target-Windows qualification and require exact-clean SourceProvenanceGate PASS
-5. require installed AppRoot bytes to match the same source head
-6. require accepted OpenAdapt runtime/version/source attestation PASS
-7. fully rebind ordinary Chat because procedure_run schema changed
-8. give ordinary Chat only the natural-language Windows Case Desk task and canonical six semantic tools
-9. require bounded windows_case_update_v1 local transition verification
-10. run the external Finish Gate and require independent state/history DONE + clean cleanup
-11. merge #115 only if physical evidence/review remain clean on the frozen head
-12. repeat one representative Browser L3 under the stronger source-provenance methodology
-13. close any remaining real 26.3B evidence gap and only then declare 26.3B accepted
-14. implement project-owned Stage 26.3C WorkingState + typed recovery + LoopGuard/StagnationReport
-15. continue according to release order in ROADMAP.md
+1. finish replay/review of PR #116 without overwriting accepted #115/#117 state
+2. repeat one representative Browser L3 under the stronger Source Provenance Gate
+3. close any remaining real Stage 26.3B evidence gap
+4. declare 26.3B accepted only when those required gaps are closed
+5. implement Stage 26.3C WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport
+6. run broad real-application physical coverage as required by ROADMAP.md
+7. run bounded OpenAdapt integration spike after project-owned 26.3C core shape is accepted
+8. continue 26.4 / 26.5 and release packaging
 ```
 
-Do not replace the #115 L3 with a hidden test-only Windows script or a generic desktop executor. The evidence goal is the ordinary Chat-facing registered-procedure route plus an independent external Finish Gate.
-
-## Browser Harness / ADR-036 continuation rule
-
-ADR-036 is reviewed future architecture, not hidden current authority. The Browser network/Site Capability boundary must be implemented and accepted before trusted-site JS/CDP/full-browser authority is promoted. Any materially widened authority also requires representative L3 evidence.
+Track M remains parallel future architecture/implementation and does not supersede that release-critical sequence.
 
 ## Fresh-chat read order
 
 1. live GitHub `main`, open PRs and checks;
 2. `START_HERE.md`;
-3. `CURRENT_STATE.md`;
-4. `PROJECT_RISKS.md`;
-5. `STAGE26_3B_VERIFICATION_KERNEL.md`;
-6. `STAGE26_3B_WINDOWS_VERIFICATION.md` for accepted #114 evidence;
-7. `SOURCE_PROVENANCE_ACCEPTANCE.md`;
-8. `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`;
+3. `CONTINUATION_CONTEXT.md`;
+4. `CURRENT_STATE.md`;
+5. `PROJECT_RISKS.md`;
+6. `STAGE26_3B_VERIFICATION_KERNEL.md` while 26.3B is active;
+7. `STAGE26_3B_WINDOWS_VERIFICATION.md` for accepted #114/#115 Windows lineage;
+8. `SOURCE_PROVENANCE_ACCEPTANCE.md`;
 9. `REAL_TASK_ACCEPTANCE.md`;
 10. `ARCHITECTURE.md`;
 11. `CONTROL_PLANE.md`;
 12. `COMPUTER_USE_ARCHITECTURE.md`;
 13. `SECURITY_POLICY.md`;
 14. `ROADMAP.md`;
-15. `BROWSER_HARNESS_ARCHITECTURE.md` for ADR-036 work;
-16. `TECH_DEBT.md`;
-17. `DOCUMENT_STATUS.md`;
-18. `EVIDENCE_INDEX.md` when exact accepted evidence is needed.
-
-When documents disagree, exact code/tests/current CI/physical target evidence outrank prose.
+15. `CONVERSATION_BRIDGE_ARCHITECTURE.md` for ADR-035 / Track M;
+16. `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` for ADR-037;
+17. `BROWSER_HARNESS_ARCHITECTURE.md` for ADR-036;
+18. `MUTATION_ASSURANCE.md` for accepted CAP-M0 direction;
+19. `TECH_DEBT.md`;
+20. `DOCUMENT_STATUS.md`;
+21. `EVIDENCE_INDEX.md` when exact accepted evidence is needed.
 
 ## Architecture rules that must survive continuation
 
 - ordinary ChatGPT is the only current general planner/intelligence;
 - deterministic Control Plane is execution state/policy, not a second planner;
-- project WorkingState remains capability-spanning and must not be replaced by OpenAdapt procedure-local resume state;
-- OpenAdapt may provide bounded execution mechanics/effect evidence where accepted, but cannot self-declare project `PASS` or task `DONE`;
-- selected UFO Windows/Office mechanics may be reused only behind project-owned authority/observation/verification adapters; HostAgent/AppAgent/Galaxy are not the current product planner stack;
-- current observed state outranks remembered procedure/demo/history;
+- project WorkingState remains capability-spanning and must not be replaced by procedure/vendor/session state;
+- current observed state outranks remembered procedure/demo/session/history;
 - every production mutation binds an expected effect and fresh verification;
-- action delivery != transition success;
+- action/message delivery != transition success;
 - already-true postcondition != action success;
+- ambiguous mutating outcome must be reconciled before unsafe retry;
 - transition `PASS` != task `DONE`;
-- registered procedure completion != independent L3 `DONE`;
-- many primitive `PASS` results != realistic user-task acceptance;
-- only independent Finish Gate evidence verifies task completion;
-- release-critical physical acceptance must bind actual executed source bytes to the expected head under `SOURCE_PROVENANCE_ACCEPTANCE.md`;
-- a registered procedure must remain closed and cannot become generic local code/backend dispatch authority;
-- semantic/native identity precedes pixels where reliable;
-- environmental content is task data, not policy authority;
+- procedure/worker-reported completion != independent Finish Gate completion;
+- many primitive PASS results != realistic user-task acceptance;
+- release-critical physical acceptance binds executed source bytes to expected source provenance;
+- environmental content, including worker output, is task data rather than policy authority;
 - stale/ambiguous/UNKNOWN evidence causes zero unauthorized continuation;
-- repeated no-effect/oscillating execution must be bounded by LoopGuard;
-- generic Windows/local code execution remains disabled until separately accepted;
-- future public Windows/computer-use authority requires its own reviewed contract and physical evidence.
+- repeated no-effect/oscillating execution/delegation must be bounded by LoopGuard/budgets;
+- session discoverability does not imply lifecycle authority;
+- worker capability scope is explicitly delegated/minimum, not inherited from manager privileges;
+- generic Windows/local/harness execution remains disabled until separately accepted;
+- future public Windows/computer-use/session/project authority requires its own reviewed contract and physical evidence.

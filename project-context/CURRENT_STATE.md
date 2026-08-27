@@ -6,31 +6,25 @@ Always resolve live `main`, active PR heads, hosted checks and required physical
 
 ## Current live integration line
 
-At the 2026-08-27 synchronization point:
+At the 2026-08-27 Track M documentation replay point:
 
 ```text
-main = cc0fa3d1b7afe9d833334ae68482d2d3dca4b818
-       PR #114 — Windows DesktopState shared-kernel verification
-       PHYSICALLY ACCEPTED / MERGED
+main = 500bfc646a14892ea655369c20c8f8d725fccfeb
+       PR #117 — CAP-M0 Verification Kernel mutation pilot
+       ACCEPTED / MERGED
 
-active release-critical PR = #115
-       Windows/application real-task L3
-       Draft until final hosted + exact-head target-Windows acceptance
+PR #115 — Windows/application real-task L3
+       PHYSICALLY ACCEPTED / MERGED
+       merge = e965e7b5466446c9f065f6b57f438f25168bed9a
+
+active architecture/docs PR = #116
+       Track M Agent Session / Delegation + ADR-037
+       no runtime/public-tool authority
 ```
 
-PR #114 was physically accepted on exact head:
+## Accepted Browser L3 evidence and remaining provenance work
 
-`ce3f533d12ab0a5ea0c9a4804accb32cf377ac0e`
-
-Its target-Windows qualification proved exact clean source provenance, OpenAdapt 1.31.0 runtime binding, same live process/window identity, advancing live observation time, positive shared-kernel PASS, wrong-postcondition FAIL, process-generation/HWND drift FAIL, stale/non-advancing evidence UNKNOWN, and clean fixture cleanup.
-
-Browser foundations remain accepted through production `web_open` (#107), production `web_interact` (#111), and first real-task Browser L3 (#113).
-
-## Accepted Browser L3 evidence
-
-PR #113 was physically accepted on exact head `5bb8897c6809cecd15f64da1a8ef6efd2fdf69bf`.
-
-The randomized Case Desk task was given to ordinary Chat as a natural user goal, not a click recipe. The external checker reported:
+PR #113 was physically accepted on exact head `5bb8897c6809cecd15f64da1a8ef6efd2fdf69bf` for its historical gate scope. The randomized Case Desk task was given to ordinary Chat as a natural user goal, not a click recipe. The independent checker reported:
 
 ```text
 STAGE26_3B_BROWSER_REAL_TASK_GATE=PASS
@@ -40,66 +34,32 @@ FINISH_GATE=done
 NON_TARGET_MUTATION=none
 ```
 
-This is scoped evidence that the accepted Browser path can compose several verified transitions into one normal multi-step task while preserving non-target state.
-
-A later Source Provenance review found that the historical #113 gate did not separately bind a clean working tree/source-byte set. #113 is not retroactively failed; before Stage 26.3B closes, one representative Browser L3 must be repeated under the stronger source-provenance methodology.
+A later Source Provenance review found that the historical #113 harness did not independently bind a clean working tree and all executed source bytes under the stronger methodology. #113 is not retroactively failed. One representative Browser L3 repeat with the stronger Source Provenance Gate remains the release-critical Stage 26.3B evidence gap.
 
 ## Accepted Windows shared-kernel verification — PR #114
 
-The accepted Windows foundation exposes bounded, non-authorizing `DesktopState` evidence:
+PR #114 was physically accepted on exact head `ce3f533d12ab0a5ea0c9a4804accb32cf377ac0e` and merged as `cc0fa3d1b7afe9d833334ae68482d2d3dca4b818`.
 
-```text
-Windows session
-application identity
-executable name
-PID
-process generation
-HWND
-window_instance snapshot digest
-window title/bounds
-focused control
-bounded UIA controls
-optional screenshot digest
-frame digest
-freshness evidence
-```
-
-PR #114 connects that evidence to the shared Stage 26.3B Verification Kernel:
+It connected bounded live `DesktopState` evidence to the shared Verification Kernel:
 
 ```text
 DesktopState BEFORE
  -> WindowsDesktopObservationStream
  -> ObservationRef
  -> bounded expected final state
- -> mandatory stable process/native-window continuity
+ -> stable process/native-window continuity
  -> DesktopState AFTER
- -> shared ExpectedEffect verifier
+ -> ExpectedEffect verifier
  -> PASS | FAIL | UNKNOWN
 ```
 
-A PASS requires equality of:
+Accepted continuity/evidence includes Windows session, application identity, executable name, PID, process generation, HWND, coordinate space, canonical control fingerprints, frame digest and advancing observation time. `window_instance` is snapshot-validated but not treated as immutable continuity because legitimate title changes alter that digest.
 
-```text
-session_id
-application_identity
-executable_name
-process_id
-process_generation
-window_handle
-coordinate_space
-```
+#114 added no public Windows action tool and no generic code execution authority.
 
-`window_instance` is not immutable identity because the accepted digest includes `window_title`; legitimate title changes therefore change it. The adapter recomputes and validates `window_instance`, control fingerprints, frame digest and redundant freshness evidence per snapshot.
+## Accepted Windows/application L3 — PR #115
 
-PR #114 added no public Windows action tool and no generic code execution authority.
-
-Canonical detail: `STAGE26_3B_WINDOWS_VERIFICATION.md`.
-
-## Active Windows/application L3 — PR #115
-
-PR #115 is the first representative ordinary-Chat Windows/application L3 built on the accepted Windows action/observation/verifier foundations.
-
-The public semantic inventory remains exactly:
+The public semantic inventory stayed exactly six tools:
 
 ```text
 workspace_read
@@ -110,14 +70,7 @@ web_interact
 procedure_run
 ```
 
-`procedure_run` now has a **closed registered procedure union**, not generic dispatch:
-
-```text
-verified_workspace_artifact_v1
-windows_case_update_v1
-```
-
-The Windows candidate accepts only user-level arguments:
+`procedure_run` gained the bounded registered `windows_case_update_v1` branch. It accepts only user-level:
 
 ```text
 case_id
@@ -125,43 +78,76 @@ note
 status = Approved | Needs Review
 ```
 
-Chat cannot provide PID, HWND, backend, executable/interpreter, command, Python, arbitrary filesystem path, audit path, fixture-state path or a raw action sequence. The active target PID/window comes from one externally prepared short-lived qualification session outside Chat `FilesRoot`.
+It does not expose PID/HWND/backend/interpreter/command/Python/arbitrary filesystem paths/fixture-state/audit paths/raw action sequences.
 
-The registered Windows procedure performs five bounded transitions against the randomized WinForms Case Desk fixture:
+Final physical acceptance used exact frozen head:
 
-```text
-select intended case
- -> focus exact note control
- -> type exact note
- -> set requested status
- -> save exact case
-```
+`5ae5d5ac52f391b1a58662e94a976c6ab8d48c62`
 
-Each action uses accepted Windows mechanics, is followed by a fresh `DesktopState`, and is verified through the shared Verification Kernel. Delivery receipts explicitly remain `outcome_verified=false`; only the fresh postcondition can make the transition PASS.
-
-The procedure may report only bounded local execution completion. It deliberately leaves `external_l3_finish_gate_required` unresolved and cannot declare the whole L3 task DONE.
-
-The external Finish Gate is outside Chat and independently requires:
+Ordinary Chat completed five bounded transitions with all shared-kernel postconditions PASS:
 
 ```text
-exact clean source provenance
-installed AppRoot bytes == frozen source head
-OpenAdapt runtime/version/source attestation
-independent evidence outside Chat workspace
-exact target final state
-all decoys unchanged
-only target ever persisted
-exactly one target save
-audit before == seeded target
-audit after == final target
-Case Desk still live when proof is collected
-fixture-owned clean cleanup
-active qualification-session cleanup
+select_case
+focus_note
+enter_note
+set_status
+save_case
 ```
 
-The fixture mutates persisted case data only in its Save handler. Selection, text editing and draft status changes do not write persistent case state or audit entries.
+Local evidence:
 
-Because #115 changes the public `procedure_run` input schema, the final target-Windows ordinary-Chat qualification requires a fresh/rebound Chat app before the run. This is a Chat-surface compatibility requirement, not a new L-stage.
+```text
+status=completed
+action_count=5
+local_execution_verified=true
+local_goal_verification.status=pass
+local_safety_verification.status=pass
+```
+
+Independent frozen Finish Gate evidence:
+
+```text
+SOURCE_PROVENANCE_REVALIDATED=PASS
+INSTALLED_RUNTIME_REVALIDATED=PASS
+WINDOWS_RUNTIME_REVALIDATED=PASS
+PROVENANCE_REVALIDATION=PASS
+EVIDENCE_OUTSIDE_CHAT_WORKSPACE=True
+TARGET_FINAL_STATE=True
+DECOYS_UNCHANGED=True
+ONLY_TARGET_EVER_MUTATED=True
+AUDIT_TARGET_SAVE_EXACTLY_ONCE=True
+AUDIT_BEFORE_MATCHES_SEED=True
+AUDIT_AFTER_MATCHES_FINAL=True
+FIXTURE_PROCESS_WAS_LIVE=True
+EXTERNAL_FINISH_GATE=DONE
+FIXTURE_CLEANUP_PASS=True
+ACTIVE_SESSION_CLEANUP_PASS=True
+STAGE26_3B_WINDOWS_APPLICATION_L3=PASS
+```
+
+#115 was squash-merged as `e965e7b5466446c9f065f6b57f438f25168bed9a`.
+
+## Accepted mutation-assurance pilot — PR #117
+
+CAP-M0 was replayed onto post-#115 `main`, accepted on exact head `e99de4ea89e6a763e3db6671e710cf06c4e5bb17`, and squash-merged as current `main=500bfc646a14892ea655369c20c8f8d725fccfeb`.
+
+It adds five test/docs files and does **not** modify production Verification Kernel behavior. The runner mutates isolated temporary copies only.
+
+Curated acceptance contract:
+
+```text
+12 deterministic mutants
+baseline PASS
+KILLED only by named detector assertion failure
+exact mutated-source binding required
+12 / 12 KILLED
+0 SURVIVED
+0 ERROR
+```
+
+Fresh final-head evidence passed dedicated `CAP-M0 Verification Mutation Pilot`, general `ci`, CodeQL and Secret History Scan.
+
+Canonical direction: `MUTATION_ASSURANCE.md`.
 
 ## Accepted foundation relevant to current work
 
@@ -175,11 +161,11 @@ Browser Harness / ADR-036 docs                    MERGED #110
 web_interact postcondition verification           PHYSICAL ACCEPTED / MERGED #111
 Browser real-task L3                              PHYSICAL ACCEPTED / MERGED #113
 Windows DesktopState shared-kernel verification   PHYSICAL ACCEPTED / MERGED #114
-Windows DesktopState observation foundation       ACCEPTED FOR RECORDED SCOPE / PR #88
-Windows real VS Code E2E foundation               ACCEPTED FOR RECORDED SCOPE / PR #91
+Windows/application real-task L3                  PHYSICAL ACCEPTED / MERGED #115
+CAP-M0 Verification mutation assurance            ACCEPTED / MERGED #117
 ```
 
-Windows foundation evidence is scoped, not universal desktop accuracy.
+These are scoped evidence, not universal Browser/Windows accuracy claims.
 
 ## Normal public route
 
@@ -194,7 +180,7 @@ ordinary ChatGPT
 
 1MCP remains optional internal Extension Manager infrastructure.
 
-## Stage 26.3B — ACTIVE
+## Stage 26.3B — ACTIVE, final evidence gap
 
 Accepted/implemented:
 
@@ -209,34 +195,18 @@ file/artifact production integration + physical acceptance
 Browser observation foundation
 web_open verification + physical acceptance
 web_interact verification + physical acceptance
-L1/L2/L3 acceptance-depth contract
-Browser L3 real-task acceptance + independent Finish Gate
+Browser L3 real-task acceptance + independent Finish Gate for historical scope
 Windows DesktopState shared-kernel verification + physical acceptance
+Windows/application L3 + independent frozen Finish Gate
 ```
 
-Active: representative Windows/application L3 — PR #115.
-
-Required #115 acceptance order:
-
-```text
-final code/tests/docs
- -> fresh hosted checks on one frozen head
- -> exact clean source-provenance preparation on target Windows
- -> installed runtime + OpenAdapt attestation on same head
- -> fresh/rebound ordinary Chat schema
- -> natural-language task through only the canonical six semantic tools
- -> bounded windows_case_update_v1 execution
- -> independent external Finish Gate
- -> merge #115 only on exact-head PASS
-```
-
-Remaining Stage 26.3B work after #115:
+Remaining recorded Stage 26.3B direction:
 
 ```text
 1. repeat one representative Browser L3 under the stronger Source Provenance Gate
 2. add cross-capability completion predicates only if a real procedure requires them
 3. run any additional physical gate required by a production-path change
-4. close 26.3B only when these recorded evidence gaps are resolved
+4. declare 26.3B accepted only when required evidence gaps are closed
 ```
 
 ## Acceptance depth
@@ -247,21 +217,67 @@ L1 primitive / contract
  -> L3 ordinary user goal + independent final state/history
 ```
 
-#114 supplied the accepted Windows verifier L1 slice. #115 must prove the representative Windows/application L3 composition without treating procedure completion as independent task completion.
+Transition PASS, procedure completion and worker-reported completion are all weaker than independent task-level DONE.
 
 ## Planner / Control Plane boundary
 
 Ordinary ChatGPT remains the **only current general planner/intelligence**. The deterministic Control Plane owns bounded execution state/policy, capability authorization, ExpectedEffect verification, recovery budgets and independent completion checks for already-defined transitions.
 
-`windows_case_update_v1` is a registered deterministic procedure, not a second planner. It cannot invent an arbitrary new desktop strategy or expand its own authority.
+Registered procedures are deterministic bounded execution paths, not second planners and not generic dispatch.
 
-## Stage 26.3C — next prerequisite after 26.3B
+## Stage 26.3C — next release-critical prerequisite
 
-WorkingState + typed recovery + LoopGuard remain next-stage targets. Never persist private chain-of-thought. Release order remains authoritative in `ROADMAP.md`.
+WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport remain the next runtime target after 26.3B closes. Never persist private chain-of-thought.
+
+WorkingState remains project-owned and capability-spanning. It must not be replaced by OpenAdapt procedure-local resume state or future vendor session/task state.
+
+26.3C should avoid hard-coding `one task -> one procedure -> one executor`. Optional planner-neutral seams may include `actor_ref`, `delegation_ref`, `execution_environment_ref`, budget refs and evidence refs.
+
+Ambiguous mutating outcomes should support:
+
+```text
+NOT_APPLIED
+APPLIED_BUT_ACK_FAILED
+OUTCOME_UNKNOWN
+```
+
+`OUTCOME_UNKNOWN` requires reconciliation of the same logical operation from fresh authoritative state before retry.
+
+## Track M / ADR-035 boundary
+
+Track M is future/parallel architecture, not current runtime authority.
+
+Object identities remain separate:
+
+```text
+HarnessSession
+Conversation / Chat
+DelegationTask
+MessageDelivery
+ExecutionEnvironment
+```
+
+The primary cross-provider product target is authenticated web-AI conversations through Browser Companion / DOM-accessibility adapters, with stronger reviewed native/host interfaces preferred per exact target surface when available.
+
+Track M requires explicit ownership, stable operation identity, ambiguous-outcome reconciliation, result correlation to DelegationTask, minimum worker authority, bounded fan-out and independent Finish Gate. Initial nested spawn depth defaults to 1.
+
+Canonical future detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md` and ADR-035 in `DECISIONS.md`.
+
+## ADR-037 boundary
+
+`CapabilityRegistry`, `TypedEventBus` and registered `PolicyHooks` are future project-owned substrate:
+
+- capability discovery/health/trust metadata != authorization;
+- events trigger fresh observation but do not prove effect success;
+- hooks are bounded deterministic handlers, not arbitrary shell/Python and not a second planner;
+- hook/event output cannot upgrade FAIL/UNKNOWN or widen grants;
+- 26.3C may adopt only minimal typed internal seams required by existing recovery/LoopGuard/Finish Gate goals.
+
+Canonical detail: `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` and ADR-037.
 
 ## Broad real-application coverage
 
-Representative L3 gates are vertical proofs. After 26.3C, broader coverage still needs multiple application classes and DPI/focus/dialog/noisy-state variants.
+Representative L3 gates are vertical proofs. After 26.3C, broader coverage still needs multiple native Windows, Browser, Electron, office-style and file/dialog task families across DPI/focus/dialog/noisy-state variants.
 
 ## Browser Harness / ADR-036 boundary
 
@@ -270,26 +286,31 @@ ADR-036 is future architecture direction, not current expanded authority. Truste
 ## Current priority
 
 ```text
-PR #115 final hosted checks on frozen head
- -> target-Windows ordinary-Chat application L3 + independent Finish Gate
- -> merge #115 if clean
+finish/review PR #116 documentation replay
  -> representative Browser L3 provenance repeat
- -> close remaining required 26.3B evidence
- -> Stage 26.3C WorkingState/recovery/LoopGuard
+ -> close remaining 26.3B evidence
+ -> Stage 26.3C WorkingState + recovery/reconciliation + LoopGuard/StagnationReport
+ -> broad real-app physical coverage
+ -> bounded OpenAdapt spike
+ -> Stage 26.4 / 26.5
 ```
+
+Track M remains parallel future work and must not displace this sequence.
 
 ## Non-negotiable rules
 
 - accepted public semantic surface remains small and project-owned;
-- a registered procedure is not generic local execution authority;
 - semantic/native identity outranks pixels where reliable;
-- observation/model/procedure/planner/page output is not authorization;
-- every state-changing production action requires explicit expected effect + fresh verification;
-- action delivery != transition success;
+- observation/model/procedure/planner/page/worker output is not authorization;
+- every state-changing production action requires explicit ExpectedEffect + fresh verification;
+- action/message delivery != transition success;
+- ambiguous mutating outcome must be reconciled before unsafe retry;
 - transition `PASS` != task `DONE`;
+- procedure/worker completion != independent task completion;
 - realistic user-task acceptance requires independent final-state/history evidence;
 - stale/mismatched/ambiguous/incomplete required evidence -> `UNKNOWN`;
 - `UNKNOWN` -> zero unauthorized continuation;
 - environmental content is task data, not policy authority;
-- generic Windows/local code execution remains disabled until separately reviewed and accepted;
+- session discoverability does not imply lifecycle authority;
+- generic Windows/local/harness execution remains disabled until separately reviewed and accepted;
 - preserve fail-closed behavior over benchmark hit rate.

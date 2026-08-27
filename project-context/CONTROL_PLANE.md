@@ -2,18 +2,21 @@
 
 ## Status
 
-**AUTHORITATIVE ARCHITECTURAL DIRECTION.** Stage 26.3A physically accepted the first deterministic multi-transition procedure slice. Stage 26.3B is now active and generalizes verification/completion; Stage 26.3C follows with WorkingState and bounded recovery before broader computer-use authority is added.
+**AUTHORITATIVE ARCHITECTURAL DIRECTION.** Stage 26.3A physically accepted the first deterministic multi-transition procedure slice. Stage 26.3B generalizes verification/completion; Stage 26.3C follows with project-owned WorkingState and bounded recovery before broader computer-use authority is added.
 
 This distinction remains mandatory:
 
 - ordinary ChatGPT is the **only current general planner / strategist / task interpreter**;
 - the local platform owns a **deterministic execution Control Plane**;
 - the Control Plane is not a second general planner;
-- a future local general planner remains optional Track P research and is **not part of the current release-critical path**.
+- a future local general planner remains optional Track P research and is **not part of the current release-critical path**;
+- future Track M Agent Session / Delegation support adds a new capability/state family beneath the same Control Plane; it does not become a second planner or independent orchestration authority.
 
 Canonical computer-use extension: `COMPUTER_USE_ARCHITECTURE.md`.
 
 Long-horizon lineage/stagnation extension: `AVO_LONG_HORIZON_ARCHITECTURE.md` and ADR-034.
+
+Future agent-session/delegation extension: `CONVERSATION_BRIDGE_ARCHITECTURE.md` and ADR-035.
 
 ## Target architecture
 
@@ -27,10 +30,11 @@ GENERAL PLANNER / MANAGER
   strategy
   procedure selection
   adaptation / novel-state decisions
+  bounded delegation proposals
   candidate_done proposal
   skill-candidate revision proposal
   |
-  | structured goal / procedure / parameters
+  | structured goal / procedure / parameters / delegation proposal
   v
 DETERMINISTIC LOCAL CONTROL PLANE
   TaskState + WorkingState
@@ -42,24 +46,25 @@ DETERMINISTIC LOCAL CONTROL PLANE
   transition verifier
   typed recovery + LoopGuard
   StagnationReport
-  resource/action/time budgets
+  resource/action/time/delegation budgets
   independent Finish Gate
   safety/policy gate
   escalation rules
   verified Skill / Procedure Lineage evidence
+  future delegation/operation ledger
   |
-  +-------------------+-------------------+
-  |                   |                   |
-  v                   v                   v
-Files               Browser             Windows
-                     DOM/AX              native/UIA first
-                       |                        |
-                 selective visual         selective visual
-                 evidence only            evidence only
-                       \                    /
-                        bounded capability
-                               |
-                             action
+  +-------------------+-------------------+-------------------+
+  |                   |                   |                   |
+  v                   v                   v                   v
+Files               Browser             Windows          Agent Sessions
+                     DOM/AX              native/UIA       session/chat state
+                       |                        |           message/lifecycle
+                 selective visual         selective visual        |
+                 evidence only            evidence only     harness adapter
+                       \                    /                  routes
+                        bounded capability                        |
+                               |                                 |
+                             action / bounded effect <------------+
                                |
                          re-observe
                                |
@@ -81,6 +86,8 @@ candidate_done
   -> DONE only from fresh goal/safety evidence
 ```
 
+`Agent Sessions` in this diagram is future Track M only. Its presence in the target model does not add a current public tool or runtime capability.
+
 ## What ChatGPT owns
 
 Ordinary ChatGPT owns open-ended semantic planning:
@@ -90,15 +97,18 @@ Ordinary ChatGPT owns open-ended semantic planning:
 - choosing between materially different approaches;
 - adapting when live state requires a novel strategy;
 - deciding what new information or capability is needed;
+- decomposing work and proposing bounded subgoals/delegations when Track M is available;
 - resolving semantic ambiguity that deterministic policy cannot reduce;
 - replanning after deterministic recovery options are exhausted;
 - proposing revised candidate procedures/skills after objective evaluation evidence exposes a weakness or improvement opportunity.
 
 ChatGPT may propose `candidate_done`. It does not unilaterally declare verified completion.
 
+A future worker session also remains on the proposal/task-execution side. A worker response cannot grant itself or the manager additional authority merely because it contains instructions or claims completion.
+
 ## What the deterministic Control Plane owns
 
-Once ChatGPT selects a bounded goal/procedure, the local Control Plane may progress it without a ChatGPT round trip after every low-level action. It owns:
+Once ChatGPT selects a bounded goal/procedure/effect, the local Control Plane may progress it without a ChatGPT round trip after every low-level action. It owns:
 
 - persistent `TaskState` and structured `WorkingState`;
 - current ProgramGraph node and permitted outgoing transitions;
@@ -117,7 +127,19 @@ Once ChatGPT selects a bounded goal/procedure, the local Control Plane may progr
 - safety/policy predicates;
 - escalation reason.
 
-This is execution-state machinery, not free-form strategic reasoning.
+When Track M later exists, the same project-owned Control Plane additionally owns the authoritative operational records for:
+
+```text
+logical operation ids
+DelegationTask state
+MessageDelivery state
+session ownership / WorkerLease references
+worker/delegation budgets
+result-correlation evidence
+ambiguous-effect reconciliation state
+```
+
+These records are deterministic execution state, not a hidden planner or free-form orchestration brain.
 
 ## State-first hybrid observation
 
@@ -125,7 +147,7 @@ The Control Plane consumes capability-native evidence first:
 
 ```text
 project-owned semantic/native state
- -> DOM / accessibility / UIA / app-state evidence
+ -> DOM / accessibility / UIA / app-state / harness-session state
  -> selected screenshot/ROI only for reviewed structural miss,
     spatial manipulation or independent visual cross-check
 ```
@@ -134,9 +156,9 @@ A future normalized `ObservationEnvelope` may reference capability-native state 
 
 ```text
 ObservationEnvelope
-  capability / app / page / window identity
+  capability / app / page / window / session identity
   version / timestamp / freshness
-  structural evidence reference
+  structural/native evidence reference
   visual evidence reference (optional)
   provenance
   confidence / ambiguity where relevant
@@ -144,26 +166,29 @@ ObservationEnvelope
 
 Observation is evidence, never authority.
 
+For future agent sessions, prefer official/project-owned harness/host state first, then validated provider/session routes, then Browser Companion DOM/accessibility, then reviewed GUI fallback, then ABSTAIN.
+
 ## Transition contract
 
 A state-changing transition is not just an action template. It must bind:
 
 ```text
 transition_id
+logical operation_id where side effects may need reconciliation
 current-state precondition evidence
 authorized capability/action parameters
 expected_effect / explicit postcondition predicates
 re-observation scope
 verification policy
-recovery policy
+recovery/reconciliation policy
 budget impact
 ```
 
 Normal progression:
 
 ```text
-ChatGPT selects procedure P
- -> load exact P/version/trust state
+ChatGPT selects bounded operation/procedure P
+ -> load exact operation/procedure/trust state
  -> observe current state
  -> match exactly one permitted transition
  -> bind ExpectedEffect
@@ -172,10 +197,20 @@ ChatGPT selects procedure P
  -> re-observe relevant state
  -> verify actual state against ExpectedEffect
  -> PASS: checkpoint + advance
- -> FAIL/UNKNOWN: typed recovery or ABSTAIN/escalate
+ -> FAIL/UNKNOWN: typed recovery/reconciliation or ABSTAIN/escalate
 ```
 
 `delivery != success` remains a non-negotiable invariant.
+
+For future Track M this means, for example:
+
+```text
+message transport acknowledgement != verified message delivery
+verified message delivery != worker turn started
+worker turn started != delegation complete
+latest worker response != result of this delegation unless correlation is proven
+session-create timeout != permission to create another session blindly
+```
 
 ## Verification result
 
@@ -193,9 +228,9 @@ UNKNOWN
 
 Prefer deterministic/native/system-of-record predicates where practical. A model may assist an ambiguous classification as non-authorizing evidence, but cannot replace stronger available predicates.
 
-### Stage 26.3B active foundation
+### Stage 26.3B foundation
 
-The current internal verification foundation implements:
+The shared internal verification foundation implements:
 
 ```text
 ObservationRef
@@ -212,7 +247,14 @@ Freshness requires the same observation stream/capability/subject and a strictly
 
 Normalized evidence is bounded plain data and detached from caller mutation; arbitrary custom comparison/executable objects are not admitted into the verifier.
 
-This is the foundation of active Stage 26.3B, not Stage 26.3B acceptance. Production file/browser/Windows adapters and procedure integration remain staged work.
+Future entity-creation effects may use an operation-scoped subject such as:
+
+```text
+capability = agent_sessions
+subject = session-create:<operation_id>
+```
+
+so BEFORE/AFTER observations remain on one verifiable stream even when the created session id does not exist before the action. The Verification Kernel itself should not gain vendor-specific thread/project logic.
 
 ## Independent Finish Gate
 
@@ -238,14 +280,15 @@ It evaluates fresh goal-level predicates, not planner confidence or action-histo
 goal predicates
 user constraints
 required source freshness/reconciliation
-required artifact/application/browser state
+required artifact/application/browser/session state
+required delegation/result-correlation state where applicable
 unresolved ambiguity/confirmation state
 safety/policy predicates
 ```
 
-The active foundation binds completion checks to one explicit `evidence_batch_id`. Goal/safety/constraint/freshness results used for one decision must be observation-bound and belong to that same evidence collection. Unbound or old/mixed-batch PASS receipts become `UNKNOWN` for completion.
+Completion checks bind to one explicit `evidence_batch_id`. Goal/safety/constraint/freshness results used for one decision must be observation-bound and belong to that same evidence collection. Unbound or old/mixed-batch PASS receipts become `UNKNOWN` for completion.
 
-A file merely existing is not sufficient when content/identity/structure matters. A browser click succeeding is not sufficient when server-side or DOM state defines completion. A produced artifact is not sufficient when required semantic correctness remains unverified.
+A file merely existing is not sufficient when content/identity/structure matters. A browser click succeeding is not sufficient when server-side or DOM state defines completion. A produced artifact is not sufficient when required semantic correctness remains unverified. A worker saying "done" is likewise not sufficient when the user's task requires independently observable computer/artifact/application state.
 
 ## WorkingState
 
@@ -261,13 +304,33 @@ authoritative facts + provenance + freshness
 open questions / ambiguities
 current observation/evidence references
 expected vs observed state deltas
-retry/recovery history
+retry/recovery/reconciliation history
 resource/action/time budgets
+active capability/grant references
+procedure id/version/node + optional external checkpoint reference
 ```
 
-It must not contain hidden model chain-of-thought.
+Stage 26.3C must remain useful without Track M, but should avoid hard-coding `one task -> one procedure -> one executor`. Future-compatible optional references should allow:
 
-Selected ROI visual evidence may be referenced when operationally useful, subject to capture privacy/retention policy. Episodic memory may retrieve verified procedures/trajectories, but historical experience remains non-authorizing and current state outranks it.
+```text
+subgoal
+  subgoal_id
+  status
+  actor_ref                   optional
+  delegation_ref              optional
+  execution_environment_ref   optional
+  budget_ref                  optional
+  evidence_refs
+
+delegations[]                 optional/future
+capability_grant_refs[]
+```
+
+`actor_ref` is a planner-neutral reference. It may later identify the current manager, a procedure runtime, an external worker session or another admitted actor without making that actor an authority source.
+
+WorkingState must not contain hidden model chain-of-thought.
+
+Selected ROI visual evidence may be referenced when operationally useful, subject to capture privacy/retention policy. Episodic memory may retrieve verified procedures/trajectories or selected historical session evidence, but historical experience remains non-authorizing and current state outranks it.
 
 AVO-style persistent-memory lessons are adopted only through this structured boundary: durable evaluation evidence, compact failure summaries, lineage/version metadata and verified progress may survive context boundaries; private hidden reasoning does not become stored execution state.
 
@@ -289,20 +352,46 @@ unsafe_transition
 external_dynamic_change
 ```
 
-Capabilities may define narrower subtypes, but every recoverable failure must map to a reviewed bounded transition or escalation.
+Future Track M may add narrower classes such as:
+
+```text
+session_unavailable
+delivery_refused
+delivery_held
+result_correlation_ambiguous
+operation_outcome_unknown
+worker_stalled
+delegation_duplicate_suspected
+ownership_unproven
+```
+
+Capabilities may define narrower subtypes, but every recoverable failure must map to a reviewed bounded transition, reconciliation step or escalation.
 
 Default recovery ladder:
 
 ```text
 re-observe
  -> refresh/re-resolve target
- -> retry only when new evidence justifies it
+ -> reconcile ambiguous logical operation when required
+ -> retry only when new evidence proves retry safety
  -> alternate admitted modality/capability
  -> predeclared local recovery branch
  -> ChatGPT replan / user clarification / ABSTAIN
 ```
 
-No recovery step grants broader authority than the original task/procedure and current capability policy.
+No recovery step grants broader authority than the original task/procedure/delegation and current capability policy.
+
+### Ambiguous side-effect invariant
+
+A mutating timeout/error must be classified rather than treated as ordinary failure:
+
+```text
+NOT_APPLIED
+APPLIED_BUT_ACK_FAILED
+OUTCOME_UNKNOWN
+```
+
+For `OUTCOME_UNKNOWN`, deterministic reconciliation by stable logical `operation_id` precedes retry. If authoritative evidence cannot establish whether the original effect occurred, remain `UNKNOWN` and stop/escalate rather than risk a duplicate effect.
 
 ## LoopGuard
 
@@ -321,6 +410,25 @@ verified progress vector
 
 An identical state/action fingerprint must not be repeated indefinitely without new evidence or verified progress. Recovery escalation may increase after failure; it cannot reset silently merely because the planner phrases the same action differently.
 
+Future Track M extends, rather than replaces, this state with orchestration/delegation dimensions such as:
+
+```text
+worker_count
+spawn_depth
+children_per_worker
+active_delegations
+unresolved_worker_count
+messages_per_worker
+cross_session_message_budget
+session_creation_budget
+duplicate_delegation_fingerprints
+total delegated action/time/resource cost
+```
+
+A duplicate delegation fingerprint may include worker session, subgoal, HandoffPack hash and expected-result contract. An ambiguous acknowledgement must enter reconciliation before an equivalent delegation is sent again.
+
+The first multi-worker topology should default to `max_spawn_depth = 1`. Recursive worker spawning is a later separately admitted capability, not implicit inheritance from the manager.
+
 ## StagnationReport
 
 When LoopGuard concludes that deterministic recovery has plateaued, escalation should carry enough evidence for the general planner to change strategy without replaying the entire raw history.
@@ -330,10 +438,11 @@ Target report:
 ```text
 StagnationReport
   task_id / subgoal_id
+  actor/delegation identity where applicable
   verified progress vector
-  repeated state/action fingerprints
+  repeated state/action/delegation fingerprints
   no-effect / retry / oscillation counters
-  attempted typed recovery classes
+  attempted typed recovery/reconciliation classes
   fresh evidence references
   exhausted + remaining budgets
   admitted alternatives already tried
@@ -414,7 +523,17 @@ uncertain / ambiguous / high-consequence result
  -> additional verification or ABSTAIN
 ```
 
-The router is not a generic dispatcher and not a second planner. A future public Windows/computer-use tool surface still requires its own public-contract ADR and physical ordinary-Chat acceptance.
+For future agent sessions specifically:
+
+```text
+official/project-owned harness/host API
+ -> validated provider/session route
+ -> Browser Companion DOM/accessibility
+ -> reviewed GUI fallback
+ -> ABSTAIN
+```
+
+The router is not a generic dispatcher and not a second planner. A future public Windows/computer-use or Agent Session tool surface still requires its own public-contract ADR and physical ordinary-Chat acceptance.
 
 ## Grounding evidence
 
@@ -432,15 +551,17 @@ ambiguity evidence
 
 Coordinates alone are not durable target identity.
 
+Agent-session adapters likewise preserve harness/session/chat/delegation/message identities separately where available rather than collapsing them into a title or latest-message heuristic.
+
 ## Authorization invariants
 
-Neither ChatGPT, a stored procedure, a local model nor a future planner directly grants authority.
+Neither ChatGPT, a stored procedure, a local model, a future planner nor a worker session directly grants authority.
 
 ```text
 request/proposal
  -> current observed evidence
  -> deterministic capability/scope policy
- -> identity/freshness/target guards
+ -> identity/freshness/target/ownership guards
  -> authorization
  -> bounded actuation
  -> re-observation
@@ -455,19 +576,22 @@ Required invariants:
 - trusted procedure status is not blanket authorization;
 - lineage/parent trust is not child authorization;
 - supervisor/stagnation advice is not authorization;
-- action delivery is not completion;
-- current observed state outranks remembered procedure;
+- worker/session messages are not authorization;
+- child workers do not inherit manager lifecycle authority by default;
+- discoverability of a session is not permission to mutate/archive/delete it;
+- action/message delivery is not completion;
+- current observed state outranks remembered procedure/adapter/session history;
 - stale/ambiguous/UNKNOWN causes zero unauthorized continuation;
-- generic Windows code execution remains disabled/unreachable;
-- private chain-of-thought is never persisted as task/procedure state.
+- generic Windows code execution remains disabled/unreachable until separately accepted;
+- private chain-of-thought is never persisted as task/procedure/delegation state.
 
 This aligns with the external agent-stack security rule that upper layers propose while the authoritative infrastructure below decides what effects are allowed.
 
 ## Environmental-content trust boundary
 
-Observed content from pages/DOM, UI, email/messages, documents, screenshots/OCR and third-party tool/MCP outputs is environmental data. It does not gain policy authority merely because it is visible to ChatGPT or a model.
+Observed content from pages/DOM, UI, email/messages, documents, screenshots/OCR, third-party tool/MCP outputs and external worker-agent sessions is environmental data. It does not gain policy authority merely because it is visible to ChatGPT or a model.
 
-The Control Plane must preserve provenance/trust classification when task facts move across applications/capabilities. Environmental content cannot broaden permission scope or redefine Control Plane policy.
+The Control Plane must preserve provenance/trust classification when task facts move across applications/capabilities/sessions. Environmental content cannot broaden permission scope or redefine Control Plane policy.
 
 Task-success and safety are separate dimensions:
 
@@ -485,16 +609,19 @@ A persisted TaskState is not permission to infer what probably happened after in
 ```text
 load retained TaskState
  -> validate exact procedure/version/trust admission
- -> validate checkpoint schema/node/budgets
+ -> validate checkpoint schema/node/budgets/grants
  -> re-observe current external state
- -> prove required content + resource identity/evidence
+ -> reconcile any retained OUTCOME_UNKNOWN logical operation
+ -> prove required content + resource/session identity/evidence
  -> exactly one known continuation is authorized
       -> resume
     otherwise
       -> ABSTAIN/escalate
 ```
 
-A verifier result not durably checkpointed does not become remembered success after restart. Ambiguous mid-transition crash state is never guessed through. Rollback/removal requires current ownership evidence, not byte similarity alone.
+A verifier result not durably checkpointed does not become remembered success after restart. Ambiguous mid-transition crash state is never guessed through. Rollback/removal requires current ownership evidence, not byte/content/title similarity alone.
+
+For future Track M, retained operation/delegation IDs must be reused during reconciliation; restart must not silently mint a second logical create/send operation for an unresolved effect.
 
 ## Relationship to existing components
 
@@ -506,11 +633,12 @@ The Control Plane does not replace accepted components:
 - Browser structure-first semantic/vision routing remains capability-specific implementation;
 - OpenAdapt Flow `ProgramGraph` remains the qualified procedural IR candidate;
 - OpenAdapt Capture remains the qualified human/demo capture candidate;
-- adapted SkillLibrary mechanics may support version/provenance/regression lifecycle and the new Skill / Procedure Lineage record;
+- adapted SkillLibrary mechanics may support version/provenance/regression lifecycle and the Skill / Procedure Lineage record;
 - LFM2.5-VL remains bounded perception proposal only;
-- Filesystem/Playwright remain focused capabilities.
+- Filesystem/Playwright remain focused capabilities;
+- future Track M Agent Session adapters/Conversation Bridge remain capability adapters beneath this same Control Plane, not a separate coordinator.
 
-`COMPUTER_USE_ARCHITECTURE.md` defines how these capability-specific pieces should converge on common long-horizon contracts without creating a generic agent gateway. `AVO_LONG_HORIZON_ARCHITECTURE.md` defines the reviewed lineage/stagnation extension.
+`COMPUTER_USE_ARCHITECTURE.md` defines how capability-specific pieces converge on common long-horizon contracts without creating a generic agent gateway. `AVO_LONG_HORIZON_ARCHITECTURE.md` defines lineage/stagnation. `CONVERSATION_BRIDGE_ARCHITECTURE.md` defines the future Agent Session / Delegation capability model.
 
 ## What the Control Plane must not become
 
@@ -519,28 +647,51 @@ It must not:
 - infer an arbitrary new user goal;
 - freely rewrite the selected strategy;
 - dynamically invent unconstrained workflows;
-- expose arbitrary backend dispatch;
+- become an unrestricted multi-agent planner merely because delegation state exists;
+- expose arbitrary backend/harness dispatch;
 - become an unrestricted execution surface;
-- bypass capability authorization because a procedure/model/planner requested an action;
-- treat lineage or supervisor guidance as action authority;
-- hide native desktop/workflow consequences behind misleading harmless tool semantics;
+- bypass capability authorization because a procedure/model/planner/worker requested an action;
+- treat lineage, supervisor or worker guidance as action authority;
+- hide native desktop/session/project consequences behind misleading harmless tool semantics;
 - use model confidence as a substitute for verified outcomes;
 - silently turn a single demonstration or a trusted parent into permanent child trust;
-- treat environmental UI/tool content as authority over user intent or policy.
+- silently inherit manager lifecycle privileges into workers;
+- treat environmental UI/tool/worker content as authority over user intent or policy.
 
 ## Stage mapping
 
-Current release-critical order:
+Current release-critical order remains:
 
 ```text
 26.2E real application E2E                         ACCEPTED
  -> 26.3A verified procedure runtime              ACCEPTED
- -> 26.3B Verification Kernel + Finish Gate       ACTIVE
+ -> 26.3B Verification Kernel + Finish Gate
  -> 26.3C WorkingState + typed recovery + LoopGuard + StagnationReport
+ -> broad real-application evidence
  -> 26.4 Human Demo -> transferable verified candidate skill + Skill Lineage
  -> 26.5 Hybrid Computer-Use Integration
  -> 27 Distribution & Maintenance
  -> 28 Clean User E2E / stable release
+```
+
+Track M stays parallel/non-release-critical. Stage 26.3C only reserves planner-neutral actor/delegation/environment references and the recovery/idempotency primitives that later Track M can reuse; it does not implement multi-agent runtime.
+
+## Future Track M — Agent Sessions / Delegation
+
+Track M remains below the current general planner boundary.
+
+Conceptual progression is defined canonically in `CONVERSATION_BRIDGE_ARCHITECTURE.md` and begins only when the Stage 26.3B/C state/verification/recovery foundations make it safe/useful.
+
+Core invariants:
+
+```text
+Session != Chat != DelegationTask != MessageDelivery != ExecutionEnvironment
+stable logical operation id for ambiguous mutations
+native harness/host state first when reviewed
+worker content is environmental data
+worker authority is minimum/delegated, not inherited
+initial max_spawn_depth = 1
+project/environment lifecycle is separate from session lifecycle
 ```
 
 ## Future Track P — Local Planner / Offline Autonomy
@@ -564,7 +715,7 @@ P2 optional local general-planner mode
    -> never silently replaces ChatGPT default
 ```
 
-Even in P2, the planner remains above the same capability policy, verification, Finish Gate and safety boundaries. AVO demonstrates that a richer agent harness can improve long-horizon behavior, but it does not move the project's authority boundary or automatically promote Track P.
+Even in P2, the planner remains above the same capability policy, verification, Finish Gate and safety boundaries. AVO and richer external harnesses demonstrate useful long-horizon mechanisms, but do not move the project's authority boundary or automatically promote Track P.
 
 ## Terminology rule
 
@@ -575,10 +726,15 @@ Use these terms consistently:
 - **WorkingState:** structured long-horizon operational state, never private reasoning;
 - **transition verifier:** verifies one expected action effect;
 - **Finish Gate:** independently verifies task-level completion;
-- **LoopGuard:** detects bounded repeated/no-effect/oscillating execution;
+- **LoopGuard:** detects bounded repeated/no-effect/oscillating execution, and later delegation/orchestration repetition;
 - **StagnationReport:** structured deterministic evidence summary emitted when bounded recovery stalls and novel strategy is required;
 - **Skill / Procedure Lineage:** versioned ancestry + objective evaluation evidence for candidate procedures; evidence, never authority;
+- **HarnessSession:** durable agent-session identity exposed by a harness/host; not automatically the same as one chat;
+- **Conversation / Chat:** message-history unit within a session;
+- **DelegationTask:** one explicit manager-assigned work unit, separate from session identity;
+- **MessageDelivery:** one concrete delivery/effect record, separate from delegation completion;
+- **ExecutionEnvironment:** workspace/worktree/project/host environment, separate from session lifecycle;
 - **specialist model:** bounded perception or structured proposal; non-authorizing;
 - **future local planner:** optional Track P research.
 
-Do not use `Control Plane` as a synonym for `local planner`.
+Do not use `Control Plane` as a synonym for `local planner`, `orchestrator` or `agent host`.
