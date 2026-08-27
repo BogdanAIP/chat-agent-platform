@@ -66,7 +66,7 @@ future trusted-site authority
 
 GitHub repository metadata may still describe the project as `Rust-first` although the current runtime is primarily Python + Node/MJS + PowerShell/Windows glue. Change repository metadata when settings write access is available; do not rewrite working code merely to satisfy stale metadata. This remains technical debt.
 
-The repository also retains many historical branch refs. Two maintenance branches still contain graph-unique old commits, but their content is substantially stale/superseded. Port only still-valid ideas through fresh reviewed PRs before deleting those refs; do not merge old branches wholesale merely because they are ahead of an old merge base.
+The repository also retains many historical branch refs. Do not infer unfinished work from branch existence or `ahead/behind` counts alone: squash-merged source branches can appear graph-ahead even though their PR is merged. In the audited maintenance examples, `maintenance/tech-debt-architecture-ci` is the source branch of merged PR #95, while `maintenance/slim-live-context-docs` belongs to PR #96, which was closed without merge as intentionally superseded and retained for history. Branch cleanup therefore needs PR-disposition/content classification rather than bulk deletion or automatic merging.
 
 ## What is not currently considered a core problem
 
