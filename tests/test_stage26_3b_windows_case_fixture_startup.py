@@ -118,7 +118,12 @@ class WindowsCaseDeskFixtureStartupTests(unittest.TestCase):
 
                 close_path.write_text("CLOSE\n", encoding="ascii")
                 proc.wait(timeout=10)
-                self.assertEqual(proc.returncode, 0)
+                stdout, stderr = proc.communicate(timeout=2)
+                self.assertEqual(
+                    proc.returncode,
+                    0,
+                    f"Case Desk fixture exit failure.\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}",
+                )
                 return run_id, state
             finally:
                 if proc.poll() is None:
@@ -131,6 +136,10 @@ class WindowsCaseDeskFixtureStartupTests(unittest.TestCase):
                     except subprocess.TimeoutExpired:
                         proc.kill()
                         proc.wait(timeout=3)
+                if proc.stdout is not None and not proc.stdout.closed:
+                    proc.stdout.close()
+                if proc.stderr is not None and not proc.stderr.closed:
+                    proc.stderr.close()
 
     def test_fixture_reaches_ready_and_clean_initial_state(self) -> None:
         run_id, state = self._run_fixture()
