@@ -113,12 +113,13 @@ class WindowsApplicationL3Contracts(unittest.TestCase):
 
     def test_public_schema_exposes_only_user_level_windows_parameters(self) -> None:
         source = PROJECTION.read_text(encoding="utf-8")
+        self.assertIn("const WINDOWS_CASE_PROCEDURE = 'windows_case_update_v1'", source)
         windows_schema = source[
             source.index("const windowsCaseProcedureSchema") :
             source.index("const server = new McpServer")
         ]
         for required in (
-            "windows_case_update_v1",
+            "z.literal(WINDOWS_CASE_PROCEDURE)",
             "case_id",
             "note",
             "Approved",
