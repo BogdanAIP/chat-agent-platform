@@ -1,8 +1,9 @@
 [CmdletBinding()]
 param(
   [string]$SourceRoot = (Split-Path -Parent $PSScriptRoot),
-  [string]$ExpectedHead = '',
-  [switch]$SkipBootstrap
+  [Parameter(Mandatory = $true)]
+  [ValidatePattern('^[0-9a-fA-F]{40}$')]
+  [string]$ExpectedHead
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,15 +55,42 @@ function Get-InstalledAssetRecord {
   }
 }
 
-$SourceRoot = (Resolve-Path -LiteralPath $SourceRoot).Path
-$actualHead = (& git.exe -C $SourceRoot rev-parse HEAD 2>$null | Select-Object -Last 1).Trim()
-if ($LASTEXITCODE -ne 0 -or -not $actualHead) { throw 'Unable to resolve source HEAD.' }
-if ($ExpectedHead -and $actualHead -ne $ExpectedHead) {
-  throw "EXACT_HEAD_MISMATCH expected=$ExpectedHead actual=$actualHead"
+function Get-NodeModulePath {
+  param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$PackageName)
+  return Join-Path $Root ("node_modules\" + $PackageName.Replace('/', '\'))
 }
-if (-not $ExpectedHead) { $ExpectedHead = $actualHead }
+
+function Get-DirectSemanticTransport {
+  param([Parameter(Mandatory = $true)][string]$LocalRoot)
+  $healthUrlFile = Join-Path $LocalRoot 'state\semantic-direct-health.url'
+  $healthPattern = [regex]::Escape($healthUrlFile)
+  $matches = @(
+    Get-CimInstance Win32_Process -ErrorAction Stop |
+      Where-Object {
+        [string]$_.Name -ieq 'tunnel-client.exe' -and
+        [string]$_.CommandLine -match '(?i)--mcp\.command' -and
+        [string]$_.CommandLine -match $healthPattern
+      }
+  )
+  if ($matches.Count -ne 1) { throw "Expected exactly one direct semantic transport process; observed=$($matches.Count)" }
+  $process = Get-Process -Id ([int]$matches[0].ProcessId) -ErrorAction Stop
+  $process.Refresh()
+  return [ordered]@{
+    pid = $process.Id
+    process_name = $process.ProcessName
+    process_start_time_ticks = $process.StartTime.ToUniversalTime().Ticks
+    command_line = [string]$matches[0].CommandLine
+  }
+}
+
+$SourceRoot = (Resolve-Path -LiteralPath $SourceRoot).Path
+$ExpectedHead = $ExpectedHead.ToLowerInvariant()
+$actualHead = (& git.exe -C $SourceRoot rev-parse HEAD 2>$null | Select-Object -Last 1).Trim().ToLowerInvariant()
+if ($LASTEXITCODE -ne 0 -or -not $actualHead) { throw 'Unable to resolve source HEAD.' }
+if ($actualHead -cne $ExpectedHead) { throw "EXACT_HEAD_MISMATCH expected=$ExpectedHead actual=$actualHead" }
 
 $node = (Get-Command node.exe -ErrorAction Stop).Source
+$npm = (Get-Command npm.cmd -ErrorAction Stop).Source
 $python = (Get-Command python.exe -ErrorAction Stop).Source
 $pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
 $localRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'
@@ -73,12 +101,14 @@ $qualificationRoot = Join-Path $localRoot "stage26\stage26-3b-browser-real-task-
 $workspaceRoot = Join-Path $qualificationRoot 'workspace'
 $fixtureRoot = Join-Path $qualificationRoot 'fixture-state'
 $frozenGateRoot = Join-Path $qualificationRoot 'frozen-gate'
-New-Item -ItemType Directory -Force -Path $workspaceRoot, $fixtureRoot, $frozenGateRoot | Out-Null
+$dependencyReferenceRoot = Join-Path $qualificationRoot 'dependency-reference'
+New-Item -ItemType Directory -Force -Path $workspaceRoot, $fixtureRoot, $frozenGateRoot, $dependencyReferenceRoot | Out-Null
 
 $sourceProvenancePath = Join-Path $qualificationRoot 'source-provenance.json'
 $installedProvenancePath = Join-Path $qualificationRoot 'installed-runtime-provenance.json'
 $sourceProvenanceGate = Join-Path $SourceRoot 'scripts\source-provenance-gate.py'
 $checkerScript = Join-Path $SourceRoot 'scripts\check-browser-real-task-gate.ps1'
+$guardianScript = Join-Path $SourceRoot 'scripts\stage26-browser-byte-lock-guardian.ps1'
 
 $criticalAssets = @(
   'runtime/semantic-projection/bin/semantic-projection-launcher.mjs',
@@ -100,6 +130,7 @@ $criticalAssets = @(
   'scripts/chat-platform.ps1',
   'scripts/semantic-direct-controller.ps1',
   'scripts/source-provenance-gate.py',
+  'scripts/stage26-browser-byte-lock-guardian.ps1',
   'scripts/prepare-browser-real-task-gate.ps1',
   'scripts/check-browser-real-task-gate.ps1',
   'tests/fixtures/browser_real_task_server.mjs'
@@ -122,15 +153,14 @@ if (
   -not [bool]$sourceProvenance.working_tree_clean -or
   -not [bool]$sourceProvenance.tracked_diff_empty -or
   -not [bool]$sourceProvenance.untracked_empty
-) {
-  throw 'Source Provenance Gate did not produce a clean exact-head PASS.'
-}
+) { throw 'Source Provenance Gate did not produce a clean exact-head PASS.' }
 
-if (-not $SkipBootstrap) {
-  $bootstrap = Join-Path $SourceRoot 'scripts\bootstrap-chat-platform.ps1'
-  & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $bootstrap
-  if ($LASTEXITCODE -ne 0) { throw "bootstrap-chat-platform failed: $LASTEXITCODE" }
-}
+# Release-critical Browser L3 never skips bootstrap. Installed application bytes
+# are then compared both to source and to a fresh npm-ci materialization of the
+# exact committed lockfile.
+$bootstrap = Join-Path $SourceRoot 'scripts\bootstrap-chat-platform.ps1'
+& $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $bootstrap
+if ($LASTEXITCODE -ne 0) { throw "bootstrap-chat-platform failed: $LASTEXITCODE" }
 
 $installedMappings = @(
   @('runtime\semantic-projection\bin\semantic-projection-launcher.mjs', 'runtime\semantic-projection\bin\semantic-projection-launcher.mjs'),
@@ -158,83 +188,183 @@ foreach ($mapping in $installedMappings) {
   $installedRecords += @(Get-InstalledAssetRecord -SourcePath $sourcePath -InstalledPath $installedPath -Name (([string]$mapping[0]).Replace('\', '/')))
 }
 $allInstalledMatch = @($installedRecords | Where-Object { -not [bool]$_.match }).Count -eq 0
-$sourceLockPath = Join-Path $SourceRoot 'runtime\semantic-projection\package-lock.json'
+if (-not $allInstalledMatch) { throw 'Installed AppRoot bytes do not match the frozen Browser L3 source head.' }
+
+$sourcePackageRoot = Join-Path $SourceRoot 'runtime\semantic-projection'
+Copy-Item -LiteralPath (Join-Path $sourcePackageRoot 'package.json') -Destination (Join-Path $dependencyReferenceRoot 'package.json') -Force
+Copy-Item -LiteralPath (Join-Path $sourcePackageRoot 'package-lock.json') -Destination (Join-Path $dependencyReferenceRoot 'package-lock.json') -Force
+Push-Location $dependencyReferenceRoot
+try {
+  & $npm ci --ignore-scripts --no-audit --no-fund
+  if ($LASTEXITCODE -ne 0) { throw "Fresh npm ci from exact Browser L3 lockfile failed: $LASTEXITCODE" }
+}
+finally { Pop-Location }
+
+$sourceLockPath = Join-Path $sourcePackageRoot 'package-lock.json'
 $sourceLock = Get-Content -LiteralPath $sourceLockPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
-$playwrightLockRecord = $sourceLock['packages']['node_modules/@playwright/mcp']
-$playwrightLockIntegrity = [string]$playwrightLockRecord['integrity']
-if (-not $playwrightLockIntegrity) { throw 'Source package-lock is missing @playwright/mcp integrity.' }
-$playwrightManifest = Join-Path $appRoot 'runtime\semantic-projection\node_modules\@playwright\mcp\package.json'
-if (-not (Test-Path -LiteralPath $playwrightManifest -PathType Leaf)) { throw 'Installed @playwright/mcp manifest is missing.' }
-$playwrightRoot = Split-Path -Parent $playwrightManifest
-$playwrightVersion = [string](Get-Content -LiteralPath $playwrightManifest -Raw -Encoding utf8 | ConvertFrom-Json).version
-if ($playwrightVersion -ne '0.0.78') { throw "Installed @playwright/mcp version drifted: $playwrightVersion" }
-$playwrightDirectoryHash = Get-DirectoryDigest -Root $playwrightRoot
+$installedPackageRoot = Join-Path $appRoot 'runtime\semantic-projection'
+$dependencyNames = @('@playwright/mcp', 'playwright', 'playwright-core')
+$dependencyRecords = @()
+foreach ($packageName in $dependencyNames) {
+  $lockKey = "node_modules/$packageName"
+  $lockRecord = $sourceLock['packages'][$lockKey]
+  if ($null -eq $lockRecord) { throw "Source package-lock is missing $packageName." }
+  $lockVersion = [string]$lockRecord['version']
+  $lockIntegrity = [string]$lockRecord['integrity']
+  if (-not $lockVersion -or -not $lockIntegrity) { throw "Source package-lock lacks version/integrity for $packageName." }
+
+  $installedPath = Get-NodeModulePath -Root $installedPackageRoot -PackageName $packageName
+  $referencePath = Get-NodeModulePath -Root $dependencyReferenceRoot -PackageName $packageName
+  foreach ($path in @($installedPath, $referencePath)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Container)) { throw "Dependency package missing: $path" }
+  }
+  $installedManifest = Get-Content -LiteralPath (Join-Path $installedPath 'package.json') -Raw -Encoding utf8 | ConvertFrom-Json
+  $referenceManifest = Get-Content -LiteralPath (Join-Path $referencePath 'package.json') -Raw -Encoding utf8 | ConvertFrom-Json
+  $installedDigest = Get-DirectoryDigest -Root $installedPath
+  $referenceDigest = Get-DirectoryDigest -Root $referencePath
+  $matchesLockMaterialization = (
+    [string]$installedManifest.version -ceq $lockVersion -and
+    [string]$referenceManifest.version -ceq $lockVersion -and
+    $installedDigest -ceq $referenceDigest
+  )
+  $dependencyRecords += @([ordered]@{
+    package = $packageName
+    lock_version = $lockVersion
+    lock_integrity = $lockIntegrity
+    installed_version = [string]$installedManifest.version
+    reference_version = [string]$referenceManifest.version
+    installed_directory_sha256 = $installedDigest
+    reference_directory_sha256 = $referenceDigest
+    match = $matchesLockMaterialization
+  })
+}
+$allDependenciesMatch = @($dependencyRecords | Where-Object { -not [bool]$_.match }).Count -eq 0
+if (-not $allDependenciesMatch) { throw 'Installed Playwright dependency bytes do not match fresh exact-lock npm-ci materialization.' }
+
 $installedEvidence = [ordered]@{
-  schema_version = 2
+  schema_version = 3
   exact_head = $ExpectedHead
   source_root = $SourceRoot
   installed_root = $appRoot
   all_match = $allInstalledMatch
-  playwright_mcp_version = $playwrightVersion
-  playwright_mcp_lock_integrity = $playwrightLockIntegrity
-  playwright_mcp_directory_sha256 = $playwrightDirectoryHash
+  dependencies_match_exact_lock = $allDependenciesMatch
+  package_lock_sha256 = Get-Sha256 -Path $sourceLockPath
+  npm_version = (& $npm --version).Trim()
   node_version = (& $node --version).Trim()
+  dependencies = $dependencyRecords
   assets = $installedRecords
   captured_at = (Get-Date).ToUniversalTime().ToString('o')
 }
 Write-Utf8NoBom -Path $installedProvenancePath -Content (($installedEvidence | ConvertTo-Json -Depth 8) + "`n")
-if (-not $allInstalledMatch) { throw 'Installed AppRoot bytes do not match the frozen Browser L3 source head.' }
 
 $frozenCheckerPath = Join-Path $frozenGateRoot 'check-browser-real-task-gate.ps1'
 $frozenProvenancePath = Join-Path $frozenGateRoot 'source-provenance-gate.py'
+$frozenGuardianPath = Join-Path $frozenGateRoot 'stage26-browser-byte-lock-guardian.ps1'
 Copy-Item -LiteralPath $checkerScript -Destination $frozenCheckerPath -Force
 Copy-Item -LiteralPath $sourceProvenanceGate -Destination $frozenProvenancePath -Force
+Copy-Item -LiteralPath $guardianScript -Destination $frozenGuardianPath -Force
 $checkerSourceHash = Get-Sha256 -Path $checkerScript
 $frozenCheckerHash = Get-Sha256 -Path $frozenCheckerPath
 $provenanceSourceHash = Get-Sha256 -Path $sourceProvenanceGate
 $frozenProvenanceHash = Get-Sha256 -Path $frozenProvenancePath
-if ($checkerSourceHash -cne $frozenCheckerHash -or $provenanceSourceHash -cne $frozenProvenanceHash) {
-  throw 'Frozen Browser L3 checker/provenance bytes do not match the exact-head source.'
+$guardianSourceHash = Get-Sha256 -Path $guardianScript
+$frozenGuardianHash = Get-Sha256 -Path $frozenGuardianPath
+if (
+  $checkerSourceHash -cne $frozenCheckerHash -or
+  $provenanceSourceHash -cne $frozenProvenanceHash -or
+  $guardianSourceHash -cne $frozenGuardianHash
+) { throw 'Frozen Browser L3 checker/provenance/guardian bytes do not match exact-head source.' }
+
+# Acquire read-only/no-write/no-delete handles only after all bytes have been
+# verified. The guardian hashes through each held handle before reporting READY.
+$lockPaths = [System.Collections.Generic.List[string]]::new()
+foreach ($asset in $criticalAssets) { $lockPaths.Add((Join-Path $SourceRoot $asset)) }
+foreach ($mapping in $installedMappings) { $lockPaths.Add((Join-Path $appRoot ([string]$mapping[1]))) }
+foreach ($record in $dependencyRecords) {
+  $packageRoot = Get-NodeModulePath -Root $installedPackageRoot -PackageName ([string]$record.package)
+  foreach ($file in Get-ChildItem -LiteralPath $packageRoot -Recurse -File) { $lockPaths.Add($file.FullName) }
 }
-
-$platform = Join-Path $appRoot 'scripts\chat-platform.ps1'
-& $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $platform -Action SetProfile -Profile semantic -FilesRoot $workspaceRoot -NoNotify
-if ($LASTEXITCODE -ne 0) { throw "SetProfile failed: $LASTEXITCODE" }
-& $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $platform -Action Start -NoNotify
-if ($LASTEXITCODE -ne 0) { throw "Platform Start failed: $LASTEXITCODE" }
-
-$targetId = "CASE-$nonce-4821"
-$decoyA = "CASE-$nonce-4827"
-$decoyB = "CASE-$nonce-4812"
-$oldAddress = "10 Old Harbor Road $nonce"
-$newAddress = "18 New Harbor Road $nonce"
-$requiredComment = "Reviewed by agent $nonce"
-
-$seed = [ordered]@{
-  target_id = $targetId
-  expected = [ordered]@{
-    address = $newAddress
-    status = 'Approved'
-    comment = $requiredComment
-  }
-  cases = @(
-    [ordered]@{ id = $targetId; client = 'Marina Volkova'; status = 'Pending'; address = $oldAddress; comment = 'Priority customer' },
-    [ordered]@{ id = $decoyA; client = 'Marina Volkova'; status = 'Pending'; address = "44 Pine Street $nonce"; comment = 'Waiting for customer' },
-    [ordered]@{ id = $decoyB; client = 'Maria Volkova'; status = 'Approved'; address = "7 Lake Avenue $nonce"; comment = 'Already reviewed' }
+$lockPaths.Add($frozenCheckerPath)
+$lockPaths.Add($frozenProvenancePath)
+$lockPaths.Add($frozenGuardianPath)
+$lockSpecPath = Join-Path $qualificationRoot 'byte-lock-spec.json'
+$lockSpec = [ordered]@{
+  schema_version = 1
+  exact_head = $ExpectedHead
+  files = @(
+    $lockPaths |
+      ForEach-Object { [System.IO.Path]::GetFullPath($_) } |
+      Sort-Object -Unique |
+      ForEach-Object { [ordered]@{ path = $_; sha256 = Get-Sha256 -Path $_ } }
   )
 }
+Write-Utf8NoBom -Path $lockSpecPath -Content (($lockSpec | ConvertTo-Json -Depth 6) + "`n")
+$guardianReadyPath = Join-Path $qualificationRoot 'byte-lock-ready.json'
+$guardianStopPath = Join-Path $qualificationRoot 'byte-lock-stop.txt'
+$guardianProcess = Start-Process -FilePath $pwsh -ArgumentList @(
+  '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
+  '-File', $frozenGuardianPath,
+  '-SpecPath', $lockSpecPath,
+  '-ReadyPath', $guardianReadyPath,
+  '-StopPath', $guardianStopPath
+) -PassThru -WindowStyle Hidden
+$guardianDeadline = (Get-Date).AddSeconds(15)
+while (-not (Test-Path -LiteralPath $guardianReadyPath -PathType Leaf)) {
+  $guardianProcess.Refresh()
+  if ($guardianProcess.HasExited) { throw "Browser byte-lock guardian exited before READY: $($guardianProcess.ExitCode)" }
+  if ((Get-Date) -gt $guardianDeadline) { throw 'Browser byte-lock guardian did not become ready.' }
+  Start-Sleep -Milliseconds 100
+}
+$guardianReady = Get-Content -LiteralPath $guardianReadyPath -Raw -Encoding utf8 | ConvertFrom-Json
+if ([int]$guardianReady.locked_file_count -ne @($lockSpec.files).Count) { throw 'Browser byte-lock guardian locked-file cardinality mismatch.' }
 
-$seedPath = Join-Path $fixtureRoot 'fixture-seed.json'
-Write-Utf8NoBom -Path $seedPath -Content (($seed | ConvertTo-Json -Depth 8) + "`n")
-
-$serverScript = Join-Path $SourceRoot 'tests\fixtures\browser_real_task_server.mjs'
-if (-not (Test-Path -LiteralPath $serverScript -PathType Leaf)) { throw "Fixture server missing: $serverScript" }
-$stdout = Join-Path $fixtureRoot 'fixture-stdout.log'
-$stderr = Join-Path $fixtureRoot 'fixture-stderr.log'
-$process = Start-Process -FilePath $node -ArgumentList @($serverScript, '--root', $fixtureRoot, '--port', '0') -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-Set-Content -LiteralPath (Join-Path $fixtureRoot 'fixture.pid') -Value $process.Id -Encoding ascii
-
+$process = $null
 try {
+  $platform = Join-Path $appRoot 'scripts\chat-platform.ps1'
+  & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $platform -Action SetProfile -Profile semantic -FilesRoot $workspaceRoot -NoNotify
+  if ($LASTEXITCODE -ne 0) { throw "SetProfile failed: $LASTEXITCODE" }
+  & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $platform -Action Start -NoNotify
+  if ($LASTEXITCODE -ne 0) { throw "Platform Start failed: $LASTEXITCODE" }
+
+  $transportDeadline = (Get-Date).AddSeconds(15)
+  $semanticTransport = $null
+  while ($null -eq $semanticTransport) {
+    try { $semanticTransport = Get-DirectSemanticTransport -LocalRoot $localRoot } catch {
+      if ((Get-Date) -gt $transportDeadline) { throw }
+      Start-Sleep -Milliseconds 250
+    }
+  }
+
+  $targetId = "CASE-$nonce-4821"
+  $decoyA = "CASE-$nonce-4827"
+  $decoyB = "CASE-$nonce-4812"
+  $oldAddress = "10 Old Harbor Road $nonce"
+  $newAddress = "18 New Harbor Road $nonce"
+  $requiredComment = "Reviewed by agent $nonce"
+
+  $seed = [ordered]@{
+    target_id = $targetId
+    expected = [ordered]@{ address = $newAddress; status = 'Approved'; comment = $requiredComment }
+    cases = @(
+      [ordered]@{ id = $targetId; client = 'Marina Volkova'; status = 'Pending'; address = $oldAddress; comment = 'Priority customer' },
+      [ordered]@{ id = $decoyA; client = 'Marina Volkova'; status = 'Pending'; address = "44 Pine Street $nonce"; comment = 'Waiting for customer' },
+      [ordered]@{ id = $decoyB; client = 'Maria Volkova'; status = 'Approved'; address = "7 Lake Avenue $nonce"; comment = 'Already reviewed' }
+    )
+  }
+  $seedPath = Join-Path $fixtureRoot 'fixture-seed.json'
+  Write-Utf8NoBom -Path $seedPath -Content (($seed | ConvertTo-Json -Depth 8) + "`n")
+
+  $serverScript = Join-Path $SourceRoot 'tests\fixtures\browser_real_task_server.mjs'
+  $stdout = Join-Path $fixtureRoot 'fixture-stdout.log'
+  $stderr = Join-Path $fixtureRoot 'fixture-stderr.log'
+  $fixtureGeneration = ([guid]::NewGuid().ToString('N'))
+  $gateToken = ([guid]::NewGuid().ToString('N')) + ([guid]::NewGuid().ToString('N'))
+  $process = Start-Process -FilePath $node -ArgumentList @(
+    $serverScript, '--root', $fixtureRoot, '--port', '0',
+    '--gate-token', $gateToken, '--generation', $fixtureGeneration
+  ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+  Set-Content -LiteralPath (Join-Path $fixtureRoot 'fixture.pid') -Value $process.Id -Encoding ascii
+
   $ready = $null
   for ($i = 0; $i -lt 120; $i += 1) {
     if ($process.HasExited) {
@@ -243,17 +373,16 @@ try {
     }
     if (Test-Path -LiteralPath $stdout) {
       $line = Get-Content -LiteralPath $stdout | Where-Object { $_ -like 'READY *' } | Select-Object -Last 1
-      if ($line) {
-        $ready = ($line.Substring(6) | ConvertFrom-Json)
-        break
-      }
+      if ($line) { $ready = ($line.Substring(6) | ConvertFrom-Json); break }
     }
     Start-Sleep -Milliseconds 100
   }
-  if (-not $ready -or -not $ready.url) { throw 'Fixture server did not report READY.' }
+  if (-not $ready -or -not $ready.url -or [string]$ready.generation -cne $fixtureGeneration) { throw 'Fixture server did not report expected READY generation.' }
 
   $health = Invoke-RestMethod -Uri ($ready.url + 'health') -Method Get -TimeoutSec 5
-  if ($health.status -ne 'ok' -or $health.finish -ne 'not_done') { throw 'Fixture did not start in a clean NOT_DONE state.' }
+  if ($health.status -ne 'ok' -or $health.finish -ne 'not_done' -or [bool]$health.frozen -or [string]$health.generation -cne $fixtureGeneration) {
+    throw 'Fixture did not start in a clean NOT_DONE unfrozen generation.'
+  }
 
   $task = "In Case Desk, find case $targetId for Marina Volkova. Change its delivery address from '$oldAddress' to '$newAddress', set the status to Approved, replace the comment with '$requiredComment', save the case, and make sure you changed the intended case rather than a similar customer record. Verify the final result before you report completion."
   $challenge = @"
@@ -270,7 +399,7 @@ TASK_END
 
   $process.Refresh()
   $manifest = [ordered]@{
-    schema_version = 3
+    schema_version = 4
     exact_head = $ExpectedHead
     source_root = $SourceRoot
     qualification_root = $qualificationRoot
@@ -282,12 +411,23 @@ TASK_END
     fixture_pid = $process.Id
     fixture_process_name = $process.ProcessName
     fixture_process_start_time_ticks = $process.StartTime.ToUniversalTime().Ticks
+    fixture_generation = $fixtureGeneration
+    gate_token = $gateToken
+    semantic_transport_pid = [int]$semanticTransport.pid
+    semantic_transport_process_name = [string]$semanticTransport.process_name
+    semantic_transport_start_time_ticks = [long]$semanticTransport.process_start_time_ticks
+    guardian_pid = [int]$guardianReady.pid
+    guardian_process_name = [string]$guardianReady.process_name
+    guardian_process_start_time_ticks = [long]$guardianReady.process_start_time_ticks
+    guardian_stop_path = $guardianStopPath
     source_provenance_path = $sourceProvenancePath
     installed_runtime_provenance_path = $installedProvenancePath
     frozen_checker_path = $frozenCheckerPath
     frozen_provenance_gate_path = $frozenProvenancePath
+    frozen_guardian_path = $frozenGuardianPath
     frozen_checker_sha256 = $frozenCheckerHash
     frozen_provenance_gate_sha256 = $frozenProvenanceHash
+    frozen_guardian_sha256 = $frozenGuardianHash
   }
   Write-Utf8NoBom -Path (Join-Path $qualificationRoot 'gate-manifest.json') -Content (($manifest | ConvertTo-Json -Depth 6) + "`n")
 
@@ -299,18 +439,28 @@ TASK_END
   Write-Host "TARGET_CASE=$targetId"
   Write-Host "CHALLENGE_FILE=$challengePath"
   Write-Host "FIXTURE_PID=$($process.Id)"
+  Write-Host "SEMANTIC_TRANSPORT_PID=$([int]$semanticTransport.pid)"
+  Write-Host "BYTE_LOCK_GUARDIAN_PID=$([int]$guardianReady.pid)"
   Write-Host 'SOURCE_PROVENANCE_GATE=PASS'
   Write-Host 'INSTALLED_RUNTIME_PROVENANCE=PASS'
-  Write-Host "PLAYWRIGHT_MCP_INSTALLED_VERSION=$playwrightVersion"
-  Write-Host "PLAYWRIGHT_MCP_DIRECTORY_SHA256=$playwrightDirectoryHash"
+  Write-Host 'PLAYWRIGHT_EXACT_LOCK_MATERIALIZATION=PASS'
+  Write-Host 'BYTE_LOCK_GUARDIAN=PASS'
   Write-Host 'FROZEN_FINISH_GATE=PASS'
   Write-Host 'INITIAL_FINISH_GATE=NOT_DONE'
   Write-Host "CHECK_COMMAND=& '$frozenCheckerPath' -QualificationRoot '$qualificationRoot' -ExpectedHead '$ExpectedHead'"
-  Write-Host 'NOTE=fixture-state is outside the Chat workspace; provenance evidence and frozen Finish Gate are outside the Chat workspace; audit is outside the Chat workspace.'
+  Write-Host 'NOTE=fixture/provenance/frozen-gate evidence is outside Chat workspace; exact source/runtime/dependency bytes are write/delete locked until Finish Gate cleanup.'
 }
 catch {
-  if ($null -ne $process -and -not $process.HasExited) {
-    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+  if ($null -ne $process) {
+    try {
+      $process.Refresh()
+      if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit(5000) | Out-Null }
+    } catch { }
   }
+  try { Write-Utf8NoBom -Path $guardianStopPath -Content "stop`n" } catch { }
+  try {
+    $guardianProcess.Refresh()
+    if (-not $guardianProcess.HasExited) { $guardianProcess.WaitForExit(5000) | Out-Null }
+  } catch { }
   throw
 }
