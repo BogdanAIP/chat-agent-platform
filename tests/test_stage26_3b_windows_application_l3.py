@@ -209,8 +209,12 @@ class WindowsApplicationL3Contracts(unittest.TestCase):
         self.assertIn("Set status Needs Review", source)
         self.assertIn("Save case", source)
         self.assertIn("event = 'case_saved'", source)
-        self.assertEqual(source.count("$case.status = [string]$draftStatus"), 1)
+        self.assertIn("$uiState = [pscustomobject]@{", source)
+        self.assertEqual(source.count("$case.status = [string]$uiState.draft_status"), 1)
         self.assertEqual(source.count("$case.notes = @($case.notes)"), 1)
+        self.assertNotIn("$selectedCaseId =", source)
+        self.assertNotIn("$draftStatus =", source)
+        self.assertNotIn("$saveCount =", source)
         save_handler = source[source.index("$saveButton.Add_Click") :]
         self.assertIn("Append-Utf8NoBom -Path $AuditPath", save_handler)
         before_save = source[: source.index("$saveButton.Add_Click")]
