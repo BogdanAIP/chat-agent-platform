@@ -6,7 +6,7 @@ Keep ordinary ChatGPT as the **only current general planning layer** while the l
 
 The deterministic Control Plane is not a second planner. It may advance already-selected known transitions under explicit authorization/verification and must escalate when a new strategy is required.
 
-Canonical architecture/contracts: `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `SECURITY_POLICY.md`, `REAL_TASK_ACCEPTANCE.md`, `SOURCE_PROVENANCE_ACCEPTANCE.md`, `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`, `CURRENT_STATE.md`, `PROJECT_RISKS.md`, `TECH_DEBT.md`; ADR-035 future Agent Session / Delegation direction lives in `CONVERSATION_BRIDGE_ARCHITECTURE.md`; ADR-036 future Browser/local-execution direction lives in `BROWSER_HARNESS_ARCHITECTURE.md`; ADR-037 future capability/event/policy substrate lives in `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md`; mutation-assurance direction lives in `MUTATION_ASSURANCE.md`.
+Canonical architecture/contracts: `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `SECURITY_POLICY.md`, `REAL_TASK_ACCEPTANCE.md`, `SOURCE_PROVENANCE_ACCEPTANCE.md`, `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`, `CURRENT_STATE.md`, `PROJECT_RISKS.md`, `TECH_DEBT.md`; ADR-035 future Agent Session / Delegation direction lives in `CONVERSATION_BRIDGE_ARCHITECTURE.md`; ADR-036 future Browser/local-execution direction lives in `BROWSER_HARNESS_ARCHITECTURE.md`; ADR-037 future capability/event/policy substrate lives in `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md`; mutation/adversarial-assurance direction lives in `MUTATION_ASSURANCE.md`.
 
 ## Accepted public semantic surface
 
@@ -24,8 +24,6 @@ procedure_run
 Normal transport is direct stdio through the Secure MCP Tunnel and official tunnel-client. 1MCP remains optional internal Extension Manager infrastructure.
 
 The six-tool inventory and the closed registered procedure catalog are separate contracts. A new registered procedure may extend `procedure_run` only through a bounded reviewed schema. Any genuinely new consequence class requires a truthful public-contract/security/physical-acceptance decision rather than being hidden behind generic dispatch.
-
-Track M / ADR-037 architecture work changes no current public tool.
 
 ## Acceptance-depth rule
 
@@ -70,25 +68,20 @@ Browser L3 real-task acceptance                   PHYSICAL ACCEPTED / MERGED #11
 Windows DesktopState shared-kernel verification   PHYSICAL ACCEPTED / MERGED #114
 Windows/application real-task L3                  PHYSICAL ACCEPTED / MERGED #115
 CAP-M0 Verification mutation pilot                ACCEPTED / MERGED #117
+Track M + ADR-037 architecture                    MERGED #116 / FUTURE AUTHORITY ONLY
+Browser stronger-provenance L3 repeat             PHYSICAL ACCEPTED / MERGED #118
+post-26.3B adversarial assurance plan             MERGED #119
 ```
 
-The Browser L3 run used randomized Case Desk data and an external independent Finish Gate. Historical #113 evidence included exactly one target save, one target audit mutation and `NON_TARGET_MUTATION=none`.
-
-The later Source Provenance review found that the historical #113 harness did not separately prove clean-tree/all-executed-source-byte binding. #113 is not retroactively failed. Before Stage 26.3B closes, **repeat representative Browser L3 under stronger source-provenance methodology**.
-
-Windows #114 was physically accepted on exact clean head `ce3f533d12ab0a5ea0c9a4804accb32cf377ac0e`. It proved the shared Windows verifier against live process/HWND identity, advancing observation time, positive PASS, wrong-postcondition FAIL, process-generation/HWND drift FAIL and stale/non-advancing UNKNOWN.
-
-Windows/application #115 was physically accepted on exact frozen head `5ae5d5ac52f391b1a58662e94a976c6ab8d48c62`. Ordinary Chat completed five bounded Case Desk transitions with kernel PASS, then a frozen independent Finish Gate proved exact target state, unchanged decoys, exactly one intended save/mutation, source/install/runtime provenance and cleanup. #115 merged as `e965e7b5466446c9f065f6b57f438f25168bed9a`.
-
-CAP-M0 #117 was replayed onto post-#115 main and accepted on exact head `e99de4ea89e6a763e3db6671e710cf06c4e5bb17`: dedicated mutation pilot, CI, CodeQL and Secret History Scan passed before merge as `500bfc646a14892ea655369c20c8f8d725fccfeb`.
+Historical Browser L3 #113 remains accepted for its original functional/final-state/history scope. PR #118 repeated one representative Browser L3 task under the stronger source/install/full-dependency provenance methodology and closed the remaining recorded Stage 26.3B evidence gap. Exact heads/results belong in `EVIDENCE_INDEX.md`.
 
 All physical acceptance remains scoped evidence, not universal Browser/Windows accuracy.
 
 ## Current release-critical sequence
 
 ```text
-26.3B Verification Kernel + representative production/L3 evidence   ACTIVE — final provenance gap
- -> 26.3C project-owned WorkingState + typed recovery/reconciliation + LoopGuard
+26.3B Verification Kernel + representative production/L3 evidence   ACCEPTED / CLOSED FOR RECORDED SCOPE
+ -> 26.3C project-owned WorkingState + typed recovery/reconciliation + LoopGuard   ACTIVE / NEXT
  -> Broad real-app physical coverage gate
  -> bounded OpenAdapt integration spike
  -> 26.4 Human Demo -> verified candidate skill
@@ -101,11 +94,11 @@ Broad real-app coverage is an acceptance objective, not a separate architecture 
 
 ---
 
-# 26.3B — Verification Kernel + independent Finish Gate — ACTIVE
+# 26.3B — Verification Kernel + independent Finish Gate — ACCEPTED
 
-Objective: one reusable verification contract across real production capabilities, with representative real-task evidence rather than only primitive success checks.
+Objective achieved for the recorded representative scope: one reusable verification contract across real production capabilities with independent task-level evidence rather than primitive success checks alone.
 
-Shared foundation:
+Accepted shared foundation:
 
 ```text
 ObservationRef / ObservationSnapshot
@@ -117,81 +110,27 @@ independent evidence-batch-bound Finish Gate
 separate task-success and safety/policy results
 ```
 
-Accepted production/evidence slices:
+Accepted production/evidence slices include:
 
-- file/artifact procedure path through PR #102;
-- production `web_open` verification through PR #107;
-- production `web_interact` verification through PR #111;
-- first Browser L3 real-task acceptance through PR #113 for its historical physical-gate scope;
-- Windows `DesktopState` shared-kernel verification through PR #114;
-- representative Windows/application L3 through physically accepted PR #115.
+- file/artifact procedure path through #102;
+- production `web_open` verification through #107;
+- production `web_interact` verification through #111;
+- first Browser L3 real-task acceptance through #113 for its historical scope;
+- Windows `DesktopState` shared-kernel verification through #114;
+- representative Windows/application L3 through #115;
+- representative Browser L3 repeat under stronger Source Provenance through #118.
 
-## Accepted representative Windows/application L3 — PR #115
+#118 additionally bound clean exact source, installed semantic runtime, complete exact-lock Node dependency materialization, process generations, frozen final snapshot, target-only mutation history and cleanup around an ordinary-Chat Browser task. Invalid earlier attempts failed closed and exposed defect classes that are now catalogued in `MUTATION_ASSURANCE.md`.
 
-Architecture retained:
+The accepted Browser route is headless Playwright/Chrome on target Windows. It does not claim visible headed desktop-browser control.
 
-```text
-ordinary Chat natural-language goal
- -> bounded registered procedure
- -> native/process-window-scoped execution
- -> fresh DesktopState after required effects
- -> shared ExpectedEffect verification
- -> procedure completion != user-task DONE
- -> independent external L3 Finish Gate
-```
+No further 26.3B work is required merely to keep the stage “open”. Add cross-capability completion predicates or new physical gates only when a material production-path requirement demands them.
 
-The procedure accepts user-level case id, note and reviewed status only. PID/HWND/backend/interpreter/command/Python/arbitrary path/audit path/raw action-sequence authority remains unavailable to Chat.
-
-Final acceptance evidence:
-
-```text
-status=completed
-action_count=5
-local_execution_verified=true
-all 5 kernel_verification.status=pass
-local_goal_verification.status=pass
-local_safety_verification.status=pass
-EXTERNAL_FINISH_GATE=DONE
-TARGET_FINAL_STATE=True
-DECOYS_UNCHANGED=True
-ONLY_TARGET_EVER_MUTATED=True
-AUDIT_TARGET_SAVE_EXACTLY_ONCE=True
-PROVENANCE_REVALIDATION=PASS
-STAGE26_3B_WINDOWS_APPLICATION_L3=PASS
-```
-
-This closes the representative Windows L3 item; do not rerun it merely because unrelated architecture/docs branches move.
-
-## Remaining 26.3B work
-
-```text
-1. repeat representative Browser L3 under stronger source-provenance methodology
-2. add cross-capability completion predicates only where a real procedure requires them
-3. run additional physical gates only for material production-path changes
-4. declare 26.3B accepted when the recorded evidence gap is closed
-```
-
-## ADR-036 relation to 26.3B
-
-ADR-036 does not silently enlarge current authority. Site Capability Profiles / Browser Network Gate remain reviewed future direction and become hard prerequisites before trusted-site JS/CDP/full-browser authority is promoted.
-
-## Track M relation to 26.3B
-
-Track M adds no session runtime during 26.3B. It reuses the capability-neutral verification foundation later:
-
-```text
-ObservationRef
-ExpectedEffect
-fresh AFTER observation
-PASS | FAIL | UNKNOWN
-independent Finish Gate
-```
-
-Future session/message effects may use operation-scoped observation subjects without vendor-specific logic inside the Kernel.
+ADR-036 does not silently enlarge current authority. Site Capability Profiles / Browser Network Gate remain future prerequisites before trusted-site JS/CDP/full-browser authority is promoted.
 
 ---
 
-# 26.3C — Project-owned WorkingState + typed recovery/reconciliation + LoopGuard
+# 26.3C — Project-owned WorkingState + typed recovery/reconciliation + LoopGuard — ACTIVE / NEXT
 
 Objective: make long-horizon continuation/recovery reliable before broader authority.
 
@@ -214,6 +153,22 @@ procedure id/version/node + optional external checkpoint reference
 ```
 
 Never persist private chain-of-thought.
+
+## Required first-slice guarantees
+
+Structured failure reasons are mandatory. They must survive handoff/retry and provide enough typed information that the next attempt can choose a materially different safe strategy rather than replaying the same physical action.
+
+LoopGuard is mandatory for repeated physical attempts. It must detect repeated no-effect fingerprints, oscillation and exhausted budgets before unbounded redelivery.
+
+Budget layers are distinct:
+
+```text
+task budget
+procedure/resumable-run budget
+strategy/attempt budget
+```
+
+Phases/checkpoint nodes are introduced for `procedure_run` / resumable procedures where useful. Do not turn them into a universal planner hierarchy.
 
 ## Track M compatibility guardrail inside 26.3C
 
@@ -244,7 +199,7 @@ Future `actor_ref` may identify the manager, deterministic procedure runtime or 
 
 Initial recovery classes include target missing/ambiguous, stale state, action no-effect, partial effect, unexpected dialog, navigation change, tool unavailable, permission denied, unsafe transition and external dynamic change.
 
-Generic mutating outcomes should support:
+Generic mutating outcomes:
 
 ```text
 NOT_APPLIED
@@ -266,19 +221,27 @@ re-observe
  -> ChatGPT replan / clarification / ABSTAIN
 ```
 
-LoopGuard must terminate/escalate repeated no-effect fingerprints, oscillation and exhausted budgets. StagnationReport should pass a structured failure reason to the next planner attempt rather than merely replaying the same physical action.
+LoopGuard must terminate/escalate repeated no-effect fingerprints, oscillation and exhausted budgets. StagnationReport passes a structured failure reason/evidence summary to the next planner attempt; it is diagnostic/escalation data, not authorization and not a second planner.
 
-An OpenAdapt checkpoint may later be referenced by WorkingState for one compiled procedure, but OpenAdapt does not own cross-capability state, authority, retry budgets or completion.
+Recovery after process restart must not replay a proven committed effect. Stale WorkingState/evidence must never authorize a new physical mutation.
+
+## Assurance obligation
+
+CAP-M7 cases in `MUTATION_ASSURANCE.md` are designed with the 26.3C guarantees. Deterministic state-machine/fault-injection tests should cover stale state, ambiguous delivery, duplicate attempts, budget exhaustion, actor/evidence mismatch and stale candidate completion before physical qualification is considered.
 
 ## Minimal ADR-037 seam during 26.3C
 
-26.3C may introduce only the smallest internal typed-event/read-only capability-descriptor seam needed by recovery/LoopGuard/Finish Gate.
+26.3C may introduce only the smallest internal typed-event/read-only capability-descriptor seam needed by WorkingState/recovery/LoopGuard/Finish Gate.
 
 It must not implement connector marketplace, scheduler, arbitrary hooks or Track M runtime merely because ADR-037 exists.
 
 ## Planner portability guardrail
 
 After WorkingState v1 stabilizes, define the smallest planner-neutral proposal/escalation contract needed to prevent the lower deterministic Control Plane from depending on ChatGPT-specific planning payloads. A future second planner should first run shadow/proposal-only through that contract.
+
+## Adjacent hardening before/with first runtime slice
+
+Make Playwright/Browser runtime output ownership explicit under project-owned state/log storage rather than inherited arbitrary CWD. Add a regression that source checkouts remain clean after Browser runtime use. This hardening comes from #118 qualification and should not reopen #118 acceptance.
 
 ---
 
@@ -401,7 +364,7 @@ ordinary ChatGPT web manager
  -> ChatGPT / Claude / Gemini / DeepSeek / Qwen / future web AI services
 ```
 
-Browser Companion remains the primary cross-provider adapter family. For an exact target surface with a reviewed stronger official/native host interface, prefer that route for truthful identity/state/effect semantics. Coding-agent harnesses are optional adapters/reference inputs, not a replacement for the web-chat product center.
+Browser Companion remains the primary cross-provider adapter family. Common structural extraction, normalization, capability detection and fallback belong in `GenericChatAdapter` / common Browser Companion layers. Thin provider adapters remain necessary for exact selectors, provider quirks and identity. For an exact target surface with a reviewed stronger official/native host interface, prefer that route for truthful state/effect semantics.
 
 ## Object model
 
@@ -415,9 +378,7 @@ MessageDelivery
 ExecutionEnvironment
 ```
 
-Session identity is not task identity. Delivery is not completion. Project/worktree lifecycle is not session lifecycle.
-
-`HandoffPack` remains bounded task context; capability grants remain Control Plane state outside the message.
+Session identity is not task identity. Delivery is not completion. Project/worktree lifecycle is not session lifecycle. `HandoffPack` remains bounded task context; capability grants remain Control Plane state outside the message.
 
 ## Routing
 
@@ -433,53 +394,23 @@ reviewed official/project-owned harness API / local host protocol when available
 
 ```text
 M0  Object model + fixture contracts
-    HarnessSession / Conversation / DelegationTask /
-    MessageDelivery / ExecutionEnvironment
-
 M1  Read-only Session Observer
-    discover/list/read/status of existing sessions/conversations
-    web conversations first for product evidence
-
-M2  Manager -> ONE EXISTING Worker
-    verified queued delivery
-    stable delegation_id
-    response/result correlation
-    delivered/held/refused/unknown semantics
-
-M3  WorkingState + HandoffPack integration
-    typed event/idle observation triggers
-    cancel/recovery/reconciliation
-
-M4  Session lifecycle
-    create/fork/rename/archive
-    stable operation_id
-    native idempotency key where supported
-    OUTCOME_UNKNOWN reconciliation before retry
-
-M5  Manager-created Worker E2E
-    ownership / WorkerLease
-    minimum child capability profile
-    cleanup with ownership evidence
-
-M6  Multiple workers
-    explicit DelegationTasks
-    fan-out/worker/message/session-creation budgets
-    duplicate-delegation guard
-    max_spawn_depth = 1 by default
-
-M7  Project / ExecutionEnvironment lifecycle
-    separate stronger consequence/security/acceptance
-
+M2  Manager -> ONE EXISTING Worker with verified delivery/correlation
+M3  WorkingState + HandoffPack integration and recovery
+M4  Session lifecycle + stable operation_id + reconciliation
+M5  Manager-created Worker E2E + WorkerLease/minimum authority
+M6  Multiple workers + fan-out/LoopGuard + max_spawn_depth=1 default
+M7  Project / ExecutionEnvironment lifecycle as stronger consequence class
 M8  Cross-provider / cross-harness adoption and broader adapter matrix
 ```
 
-## Core Track M invariants
+Core invariants:
 
 - discoverability != lifecycle ownership;
 - worker/session identity != capability authority;
 - queued send != steer/interrupt;
 - transport accepted != message delivered != worker result;
-- result must correlate to the concrete DelegationTask/work unit;
+- result correlates to a concrete DelegationTask/work unit;
 - every mutating logical effect has stable `operation_id`;
 - `OUTCOME_UNKNOWN` is reconciled before retry;
 - events trigger observation but do not prove semantic completion;
@@ -511,22 +442,13 @@ PolicyHooks
   != Verification Kernel / Finish Gate replacement
 ```
 
-Rules:
-
-- preserve `AVAILABLE -> ACTIVE -> AUTHORIZED`;
-- raw MCP/provider catalogs are not automatically trusted planner-visible semantics;
-- events cause fresh authoritative re-observation where consequence state matters;
-- hook output cannot widen grants or upgrade FAIL/UNKNOWN or completion status;
-- Skills declare capability requirements but do not self-authorize;
-- future scheduled runs get independent run/session identity and explicit scheduled-run grants rather than inheriting all interactive authority.
-
-ADR-037 implementation is staged behind current release needs; documentation does not create runtime authority.
+Preserve `AVAILABLE -> ACTIVE -> AUTHORIZED`. Raw provider/MCP catalogs are not automatically trusted planner-visible semantics. Events cause fresh authoritative re-observation where consequence state matters. Hook output cannot widen grants or upgrade FAIL/UNKNOWN/completion state.
 
 ---
 
 # Optional Track P — local planner
 
-Track P remains future-only research:
+Track P remains **future only** research:
 
 ```text
 P0 shadow/proposal-only
@@ -534,4 +456,4 @@ P0 shadow/proposal-only
  -> P2 optional local general planner
 ```
 
-No planner may grant itself capability authority; all planners remain above deterministic Control Plane/verifier/Finish Gate boundaries.
+No planner may grant itself capability authority; all planners remain above deterministic Control Plane/verifier/Finish Gate boundaries. Track P is not part of the current release-critical path.
