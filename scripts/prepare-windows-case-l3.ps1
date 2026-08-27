@@ -60,13 +60,16 @@ $runId = ([guid]::NewGuid().ToString('N').Substring(0, 8)).ToUpperInvariant()
 $qualificationRoot = Join-Path $localRoot "stage26\windows-case-l3-$stamp-$runId"
 $workspaceRoot = Join-Path $qualificationRoot 'workspace'
 $fixtureRoot = Join-Path $qualificationRoot 'fixture-state'
-New-Item -ItemType Directory -Force -Path $workspaceRoot, $fixtureRoot | Out-Null
+$frozenGateRoot = Join-Path $qualificationRoot 'frozen-gate'
+New-Item -ItemType Directory -Force -Path $workspaceRoot, $fixtureRoot, $frozenGateRoot | Out-Null
 
 $sourceProvenancePath = Join-Path $qualificationRoot 'source-provenance.json'
 $installedProvenancePath = Join-Path $qualificationRoot 'installed-runtime-provenance.json'
 $runtimeAttestationPath = Join-Path $qualificationRoot 'windows-runtime-attestation.json'
 $sourceProvenanceGate = Join-Path $SourceRoot 'scripts\source-provenance-gate.py'
 $runtimeAttestationScript = Join-Path $SourceRoot 'scripts\stage26-windows-runtime-attestation.py'
+$provenanceRecheckScript = Join-Path $SourceRoot 'scripts\stage26-windows-l3-provenance-recheck.py'
+$checkerScript = Join-Path $SourceRoot 'scripts\check-windows-case-l3.ps1'
 $lockPath = Join-Path $SourceRoot 'config\stage26-openadapt-lock.json'
 
 $criticalAssets = @(
@@ -93,6 +96,7 @@ $criticalAssets = @(
     'scripts/semantic-direct-controller.ps1',
     'scripts/source-provenance-gate.py',
     'scripts/stage26-windows-runtime-attestation.py',
+    'scripts/stage26-windows-l3-provenance-recheck.py',
     'scripts/stage26-windows-case-desk-fixture.ps1',
     'scripts/prepare-windows-case-l3.ps1',
     'scripts/check-windows-case-l3.ps1'
@@ -163,6 +167,17 @@ if ($LASTEXITCODE -ne 0) { throw 'Installed Windows/OpenAdapt runtime attestatio
 $runtimeAttestation = Get-Content -LiteralPath $runtimeAttestationPath -Raw -Encoding utf8 | ConvertFrom-Json
 if ([string]$runtimeAttestation.status -ne 'pass' -or -not [bool]$runtimeAttestation.version_match) {
     throw 'Installed Windows/OpenAdapt runtime attestation did not PASS.'
+}
+
+$frozenCheckerPath = Join-Path $frozenGateRoot 'check-windows-case-l3.ps1'
+$frozenRecheckPath = Join-Path $frozenGateRoot 'stage26-windows-l3-provenance-recheck.py'
+Copy-Item -LiteralPath $checkerScript -Destination $frozenCheckerPath -Force
+Copy-Item -LiteralPath $provenanceRecheckScript -Destination $frozenRecheckPath -Force
+if (
+    (Get-Sha256 -Path $checkerScript) -cne (Get-Sha256 -Path $frozenCheckerPath) -or
+    (Get-Sha256 -Path $provenanceRecheckScript) -cne (Get-Sha256 -Path $frozenRecheckPath)
+) {
+    throw 'Frozen Windows L3 Finish Gate bytes do not match the exact-head source.'
 }
 
 $activeSessionRoot = Join-Path $localRoot 'stage26\windows-case-l3'
@@ -287,6 +302,10 @@ TASK_END
         qualification_root = $qualificationRoot
         workspace_root = $workspaceRoot
         fixture_root = $fixtureRoot
+        frozen_gate_root = $frozenGateRoot
+        frozen_checker_path = $frozenCheckerPath
+        frozen_provenance_recheck_path = $frozenRecheckPath
+        windows_python_path = $windowsPython
         seed_path = $seedPath
         state_path = $statePath
         audit_path = $auditPath
@@ -320,9 +339,10 @@ TASK_END
     Write-Host "OPENADAPT_VERSION_MATCH=$([bool]$runtimeAttestation.version_match)"
     Write-Host "OPENADAPT_INSTALLED_VERSION=$([string]$runtimeAttestation.installed_version)"
     Write-Host "OPENADAPT_WIN_AGENT_SERVER_SHA256=$([string]$runtimeAttestation.win_agent_server_sha256)"
+    Write-Host 'FROZEN_FINISH_GATE=PASS'
     Write-Host 'INITIAL_FINISH_GATE=NOT_DONE'
     Write-Host 'CHAT_APP_REBIND_REQUIRED=True'
-    Write-Host "CHECK_COMMAND=& '$($SourceRoot)\scripts\check-windows-case-l3.ps1' -QualificationRoot '$qualificationRoot'"
+    Write-Host "CHECK_COMMAND=& '$frozenCheckerPath' -QualificationRoot '$qualificationRoot'"
     Write-Host 'NOTE=fixture state, audit, active session details and external Finish Gate evidence are outside the Chat workspace.'
 }
 catch {
