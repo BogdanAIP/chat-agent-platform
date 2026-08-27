@@ -20,14 +20,19 @@ function Get-Sha256 {
 }
 
 function Get-DirectoryDigest {
-  param([Parameter(Mandatory = $true)][string]$Root)
+  param(
+    [Parameter(Mandatory = $true)][string]$Root,
+    [string[]]$ExcludeRelativePath = @()
+  )
   $resolvedRoot = (Resolve-Path -LiteralPath $Root).Path
   $entries = @(
     Get-ChildItem -LiteralPath $resolvedRoot -Recurse -File |
       Sort-Object FullName |
       ForEach-Object {
         $relative = [System.IO.Path]::GetRelativePath($resolvedRoot, $_.FullName).Replace('\', '/')
-        "$relative`0$(Get-Sha256 -Path $_.FullName)"
+        if ($ExcludeRelativePath -notcontains $relative) {
+          "$relative`0$(Get-Sha256 -Path $_.FullName)"
+        }
       }
   )
   if ($entries.Count -eq 0) { throw "Cannot hash empty installed directory: $resolvedRoot" }
@@ -53,11 +58,6 @@ function Get-InstalledAssetRecord {
     installed_sha256 = $installedHash
     match = ($sourceHash -ceq $installedHash)
   }
-}
-
-function Get-NodeModulePath {
-  param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$PackageName)
-  return Join-Path $Root ("node_modules\" + $PackageName.Replace('/', '\'))
 }
 
 function Get-DirectSemanticTransport {
@@ -189,49 +189,51 @@ try {
 finally { Pop-Location }
 
 $sourceLockPath = Join-Path $sourcePackageRoot 'package-lock.json'
+$packageLockSha256 = Get-Sha256 -Path $sourceLockPath
 $sourceLock = Get-Content -LiteralPath $sourceLockPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+$lockPackageCount = @($sourceLock['packages'].Keys | Where-Object { [string]$_ -like 'node_modules/*' }).Count
+if ($lockPackageCount -le 0) { throw 'Source package-lock contains no Node runtime dependency packages.' }
+
 $installedPackageRoot = Join-Path $appRoot 'runtime\semantic-projection'
-$dependencyRecords = @()
-foreach ($packageName in @('@playwright/mcp', 'playwright', 'playwright-core')) {
-  $lockRecord = $sourceLock['packages']["node_modules/$packageName"]
-  if ($null -eq $lockRecord) { throw "Source package-lock is missing $packageName." }
-  $lockVersion = [string]$lockRecord['version']
-  $lockIntegrity = [string]$lockRecord['integrity']
-  if (-not $lockVersion -or -not $lockIntegrity) { throw "Source package-lock lacks version/integrity for $packageName." }
-  $installedPath = Get-NodeModulePath -Root $installedPackageRoot -PackageName $packageName
-  $referencePath = Get-NodeModulePath -Root $dependencyReferenceRoot -PackageName $packageName
-  foreach ($path in @($installedPath, $referencePath)) {
-    if (-not (Test-Path -LiteralPath $path -PathType Container)) { throw "Dependency package missing: $path" }
-  }
-  $installedManifest = Get-Content -LiteralPath (Join-Path $installedPath 'package.json') -Raw -Encoding utf8 | ConvertFrom-Json
-  $referenceManifest = Get-Content -LiteralPath (Join-Path $referencePath 'package.json') -Raw -Encoding utf8 | ConvertFrom-Json
-  $installedDigest = Get-DirectoryDigest -Root $installedPath
-  $referenceDigest = Get-DirectoryDigest -Root $referencePath
-  $dependencyRecords += @([ordered]@{
-    package = $packageName
-    lock_version = $lockVersion
-    lock_integrity = $lockIntegrity
-    installed_version = [string]$installedManifest.version
-    reference_version = [string]$referenceManifest.version
-    installed_directory_sha256 = $installedDigest
-    reference_directory_sha256 = $referenceDigest
-    match = ([string]$installedManifest.version -ceq $lockVersion -and [string]$referenceManifest.version -ceq $lockVersion -and $installedDigest -ceq $referenceDigest)
-  })
+$installedNodeModulesRoot = Join-Path $installedPackageRoot 'node_modules'
+$referenceNodeModulesRoot = Join-Path $dependencyReferenceRoot 'node_modules'
+foreach ($path in @($installedNodeModulesRoot, $referenceNodeModulesRoot)) {
+  if (-not (Test-Path -LiteralPath $path -PathType Container)) { throw "Node runtime dependency tree is missing: $path" }
 }
-$allDependenciesMatch = @($dependencyRecords | Where-Object { -not [bool]$_.match }).Count -eq 0
-if (-not $allDependenciesMatch) { throw 'Installed Playwright dependency bytes do not match fresh exact-lock npm-ci materialization.' }
+
+$lockMarkerRelativePath = '.chat-agent-platform-lock.sha256'
+$lockMarkerPath = Join-Path $installedNodeModulesRoot $lockMarkerRelativePath
+if (-not (Test-Path -LiteralPath $lockMarkerPath -PathType Leaf)) { throw 'Installed semantic runtime lock marker is missing.' }
+$appliedLockSha256 = (Get-Content -LiteralPath $lockMarkerPath -Raw -Encoding utf8).Trim().ToLowerInvariant()
+if ($appliedLockSha256 -cne $packageLockSha256) { throw 'Installed semantic runtime lock marker does not match the exact package-lock SHA-256.' }
+
+$installedNodeModulesDigest = Get-DirectoryDigest -Root $installedNodeModulesRoot -ExcludeRelativePath @($lockMarkerRelativePath)
+$referenceNodeModulesDigest = Get-DirectoryDigest -Root $referenceNodeModulesRoot -ExcludeRelativePath @($lockMarkerRelativePath)
+$allDependenciesMatch = $installedNodeModulesDigest -ceq $referenceNodeModulesDigest
+if (-not $allDependenciesMatch) {
+  throw 'Installed semantic Node dependency tree does not match fresh exact-lock npm-ci materialization.'
+}
+
+$dependencyTree = [ordered]@{
+  scope = 'runtime/semantic-projection/node_modules'
+  lock_package_count = $lockPackageCount
+  excluded_non_package_files = @($lockMarkerRelativePath)
+  installed_directory_sha256 = $installedNodeModulesDigest
+  reference_directory_sha256 = $referenceNodeModulesDigest
+  match = $allDependenciesMatch
+}
 
 $installedEvidence = [ordered]@{
-  schema_version = 3
+  schema_version = 4
   exact_head = $ExpectedHead
   source_root = $SourceRoot
   installed_root = $appRoot
   all_match = $allInstalledMatch
   dependencies_match_exact_lock = $allDependenciesMatch
-  package_lock_sha256 = Get-Sha256 -Path $sourceLockPath
+  package_lock_sha256 = $packageLockSha256
   npm_version = (& $npm --version).Trim()
   node_version = (& $node --version).Trim()
-  dependencies = $dependencyRecords
+  dependency_tree = $dependencyTree
   assets = $installedRecords
   captured_at = (Get-Date).ToUniversalTime().ToString('o')
 }
@@ -253,16 +255,14 @@ if ((Get-Sha256 -Path $checkerScript) -cne $frozenCheckerHash -or (Get-Sha256 -P
 $lockPaths = [System.Collections.Generic.List[string]]::new()
 foreach ($asset in $criticalAssets) { $lockPaths.Add((Join-Path $SourceRoot $asset)) }
 foreach ($mapping in $installedMappings) { $lockPaths.Add((Join-Path $appRoot ([string]$mapping[1]))) }
-foreach ($record in $dependencyRecords) {
-  $packageRoot = Get-NodeModulePath -Root $installedPackageRoot -PackageName ([string]$record.package)
-  foreach ($file in Get-ChildItem -LiteralPath $packageRoot -Recurse -File) { $lockPaths.Add($file.FullName) }
-}
+foreach ($file in Get-ChildItem -LiteralPath $installedNodeModulesRoot -Recurse -File) { $lockPaths.Add($file.FullName) }
+foreach ($file in Get-ChildItem -LiteralPath $referenceNodeModulesRoot -Recurse -File) { $lockPaths.Add($file.FullName) }
 $lockPaths.Add($frozenCheckerPath)
 $lockPaths.Add($frozenProvenancePath)
 $lockPaths.Add($frozenGuardianPath)
 $lockSpecPath = Join-Path $qualificationRoot 'byte-lock-spec.json'
 $lockSpec = [ordered]@{
-  schema_version = 1
+  schema_version = 2
   exact_head = $ExpectedHead
   files = @($lockPaths | ForEach-Object { [System.IO.Path]::GetFullPath($_) } | Sort-Object -Unique | ForEach-Object { [ordered]@{ path = $_; sha256 = Get-Sha256 -Path $_ } })
 }
@@ -367,7 +367,7 @@ TASK_END
   Write-Utf8NoBom -Path $challengePath -Content ($challenge + "`n")
 
   $manifest = [ordered]@{
-    schema_version = 5
+    schema_version = 6
     exact_head = $ExpectedHead
     source_root = $SourceRoot
     qualification_root = $qualificationRoot
@@ -412,12 +412,13 @@ TASK_END
   Write-Host "BYTE_LOCK_GUARDIAN_PID=$([int]$guardianReady.pid)"
   Write-Host 'SOURCE_PROVENANCE_GATE=PASS'
   Write-Host 'INSTALLED_RUNTIME_PROVENANCE=PASS'
+  Write-Host 'NODE_RUNTIME_EXACT_LOCK_MATERIALIZATION=PASS'
   Write-Host 'PLAYWRIGHT_EXACT_LOCK_MATERIALIZATION=PASS'
   Write-Host 'BYTE_LOCK_GUARDIAN=PASS'
   Write-Host 'FROZEN_FINISH_GATE=PASS'
   Write-Host 'INITIAL_FINISH_GATE=NOT_DONE'
   Write-Host "CHECK_COMMAND=& '$frozenCheckerPath' -QualificationRoot '$qualificationRoot' -ExpectedHead '$ExpectedHead'"
-  Write-Host 'NOTE=fixture/provenance/frozen-gate evidence is outside Chat workspace; exact source/runtime/dependency bytes are write/delete locked until Finish Gate cleanup.'
+  Write-Host 'NOTE=fixture/provenance/frozen-gate evidence is outside Chat workspace; exact source/runtime/full Node dependency-tree bytes are write/delete locked until Finish Gate cleanup.'
 }
 catch {
   if ($null -ne $process) {
