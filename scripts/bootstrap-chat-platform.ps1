@@ -14,8 +14,9 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $TunnelModule = Join-Path $PSScriptRoot 'bootstrap-tunnel-runtime.ps1'
 $ManagerModule = Join-Path $PSScriptRoot 'bootstrap-manager-runtime.ps1'
 $LifecycleModule = Join-Path $PSScriptRoot 'bootstrap-manager-lifecycle.ps1'
+$WindowsProcedureModule = Join-Path $PSScriptRoot 'bootstrap-windows-procedure-runtime.ps1'
 
-foreach ($module in @($TunnelModule, $ManagerModule, $LifecycleModule)) {
+foreach ($module in @($TunnelModule, $ManagerModule, $LifecycleModule, $WindowsProcedureModule)) {
     if (-not (Test-Path -LiteralPath $module -PathType Leaf)) {
         throw "Bootstrap module is missing: $module"
     }
@@ -85,6 +86,7 @@ function Assert-ChatBootstrapEnvironment {
         (Join-Path $PSScriptRoot 'semantic-direct-controller.ps1'),
         (Join-Path $PSScriptRoot 'chat-platform.ps1'),
         (Join-Path $PSScriptRoot 'chat-platform-tray.ps1'),
+        (Join-Path $PSScriptRoot 'bootstrap-windows-procedure-runtime.ps1'),
         (Join-Path $RepoRoot 'runtime\semantic-projection\bin\semantic-control-plane-projection.mjs'),
         (Join-Path $RepoRoot 'runtime\semantic-projection\lib\browser-verification-bridge.mjs'),
         (Join-Path $RepoRoot 'runtime\control_plane\browser_observation.py'),
@@ -93,7 +95,14 @@ function Assert-ChatBootstrapEnvironment {
         (Join-Path $RepoRoot 'runtime\control_plane\cli.py'),
         (Join-Path $RepoRoot 'runtime\control_plane\file_artifact_observation.py'),
         (Join-Path $RepoRoot 'runtime\control_plane\verification.py'),
-        (Join-Path $RepoRoot 'runtime\control_plane\verified_workspace_artifact.py')
+        (Join-Path $RepoRoot 'runtime\control_plane\verified_workspace_artifact.py'),
+        (Join-Path $RepoRoot 'runtime\control_plane\windows_observation.py'),
+        (Join-Path $RepoRoot 'runtime\control_plane\windows_transition.py'),
+        (Join-Path $RepoRoot 'runtime\control_plane\windows_case_update.py'),
+        (Join-Path $RepoRoot 'runtime\windows\actuation.py'),
+        (Join-Path $RepoRoot 'runtime\windows\observation.py'),
+        (Join-Path $RepoRoot 'runtime\windows\window_scoped_uia.py'),
+        (Join-Path $RepoRoot 'config\stage26-openadapt-lock.json')
     )) {
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
             throw "Required six-tool platform source is missing: $source"
@@ -146,6 +155,12 @@ Install-ChatManagerBundle `
     -DirectControllerPath $DirectControllerPath `
     -TrayPath $TrayPath
 
+Write-Step 'Установка bounded Windows procedure runtime'
+Install-ChatWindowsProcedureBundle `
+    -RepoRoot $RepoRoot `
+    -AppRoot $AppRoot `
+    -StateDir $StateDir
+
 Write-Step 'Инициализация normal semantic core и защищённого runtime key'
 $defaultFilesRoot = Initialize-ChatSemanticCore `
     -CommandPath $CommandPath `
@@ -172,6 +187,7 @@ Write-Host 'DEFAULT_PROFILE=semantic'
 Write-Host "DEFAULT_FILES_ROOT=$defaultFilesRoot"
 Write-Host 'SEMANTIC_BINDING=direct-stdio'
 Write-Host 'SEMANTIC_PUBLIC_TOOL_COUNT=6'
+Write-Host 'WINDOWS_PROCEDURE_ID=windows_case_update_v1'
 Write-Host 'EXTENSION_MANAGER=optional-1mcp'
 Write-Host 'LEGACY_1MCP_INSTALL_PATH_USED=False'
 Write-Host 'PLATFORM_STATE=stopped'
