@@ -73,8 +73,6 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         self.assertIn("x-gate-token", text)
         self.assertIn("writejsonatomic(snapshotpath", text)
         self.assertIn("if (frozen) return sendjson(response, 423", text)
-        # Save must re-check frozen after collecting the body so an in-flight
-        # request cannot commit across the freeze boundary.
         collect = text.index("const body = await collectbody(request)")
         recheck = text.index("if (frozen) return sendjson(response, 423", collect)
         mutation = text.index("cases[index] =", collect)
@@ -86,7 +84,7 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         self.assertIn("direct semantic transport process generation", folded)
         self.assertIn("browser byte-lock guardian generation", folded)
         self.assertIn("fixture process generation was not live", folded)
-        freeze = folded.index("/__gate/freeze")
+        freeze = folded.index("__gate/freeze")
         snapshot = folded.index("frozen-snapshot.json")
         finish = folded.index("finish_gate_not_done")
         self.assertLess(freeze, snapshot)
