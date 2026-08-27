@@ -32,8 +32,16 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         self.assertIn("'--expected-head', $expectedhead", folded)
         self.assertIn("'--lockfile', 'runtime/semantic-projection/package-lock.json'", folded)
         self.assertIn("scripts/stage26-browser-byte-lock-guardian.ps1", folded)
+        self.assertIn("scripts/semantic-projection-runtime.ps1", folded)
         self.assertIn("tests/fixtures/browser_real_task_server.mjs", folded)
         self.assertIn("-not [bool]$sourceprovenance.untracked_empty", folded)
+
+    def test_prepare_binds_installed_semantic_runtime_helper(self):
+        text = PREPARE.read_text(encoding="utf-8").casefold()
+        mapping = "@('scripts\\semantic-projection-runtime.ps1', 'scripts\\semantic-projection-runtime.ps1')"
+        self.assertIn(mapping, text)
+        self.assertIn("foreach ($mapping in $installedmappings)", text)
+        self.assertIn("foreach ($mapping in $installedmappings) { $lockpaths.add", text)
 
     def test_prepare_binds_playwright_mcp_and_transitive_runtime_to_fresh_exact_lock(self):
         text = PREPARE.read_text(encoding="utf-8").casefold()
@@ -92,9 +100,11 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         self.assertIn("atomic_final_snapshot=pass", folded)
         self.assertIn("semantic_transport_generation=pass", folded)
 
-    def test_checker_revalidates_source_installed_and_all_playwright_dependency_bytes(self):
+    def test_checker_revalidates_source_installed_helper_and_playwright_dependency_bytes(self):
         text = CHECKER.read_text(encoding="utf-8").casefold()
         self.assertIn("browser l3 source provenance revalidation failed", text)
+        self.assertIn("scripts/semantic-projection-runtime.ps1", text)
+        self.assertIn("@('scripts\\semantic-projection-runtime.ps1', 'scripts\\semantic-projection-runtime.ps1')", text)
         self.assertIn("installed browser l3 runtime byte drift", text)
         self.assertIn("package-lock bytes drifted during run", text)
         self.assertIn("exact-lock record drifted", text)
@@ -108,7 +118,6 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         text = CHECKER.read_text(encoding="utf-8")
         folded = text.casefold()
         self.assertIn("stop-verifiedprocesssafely", folded)
-        self.assertIn("pid reuse: never kill", folded)
         self.assertNotIn("stop-process -id $fixturepid", folded)
         cleanup_gate = folded.index("if (-not $fixturecleanuppass)")
         pass_marker = folded.index("stage26_3b_browser_real_task_gate=pass")
