@@ -251,7 +251,8 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
     def test_physical_driver_attests_installed_openadapt_backend(self):
         driver = (ROOT / "scripts" / "stage26-windows-verification-qualification.py").read_text(encoding="utf-8")
         self.assertIn('metadata.version("openadapt-flow")', driver)
-        self.assertIn('openadapt_flow.backends.win_agent.server', driver)
+        self.assertIn('from runtime.windows.window_scoped_uia import WindowScopedUiaResolver, _upstream', driver)
+        self.assertIn('server = _upstream()', driver)
         self.assertIn('"win_agent_server_sha256"', driver)
         self.assertIn('"version_match"', driver)
         self.assertIn('if not attestation["version_match"]', driver)
