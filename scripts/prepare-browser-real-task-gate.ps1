@@ -18,6 +18,22 @@ function Get-Sha256 {
   return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
+function Get-DirectoryDigest {
+  param([Parameter(Mandatory = $true)][string]$Root)
+  $resolvedRoot = (Resolve-Path -LiteralPath $Root).Path
+  $entries = @(
+    Get-ChildItem -LiteralPath $resolvedRoot -Recurse -File |
+      Sort-Object FullName |
+      ForEach-Object {
+        $relative = [System.IO.Path]::GetRelativePath($resolvedRoot, $_.FullName).Replace('\', '/')
+        "$relative`0$(Get-Sha256 -Path $_.FullName)"
+      }
+  )
+  if ($entries.Count -eq 0) { throw "Cannot hash empty installed directory: $resolvedRoot" }
+  $payload = [System.Text.Encoding]::UTF8.GetBytes(($entries -join "`n"))
+  return [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($payload)).ToLowerInvariant()
+}
+
 function Get-InstalledAssetRecord {
   param(
     [Parameter(Mandatory = $true)][string]$SourcePath,
@@ -142,17 +158,26 @@ foreach ($mapping in $installedMappings) {
   $installedRecords += @(Get-InstalledAssetRecord -SourcePath $sourcePath -InstalledPath $installedPath -Name (([string]$mapping[0]).Replace('\', '/')))
 }
 $allInstalledMatch = @($installedRecords | Where-Object { -not [bool]$_.match }).Count -eq 0
+$sourceLockPath = Join-Path $SourceRoot 'runtime\semantic-projection\package-lock.json'
+$sourceLock = Get-Content -LiteralPath $sourceLockPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+$playwrightLockRecord = $sourceLock['packages']['node_modules/@playwright/mcp']
+$playwrightLockIntegrity = [string]$playwrightLockRecord['integrity']
+if (-not $playwrightLockIntegrity) { throw 'Source package-lock is missing @playwright/mcp integrity.' }
 $playwrightManifest = Join-Path $appRoot 'runtime\semantic-projection\node_modules\@playwright\mcp\package.json'
 if (-not (Test-Path -LiteralPath $playwrightManifest -PathType Leaf)) { throw 'Installed @playwright/mcp manifest is missing.' }
+$playwrightRoot = Split-Path -Parent $playwrightManifest
 $playwrightVersion = [string](Get-Content -LiteralPath $playwrightManifest -Raw -Encoding utf8 | ConvertFrom-Json).version
 if ($playwrightVersion -ne '0.0.78') { throw "Installed @playwright/mcp version drifted: $playwrightVersion" }
+$playwrightDirectoryHash = Get-DirectoryDigest -Root $playwrightRoot
 $installedEvidence = [ordered]@{
-  schema_version = 1
+  schema_version = 2
   exact_head = $ExpectedHead
   source_root = $SourceRoot
   installed_root = $appRoot
   all_match = $allInstalledMatch
   playwright_mcp_version = $playwrightVersion
+  playwright_mcp_lock_integrity = $playwrightLockIntegrity
+  playwright_mcp_directory_sha256 = $playwrightDirectoryHash
   node_version = (& $node --version).Trim()
   assets = $installedRecords
   captured_at = (Get-Date).ToUniversalTime().ToString('o')
@@ -243,8 +268,9 @@ TASK_END
   $challengePath = Join-Path $workspaceRoot 'stage26-3b-browser-real-task.txt'
   Write-Utf8NoBom -Path $challengePath -Content ($challenge + "`n")
 
+  $process.Refresh()
   $manifest = [ordered]@{
-    schema_version = 2
+    schema_version = 3
     exact_head = $ExpectedHead
     source_root = $SourceRoot
     qualification_root = $qualificationRoot
@@ -254,6 +280,8 @@ TASK_END
     start_url = [string]$ready.url
     target_case = $targetId
     fixture_pid = $process.Id
+    fixture_process_name = $process.ProcessName
+    fixture_process_start_time_ticks = $process.StartTime.ToUniversalTime().Ticks
     source_provenance_path = $sourceProvenancePath
     installed_runtime_provenance_path = $installedProvenancePath
     frozen_checker_path = $frozenCheckerPath
@@ -274,10 +302,11 @@ TASK_END
   Write-Host 'SOURCE_PROVENANCE_GATE=PASS'
   Write-Host 'INSTALLED_RUNTIME_PROVENANCE=PASS'
   Write-Host "PLAYWRIGHT_MCP_INSTALLED_VERSION=$playwrightVersion"
+  Write-Host "PLAYWRIGHT_MCP_DIRECTORY_SHA256=$playwrightDirectoryHash"
   Write-Host 'FROZEN_FINISH_GATE=PASS'
   Write-Host 'INITIAL_FINISH_GATE=NOT_DONE'
   Write-Host "CHECK_COMMAND=& '$frozenCheckerPath' -QualificationRoot '$qualificationRoot' -ExpectedHead '$ExpectedHead'"
-  Write-Host 'NOTE=fixture state, audit, provenance evidence and frozen Finish Gate are outside the Chat workspace.'
+  Write-Host 'NOTE=fixture-state is outside the Chat workspace; provenance evidence and frozen Finish Gate are outside the Chat workspace; audit is outside the Chat workspace.'
 }
 catch {
   if ($null -ne $process -and -not $process.HasExited) {
