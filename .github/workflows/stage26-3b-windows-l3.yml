@@ -105,22 +105,15 @@ jobs:
             tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_runtime_attestation_binds_installed_openadapt_and_server_source
           if ($LASTEXITCODE -ne 0) { throw "Windows L3 runtime contracts failed with exit code $LASTEXITCODE" }
 
-      - name: Require all Windows application L3 contract groups
-        if: always()
+      - name: Fail if a Windows application L3 contract group failed
+        if: ${{ always() && (steps.app_helpers.outcome != 'success' || steps.app_surface.outcome != 'success' || steps.app_fixture.outcome != 'success' || steps.app_runtime.outcome != 'success') }}
         shell: pwsh
         run: |
-          $outcomes = @{
-            helpers = '${{ steps.app_helpers.outcome }}'
-            surface = '${{ steps.app_surface.outcome }}'
-            fixture = '${{ steps.app_fixture.outcome }}'
-            runtime = '${{ steps.app_runtime.outcome }}'
-          }
-          foreach ($entry in $outcomes.GetEnumerator()) {
-            Write-Host "WINDOWS_L3_$($entry.Key.ToUpperInvariant())=$($entry.Value)"
-          }
-          if (@($outcomes.Values | Where-Object { $_ -ne 'success' }).Count -ne 0) {
-            throw 'One or more Windows application L3 contract groups failed.'
-          }
+          Write-Host "WINDOWS_L3_HELPERS=${{ steps.app_helpers.outcome }}"
+          Write-Host "WINDOWS_L3_SURFACE=${{ steps.app_surface.outcome }}"
+          Write-Host "WINDOWS_L3_FIXTURE=${{ steps.app_fixture.outcome }}"
+          Write-Host "WINDOWS_L3_RUNTIME=${{ steps.app_runtime.outcome }}"
+          throw 'One or more Windows application L3 contract groups failed.'
 
       - name: Verify independent Windows application Finish Gate contract
         shell: pwsh
