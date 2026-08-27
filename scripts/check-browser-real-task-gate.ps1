@@ -79,8 +79,6 @@ function Stop-VerifiedProcessSafely {
       $process.ProcessName -cne $ProcessName -or
       $process.StartTime.ToUniversalTime().Ticks -ne $StartTimeTicks
     ) {
-      # PID reuse: never kill a process generation that was not the fixture or
-      # guardian proven by preparation.
       return $false
     }
     $process.Kill()
@@ -92,8 +90,6 @@ function Stop-VerifiedProcessSafely {
   if ($null -eq $after) { return $true }
   try {
     $after.Refresh()
-    # A replacement generation appearing after the verified process exited is
-    # unrelated. Do not kill it; cleanup of the proven generation succeeded.
     return (
       $after.ProcessName -cne $ProcessName -or
       $after.StartTime.ToUniversalTime().Ticks -ne $StartTimeTicks
@@ -183,9 +179,6 @@ try {
     throw 'Browser L3 fixture process generation was not live at Finish Gate proof time.'
   }
 
-  # Quiesce the fixture before reading final evidence. The authenticated freeze
-  # is processed on the fixture event loop and the save path checks `frozen`
-  # both before and after body collection, so no mutation can cross this point.
   $freezeUri = [System.Uri]::new([System.Uri]([string]$manifest.start_url), '__gate/freeze')
   $freezeResponse = Invoke-RestMethod -Uri $freezeUri -Method Post -Headers @{ 'X-Gate-Token' = [string]$manifest.gate_token } -TimeoutSec 5
   if ([string]$freezeResponse.status -ne 'frozen' -or [string]$freezeResponse.generation -cne [string]$manifest.fixture_generation) {
@@ -196,8 +189,6 @@ try {
     throw 'Browser L3 fixture health did not confirm the frozen generation.'
   }
 
-  # The byte-lock guardian must still be the exact process generation that
-  # acquired verified handles before semantic runtime and fixture startup.
   if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) {
     throw 'Browser byte-lock guardian did not remain live through fixture freeze.'
   }
@@ -224,6 +215,7 @@ try {
     'scripts/bootstrap-manager-runtime.ps1',
     'scripts/chat-platform.ps1',
     'scripts/semantic-direct-controller.ps1',
+    'scripts/semantic-projection-runtime.ps1',
     'scripts/source-provenance-gate.py',
     'scripts/stage26-browser-byte-lock-guardian.ps1',
     'scripts/prepare-browser-real-task-gate.ps1',
@@ -264,7 +256,8 @@ try {
     @('runtime\control_plane\verification.py', 'runtime\control_plane\verification.py'),
     @('runtime\chat-profiles\semantic\mcp.json', 'runtime\chat-profiles\semantic\mcp.json'),
     @('scripts\chat-platform.ps1', 'scripts\chat-platform.ps1'),
-    @('scripts\semantic-direct-controller.ps1', 'scripts\semantic-direct-controller.ps1')
+    @('scripts\semantic-direct-controller.ps1', 'scripts\semantic-direct-controller.ps1'),
+    @('scripts\semantic-projection-runtime.ps1', 'scripts\semantic-projection-runtime.ps1')
   )
   foreach ($mapping in $installedMappings) {
     if (-not (Test-InstalledAssetMatch -SourcePath (Join-Path $sourceRoot ([string]$mapping[0])) -InstalledPath (Join-Path $appRoot ([string]$mapping[1])))) {
@@ -353,7 +346,6 @@ finally {
     $guardianCleanupPass = Stop-VerifiedProcessSafely -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks)
   }
   else {
-    # PID was reused. Do not kill the replacement process.
     $guardianCleanupPass = $false
   }
 
@@ -366,8 +358,6 @@ if (-not $fixtureCleanupPass) { throw 'Browser L3 fixture cleanup failed.' }
 if (-not $guardianCleanupPass) { throw 'Browser L3 byte-lock guardian cleanup failed.' }
 if (-not $validated) { throw 'Browser L3 Finish Gate validation did not complete.' }
 
-# Authoritative PASS markers are emitted only after all validation and cleanup
-# have succeeded, preventing marker-based acceptance of a cleanup failure.
 Write-Host '===== STAGE 26.3B BROWSER REAL-TASK PROVENANCE FINISH GATE ====='
 Write-Host "EXACT_HEAD=$ExpectedHead"
 Write-Host 'SOURCE_PROVENANCE_GATE=PASS'
