@@ -153,7 +153,7 @@ try {
 
   $guardianReadyTimeTicks = [long]$manifest.guardian_ready_time_ticks
   if ($guardianReadyTimeTicks -le 0) { throw 'Browser byte-lock guardian READY timestamp is missing.' }
-  if ([long]$manifest.semantic_transport_process_start_time_ticks -lt $guardianReadyTimeTicks) {
+  if ([long]$manifest.semantic_transport_start_time_ticks -lt $guardianReadyTimeTicks) {
     throw 'Direct semantic transport predates verified byte-lock acquisition.'
   }
   if ([long]$manifest.fixture_process_start_time_ticks -lt $guardianReadyTimeTicks) {
@@ -161,7 +161,7 @@ try {
   }
 
   if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) { throw 'Browser byte-lock guardian generation was not live at Finish Gate start.' }
-  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_process_start_time_ticks))) { throw 'Direct semantic transport process generation drifted before Finish Gate.' }
+  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_start_time_ticks))) { throw 'Direct semantic transport process generation drifted before Finish Gate.' }
   if (-not (Test-ProcessGeneration -ProcessId $fixturePid -ProcessName ([string]$manifest.fixture_process_name) -StartTimeTicks ([long]$manifest.fixture_process_start_time_ticks))) { throw 'Browser L3 fixture process generation was not live at Finish Gate proof time.' }
 
   $freezeUri = [System.Uri]::new([System.Uri]([string]$manifest.start_url), '__gate/freeze')
@@ -171,7 +171,7 @@ try {
   if (-not [bool]$health.frozen -or [string]$health.generation -cne [string]$manifest.fixture_generation) { throw 'Browser L3 fixture health did not confirm the frozen generation.' }
 
   if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) { throw 'Browser byte-lock guardian did not remain live through fixture freeze.' }
-  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_process_start_time_ticks))) { throw 'Direct semantic transport process generation changed during Browser L3 run.' }
+  if (-not (Test-ProcessGeneration -ProcessId ([int]$manifest.semantic_transport_pid) -ProcessName ([string]$manifest.semantic_transport_process_name) -StartTimeTicks ([long]$manifest.semantic_transport_start_time_ticks))) { throw 'Direct semantic transport process generation changed during Browser L3 run.' }
 
   $criticalAssets = @(
     'runtime/semantic-projection/bin/semantic-projection-launcher.mjs',
@@ -237,7 +237,6 @@ try {
   $sourceLockPath = Join-Path $sourceRoot 'runtime\semantic-projection\package-lock.json'
   $packageLockSha256 = Get-Sha256 -Path $sourceLockPath
   if ($packageLockSha256 -cne [string]$initialInstalled.package_lock_sha256) { throw 'Browser L3 package-lock bytes drifted during run.' }
-
   $installedNodeModulesRoot = Join-Path $appRoot 'runtime\semantic-projection\node_modules'
   if (-not (Test-Path -LiteralPath $installedNodeModulesRoot -PathType Container)) { throw 'Installed semantic Node dependency tree is missing during revalidation.' }
   $lockMarkerRelativePath = '.chat-agent-platform-lock.sha256'
