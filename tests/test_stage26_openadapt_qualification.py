@@ -37,6 +37,8 @@ class Stage26OpenAdaptQualificationContractTests(unittest.TestCase):
             upstreams["openadapt_desktop"]["embedded_flow_version_at_pin"],
             "1.27.1",
         )
+        self.assertIn("effect-evidence provider", upstreams["openadapt_flow"]["role"])
+        self.assertNotEqual(upstreams["openadapt_flow"]["role"].strip(), "verifier")
 
         non_goals = "\n".join(self.lock["non_goals"])
         self.assertIn("only planner/intelligence", non_goals)
