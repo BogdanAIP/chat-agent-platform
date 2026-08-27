@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory = $true)][string]$AuditPath,
     [Parameter(Mandatory = $true)][string]$ReadyPath,
     [Parameter(Mandatory = $true)][string]$ClosePath,
-    [Parameter(Mandatory = $true)][ValidatePattern('^[A-F0-9]{8}$')][string]$RunId
+    [Parameter(Mandatory = $true)][ValidatePattern('^[A-F0-9]{8}$')][string]$RunId,
+    [switch]$ExerciseEventStateRegression
 )
 
 Set-StrictMode -Version Latest
@@ -67,9 +68,15 @@ $stateDirectory = Split-Path -Parent $StatePath
 New-Item -ItemType Directory -Force -Path $stateDirectory | Out-Null
 Write-Utf8NoBom -Path $AuditPath -Content ''
 
-$selectedCaseId = $null
-$draftStatus = $null
-$saveCount = 0
+# WinForms event scriptblocks do not share scalar assignment scope reliably.
+# Keep all mutable workflow state in one shared object so a selection made in
+# SelectedIndexChanged remains authoritative when TextChanged/status/save
+# callbacks execute later.
+$uiState = [pscustomobject]@{
+    selected_case_id = $null
+    draft_status = $null
+    save_count = 0
+}
 $summaryLabels = @{}
 
 function Get-CaseById {
@@ -80,10 +87,10 @@ function Get-CaseById {
 }
 
 function Get-StateToken {
-    $selected = if ($null -eq $selectedCaseId) { 'NONE' } else { [string]$selectedCaseId }
-    $status = if ($null -eq $draftStatus) { 'NONE' } else { [string]$draftStatus }
+    $selected = if ($null -eq $uiState.selected_case_id) { 'NONE' } else { [string]$uiState.selected_case_id }
+    $status = if ($null -eq $uiState.draft_status) { 'NONE' } else { [string]$uiState.draft_status }
     $noteHash = Get-TextSha256 -Text ([string]$noteBox.Text)
-    return "STATE|selected=$selected|draft_status=$status|note_sha256=$noteHash|saved=$saveCount"
+    return "STATE|selected=$selected|draft_status=$status|note_sha256=$noteHash|saved=$($uiState.save_count)"
 }
 
 function Get-CaseSummary {
@@ -97,10 +104,10 @@ function Save-State {
         run_id = $RunId
         fixture_pid = $PID
         ready = [bool]$form.Visible
-        selected_case_id = if ($null -eq $selectedCaseId) { $null } else { [string]$selectedCaseId }
-        draft_status = if ($null -eq $draftStatus) { $null } else { [string]$draftStatus }
+        selected_case_id = if ($null -eq $uiState.selected_case_id) { $null } else { [string]$uiState.selected_case_id }
+        draft_status = if ($null -eq $uiState.draft_status) { $null } else { [string]$uiState.draft_status }
         draft_note_sha256 = Get-TextSha256 -Text ([string]$noteBox.Text)
-        save_count = $saveCount
+        save_count = [int]$uiState.save_count
         cases = @($cases | ForEach-Object { Copy-CaseRecord -Case $_ })
         updated_at = (Get-Date).ToUniversalTime().ToString('o')
     }
@@ -114,20 +121,20 @@ function Update-StateToken {
 }
 
 function Update-SelectedDetails {
-    if ($null -eq $selectedCaseId) {
+    if ($null -eq $uiState.selected_case_id) {
         $clientValue.Text = '—'
         $statusValue.Text = '—'
         return
     }
-    $case = Get-CaseById -CaseId $selectedCaseId
+    $case = Get-CaseById -CaseId ([string]$uiState.selected_case_id)
     $clientValue.Text = [string]$case.client
     $statusValue.Text = [string]$case.status
 }
 
 function Update-SaveEnabled {
     $saveButton.Enabled = [bool](
-        $null -ne $selectedCaseId -and
-        $null -ne $draftStatus -and
+        $null -ne $uiState.selected_case_id -and
+        $null -ne $uiState.draft_status -and
         -not [string]::IsNullOrEmpty([string]$noteBox.Text)
     )
 }
@@ -278,8 +285,8 @@ $form.Controls.Add($runLabel)
 
 $caseList.Add_SelectedIndexChanged({
     if ($caseList.SelectedIndex -lt 0) { return }
-    $selectedCaseId = [string]$caseList.SelectedItem
-    $draftStatus = $null
+    $uiState.selected_case_id = [string]$caseList.SelectedItem
+    $uiState.draft_status = $null
     $noteBox.Text = ''
     Update-SelectedDetails
     Update-StateToken
@@ -294,37 +301,37 @@ $noteBox.Add_TextChanged({
 })
 
 $approvedButton.Add_Click({
-    if ($null -eq $selectedCaseId) { return }
-    $draftStatus = 'Approved'
+    if ($null -eq $uiState.selected_case_id) { return }
+    $uiState.draft_status = 'Approved'
     Update-StateToken
     Update-SaveEnabled
     Save-State
 })
 
 $reviewButton.Add_Click({
-    if ($null -eq $selectedCaseId) { return }
-    $draftStatus = 'Needs Review'
+    if ($null -eq $uiState.selected_case_id) { return }
+    $uiState.draft_status = 'Needs Review'
     Update-StateToken
     Update-SaveEnabled
     Save-State
 })
 
 $saveButton.Add_Click({
-    if (-not $saveButton.Enabled -or $null -eq $selectedCaseId -or $null -eq $draftStatus) { return }
-    $case = Get-CaseById -CaseId $selectedCaseId
+    if (-not $saveButton.Enabled -or $null -eq $uiState.selected_case_id -or $null -eq $uiState.draft_status) { return }
+    $case = Get-CaseById -CaseId ([string]$uiState.selected_case_id)
     $before = Copy-CaseRecord -Case $case
 
-    $case.status = [string]$draftStatus
+    $case.status = [string]$uiState.draft_status
     $case.notes = @($case.notes) + @([string]$noteBox.Text)
-    $saveCount += 1
+    $uiState.save_count += 1
 
     $after = Copy-CaseRecord -Case $case
     $event = [ordered]@{
         schema_version = 1
         run_id = $RunId
         event = 'case_saved'
-        save_index = $saveCount
-        case_id = [string]$selectedCaseId
+        save_index = [int]$uiState.save_count
+        case_id = [string]$uiState.selected_case_id
         before = $before
         after = $after
         saved_at = (Get-Date).ToUniversalTime().ToString('o')
@@ -355,6 +362,10 @@ $form.Add_Shown({
     Update-StateToken
     Update-SaveEnabled
     Save-State
+    if ($ExerciseEventStateRegression) {
+        $caseList.SelectedIndex = 0
+        $noteBox.Text = "EVENT_STATE_REGRESSION_$RunId"
+    }
     Write-Utf8NoBom -Path $ReadyPath -Content "READY`n"
     $form.TopMost = $true
     $form.Activate()
