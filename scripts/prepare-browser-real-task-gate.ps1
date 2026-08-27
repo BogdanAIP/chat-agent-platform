@@ -136,25 +136,16 @@ $criticalAssets = @(
   'scripts/check-browser-real-task-gate.ps1',
   'tests/fixtures/browser_real_task_server.mjs'
 )
-$provenanceArgs = @(
-  $sourceProvenanceGate,
-  '--repo-root', $SourceRoot,
-  '--expected-head', $ExpectedHead,
-  '--output', $sourceProvenancePath
-)
+$provenanceArgs = @($sourceProvenanceGate, '--repo-root', $SourceRoot, '--expected-head', $ExpectedHead, '--output', $sourceProvenancePath)
 foreach ($asset in $criticalAssets) { $provenanceArgs += @('--asset', $asset) }
 $provenanceArgs += @('--lockfile', 'runtime/semantic-projection/package-lock.json')
 
 & $python @provenanceArgs
 if ($LASTEXITCODE -ne 0) { throw 'Source Provenance Gate failed before Browser L3 preparation.' }
 $sourceProvenance = Get-Content -LiteralPath $sourceProvenancePath -Raw -Encoding utf8 | ConvertFrom-Json
-if (
-  [string]$sourceProvenance.status -ne 'pass' -or
-  [string]$sourceProvenance.actual_head -ne $ExpectedHead -or
-  -not [bool]$sourceProvenance.working_tree_clean -or
-  -not [bool]$sourceProvenance.tracked_diff_empty -or
-  -not [bool]$sourceProvenance.untracked_empty
-) { throw 'Source Provenance Gate did not produce a clean exact-head PASS.' }
+if ([string]$sourceProvenance.status -ne 'pass' -or [string]$sourceProvenance.actual_head -ne $ExpectedHead -or -not [bool]$sourceProvenance.working_tree_clean -or -not [bool]$sourceProvenance.tracked_diff_empty -or -not [bool]$sourceProvenance.untracked_empty) {
+  throw 'Source Provenance Gate did not produce a clean exact-head PASS.'
+}
 
 $bootstrap = Join-Path $SourceRoot 'scripts\bootstrap-chat-platform.ps1'
 & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $bootstrap
@@ -182,9 +173,7 @@ $installedMappings = @(
 )
 $installedRecords = @()
 foreach ($mapping in $installedMappings) {
-  $sourcePath = Join-Path $SourceRoot ([string]$mapping[0])
-  $installedPath = Join-Path $appRoot ([string]$mapping[1])
-  $installedRecords += @(Get-InstalledAssetRecord -SourcePath $sourcePath -InstalledPath $installedPath -Name (([string]$mapping[0]).Replace('\', '/')))
+  $installedRecords += @(Get-InstalledAssetRecord -SourcePath (Join-Path $SourceRoot ([string]$mapping[0])) -InstalledPath (Join-Path $appRoot ([string]$mapping[1])) -Name (([string]$mapping[0]).Replace('\', '/')))
 }
 $allInstalledMatch = @($installedRecords | Where-Object { -not [bool]$_.match }).Count -eq 0
 if (-not $allInstalledMatch) { throw 'Installed AppRoot bytes do not match the frozen Browser L3 source head.' }
@@ -202,16 +191,13 @@ finally { Pop-Location }
 $sourceLockPath = Join-Path $sourcePackageRoot 'package-lock.json'
 $sourceLock = Get-Content -LiteralPath $sourceLockPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
 $installedPackageRoot = Join-Path $appRoot 'runtime\semantic-projection'
-$dependencyNames = @('@playwright/mcp', 'playwright', 'playwright-core')
 $dependencyRecords = @()
-foreach ($packageName in $dependencyNames) {
-  $lockKey = "node_modules/$packageName"
-  $lockRecord = $sourceLock['packages'][$lockKey]
+foreach ($packageName in @('@playwright/mcp', 'playwright', 'playwright-core')) {
+  $lockRecord = $sourceLock['packages']["node_modules/$packageName"]
   if ($null -eq $lockRecord) { throw "Source package-lock is missing $packageName." }
   $lockVersion = [string]$lockRecord['version']
   $lockIntegrity = [string]$lockRecord['integrity']
   if (-not $lockVersion -or -not $lockIntegrity) { throw "Source package-lock lacks version/integrity for $packageName." }
-
   $installedPath = Get-NodeModulePath -Root $installedPackageRoot -PackageName $packageName
   $referencePath = Get-NodeModulePath -Root $dependencyReferenceRoot -PackageName $packageName
   foreach ($path in @($installedPath, $referencePath)) {
@@ -221,11 +207,6 @@ foreach ($packageName in $dependencyNames) {
   $referenceManifest = Get-Content -LiteralPath (Join-Path $referencePath 'package.json') -Raw -Encoding utf8 | ConvertFrom-Json
   $installedDigest = Get-DirectoryDigest -Root $installedPath
   $referenceDigest = Get-DirectoryDigest -Root $referencePath
-  $matchesLockMaterialization = (
-    [string]$installedManifest.version -ceq $lockVersion -and
-    [string]$referenceManifest.version -ceq $lockVersion -and
-    $installedDigest -ceq $referenceDigest
-  )
   $dependencyRecords += @([ordered]@{
     package = $packageName
     lock_version = $lockVersion
@@ -234,7 +215,7 @@ foreach ($packageName in $dependencyNames) {
     reference_version = [string]$referenceManifest.version
     installed_directory_sha256 = $installedDigest
     reference_directory_sha256 = $referenceDigest
-    match = $matchesLockMaterialization
+    match = ([string]$installedManifest.version -ceq $lockVersion -and [string]$referenceManifest.version -ceq $lockVersion -and $installedDigest -ceq $referenceDigest)
   })
 }
 $allDependenciesMatch = @($dependencyRecords | Where-Object { -not [bool]$_.match }).Count -eq 0
@@ -262,17 +243,12 @@ $frozenGuardianPath = Join-Path $frozenGateRoot 'stage26-browser-byte-lock-guard
 Copy-Item -LiteralPath $checkerScript -Destination $frozenCheckerPath -Force
 Copy-Item -LiteralPath $sourceProvenanceGate -Destination $frozenProvenancePath -Force
 Copy-Item -LiteralPath $guardianScript -Destination $frozenGuardianPath -Force
-$checkerSourceHash = Get-Sha256 -Path $checkerScript
 $frozenCheckerHash = Get-Sha256 -Path $frozenCheckerPath
-$provenanceSourceHash = Get-Sha256 -Path $sourceProvenanceGate
 $frozenProvenanceHash = Get-Sha256 -Path $frozenProvenancePath
-$guardianSourceHash = Get-Sha256 -Path $guardianScript
 $frozenGuardianHash = Get-Sha256 -Path $frozenGuardianPath
-if (
-  $checkerSourceHash -cne $frozenCheckerHash -or
-  $provenanceSourceHash -cne $frozenProvenanceHash -or
-  $guardianSourceHash -cne $frozenGuardianHash
-) { throw 'Frozen Browser L3 checker/provenance/guardian bytes do not match exact-head source.' }
+if ((Get-Sha256 -Path $checkerScript) -cne $frozenCheckerHash -or (Get-Sha256 -Path $sourceProvenanceGate) -cne $frozenProvenanceHash -or (Get-Sha256 -Path $guardianScript) -cne $frozenGuardianHash) {
+  throw 'Frozen Browser L3 checker/provenance/guardian bytes do not match exact-head source.'
+}
 
 $lockPaths = [System.Collections.Generic.List[string]]::new()
 foreach ($asset in $criticalAssets) { $lockPaths.Add((Join-Path $SourceRoot $asset)) }
@@ -288,35 +264,30 @@ $lockSpecPath = Join-Path $qualificationRoot 'byte-lock-spec.json'
 $lockSpec = [ordered]@{
   schema_version = 1
   exact_head = $ExpectedHead
-  files = @(
-    $lockPaths |
-      ForEach-Object { [System.IO.Path]::GetFullPath($_) } |
-      Sort-Object -Unique |
-      ForEach-Object { [ordered]@{ path = $_; sha256 = Get-Sha256 -Path $_ } }
-  )
+  files = @($lockPaths | ForEach-Object { [System.IO.Path]::GetFullPath($_) } | Sort-Object -Unique | ForEach-Object { [ordered]@{ path = $_; sha256 = Get-Sha256 -Path $_ } })
 }
 Write-Utf8NoBom -Path $lockSpecPath -Content (($lockSpec | ConvertTo-Json -Depth 6) + "`n")
+
 $guardianReadyPath = Join-Path $qualificationRoot 'byte-lock-ready.json'
 $guardianStopPath = Join-Path $qualificationRoot 'byte-lock-stop.txt'
-$guardianProcess = Start-Process -FilePath $pwsh -ArgumentList @(
-  '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
-  '-File', $frozenGuardianPath,
-  '-SpecPath', $lockSpecPath,
-  '-ReadyPath', $guardianReadyPath,
-  '-StopPath', $guardianStopPath
-) -PassThru -WindowStyle Hidden
-$guardianDeadline = (Get-Date).AddSeconds(15)
-while (-not (Test-Path -LiteralPath $guardianReadyPath -PathType Leaf)) {
-  $guardianProcess.Refresh()
-  if ($guardianProcess.HasExited) { throw "Browser byte-lock guardian exited before READY: $($guardianProcess.ExitCode)" }
-  if ((Get-Date) -gt $guardianDeadline) { throw 'Browser byte-lock guardian did not become ready.' }
-  Start-Sleep -Milliseconds 100
-}
-$guardianReady = Get-Content -LiteralPath $guardianReadyPath -Raw -Encoding utf8 | ConvertFrom-Json
-if ([int]$guardianReady.locked_file_count -ne @($lockSpec.files).Count) { throw 'Browser byte-lock guardian locked-file cardinality mismatch.' }
-
+$guardianProcess = $null
 $process = $null
 try {
+  $guardianProcess = Start-Process -FilePath $pwsh -ArgumentList @(
+    '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $frozenGuardianPath,
+    '-SpecPath', $lockSpecPath, '-ReadyPath', $guardianReadyPath, '-StopPath', $guardianStopPath
+  ) -PassThru -WindowStyle Hidden
+  $guardianDeadline = (Get-Date).AddSeconds(15)
+  while (-not (Test-Path -LiteralPath $guardianReadyPath -PathType Leaf)) {
+    $guardianProcess.Refresh()
+    if ($guardianProcess.HasExited) { throw "Browser byte-lock guardian exited before READY: $($guardianProcess.ExitCode)" }
+    if ((Get-Date) -gt $guardianDeadline) { throw 'Browser byte-lock guardian did not become ready.' }
+    Start-Sleep -Milliseconds 100
+  }
+  $guardianReady = Get-Content -LiteralPath $guardianReadyPath -Raw -Encoding utf8 | ConvertFrom-Json
+  if ([int]$guardianReady.locked_file_count -ne @($lockSpec.files).Count) { throw 'Browser byte-lock guardian locked-file cardinality mismatch.' }
+  $guardianReadyUtc = [DateTimeOffset]::Parse([string]$guardianReady.ready_at).UtcDateTime
+
   $platform = Join-Path $appRoot 'scripts\chat-platform.ps1'
   & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $platform -Action SetProfile -Profile semantic -FilesRoot $workspaceRoot -NoNotify
   if ($LASTEXITCODE -ne 0) { throw "SetProfile failed: $LASTEXITCODE" }
@@ -331,6 +302,10 @@ try {
       Start-Sleep -Milliseconds 250
     }
   }
+  $semanticTransportStartUtc = [DateTime]::new([long]$semanticTransport.process_start_time_ticks, [DateTimeKind]::Utc)
+  if ($semanticTransportStartUtc -lt $guardianReadyUtc) {
+    throw 'Direct semantic transport predates verified byte-lock acquisition; refusing stale loaded runtime generation.'
+  }
 
   $targetId = "CASE-$nonce-4821"
   $decoyA = "CASE-$nonce-4827"
@@ -338,7 +313,6 @@ try {
   $oldAddress = "10 Old Harbor Road $nonce"
   $newAddress = "18 New Harbor Road $nonce"
   $requiredComment = "Reviewed by agent $nonce"
-
   $seed = [ordered]@{
     target_id = $targetId
     expected = [ordered]@{ address = $newAddress; status = 'Approved'; comment = $requiredComment }
@@ -356,10 +330,7 @@ try {
   $stderr = Join-Path $fixtureRoot 'fixture-stderr.log'
   $fixtureGeneration = ([guid]::NewGuid().ToString('N'))
   $gateToken = ([guid]::NewGuid().ToString('N')) + ([guid]::NewGuid().ToString('N'))
-  $process = Start-Process -FilePath $node -ArgumentList @(
-    $serverScript, '--root', $fixtureRoot, '--port', '0',
-    '--gate-token', $gateToken, '--generation', $fixtureGeneration
-  ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+  $process = Start-Process -FilePath $node -ArgumentList @($serverScript, '--root', $fixtureRoot, '--port', '0', '--gate-token', $gateToken, '--generation', $fixtureGeneration) -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
   Set-Content -LiteralPath (Join-Path $fixtureRoot 'fixture.pid') -Value $process.Id -Encoding ascii
 
   $ready = $null
@@ -375,11 +346,12 @@ try {
     Start-Sleep -Milliseconds 100
   }
   if (-not $ready -or -not $ready.url -or [string]$ready.generation -cne $fixtureGeneration) { throw 'Fixture server did not report expected READY generation.' }
+  $process.Refresh()
+  $fixtureStartUtc = $process.StartTime.ToUniversalTime()
+  if ($fixtureStartUtc -lt $guardianReadyUtc) { throw 'Browser L3 fixture predates verified byte-lock acquisition.' }
 
   $health = Invoke-RestMethod -Uri ($ready.url + 'health') -Method Get -TimeoutSec 5
-  if ($health.status -ne 'ok' -or $health.finish -ne 'not_done' -or [bool]$health.frozen -or [string]$health.generation -cne $fixtureGeneration) {
-    throw 'Fixture did not start in a clean NOT_DONE unfrozen generation.'
-  }
+  if ($health.status -ne 'ok' -or $health.finish -ne 'not_done' -or [bool]$health.frozen -or [string]$health.generation -cne $fixtureGeneration) { throw 'Fixture did not start in a clean NOT_DONE unfrozen generation.' }
 
   $task = "In Case Desk, find case $targetId for Marina Volkova. Change its delivery address from '$oldAddress' to '$newAddress', set the status to Approved, replace the comment with '$requiredComment', save the case, and make sure you changed the intended case rather than a similar customer record. Verify the final result before you report completion."
   $challenge = @"
@@ -394,9 +366,8 @@ TASK_END
   $challengePath = Join-Path $workspaceRoot 'stage26-3b-browser-real-task.txt'
   Write-Utf8NoBom -Path $challengePath -Content ($challenge + "`n")
 
-  $process.Refresh()
   $manifest = [ordered]@{
-    schema_version = 4
+    schema_version = 5
     exact_head = $ExpectedHead
     source_root = $SourceRoot
     qualification_root = $qualificationRoot
@@ -416,6 +387,7 @@ TASK_END
     guardian_pid = [int]$guardianReady.pid
     guardian_process_name = [string]$guardianReady.process_name
     guardian_process_start_time_ticks = [long]$guardianReady.process_start_time_ticks
+    guardian_ready_time_ticks = $guardianReadyUtc.Ticks
     guardian_stop_path = $guardianStopPath
     source_provenance_path = $sourceProvenancePath
     installed_runtime_provenance_path = $installedProvenancePath
@@ -454,10 +426,12 @@ catch {
       if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit(5000) | Out-Null }
     } catch { }
   }
-  try { Write-Utf8NoBom -Path $guardianStopPath -Content "stop`n" } catch { }
-  try {
-    $guardianProcess.Refresh()
-    if (-not $guardianProcess.HasExited) { $guardianProcess.WaitForExit(5000) | Out-Null }
-  } catch { }
+  if ($null -ne $guardianProcess) {
+    try { Write-Utf8NoBom -Path $guardianStopPath -Content "stop`n" } catch { }
+    try {
+      $guardianProcess.Refresh()
+      if (-not $guardianProcess.HasExited) { $guardianProcess.WaitForExit(5000) | Out-Null }
+    } catch { }
+  }
   throw
 }
