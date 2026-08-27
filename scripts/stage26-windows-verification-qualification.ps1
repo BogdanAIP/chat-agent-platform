@@ -84,15 +84,21 @@ $result = [ordered]@{
     source_provenance = $null
     driver_pass = $false
     same_live_identity_pass = $false
+    first_observed_at = $null
+    second_observed_at = $null
+    live_observation_time_advanced_pass = $false
     kernel_pass_status = $null
     kernel_pass_reason = $null
     wrong_postcondition_status = $null
     process_generation_drift_status = $null
     hwnd_drift_status = $null
     stale_observation_status = $null
+    non_advancing_time_status = $null
+    non_advancing_time_reason = $null
     identity_drift_fail_pass = $false
     wrong_postcondition_fail_pass = $false
     stale_unknown_pass = $false
+    non_advancing_time_unknown_pass = $false
     resolver_stats = $null
     fixture_pid = $null
     fixture_killed = $false
@@ -186,15 +192,21 @@ try {
     $driver = Get-Content -LiteralPath $driverResultPath -Raw -Encoding utf8 | ConvertFrom-Json
     $result.driver_pass = [bool]$driver.pass
     $result.same_live_identity_pass = [bool]$driver.same_live_identity_pass
+    $result.first_observed_at = [string]$driver.first_observed_at
+    $result.second_observed_at = [string]$driver.second_observed_at
+    $result.live_observation_time_advanced_pass = [bool]$driver.live_observation_time_advanced_pass
     $result.kernel_pass_status = [string]$driver.kernel_pass_status
     $result.kernel_pass_reason = [string]$driver.kernel_pass_reason
     $result.wrong_postcondition_status = [string]$driver.wrong_postcondition_status
     $result.process_generation_drift_status = [string]$driver.process_generation_drift_status
     $result.hwnd_drift_status = [string]$driver.hwnd_drift_status
     $result.stale_observation_status = [string]$driver.stale_observation_status
+    $result.non_advancing_time_status = [string]$driver.non_advancing_time_status
+    $result.non_advancing_time_reason = [string]$driver.non_advancing_time_reason
     $result.identity_drift_fail_pass = [bool]$driver.identity_drift_fail_pass
     $result.wrong_postcondition_fail_pass = [bool]$driver.wrong_postcondition_fail_pass
     $result.stale_unknown_pass = [bool]$driver.stale_unknown_pass
+    $result.non_advancing_time_unknown_pass = [bool]$driver.non_advancing_time_unknown_pass
     $result.resolver_stats = $driver.resolver_stats
     $result.driver_error = $driver.error
 
@@ -240,15 +252,19 @@ $accepted = [bool](
     $result.source_provenance_pass -and
     $result.driver_pass -and
     $result.same_live_identity_pass -and
+    $result.live_observation_time_advanced_pass -and
     $result.kernel_pass_status -eq 'pass' -and
     $result.kernel_pass_reason -eq 'expected_effect_verified' -and
     $result.wrong_postcondition_status -eq 'fail' -and
     $result.process_generation_drift_status -eq 'fail' -and
     $result.hwnd_drift_status -eq 'fail' -and
     $result.stale_observation_status -eq 'unknown' -and
+    $result.non_advancing_time_status -eq 'unknown' -and
+    $result.non_advancing_time_reason -eq 'stale_observation_time' -and
     $result.identity_drift_fail_pass -and
     $result.wrong_postcondition_fail_pass -and
     $result.stale_unknown_pass -and
+    $result.non_advancing_time_unknown_pass -and
     $resolverStatsPass -and
     $result.fixture_cleanup_pass -and
     $null -eq $result.error
@@ -267,15 +283,21 @@ if ($null -ne $result.source_provenance) {
 }
 Write-Flag 'FIXTURE_PID' $result.fixture_pid
 Write-Flag 'SAME_LIVE_IDENTITY_PASS' $result.same_live_identity_pass
+Write-Flag 'FIRST_OBSERVED_AT' $result.first_observed_at
+Write-Flag 'SECOND_OBSERVED_AT' $result.second_observed_at
+Write-Flag 'LIVE_OBSERVATION_TIME_ADVANCED_PASS' $result.live_observation_time_advanced_pass
 Write-Flag 'KERNEL_PASS_STATUS' $result.kernel_pass_status
 Write-Flag 'KERNEL_PASS_REASON' $result.kernel_pass_reason
 Write-Flag 'WRONG_POSTCONDITION_STATUS' $result.wrong_postcondition_status
 Write-Flag 'PROCESS_GENERATION_DRIFT_STATUS' $result.process_generation_drift_status
 Write-Flag 'HWND_DRIFT_STATUS' $result.hwnd_drift_status
 Write-Flag 'STALE_OBSERVATION_STATUS' $result.stale_observation_status
+Write-Flag 'NON_ADVANCING_TIME_STATUS' $result.non_advancing_time_status
+Write-Flag 'NON_ADVANCING_TIME_REASON' $result.non_advancing_time_reason
 Write-Flag 'IDENTITY_DRIFT_FAIL_PASS' $result.identity_drift_fail_pass
 Write-Flag 'WRONG_POSTCONDITION_FAIL_PASS' $result.wrong_postcondition_fail_pass
 Write-Flag 'STALE_UNKNOWN_PASS' $result.stale_unknown_pass
+Write-Flag 'NON_ADVANCING_TIME_UNKNOWN_PASS' $result.non_advancing_time_unknown_pass
 if ($null -ne $result.resolver_stats) {
     foreach ($property in @($result.resolver_stats.PSObject.Properties | Sort-Object Name)) {
         Write-Flag ($property.Name.ToUpperInvariant()) $property.Value
