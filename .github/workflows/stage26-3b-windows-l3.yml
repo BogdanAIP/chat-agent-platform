@@ -63,11 +63,64 @@ jobs:
           python -m unittest tests.test_stage26_3b_windows_verification
           if ($LASTEXITCODE -ne 0) { throw "Windows Verification Kernel contract failed with exit code $LASTEXITCODE" }
 
-      - name: Verify Windows application L3 procedure and fixture contract
+      - name: L3 request and visible-state helper contracts
+        id: app_helpers
+        continue-on-error: true
         shell: pwsh
         run: |
-          python -m unittest tests.test_stage26_3b_windows_application_l3
-          if ($LASTEXITCODE -ne 0) { throw "Windows application L3 contract failed with exit code $LASTEXITCODE" }
+          python -m unittest `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_windows_case_request_is_bounded_and_session_bound `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_visible_state_postconditions_are_exact_digest_inputs
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 helper contracts failed with exit code $LASTEXITCODE" }
+
+      - name: L3 procedure CLI and public-schema contracts
+        id: app_surface
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          python -m unittest `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_procedure_uses_registered_windows_mechanics_and_cannot_claim_external_done `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_cli_dispatch_is_explicit_not_generic `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_public_schema_exposes_only_user_level_windows_parameters
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 surface contracts failed with exit code $LASTEXITCODE" }
+
+      - name: L3 fixture prep and external-checker contracts
+        id: app_fixture
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          python -m unittest `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_fixture_mutates_case_records_only_on_save_and_keeps_audit `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_prepare_binds_source_installed_runtime_and_hides_finish_evidence_from_chat `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_external_checker_requires_independent_state_history_and_cleanup
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 fixture/prep/checker contracts failed with exit code $LASTEXITCODE" }
+
+      - name: L3 bootstrap and runtime-attestation contracts
+        id: app_runtime
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          python -m unittest `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_bootstrap_installs_windows_runtime_before_semantic_smoke `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_runtime_attestation_binds_installed_openadapt_and_server_source
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 runtime contracts failed with exit code $LASTEXITCODE" }
+
+      - name: Require all Windows application L3 contract groups
+        if: always()
+        shell: pwsh
+        run: |
+          $outcomes = @{
+            helpers = '${{ steps.app_helpers.outcome }}'
+            surface = '${{ steps.app_surface.outcome }}'
+            fixture = '${{ steps.app_fixture.outcome }}'
+            runtime = '${{ steps.app_runtime.outcome }}'
+          }
+          foreach ($entry in $outcomes.GetEnumerator()) {
+            Write-Host "WINDOWS_L3_$($entry.Key.ToUpperInvariant())=$($entry.Value)"
+          }
+          if (@($outcomes.Values | Where-Object { $_ -ne 'success' }).Count -ne 0) {
+            throw 'One or more Windows application L3 contract groups failed.'
+          }
 
       - name: Verify independent Windows application Finish Gate contract
         shell: pwsh
