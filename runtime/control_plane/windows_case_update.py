@@ -223,15 +223,44 @@ def _replace_visible_lines(visible_text: str, replacements: dict[str, str]) -> s
     return "\n".join(output)
 
 
-def _control_fingerprint(raw: dict[str, Any], *, role: str, name: str) -> str:
+def _control_fingerprint(
+    raw: dict[str, Any],
+    *,
+    role: str,
+    name: str,
+    focused: bool | None = None,
+) -> str:
     matches = [
-        item.get("observation_fingerprint")
+        item
         for item in raw.get("controls", [])
         if item.get("role") == role and item.get("name") == name
     ]
-    if len(matches) != 1 or not isinstance(matches[0], str):
+    if len(matches) != 1:
         raise ProcedureAbstained("expected_control_not_unique")
-    return matches[0]
+    item = matches[0]
+    if focused is None:
+        fingerprint = item.get("observation_fingerprint")
+        if not isinstance(fingerprint, str):
+            raise ProcedureAbstained("expected_control_fingerprint_missing")
+        return fingerprint
+
+    payload = {
+        "role": str(item.get("role") or ""),
+        "name": " ".join(str(item.get("name") or "").split()),
+        "automation_id": str(item.get("automation_id") or ""),
+        "bounds": item.get("bounds"),
+        "enabled": item.get("enabled"),
+        "visible": item.get("visible"),
+        "focused": focused,
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def _verification(
@@ -518,7 +547,12 @@ def run_windows_case_update(
             raise ProcedureAbstained("select_case_postcondition_not_verified")
 
         ensure_budget()
-        note_control = _control_fingerprint(selected, role="textbox", name="New case note")
+        note_control = _control_fingerprint(
+            selected,
+            role="textbox",
+            name="New case note",
+            focused=True,
+        )
         note_locator, note_handle = resolve_unique("textbox", "New case note")
         note_point = (int(note_handle.point[0]), int(note_handle.point[1]))
         focus_receipt = backend.act_structural(note_locator, note_handle)
