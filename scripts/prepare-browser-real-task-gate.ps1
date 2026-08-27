@@ -129,6 +129,7 @@ $criticalAssets = @(
   'scripts/bootstrap-manager-runtime.ps1',
   'scripts/chat-platform.ps1',
   'scripts/semantic-direct-controller.ps1',
+  'scripts/semantic-projection-runtime.ps1',
   'scripts/source-provenance-gate.py',
   'scripts/stage26-browser-byte-lock-guardian.ps1',
   'scripts/prepare-browser-real-task-gate.ps1',
@@ -155,9 +156,6 @@ if (
   -not [bool]$sourceProvenance.untracked_empty
 ) { throw 'Source Provenance Gate did not produce a clean exact-head PASS.' }
 
-# Release-critical Browser L3 never skips bootstrap. Installed application bytes
-# are then compared both to source and to a fresh npm-ci materialization of the
-# exact committed lockfile.
 $bootstrap = Join-Path $SourceRoot 'scripts\bootstrap-chat-platform.ps1'
 & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $bootstrap
 if ($LASTEXITCODE -ne 0) { throw "bootstrap-chat-platform failed: $LASTEXITCODE" }
@@ -179,7 +177,8 @@ $installedMappings = @(
   @('runtime\control_plane\verification.py', 'runtime\control_plane\verification.py'),
   @('runtime\chat-profiles\semantic\mcp.json', 'runtime\chat-profiles\semantic\mcp.json'),
   @('scripts\chat-platform.ps1', 'scripts\chat-platform.ps1'),
-  @('scripts\semantic-direct-controller.ps1', 'scripts\semantic-direct-controller.ps1')
+  @('scripts\semantic-direct-controller.ps1', 'scripts\semantic-direct-controller.ps1'),
+  @('scripts\semantic-projection-runtime.ps1', 'scripts\semantic-projection-runtime.ps1')
 )
 $installedRecords = @()
 foreach ($mapping in $installedMappings) {
@@ -275,8 +274,6 @@ if (
   $guardianSourceHash -cne $frozenGuardianHash
 ) { throw 'Frozen Browser L3 checker/provenance/guardian bytes do not match exact-head source.' }
 
-# Acquire read-only/no-write/no-delete handles only after all bytes have been
-# verified. The guardian hashes through each held handle before reporting READY.
 $lockPaths = [System.Collections.Generic.List[string]]::new()
 foreach ($asset in $criticalAssets) { $lockPaths.Add((Join-Path $SourceRoot $asset)) }
 foreach ($mapping in $installedMappings) { $lockPaths.Add((Join-Path $appRoot ([string]$mapping[1]))) }
