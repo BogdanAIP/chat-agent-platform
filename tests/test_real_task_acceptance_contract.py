@@ -60,7 +60,7 @@ class RealTaskAcceptanceContractTests(unittest.TestCase):
         self.assertNotIn('SERVER_STATE_FILE', challenge_section)
         self.assertNotIn('AUDIT_FILE', challenge_section)
         self.assertIn('fixture/provenance/frozen-gate evidence is outside Chat workspace', prepare)
-        self.assertIn('exact source/runtime/dependency bytes are write/delete locked until Finish Gate cleanup', prepare)
+        self.assertIn('exact source/runtime/full Node dependency-tree bytes are write/delete locked until Finish Gate cleanup', prepare)
 
     def test_external_checker_requires_independent_state_and_target_only_history(self):
         checker = (ROOT / 'scripts' / 'check-browser-real-task-gate.ps1').read_text(encoding='utf-8')
