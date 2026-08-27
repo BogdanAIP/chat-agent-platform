@@ -16,24 +16,24 @@ function Get-Sha256 {
 }
 
 function Get-DirectoryDigest {
-  param([Parameter(Mandatory = $true)][string]$Root)
+  param(
+    [Parameter(Mandatory = $true)][string]$Root,
+    [string[]]$ExcludeRelativePath = @()
+  )
   $resolvedRoot = (Resolve-Path -LiteralPath $Root).Path
   $entries = @(
     Get-ChildItem -LiteralPath $resolvedRoot -Recurse -File |
       Sort-Object FullName |
       ForEach-Object {
         $relative = [System.IO.Path]::GetRelativePath($resolvedRoot, $_.FullName).Replace('\', '/')
-        "$relative`0$(Get-Sha256 -Path $_.FullName)"
+        if ($ExcludeRelativePath -notcontains $relative) {
+          "$relative`0$(Get-Sha256 -Path $_.FullName)"
+        }
       }
   )
   if ($entries.Count -eq 0) { throw "Cannot hash empty installed directory: $resolvedRoot" }
   $payload = [System.Text.Encoding]::UTF8.GetBytes(($entries -join "`n"))
   return [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($payload)).ToLowerInvariant()
-}
-
-function Get-NodeModulePath {
-  param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$PackageName)
-  return Join-Path $Root ("node_modules\" + $PackageName.Replace('/', '\'))
 }
 
 function Test-InstalledAssetMatch {
@@ -131,8 +131,24 @@ try {
 
   $initialSource = Get-Content -LiteralPath $sourceProvenancePath -Raw -Encoding utf8 | ConvertFrom-Json
   $initialInstalled = Get-Content -LiteralPath $installedProvenancePath -Raw -Encoding utf8 | ConvertFrom-Json
-  if ([string]$initialSource.status -ne 'pass' -or [string]$initialSource.actual_head -ne $ExpectedHead -or -not [bool]$initialSource.working_tree_clean -or -not [bool]$initialSource.tracked_diff_empty -or -not [bool]$initialSource.untracked_empty -or -not [bool]$initialInstalled.all_match -or -not [bool]$initialInstalled.dependencies_match_exact_lock -or [string]$initialInstalled.exact_head -ne $ExpectedHead -or @($initialInstalled.dependencies).Count -ne 3) {
-    throw 'Initial Browser L3 provenance evidence was not a clean exact-head/exact-lock PASS.'
+  $dependencyTree = $initialInstalled.dependency_tree
+  if (
+    [string]$initialSource.status -ne 'pass' -or
+    [string]$initialSource.actual_head -ne $ExpectedHead -or
+    -not [bool]$initialSource.working_tree_clean -or
+    -not [bool]$initialSource.tracked_diff_empty -or
+    -not [bool]$initialSource.untracked_empty -or
+    -not [bool]$initialInstalled.all_match -or
+    -not [bool]$initialInstalled.dependencies_match_exact_lock -or
+    [string]$initialInstalled.exact_head -ne $ExpectedHead -or
+    $null -eq $dependencyTree -or
+    [string]$dependencyTree.scope -ne 'runtime/semantic-projection/node_modules' -or
+    -not [bool]$dependencyTree.match -or
+    [int]$dependencyTree.lock_package_count -le 0 -or
+    -not [string]$dependencyTree.installed_directory_sha256 -or
+    [string]$dependencyTree.installed_directory_sha256 -cne [string]$dependencyTree.reference_directory_sha256
+  ) {
+    throw 'Initial Browser L3 provenance evidence was not a clean exact-head/full exact-lock dependency-tree PASS.'
   }
 
   $guardianReadyTimeTicks = [long]$manifest.guardian_ready_time_ticks
@@ -219,15 +235,23 @@ try {
   }
 
   $sourceLockPath = Join-Path $sourceRoot 'runtime\semantic-projection\package-lock.json'
-  if ((Get-Sha256 -Path $sourceLockPath) -cne [string]$initialInstalled.package_lock_sha256) { throw 'Browser L3 package-lock bytes drifted during run.' }
-  $sourceLock = Get-Content -LiteralPath $sourceLockPath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
-  $installedPackageRoot = Join-Path $appRoot 'runtime\semantic-projection'
-  foreach ($dependency in @($initialInstalled.dependencies)) {
-    $packageName = [string]$dependency.package
-    $lockRecord = $sourceLock['packages']["node_modules/$packageName"]
-    if ($null -eq $lockRecord -or [string]$lockRecord['version'] -cne [string]$dependency.lock_version -or [string]$lockRecord['integrity'] -cne [string]$dependency.lock_integrity) { throw "Exact-lock record drifted for $packageName." }
-    $installedPath = Get-NodeModulePath -Root $installedPackageRoot -PackageName $packageName
-    if ((Get-DirectoryDigest -Root $installedPath) -cne [string]$dependency.installed_directory_sha256) { throw "Installed Playwright dependency package bytes drifted during Browser L3 run: $packageName" }
+  $packageLockSha256 = Get-Sha256 -Path $sourceLockPath
+  if ($packageLockSha256 -cne [string]$initialInstalled.package_lock_sha256) { throw 'Browser L3 package-lock bytes drifted during run.' }
+
+  $installedNodeModulesRoot = Join-Path $appRoot 'runtime\semantic-projection\node_modules'
+  if (-not (Test-Path -LiteralPath $installedNodeModulesRoot -PathType Container)) { throw 'Installed semantic Node dependency tree is missing during revalidation.' }
+  $lockMarkerRelativePath = '.chat-agent-platform-lock.sha256'
+  $lockMarkerPath = Join-Path $installedNodeModulesRoot $lockMarkerRelativePath
+  if (-not (Test-Path -LiteralPath $lockMarkerPath -PathType Leaf)) { throw 'Installed semantic runtime lock marker is missing during revalidation.' }
+  $appliedLockSha256 = (Get-Content -LiteralPath $lockMarkerPath -Raw -Encoding utf8).Trim().ToLowerInvariant()
+  if ($appliedLockSha256 -cne $packageLockSha256) { throw 'Installed semantic runtime lock marker drifted from the exact package-lock SHA-256.' }
+
+  $installedNodeModulesDigest = Get-DirectoryDigest -Root $installedNodeModulesRoot -ExcludeRelativePath @($lockMarkerRelativePath)
+  if ($installedNodeModulesDigest -cne [string]$dependencyTree.installed_directory_sha256) {
+    throw 'Installed full semantic Node dependency-tree bytes drifted during Browser L3 run.'
+  }
+  if ([string]$dependencyTree.reference_directory_sha256 -cne [string]$dependencyTree.installed_directory_sha256) {
+    throw 'Initial installed semantic Node dependency tree was not identical to fresh exact-lock npm-ci materialization.'
   }
 
   if (-not (Test-ProcessGeneration -ProcessId $guardianPid -ProcessName ([string]$manifest.guardian_process_name) -StartTimeTicks ([long]$manifest.guardian_process_start_time_ticks))) { throw 'Browser byte-lock guardian did not remain live through final provenance revalidation.' }
@@ -290,6 +314,7 @@ Write-Host '===== STAGE 26.3B BROWSER REAL-TASK PROVENANCE FINISH GATE ====='
 Write-Host "EXACT_HEAD=$ExpectedHead"
 Write-Host 'SOURCE_PROVENANCE_GATE=PASS'
 Write-Host 'INSTALLED_RUNTIME_PROVENANCE=PASS'
+Write-Host 'NODE_RUNTIME_EXACT_LOCK_MATERIALIZATION=PASS'
 Write-Host 'PLAYWRIGHT_EXACT_LOCK_MATERIALIZATION=PASS'
 Write-Host 'BYTE_LOCK_GUARDIAN=PASS'
 Write-Host 'FROZEN_FINISH_GATE_CODE=PASS'
