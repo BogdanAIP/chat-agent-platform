@@ -8,19 +8,24 @@ Resolve live GitHub state before acting. This file records the continuation poin
 
 ## Current real stopping point
 
-At the 2026-08-26 synchronization point:
+At the 2026-08-27 synchronization point:
 
 ```text
-main = 4319278cbc3b27de3f5c18d159aa3f8f3b9a4c6e
-       PR #113 — first Browser L3 real-task acceptance
+main = cc0fa3d1b7afe9d833334ae68482d2d3dca4b818
+       PR #114 — Windows DesktopState shared-kernel verification
        PHYSICALLY ACCEPTED / MERGED
 
-active release-critical PR = #114
-       Windows DesktopState shared-kernel verification
-       no public Chat/MCP surface change
-       no new Windows action authority
-       final hosted checks + source-provenance-bound target-Windows verifier qualification required
+active release-critical PR = #115
+       representative Windows/application real-task L3
+       canonical public surface remains six tools
+       Draft until final hosted + target-Windows ordinary-Chat L3 acceptance
 ```
+
+PR #114 target-Windows physical acceptance used exact clean head:
+
+`ce3f533d12ab0a5ea0c9a4804accb32cf377ac0e`
+
+It proved source provenance PASS, OpenAdapt 1.31.0 match, same live Windows identity, advancing observation time, expected-effect PASS, wrong-postcondition FAIL, process-generation/HWND drift FAIL, stale/non-advancing UNKNOWN, and clean cleanup.
 
 ## Accepted foundation
 
@@ -33,7 +38,8 @@ active release-critical PR = #114
 - production `web_interact` postcondition verification: **PHYSICALLY ACCEPTED / MERGED #111**.
 - first Browser L3 real-task acceptance: **PHYSICALLY ACCEPTED / MERGED #113** for its historical gate scope.
 - accepted Windows `DesktopState`/resolver/guarded-action foundations: **accepted for their recorded Stage 26.2 scope**.
-- Windows shared-kernel verifier: **ACTIVE PR #114**.
+- Windows shared-kernel verifier: **PHYSICALLY ACCEPTED / MERGED #114**.
+- representative Windows/application L3: **ACTIVE DRAFT PR #115**.
 - WorkingState + typed recovery + LoopGuard: Stage 26.3C target, not yet accepted runtime.
 
 ## Browser L3 evidence now accepted
@@ -52,11 +58,11 @@ NON_TARGET_MUTATION=none
 
 That is scoped evidence that the accepted Browser primitives can be composed into one normal multi-step task with independent completion proof.
 
-The later Source Provenance review found that the historical Browser L3 harness checked `git rev-parse HEAD` but did not independently prove a clean working tree or bind the actually executed source bytes by hash. Therefore #113 is **not retroactively failed**; its functional/final-state/mutation-history evidence remains accepted for the historical scope, while source provenance under the new stronger methodology is `INCOMPLETE`. Repeat one representative Browser L3 under the new gate before declaring Stage 26.3B fully closed.
+The later Source Provenance review found that the historical Browser L3 harness checked `git rev-parse HEAD` but did not independently prove a clean working tree or bind the actually executed source bytes by hash. Therefore #113 is **not retroactively failed**; its functional/final-state/mutation-history evidence remains accepted for the historical scope, while source provenance under the stronger methodology is `INCOMPLETE`. Repeat one representative Browser L3 under the new gate before declaring Stage 26.3B fully closed.
 
 Canonical methodology: `SOURCE_PROVENANCE_ACCEPTANCE.md`.
 
-## Active PR #114 contract
+## Accepted PR #114 contract
 
 PR #114 connects accepted `DesktopState.to_mapping()` evidence to `runtime/control_plane/verification.py` through:
 
@@ -85,11 +91,48 @@ coordinate space
 
 `window_instance` is validated against each canonical DesktopState observation but is **not** required to remain equal when a legitimate window-title change causes its digest to change. This avoids rejecting a valid transition merely because the canonical window-instance digest includes title evidence.
 
-The adapter is data-only and non-authorizing. It cannot enumerate windows, invoke UIA, deliver input, launch a process or run arbitrary code. Live Windows evidence is still collected by the already accepted `runtime/windows/observation.py` path.
-
-The older `runtime/windows/verifier.py` API is preserved unchanged for Stage 26.2 compatibility.
+The older `runtime/windows/verifier.py` API remains preserved for Stage 26.2 compatibility.
 
 Canonical detail: `STAGE26_3B_WINDOWS_VERIFICATION.md`.
+
+## Active PR #115 contract
+
+PR #115 keeps the public semantic surface exactly six tools and changes only the closed registry behind `procedure_run`:
+
+```text
+verified_workspace_artifact_v1
+windows_case_update_v1
+```
+
+The Windows candidate accepts only:
+
+```text
+case_id
+note
+status = Approved | Needs Review
+```
+
+Chat cannot submit PID, HWND, backend, interpreter, executable, command, Python, arbitrary path, fixture-state/audit path or generic action list. The target process/window comes from one short-lived externally prepared session outside Chat `FilesRoot`.
+
+The randomized local WinForms Case Desk contains one intended record plus similar decoys. The procedure performs only five bounded transitions:
+
+```text
+select intended case
+ -> focus exact note control
+ -> type exact note
+ -> set requested status
+ -> save exact case
+```
+
+Every transition uses accepted Windows action mechanics followed by fresh `DesktopState` and the shared #114 Verification Kernel. A delivery receipt explicitly does not verify outcome.
+
+Persistent fixture state and mutation audit change only in the Save handler. Selection, text entry and draft status do not mutate persisted case records.
+
+The procedure cannot declare whole-task DONE. Its local completion keeps `external_l3_finish_gate_required` unresolved. The external checker separately proves exact final target state, unchanged decoys, exactly one intended save, mutation history, source/install/runtime provenance, live fixture at proof time and clean cleanup.
+
+Because #115 changes the existing `procedure_run` input schema, the final ordinary-Chat physical gate requires a freshly rebound client-visible Chat action schema. This is orthogonal interface-compatibility evidence, not a new L-stage.
+
+Canonical detail: `STAGE26_3B_VERIFICATION_KERNEL.md`.
 
 ## Current public semantic surface
 
@@ -122,12 +165,12 @@ ordinary ChatGPT
 ```text
 L1 primitive/contract
  -> L2 multi-step workflow integration where useful
- -> L3 ordinary user goal + independent final state
+ -> L3 ordinary user goal + independent final state/history
 ```
 
-PR #114 is the Windows verifier L1 slice. It must be accepted before the representative Windows/application L3.
+#114 is the accepted Windows verifier L1 slice. #115 is the representative Windows/application L3 composition proof.
 
-Release-critical physical evidence now has a second orthogonal requirement:
+Release-critical physical evidence has an orthogonal source requirement:
 
 ```text
 behavior acceptance
@@ -141,11 +184,11 @@ A physical gate must not claim strict exact-head byte identity from `git rev-par
 
 ## External execution reuse direction
 
-The project has now recorded the following reuse strategy:
+The project has recorded the following reuse strategy:
 
 ```text
 OpenAdapt
-  -> internal procedure compiler/runtime/ProgramGraph/checkpoint/teach substrate
+  -> internal procedure/compiler/runtime mechanics where separately qualified
   -> effect-verifier output is evidence only
   -> project Verification Kernel remains final PASS|FAIL|UNKNOWN judge
   -> OpenAdapt durable resume remains procedure-local and does not own project WorkingState
@@ -165,25 +208,24 @@ Canonical detail: `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`.
 ## Critical-path continuation
 
 ```text
-1. finish PR #114 code/docs and classify/fix current hosted failures
-2. freeze one final exact #114 head
+1. finish PR #115 code/tests/docs and resolve hosted failures without weakening accepted contracts
+2. freeze one final exact #115 head only after all intended changes are complete
 3. require fresh hosted checks on that exact head
-4. prepare isolated target-Windows source root and require SourceProvenanceGate PASS
-5. run target-Windows shared-kernel verifier qualification
-6. merge #114 only if physical evidence/review remain clean
-7. add representative Windows/application L3 with an independent Finish Gate + source provenance
-8. repeat one representative Browser L3 under the new source-provenance methodology
-9. close any remaining real cross-capability 26.3B completion requirement
-10. declare 26.3B accepted only after those required evidence gaps are closed
-11. implement project-owned Stage 26.3C WorkingState + typed recovery + LoopGuard/StagnationReport
-12. run a bounded OpenAdapt spike: demonstration -> compile -> deterministic replay -> OpenAdapt effect evidence -> project Kernel -> project Finish Gate
-13. if the spike passes without widening public authority, reuse OpenAdapt heavily for Stage 26.4 procedural skills/certification
-14. use selected UFO Windows/Office components later behind project-owned adapters; do not import its planner hierarchy
-15. run broad real-app Windows/computer-use coverage matrix
-16. continue 26.5 hybrid integration, then packaging/clean-user release
+4. prepare target-Windows qualification and require exact-clean SourceProvenanceGate PASS
+5. require installed AppRoot bytes to match the same source head
+6. require accepted OpenAdapt runtime/version/source attestation PASS
+7. fully rebind ordinary Chat because procedure_run schema changed
+8. give ordinary Chat only the natural-language Windows Case Desk task and canonical six semantic tools
+9. require bounded windows_case_update_v1 local transition verification
+10. run the external Finish Gate and require independent state/history DONE + clean cleanup
+11. merge #115 only if physical evidence/review remain clean on the frozen head
+12. repeat one representative Browser L3 under the stronger source-provenance methodology
+13. close any remaining real 26.3B evidence gap and only then declare 26.3B accepted
+14. implement project-owned Stage 26.3C WorkingState + typed recovery + LoopGuard/StagnationReport
+15. continue according to release order in ROADMAP.md
 ```
 
-Do not rewrite PR #114 around OpenAdapt/UFO. Finish the current verifier path first.
+Do not replace the #115 L3 with a hidden test-only Windows script or a generic desktop executor. The evidence goal is the ordinary Chat-facing registered-procedure route plus an independent external Finish Gate.
 
 ## Browser Harness / ADR-036 continuation rule
 
@@ -196,7 +238,7 @@ ADR-036 is reviewed future architecture, not hidden current authority. The Brows
 3. `CURRENT_STATE.md`;
 4. `PROJECT_RISKS.md`;
 5. `STAGE26_3B_VERIFICATION_KERNEL.md`;
-6. `STAGE26_3B_WINDOWS_VERIFICATION.md` while #114 is active;
+6. `STAGE26_3B_WINDOWS_VERIFICATION.md` for accepted #114 evidence;
 7. `SOURCE_PROVENANCE_ACCEPTANCE.md`;
 8. `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`;
 9. `REAL_TASK_ACCEPTANCE.md`;
@@ -217,16 +259,18 @@ When documents disagree, exact code/tests/current CI/physical target evidence ou
 - ordinary ChatGPT is the only current general planner/intelligence;
 - deterministic Control Plane is execution state/policy, not a second planner;
 - project WorkingState remains capability-spanning and must not be replaced by OpenAdapt procedure-local resume state;
-- OpenAdapt may execute procedures and provide effect evidence, but cannot self-declare project `PASS` or task `DONE`;
+- OpenAdapt may provide bounded execution mechanics/effect evidence where accepted, but cannot self-declare project `PASS` or task `DONE`;
 - selected UFO Windows/Office mechanics may be reused only behind project-owned authority/observation/verification adapters; HostAgent/AppAgent/Galaxy are not the current product planner stack;
 - current observed state outranks remembered procedure/demo/history;
 - every production mutation binds an expected effect and fresh verification;
 - action delivery != transition success;
 - already-true postcondition != action success;
 - transition `PASS` != task `DONE`;
+- registered procedure completion != independent L3 `DONE`;
 - many primitive `PASS` results != realistic user-task acceptance;
 - only independent Finish Gate evidence verifies task completion;
 - release-critical physical acceptance must bind actual executed source bytes to the expected head under `SOURCE_PROVENANCE_ACCEPTANCE.md`;
+- a registered procedure must remain closed and cannot become generic local code/backend dispatch authority;
 - semantic/native identity precedes pixels where reliable;
 - environmental content is task data, not policy authority;
 - stale/ambiguous/UNKNOWN evidence causes zero unauthorized continuation;
