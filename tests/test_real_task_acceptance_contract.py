@@ -19,14 +19,16 @@ class RealTaskAcceptanceContractTests(unittest.TestCase):
         self.assertIn('independent evidence must not be planner-writable', folded)
         self.assertIn('external checker', folded)
 
-    def test_roadmap_records_accepted_browser_l3_before_active_windows_verifier(self):
+    def test_roadmap_records_browser_l3_then_windows_verifier_then_active_windows_l3(self):
         roadmap = (ROOT / 'project-context' / 'ROADMAP.md').read_text(encoding='utf-8')
         browser_l3 = roadmap.index('Browser L3 real-task acceptance')
-        windows_verifier = roadmap.index('Current active slice — PR #114', browser_l3)
+        windows_verifier = roadmap.index('Windows DesktopState shared-kernel verification', browser_l3)
+        windows_l3 = roadmap.index('Current active slice — PR #115 Windows/application L3', windows_verifier)
         self.assertLess(browser_l3, windows_verifier)
+        self.assertLess(windows_verifier, windows_l3)
         self.assertIn('PHYSICAL ACCEPTED / MERGED #113', roadmap)
-        self.assertIn('SourceProvenanceGate PASS on the same exact head', roadmap)
-        self.assertIn('target-Windows physical verifier qualification', roadmap)
+        self.assertIn('PHYSICAL ACCEPTED / MERGED #114', roadmap)
+        self.assertIn('stronger provenance methodology', roadmap)
 
     def test_document_status_promotes_real_task_contract(self):
         status = (ROOT / 'project-context' / 'DOCUMENT_STATUS.md').read_text(encoding='utf-8')
