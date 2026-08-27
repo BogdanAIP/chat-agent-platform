@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from .verification import (
     ExpectedEffect,
     StatePredicate,
     VerificationResult,
+    VerificationStatus,
     verify_expected_effect,
 )
 from .windows_observation import WindowsDesktopObservationStream
@@ -76,6 +78,18 @@ def _bounds(value: Any) -> dict[str, int]:
     if result["height"] != max(0, result["bottom"] - result["top"]):
         raise ValueError("expected window bounds height is inconsistent")
     return result
+
+
+def _observation_time(value: str | None, *, name: str) -> datetime:
+    if value is None:
+        raise ValueError(f"{name} is required")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{name} must be ISO-8601") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{name} must be timezone-aware")
+    return parsed
 
 
 def normalize_windows_expected(raw: Any) -> tuple[dict[str, Any], tuple[StatePredicate, ...]]:
@@ -205,6 +219,12 @@ def verify_windows_desktop_transition(
     executable identity, stale observation, or ambiguous evidence cannot PASS.
     Snapshot-local `window_instance`/frame/control digests are independently
     checked for internal consistency by the observation adapter.
+
+    The adapter also requires AFTER.observed_at to be strictly later than
+    BEFORE.observed_at. Sequence freshness alone is not enough because callers
+    could otherwise relabel two historical DesktopState payloads as a new
+    stream merely by supplying them in order. A non-advancing observation time
+    returns UNKNOWN before any postcondition can PASS.
     """
 
     stream = WindowsDesktopObservationStream(subject=subject, stream_id=stream_id)
@@ -214,11 +234,23 @@ def verify_windows_desktop_transition(
         before=before,
         expected=expected,
     )
-    result: VerificationResult = verify_expected_effect(
-        effect,
-        after,
-        evidence_batch_id=evidence_batch_id,
-    )
+
+    before_time = _observation_time(before.ref.observed_at, name="before observed_at")
+    after_time = _observation_time(after.ref.observed_at, name="after observed_at")
+    if after_time <= before_time:
+        result = VerificationResult(
+            effect_id=effect.effect_id,
+            status=VerificationStatus.UNKNOWN,
+            reason="stale_observation_time",
+            observation=after.ref,
+            evidence_batch_id=evidence_batch_id,
+        )
+    else:
+        result = verify_expected_effect(
+            effect,
+            after,
+            evidence_batch_id=evidence_batch_id,
+        )
     return {
         "schema_version": 1,
         "operation": "verify_windows_desktop_transition",
