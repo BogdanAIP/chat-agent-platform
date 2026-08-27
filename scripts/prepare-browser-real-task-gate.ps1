@@ -286,7 +286,9 @@ try {
   }
   $guardianReady = Get-Content -LiteralPath $guardianReadyPath -Raw -Encoding utf8 | ConvertFrom-Json
   if ([int]$guardianReady.locked_file_count -ne @($lockSpec.files).Count) { throw 'Browser byte-lock guardian locked-file cardinality mismatch.' }
-  $guardianReadyUtc = [DateTimeOffset]::Parse([string]$guardianReady.ready_at).UtcDateTime
+  $guardianReadyTimeTicks = [long]$guardianReady.ready_time_ticks
+  if ($guardianReadyTimeTicks -le 0) { throw 'Browser byte-lock guardian READY ticks are missing or invalid.' }
+  $guardianReadyUtc = [DateTime]::new($guardianReadyTimeTicks, [DateTimeKind]::Utc)
 
   $platform = Join-Path $appRoot 'scripts\chat-platform.ps1'
   & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $platform -Action SetProfile -Profile semantic -FilesRoot $workspaceRoot -NoNotify
@@ -367,7 +369,7 @@ TASK_END
   Write-Utf8NoBom -Path $challengePath -Content ($challenge + "`n")
 
   $manifest = [ordered]@{
-    schema_version = 6
+    schema_version = 7
     exact_head = $ExpectedHead
     source_root = $SourceRoot
     qualification_root = $qualificationRoot
@@ -387,7 +389,7 @@ TASK_END
     guardian_pid = [int]$guardianReady.pid
     guardian_process_name = [string]$guardianReady.process_name
     guardian_process_start_time_ticks = [long]$guardianReady.process_start_time_ticks
-    guardian_ready_time_ticks = $guardianReadyUtc.Ticks
+    guardian_ready_time_ticks = $guardianReadyTimeTicks
     guardian_stop_path = $guardianStopPath
     source_provenance_path = $sourceProvenancePath
     installed_runtime_provenance_path = $installedProvenancePath
