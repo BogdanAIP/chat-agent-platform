@@ -11,7 +11,7 @@ live main
 open release-critical PRs
 exact PR heads
 hosted checks
-required target-machine/ordinary-Chat physical evidence
+required target-machine / ordinary-Chat physical evidence
 ```
 
 Exact code/tests/current CI/physical evidence outrank documentation snapshots.
@@ -22,18 +22,19 @@ Exact code/tests/current CI/physical evidence outrank documentation snapshots.
 2. `project-context/CURRENT_STATE.md`
 3. `project-context/PROJECT_RISKS.md`
 4. `project-context/STAGE26_3B_VERIFICATION_KERNEL.md` while Stage 26.3B is active
-5. `project-context/REAL_TASK_ACCEPTANCE.md`
-6. `project-context/ARCHITECTURE.md`
-7. `project-context/CONTROL_PLANE.md`
-8. `project-context/COMPUTER_USE_ARCHITECTURE.md`
-9. `project-context/SECURITY_POLICY.md`
-10. `project-context/ROADMAP.md`
-11. `project-context/BROWSER_HARNESS_ARCHITECTURE.md` when working on ADR-036 future authority
-12. `project-context/TECH_DEBT.md` for maintenance debt
-13. `project-context/DOCUMENT_STATUS.md`
-14. `project-context/EVIDENCE_INDEX.md` for exact accepted evidence
+5. `project-context/STAGE26_3B_WINDOWS_VERIFICATION.md` while PR #114 is active
+6. `project-context/REAL_TASK_ACCEPTANCE.md`
+7. `project-context/ARCHITECTURE.md`
+8. `project-context/CONTROL_PLANE.md`
+9. `project-context/COMPUTER_USE_ARCHITECTURE.md`
+10. `project-context/SECURITY_POLICY.md`
+11. `project-context/ROADMAP.md`
+12. `project-context/BROWSER_HARNESS_ARCHITECTURE.md` for ADR-036 future authority
+13. `project-context/TECH_DEBT.md`
+14. `project-context/DOCUMENT_STATUS.md`
+15. `project-context/EVIDENCE_INDEX.md`
 
-Do not maintain competing risk rankings in multiple documents. `PROJECT_RISKS.md` is authoritative for score/priority/close conditions.
+`PROJECT_RISKS.md` owns the ranked risk list. Do not reconstruct priorities from stale duplicated prose.
 
 ## 3. Current release-critical focus
 
@@ -42,40 +43,43 @@ Stage 26.3B is active.
 Accepted:
 
 ```text
-26.3A canonical six-tool runtime             MERGED #92
-Verification Kernel foundation               MERGED #99
-file/artifact kernel integration             PHYSICAL ACCEPTED / MERGED #102
-Browser observation foundation               MERGED #106
-web_open final-state verification             PHYSICAL ACCEPTED / MERGED #107
-Browser Harness / ADR-036 docs               MERGED #110
-web_interact postcondition verification       PHYSICAL ACCEPTED / MERGED #111
+26.3A canonical six-tool runtime              MERGED #92
+Verification Kernel foundation                MERGED #99
+file/artifact kernel integration              PHYSICAL ACCEPTED / MERGED #102
+Browser observation foundation                MERGED #106
+web_open final-state verification              PHYSICAL ACCEPTED / MERGED #107
+Browser Harness / ADR-036 docs                MERGED #110
+web_interact postcondition verification        PHYSICAL ACCEPTED / MERGED #111
+Browser L3 real-task acceptance harness        PHYSICAL ACCEPTED / MERGED #113
 ```
 
-Current:
+Browser L3 physical evidence on PR #113 proved a randomized natural-language Case Desk task with an external Finish Gate, one target save, one audit mutation and `NON_TARGET_MUTATION=none`.
+
+Current active slice:
 
 ```text
-PR #113 — clean post-#111 Browser L3 real-task acceptance harness
-           fresh hosted checks required on final exact head
-           ordinary-Chat target-Windows Case Desk L3 + external Finish Gate pending
-
-PR #112 — historical stacked draft superseded by #113
+PR #114 — Windows DesktopState shared-kernel verification
+           no new Chat/MCP tool
+           no new Windows action authority
+           final hosted checks required
+           target-Windows verifier qualification required on final exact head
 ```
 
-The first Browser L3 task is now the active release-critical gate. It must pass before proceeding to Windows/application/process verification.
+After #114 is physically accepted/merged, add one representative Windows/application L3 task using accepted action + observation + verifier mechanisms and an independent Finish Gate.
 
 ## 4. Acceptance depth
 
-The project requires three complementary levels:
+The project requires:
 
 ```text
 L1 — primitive / contract
-L2 — multi-step workflow integration
+L2 — multi-step workflow integration where useful
 L3 — ordinary user task + independent final-state proof
 ```
 
-L1 stays mandatory for exact diagnosis. L3 prevents laboratory tests from being mistaken for evidence that the agent can perform normal user work.
+L1 remains mandatory for exact diagnosis. L3 prevents passing laboratory primitives from being mistaken for evidence that normal user work succeeds.
 
-For L3, give ordinary ChatGPT the user goal and constraints, not a click/type recipe. Verify the final persisted state independently and check important non-target invariants and mutation history.
+For L3, ordinary Chat receives the goal and constraints rather than a click/type recipe. Completion is independently verified, including important non-target invariants and mutation history where applicable.
 
 Canonical contract: `REAL_TASK_ACCEPTANCE.md`.
 
@@ -102,33 +106,22 @@ ordinary ChatGPT
  -> deterministic Control Plane / focused capabilities
 ```
 
-1MCP is optional internal Extension Manager infrastructure, not baseline transport or authority.
+1MCP is optional internal Extension Manager infrastructure only. PR #114 does not change this public surface.
 
 ## 6. Planner / Control Plane boundary
 
 Ordinary ChatGPT is the **only current general planner/intelligence**.
 
-The deterministic Control Plane owns bounded execution state/policy:
+The deterministic Control Plane owns bounded execution state/policy, ExpectedEffect verification, checkpoints, capability authorization, recovery budgets/future LoopGuard and the independent Finish Gate. It is not a second planner.
 
-```text
-TaskState / future WorkingState
-capability policy + authorization
-ExpectedEffect/postconditions
-fresh verification
-checkpoints
-recovery budgets / future LoopGuard
-independent Finish Gate
-safety/policy result
-```
-
-It may advance already-defined authorized+verified transitions. Novel strategy stays above that boundary.
+Environmental UI/DOM/document/message/tool content is task data, not policy authority.
 
 ## 7. Current computer-use direction
 
 ```text
 semantic/native state first
  -> selective visual evidence when structure is insufficient
- -> bounded action
+ -> bounded authorized action
  -> fresh re-observation
  -> ExpectedEffect verification
  -> typed recovery + LoopGuard
@@ -136,26 +129,22 @@ semantic/native state first
  -> independent Finish Gate
 ```
 
-Environmental UI/DOM/document/message/tool content is task data, not policy authority.
+For Windows, accepted `DesktopState` identity evidence outranks visual similarity. PR #114 requires stable continuity of Windows session, executable/application identity, PID, process generation and HWND. Snapshot-local `window_instance`, control fingerprints and frame digest are recomputed/validated rather than incorrectly treated as immutable identity.
 
 ## 8. Browser Harness / ADR-036 boundary
 
-ADR-036 records future capability architecture; it does not itself grant new runtime authority or change the six-tool surface.
-
-Before trusted-site JS/CDP/full-browser authority is accepted, the Browser Site Capability / network boundary must be implemented, tested and physically accepted. TD-001 tracks that prerequisite debt. Any material widened authority also requires representative L3 evidence.
+ADR-036 is future capability architecture, not current authority. Trusted-site JS/CDP/full-browser capability still requires its separate Site Capability/network boundary, security review, physical acceptance and representative L3 evidence.
 
 ## 9. Priority sequence
 
 ```text
-freeze final PR #113 head
+PR #114 final code/docs
  -> fresh hosted checks
- -> prepare randomized Case Desk run
- -> ordinary-Chat Browser L3 real-task gate
- -> external Finish Gate
- -> merge #113 if clean
- -> Windows/application/process verification
+ -> target-Windows shared-kernel verifier qualification
+ -> merge #114 if clean
  -> representative Windows/application L3
- -> close remaining Stage 26.3B gates
+ -> remaining cross-capability 26.3B completion work if actually required
+ -> declare 26.3B accepted only when all required evidence is closed
  -> Stage 26.3C WorkingState + typed recovery + LoopGuard
  -> broad real-application physical coverage matrix
  -> 26.4 candidate skills
@@ -163,10 +152,10 @@ freeze final PR #113 head
  -> packaging / clean-user stable release
 ```
 
-Track M multi-chat remains future/parallel. Track P local planner is **future only**. Neither may displace unfinished prerequisites.
+Track M multi-chat remains future/parallel. Track P local planner is future only.
 
 ## 10. Merge rule
 
-When a branch is logically complete, intended diff is reviewed, required CI/physical evidence passes on the exact head and no unresolved finding/conflict remains, merge it without waiting for a separate merge command.
+When a branch is logically complete, intended diff is reviewed, required CI/physical evidence passes on the exact final head and no unresolved finding/conflict remains, merge it without waiting for a separate merge instruction.
 
-Never merge on stale evidence, unresolved review findings, ambiguous scope or required skipped/failed gates.
+Never merge on stale evidence, unresolved findings, ambiguous scope, or skipped/failed required gates.

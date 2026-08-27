@@ -2,9 +2,7 @@
 
 ## Purpose
 
-Prevent stale stage/research/status prose from overriding live repository reality.
-
-Before using any document as current truth, resolve live GitHub state.
+Prevent stale stage/research/status prose from overriding live repository reality. Before using any document as current truth, resolve live GitHub state.
 
 ## Source-of-truth order
 
@@ -13,39 +11,27 @@ current code/tests/current hosted CI/current physical evidence
  > CURRENT_STATE.md / CONTINUATION_CONTEXT.md / START_HERE.md
  > PROJECT_RISKS.md for ranked engineering risk priority
  > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / SECURITY_POLICY.md
- > BROWSER_HARNESS_ARCHITECTURE.md for ADR-036 reviewed future capability direction
  > REAL_TASK_ACCEPTANCE.md for L1/L2/L3 acceptance depth
+ > SOURCE_PROVENANCE_ACCEPTANCE.md for physical source-byte binding
+ > EXTERNAL_EXECUTION_REUSE_STRATEGY.md for OpenAdapt/UFO integration boundaries
+ > active Stage 26.3 contracts
+ > BROWSER_HARNESS_ARCHITECTURE.md for ADR-036 reviewed future direction
  > ROADMAP.md
- > TECH_DEBT.md for current implementation/process debt
- > EVIDENCE_INDEX.md for accepted exact heads/evidence navigation
- > active stage contract
+ > TECH_DEBT.md
+ > EVIDENCE_INDEX.md
  > accepted historical stage evidence
  > old research/handoffs
 ```
 
-When two documents disagree on whether work is implemented/accepted/current, live code and exact evidence win.
+When documents disagree on whether work is implemented/accepted/current, live code and exact evidence win.
 
-## Default classification rule
-
-Any `project-context/*.md` document **not explicitly listed** in this status map is **HISTORICAL / REFERENCE by default** until a reviewed change explicitly promotes it into an authoritative/current category.
-
-This is intentional: adding a research note or historical stage record must not force a central catalog update or accidentally grant that document authority over live state.
+Any `project-context/*.md` document not explicitly listed here is **HISTORICAL / REFERENCE by default** until reviewed promotion.
 
 ## Documentation separation rule
 
-Architecture documents own **durable boundaries and invariants**; evidence documents own exact accepted heads and scoped proof.
-
 ```text
-ARCHITECTURE / CONTROL_PLANE / COMPUTER_USE_ARCHITECTURE / SECURITY_POLICY
-  = durable authority, safety and execution boundaries
-
-BROWSER_HARNESS_ARCHITECTURE
-  = reviewed ADR-036 future capability direction;
-    cannot claim current runtime acceptance
-
-REAL_TASK_ACCEPTANCE
-  = durable L1/L2/L3 acceptance-depth contract;
-    cannot by itself claim a specific physical task passed
+architecture/policy docs
+  = durable boundaries and invariants for authority, safety and execution
 
 CURRENT_STATE
   = concise live accepted/current boundary and next work
@@ -54,23 +40,31 @@ CONTINUATION_CONTEXT / START_HERE
   = fresh-session continuation/read order
 
 PROJECT_RISKS
-  = single authoritative ranked risk table, mitigation and close conditions
+  = single authoritative ranked risk table
 
 ROADMAP
-  = single owner of the explicit release-stage order and acceptance objectives
+  = single owner of explicit release-stage order
+
+REAL_TASK_ACCEPTANCE
+  = durable L1/L2/L3 acceptance contract
+
+SOURCE_PROVENANCE_ACCEPTANCE
+  = physical acceptance binding between exact head and actual executed source bytes
+
+EXTERNAL_EXECUTION_REUSE_STRATEGY
+  = durable OpenAdapt/UFO reuse boundary; external mechanics never replace project authority/verification/completion
 
 TECH_DEBT
-  = single inventory of current implementation/process debt;
-    not feature backlog or project-risk ranking
+  = current implementation/process debt
 
 EVIDENCE_INDEX
-  = exact accepted evidence navigation
+  = exact accepted heads and scoped evidence navigation
 
 STAGE*.md
-  = active detailed implementation contract or historical qualification record
+  = active implementation contract or historical qualification record
 ```
 
-Do not copy the full risk table into other documents. Do not copy the full release-stage sequence into multiple live status documents. Do not copy detailed physical dumps into durable architecture docs.
+Do not copy full risk rankings, physical dumps or release-stage detail across many live documents.
 
 ## Root documents
 
@@ -85,21 +79,23 @@ Do not copy the full risk table into other documents. Do not copy the full relea
 
 | File | Status | Use |
 |---|---|---|
-| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Exact continuation point after resolving live GitHub. |
+| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Continuation point after resolving live GitHub. |
 | `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and current focus. |
-| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted/current implementation boundary and immediate critical path. |
-| `PROJECT_RISKS.md` | AUTHORITATIVE RISK REGISTER | Ranked project risks, scores, evidence, mitigation and close conditions. |
+| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted/current boundary and immediate critical path. |
+| `PROJECT_RISKS.md` | AUTHORITATIVE RISK REGISTER | Ranked risks, evidence, mitigation and close conditions. |
 | `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/authority boundaries. |
 | `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | Planner vs deterministic execution/verification/recovery/completion boundary. |
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid computer-use contract. |
-| `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Site Capability Profiles, trusted-site full-browser direction, candidate helpers/domain knowledge and separately scoped Local Execution Kernel/Python authority. No current runtime/public-tool authority expansion. |
-| `REAL_TASK_ACCEPTANCE.md` | AUTHORITATIVE ACCEPTANCE-DIRECTION CONTRACT | Defines L1 primitive, L2 workflow and L3 real user-task evidence; representative L3 is required before a major capability path is treated as proven for realistic autonomous use. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
-| `ROADMAP.md` | AUTHORITATIVE ROADMAP | Single owner of release-critical sequence and acceptance objectives. |
-| `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing temporary compatibility, hardening, reproducibility and repository-hygiene debt with priority and close conditions. Future features/stages do not belong here. |
-| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | This source map and default classification rule. |
+| `REAL_TASK_ACCEPTANCE.md` | AUTHORITATIVE ACCEPTANCE-DIRECTION CONTRACT | L1 primitive, L2 workflow and L3 real-task evidence. |
+| `SOURCE_PROVENANCE_ACCEPTANCE.md` | AUTHORITATIVE PHYSICAL-ACCEPTANCE METHODOLOGY | Requires clean-tree/source-hash binding so exact-head evidence proves the bytes actually executed. |
+| `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | AUTHORITATIVE INTEGRATION DIRECTION | OpenAdapt as procedure/effect-evidence substrate; UFO as selective Windows/Office component source; project Control Plane/Kernel/Finish Gate remain authoritative. |
+| `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence and acceptance objectives. |
+| `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Future Site Capability/full-browser/helper/Local Execution direction; no current authority by itself. |
+| `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing implementation/process debt. |
+| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | This map. |
 | `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads and scoped evidence locations. |
-| `DECISIONS.md` | CURRENT ADR INDEX | Current architectural decisions including ADR-036. |
+| `DECISIONS.md` | CURRENT ADR INDEX | Current architectural decisions. |
 
 ## Current Stage 26.3 documents
 
@@ -108,11 +104,12 @@ Do not copy the full risk table into other documents. Do not copy the full relea
 | `STAGE26_PROCEDURAL_MEMORY.md` | CURRENT 26.3 DESIGN CONTRACT | Verified procedure/candidate trust foundations. |
 | `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACCEPTED 26.3A RECORD | Accepted canonical six-tool implementation/evidence. |
 | `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACCEPTED 26.3A SURFACE CONTRACT | `procedure_run` in the six-tool surface. |
-| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE 26.3B IMPLEMENTATION CONTRACT | Shared Verification Kernel; accepted file integration; Browser observation foundation; physically accepted/merged `web_open` verification; `web_interact` verification is active in draft PR #111. |
+| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACTIVE 26.3B IMPLEMENTATION CONTRACT | Shared Verification Kernel, accepted file/Browser integrations and active Windows integration. |
+| `STAGE26_3B_WINDOWS_VERIFICATION.md` | ACTIVE 26.3B WINDOWS CONTRACT | PR #114 Windows `DesktopState` shared-kernel identity/final-state verification and physical qualification contract. |
 
 ## Current implementation snapshot
 
-At the 2026-08-26 post-PR-#110 point:
+At the 2026-08-26 post-PR-#113 point:
 
 ```text
 Stage 26.3A                                      ACCEPTED / MERGED #92
@@ -121,21 +118,46 @@ file/artifact integration                       PHYSICAL ACCEPTED / MERGED #102
 Browser observation foundation                  MERGED #106
 production web_open verification                PHYSICAL ACCEPTED / MERGED #107
 Browser Harness / ADR-036 docs                  MERGED #110
-web_interact verification                       ACTIVE DRAFT PR #111; hosted CI green, physical gate pending
-Browser L3 real-task harness                    STACKED DRAFT PR #112
-Windows/application/process verifier            REMAINING 26.3B
+production web_interact verification            PHYSICAL ACCEPTED / MERGED #111
+Browser L3 real-task acceptance                 PHYSICAL ACCEPTED / MERGED #113
+Windows DesktopState shared-kernel verifier     ACTIVE DRAFT PR #114
+Windows/application L3                          NEXT AFTER #114 ACCEPTANCE
 WorkingState + recovery + LoopGuard              26.3C TARGET
+OpenAdapt procedure/effect-evidence spike        AFTER 26.3C CORE SHAPE
+selective UFO Office adapters                    LATER 26.5-ALIGNED WORK
 ```
 
-PR #107 was physically accepted on exact head `64184713e97bf2e150614cd93c77509c244cddec`. Exact gate details belong in the PR/evidence records, not duplicated here.
+PR #113 physical Browser L3 evidence included one target save, one target audit mutation, external `FINISH_GATE=done` and `NON_TARGET_MUTATION=none` on exact physical head `5bb8897c6809cecd15f64da1a8ef6efd2fdf69bf`.
 
-PR #111 is a clean one-commit runtime/test diff on post-#110 `main`; its final hosted CI is green and target-Windows ordinary-Chat physical interaction acceptance remains required before merge.
+The new Source Provenance contract records that PR #113's functional/final-state evidence remains accepted for its historical scope, while its source cleanliness was not proved by the older gate. Before Stage 26.3B is fully closed, repeat one representative Browser L3 under the new clean-tree/source-hash methodology rather than pretending the older gate proved it.
 
-PR #112 is intentionally stacked on #111 so it does not alter #111's exact head. It adds the first randomized stateful Browser L3 harness and the L1/L2/L3 acceptance contract. After #111 merges, #112 must be replayed on accepted `main` before its own physical L3 evidence is collected.
+PR #114 adds no public Chat/MCP tool and no Windows action authority. It adapts accepted `DesktopState` evidence to the shared Verification Kernel with mandatory continuity of Windows session, application/executable identity, PID, process generation, HWND and coordinate space. `window_instance` remains validated for internal consistency on each observation but is not required to remain equal when a legitimate title change changes its canonical digest. Physical target qualification is required on the final exact source-provenance-bound head before merge.
+
+## External execution reuse boundary
+
+The project may reuse mature external mechanics without importing a second authority stack:
+
+```text
+OpenAdapt
+  = internal procedure compiler/runtime/checkpoint/teach/effect-evidence substrate
+  != project WorkingState owner
+  != project PASS/DONE authority
+
+UFO
+  = selective UIA/Win32/COM/Office adapter source
+  != HostAgent/AppAgent/Galaxy production planner stack
+
+project Control Plane
+  = authority + WorkingState + recovery/budgets
+project Verification Kernel
+  = PASS | FAIL | UNKNOWN
+project Finish Gate
+  = DONE | NOT_DONE | UNKNOWN
+```
+
+Canonical detail: `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`.
 
 ## Real-task acceptance boundary
-
-The project now distinguishes:
 
 ```text
 L1 primitive / contract proof
@@ -143,15 +165,13 @@ L2 multi-step component workflow
 L3 ordinary user goal + independent final state
 ```
 
-L1/L2 remain mandatory for diagnosis and regression. L3 is required to prevent architecture from advancing solely on laboratory-style tests.
+L1/L2 remain mandatory for diagnosis/regression. L3 prevents architecture from advancing solely on laboratory-style tests. Independent Finish Gate evidence must not be planner-writable and mutation must occur through the accepted product capability surface rather than a hidden test/admin API.
 
-L3 harness state may be independently observable by the Finish Gate, but mutation must still occur through the accepted product capability surface rather than a hidden test/admin API.
+Every future release-critical physical gate must also satisfy `SOURCE_PROVENANCE_ACCEPTANCE.md`; L3 proves behavior, while source provenance proves what bytes were actually under test.
 
 ## ADR-036 boundary
 
-The 2026-08-26 Browser Harness review is recorded in `BROWSER_HARNESS_ARCHITECTURE.md` and ADR-036.
-
-It adopts this future authority split:
+Future authority split remains:
 
 ```text
 restricted browser by default
@@ -163,18 +183,7 @@ separate Local Execution Grant
  -> explicit filesystem/network/process/resource scope
 ```
 
-Important invariants:
-
-- trusted destination never means trusted page instructions;
-- Browser/site trust never automatically grants Windows/filesystem/Python authority;
-- local execution trust never automatically grants arbitrary authenticated-browser authority;
-- generated helpers remain candidate lineage until separately tested/promoted;
-- current six-tool surface and runtime authority are unchanged by ADR-036 itself;
-- any later material authority expansion also requires representative L3 evidence, not only primitive contract tests.
-
-## Future tracks
-
-`CONVERSATION_BRIDGE_ARCHITECTURE.md` / Track M, Browser Harness-derived full-browser work, Local Execution Kernel work, and local-planner Track P remain future/parallel unless promoted by the authoritative Roadmap/stage contracts. They do not override the current release-critical sequence.
+Trusted destination never means trusted instructions. Browser trust does not automatically grant Windows/filesystem/Python authority; local execution trust does not grant authenticated-browser authority. Material authority expansion requires its own acceptance and representative L3 evidence.
 
 ## Current normal transport invariants
 
@@ -188,13 +197,4 @@ ordinary ChatGPT = only current general planner
 
 ## Maintenance rule
 
-Update this map when a reviewed change:
-
-- changes authoritative document names/read order;
-- changes general-planner or Control Plane responsibility;
-- changes computer-use observation/verification/recovery/completion boundaries;
-- changes L1/L2/L3 real-task acceptance requirements;
-- changes Browser Harness-derived Site Capability Profiles, browser network trust or Local Execution Grant boundaries;
-- changes which document owns project risk, technical debt or release order;
-- promotes a research/future track into current implementation authority;
-- changes the public Chat-facing capability surface.
+Update this map when a reviewed change alters authoritative document names/read order, planner/Control Plane responsibility, computer-use observation/verification/recovery/completion boundaries, source-provenance requirements, external execution reuse boundaries, L1/L2/L3 requirements, Browser/Local Execution authority, risk/debt/release ownership, future-track promotion, or the public Chat-facing capability surface.

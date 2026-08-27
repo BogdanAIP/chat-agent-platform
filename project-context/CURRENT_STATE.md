@@ -2,62 +2,112 @@
 
 ## Repository-state rule
 
-Always resolve live `main`, active PR heads, hosted checks and required physical evidence before new work. Exact code/tests/current CI/physical evidence outrank prose.
-
-Do not preserve stale status by copying the same stage narrative into many documents. Ranked engineering risks live only in `PROJECT_RISKS.md`. The explicit release-stage order is owned by `ROADMAP.md` rather than duplicated here.
+Always resolve live `main`, active PR heads, hosted checks and required physical evidence before new work. Exact code/tests/current CI/physical evidence outrank prose. Ranked engineering risks live in `PROJECT_RISKS.md`; release-stage order lives in `ROADMAP.md`.
 
 ## Current live integration line
 
 At the 2026-08-26 synchronization point:
 
 ```text
-main = f7bba9eddd7c449306b7c9de18bc9e19849fd86f
-       PR #111 — Browser interaction postcondition verification
+main = 4319278cbc3b27de3f5c18d159aa3f8f3b9a4c6e
+       PR #113 — first Browser L3 real-task acceptance
        PHYSICALLY ACCEPTED / MERGED
 
-active release-critical PR = #113
-       Stage 26.3B: first Browser L3 real-task acceptance harness
-       clean replay directly on accepted post-#111 main
-       fresh hosted checks required on the final head
-       target-Windows ordinary-Chat Case Desk L3 + external Finish Gate still required
-
-historical stacked PR = #112
-       superseded by clean replay #113 after #111 merged
+active release-critical PR = #114
+       Windows DesktopState shared-kernel verification
+       no new Chat/MCP tool and no new Windows action authority
+       final hosted checks + target-Windows physical verifier qualification required
 ```
 
-PR #107 remains the physically accepted Browser navigation foundation for production `web_open` verification.
+Browser foundations are accepted through production `web_open` (#107), production `web_interact` (#111), and first real-task Browser L3 (#113).
 
-## Real stopping point
+## Browser L3 accepted evidence
 
-Production `web_open` verification is accepted and merged. Production `web_interact` verification is also now physically accepted and merged through PR #111.
+PR #113 was physically accepted on exact head `5bb8897c6809cecd15f64da1a8ef6efd2fdf69bf`.
 
-The accepted interaction path is:
+The randomized Case Desk task was given to ordinary Chat as a natural user goal, not a click recipe. The external checker reported:
 
 ```text
-fresh browser snapshot BEFORE
- -> bounded expected result / pre-action delta guard
- -> existing semantic-first or reviewed visual-fallback action
- -> fresh browser snapshot AFTER
- -> BrowserObservationStream
- -> ExpectedEffect
+STAGE26_3B_BROWSER_REAL_TASK_GATE=PASS
+SAVE_COUNT=1
+AUDIT_COUNT=1
+FINISH_GATE=done
+NON_TARGET_MUTATION=none
+```
+
+This is scoped evidence that the accepted Browser path can compose several verified transitions into one normal multi-step task while preserving non-target state.
+
+## Current active Windows verification slice
+
+The accepted Windows foundation already exposes bounded, non-authorizing `DesktopState` evidence:
+
+```text
+Windows session
+application identity
+executable name
+PID
+process generation
+HWND
+window_instance snapshot digest
+window title/bounds
+focused control
+bounded UIA controls
+optional screenshot digest
+frame digest
+freshness evidence
+```
+
+PR #114 adapts this evidence to the shared Stage 26.3B Verification Kernel without changing the legacy Stage 26.2 verifier API.
+
+```text
+DesktopState BEFORE
+ -> WindowsDesktopObservationStream
+ -> ObservationRef
+ -> bounded expected final state
+ -> mandatory stable process/native-window continuity
+ -> DesktopState AFTER
+ -> shared ExpectedEffect verifier
  -> PASS | FAIL | UNKNOWN
 ```
 
-The mutation is refused before delivery when the required expected result is missing, already satisfied, or cannot be safely distinguished from the fresh pre-action state.
+A PASS automatically requires the same:
 
-The first physical #111 attempt exposed a stale client-visible app schema that rejected the new `expected` field even though the exact-head runtime already published it. A full `Chat Local Bridge Test` rebind on the unchanged exact runtime head made the field available; the complete interaction gate then passed. That failed first attempt is migration evidence, not acceptance evidence.
+```text
+session_id
+application_identity
+executable_name
+process_id
+process_generation
+window_handle
+coordinate_space
+```
 
-The project now requires a representative **L3 real user-task gate** after this primitive Browser interaction proof. PR #113 provides the clean replay of that harness directly on accepted `main`.
+`window_instance` is not treated as immutable identity because the accepted digest includes `window_title`; legitimate title changes therefore change it. PR #114 recomputes and validates `window_instance` per snapshot instead. It also recomputes control fingerprints and `frame_digest`, and validates redundant freshness evidence.
 
-The L3 task is given as a natural user goal, not a click script. The planner must choose the route and the independent fixture Finish Gate verifies persisted target state plus non-target invariants and mutation history.
+Thus process restart/PID-generation drift, HWND drift, executable identity drift or Windows-session drift cannot satisfy an otherwise similar final-state postcondition. Current evidence does not claim a stronger native window-generation token beyond PID/process-generation/HWND plus snapshot evidence.
+
+Canonical detail: `STAGE26_3B_WINDOWS_VERIFICATION.md`.
 
 ## Accepted foundation relevant to current work
 
-### Stage 26.3A — canonical six-tool verified procedure runtime
+```text
+Stage 26.3A canonical six-tool runtime             ACCEPTED / MERGED #92
+Verification Kernel foundation                    MERGED #99
+file/artifact kernel integration                  PHYSICAL ACCEPTED / MERGED #102
+Browser observation foundation                    MERGED #106
+web_open final-state verification                  PHYSICAL ACCEPTED / MERGED #107
+Browser Harness / ADR-036 docs                    MERGED #110
+web_interact postcondition verification            PHYSICAL ACCEPTED / MERGED #111
+Browser real-task L3                              PHYSICAL ACCEPTED / MERGED #113
+Windows DesktopState observation foundation       ACCEPTED FOR RECORDED SCOPE / PR #88
+Windows real VS Code E2E foundation               ACCEPTED FOR RECORDED SCOPE / PR #91
+```
 
-**ACCEPTED / MERGED #92.**
+Windows foundation evidence is scoped, not universal desktop accuracy.
 
-The normal Chat-facing semantic surface remains exactly:
+## Current public semantic surface
+
+Exactly:
 
 ```text
 workspace_read
@@ -79,183 +129,92 @@ ordinary ChatGPT
  -> deterministic Control Plane + focused capabilities
 ```
 
-1MCP is optional internal Extension Manager infrastructure, not a normal-route dependency.
-
-### Stage 26.3B file/artifact integration
-
-**PHYSICALLY ACCEPTED / MERGED #102.**
-
-`verified_workspace_artifact_v1` uses the shared Verification Kernel for transition postconditions and the independent Finish Gate. Physical acceptance proved completion and zero overwrite on the exact accepted head.
-
-### Browser observation foundation
-
-**MERGED #106.**
-
-`BrowserObservationStream` provides bounded URL/origin/document/control state and same-stream monotonic observation identity.
-
-### Browser navigation verification
-
-**PHYSICALLY ACCEPTED / MERGED #107.**
-
-Production `web_open` uses fresh before/after observation plus the shared Verification Kernel; delivery alone is not success.
-
-### Browser Harness architecture
-
-**MERGED #110.**
-
-ADR-036 and the technical-debt register are in `main`. They do not expand current Browser/local runtime authority by themselves.
-
-### Browser interaction verification
-
-**PHYSICALLY ACCEPTED / MERGED #111.**
-
-Production `web_interact` now uses bounded ExpectedEffect postconditions, a fresh BEFORE/AFTER Browser state pair, a pre-action delta guard and the shared Verification Kernel. The physical gate proved positive type/click verification, zero-action refusals, `delivery != success`, and ambiguity abstention.
+1MCP remains optional internal Extension Manager infrastructure. PR #114 adds no public tool or generic local execution path.
 
 ## Stage 26.3B — ACTIVE
 
-Implemented/accepted so far:
+Accepted/implemented:
 
 ```text
 shared Verification Kernel
 ObservationRef / ObservationSnapshot
 ExpectedEffect + bounded predicates
-same-stream fresh re-observation
+same-stream fresh verification
 PASS | FAIL | UNKNOWN
 independent Finish Gate
 file/artifact production integration + physical acceptance
 Browser observation foundation
-web_open production verification + physical acceptance
-web_interact production verification + physical acceptance
+web_open verification + physical acceptance
+web_interact verification + physical acceptance
 L1/L2/L3 acceptance-depth contract
-Browser L3 harness replayed in active PR #113
+Browser L3 real-task acceptance + independent Finish Gate
 ```
 
-Remaining before Stage 26.3B can be accepted:
+Active: Windows `DesktopState` shared-kernel verification — PR #114.
+
+Remaining:
 
 ```text
-1. fresh hosted checks for final PR #113 head
-2. ordinary-Chat target-Windows Browser L3 Case Desk task + external Finish Gate
-3. merge #113 if that evidence is clean
-4. Windows/application/process verification over accepted DesktopState/identity evidence
-5. representative Windows/application L3 after that verifier exists
-6. cross-capability completion predicates where real procedures require them
-7. appropriate physical acceptance when production paths change
+1. freeze final #114 head + fresh hosted checks
+2. target-Windows physical qualification of Windows shared-kernel verifier
+3. merge #114 if clean
+4. representative Windows/application L3 using accepted mechanisms + independent Finish Gate
+5. add cross-capability completion predicates only where real procedures require them
+6. run additional physical acceptance when a production path changes
 ```
-
-Rules remain:
-
-- action delivery != transition success;
-- already-true postcondition != action success;
-- transition `PASS` != task `DONE`;
-- many passing primitive tests != realistic user-task acceptance;
-- current observed state outranks remembered procedure/demo/history;
-- stale, mismatched-stream, ambiguous or incomplete required evidence -> `UNKNOWN`;
-- `UNKNOWN` -> zero unauthorized continuation;
-- task-success verification and safety/policy verification remain separate;
-- planner/model/procedure/page content cannot self-authorize capability or completion.
-
-Canonical active contracts: `STAGE26_3B_VERIFICATION_KERNEL.md` and `REAL_TASK_ACCEPTANCE.md`.
 
 ## Acceptance depth
 
-The current evidence model is:
-
 ```text
-L1 primitive/contract
- -> L2 multi-step component workflow where useful
+L1 primitive / contract
+ -> L2 multi-step workflow integration where useful
  -> L3 ordinary user goal + independent final state
 ```
 
-L1 remains mandatory because it isolates exact failures. L3 is now required so architecture cannot advance indefinitely on laboratory fixtures alone.
+PR #114 is a Windows verifier L1 slice. It must be physically accepted before representative Windows/application L3.
 
-The first Browser L3 fixture randomizes its case ID/task data on every physical run, includes similar customer records, persists server-side state/audit evidence outside the Chat-writable workspace, and yields `DONE` only when the intended case has the requested address/status/comment while decoys remain unchanged and only the target was ever mutated.
+## Planner / Control Plane boundary
+
+Ordinary ChatGPT remains the **only current general planner/intelligence**. The deterministic Control Plane owns bounded execution state/policy, capability authorization, ExpectedEffect verification, recovery budgets and independent completion checks for already-defined transitions.
 
 ## Stage 26.3C — next prerequisite after 26.3B
 
-WorkingState + typed recovery + LoopGuard remain architecture targets, not accepted runtime implementation.
-
-Target:
-
-```text
-structured user constraints + subgoals/progress
-verified achievements
-facts + provenance + freshness
-open ambiguity/questions
-evidence references
-expected/observed deltas
-retry/recovery history
-budgets
-LoopGuard for repeat/no-effect/oscillation/stagnation
-```
-
-This stage is a prerequisite for reliable long-horizon autonomy before broader computer-use authority.
+WorkingState + typed recovery + LoopGuard remain next-stage targets. Never persist private chain-of-thought.
 
 ## Broad real-application coverage
 
-Windows foundation is accepted only for its recorded scope, including one isolated VS Code real-application E2E. This is **not universal Windows accuracy**.
-
-Representative L3 gates are vertical proofs for a capability path. After 26.3C, the broader cross-app physical coverage gate still expands that evidence across native Windows, browser, Electron and office-style applications plus DPI/focus/dialog/noisy-state variants.
-
-This coverage requirement remains the highest-ranked project risk in `PROJECT_RISKS.md`.
+Representative L3 gates are vertical proofs. After 26.3C, broader coverage still needs multiple application classes and DPI/focus/dialog/noisy-state variants.
 
 ## Browser Harness / ADR-036 boundary
 
-ADR-036 is merged architecture direction. It does **not** expand current runtime authority or bypass L1/L2/L3 acceptance.
-
-Current release-critical Stage 26.3B remains verification-focused. ADR-036 mechanisms become integration obligations only when their owning capability is promoted:
-
-- Browser network/Site Capability policy must be closed before trusted-site JS/CDP/full-browser authority is accepted;
-- trust/grant lifetime state aligns with 26.3C WorkingState/recovery work;
-- generated helpers align with 26.4 candidate lineage;
-- full-browser/Browser Companion integration aligns with 26.5;
-- any promoted broader Browser authority also requires representative L3 evidence.
-
-TD-001 tracks the current Browser network hardening debt until that boundary is actually implemented and physically accepted.
-
-## Planner boundary
-
-Ordinary ChatGPT is the **only current general planner/intelligence**.
-
-The deterministic local Control Plane owns execution state/policy, capability authorization, ExpectedEffect verification, recovery budgets and completion checks for already-defined transitions. Novel strategy remains above that boundary.
-
-Track P remains optional/future.
-
-## Parallel Track M — future only
-
-Conversation Bridge / Browser Companion / Adapter Registry / GenericChatAdapter / ConversationSnapshot / HandoffPack / multi-worker orchestration remain unimplemented future Track M architecture. They do not change the current release-critical path.
+ADR-036 is future architecture direction, not current expanded authority. Trusted-site JS/CDP/full-browser authority remains gated by separate network/Site Capability policy, security review, physical acceptance and representative L3 evidence.
 
 ## Current priority
 
 ```text
-fresh hosted checks for PR #113 final replay head
- -> prepare randomized Case Desk physical task
- -> ordinary-Chat Browser L3 task
- -> external independent Finish Gate
- -> merge #113 if clean
- -> Windows/application/process verification
+PR #114 final code/docs
+ -> fresh hosted checks
+ -> target-Windows verifier qualification on exact head
+ -> merge #114 if clean
  -> representative Windows/application L3
- -> close remaining Stage 26.3B gates
+ -> close remaining required 26.3B evidence
  -> Stage 26.3C WorkingState/recovery/LoopGuard
- -> broad real-app physical coverage gate
+ -> broad real-app physical coverage
  -> Stage 26.4 / 26.5
  -> release packaging / clean-user E2E
 ```
 
-Ranked risks and their close conditions: `PROJECT_RISKS.md`.
-
 ## Non-negotiable rules
 
 - accepted public semantic surface remains small and project-owned;
-- normal semantic route is direct stdio and does not require 1MCP;
-- semantic/native structure before pixels where reliable;
-- pixels/ROI are selective evidence, not automatic authority;
+- semantic/native identity outranks pixels where reliable;
 - observation/model/procedure/planner/page output is not authorization;
-- every state-changing action requires an explicit expected effect + fresh verification;
-- transition `PASS` is not task `DONE`;
-- realistic user-task acceptance requires independent final-state evidence, not planner self-report;
-- environmental UI/DOM/document/tool content is task data, not policy authority;
-- repeated no-effect/oscillating retries must be bounded by LoopGuard;
-- never persist private chain-of-thought;
-- raw capture is sensitive local data;
-- generic Windows code execution remains disabled/unreachable until a separately reviewed capability is accepted;
+- every state-changing production action requires explicit expected effect + fresh verification;
+- action delivery != transition success;
+- transition `PASS` != task `DONE`;
+- realistic user-task acceptance requires independent final-state evidence;
+- stale/mismatched/ambiguous/incomplete required evidence -> `UNKNOWN`;
+- `UNKNOWN` -> zero unauthorized continuation;
+- environmental content is task data, not policy authority;
+- generic Windows/local code execution remains disabled until separately reviewed and accepted;
 - preserve fail-closed behavior over benchmark hit rate.
