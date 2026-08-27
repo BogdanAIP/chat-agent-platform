@@ -12,7 +12,7 @@
       "commit": "d7f58d9f35c8369f16a9b378f23952d425334ad7",
       "declared_version": "1.31.0",
       "license": "MIT",
-      "role": "candidate procedural compiler/runtime/IR/lifecycle/verifier"
+      "role": "candidate procedural compiler/runtime/IR/lifecycle/effect-evidence provider"
     },
     "openadapt_capture": {
       "repository": "OpenAdaptAI/openadapt-capture",
