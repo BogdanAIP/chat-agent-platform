@@ -43,17 +43,26 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         self.assertIn("foreach ($mapping in $installedmappings)", text)
         self.assertIn("foreach ($mapping in $installedmappings) { $lockpaths.add", text)
 
-    def test_prepare_binds_playwright_mcp_and_transitive_runtime_to_fresh_exact_lock(self):
+    def test_prepare_binds_complete_node_modules_tree_to_fresh_exact_lock(self):
         text = PREPARE.read_text(encoding="utf-8").casefold()
         self.assertIn("npm ci --ignore-scripts --no-audit --no-fund", text)
-        self.assertIn("@playwright/mcp", text)
-        self.assertIn("'playwright'", text)
-        self.assertIn("'playwright-core'", text)
-        self.assertIn("lock_integrity", text)
-        self.assertIn("reference_directory_sha256", text)
-        self.assertIn("installed_directory_sha256", text)
+        self.assertIn("$installednodemodulesroot = join-path $installedpackageroot 'node_modules'", text)
+        self.assertIn("$referencenodemodulesroot = join-path $dependencyreferenceroot 'node_modules'", text)
+        self.assertIn("$lockpackagecount", text)
+        self.assertIn(".chat-agent-platform-lock.sha256", text)
+        self.assertIn("installed semantic runtime lock marker does not match the exact package-lock sha-256", text)
+        self.assertIn("get-directorydigest -root $installednodemodulesroot -excluderelativepath", text)
+        self.assertIn("get-directorydigest -root $referencenodemodulesroot -excluderelativepath", text)
+        self.assertIn("installed semantic node dependency tree does not match fresh exact-lock npm-ci materialization", text)
+        self.assertIn("scope = 'runtime/semantic-projection/node_modules'", text)
         self.assertIn("dependencies_match_exact_lock", text)
-        self.assertIn("installed playwright dependency bytes do not match fresh exact-lock npm-ci materialization", text)
+        self.assertNotIn("$dependencyrecords", text)
+        self.assertNotIn("foreach ($packagename in @('@playwright/mcp'", text)
+
+        # Guardian coverage must be whole-tree, not a package allowlist.
+        self.assertIn("get-childitem -literalpath $installednodemodulesroot -recurse -file", text)
+        self.assertIn("get-childitem -literalpath $referencenodemodulesroot -recurse -file", text)
+        self.assertIn("node_runtime_exact_lock_materialization=pass", text)
 
     def test_byte_lock_guardian_hashes_through_held_no_write_delete_handles(self):
         text = GUARDIAN.read_text(encoding="utf-8").casefold()
@@ -100,19 +109,24 @@ class BrowserL3ProvenanceContractTests(unittest.TestCase):
         self.assertIn("atomic_final_snapshot=pass", folded)
         self.assertIn("semantic_transport_generation=pass", folded)
 
-    def test_checker_revalidates_source_installed_helper_and_playwright_dependency_bytes(self):
+    def test_checker_revalidates_source_installed_helper_and_full_node_dependency_tree(self):
         text = CHECKER.read_text(encoding="utf-8").casefold()
         self.assertIn("browser l3 source provenance revalidation failed", text)
         self.assertIn("scripts/semantic-projection-runtime.ps1", text)
         self.assertIn("@('scripts\\semantic-projection-runtime.ps1', 'scripts\\semantic-projection-runtime.ps1')", text)
         self.assertIn("installed browser l3 runtime byte drift", text)
         self.assertIn("package-lock bytes drifted during run", text)
-        self.assertIn("exact-lock record drifted", text)
-        self.assertIn("installed playwright dependency package bytes drifted", text)
-        self.assertIn("playwright_exact_lock_materialization=pass", text)
+        self.assertIn("$dependencytree = $initialinstalled.dependency_tree", text)
+        self.assertIn("runtime/semantic-projection/node_modules", text)
+        self.assertIn("installed semantic runtime lock marker drifted from the exact package-lock sha-256", text)
+        self.assertIn("installed full semantic node dependency-tree bytes drifted", text)
+        self.assertIn("initial installed semantic node dependency tree was not identical to fresh exact-lock npm-ci materialization", text)
+        self.assertIn("node_runtime_exact_lock_materialization=pass", text)
         self.assertIn("source_provenance_revalidated=pass", text)
         self.assertIn("installed_runtime_revalidated=pass", text)
         self.assertIn("provenance_revalidation=pass", text)
+        self.assertNotIn("exact-lock record drifted for", text)
+        self.assertNotIn("installed playwright dependency package bytes drifted", text)
 
     def test_checker_never_kills_reused_pid_and_emits_success_only_after_cleanup(self):
         text = CHECKER.read_text(encoding="utf-8")
