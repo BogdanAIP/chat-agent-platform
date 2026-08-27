@@ -19,16 +19,30 @@ class RealTaskAcceptanceContractTests(unittest.TestCase):
         self.assertIn('independent evidence must not be planner-writable', folded)
         self.assertIn('external checker', folded)
 
-    def test_roadmap_records_browser_l3_then_windows_verifier_then_active_windows_l3(self):
+    def test_roadmap_records_browser_then_windows_verifier_then_accepted_windows_l3(self):
         roadmap = (ROOT / 'project-context' / 'ROADMAP.md').read_text(encoding='utf-8')
         browser_l3 = roadmap.index('Browser L3 real-task acceptance')
         windows_verifier = roadmap.index('Windows DesktopState shared-kernel verification', browser_l3)
-        windows_l3 = roadmap.index('Current active slice — PR #115 Windows/application L3', windows_verifier)
+        windows_l3 = roadmap.index('Windows/application real-task L3', windows_verifier)
         self.assertLess(browser_l3, windows_verifier)
         self.assertLess(windows_verifier, windows_l3)
         self.assertIn('PHYSICAL ACCEPTED / MERGED #113', roadmap)
         self.assertIn('PHYSICAL ACCEPTED / MERGED #114', roadmap)
-        self.assertIn('stronger provenance methodology', roadmap)
+        self.assertIn('PHYSICAL ACCEPTED / MERGED #115', roadmap)
+        self.assertIn('EXTERNAL_FINISH_GATE=DONE', roadmap)
+        self.assertIn('repeat representative Browser L3 under stronger source-provenance methodology', roadmap)
+
+    def test_roadmap_keeps_track_m_parallel_and_future(self):
+        roadmap = (ROOT / 'project-context' / 'ROADMAP.md').read_text(encoding='utf-8')
+        self.assertIn('Parallel Track M — Agent Sessions / Delegation / Conversation Bridge', roadmap)
+        self.assertIn('HarnessSession', roadmap)
+        self.assertIn('DelegationTask', roadmap)
+        self.assertIn('MessageDelivery', roadmap)
+        self.assertIn('ExecutionEnvironment', roadmap)
+        self.assertIn('max_spawn_depth = 1', roadmap)
+        self.assertIn('CapabilityRegistry', roadmap)
+        self.assertIn('TypedEventBus', roadmap)
+        self.assertIn('PolicyHooks', roadmap)
 
     def test_document_status_promotes_real_task_contract(self):
         status = (ROOT / 'project-context' / 'DOCUMENT_STATUS.md').read_text(encoding='utf-8')
