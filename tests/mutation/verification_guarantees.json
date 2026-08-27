@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "suite": "CAP-M0 Verification Kernel pilot",
+  "target": "runtime/control_plane/verification.py",
+  "test_modules": [
+    "tests.test_stage26_3b_verification_kernel",
+    "tests.test_cap_m0_verification_guarantees"
+  ],
+  "mutants": [
+    {
+      "id": "VK-001",
+      "name": "FAIL_PRECEDENCE_REMOVED",
+      "guarantee": "A definite predicate failure must dominate UNKNOWN/PASS aggregation.",
+      "detector": "verification kernel mismatch/aggregation test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_definite_mismatch_is_fail_and_incomplete_missing_evidence_is_unknown",
+      "find": "    if any(item is VerificationStatus.FAIL for item in statuses):\n        return VerificationStatus.FAIL\n",
+      "replace": "    if any(item is VerificationStatus.FAIL for item in statuses):\n        return VerificationStatus.UNKNOWN\n"
+    },
+    {
+      "id": "VK-002",
+      "name": "UNKNOWN_AS_PASS",
+      "guarantee": "Incomplete or otherwise unknown evidence must never aggregate to PASS.",
+      "detector": "incomplete evidence test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_definite_mismatch_is_fail_and_incomplete_missing_evidence_is_unknown",
+      "find": "    if any(item is VerificationStatus.UNKNOWN for item in statuses):\n        return VerificationStatus.UNKNOWN\n",
+      "replace": "    if any(item is VerificationStatus.UNKNOWN for item in statuses):\n        return VerificationStatus.PASS\n"
+    },
+    {
+      "id": "VK-003",
+      "name": "SAME_SEQUENCE_ACCEPTED_AS_FRESH",
+      "guarantee": "Post-action evidence must have a strictly newer observation sequence.",
+      "detector": "stale re-observation test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_stale_reobservation_is_unknown_even_when_state_matches",
+      "find": "    if after.ref.sequence <= effect.before.sequence:\n        return result(VerificationStatus.UNKNOWN, \"stale_observation\")\n",
+      "replace": "    if after.ref.sequence < effect.before.sequence:\n        return result(VerificationStatus.UNKNOWN, \"stale_observation\")\n"
+    },
+    {
+      "id": "VK-004",
+      "name": "IGNORE_CAPABILITY_IDENTITY",
+      "guarantee": "Evidence from another capability cannot verify an ExpectedEffect.",
+      "detector": "wrong capability identity test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_wrong_subject_or_capability_cannot_verify_effect",
+      "find": "    if after.ref.capability != effect.before.capability:\n        return result(VerificationStatus.UNKNOWN, \"capability_mismatch\")\n",
+      "replace": "    if False and after.ref.capability != effect.before.capability:\n        return result(VerificationStatus.UNKNOWN, \"capability_mismatch\")\n"
+    },
+    {
+      "id": "VK-005",
+      "name": "IGNORE_SUBJECT_IDENTITY",
+      "guarantee": "Evidence from another subject cannot verify an ExpectedEffect.",
+      "detector": "wrong subject identity test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_wrong_subject_or_capability_cannot_verify_effect",
+      "find": "    if after.ref.subject != effect.before.subject:\n        return result(VerificationStatus.UNKNOWN, \"subject_mismatch\")\n",
+      "replace": "    if False and after.ref.subject != effect.before.subject:\n        return result(VerificationStatus.UNKNOWN, \"subject_mismatch\")\n"
+    },
+    {
+      "id": "VK-006",
+      "name": "IGNORE_STREAM_IDENTITY",
+      "guarantee": "A higher sequence from another observation stream is not fresh evidence for this effect.",
+      "detector": "cross-stream freshness test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_higher_sequence_from_another_stream_is_not_fresh_evidence",
+      "find": "    if after.ref.stream_id != effect.before.stream_id:\n        return result(VerificationStatus.UNKNOWN, \"observation_stream_mismatch\")\n",
+      "replace": "    if False and after.ref.stream_id != effect.before.stream_id:\n        return result(VerificationStatus.UNKNOWN, \"observation_stream_mismatch\")\n"
+    },
+    {
+      "id": "VK-007",
+      "name": "IGNORE_AMBIGUITY",
+      "guarantee": "Ambiguous evidence cannot verify an effect that requires unambiguous observation.",
+      "detector": "ambiguous observation test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_ambiguous_observation_is_unknown",
+      "find": "    if effect.require_unambiguous and after.ambiguous:\n        return result(VerificationStatus.UNKNOWN, \"ambiguous_observation\")\n",
+      "replace": "    if False and effect.require_unambiguous and after.ambiguous:\n        return result(VerificationStatus.UNKNOWN, \"ambiguous_observation\")\n"
+    },
+    {
+      "id": "VK-008",
+      "name": "COMPLETE_MISSING_EQUALS_AS_UNKNOWN",
+      "guarantee": "A field missing from a complete observation is definite FAIL, not UNKNOWN.",
+      "detector": "CAP-M0 complete-observation missing-field test",
+      "detector_test": "tests.test_cap_m0_verification_guarantees.CapM0VerificationGuaranteeTests.test_complete_observation_missing_equals_field_is_fail",
+      "find": "    if predicate.operator is PredicateOperator.EQUALS:\n        if observed is _MISSING:\n            status = VerificationStatus.FAIL if snapshot.complete else VerificationStatus.UNKNOWN\n",
+      "replace": "    if predicate.operator is PredicateOperator.EQUALS:\n        if observed is _MISSING:\n            status = VerificationStatus.UNKNOWN\n"
+    },
+    {
+      "id": "FINISH-001",
+      "name": "IGNORE_EVIDENCE_BATCH",
+      "guarantee": "Finish Gate evidence must belong to the requested evidence batch.",
+      "detector": "wrong-batch finish-gate test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_finish_gate_rejects_unbound_or_wrong_batch_pass_receipts",
+      "find": "    if any(item.evidence_batch_id != evidence_batch_id for item in results):\n        return VerificationStatus.UNKNOWN\n",
+      "replace": "    if False and any(item.evidence_batch_id != evidence_batch_id for item in results):\n        return VerificationStatus.UNKNOWN\n"
+    },
+    {
+      "id": "FINISH-002",
+      "name": "CANDIDATE_DONE_IS_DONE",
+      "guarantee": "Planner candidate_done=False cannot be ignored by the independent Finish Gate.",
+      "detector": "candidate_done completion test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_candidate_done_never_self_authorizes_completion",
+      "find": "    if not candidate_done:\n        status = FinishStatus.NOT_DONE\n        reason = \"candidate_done_not_proposed\"\n",
+      "replace": "    if False and not candidate_done:\n        status = FinishStatus.NOT_DONE\n        reason = \"candidate_done_not_proposed\"\n"
+    },
+    {
+      "id": "FINISH-003",
+      "name": "IGNORE_UNRESOLVED_REQUIREMENTS",
+      "guarantee": "Unresolved completion requirements must block DONE.",
+      "detector": "unresolved confirmation finish-gate test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_unresolved_confirmation_blocks_done_without_rewriting_task_success",
+      "find": "    elif normalized_unresolved:\n        status = FinishStatus.UNKNOWN\n        reason = \"unresolved_completion_requirement\"\n",
+      "replace": "    elif False and normalized_unresolved:\n        status = FinishStatus.UNKNOWN\n        reason = \"unresolved_completion_requirement\"\n"
+    },
+    {
+      "id": "FINISH-004",
+      "name": "IGNORE_SAFETY_FAILURE",
+      "guarantee": "A definite safety failure must prevent DONE independently of task success.",
+      "detector": "task-success/safety separation test",
+      "detector_test": "tests.test_stage26_3b_verification_kernel.Stage263BVerificationKernelTests.test_finish_gate_keeps_task_success_and_safety_separate",
+      "find": "    elif task_success is VerificationStatus.FAIL or safety is VerificationStatus.FAIL:\n        status = FinishStatus.NOT_DONE\n        reason = \"completion_predicate_failed\"\n",
+      "replace": "    elif task_success is VerificationStatus.FAIL:\n        status = FinishStatus.NOT_DONE\n        reason = \"completion_predicate_failed\"\n"
+    }
+  ]
+}

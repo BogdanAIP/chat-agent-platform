@@ -1,0 +1,51 @@
+name: CAP-M0 Verification Mutation Pilot
+
+"on":
+  pull_request:
+    paths:
+      - "runtime/control_plane/verification.py"
+      - "tests/test_stage26_3b_verification_kernel.py"
+      - "tests/test_cap_m0_verification_guarantees.py"
+      - "tests/mutation/verification_guarantees.json"
+      - "scripts/run-verification-mutation-pilot.py"
+      - "project-context/MUTATION_ASSURANCE.md"
+      - ".github/workflows/cap-m0-verification-mutation.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: cap-m0-verification-mutation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verification-mutation-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python --version
+
+      - name: Verify CAP-M0 manifest and baseline guarantee tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest \
+            tests.test_stage26_3b_verification_kernel \
+            tests.test_cap_m0_verification_guarantees
+
+      - name: Execute curated Verification Kernel mutants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/run-verification-mutation-pilot.py \
+            --report "$RUNNER_TEMP/cap-m0-verification-mutation-report.json"
+          cat "$RUNNER_TEMP/cap-m0-verification-mutation-report.json"
