@@ -57,11 +57,29 @@ jobs:
           node --version
           pwsh --version
 
-      - name: Run Windows Verification and application L3 contracts
+      - name: Preserve accepted Windows Verification Kernel contracts
         shell: pwsh
         run: |
-          python -m unittest discover -s tests -p "test_stage26_3b_windows*.py"
-          if ($LASTEXITCODE -ne 0) { throw "Windows Stage 26.3B contracts failed with exit code $LASTEXITCODE" }
+          python -m unittest tests.test_stage26_3b_windows_verification
+          if ($LASTEXITCODE -ne 0) { throw "Windows Verification Kernel contract failed with exit code $LASTEXITCODE" }
+
+      - name: Verify Windows application L3 procedure and fixture contract
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_application_l3
+          if ($LASTEXITCODE -ne 0) { throw "Windows application L3 contract failed with exit code $LASTEXITCODE" }
+
+      - name: Verify independent Windows application Finish Gate contract
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_application_l3_finish_gate
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 Finish Gate contract failed with exit code $LASTEXITCODE" }
+
+      - name: Verify focused-control fingerprint transition contract
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_case_focus_fingerprint
+          if ($LASTEXITCODE -ne 0) { throw "Windows focus fingerprint contract failed with exit code $LASTEXITCODE" }
 
       - name: Preserve closed six-tool procedure surface contract
         shell: pwsh
