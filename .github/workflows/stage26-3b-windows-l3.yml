@@ -97,6 +97,12 @@ jobs:
             tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_external_checker_requires_independent_state_history_and_cleanup
           if ($LASTEXITCODE -ne 0) { throw "Windows L3 fixture/prep/checker contracts failed with exit code $LASTEXITCODE" }
 
+      - name: Execute Case Desk seed cardinality regression
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_case_seed_cardinality
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 seed cardinality regression failed with exit code $LASTEXITCODE" }
+
       - name: L3 bootstrap and runtime-attestation contracts
         id: app_runtime
         continue-on-error: true
