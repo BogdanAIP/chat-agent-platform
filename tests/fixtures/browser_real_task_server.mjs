@@ -5,13 +5,17 @@ import process from 'node:process';
 import { URL } from 'node:url';
 
 function parseArgs(argv) {
-  const out = { port: 0, root: null };
+  const out = { port: 0, root: null, gateToken: null, generation: null };
   for (let i = 0; i < argv.length; i += 1) {
     const value = argv[i];
     if (value === '--root') out.root = argv[++i];
     else if (value === '--port') out.port = Number.parseInt(argv[++i], 10);
+    else if (value === '--gate-token') out.gateToken = argv[++i];
+    else if (value === '--generation') out.generation = argv[++i];
   }
   if (!out.root) throw new Error('--root is required');
+  if (!out.gateToken) throw new Error('--gate-token is required');
+  if (!out.generation) throw new Error('--generation is required');
   if (!Number.isInteger(out.port) || out.port < 0 || out.port > 65535) throw new Error('invalid --port');
   return out;
 }
@@ -33,16 +37,23 @@ function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
+function writeJsonAtomic(file, value) {
+  const temporary = `${file}.new-${process.pid}`;
+  fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  fs.renameSync(temporary, file);
+}
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-const { root, port } = parseArgs(process.argv.slice(2));
+const { root, port, gateToken, generation } = parseArgs(process.argv.slice(2));
 fs.mkdirSync(root, { recursive: true });
 const seedPath = path.join(root, 'fixture-seed.json');
 const statePath = path.join(root, 'server-state.json');
 const finishPath = path.join(root, 'finish-gate.json');
 const auditPath = path.join(root, 'audit.jsonl');
+const snapshotPath = path.join(root, 'frozen-snapshot.json');
 
 const seed = readJson(seedPath);
 if (!Array.isArray(seed.cases) || !seed.target_id || !seed.expected) {
@@ -52,10 +63,17 @@ if (!Array.isArray(seed.cases) || !seed.target_id || !seed.expected) {
 const originalCases = clone(seed.cases);
 let cases = clone(seed.cases);
 let saveCount = 0;
+let frozen = false;
 const mutatedIds = new Set();
+const auditEntries = [];
+fs.writeFileSync(auditPath, '', 'utf8');
 
 function targetCase() {
   return cases.find(item => item.id === seed.target_id) ?? null;
+}
+
+function currentState() {
+  return { cases: clone(cases), save_count: saveCount, mutated_ids: [...mutatedIds] };
 }
 
 function recomputeFinishGate() {
@@ -80,13 +98,32 @@ function recomputeFinishGate() {
     save_count: saveCount,
     mutated_ids: [...mutatedIds],
   };
-  writeJson(statePath, { cases, save_count: saveCount, mutated_ids: [...mutatedIds] });
+  writeJson(statePath, currentState());
   writeJson(finishPath, gate);
   return gate;
 }
 
 function appendAudit(entry) {
-  fs.appendFileSync(auditPath, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, 'utf8');
+  const record = { at: new Date().toISOString(), ...entry };
+  auditEntries.push(clone(record));
+  fs.appendFileSync(auditPath, `${JSON.stringify(record)}\n`, 'utf8');
+}
+
+function freezeSnapshot() {
+  if (!frozen) frozen = true;
+  const finish = recomputeFinishGate();
+  const snapshot = {
+    schema_version: 1,
+    fixture_generation: generation,
+    frozen: true,
+    frozen_at: new Date().toISOString(),
+    seed: clone(seed),
+    state: currentState(),
+    finish: clone(finish),
+    audit: clone(auditEntries),
+  };
+  writeJsonAtomic(snapshotPath, snapshot);
+  return snapshot;
 }
 
 function layout(title, body) {
@@ -195,8 +232,22 @@ const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, 'http://127.0.0.1');
     if (request.method === 'GET' && url.pathname === '/health') {
-      return sendJson(response, 200, { status: 'ok', finish: recomputeFinishGate().status });
+      return sendJson(response, 200, { status: 'ok', finish: recomputeFinishGate().status, frozen, generation });
     }
+
+    if (request.method === 'POST' && url.pathname === '/__gate/freeze') {
+      if (request.headers['x-gate-token'] !== gateToken) {
+        return sendJson(response, 403, { status: 'forbidden' });
+      }
+      const snapshot = freezeSnapshot();
+      return sendJson(response, 200, {
+        status: 'frozen',
+        generation,
+        snapshot_file: path.basename(snapshotPath),
+        finish: snapshot.finish.status,
+      });
+    }
+
     if (request.method === 'GET' && url.pathname === '/') {
       return sendHtml(response, 200, homePage(url));
     }
@@ -217,10 +268,15 @@ const server = http.createServer(async (request, response) => {
 
     match = url.pathname.match(/^\/case\/([^/]+)\/save$/);
     if (request.method === 'POST' && match) {
+      if (frozen) return sendJson(response, 423, { status: 'frozen' });
       const id = decodeURIComponent(match[1]);
       const index = cases.findIndex(candidate => candidate.id === id);
       if (index < 0) return sendHtml(response, 404, layout('Not found', '<h1>Case not found</h1>'));
       const body = await collectBody(request);
+      // A save request may have started before the freeze request while its
+      // body was still arriving. Re-check after body collection so no commit
+      // can cross the quiesce boundary.
+      if (frozen) return sendJson(response, 423, { status: 'frozen' });
       const form = new URLSearchParams(body);
       const address = form.get('address') ?? '';
       const comment = form.get('comment') ?? '';
@@ -245,7 +301,7 @@ const server = http.createServer(async (request, response) => {
 server.listen(port, '127.0.0.1', () => {
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
-  console.log(`READY ${JSON.stringify({ url: `http://127.0.0.1:${actualPort}/`, root })}`);
+  console.log(`READY ${JSON.stringify({ url: `http://127.0.0.1:${actualPort}/`, root, generation })}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

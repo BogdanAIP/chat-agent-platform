@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -51,9 +52,14 @@ class FixtureProcess:
     def __init__(self, root):
         self.root = Path(root)
         self.port = free_port()
+        self.gate_token = 'TEST_GATE_TOKEN'
+        self.generation = 'TEST_GENERATION'
         (self.root / 'fixture-seed.json').write_text(json.dumps(seed_data()), encoding='utf-8')
         self.proc = subprocess.Popen(
-            ['node', str(SERVER), '--root', str(self.root), '--port', str(self.port)],
+            [
+                'node', str(SERVER), '--root', str(self.root), '--port', str(self.port),
+                '--gate-token', self.gate_token, '--generation', self.generation,
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -68,10 +74,27 @@ class FixtureProcess:
                 with urllib.request.urlopen(f'http://127.0.0.1:{self.port}/health', timeout=0.5) as response:
                     health = json.load(response)
                 if health['status'] == 'ok':
+                    self.assert_generation(health)
                     return
             except Exception:
                 time.sleep(0.05)
         raise AssertionError('fixture server did not become ready')
+
+    def assert_generation(self, payload):
+        if payload.get('generation') != self.generation:
+            raise AssertionError(f'fixture generation mismatch: {payload}')
+
+    def freeze(self):
+        request = urllib.request.Request(
+            f'http://127.0.0.1:{self.port}/__gate/freeze',
+            data=b'',
+            method='POST',
+            headers={'X-Gate-Token': self.gate_token},
+        )
+        with urllib.request.urlopen(request, timeout=2) as response:
+            payload = json.load(response)
+        self.assert_generation(payload)
+        return payload
 
     def close(self):
         self.proc.terminate()
@@ -145,6 +168,35 @@ class BrowserRealTaskFixtureTests(unittest.TestCase):
                 self.assertTrue(gate['checks']['decoys_unchanged'])
                 self.assertFalse(gate['checks']['only_target_ever_mutated'])
                 self.assertEqual(set(gate['mutated_ids']), {'CASE-TARGET', 'CASE-DECOY'})
+            finally:
+                fixture.close()
+
+    def test_authenticated_freeze_creates_one_atomic_snapshot_and_blocks_late_save(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = FixtureProcess(tmp)
+            try:
+                fixture.wait_ready()
+                root = Path(tmp)
+                post_case(fixture.port, 'CASE-TARGET', '18 New Harbor Road', 'Approved', 'Reviewed by agent')
+
+                frozen = fixture.freeze()
+                self.assertEqual(frozen['status'], 'frozen')
+                self.assertEqual(frozen['finish'], 'done')
+
+                snapshot = json.loads((root / 'frozen-snapshot.json').read_text(encoding='utf-8'))
+                self.assertTrue(snapshot['frozen'])
+                self.assertEqual(snapshot['fixture_generation'], fixture.generation)
+                self.assertEqual(snapshot['finish']['status'], 'done')
+                self.assertEqual(snapshot['state']['save_count'], 1)
+                self.assertEqual(len(snapshot['audit']), 1)
+                self.assertEqual(snapshot['audit'][0]['id'], 'CASE-TARGET')
+
+                with self.assertRaises(urllib.error.HTTPError) as raised:
+                    post_case(fixture.port, 'CASE-DECOY', 'LATE', 'Pending', 'late')
+                self.assertEqual(raised.exception.code, 423)
+
+                snapshot_after = json.loads((root / 'frozen-snapshot.json').read_text(encoding='utf-8'))
+                self.assertEqual(snapshot_after, snapshot)
             finally:
                 fixture.close()
 
