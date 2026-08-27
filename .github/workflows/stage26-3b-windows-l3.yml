@@ -103,6 +103,12 @@ jobs:
           python -m unittest tests.test_stage26_3b_windows_case_seed_cardinality
           if ($LASTEXITCODE -ne 0) { throw "Windows L3 seed cardinality regression failed with exit code $LASTEXITCODE" }
 
+      - name: Execute Case Desk WinForms startup regression
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_case_fixture_startup
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 WinForms fixture startup regression failed with exit code $LASTEXITCODE" }
+
       - name: L3 bootstrap and runtime-attestation contracts
         id: app_runtime
         continue-on-error: true
