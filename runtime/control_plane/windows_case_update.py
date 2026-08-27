@@ -10,7 +10,7 @@ import time
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .verification import VerificationStatus, evaluate_finish_gate
 from .windows_transition import verify_windows_desktop_transition
@@ -23,6 +23,8 @@ QUALIFICATION_ADMISSION = "stage26-3b-windows-l3"
 MAX_NOTE_CHARS = 512
 MAX_ACTIONS = 5
 MAX_RUNTIME_SECONDS = 90.0
+POSTCONDITION_SETTLE_SECONDS = 2.0
+POSTCONDITION_POLL_SECONDS = 0.08
 _ALLOWED_STATUSES = {"Approved", "Needs Review"}
 _CASE_ID_RE = re.compile(r"^CASE-([A-F0-9]{8})-([0-9]{4})$")
 _RUN_ID_RE = re.compile(r"^[A-F0-9]{8}$")
@@ -282,6 +284,62 @@ def _verification(
     )
 
 
+def _settle_postcondition(
+    observe_fn: Callable[[], dict[str, Any]],
+    verify_fn: Callable[[dict[str, Any]], dict[str, Any]],
+    *,
+    timeout_seconds: float = POSTCONDITION_SETTLE_SECONDS,
+    poll_seconds: float = POSTCONDITION_POLL_SECONDS,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Bound verification to one action while allowing asynchronous UI state to settle.
+
+    The action is never repeated here. Each attempt is a new authoritative
+    observation verified against the same already-bound ExpectedEffect. A
+    previous FAIL/UNKNOWN is not rewritten; PASS is accepted only from a later
+    fresh observation that independently satisfies the postcondition.
+    """
+
+    if timeout_seconds < 0:
+        raise ValueError("timeout_seconds must be non-negative")
+    if poll_seconds <= 0:
+        raise ValueError("poll_seconds must be positive")
+
+    deadline = time.monotonic() + timeout_seconds
+    statuses: list[str] = []
+    after: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+
+    while True:
+        after = observe_fn()
+        result = verify_fn(after)
+        status = str(result.get("status") or "")
+        if status not in {
+            VerificationStatus.PASS.value,
+            VerificationStatus.FAIL.value,
+            VerificationStatus.UNKNOWN.value,
+        }:
+            raise ProcedureAbstained("postcondition_verifier_returned_invalid_status")
+        statuses.append(status)
+        if status == VerificationStatus.PASS.value:
+            break
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(poll_seconds, remaining))
+
+    assert after is not None and result is not None
+    return (
+        after,
+        result,
+        {
+            "attempt_count": len(statuses),
+            "statuses": statuses,
+            "settle_timeout_seconds": timeout_seconds,
+        },
+    )
+
+
 def _receipt_mapping(receipt: Any) -> dict[str, Any]:
     return {
         "operation": str(getattr(receipt, "operation", "")),
@@ -299,6 +357,7 @@ def _record_transition(
     to_node: str,
     delivery: dict[str, Any],
     verification: dict[str, Any],
+    postcondition_observation: dict[str, Any] | None = None,
 ) -> None:
     task_state["transition_receipts"].append(
         {
@@ -307,6 +366,7 @@ def _record_transition(
             "to_node": to_node,
             "delivery": delivery,
             "kernel_verification": _kernel_receipt(verification),
+            "postcondition_observation": postcondition_observation,
             "verified_at": _utc_now(),
         }
     )
@@ -468,10 +528,10 @@ def run_windows_case_update(
 
         def guarded_coordinate(role: str, name: str) -> dict[str, Any]:
             assert backend is not None
-            _locator, handle = resolve_unique(role, name)
-            point = (int(handle.point[0]), int(handle.point[1]))
             last: Exception | None = None
             for _ in range(12):
+                _locator, handle = resolve_unique(role, name)
+                point = (int(handle.point[0]), int(handle.point[1]))
                 try:
                     backend.arm_guarded_coordinate(*point)
                     frame = backend.screenshot()
@@ -489,10 +549,12 @@ def run_windows_case_update(
                     time.sleep(0.06)
             raise ProcedureAbstained("guarded_coordinate_never_stabilized") from last
 
-        def guarded_type(text: str, point: tuple[int, int]) -> dict[str, Any]:
+        def guarded_type(text: str, role: str, name: str) -> dict[str, Any]:
             assert backend is not None
             last: Exception | None = None
             for _ in range(12):
+                _locator, handle = resolve_unique(role, name)
+                point = (int(handle.point[0]), int(handle.point[1]))
                 try:
                     backend.arm_guarded_keyboard(*point)
                     frame = backend.guarded_keyboard_frame()
@@ -526,13 +588,15 @@ def run_windows_case_update(
         selected_visible = _replace_visible_lines(initial["visible_text"], {initial_token: selected_token})
         delivery = guarded_coordinate("listitem", case_id)
         task_state["action_count"] += 1
-        selected = observe()
-        selected_result = _verification(
-            before=initial,
-            after=selected,
-            expected={"evidence": {"visible_text_sha256": _sha256_text(selected_visible)}},
-            task_id=task_id,
-            transition_id="select_case",
+        selected, selected_result, selected_settle = _settle_postcondition(
+            observe,
+            lambda after: _verification(
+                before=initial,
+                after=after,
+                expected={"evidence": {"visible_text_sha256": _sha256_text(selected_visible)}},
+                task_id=task_id,
+                transition_id="select_case",
+            ),
         )
         _record_transition(
             task_state,
@@ -541,6 +605,7 @@ def run_windows_case_update(
             to_node="case_selected",
             delivery=delivery,
             verification=selected_result,
+            postcondition_observation=selected_settle,
         )
         checkpoint()
         if selected_result["status"] != VerificationStatus.PASS.value:
@@ -554,7 +619,6 @@ def run_windows_case_update(
             focused=True,
         )
         note_locator, note_handle = resolve_unique("textbox", "New case note")
-        note_point = (int(note_handle.point[0]), int(note_handle.point[1]))
         focus_receipt = backend.act_structural(note_locator, note_handle)
         delivery = _receipt_mapping(focus_receipt)
         if (
@@ -564,13 +628,15 @@ def run_windows_case_update(
         ):
             raise ProcedureAbstained("note_focus_delivery_contract_failed")
         task_state["action_count"] += 1
-        focused = observe()
-        focus_result = _verification(
-            before=selected,
-            after=focused,
-            expected={"window": {"focused_control": note_control}},
-            task_id=task_id,
-            transition_id="focus_note",
+        focused, focus_result, focus_settle = _settle_postcondition(
+            observe,
+            lambda after: _verification(
+                before=selected,
+                after=after,
+                expected={"window": {"focused_control": note_control}},
+                task_id=task_id,
+                transition_id="focus_note",
+            ),
         )
         _record_transition(
             task_state,
@@ -579,6 +645,7 @@ def run_windows_case_update(
             to_node="note_focused",
             delivery=delivery,
             verification=focus_result,
+            postcondition_observation=focus_settle,
         )
         checkpoint()
         if focus_result["status"] != VerificationStatus.PASS.value:
@@ -589,15 +656,17 @@ def run_windows_case_update(
             selected=case_id, status="NONE", note_sha256=_sha256_text(note), saved=0
         )
         note_visible = _replace_visible_lines(focused["visible_text"], {selected_token: note_token})
-        delivery = guarded_type(note, note_point)
+        delivery = guarded_type(note, "textbox", "New case note")
         task_state["action_count"] += 1
-        noted = observe()
-        note_result = _verification(
-            before=focused,
-            after=noted,
-            expected={"evidence": {"visible_text_sha256": _sha256_text(note_visible)}},
-            task_id=task_id,
-            transition_id="enter_note",
+        noted, note_result, note_settle = _settle_postcondition(
+            observe,
+            lambda after: _verification(
+                before=focused,
+                after=after,
+                expected={"evidence": {"visible_text_sha256": _sha256_text(note_visible)}},
+                task_id=task_id,
+                transition_id="enter_note",
+            ),
         )
         _record_transition(
             task_state,
@@ -606,6 +675,7 @@ def run_windows_case_update(
             to_node="note_entered",
             delivery=delivery,
             verification=note_result,
+            postcondition_observation=note_settle,
         )
         checkpoint()
         if note_result["status"] != VerificationStatus.PASS.value:
@@ -618,13 +688,15 @@ def run_windows_case_update(
         status_visible = _replace_visible_lines(noted["visible_text"], {note_token: status_token})
         delivery = act_native("button", f"Set status {requested_status}")
         task_state["action_count"] += 1
-        status_set = observe()
-        status_result = _verification(
-            before=noted,
-            after=status_set,
-            expected={"evidence": {"visible_text_sha256": _sha256_text(status_visible)}},
-            task_id=task_id,
-            transition_id="set_status",
+        status_set, status_result, status_settle = _settle_postcondition(
+            observe,
+            lambda after: _verification(
+                before=noted,
+                after=after,
+                expected={"evidence": {"visible_text_sha256": _sha256_text(status_visible)}},
+                task_id=task_id,
+                transition_id="set_status",
+            ),
         )
         _record_transition(
             task_state,
@@ -633,6 +705,7 @@ def run_windows_case_update(
             to_node="status_set",
             delivery=delivery,
             verification=status_result,
+            postcondition_observation=status_settle,
         )
         checkpoint()
         if status_result["status"] != VerificationStatus.PASS.value:
@@ -654,15 +727,17 @@ def run_windows_case_update(
         )
         delivery = act_native("button", "Save case")
         task_state["action_count"] += 1
-        saved = observe()
         evidence_batch_id = f"{task_id}:completion:{task_state['action_count']}"
-        save_result = _verification(
-            before=status_set,
-            after=saved,
-            expected={"evidence": {"visible_text_sha256": _sha256_text(saved_visible)}},
-            task_id=task_id,
-            transition_id="save_case",
-            evidence_batch_id=evidence_batch_id,
+        saved, save_result, save_settle = _settle_postcondition(
+            observe,
+            lambda after: _verification(
+                before=status_set,
+                after=after,
+                expected={"evidence": {"visible_text_sha256": _sha256_text(saved_visible)}},
+                task_id=task_id,
+                transition_id="save_case",
+                evidence_batch_id=evidence_batch_id,
+            ),
         )
         safety_result = _verification(
             before=status_set,
@@ -686,6 +761,7 @@ def run_windows_case_update(
             to_node="saved_verified",
             delivery=delivery,
             verification=save_result,
+            postcondition_observation=save_settle,
         )
         task_state["finish_gate"] = {
             **finish_gate.as_dict(),
