@@ -23,6 +23,8 @@ procedure_run
 
 Normal transport is direct stdio through the Secure MCP Tunnel and official tunnel-client. 1MCP remains optional internal Extension Manager infrastructure.
 
+The six-tool inventory and the registered procedure catalog are separate contracts. A bounded new registered procedure may extend `procedure_run` without exposing a generic backend/action/code-execution selector. Any genuinely new public consequence class still requires an explicit public-contract decision rather than being hidden behind a misleading existing action.
+
 ## Acceptance-depth rule
 
 ```text
@@ -31,7 +33,7 @@ L1 — primitive / contract proof
  -> L3 — ordinary user-task E2E with independent Finish Gate
 ```
 
-L3 receives a natural-language goal rather than a click/type script and verifies independent final state plus important non-target constraints. One L3 pass is scoped evidence, not a universal reliability claim.
+L3 receives a natural-language goal rather than a click/type script and verifies independent final state plus important non-target/history constraints. One L3 pass is scoped evidence, not a universal reliability claim.
 
 Release-critical physical acceptance has an orthogonal source-provenance requirement:
 
@@ -60,11 +62,14 @@ web_open final-state verification                 PHYSICAL ACCEPTED / MERGED #10
 Browser Harness / ADR-036 docs                    MERGED #110
 web_interact postcondition verification           PHYSICAL ACCEPTED / MERGED #111
 Browser L3 real-task acceptance                   PHYSICAL ACCEPTED / MERGED #113
+Windows DesktopState shared-kernel verification   PHYSICAL ACCEPTED / MERGED #114
 ```
 
 The Browser L3 run used randomized Case Desk data and an external independent Finish Gate. Accepted evidence included exactly one target save, one target audit mutation and `NON_TARGET_MUTATION=none`.
 
 The later Source Provenance review found that the historical #113 harness proved the named head and independent task result but did not separately prove a clean working tree/source-byte binding. #113 is not retroactively failed; before Stage 26.3B closes, repeat one representative Browser L3 under the stronger provenance methodology.
+
+Windows #114 was physically accepted on exact clean head `ce3f533d12ab0a5ea0c9a4804accb32cf377ac0e` and squash-merged as `cc0fa3d1b7afe9d833334ae68482d2d3dca4b818`. It proved the shared Windows verifier against live process/HWND identity, advancing observation time, positive PASS, wrong-postcondition FAIL, process-generation/HWND drift FAIL and stale/non-advancing UNKNOWN.
 
 Windows acceptance remains scoped evidence, not universal Windows accuracy.
 
@@ -106,65 +111,72 @@ Accepted production/evidence slices:
 - file/artifact procedure path through PR #102;
 - production `web_open` verification through PR #107;
 - production `web_interact` verification through PR #111;
-- first Browser L3 real-task acceptance through PR #113 for its historical physical-gate scope.
+- first Browser L3 real-task acceptance through PR #113 for its historical physical-gate scope;
+- Windows `DesktopState` shared-kernel verification through physically accepted PR #114.
 
-## Current active slice — PR #114
+## Current active slice — PR #115 Windows/application L3
 
-PR #114 integrates accepted Windows `DesktopState` evidence with the shared Verification Kernel. It is internal and non-authorizing:
-
-```text
-DesktopState BEFORE
- -> WindowsDesktopObservationStream
- -> bounded expected final state
- -> mandatory stable process/native-window continuity
- -> DesktopState AFTER
- -> shared verify_expected_effect
- -> PASS | FAIL | UNKNOWN
-```
-
-Stable continuity includes:
+PR #115 is the representative Windows/application L3 required after #114. It keeps the public six-tool inventory unchanged and extends only the **closed** `procedure_run` registry:
 
 ```text
-Windows session
-application identity
-executable name
-PID
-process generation
-HWND
-coordinate space
+verified_workspace_artifact_v1
+windows_case_update_v1
 ```
 
-Process restart/PID-generation drift, HWND drift or application-identity drift therefore cannot satisfy a similar-looking final state.
+The Windows candidate accepts only user-level `case_id`, `note` and one reviewed status. It does not expose PID, HWND, backend, interpreter, command, Python, arbitrary filesystem path, fixture-state/audit paths or a generic action list.
 
-`window_instance` is snapshot-consistency evidence, not immutable continuity identity, because the accepted Stage 26.2 digest includes window title. PR #114 recomputes it per snapshot, along with control fingerprints and frame digest. It also validates redundant freshness evidence.
+Its target is a randomized local WinForms Case Desk with one intended record and similar decoys. The externally prepared qualification session binds exact clean source, installed AppRoot bytes, accepted OpenAdapt runtime, run id, fixture PID/window and expiry outside Chat `FilesRoot`.
 
-PR #114 adds no `desktop_*` Chat tool, no process launch authority, no generic code execution and no new Windows mutation route. It preserves the accepted Stage 26.2 legacy verifier rather than silently changing its semantics.
+The procedure performs five bounded transitions:
+
+```text
+select intended case
+ -> focus note control
+ -> type exact note
+ -> set requested status
+ -> save exact case
+```
+
+Every state-changing transition follows:
+
+```text
+fresh DesktopState BEFORE
+ -> bounded accepted Windows action
+ -> fresh DesktopState AFTER
+ -> shared Verification Kernel PASS | FAIL | UNKNOWN
+```
+
+A delivery receipt never proves success. The procedure itself cannot prove whole-task completion and explicitly leaves `external_l3_finish_gate_required` unresolved.
+
+The independent external Finish Gate requires exact target state, unchanged decoys, mutation history showing only one intended target save, audit before/after equality, exact source/install/runtime provenance, live fixture at proof time and clean fixture/session cleanup.
+
+Because the existing public `procedure_run` schema changes from one registered branch to a closed two-branch union, the physical ordinary-Chat gate must use a freshly rebound client-visible Chat contract before the run. This is a compatibility requirement orthogonal to L1/L2/L3.
 
 Required acceptance sequence:
 
 ```text
-freeze final #114 head
- -> fresh hosted checks
- -> isolated target-Windows source root
- -> SourceProvenanceGate PASS on the same exact head
- -> target-Windows physical verifier qualification
- -> no unresolved review/security finding
- -> merge #114
- -> representative Windows/application L3 with independent Finish Gate + source provenance
- -> repeat representative Browser L3 under SourceProvenanceGate
+final #115 code/tests/docs
+ -> fresh hosted checks on one frozen exact head
+ -> target-Windows SourceProvenanceGate PASS
+ -> installed AppRoot bytes == same frozen source
+ -> OpenAdapt runtime attestation PASS
+ -> fresh/rebound ordinary Chat app
+ -> natural-language Case Desk task using only six semantic tools
+ -> bounded windows_case_update_v1 local verification
+ -> independent external Finish Gate DONE
+ -> merge #115 only on exact-head PASS
 ```
 
-Canonical detail: `STAGE26_3B_WINDOWS_VERIFICATION.md` and `SOURCE_PROVENANCE_ACCEPTANCE.md`.
+Canonical detail: `STAGE26_3B_VERIFICATION_KERNEL.md`, `STAGE26_3B_WINDOWS_VERIFICATION.md`, `REAL_TASK_ACCEPTANCE.md` and `SOURCE_PROVENANCE_ACCEPTANCE.md`.
 
 ## Remaining 26.3B work
 
 ```text
-1. hosted + source-provenance-bound physical acceptance and merge of PR #114
-2. representative Windows/application L3 using accepted action/observation/verifier mechanisms
-3. one representative Browser L3 repeat under the new source-provenance methodology
-4. add cross-capability completion predicates only where a real procedure requires them
-5. run any additional physical gate required by a production-path change
-6. declare 26.3B accepted only when required evidence gaps are closed
+1. hosted + source/install/runtime-bound physical acceptance and merge of PR #115
+2. one representative Browser L3 repeat under the stronger Source Provenance Gate
+3. add cross-capability completion predicates only where a real procedure requires them
+4. run any additional physical gate required by a production-path change
+5. declare 26.3B accepted only when required evidence gaps are closed
 ```
 
 ## ADR-036 relation to 26.3B

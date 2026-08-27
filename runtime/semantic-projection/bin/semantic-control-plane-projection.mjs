@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +24,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const semanticEntry = path.join(here, 'semantic-projection.mjs');
 const repoRoot = path.resolve(here, '..', '..', '..');
 const controlPlaneCli = path.join(repoRoot, 'runtime', 'control_plane', 'cli.py');
+const WINDOWS_CASE_PROCEDURE = 'windows_case_update_v1';
 const INTERNAL_SEMANTIC_TOOLS = new Set([
   'workspace_read',
   'workspace_write',
@@ -32,7 +34,6 @@ const INTERNAL_SEMANTIC_TOOLS = new Set([
 ]);
 const PUBLIC_TOOLS = new Set([...INTERNAL_SEMANTIC_TOOLS, 'procedure_run']);
 const MAX_PROCEDURE_RESPONSE_BYTES = 1_000_000;
-const PROCEDURE_TIMEOUT_MS = 30_000;
 const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'PATH', 'Path', 'PATHEXT',
   'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC',
@@ -64,7 +65,7 @@ function safeChildEnvironment() {
   return env;
 }
 
-function controlPlaneEnvironment() {
+function controlPlaneEnvironment(request) {
   const env = safeChildEnvironment();
   const workspace = env.CHAT_LOCAL_FILES_ROOT;
   if (!workspace) throw new Error('CHAT_LOCAL_FILES_ROOT is required for procedure_run.');
@@ -75,11 +76,36 @@ function controlPlaneEnvironment() {
       : path.join(workspace, '.chat-agent-platform', 'procedure-state');
   }
 
-  // Stage 26.3A still exercises the candidate trust gate internally, but there
-  // is no longer a user-selectable five-tool/six-tool profile split. The public
-  // semantic surface is always six tools.
-  env.CHAT_PROCEDURE_ALLOW_CANDIDATE = 'stage26-3a-qualification';
+  // Admission is selected only from the registered procedure id. The caller
+  // cannot supply an admission token, executable, path, backend or command.
+  env.CHAT_PROCEDURE_ALLOW_CANDIDATE = request?.procedure === WINDOWS_CASE_PROCEDURE
+    ? 'stage26-3b-windows-l3'
+    : 'stage26-3a-qualification';
   return env;
+}
+
+function controlPlanePython(request, env) {
+  if (request?.procedure !== WINDOWS_CASE_PROCEDURE) return 'python';
+  if (!env.LOCALAPPDATA) {
+    throw new Error('LOCALAPPDATA is required for the registered Windows procedure.');
+  }
+  const python = path.join(
+    env.LOCALAPPDATA,
+    'ChatAgentPlatform',
+    'stage26',
+    'hot-runtime-env',
+    'venv',
+    'Scripts',
+    'python.exe'
+  );
+  if (!fs.existsSync(python)) {
+    throw new Error('accepted Stage 26 Windows runtime environment is not installed.');
+  }
+  return python;
+}
+
+function procedureTimeoutMs(request) {
+  return request?.procedure === WINDOWS_CASE_PROCEDURE ? 90_000 : 30_000;
 }
 
 const semanticClient = new Client({
@@ -114,14 +140,16 @@ async function callSemantic(name, args) {
 function runProcedure(request) {
   return new Promise((resolve) => {
     let env;
+    let python;
     try {
-      env = controlPlaneEnvironment();
+      env = controlPlaneEnvironment(request);
+      python = controlPlanePython(request, env);
     } catch (error) {
       resolve(toolError(`procedure_run failed: ${error instanceof Error ? error.message : String(error)}`));
       return;
     }
 
-    const child = spawn('python', [controlPlaneCli], {
+    const child = spawn(python, [controlPlaneCli], {
       cwd: repoRoot,
       env,
       stdio: ['pipe', 'pipe', 'ignore'],
@@ -140,7 +168,7 @@ function runProcedure(request) {
     const timer = setTimeout(() => {
       try { child.kill(); } catch {}
       finish(toolError('procedure_run failed: control_plane_timeout'));
-    }, PROCEDURE_TIMEOUT_MS);
+    }, procedureTimeoutMs(request));
 
     child.stdout.on('data', chunk => {
       stdout = Buffer.concat([stdout, Buffer.from(chunk)]);
@@ -186,12 +214,24 @@ const interactionExpectedSchema = z.object({
   url: z.string().url().max(4096).optional(),
   control: interactionExpectedControlSchema.optional(),
 }).strict();
+const workspaceArtifactProcedureSchema = z.object({
+  procedure: z.literal('verified_workspace_artifact_v1'),
+  artifact_name: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}\.txt$/),
+  content: z.string().max(4096),
+  resume_task_id: z.string().regex(/^[0-9a-f]{32}$/).optional()
+}).strict();
+const windowsCaseProcedureSchema = z.object({
+  procedure: z.literal(WINDOWS_CASE_PROCEDURE),
+  case_id: z.string().regex(/^CASE-[A-F0-9]{8}-[0-9]{4}$/),
+  note: z.string().min(1).max(512),
+  status: z.enum(['Approved', 'Needs Review'])
+}).strict();
 
 const server = new McpServer(
   { name: 'chat-semantic-control-plane', version: VERSION },
   {
     instructions:
-      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations remain bounded and now require fresh final-state verification: type without submit may infer the typed control value, while click and type+submit require an explicit expected observable result before delivery. procedure_run admits only registered bounded procedures and exposes no shell, arbitrary Python, backend selector, generic dispatch or arbitrary filesystem path.'
+      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations require fresh final-state verification. procedure_run admits only registered bounded procedures; Windows Case Desk accepts only case_id, note and reviewed status while PID/window/backend authority remains internal. No shell, arbitrary Python, backend selector, generic dispatch or arbitrary filesystem path is exposed.'
   }
 );
 
@@ -255,13 +295,11 @@ server.registerTool('web_interact', {
 server.registerTool('procedure_run', {
   title: 'Run Verified Procedure',
   description:
-    'Run one registered bounded local procedure. The currently admitted procedure is verified_workspace_artifact_v1. It accepts a leaf .txt artifact name, bounded UTF-8 content and optional resume_task_id. No path, command, Python, backend or generic tool selector is accepted.',
-  inputSchema: z.object({
-    procedure: z.literal('verified_workspace_artifact_v1'),
-    artifact_name: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}\.txt$/),
-    content: z.string().max(4096),
-    resume_task_id: z.string().regex(/^[0-9a-f]{32}$/).optional()
-  }).strict(),
+    'Run one registered bounded local procedure. verified_workspace_artifact_v1 accepts a leaf .txt artifact/content pair. windows_case_update_v1 accepts only a Case Desk case_id, one bounded note and status Approved or Needs Review. No PID, HWND, path, command, Python, backend or generic tool selector is accepted.',
+  inputSchema: z.union([
+    workspaceArtifactProcedureSchema,
+    windowsCaseProcedureSchema
+  ]),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
 }, args => runProcedure(args));
 

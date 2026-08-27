@@ -1,0 +1,187 @@
+name: Stage 26.3B Windows Application L3 Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "runtime/control_plane/**"
+      - "runtime/windows/**"
+      - "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs"
+      - "runtime/semantic-projection/tests/six-tool-acceptance.mjs"
+      - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/bootstrap-windows-procedure-runtime.ps1"
+      - "scripts/prepare-windows-case-l3.ps1"
+      - "scripts/check-windows-case-l3.ps1"
+      - "scripts/stage26-windows-case-desk-fixture.ps1"
+      - "scripts/stage26-windows-runtime-attestation.py"
+      - "scripts/stage26-windows-l3-provenance-recheck.py"
+      - "tests/test_stage26_3a_procedure_surface*.py"
+      - "tests/test_stage26_3b_windows*.py"
+      - ".github/workflows/stage26-3b-windows-l3.yml"
+  push:
+    branches: [main]
+    paths:
+      - "runtime/control_plane/**"
+      - "runtime/windows/**"
+      - "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs"
+      - "runtime/semantic-projection/tests/six-tool-acceptance.mjs"
+      - "scripts/bootstrap-chat-platform.ps1"
+      - "scripts/bootstrap-windows-procedure-runtime.ps1"
+      - "scripts/prepare-windows-case-l3.ps1"
+      - "scripts/check-windows-case-l3.ps1"
+      - "scripts/stage26-windows-case-desk-fixture.ps1"
+      - "scripts/stage26-windows-runtime-attestation.py"
+      - "scripts/stage26-windows-l3-provenance-recheck.py"
+      - "tests/test_stage26_3a_procedure_surface*.py"
+      - "tests/test_stage26_3b_windows*.py"
+      - ".github/workflows/stage26-3b-windows-l3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage26-3b-windows-l3-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-application-l3-contract:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Environment
+        shell: pwsh
+        run: |
+          python --version
+          node --version
+          pwsh --version
+
+      - name: Preserve accepted Windows Verification Kernel contracts
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_verification
+          if ($LASTEXITCODE -ne 0) { throw "Windows Verification Kernel contract failed with exit code $LASTEXITCODE" }
+
+      - name: L3 request visible-state and settle helper contracts
+        id: app_helpers
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          python -m unittest `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_windows_case_request_is_bounded_and_session_bound `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_visible_state_postconditions_are_exact_digest_inputs `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_postcondition_settle_uses_fresh_observations_without_repeating_action `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_postcondition_settle_never_synthesizes_pass_after_timeout
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 helper contracts failed with exit code $LASTEXITCODE" }
+
+      - name: L3 procedure CLI and public-schema contracts
+        id: app_surface
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          python -m unittest `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_procedure_uses_registered_windows_mechanics_and_cannot_claim_external_done `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_cli_dispatch_is_explicit_not_generic `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_public_schema_exposes_only_user_level_windows_parameters
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 surface contracts failed with exit code $LASTEXITCODE" }
+
+      - name: L3 fixture prep and external-checker contracts
+        id: app_fixture
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          python -m unittest `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_fixture_mutates_case_records_only_on_save_and_keeps_audit `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_prepare_binds_source_installed_runtime_and_hides_finish_evidence_from_chat `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_external_checker_requires_independent_state_history_and_cleanup
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 fixture/prep/checker contracts failed with exit code $LASTEXITCODE" }
+
+      - name: Execute Case Desk seed cardinality regression
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_case_seed_cardinality
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 seed cardinality regression failed with exit code $LASTEXITCODE" }
+
+      - name: Execute Case Desk WinForms startup regression
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_case_fixture_startup
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 WinForms fixture startup regression failed with exit code $LASTEXITCODE" }
+
+      - name: L3 bootstrap and runtime-attestation contracts
+        id: app_runtime
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          python -m unittest `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_bootstrap_installs_windows_runtime_before_semantic_smoke `
+            tests.test_stage26_3b_windows_application_l3.WindowsApplicationL3Contracts.test_runtime_attestation_binds_installed_openadapt_and_server_source
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 runtime contracts failed with exit code $LASTEXITCODE" }
+
+      - name: Fail if a Windows application L3 contract group failed
+        if: ${{ always() && (steps.app_helpers.outcome != 'success' || steps.app_surface.outcome != 'success' || steps.app_fixture.outcome != 'success' || steps.app_runtime.outcome != 'success') }}
+        shell: pwsh
+        run: |
+          Write-Host "WINDOWS_L3_HELPERS=${{ steps.app_helpers.outcome }}"
+          Write-Host "WINDOWS_L3_SURFACE=${{ steps.app_surface.outcome }}"
+          Write-Host "WINDOWS_L3_FIXTURE=${{ steps.app_fixture.outcome }}"
+          Write-Host "WINDOWS_L3_RUNTIME=${{ steps.app_runtime.outcome }}"
+          throw 'One or more Windows application L3 contract groups failed.'
+
+      - name: Verify independent Windows application Finish Gate contract
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_application_l3_finish_gate
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 Finish Gate contract failed with exit code $LASTEXITCODE" }
+
+      - name: Verify focused-control fingerprint transition contract
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3b_windows_case_focus_fingerprint
+          if ($LASTEXITCODE -ne 0) { throw "Windows focus fingerprint contract failed with exit code $LASTEXITCODE" }
+
+      - name: Preserve closed six-tool procedure surface contract
+        shell: pwsh
+        run: |
+          python -m unittest tests.test_stage26_3a_procedure_surface tests.test_stage26_3a_procedure_surface_security
+          if ($LASTEXITCODE -ne 0) { throw "Closed six-tool procedure surface contract failed with exit code $LASTEXITCODE" }
+
+      - name: Parse Windows L3 PowerShell gate scripts
+        shell: pwsh
+        run: |
+          $scripts = @(
+            'scripts/bootstrap-windows-procedure-runtime.ps1',
+            'scripts/prepare-windows-case-l3.ps1',
+            'scripts/check-windows-case-l3.ps1',
+            'scripts/stage26-windows-case-desk-fixture.ps1'
+          )
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $script), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) {
+              throw "$script has PowerShell syntax errors: $($errors -join '; ')"
+            }
+          }
+          Write-Host 'WINDOWS_APPLICATION_L3_POWERSHELL_PARSE=PASS'
+
+      - name: Parse Windows L3 Python runtime assets
+        shell: pwsh
+        run: |
+          python -m py_compile `
+            runtime/control_plane/windows_case_update.py `
+            scripts/stage26-windows-runtime-attestation.py `
+            scripts/stage26-windows-l3-provenance-recheck.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows L3 Python parse failed with exit code $LASTEXITCODE" }
+          Write-Host 'WINDOWS_APPLICATION_L3_PYTHON_PARSE=PASS'
+
+      - name: Report hosted qualification boundary
+        shell: pwsh
+        run: |
+          Write-Host 'STAGE26_3B_WINDOWS_APPLICATION_L3_HOSTED=PASS'
+          Write-Host 'TARGET_WINDOWS_PHYSICAL_L3_STILL_REQUIRED=True'
