@@ -6,6 +6,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Get-Sha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
 function Test-CaseEqual {
     param([Parameter(Mandatory = $true)]$Left, [Parameter(Mandatory = $true)]$Right)
     if ([string]$Left.id -cne [string]$Right.id) { return $false }
@@ -41,6 +46,7 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
 }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding utf8 | ConvertFrom-Json
 $resultPath = Join-Path $QualificationRoot 'finish-gate-result.json'
+$recheckPath = Join-Path $QualificationRoot 'finish-provenance-revalidation.json'
 
 $result = [ordered]@{
     schema_version = 1
@@ -50,6 +56,12 @@ $result = [ordered]@{
     source_provenance_pass = $false
     installed_runtime_provenance_pass = $false
     runtime_attestation_pass = $false
+    frozen_finish_gate_code_pass = $false
+    source_provenance_revalidated = $false
+    installed_runtime_provenance_revalidated = $false
+    runtime_attestation_revalidated = $false
+    provenance_revalidation_pass = $false
+    provenance_recheck_result_path = $recheckPath
     evidence_outside_chat_workspace = $false
     target_final_state_pass = $false
     decoys_unchanged = $false
@@ -69,6 +81,7 @@ $fixtureProcess = $null
 try {
     $workspaceRoot = [string]$manifest.workspace_root
     $fixtureRoot = [string]$manifest.fixture_root
+    $frozenGateRoot = [string]$manifest.frozen_gate_root
     $seedPath = [string]$manifest.seed_path
     $statePath = [string]$manifest.state_path
     $auditPath = [string]$manifest.audit_path
@@ -78,10 +91,11 @@ try {
 
     $result.evidence_outside_chat_workspace = [bool](
         (Test-IsOutsideWorkspace -Workspace $workspaceRoot -EvidenceRoot $fixtureRoot) -and
+        (Test-IsOutsideWorkspace -Workspace $workspaceRoot -EvidenceRoot $frozenGateRoot) -and
         (Test-IsOutsideWorkspace -Workspace $workspaceRoot -EvidenceRoot (Split-Path -Parent $sourceProvenancePath))
     )
     if (-not $result.evidence_outside_chat_workspace) {
-        throw 'Independent fixture/provenance evidence must not live inside the Chat workspace.'
+        throw 'Independent fixture/provenance/Finish Gate evidence must not live inside the Chat workspace.'
     }
 
     $sourceProvenance = Get-Content -LiteralPath $sourceProvenancePath -Raw -Encoding utf8 | ConvertFrom-Json
@@ -107,6 +121,17 @@ try {
         [string]$runtime.status -eq 'pass' -and
         [bool]$runtime.version_match -and
         [string]$runtime.win_agent_server_sha256 -match '^[0-9a-f]{64}$'
+    )
+
+    $checkerRecord = $sourceProvenance.critical_assets.PSObject.Properties['scripts/check-windows-case-l3.ps1'].Value
+    $recheckRecord = $sourceProvenance.critical_assets.PSObject.Properties['scripts/stage26-windows-l3-provenance-recheck.py'].Value
+    $currentCheckerPath = (Resolve-Path -LiteralPath $MyInvocation.MyCommand.Path).Path
+    $frozenCheckerPath = (Resolve-Path -LiteralPath ([string]$manifest.frozen_checker_path)).Path
+    $frozenRecheckPath = (Resolve-Path -LiteralPath ([string]$manifest.frozen_provenance_recheck_path)).Path
+    $result.frozen_finish_gate_code_pass = [bool](
+        $currentCheckerPath.Equals($frozenCheckerPath, [System.StringComparison]::OrdinalIgnoreCase) -and
+        (Get-Sha256 -Path $frozenCheckerPath) -ceq [string]$checkerRecord.sha256 -and
+        (Get-Sha256 -Path $frozenRecheckPath) -ceq [string]$recheckRecord.sha256
     )
 
     $seed = Get-Content -LiteralPath $seedPath -Raw -Encoding utf8 | ConvertFrom-Json
@@ -182,10 +207,41 @@ try {
         $result.fixture_process_was_live = $false
     }
 
+    if ($result.frozen_finish_gate_code_pass) {
+        $windowsPythonPath = [string]$manifest.windows_python_path
+        & $windowsPythonPath $frozenRecheckPath --qualification-root $QualificationRoot --output $recheckPath | Out-Host
+        $recheckExitCode = $LASTEXITCODE
+        if (Test-Path -LiteralPath $recheckPath -PathType Leaf) {
+            $recheck = Get-Content -LiteralPath $recheckPath -Raw -Encoding utf8 | ConvertFrom-Json
+            $result.source_provenance_revalidated = [bool](
+                [string]$recheck.status -eq 'pass' -and
+                [string]$recheck.expected_head -eq [string]$manifest.exact_head -and
+                [string]$recheck.current_head -eq [string]$manifest.exact_head -and
+                [bool]$recheck.source_head_pass -and
+                [bool]$recheck.source_clean_pass -and
+                [bool]$recheck.source_hashes_pass
+            )
+            $result.installed_runtime_provenance_revalidated = [bool]$recheck.installed_hashes_pass
+            $result.runtime_attestation_revalidated = [bool](
+                [bool]$recheck.runtime_version_pass -and
+                [bool]$recheck.runtime_server_hash_pass -and
+                [bool]$recheck.runtime_lock_hash_pass
+            )
+            $result.provenance_revalidation_pass = [bool](
+                $recheckExitCode -eq 0 -and
+                $result.source_provenance_revalidated -and
+                $result.installed_runtime_provenance_revalidated -and
+                $result.runtime_attestation_revalidated
+            )
+        }
+    }
+
     $done = [bool](
         $result.source_provenance_pass -and
         $result.installed_runtime_provenance_pass -and
         $result.runtime_attestation_pass -and
+        $result.frozen_finish_gate_code_pass -and
+        $result.provenance_revalidation_pass -and
         $result.evidence_outside_chat_workspace -and
         $result.target_final_state_pass -and
         $result.decoys_unchanged -and
@@ -256,12 +312,18 @@ $accepted = [bool](
 
 Write-Host '===== STAGE 26.3B WINDOWS APPLICATION L3 FINISH GATE ====='
 Write-Host "RESULT_PATH=$resultPath"
+Write-Host "PROVENANCE_RECHECK_RESULT_PATH=$recheckPath"
 Write-Host "EXACT_HEAD=$($result.exact_head)"
 Write-Host "RUN_ID=$($result.run_id)"
 Write-Host "TARGET_CASE=$($result.target_case)"
 Write-Host "SOURCE_PROVENANCE_GATE=$(if ($result.source_provenance_pass) { 'PASS' } else { 'FAIL' })"
 Write-Host "INSTALLED_RUNTIME_PROVENANCE=$(if ($result.installed_runtime_provenance_pass) { 'PASS' } else { 'FAIL' })"
 Write-Host "WINDOWS_RUNTIME_ATTESTATION=$(if ($result.runtime_attestation_pass) { 'PASS' } else { 'FAIL' })"
+Write-Host "FROZEN_FINISH_GATE_CODE=$(if ($result.frozen_finish_gate_code_pass) { 'PASS' } else { 'FAIL' })"
+Write-Host "SOURCE_PROVENANCE_REVALIDATED=$(if ($result.source_provenance_revalidated) { 'PASS' } else { 'FAIL' })"
+Write-Host "INSTALLED_RUNTIME_REVALIDATED=$(if ($result.installed_runtime_provenance_revalidated) { 'PASS' } else { 'FAIL' })"
+Write-Host "WINDOWS_RUNTIME_REVALIDATED=$(if ($result.runtime_attestation_revalidated) { 'PASS' } else { 'FAIL' })"
+Write-Host "PROVENANCE_REVALIDATION=$(if ($result.provenance_revalidation_pass) { 'PASS' } else { 'FAIL' })"
 Write-Host "EVIDENCE_OUTSIDE_CHAT_WORKSPACE=$($result.evidence_outside_chat_workspace)"
 Write-Host "TARGET_FINAL_STATE=$($result.target_final_state_pass)"
 Write-Host "DECOYS_UNCHANGED=$($result.decoys_unchanged)"
