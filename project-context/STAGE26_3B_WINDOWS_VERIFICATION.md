@@ -26,6 +26,7 @@ bounded UIA controls
 optional screenshot digest
 frame digest
 freshness evidence
+observed_at
 ```
 
 The live observer remains the authority for collecting Win32/UIA evidence. The new Control Plane adapter is data-only and cannot enumerate windows, invoke UIA, deliver input, launch a process, or authorize an action.
@@ -35,11 +36,12 @@ The live observer remains the authority for collecting Win32/UIA evidence. The n
 ```text
 accepted DesktopState BEFORE
  -> WindowsDesktopObservationStream
- -> ObservationRef(sequence N)
+ -> ObservationRef(sequence N, observed_at T1)
  -> caller-declared bounded final-state expectation
  -> automatic stable process/native-window continuity predicates
  -> accepted DesktopState AFTER
- -> ObservationRef(sequence N+1)
+ -> ObservationRef(sequence N+1, observed_at T2)
+ -> require T2 > T1
  -> shared verify_expected_effect
  -> PASS | FAIL | UNKNOWN
 ```
@@ -85,6 +87,29 @@ The same applies to control observation fingerprints and `frame_digest`: the ada
 
 Current evidence cannot distinguish a destroy/recreate event that somehow reuses the same PID/process-generation/HWND and recreates an indistinguishable title/state. PR #114 does not claim such a stronger window-generation proof. A future capability that needs that distinction must collect a stronger native generation signal rather than overloading `window_instance`.
 
+## Observation-time freshness
+
+A monotonically assigned adapter sequence is necessary but not sufficient evidence that the supplied Windows state was freshly observed. Without an additional time check, a caller could feed two historical `DesktopState` payloads to a new stream in order and receive sequence `N -> N+1` even though no new observation had occurred.
+
+PR #114 therefore also requires:
+
+```text
+BEFORE.observed_at = valid timezone-aware ISO-8601 T1
+AFTER.observed_at  = valid timezone-aware ISO-8601 T2
+T2 > T1
+```
+
+If `T2 <= T1`, the Windows verifier returns:
+
+```text
+status = UNKNOWN
+reason = stale_observation_time
+```
+
+before an otherwise matching final-state postcondition can PASS. Malformed or timezone-naive observation timestamps are rejected as invalid evidence.
+
+This is an adapter-level additional freshness guard. The common Verification Kernel still enforces same capability/subject/stream and strictly advancing `ObservationRef.sequence`; the Windows adapter adds the capability-native time condition because it receives externally constructed `DesktopState` evidence.
+
 ## Bounded caller postconditions
 
 PR #114 intentionally starts small. The caller may verify only reviewed final-state evidence:
@@ -113,9 +138,10 @@ The shared adapter additionally:
 - recomputes `window_instance` from process/HWND/title evidence;
 - recomputes `frame_digest` from normalized DesktopState content;
 - validates redundant `freshness_evidence` against top-level evidence;
-- detects duplicate control observation fingerprints.
+- detects duplicate control observation fingerprints;
+- requires strictly advancing timezone-aware `observed_at` for transition verification.
 
-Digest/freshness contradictions are rejected as invalid evidence. Duplicate control fingerprints make the snapshot ambiguous; the common Verification Kernel returns `UNKNOWN`, not PASS, when unambiguous evidence is required.
+Digest/freshness contradictions are rejected as invalid evidence. Duplicate control fingerprints make the snapshot ambiguous; the common Verification Kernel returns `UNKNOWN`, not PASS, when unambiguous evidence is required. A non-advancing observation time also returns `UNKNOWN`, not PASS.
 
 ## Relationship to the legacy Windows verifier
 
@@ -183,16 +209,18 @@ working tree / tracked diff / untracked checks all clean
 installed OpenAdapt version matches the source-bound project lock
 actual OpenAdapt win_agent source SHA-256 is recorded
 two fresh live observations keep exact stable Windows identity
+AFTER.observed_at is strictly later than BEFORE.observed_at
 same-identity declared final state -> shared-kernel PASS
 wrong declared final state -> FAIL
 canonical synthetic process-generation drift -> FAIL
 canonical synthetic HWND drift -> FAIL
-stale observation -> UNKNOWN
+stale same-snapshot observation -> UNKNOWN
+non-advancing observation time -> UNKNOWN / stale_observation_time
 no desktop fallback/binding ambiguity
 fixture cleanup succeeds
 ```
 
-Synthetic negative probes are verifier tests, not claims that the OS physically changed identity during the run. They are rebuilt through the production `build_desktop_state` path so their snapshot-local digests remain internally valid. Positive identity evidence comes from two fresh observations of the actual target-Windows fixture.
+Synthetic negative probes are verifier tests, not claims that the OS physically changed identity during the run. They are rebuilt through the production `build_desktop_state` path so their snapshot-local digests remain internally valid. Positive identity and time-freshness evidence comes from two fresh observations of the actual target-Windows fixture.
 
 Harness:
 
