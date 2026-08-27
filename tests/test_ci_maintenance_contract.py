@@ -23,15 +23,17 @@ class CiMaintenanceContractTests(unittest.TestCase):
         self.assertIn("durable boundaries and invariants", text)
         self.assertIn("exact accepted heads", text)
 
-    def test_evidence_index_keeps_unaccepted_tracks_out_of_accepted_table(self) -> None:
+    def test_evidence_index_keeps_future_tracks_out_of_accepted_table(self) -> None:
         text = EVIDENCE.read_text(encoding="utf-8")
         accepted, not_accepted = text.split("## Not yet accepted", maxsplit=1)
         self.assertIn("Transport Supervisor console-free Scheduled Task launch", accepted)
         self.assertIn("Transport Supervisor persistent desired-state / runtime-owner split", accepted)
         self.assertIn("Stage 26.3A normal six-tool ordinary-Chat verified procedure runtime", accepted)
-        self.assertNotIn("Transport Supervisor v1 (#94)", not_accepted)
-        self.assertNotIn("Stage 26.3B advanced verifier/postcondition library", accepted)
-        self.assertIn("Stage 26.3B advanced verifier/postcondition library", not_accepted)
+        self.assertIn("Stage 26.3B Browser stronger source-provenance repeat", accepted)
+        self.assertIn("Stage 26.3C WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport", not_accepted)
+        self.assertIn("Track M Agent Session / Delegation runtime", not_accepted)
+        self.assertIn("release-grade distribution/maintenance", not_accepted)
+        self.assertNotIn("Stage 26.3B advanced verifier/postcondition library", not_accepted)
 
 
 if __name__ == "__main__":
