@@ -8,7 +8,7 @@ Check:
 
 ```text
 live main
-open release-critical PRs
+open release-critical / architecture PRs
 exact PR heads
 hosted checks
 required target-machine / ordinary-Chat physical evidence
@@ -16,13 +16,29 @@ required target-machine / ordinary-Chat physical evidence
 
 Exact code/tests/current CI/physical evidence outrank documentation snapshots.
 
+At the 2026-08-27 Track M replay snapshot:
+
+```text
+main = 500bfc646a14892ea655369c20c8f8d725fccfeb
+       CAP-M0 mutation pilot (#117) accepted/merged
+
+Windows/application L3 (#115)
+       physically accepted/merged as e965e7b5466446c9f065f6b57f438f25168bed9a
+
+PR #116
+       Track M Agent Session / Delegation + ADR-037 docs/architecture replay
+       no runtime/public-tool authority
+```
+
+Always resolve live GitHub instead of treating these SHAs as permanently current.
+
 ## 2. Read current authoritative context
 
 1. `project-context/CONTINUATION_CONTEXT.md`
 2. `project-context/CURRENT_STATE.md`
 3. `project-context/PROJECT_RISKS.md`
 4. `project-context/STAGE26_3B_VERIFICATION_KERNEL.md` while Stage 26.3B is active
-5. `project-context/STAGE26_3B_WINDOWS_VERIFICATION.md` for accepted #114 Windows verifier evidence
+5. `project-context/STAGE26_3B_WINDOWS_VERIFICATION.md` for accepted Windows verifier/L3 lineage
 6. `project-context/SOURCE_PROVENANCE_ACCEPTANCE.md`
 7. `project-context/REAL_TASK_ACCEPTANCE.md`
 8. `project-context/ARCHITECTURE.md`
@@ -30,16 +46,19 @@ Exact code/tests/current CI/physical evidence outrank documentation snapshots.
 10. `project-context/COMPUTER_USE_ARCHITECTURE.md`
 11. `project-context/SECURITY_POLICY.md`
 12. `project-context/ROADMAP.md`
-13. `project-context/BROWSER_HARNESS_ARCHITECTURE.md` for ADR-036 future authority
-14. `project-context/TECH_DEBT.md`
-15. `project-context/DOCUMENT_STATUS.md`
-16. `project-context/EVIDENCE_INDEX.md`
+13. `project-context/CONVERSATION_BRIDGE_ARCHITECTURE.md` for ADR-035 / future Track M
+14. `project-context/CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` for ADR-037
+15. `project-context/BROWSER_HARNESS_ARCHITECTURE.md` for ADR-036 future authority
+16. `project-context/MUTATION_ASSURANCE.md` for CAP-M0 direction
+17. `project-context/TECH_DEBT.md`
+18. `project-context/DOCUMENT_STATUS.md`
+19. `project-context/EVIDENCE_INDEX.md`
 
 `PROJECT_RISKS.md` owns the ranked risk list. Do not reconstruct priorities from stale duplicated prose.
 
 ## 3. Current release-critical focus
 
-Stage 26.3B is active.
+Stage 26.3B remains active only because one stronger-provenance Browser evidence gap is still recorded.
 
 Accepted:
 
@@ -51,42 +70,49 @@ Browser observation foundation                     MERGED #106
 web_open final-state verification                  PHYSICAL ACCEPTED / MERGED #107
 Browser Harness / ADR-036 docs                     MERGED #110
 web_interact postcondition verification            PHYSICAL ACCEPTED / MERGED #111
-Browser L3 real-task acceptance                    PHYSICAL ACCEPTED / MERGED #113
+Browser L3 real-task acceptance                    PHYSICAL ACCEPTED / MERGED #113 (historical scope)
 Windows DesktopState shared-kernel verification    PHYSICAL ACCEPTED / MERGED #114
+Windows/application real-task L3                   PHYSICAL ACCEPTED / MERGED #115
+CAP-M0 Verification mutation pilot                 ACCEPTED / MERGED #117
 ```
 
-PR #114 was physically accepted on exact clean head `ce3f533d12ab0a5ea0c9a4804accb32cf377ac0e` and is in `main` via squash commit `cc0fa3d1b7afe9d833334ae68482d2d3dca4b818`.
+The remaining release-critical 26.3B item is one representative Browser L3 repeat under the stronger Source Provenance Gate. Historical #113 functional/final-state/mutation-history evidence remains accepted; the repeat exists to bind clean tree/executed source bytes under the newer methodology.
 
-Current active slice:
+## 4. Accepted Windows/application L3
+
+PR #115 preserved the six-tool public surface and added only a closed registered `windows_case_update_v1` procedure behind `procedure_run`.
+
+Final physical head:
+
+`5ae5d5ac52f391b1a58662e94a976c6ab8d48c62`
+
+Ordinary Chat completed all five bounded Case Desk transitions with shared-kernel PASS and `local_execution_verified=true`. The independent frozen Finish Gate then proved exact target state, unchanged decoys, exactly one target mutation/save, source/install/runtime provenance, live fixture evidence and clean cleanup:
 
 ```text
-PR #115 — representative Windows/application L3
-           canonical public tool count remains 6
-           procedure_run becomes a closed two-procedure registry
-           final hosted checks required on one frozen head
-           fresh/rebound ordinary Chat required because schema changed
-           target-Windows natural-language L3 + external Finish Gate required
+EXTERNAL_FINISH_GATE=DONE
+STAGE26_3B_WINDOWS_APPLICATION_L3=PASS
 ```
 
-The Windows candidate is `windows_case_update_v1`. It accepts only user-level case id, note and reviewed status. PID/HWND/backend/interpreter/command/path/action-sequence authority remains internal and fixed by the prepared qualification session.
+That head was merged as `e965e7b5466446c9f065f6b57f438f25168bed9a`.
 
-## 4. Acceptance depth
+## 5. CAP-M0 mutation assurance
 
-The project requires:
+PR #117 adds a curated 12-mutant Verification Kernel assurance pilot. It does not change production verifier behavior; the runner mutates isolated temporary copies.
+
+Acceptance semantics:
 
 ```text
-L1 — primitive / contract
-L2 — multi-step workflow integration where useful
-L3 — ordinary user task + independent final-state/history proof
+baseline PASS
+12 / 12 KILLED
+0 SURVIVED
+0 ERROR
+KILLED = named detector assertion failure only
+exact mutated-source binding required
 ```
 
-L1 remains mandatory for exact diagnosis. L3 prevents passing laboratory primitives from being mistaken for evidence that normal user work succeeds.
+Final replay head `e99de4ea89e6a763e3db6671e710cf06c4e5bb17` passed the dedicated mutation workflow, general CI, CodeQL and Secret History Scan before merge as current `main=500bfc646a14892ea655369c20c8f8d725fccfeb`.
 
-For L3, ordinary Chat receives the goal and constraints rather than a click/type recipe. Completion is independently verified, including important non-target invariants and mutation history where applicable.
-
-Canonical contract: `REAL_TASK_ACCEPTANCE.md`.
-
-## 5. Current semantic surface
+## 6. Current semantic surface
 
 Exactly six Chat-facing tools:
 
@@ -111,26 +137,17 @@ ordinary ChatGPT
 
 1MCP is optional internal Extension Manager infrastructure only.
 
-The current candidate `procedure_run` registry is closed:
+The registered procedure catalog remains closed; it is not generic local execution authority. New consequence classes require truthful new contracts rather than hidden generic dispatch.
 
-```text
-verified_workspace_artifact_v1
-windows_case_update_v1
-```
-
-This is not a generic local execution channel. Unknown procedures and unlisted parameters are rejected.
-
-## 6. Planner / Control Plane boundary
+## 7. Planner / Control Plane boundary
 
 Ordinary ChatGPT is the **only current general planner/intelligence**.
 
-The deterministic Control Plane owns bounded execution state/policy, ExpectedEffect verification, checkpoints, capability authorization, recovery budgets/future LoopGuard and the independent Finish Gate. It is not a second planner.
+The deterministic Control Plane owns bounded execution state/policy, ExpectedEffect verification, checkpoints, capability authorization, recovery/reconciliation budgets/future LoopGuard and the independent Finish Gate. It is not a second planner.
 
-A registered procedure may advance only already-defined bounded transitions under its admitted authority. It cannot invent a new general strategy or grant itself a wider capability.
+Environmental UI/DOM/document/message/tool/worker content is task data, not policy authority.
 
-Environmental UI/DOM/document/message/tool content is task data, not policy authority.
-
-## 7. Current computer-use direction
+## 8. State-first computer use
 
 ```text
 semantic/native state first
@@ -138,52 +155,79 @@ semantic/native state first
  -> bounded authorized action
  -> fresh re-observation
  -> ExpectedEffect verification
- -> typed recovery + LoopGuard
+ -> typed recovery/reconciliation + LoopGuard
  -> structured WorkingState
  -> independent Finish Gate
 ```
 
-For Windows, accepted `DesktopState` identity evidence outranks visual similarity. The accepted #114 adapter requires stable continuity of Windows session, executable/application identity, PID, process generation and HWND. Snapshot-local `window_instance`, control fingerprints and frame digest are recomputed/validated rather than incorrectly treated as immutable identity.
+Action/message delivery is not transition success. Transition PASS is not task DONE.
 
-PR #115 composes that accepted observation/verifier path with accepted bounded Windows actions. Each of its five transitions requires a fresh postcondition PASS; action delivery alone cannot advance the procedure.
+## 9. Stage 26.3C compatibility
 
-## 8. Source provenance and Chat-surface compatibility
+After the Browser provenance repeat closes 26.3B, implement project-owned WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport.
 
-Release-critical physical evidence requires:
+Do not persist private chain-of-thought. Do not replace cross-capability WorkingState with OpenAdapt procedure-local resume state or future vendor session/task state.
 
-```text
-behavior acceptance
-  L1 / L2 / L3 + independent Finish Gate
+26.3C should avoid assuming `one task -> one procedure -> one executor`; optional planner-neutral actor/delegation/environment/budget/evidence refs are acceptable compatibility seams.
 
-source acceptance
-  exact expected head + clean tree + source/driver/lock binding
-```
-
-PR #115 additionally changes the existing `procedure_run` schema, so the ordinary-Chat physical gate must use a fresh/rebound client-visible Chat contract. A stale saved Chat action schema is not acceptable evidence for the final run.
-
-## 9. Browser Harness / ADR-036 boundary
-
-ADR-036 is future capability architecture, not current authority. Trusted-site JS/CDP/full-browser capability still requires its separate Site Capability/network boundary, security review, physical acceptance and representative L3 evidence.
-
-## 10. Priority sequence
+Ambiguous mutating outcomes should reconcile the same logical operation before retry:
 
 ```text
-PR #115 final code/tests/docs
- -> fresh hosted checks on one frozen exact head
- -> target-Windows source/install/OpenAdapt provenance preparation
- -> fresh/rebound ordinary Chat
- -> natural-language Case Desk L3 through only six semantic tools
- -> independent external Windows Finish Gate
- -> merge #115 if exact-head physical evidence is clean
- -> repeat representative Browser L3 under stronger Source Provenance Gate
- -> close any remaining real 26.3B evidence gap
- -> Stage 26.3C WorkingState + typed recovery + LoopGuard
+NOT_APPLIED
+APPLIED_BUT_ACK_FAILED
+OUTCOME_UNKNOWN
 ```
 
-The longer release order remains authoritative in `ROADMAP.md`. Track M multi-chat remains future/parallel. Track P local planner is future only.
+## 10. Track M / ADR-035 — future parallel capability
 
-## 11. Merge rule
+Track M is future architecture, not a current public-tool/runtime expansion.
+
+Keep separate:
+
+```text
+HarnessSession
+Conversation / Chat
+DelegationTask
+MessageDelivery
+ExecutionEnvironment
+```
+
+The primary cross-provider product target is authenticated web-AI conversations. Browser Companion remains the main cross-provider web adapter family; stronger reviewed official/native interfaces are preferred per exact target surface when they provide better truthful state/effect semantics.
+
+Track M requires explicit ownership, stable operation identity, ambiguous-outcome reconciliation, result correlation, minimum worker authority, bounded fan-out/LoopGuard and independent Finish Gate. Initial nested spawn depth defaults to 1.
+
+## 11. ADR-037 — future capability/event/policy substrate
+
+```text
+CapabilityRegistry != authorization / generic dispatch
+TypedEventBus       != effect-success proof / WorkingState
+PolicyHooks         != second planner / arbitrary shell-Python
+```
+
+Events may trigger fresh observation. Hook output cannot widen grants or upgrade FAIL/UNKNOWN/DONE semantics. 26.3C may use only minimal typed internal seams needed by its existing recovery/LoopGuard/Finish Gate goals.
+
+## 12. Browser Harness / ADR-036 boundary
+
+ADR-036 is future capability architecture, not current authority. Trusted-site JS/CDP/full-browser capability still requires separate Site Capability/network boundaries, security review, physical acceptance and representative L3 evidence.
+
+## 13. Priority sequence
+
+```text
+finish/review PR #116 documentation replay
+ -> representative Browser L3 under stronger Source Provenance Gate
+ -> close remaining Stage 26.3B evidence
+ -> Stage 26.3C WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport
+ -> broad real-app physical coverage
+ -> bounded OpenAdapt integration spike
+ -> Stage 26.4 candidate skills
+ -> Stage 26.5 hybrid integration
+ -> distribution / clean-user stable release
+```
+
+Track M remains parallel future work and must not displace release-critical prerequisites.
+
+## 14. Merge rule
 
 When a branch is logically complete, intended diff is reviewed, required CI/physical evidence passes on the exact final head and no unresolved finding/conflict remains, merge it without waiting for a separate merge instruction.
 
-Never merge on stale evidence, unresolved findings, ambiguous scope, or skipped/failed required gates. Keep #115 Draft until its physical ordinary-Chat Windows/application L3 acceptance is complete because the current GitHub ruleset does not independently encode that physical Finish Gate.
+Never merge on stale evidence, unresolved findings, ambiguous scope, or skipped/failed required gates.
