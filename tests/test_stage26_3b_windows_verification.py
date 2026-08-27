@@ -189,6 +189,44 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
         self.assertEqual(result.status, VerificationStatus.UNKNOWN)
         self.assertEqual(result.reason, "stale_observation")
 
+    def test_non_advancing_observation_time_is_unknown(self):
+        result = verify_windows_desktop_transition(
+            before_raw=self.raw(observed_at="2026-08-26T12:00:00+00:00"),
+            after_raw=self.raw(
+                window_title="Fixture - Saved",
+                observed_at="2026-08-26T12:00:00+00:00",
+            ),
+            expected={"window": {"title": "Fixture - Saved"}},
+        )
+        self.assertEqual(result["status"], "unknown")
+        self.assertEqual(result["verification"]["reason"], "stale_observation_time")
+
+    def test_older_observation_time_is_unknown_even_when_postcondition_matches(self):
+        result = verify_windows_desktop_transition(
+            before_raw=self.raw(observed_at="2026-08-26T12:00:01+00:00"),
+            after_raw=self.raw(
+                window_title="Fixture - Saved",
+                observed_at="2026-08-26T12:00:00+00:00",
+            ),
+            expected={"window": {"title": "Fixture - Saved"}},
+        )
+        self.assertEqual(result["status"], "unknown")
+        self.assertEqual(result["verification"]["reason"], "stale_observation_time")
+
+    def test_observation_time_must_be_timezone_aware_iso8601(self):
+        with self.assertRaises(ValueError):
+            verify_windows_desktop_transition(
+                before_raw=self.raw(observed_at="2026-08-26T12:00:00"),
+                after_raw=self.raw(observed_at="2026-08-26T12:00:01+00:00"),
+                expected={"window": {"title": "Fixture - Before"}},
+            )
+        with self.assertRaises(ValueError):
+            verify_windows_desktop_transition(
+                before_raw=self.raw(observed_at="not-a-time"),
+                after_raw=self.raw(observed_at="2026-08-26T12:00:01+00:00"),
+                expected={"window": {"title": "Fixture - Before"}},
+            )
+
     def test_freshness_contradiction_is_rejected(self):
         raw = self.raw()
         raw["freshness_evidence"] = {
@@ -264,6 +302,8 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
         self.assertIn("Project Verification Kernel semantics remain authoritative", contract)
         self.assertIn("window_instance", contract)
         self.assertIn("not a continuity predicate", contract)
+        self.assertIn("strictly later", contract)
+        self.assertIn("stale_observation_time", contract)
 
 
 if __name__ == "__main__":
