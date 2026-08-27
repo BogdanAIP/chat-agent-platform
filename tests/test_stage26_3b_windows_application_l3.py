@@ -7,6 +7,7 @@ from runtime.control_plane.windows_case_update import (
     PROCEDURE_ID,
     ProcedureAbstained,
     _replace_visible_lines,
+    _settle_postcondition,
     _sha256_text,
     _state_token,
     _validate_request,
@@ -68,11 +69,61 @@ class WindowsApplicationL3Contracts(unittest.TestCase):
         with self.assertRaises(ProcedureAbstained):
             _replace_visible_lines(before, {"missing": "replacement"})
 
+    def test_postcondition_settle_uses_fresh_observations_without_repeating_action(self) -> None:
+        observations = iter(({"sequence": 1}, {"sequence": 2}, {"sequence": 3}))
+        statuses = iter(("fail", "unknown", "pass"))
+        verified_sequences: list[int] = []
+
+        def observe() -> dict[str, int]:
+            return next(observations)
+
+        def verify(after: dict[str, int]) -> dict[str, str]:
+            verified_sequences.append(after["sequence"])
+            return {"status": next(statuses)}
+
+        after, result, metadata = _settle_postcondition(
+            observe,
+            verify,
+            timeout_seconds=0.1,
+            poll_seconds=0.001,
+        )
+
+        self.assertEqual(after, {"sequence": 3})
+        self.assertEqual(result["status"], "pass")
+        self.assertEqual(verified_sequences, [1, 2, 3])
+        self.assertEqual(metadata["attempt_count"], 3)
+        self.assertEqual(metadata["statuses"], ["fail", "unknown", "pass"])
+
+    def test_postcondition_settle_never_synthesizes_pass_after_timeout(self) -> None:
+        observe_count = 0
+
+        def observe() -> dict[str, int]:
+            nonlocal observe_count
+            observe_count += 1
+            return {"sequence": observe_count}
+
+        def verify(_after: dict[str, int]) -> dict[str, str]:
+            return {"status": "fail"}
+
+        after, result, metadata = _settle_postcondition(
+            observe,
+            verify,
+            timeout_seconds=0.0,
+            poll_seconds=0.001,
+        )
+
+        self.assertEqual(after, {"sequence": 1})
+        self.assertEqual(result["status"], "fail")
+        self.assertEqual(observe_count, 1)
+        self.assertEqual(metadata["attempt_count"], 1)
+        self.assertEqual(metadata["statuses"], ["fail"])
+
     def test_procedure_uses_registered_windows_mechanics_and_cannot_claim_external_done(self) -> None:
         source = PROCEDURE.read_text(encoding="utf-8")
         self.assertIn('PROCEDURE_ID = "windows_case_update_v1"', source)
         self.assertIn('QUALIFICATION_ADMISSION = "stage26-3b-windows-l3"', source)
         self.assertIn('MAX_ACTIONS = 5', source)
+        self.assertIn('POSTCONDITION_SETTLE_SECONDS = 2.0', source)
         self.assertIn('allow_legacy_exec=False', source)
         self.assertIn('WindowScopedUiaResolver()', source)
         self.assertIn('resolver.set_expected_process_id', source)
@@ -83,11 +134,28 @@ class WindowsApplicationL3Contracts(unittest.TestCase):
         self.assertIn('"external_l3_finish_gate_required"', source)
         self.assertIn('external_finish_gate_required=True', source)
         self.assertIn('"bounded_execution_completed"', source)
+        self.assertIn('"postcondition_observation"', source)
+        self.assertEqual(source.count("_settle_postcondition("), 6)
         self.assertNotIn('fixture-state', source)
         self.assertNotIn('audit.jsonl', source)
         self.assertNotIn('state.json', source)
         self.assertNotIn('subprocess.', source)
         self.assertNotIn('shell=True', source)
+
+        coordinate_section = source[
+            source.index("def guarded_coordinate") : source.index("def guarded_type")
+        ]
+        type_section = source[
+            source.index("def guarded_type") : source.index("initial = observe()")
+        ]
+        self.assertLess(
+            coordinate_section.index("for _ in range(12)"),
+            coordinate_section.index("resolve_unique(role, name)"),
+        )
+        self.assertLess(
+            type_section.index("for _ in range(12)"),
+            type_section.index("resolve_unique(role, name)"),
+        )
 
         run_index = source.index("def run_windows_case_update")
         openadapt_index = source.index("from openadapt_flow", run_index)
