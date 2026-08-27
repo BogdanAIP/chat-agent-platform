@@ -15,16 +15,16 @@ The primary project metric is **Verification Guarantee Coverage**, not raw mutat
 
 ## Sequence
 
-Do not modify or delay the exact-head physical acceptance of PR #115 for this work.
+PR #115 completed its target-Windows ordinary-Chat physical L3 acceptance and was merged into `main` as `e965e7b5466446c9f065f6b57f438f25168bed9a`.
 
-Planned order:
+Current order:
 
-1. finish target-Windows physical L3 acceptance for PR #115 and merge it;
-2. land the CAP-M0 Verification Kernel pilot;
-3. implement Stage 26.3C WorkingState / typed recovery / LoopGuard with mutation contracts designed alongside the new guarantees;
+1. land the CAP-M0 Verification Kernel pilot from a clean replay on post-#115 `main`;
+2. complete the remaining Stage 26.3B evidence, including the representative Browser L3 provenance repeat;
+3. implement Stage 26.3C WorkingState / typed recovery / reconciliation / LoopGuard with mutation contracts designed alongside the new guarantees;
 4. expand mutation assurance outward only after the Kernel pilot demonstrates useful signal.
 
-The CAP-M0 branch may be developed as a stacked draft on top of #115, but #115 remains independently frozen for physical acceptance.
+CAP-M0 remains independent from Browser/Windows physical consequence paths: it mutates isolated temporary verifier copies during tests and does not modify accepted production verifier behavior.
 
 ## CAP-M0 — Verification Kernel pilot
 
