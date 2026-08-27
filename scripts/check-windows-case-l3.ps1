@@ -192,7 +192,8 @@ try {
         $result.only_target_ever_mutated -and
         $result.audit_target_save_exactly_once -and
         $result.audit_before_matches_seed -and
-        $result.audit_after_matches_final
+        $result.audit_after_matches_final -and
+        $result.fixture_process_was_live
     )
     $result.finish_gate = if ($done) { 'done' } else { 'not_done' }
 }
@@ -268,6 +269,7 @@ Write-Host "ONLY_TARGET_EVER_MUTATED=$($result.only_target_ever_mutated)"
 Write-Host "AUDIT_TARGET_SAVE_EXACTLY_ONCE=$($result.audit_target_save_exactly_once)"
 Write-Host "AUDIT_BEFORE_MATCHES_SEED=$($result.audit_before_matches_seed)"
 Write-Host "AUDIT_AFTER_MATCHES_FINAL=$($result.audit_after_matches_final)"
+Write-Host "FIXTURE_PROCESS_WAS_LIVE=$($result.fixture_process_was_live)"
 Write-Host "EXTERNAL_FINISH_GATE=$($result.finish_gate.ToUpperInvariant())"
 Write-Host "FIXTURE_KILLED=$($result.fixture_killed)"
 Write-Host "FIXTURE_CLEANUP_PASS=$($result.fixture_cleanup_pass)"
