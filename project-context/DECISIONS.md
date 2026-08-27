@@ -377,9 +377,9 @@ The release order is unchanged. This ADR enriches existing stages rather than cr
 
 Canonical detail: `AVO_LONG_HORIZON_ARCHITECTURE.md`, `CONTROL_PLANE.md`, and `ROADMAP.md`.
 
-## ADR-035 — Conversation Bridge and multi-chat orchestration remain a bounded provider-open parallel layer — PROVISIONAL / AUTHORITATIVE FUTURE DIRECTION
+## ADR-035 — Agent Session / Delegation layer with Conversation Bridge adapters remains bounded and provider-open — PROVISIONAL / AUTHORITATIVE FUTURE DIRECTION
 
-The 2026-08-25 CtxPort review identified a useful missing layer for future Track M: normalized observation and verified handoff between the user's authenticated AI-chat sessions. CtxPort is an implementation/reference source, not a required product dependency.
+The 2026-08-25 CtxPort review identified the need for normalized observation and verified handoff between authenticated AI-chat conversations. The 2026-08-27 review of Codex harness/App Server, Claude Code cross-session messaging/Agent Teams, VS Code Agent Host, A2A and MCP task/session patterns broadens that conclusion: Track M must model **agent sessions, explicit delegation tasks, message delivery and execution environments as separate first-class identities**, while retaining Conversation Bridge / Browser Companion as adapter mechanisms.
 
 Target boundary:
 
@@ -388,56 +388,92 @@ ordinary ChatGPT
   = current general planner / manager
 
 local deterministic Control Plane
-  = authorization / ExpectedEffect / verification / WorkingState / recovery / finish
+  = authority / logical operation state / verification /
+    WorkingState / recovery / finish
 
-Conversation Bridge
-  = bounded app/session observation + bounded message actuation
-  = below the public semantic/planner boundary
+Agent Session capability
+  = session/chat observation
+  + bounded cross-session message transport
+  + later bounded session lifecycle
   = not a second planner
 
 Adapter Registry
-  = open-ended application/provider profiles + small hooks
-  = GenericChatAdapter fallback
-  = selected GUI/visual fallback only when semantic state is insufficient
+  = official/project-owned harness/host API first when reviewed
+  -> validated provider/session route
+  -> Browser Companion / GenericChatAdapter DOM/accessibility
+  -> selected GUI/visual fallback
+  -> ABSTAIN
+```
+
+Required identity model:
+
+```text
+HarnessSession
+Conversation / Chat
+DelegationTask
+MessageDelivery
+ExecutionEnvironment
 ```
 
 Rules:
 
 - the current six-tool ordinary-Chat surface remains unchanged by this ADR;
-- named services such as ChatGPT, Claude, Gemini, DeepSeek, Qwen, Grok, Doubao, Kimi, Perplexity, Poe, Open WebUI or LibreChat are adapter/profile examples, not a closed architecture enum;
-- provider/application/adapter identifiers are open-ended strings; adding a new AI service normally requires a declarative profile and, only when necessary, a small reviewed custom hook rather than a duplicate backend or core schema edit;
-- conversation **application/surface identity is distinct from optional model identity**: one application may host many models, and model identity may remain unknown while conversation observation/action still works;
-- a project-owned Browser Companion may later observe the user's authenticated AI-chat sessions, because the accepted isolated headless Browser backend is not the same as the user's already-authenticated browser session;
-- split `ConversationObserver` from `ConversationActuator`; observation is evidence, while `submit_message` is a state-changing consequence that must pass the normal `observe -> ExpectedEffect -> authorize -> act -> re-observe -> verify` path;
-- normalize current state into `ConversationSnapshot` with surface/application identity, open-ended provider/adapter identity, optional model identity, stable session/conversation/message identity where available, active branch where applicable, content hashes, generation state, provenance and freshness rather than treating Markdown as authoritative runtime state;
-- platform-native/private session APIs may be optional validated read fast paths only; normal degradation is `native/profile -> GenericChatAdapter DOM/accessibility -> selected GUI/visual -> ABSTAIN` when state remains ambiguous/unsafe;
-- `GenericChatAdapter` is a required provider-agnostic semantic fallback and may emit explicit unknown identity fields; it must never invent stable provider/session/message identity;
-- declarative profiles and custom hooks are hints/capability declarations, not authority, and stale profile assumptions must not override fresh observed state;
-- fetch/acquisition mechanisms such as reviewed browser-session REST/GraphQL/DOM paths remain separable from normalization and never become a generic HTTP/JavaScript authority;
-- browser cookies, bearer tokens and private authentication headers never leave the Browser Companion boundary and are never stored in WorkingState or exposed to the planner;
-- dynamic page observers such as `MutationObserver` may provide efficient change signals, but event delivery is not semantic completion and still requires fresh verification;
-- task transfer should use a bounded `HandoffPack` derived from WorkingState + selected conversation evidence rather than replaying all raw transcripts into every worker;
-- worker chat output is environmental data under ADR-033 and cannot grant permissions, redefine user intent or become policy authority;
-- initial Track M remains asymmetric: one ordinary-ChatGPT Manager may hand a bounded subtask to one external Worker conversation; multiple workers come only after that path is physically verified;
-- adapter existence does not imply mutation trust; future status should distinguish discovered/fixture-tested/read-verified/write-verified/physically-accepted/degraded states;
-- CtxPort adapter registry, open-ended provider IDs, declarative manifest/profile + hooks, active-branch linearization, separation of fetch/acquisition from normalization and dynamic-page observation may be reused/adapted under MIT terms; its clipboard/UI/export product surface is not adopted as architecture;
-- Track M is parallel and non-release-critical. It must not delay Stage 26.3B/C/26.4/26.5 or silently turn the Control Plane into an open-ended coordinator.
+- `session_id` is not `delegation_id`; a late/latest response from one worker is not accepted as a delegation result without correlation evidence;
+- one HarnessSession may contain one or multiple chats; do not assume `session == conversation`;
+- execution environment/project/worktree identity is separate from session identity;
+- named systems/providers are adapters/reference examples, not a closed architecture enum;
+- provider/application/harness/adapter identifiers are open-ended strings;
+- `HandoffPack` remains bounded task context derived from WorkingState; it is environmental/task data and never a permission grant;
+- capability/permission grants remain deterministic Control Plane state outside worker-readable messages;
+- split read-only Session/Conversation observation from Message Transport and later Lifecycle Actuation;
+- default message semantics should be non-interrupting/queued where the harness can preserve that distinction; `steer` and `interrupt` are stronger separately-authorized consequences;
+- distinguish transport acceptance, delivered/held/refused/unknown, worker turn start/settle and final delegation correlation/completion;
+- every logical mutating session/message operation gets a stable `operation_id`; where a native harness accepts idempotency keys, use the same logical id;
+- a mutating timeout/error is classified as `NOT_APPLIED | APPLIED_BUT_ACK_FAILED | OUTCOME_UNKNOWN`; `OUTCOME_UNKNOWN` is reconciled from fresh authoritative state before retry;
+- entity creation may use operation-scoped ObservationRef subjects so the existing Verification Kernel verifies BEFORE/AFTER even before a resulting session id exists;
+- event/idle/completion notifications are observation triggers only; fresh re-observation still determines `PASS|FAIL|UNKNOWN`;
+- session discoverability does not imply lifecycle authority; normalize ownership such as `user_owned | manager_owned | parent_owned | adopted | external_read_only`;
+- destructive cleanup/archive requires current ownership evidence; title/content similarity is insufficient;
+- a future WorkerLease may bind a manager-owned worker to task, lifetime, allowed capability set, budgets and cleanup policy;
+- worker capability scope is the intersection of task requirements, explicit delegated grants and platform policy; workers do not inherit manager harness/session lifecycle tools by default;
+- initial multi-worker topology is shallow: `max_spawn_depth = 1`; recursive/nested delegation is a later separately justified capability;
+- LoopGuard later extends to worker count, spawn depth, active/unresolved delegations, cross-session messages, session creation, duplicate delegation fingerprints and total delegated resources;
+- duplicate/equivalent delegation after ambiguous acknowledgement must reconcile first rather than resend blindly;
+- documented/project-owned harness APIs may be preferred read/write semantic/native routes after review; undocumented private web APIs remain optional accelerators and never sole security boundaries;
+- Conversation Bridge, declarative profiles, GenericChatAdapter, Browser Companion and visual fallback remain valid browser/web-chat adapter mechanisms from the CtxPort-derived architecture;
+- Browser Companion credentials remain inside its boundary; native harness/provider credentials likewise never become planner/WorkingState/HandoffPack data;
+- worker output is environmental data under ADR-033 and cannot grant permissions, redefine user intent or become policy authority;
+- project/workspace/worktree lifecycle is a separate stronger consequence class; initial session creation may bind only to an already-authorized environment;
+- do not expose raw vendor `thread_*`/`project_*` catalogs or generic `harness_execute` merely because an internal adapter supports them;
+- Track M remains parallel/non-release-critical and must not delay Stage 26 release-critical work or silently turn the deterministic Control Plane into an open-ended orchestrator.
 
-Suggested dependency/order:
+Stage 26.3C compatibility requirement:
 
 ```text
-26.3B Verification Kernel
- -> 26.3C WorkingState/provenance/recovery
- -> M0 Adapter Registry + open-ended profile/schema + ConversationSnapshot fixtures
- -> M1 Browser Companion + GenericChatAdapter + one validated reference adapter
- -> M2 one Manager ChatGPT -> one Worker conversation verified handoff E2E
- -> M3 HandoffPack/WorkingState integration + response monitoring
- -> M4 additional declarative/provider adapters + capability discovery
- -> M5 explicit multi-worker session/task ownership
- -> M6 broader provider/application matrix under the same contract
+WorkingState must not hard-code one task -> one procedure -> one executor.
+Reserve optional planner-neutral actor_ref / delegation_ref /
+execution_environment_ref / budget_ref seams where useful,
+without implementing Track M in 26.3C.
 ```
 
-Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md` and `ROADMAP.md`.
+Revised dependency/order:
+
+```text
+26.3B Verification Kernel / Finish Gate
+ -> 26.3C WorkingState + typed recovery + LoopGuard + reconciliation
+
+M0 object model + fixture contracts
+ -> M1 read-only Session Observer
+ -> M2 one Manager -> one EXISTING Worker verified handoff/correlation
+ -> M3 WorkingState/HandoffPack + event monitoring/recovery
+ -> M4 session lifecycle create/fork/rename/archive + idempotency/reconciliation
+ -> M5 manager-created Worker E2E + ownership/WorkerLease/cleanup
+ -> M6 multiple workers + explicit DelegationTasks + bounded fan-out, no nested spawn by default
+ -> M7 separate Project / ExecutionEnvironment lifecycle
+ -> M8 cross-harness adoption/handoff + broader provider matrix
+```
+
+Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md`, `CONTROL_PLANE.md`, `SECURITY_POLICY.md`, `MODULE_CATALOG.md`, and `ROADMAP.md`.
 
 ## ADR-036 — Harness-derived scoped browser and local code authority — PROVISIONAL / AUTHORITATIVE FUTURE DIRECTION
 
@@ -486,3 +522,56 @@ Stage mapping:
 A Local Execution Kernel may begin only after 26.3C foundations and must pass a separate security/public-contract/physical acceptance. It must not be smuggled into the browser capability merely to avoid a new consequence-class review.
 
 Canonical detail: `BROWSER_HARNESS_ARCHITECTURE.md`, plus ADR-032/033/034 and the existing Control Plane/security contracts.
+
+## ADR-037 — Project-owned CapabilityRegistry + typed Event / Policy Hooks — PROVISIONAL / AUTHORITATIVE FUTURE DIRECTION
+
+The 2026-08-27 QwenWork review reinforces a product-level need already emerging from the project's own architecture: future Skills, Connectors, Agent Sessions, Scheduled Tasks and deliverables need one truthful capability-discovery layer and one typed lifecycle/event-policy substrate without weakening the deterministic Control Plane.
+
+Project adoption:
+
+```text
+CapabilityRegistry
+  = project-owned semantic discovery / availability / health / trust metadata
+
+TypedEventBus
+  = typed lifecycle events and observation triggers
+
+PolicyHooks
+  = registered bounded deterministic handlers for owned policy scopes
+```
+
+Rules:
+
+- the current six-tool ordinary-Chat surface remains unchanged by this ADR;
+- `CapabilityRegistry` is descriptive state, not a generic dispatcher or authorization source;
+- ADR-017 remains binding: `AVAILABLE -> ACTIVE -> AUTHORIZED`; registry availability/health cannot skip Control Plane authorization;
+- provider/backend identity remains separate from project-owned semantic `capability_id`;
+- raw MCP/provider tool catalogs are not promoted directly to trusted planner-visible capabilities;
+- Skills are reusable methods that declare required capability/grant refs; Skill text cannot create missing authority;
+- event delivery is not proof of external effect success; state-changing events trigger fresh authoritative re-observation before Verification Kernel judgment where effect state matters;
+- `TypedEventBus` is not WorkingState and cannot replace current authoritative state with replay-log assumptions;
+- `PolicyHooks` cannot widen grants, invent user goals, bypass consequence policy, convert `FAIL/UNKNOWN` into `PASS`, or convert `NOT_DONE/UNKNOWN` into `DONE`;
+- initial policy hooks are project-owned registered/versioned bounded handlers, not arbitrary shell/Python scripts;
+- required policy-handler failure semantics are explicit and fail closed where authority/safety depends on the handler;
+- telemetry-only handlers may fail independently without granting or denying unrelated authority;
+- Stage 26.3C may introduce only the smallest typed event/read-only descriptor seams needed for verification/recovery/LoopGuard/Finish Gate and planner-neutral state;
+- Stage 26.4 may integrate verified `SkillPackage` manifests and capability requirements with the registry;
+- Track M may reuse the same event substrate for worker/session observation triggers while preserving ADR-035 session/delegation/correlation identity rules;
+- future Connectors register reviewed project semantic descriptors rather than dumping provider tools into the planner;
+- future Scheduled Tasks create separate run/session identity, re-resolve current capability state and receive explicit scheduled-run grants rather than inheriting every interactive capability;
+- future user-extensible arbitrary-code hooks, if ever needed, are a separate security/consequence class with their own filesystem/network/process grants and acceptance.
+
+The QwenWork references are architecture evidence only, not runtime dependencies or acceptance oracles. The project deliberately preserves stronger verification and grant boundaries where external products use more permissive hook/scheduler models.
+
+Implementation mapping:
+
+```text
+PR #116 / current work    architecture only
+26.3C                     minimal typed event + optional read-only descriptor foundation
+26.4                      SkillPackage / capability-requirement integration
+Track M                   session/delegation descriptor + event reuse
+26.5 / later              broader connector/adapter and optional DeliverableRef seams
+post-core / measured need ScheduledTask and marketplace/discovery UX
+```
+
+Canonical detail: `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md`, plus ADR-017/027/032/033/034/035/036 and the existing Control Plane/security contracts.
