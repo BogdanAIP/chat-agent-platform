@@ -455,9 +455,12 @@ class WorkingStateHardeningTests(unittest.TestCase):
         later = json.loads(json.dumps(first))
         later["intent"]["strategy_id"] = "s2"
         later["intent"]["action_fingerprint"] = "alternate-save"
+        later["intent"]["observation_ref"]["sequence"] = 1
+        later["intent"]["observation_ref"]["fingerprint"] = "fresh-forged"
+        later["intent"]["observation_ref"]["observed_at"] = "t1"
         later["outcome"] = MutatingOutcome.NOT_APPLIED.value
-        later["revision_before"] = 1
-        later["revision_after"] = 2
+        later["revision_before"] = 2
+        later["revision_after"] = 3
         later["failure"] = {
             "code": "no-effect-2",
             "category": FailureCategory.ACTION_NO_EFFECT.value,
@@ -471,7 +474,10 @@ class WorkingStateHardeningTests(unittest.TestCase):
         }
         payload["attempts"].append(later)
         payload["failures"].append(later["failure"])
-        payload["revision"] = 2
+        payload["observation_ref"] = json.loads(
+            json.dumps(later["intent"]["observation_ref"])
+        )
+        payload["revision"] = 3
         for budget in payload["budgets"]:
             if budget["kind"] in (BudgetKind.TASK.value, BudgetKind.PROCEDURE.value):
                 budget["used"] = 2
