@@ -148,25 +148,41 @@ Do not weaken:
 
 ## Merge policy
 
-For runtime/security/recovery/authority changes, use this order:
+For material production/runtime/security/recovery/authority/acceptance changes, **independent semantic review is required** before merge. Material changes to the repository's own merge/review policy are also review-significant once this policy is accepted.
+
+Primary review is a fresh ordinary ChatGPT context using `.agents/skills/code-review/SKILL.md`, bound to the exact `BASE_SHA..HEAD_SHA`. It is an assurance layer, not another implementation/planning workspace.
+
+Use this order:
 
 ```text
-stage-research skill when the change starts a new stage/subsystem or materially changes a release-critical persistence/recovery/identity/concurrency/authority mechanism
+stage-research skill when required by the change class
  -> implementation
  -> focused tests
- -> required hosted CI on the exact head
- -> Codex Review / independent review when available and required by the change class
- -> fix findings
- -> repeat independent review after material fixes when appropriate
+ -> preliminary required hosted CI on the intended head
+ -> freeze BASE_SHA + HEAD_SHA
+ -> required fresh ordinary ChatGPT semantic review via code-review skill
+ -> optional @codex review when available
+ -> validate every reported finding as CONFIRMED / REJECTED / SUPERSEDED
+ -> fix confirmed findings
+ -> any material post-review change makes the prior review stale
+ -> fresh required ChatGPT review on the new exact head
+ -> optional fresh @codex review when available
  -> final exact-head CI / required physical acceptance
+ -> verify reviewed BASE_SHA + HEAD_SHA still match the PR
  -> merge
 ```
 
-Do not auto-merge while active hardening/review changes are still being made.
+The mandatory primary reviewer must run in a separate fresh ordinary-ChatGPT conversation/context and reconstruct evidence from the repository. Do not use ChatGPT Work, Workspace Agents, Codex automation or Codex Review as a substitute for this required review. A one-time ChatGPT Scheduled Task may launch the review only when it can truthfully satisfy the fresh ordinary-ChatGPT context contract in `code-review`; otherwise use a manually opened fresh ordinary-ChatGPT conversation.
 
-If Codex Review is unavailable, state that explicitly. Do not represent independent review as completed. Merge only when the repository's documented acceptance policy permits proceeding without it.
+Codex Review is an optional additional reviewer. Use it when quota is available because its independent findings remain valuable, but Codex quota exhaustion does not block merge when the required fresh ChatGPT review, finding validation and all other applicable gates pass. State Codex unavailability explicitly; never represent an unavailable Codex review as completed.
 
-Documentation-only/process PRs should not be forced through physical gates unless they alter acceptance/runtime behavior.
+A reported finding is a review result, not automatically project truth. Validate it against code/tests/evidence before fixing. Do not merge with unresolved reported findings.
+
+The review result is valid only for the exact reviewed identity. A material post-review change to runtime, security, recovery/retry, concurrency/identity, verification/acceptance semantics, acceptance tests/gates or merge/review policy invalidates the old review. A base change likewise requires a fresh exact-base review. Clearly non-material spelling/formatting-only deltas may preserve review validity only after explicit inspection; when uncertain, review again.
+
+Do not auto-merge while active hardening/review changes are still being made. Final exact-head CI and any required physical gate run after the final material review/fix cycle.
+
+Documentation-only PRs that do not materially alter process/security/acceptance/runtime semantics should not be forced through the independent semantic-review or physical gates. Process PRs that materially change merge/review semantics are review-significant, but the PR that first introduces this policy is adopted under the previously accepted merge policy; the new policy governs subsequent PRs after merge.
 
 ## PR/document discipline
 

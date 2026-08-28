@@ -1,0 +1,141 @@
+from __future__ import annotations
+
+from pathlib import Path
+import re
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+AGENTS = ROOT / "AGENTS.md"
+SKILL = ROOT / ".agents" / "skills" / "code-review" / "SKILL.md"
+
+
+class IndependentCodeReviewContractTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.skill = SKILL.read_text(encoding="utf-8")
+        self.agents = AGENTS.read_text(encoding="utf-8")
+
+    def test_skill_is_discoverable_and_versioned(self) -> None:
+        self.assertTrue(self.skill.startswith("---\n"))
+        self.assertRegex(self.skill, r"(?m)^name:\s*code-review\s*$")
+        self.assertRegex(self.skill, r'(?m)^\s*version:\s*"1\.0"\s*$')
+        self.assertIn("fresh ordinary-ChatGPT", self.skill)
+
+    def test_review_request_is_bound_to_exact_repository_pr_base_and_head(self) -> None:
+        for field in (
+            "REVIEW_REQUEST_V1",
+            "repository=<owner/repo>",
+            "pr_number=<number>",
+            "base_sha=<40-hex SHA>",
+            "head_sha=<40-hex SHA>",
+            "review_skill=code-review",
+            "review_skill_version=<version expected by caller>",
+        ):
+            with self.subTest(field=field):
+                self.assertIn(field, self.skill)
+
+        self.assertIn("PR.base.sha == REVIEW_REQUEST.base_sha", self.skill)
+        self.assertIn("PR.head.sha == REVIEW_REQUEST.head_sha", self.skill)
+        self.assertIn("Never silently review a newer head than the request", self.skill)
+
+    def test_review_policy_comes_from_base_and_target_semantics_from_head(self) -> None:
+        self.assertIn("review policy / AGENTS.md / code-review skill -> BASE_SHA", self.skill)
+        self.assertIn("review target and its changed code/docs/tests     -> HEAD_SHA", self.skill)
+        self.assertIn("cannot weaken the accepted BASE review protocol", self.skill)
+
+    def test_primary_review_is_fresh_ordinary_chat_and_not_work_or_codex(self) -> None:
+        hard_boundary = self.skill.split("## 1. Require an immutable review request", 1)[0]
+        self.assertIn("fresh **ordinary ChatGPT** conversation/context", hard_boundary)
+        self.assertIn("must not use ChatGPT Work, Workspace Agents, Codex automation or Codex Review", hard_boundary)
+        self.assertIn("Codex quota exhaustion does not waive this skill's required primary review", hard_boundary)
+        self.assertIn("No other model/service is required", hard_boundary)
+
+    def test_scheduled_task_is_only_a_conditional_launcher(self) -> None:
+        launcher = self.skill.split("## 13. One-time Review Task launcher contract", 1)[1]
+        self.assertIn("REVIEW_REQUEST_V1", launcher)
+        self.assertIn("Do not attach development-chat reasoning summaries", launcher)
+        self.assertIn("review_context=ordinary_chat_fresh", launcher)
+        self.assertIn("Work, Workspace Agents or Codex", launcher)
+        self.assertIn("context isolation cannot be established", launcher)
+        self.assertIn("manually opened fresh ordinary-ChatGPT conversation", launcher)
+
+    def test_findings_require_concrete_evidence_and_falsification(self) -> None:
+        for phrase in (
+            "introduced by the reviewed diff",
+            "falsification pass",
+            "inspect neighboring code and callers",
+            "verify the suspected path is reachable",
+            "If the finding cannot survive this attempt to disprove it, drop it",
+            "failure_mechanism",
+            "supporting_evidence",
+            "falsification_attempt",
+            "why_it_survives",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.skill)
+
+    def test_reviewer_is_read_only_and_finding_validation_is_separate(self) -> None:
+        self.assertIn("The independent reviewer does not patch the PR in the same review run", self.skill)
+        for disposition in ("CONFIRMED", "REJECTED", "SUPERSEDED"):
+            self.assertIn(disposition, self.skill)
+        self.assertIn("Do not merge with unresolved reported findings", self.skill)
+
+    def test_material_changes_invalidate_review(self) -> None:
+        invalidation = self.skill.split("## 10. Review invalidation", 1)[1].split(
+            "## 11. Final exact-head gate", 1
+        )[0]
+        for phrase in (
+            "production/runtime code",
+            "security or authorization policy",
+            "persistence/recovery/retry/reconciliation",
+            "concurrency/identity/ownership/provenance",
+            "verification or Finish Gate semantics",
+            "tests whose semantics define acceptance",
+            "repository merge/review policy itself",
+            "base-branch advance",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, invalidation)
+
+    def test_structured_result_can_fail_closed(self) -> None:
+        for phrase in (
+            "REVIEW_RESULT_V1",
+            "review_policy_ref=<BASE_SHA>",
+            "review_context=ordinary_chat_fresh",
+            "status=PASS | FINDINGS | ABSTAIN | STALE",
+            "review_validity=CURRENT | STALE_BASE_CHANGE | STALE_MATERIAL_CHANGE",
+            "missing evidence yields `ABSTAIN`, not `PASS`",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.skill)
+
+    def test_agents_merge_policy_requires_chatgpt_review_and_makes_codex_optional(self) -> None:
+        merge_policy = self.agents.split("## Merge policy", 1)[1].split(
+            "## PR/document discipline", 1
+        )[0]
+
+        required = (
+            "independent semantic review is required",
+            ".agents/skills/code-review/SKILL.md",
+            "fresh ordinary ChatGPT",
+            "exact `BASE_SHA..HEAD_SHA`",
+            "Codex Review is an optional additional reviewer",
+            "Codex quota exhaustion does not block merge",
+            "ChatGPT Work",
+            "material post-review change",
+            "final exact-head CI",
+            "unresolved reported findings",
+        )
+        folded = merge_policy.casefold()
+        for phrase in required:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase.casefold(), folded)
+
+        self.assertNotRegex(
+            merge_policy,
+            re.compile(r"(?i)codex review\s+(?:is\s+)?(?:mandatory|required)"),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
