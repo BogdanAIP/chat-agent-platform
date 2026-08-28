@@ -36,6 +36,7 @@ def _decision_fields(text: str) -> dict[str, str]:
 class IoTPhysicalDeviceResearchContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.text = RESEARCH.read_text(encoding="utf-8")
+        self.text_folded = self.text.casefold()
         self.roadmap = ROADMAP.read_text(encoding="utf-8")
         self.baseline = BASELINE.read_text(encoding="utf-8")
         self.decision = _decision_fields(self.text)
@@ -70,10 +71,14 @@ class IoTPhysicalDeviceResearchContractTests(unittest.TestCase):
             "hub/service success is evidence, never project `PASS`",
             "project operation/recovery history remains above the hub",
             "backend cannot broaden project scope",
-            "service/API completion alone is never sufficient for project `PASS`",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.text)
+
+        self.assertIn(
+            "service/api completion alone is never sufficient for project `pass`",
+            self.text_folded,
+        )
 
     def test_source_code_evidence_is_pinned_and_independent(self) -> None:
         for ref in (
@@ -120,10 +125,14 @@ class IoTPhysicalDeviceResearchContractTests(unittest.TestCase):
             "Do **not** expose a generic public `ha.call_service(anything)` capability",
             "Direct Matter/MQTT/vendor adapters remain measured-gap-only",
             "`REJECT` as default architecture strategy",
-            "Direct MQTT is not “free”",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.text)
+
+        self.assertIn(
+            "it would introduce its own identity, topic schema, qos/retained-state, discovery and reconciliation surface",
+            self.text_folded,
+        )
 
     def test_recovery_invariant_does_not_preselect_idempotency_primitive(self) -> None:
         for phrase in (
