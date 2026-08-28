@@ -416,7 +416,10 @@ class WorkingState:
             _optional_text(getattr(self, name), name=name)
         if not isinstance(self.observation_ref, ObservationRef):
             raise TypeError("WorkingState observation_ref must be ObservationRef")
-        if self.evidence_scope_ref is not None and self.observation_ref.stream_id != self.evidence_scope_ref:
+        if (
+            self.evidence_scope_ref is not None
+            and self.observation_ref.stream_id != self.evidence_scope_ref
+        ):
             raise ValueError("WorkingState observation stream must match evidence_scope_ref")
         for name in (
             "user_constraints", "subgoal_refs", "verified_achievements", "fact_refs",
@@ -441,13 +444,73 @@ class WorkingState:
                 raise ValueError(f"{name} history is invalid")
             object.__setattr__(self, name, items)
 
-        if any(attempt.revision_after > self.revision for attempt in self.attempts):
+        if any(
+            attempt.revision_after > self.revision
+            for attempt in self.attempts
+        ):
             raise ValueError("attempt history revision exceeds WorkingState revision")
         if any(
             left.revision_after >= right.revision_after
             for left, right in zip(self.attempts, self.attempts[1:])
         ):
             raise ValueError("attempt history revisions must be strictly increasing")
+
+        attempts_by_key = {
+            (attempt.intent.operation_id, attempt.revision_after): attempt
+            for attempt in self.attempts
+        }
+        latest_reconciliation_by_key: dict[
+            tuple[str, int], ReconciliationRecord
+        ] = {}
+        for reconciliation in self.reconciliations:
+            key = (reconciliation.operation_id, reconciliation.attempt_revision)
+            attempt = attempts_by_key.get(key)
+            if attempt is None:
+                raise ValueError("reconciliation references unknown attempt")
+            if attempt.outcome not in {
+                MutatingOutcome.OUTCOME_UNKNOWN,
+                MutatingOutcome.APPLIED_BUT_ACK_FAILED,
+            }:
+                raise ValueError("reconciliation references non-ambiguous attempt")
+            if (
+                attempt.outcome is MutatingOutcome.APPLIED_BUT_ACK_FAILED
+                and reconciliation.status is ReconciliationStatus.CONFIRMED_NOT_APPLIED
+            ):
+                raise ValueError("ack-failed outcome cannot reconcile as not applied")
+            if reconciliation.verification_effect_id != reconciliation_effect_id(
+                reconciliation.operation_id,
+                reconciliation.attempt_revision,
+                reconciliation.status,
+            ):
+                raise ValueError("durable reconciliation effect_id mismatch")
+            if not _same_stream(
+                attempt.intent.observation_ref,
+                reconciliation.observation_ref,
+            ):
+                raise ValueError("durable reconciliation observation stream mismatch")
+            if (
+                reconciliation.observation_ref.sequence
+                <= attempt.intent.observation_ref.sequence
+            ):
+                raise ValueError("durable reconciliation observation is not fresh")
+            if reconciliation.observation_ref.sequence > self.observation_ref.sequence:
+                raise ValueError("reconciliation observation exceeds current WorkingState")
+            if (
+                reconciliation.observation_ref.sequence == self.observation_ref.sequence
+                and reconciliation.observation_ref != self.observation_ref
+            ):
+                raise ValueError("conflicting observation identity at current sequence")
+
+            prior = latest_reconciliation_by_key.get(key)
+            if prior is not None:
+                if prior.status is not ReconciliationStatus.STILL_UNKNOWN:
+                    raise ValueError("resolved reconciliation cannot be replaced")
+                if (
+                    reconciliation.observation_ref.sequence
+                    <= prior.observation_ref.sequence
+                ):
+                    raise ValueError("reconciliation refinement must use fresher evidence")
+            latest_reconciliation_by_key[key] = reconciliation
 
         expected_usage: dict[tuple[BudgetKind, str], int] = {}
         for attempt in self.attempts:
@@ -577,11 +640,8 @@ class WorkingState:
         )
 
     def unresolved_attempts(self) -> tuple[AttemptRecord, ...]:
-        latest_by_operation: dict[str, AttemptRecord] = {}
-        for attempt in self.attempts:
-            latest_by_operation[attempt.intent.operation_id] = attempt
         unresolved: list[AttemptRecord] = []
-        for attempt in latest_by_operation.values():
+        for attempt in self.attempts:
             if attempt.outcome not in {
                 MutatingOutcome.OUTCOME_UNKNOWN,
                 MutatingOutcome.APPLIED_BUT_ACK_FAILED,
@@ -702,6 +762,13 @@ class WorkingState:
         ):
             raise ValueError("ack-failed outcome cannot reconcile as not applied")
 
+        existing = self.reconciliation_for(latest)
+        if (
+            existing is not None
+            and existing.status is not ReconciliationStatus.STILL_UNKNOWN
+        ):
+            raise ValueError("resolved reconciliation cannot be replaced")
+
         expected_effect_id = reconciliation_effect_id(
             operation_id,
             attempt_revision,
@@ -724,6 +791,13 @@ class WorkingState:
             raise ValueError("reconciliation observation is not fresh relative to attempt")
         if observation.sequence < self.observation_ref.sequence:
             raise ValueError("reconciliation observation is stale relative to WorkingState")
+        if (
+            observation.sequence == self.observation_ref.sequence
+            and observation != self.observation_ref
+        ):
+            raise ValueError("reconciliation observation conflicts with current sequence")
+        if existing is not None and observation.sequence <= existing.observation_ref.sequence:
+            raise ValueError("reconciliation refinement requires fresher evidence")
 
         record = ReconciliationRecord(
             operation_id=operation_id,
