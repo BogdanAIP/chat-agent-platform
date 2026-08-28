@@ -540,7 +540,7 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             link_mock.assert_not_called()
             self.assert_completed_once(result)
 
-    def test_legacy_schema1_cleanup_accepts_distinct_staging_and_target_identities(self) -> None:
+    def test_schema1_cleanup_accepts_distinct_generation_bound_identities(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
@@ -555,6 +555,111 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             target.write_bytes(content)
             self.assertFalse(os.path.samefile(staging, target))
 
+            staging_identity = workspace_artifact._file_identity(staging)
+            target_identity = workspace_artifact._file_identity(target)
+            self.assertIsNotNone(staging_identity)
+            self.assertIsNotNone(target_identity)
+            if "birthtime_ns" not in staging_identity or "birthtime_ns" not in target_identity:
+                self.skipTest("generation-bearing file identity is unavailable on this platform")
+
+            checkpoint = {
+                "schema_version": 1,
+                "task_id": task_id,
+                "procedure_id": PROCEDURE_ID,
+                "procedure_version": PROCEDURE_VERSION,
+                "procedure_status": PROCEDURE_STATUS,
+                "artifact_name": artifact_name,
+                "artifact_relative_path": f".chat-agent-platform/stage26-3a/{artifact_name}",
+                "content_sha256": hashlib.sha256(content).hexdigest(),
+                "content_size": len(content),
+                "current_node": "final_verified",
+                "status": "running",
+                "action_count": 2,
+                "action_budget": MAX_ACTIONS,
+                "transition_receipts": [],
+                "escalation_reason": None,
+                "staging_file_identity": staging_identity,
+                "target_file_identity": target_identity,
+            }
+            (state / f"{task_id}.json").write_text(json.dumps(checkpoint), encoding="utf-8")
+
+            result = self.execute(
+                self.request(artifact_name, content.decode("utf-8"), task_id),
+                workspace=workspace,
+                state=state,
+            )
+
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["action_count"], 3)
+            self.assertFalse(staging.exists())
+            self.assertTrue(target.exists())
+            self.assertEqual(target.read_bytes(), content)
+
+    def test_historical_schema1_staged_weak_identity_fails_closed_before_final_create(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            artifact_name = "legacy-staged-weak.txt"
+            content = b"LEGACY_STAGED"
+            task_id = "c" * 32
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            reserved.mkdir(parents=True)
+            staging = reserved / f".{artifact_name}.{task_id}.staging"
+            target = reserved / artifact_name
+            staging.write_bytes(content)
+            stat = staging.stat()
+            checkpoint = {
+                "schema_version": 1,
+                "task_id": task_id,
+                "procedure_id": PROCEDURE_ID,
+                "procedure_version": PROCEDURE_VERSION,
+                "procedure_status": PROCEDURE_STATUS,
+                "artifact_name": artifact_name,
+                "artifact_relative_path": f".chat-agent-platform/stage26-3a/{artifact_name}",
+                "content_sha256": hashlib.sha256(content).hexdigest(),
+                "content_size": len(content),
+                "current_node": "staged_verified",
+                "status": "running",
+                "action_count": 1,
+                "action_budget": MAX_ACTIONS,
+                "transition_receipts": [],
+                "escalation_reason": None,
+                "staging_file_identity": {"device": int(stat.st_dev), "inode": int(stat.st_ino)},
+                "target_file_identity": None,
+            }
+            (state / f"{task_id}.json").write_text(json.dumps(checkpoint), encoding="utf-8")
+
+            with patch.object(
+                workspace_artifact,
+                "_exclusive_link_file",
+                side_effect=AssertionError("weak legacy identity must not authorize final creation"),
+            ) as link_mock:
+                result = self.execute(
+                    self.request(artifact_name, content.decode("utf-8"), task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+
+            link_mock.assert_not_called()
+            self.assertEqual(result["status"], "abstained")
+            self.assertEqual(result["escalation_reason"], "legacy_identity_generation_unproven")
+            self.assertEqual(result["action_count"], 1)
+            self.assertTrue(staging.exists())
+            self.assertFalse(target.exists())
+
+    def test_historical_schema1_cleanup_weak_identities_fail_closed_before_unlink(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            artifact_name = "legacy-cleanup-weak.txt"
+            content = b"LEGACY_WEAK"
+            task_id = "d" * 32
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            reserved.mkdir(parents=True)
+            staging = reserved / f".{artifact_name}.{task_id}.staging"
+            target = reserved / artifact_name
+            staging.write_bytes(content)
+            target.write_bytes(content)
             staging_stat = staging.stat()
             target_stat = target.stat()
             checkpoint = {
@@ -582,22 +687,68 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
                     "inode": int(target_stat.st_ino),
                 },
             }
-            (state / f"{task_id}.json").write_text(
-                json.dumps(checkpoint),
-                encoding="utf-8",
-            )
+            (state / f"{task_id}.json").write_text(json.dumps(checkpoint), encoding="utf-8")
 
-            result = self.execute(
-                self.request(artifact_name, content.decode("utf-8"), task_id),
-                workspace=workspace,
-                state=state,
-            )
+            original_unlink = Path.unlink
+            def reject_staging_unlink(path: Path, *args, **kwargs) -> None:
+                if path == staging:
+                    raise AssertionError("weak legacy identity must not authorize cleanup")
+                return original_unlink(path, *args, **kwargs)
 
-            self.assertEqual(result["status"], "completed")
-            self.assertEqual(result["action_count"], 3)
-            self.assertFalse(staging.exists())
+            with patch.object(Path, "unlink", new=reject_staging_unlink):
+                result = self.execute(
+                    self.request(artifact_name, content.decode("utf-8"), task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+
+            self.assertEqual(result["status"], "abstained")
+            self.assertEqual(result["escalation_reason"], "legacy_identity_generation_unproven")
+            self.assertEqual(result["action_count"], 2)
+            self.assertTrue(staging.exists())
             self.assertTrue(target.exists())
             self.assertEqual(target.read_bytes(), content)
+
+    def test_historical_schema1_completed_weak_identity_cannot_reassert_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            artifact_name = "legacy-completed-weak.txt"
+            content = b"LEGACY_DONE"
+            task_id = "e" * 32
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            reserved.mkdir(parents=True)
+            target = reserved / artifact_name
+            target.write_bytes(content)
+            stat = target.stat()
+            checkpoint = {
+                "schema_version": 1,
+                "task_id": task_id,
+                "procedure_id": PROCEDURE_ID,
+                "procedure_version": PROCEDURE_VERSION,
+                "procedure_status": PROCEDURE_STATUS,
+                "artifact_name": artifact_name,
+                "artifact_relative_path": f".chat-agent-platform/stage26-3a/{artifact_name}",
+                "content_sha256": hashlib.sha256(content).hexdigest(),
+                "content_size": len(content),
+                "current_node": "completed",
+                "status": "completed",
+                "action_count": 3,
+                "action_budget": MAX_ACTIONS,
+                "transition_receipts": [],
+                "escalation_reason": None,
+                "staging_file_identity": None,
+                "target_file_identity": {"device": int(stat.st_dev), "inode": int(stat.st_ino)},
+            }
+            (state / f"{task_id}.json").write_text(json.dumps(checkpoint), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "legacy completed identity generation"):
+                self.execute(
+                    self.request(artifact_name, content.decode("utf-8"), task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+            self.assertTrue(target.exists())
 
 
 if __name__ == "__main__":
