@@ -92,6 +92,7 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
         self.assertTrue(REUSE_BASELINE.is_file())
         skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
         baseline = REUSE_BASELINE.read_text(encoding="utf-8")
+        agents = AGENTS.read_text(encoding="utf-8")
 
         for phrase in (
             "## 2A. Architecture Lineage Gate — compare with canonical reuse baseline",
@@ -124,6 +125,15 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
         ):
             with self.subTest(baseline_phrase=phrase):
                 self.assertIn(phrase, baseline)
+
+        for phrase in (
+            "Read `project-context/ARCHITECTURE_REUSE_BASELINE.md` when `stage-research` applies",
+            "canonical prior-decision comparison baseline",
+            "KEEP`, `REUSE_MORE`, `REFINE`, `REPLACE`, `DEFER`, or `REJECT`",
+            "accepted lineage change must update the baseline before or with merge",
+        ):
+            with self.subTest(agent_phrase=phrase):
+                self.assertIn(phrase, agents)
 
     def test_initial_material_persistence_or_concurrency_change_triggers_stage_research(self) -> None:
         skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
