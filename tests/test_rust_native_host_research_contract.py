@@ -1,61 +1,103 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RESEARCH = ROOT / "project-context" / "RUST_NATIVE_HOST_BOUNDARY_RESEARCH.md"
 
+_DECISION_RE = re.compile(
+    r"<!-- RUST_BOUNDARY_DECISION_V1\n(?P<body>.*?)\n-->",
+    re.DOTALL,
+)
+
+
+def _decision_fields(text: str) -> dict[str, str]:
+    matches = list(_DECISION_RE.finditer(text))
+    if len(matches) != 1:
+        raise AssertionError(f"expected exactly one structured Rust research decision, got {len(matches)}")
+
+    fields: dict[str, str] = {}
+    for line in matches[0].group("body").splitlines():
+        key, separator, value = line.partition("=")
+        if not separator or not key or not value:
+            raise AssertionError(f"invalid decision field: {line!r}")
+        if key in fields:
+            raise AssertionError(f"duplicate decision field: {key}")
+        fields[key] = value
+    return fields
+
 
 class RustNativeHostResearchContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.text = RESEARCH.read_text(encoding="utf-8")
+        self.decision = _decision_fields(self.text)
 
-    def test_production_rust_is_explicitly_deferred(self) -> None:
-        self.assertIn("STAGE RESEARCH BRIEF — DEFER PRODUCTION ADOPTION", self.text)
-        self.assertIn("Top-level Stage Research decision: `DEFER`", self.text)
-        self.assertIn("do not migrate the deterministic Control Plane", self.text)
+    def test_structured_decision_is_single_and_fail_closed(self) -> None:
+        self.assertEqual(
+            self.decision,
+            {
+                "stage_decision": "DEFER",
+                "production_rust": "BLOCKED",
+                "future_native_boundary": "RESEARCH_ONLY",
+                "future_native_language": "UNRESOLVED",
+                "critical_path_change": "NO",
+            },
+        )
+        self.assertNotRegex(
+            self.text,
+            r"Top-level Stage Research decision:\s*`(?:PROCEED|NARROW)`",
+        )
+        self.assertNotRegex(
+            self.text.lower(),
+            r"production rust (?:is|=) (?:authorized|allowed|open)",
+        )
+        self.assertIn("Production Rust work is blocked", self.text)
         self.assertIn("Stage 26.3C continues", self.text)
 
-    def test_future_candidate_is_narrow_native_host_below_authority(self) -> None:
+    def test_future_boundary_is_narrow_below_authority_and_language_unresolved(self) -> None:
         required = (
-            "future optional Rust native host",
+            "future optional native host (language unresolved)",
             "process / process-tree ownership",
             "Windows Job Objects / native process handles",
             "sandbox bootstrap / native OS containment",
             "below project authority",
             "typed private IPC",
+            "does not select its implementation language",
         )
         for phrase in required:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.text)
 
-    def test_project_authority_is_not_delegated_to_native_host(self) -> None:
+    def test_project_authority_is_not_delegated_to_native_executor(self) -> None:
         for phrase in (
             "must not become a planner",
             "decide `PASS`",
             "decide task `DONE`",
             "own `WorkingState`",
             "six-tool Chat-facing surface",
-            "native `success` cannot directly create project Verification `PASS` or Finish `DONE`",
+            "executor `success` cannot directly create project Verification `PASS` or Finish `DONE`",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.text)
 
-    def test_research_compares_current_stack_narrow_host_and_broad_rewrite(self) -> None:
+    def test_same_boundary_language_alternatives_are_compared(self) -> None:
         headings = (
-            "### A — keep current Python/Node/PowerShell",
-            "### B — narrow Rust native host below project authority",
-            "### C — migrate Control Plane / WorkingState / broad agent runtime to Rust",
-            "### D — move only durable checkpoint/state storage to Rust",
+            "### A — keep current Python/Node/PowerShell with no new native-host boundary",
+            "### B — narrow language-neutral/current-runtime native boundary",
+            "### C — narrow Rust native host below project authority",
+            "### D — migrate Control Plane / WorkingState / broad agent runtime to Rust",
+            "### E — move only durable checkpoint/state storage to Rust",
         )
         for heading in headings:
             with self.subTest(heading=heading):
                 self.assertIn(heading, self.text)
 
-        self.assertIn("Disposition: **KEEP current production**", self.text)
-        self.assertIn("production `DEFER` now", self.text)
+        self.assertIn("credible same-boundary alternative", self.text)
+        self.assertIn("credible candidate, not selected", self.text)
+        self.assertIn("Future native-host language remains `UNRESOLVED`", self.text)
         self.assertIn("REJECT for the current architecture horizon", self.text)
         self.assertIn("DEFER as separate persistence research", self.text)
 
@@ -70,18 +112,17 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
             with self.subTest(ref=ref):
                 self.assertIn(ref, self.text)
 
-    def test_source_code_negative_space_is_recorded(self) -> None:
-        self.assertIn(
-            "targeted search at this exact ref",
-            self.text,
-        )
-        self.assertIn(
-            "did **not** locate a dedicated direct test",
-            self.text,
-        )
+    def test_source_code_negative_space_and_failure_history_are_recorded(self) -> None:
+        self.assertIn("did **not** locate a dedicated direct test", self.text)
         self.assertIn("Classification: `OPEN_PARTIAL`", self.text)
         self.assertIn(
             "does **not** claim to have proven its complete lifecycle implementation",
+            self.text,
+        )
+        self.assertIn("036fc75b1f89ca0af9fee84162064758183b0bc0", self.text)
+        self.assertIn("5–7 second beach-ball", self.text)
+        self.assertIn(
+            "does not decide which language our future native boundary should use",
             self.text,
         )
 
@@ -98,11 +139,15 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.text)
 
-    def test_reentry_requires_observed_trigger_and_fresh_research(self) -> None:
+    def test_reentry_requires_observed_trigger_and_fresh_comparison(self) -> None:
         self.assertIn("Re-entry triggers", self.text)
         self.assertIn("repeated accepted evidence of leaked child/grandchild processes", self.text)
         self.assertIn("Re-run fresh Stage Research before production Rust work", self.text)
         self.assertIn("not timeless architecture", self.text)
+        self.assertIn(
+            "compare Rust against an equivalent language-neutral/current-runtime implementation",
+            self.text,
+        )
 
 
 if __name__ == "__main__":
