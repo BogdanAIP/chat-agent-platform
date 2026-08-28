@@ -392,6 +392,121 @@ class WorkingStateHardeningTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "shape mismatch"):
             WorkingState.from_dict(payload)
 
+    def test_earlier_unresolved_attempt_cannot_be_hidden_by_later_durable_attempt(self) -> None:
+        state = self.unknown_state()
+        payload = json.loads(json.dumps(state.as_dict()))
+        first = payload["attempts"][0]
+        later = json.loads(json.dumps(first))
+        later["intent"]["strategy_id"] = "s2"
+        later["intent"]["action_fingerprint"] = "alternate-save"
+        later["outcome"] = MutatingOutcome.NOT_APPLIED.value
+        later["revision_before"] = 1
+        later["revision_after"] = 2
+        later["failure"] = {
+            "code": "no-effect-2",
+            "category": FailureCategory.ACTION_NO_EFFECT.value,
+            "message": "No effect on second attempt.",
+            "retryable": True,
+            "reconciliation_required": False,
+            "operation_id": "op-1",
+            "strategy_id": "s2",
+            "outcome": MutatingOutcome.NOT_APPLIED.value,
+            "evidence_refs": [],
+        }
+        payload["attempts"].append(later)
+        payload["failures"].append(later["failure"])
+        payload["revision"] = 2
+        for budget in payload["budgets"]:
+            if budget["kind"] in (BudgetKind.TASK.value, BudgetKind.PROCEDURE.value):
+                budget["used"] = 2
+            elif budget["kind"] == BudgetKind.STRATEGY.value:
+                budget["used"] = 1 if budget["scope_id"] in ("s1", "s2") else 0
+
+        restored = WorkingState.from_dict(payload)
+        candidate = self.intent(
+            restored,
+            operation="op-2",
+            strategy="s2",
+            action="different-operation",
+        )
+        decision = LoopGuard().evaluate(
+            restored,
+            candidate,
+            expected_revision=restored.revision,
+        )
+        self.assertEqual(
+            decision.failure.code,
+            "unresolved_mutation_blocks_other_operation",
+        )
+
+    def test_resolved_reconciliation_cannot_be_reversed(self) -> None:
+        state = self.unknown_state()
+        attempt = state.attempts[-1]
+        state = state.record_reconciliation(
+            operation_id=attempt.intent.operation_id,
+            attempt_revision=attempt.revision_after,
+            status=ReconciliationStatus.CONFIRMED_APPLIED,
+            verification=self.verification(
+                attempt,
+                ReconciliationStatus.CONFIRMED_APPLIED,
+                observation=self.observation(1, "applied"),
+            ),
+            expected_revision=state.revision,
+        )
+        with self.assertRaisesRegex(ValueError, "resolved reconciliation cannot be replaced"):
+            state.record_reconciliation(
+                operation_id=attempt.intent.operation_id,
+                attempt_revision=attempt.revision_after,
+                status=ReconciliationStatus.CONFIRMED_NOT_APPLIED,
+                verification=self.verification(
+                    attempt,
+                    ReconciliationStatus.CONFIRMED_NOT_APPLIED,
+                    observation=self.observation(2, "not-applied"),
+                ),
+                expected_revision=state.revision,
+            )
+
+    def test_durable_reconciliation_cross_history_is_validated(self) -> None:
+        state = self.unknown_state()
+        attempt = state.attempts[-1]
+        state = state.record_reconciliation(
+            operation_id=attempt.intent.operation_id,
+            attempt_revision=attempt.revision_after,
+            status=ReconciliationStatus.CONFIRMED_NOT_APPLIED,
+            verification=self.verification(
+                attempt,
+                ReconciliationStatus.CONFIRMED_NOT_APPLIED,
+                observation=self.observation(1, "fresh"),
+            ),
+            expected_revision=state.revision,
+        )
+        payload = json.loads(json.dumps(state.as_dict()))
+        payload["reconciliations"][0]["verification_effect_id"] = "forged"
+        with self.assertRaisesRegex(ValueError, "durable reconciliation effect_id mismatch"):
+            WorkingState.from_dict(payload)
+
+    def test_reconciliation_rejects_conflicting_observation_same_sequence(self) -> None:
+        state = self.unknown_state()
+        attempt = state.attempts[-1]
+        current = self.observation(1, "current")
+        state = state.record_observation(
+            current,
+            expected_revision=state.revision,
+        )
+        conflicting = self.observation(1, "different-fingerprint")
+        with self.assertRaisesRegex(ValueError, "conflicts with current sequence"):
+            state.record_reconciliation(
+                operation_id=attempt.intent.operation_id,
+                attempt_revision=attempt.revision_after,
+                status=ReconciliationStatus.CONFIRMED_NOT_APPLIED,
+                verification=self.verification(
+                    attempt,
+                    ReconciliationStatus.CONFIRMED_NOT_APPLIED,
+                    observation=conflicting,
+                ),
+                expected_revision=state.revision,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
