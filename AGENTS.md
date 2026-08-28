@@ -72,6 +72,8 @@ At minimum, stage research must:
 
 `ARCHITECTURE_REUSE_BASELINE.md` is the canonical prior-decision comparison baseline, not immutable implementation authority. It exists so new research explicitly checks whether custom code duplicates an already selected upstream mechanism and whether a new external component crosses a boundary intentionally kept project-owned. `REPLACE` or `REJECT` of a prior baseline role requires explicit evidence, and an accepted lineage change must update the baseline before or with merge.
 
+A role-level lineage `DEFER` is not permission to continue past an unresolved requirement. It is valid only for a role explicitly outside the selected implementation scope; if the role is required for the current stage goal or release-critical guarantee, the Stage Research Brief must narrow that goal to exclude the role or return top-level `DEFER` and keep implementation blocked.
+
 `NARROW` narrows implementation scope only; it does not reduce research depth for a release-critical mechanism.
 
 If a materially new architecture primitive or materially different persistence/recovery/retry/concurrency/identity/authority design appears after the Stage Research Brief, the previous research decision is no longer sufficient implementation authority. Re-enter `stage-research`, research the newly relevant engineering domain/failure class, revise the alternatives and failure/crash matrix where applicable, and issue a fresh decision. Resume production implementation only if that fresh decision is `PROCEED` or `NARROW`; `DEFER` keeps implementation stopped. Merely editing the PR body to describe the new design does not satisfy this requirement.
