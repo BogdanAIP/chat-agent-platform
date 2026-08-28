@@ -65,28 +65,46 @@ function stringEnvironment(source) {
   return env;
 }
 
-export function resolveSemanticRuntimeDirectory({ env = process.env, pid = process.pid } = {}) {
-  const override = typeof env?.CHAT_SEMANTIC_RUNTIME_ROOT === 'string'
-    ? env.CHAT_SEMANTIC_RUNTIME_ROOT.trim()
-    : '';
-  if (override && !path.isAbsolute(override)) {
-    throw new Error('CHAT_SEMANTIC_RUNTIME_ROOT must be an absolute path.');
+export function resolveSemanticRuntimePaths({
+  env = process.env,
+  platform = process.platform,
+  pid = process.pid,
+  tempDir = os.tmpdir()
+} = {}) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    throw new Error('semantic runtime output ownership requires a positive process id');
   }
 
-  const localAppData = typeof env?.LOCALAPPDATA === 'string' ? env.LOCALAPPDATA.trim() : '';
-  const root = override || (
-    localAppData && path.isAbsolute(localAppData)
-      ? path.join(localAppData, 'ChatAgentPlatform', 'runtime', 'semantic')
-      : path.join(os.tmpdir(), 'ChatAgentPlatform', 'runtime', 'semantic')
+  let platformRoot;
+  if (platform === 'win32') {
+    const localAppData = typeof env?.LOCALAPPDATA === 'string' ? env.LOCALAPPDATA.trim() : '';
+    if (!localAppData || !path.isAbsolute(localAppData)) {
+      throw new Error('LOCALAPPDATA must be an absolute path for semantic runtime output ownership on Windows');
+    }
+    platformRoot = path.join(localAppData, 'ChatAgentPlatform');
+  } else {
+    if (!path.isAbsolute(tempDir)) {
+      throw new Error('system temporary directory must be absolute for semantic runtime output ownership');
+    }
+    platformRoot = path.join(tempDir, 'ChatAgentPlatform');
+  }
+
+  const runtimeDirectory = path.join(
+    platformRoot,
+    'logs',
+    'semantic-runtime',
+    `session-${pid}`
   );
-  const processId = Number.isInteger(pid) && pid > 0 ? pid : process.pid;
-  return path.join(root, `session-${processId}`);
+  const playwrightOutputDirectory = path.join(runtimeDirectory, 'playwright-mcp');
+  return { platformRoot, runtimeDirectory, playwrightOutputDirectory };
 }
 
-export function prepareSemanticRuntimeDirectory(options = {}) {
-  const runtimeDirectory = resolveSemanticRuntimeDirectory(options);
-  fs.mkdirSync(runtimeDirectory, { recursive: true });
-  return runtimeDirectory;
+export function prepareSemanticRuntimeEnvironment(options = {}) {
+  const paths = resolveSemanticRuntimePaths(options);
+  fs.mkdirSync(paths.playwrightOutputDirectory, { recursive: true });
+  const env = stringEnvironment(options.env ?? process.env);
+  env.PLAYWRIGHT_MCP_OUTPUT_DIR = paths.playwrightOutputDirectory;
+  return { ...paths, env };
 }
 
 export async function assertExpectedSemanticInventory({ entry, env = process.env }) {
@@ -142,8 +160,20 @@ async function main() {
     process.exit(0);
   }
 
-  const runtimeCwd = prepareSemanticRuntimeDirectory();
-  process.chdir(runtimeCwd);
+  const callerCwd = path.resolve(process.cwd());
+  const runtime = prepareSemanticRuntimeEnvironment({ env: process.env });
+
+  if (process.argv.includes('--verify-runtime-output-ownership')) {
+    console.log(JSON.stringify({
+      caller_cwd: callerCwd,
+      runtime_dir: runtime.runtimeDirectory,
+      playwright_output_dir: runtime.playwrightOutputDirectory,
+      playwright_env_output_dir: runtime.env.PLAYWRIGHT_MCP_OUTPUT_DIR
+    }));
+    process.exit(0);
+  }
+
+  process.chdir(runtime.runtimeDirectory);
 
   const launcherDir = path.dirname(fileURLToPath(import.meta.url));
   const semanticEntry = path.join(launcherDir, 'semantic-control-plane-projection.mjs');
@@ -151,7 +181,7 @@ async function main() {
   try {
     await assertExpectedSemanticInventory({
       entry: semanticEntry,
-      env: process.env
+      env: runtime.env
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -161,7 +191,8 @@ async function main() {
   }
 
   const child = spawn(process.execPath, [semanticEntry], {
-    env: process.env,
+    cwd: runtime.runtimeDirectory,
+    env: runtime.env,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true
   });
