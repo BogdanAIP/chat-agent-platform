@@ -1,0 +1,412 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import textwrap
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import runtime.control_plane.verified_workspace_artifact as workspace_artifact
+from runtime.control_plane.verified_workspace_artifact import (
+    MAX_ACTIONS,
+    PROCEDURE_ID,
+    PROCEDURE_STATUS,
+    PROCEDURE_VERSION,
+    QUALIFICATION_ADMISSION,
+    run_verified_workspace_artifact,
+)
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
+    def request(self, name: str, content: str, task_id: str | None = None) -> dict:
+        value = {
+            "procedure": PROCEDURE_ID,
+            "artifact_name": name,
+            "content": content,
+        }
+        if task_id is not None:
+            value["resume_task_id"] = task_id
+        return value
+
+    def execute(self, request: dict, *, workspace: Path, state: Path) -> dict:
+        return run_verified_workspace_artifact(
+            request,
+            workspace_root=workspace,
+            state_root=state,
+            candidate_admission=QUALIFICATION_ADMISSION,
+        )
+
+    def checkpoint(self, state: Path) -> dict:
+        files = list(state.glob("*.json"))
+        self.assertEqual(len(files), 1)
+        return json.loads(files[0].read_text(encoding="utf-8"))
+
+    def staging_path(self, workspace: Path, name: str, task_id: str) -> Path:
+        return (
+            workspace
+            / ".chat-agent-platform"
+            / "stage26-3a"
+            / f".{name}.{task_id}.staging"
+        )
+
+    def target_path(self, workspace: Path, name: str) -> Path:
+        return workspace / ".chat-agent-platform" / "stage26-3a" / name
+
+    def run_hard_crash_child(
+        self,
+        *,
+        workspace: Path,
+        state: Path,
+        mode: str,
+        artifact_name: str,
+        content: str,
+    ) -> subprocess.CompletedProcess[str]:
+        script = textwrap.dedent(
+            """
+            import os
+            import sys
+            from pathlib import Path
+            import runtime.control_plane.verified_workspace_artifact as wa
+
+            workspace = Path(sys.argv[1])
+            state = Path(sys.argv[2])
+            mode = sys.argv[3]
+            artifact_name = sys.argv[4]
+            content = sys.argv[5]
+
+            if mode == "before_stage":
+                def crash_before_stage(path, data):
+                    os._exit(80)
+                wa._exclusive_create_file = crash_before_stage
+            elif mode == "after_stage":
+                def crash_after_stage(path, data):
+                    with path.open("xb") as handle:
+                        handle.write(data)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    os._exit(81)
+                wa._exclusive_create_file = crash_after_stage
+            elif mode == "after_final":
+                def crash_after_final(source, target):
+                    os.link(source, target)
+                    os._exit(82)
+                wa._exclusive_link_file = crash_after_final
+            elif mode == "after_cleanup":
+                original_unlink = Path.unlink
+                def crash_after_cleanup(path, *args, **kwargs):
+                    if path.name.endswith(".staging"):
+                        original_unlink(path, *args, **kwargs)
+                        os._exit(83)
+                    return original_unlink(path, *args, **kwargs)
+                Path.unlink = crash_after_cleanup
+            else:
+                raise RuntimeError("unknown crash mode")
+
+            wa.run_verified_workspace_artifact(
+                {
+                    "procedure": wa.PROCEDURE_ID,
+                    "artifact_name": artifact_name,
+                    "content": content,
+                },
+                workspace_root=workspace,
+                state_root=state,
+                candidate_admission=wa.QUALIFICATION_ADMISSION,
+            )
+            raise RuntimeError("hard-crash hook was not reached")
+            """
+        )
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                script,
+                str(workspace),
+                str(state),
+                mode,
+                artifact_name,
+                content,
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+
+    def assert_completed_once(self, result: dict) -> None:
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["action_count"], 3)
+        self.assertEqual(
+            [receipt["transition_id"] for receipt in result["transition_receipts"]],
+            ["stage_create", "final_create", "staging_cleanup"],
+        )
+
+    def test_hard_process_death_before_stage_delivery_resumes_from_durable_prepare(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="before_stage",
+                artifact_name="hard-before.txt",
+                content="BEFORE",
+            )
+            self.assertEqual(child.returncode, 80, child.stderr)
+            checkpoint = self.checkpoint(state)
+            self.assertIsInstance(checkpoint["prepared_intent"], dict)
+            self.assertEqual(checkpoint["action_count"], 0)
+
+            result = self.execute(
+                self.request("hard-before.txt", "BEFORE", checkpoint["task_id"]),
+                workspace=workspace,
+                state=state,
+            )
+            self.assert_completed_once(result)
+
+    def test_hard_process_death_after_stage_delivery_repairs_without_redelivery(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="after_stage",
+                artifact_name="hard-stage.txt",
+                content="STAGE",
+            )
+            self.assertEqual(child.returncode, 81, child.stderr)
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            self.assertTrue(self.staging_path(workspace, "hard-stage.txt", task_id).exists())
+
+            with patch.object(
+                workspace_artifact,
+                "_exclusive_create_file",
+                side_effect=AssertionError("stage delivery repeated after hard crash"),
+            ) as create_mock:
+                result = self.execute(
+                    self.request("hard-stage.txt", "STAGE", task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+            create_mock.assert_not_called()
+            self.assert_completed_once(result)
+
+    def test_hard_process_death_after_final_link_repairs_without_relink(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="after_final",
+                artifact_name="hard-final.txt",
+                content="FINAL",
+            )
+            self.assertEqual(child.returncode, 82, child.stderr)
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            staging = self.staging_path(workspace, "hard-final.txt", task_id)
+            target = self.target_path(workspace, "hard-final.txt")
+            self.assertTrue(staging.exists())
+            self.assertTrue(target.exists())
+            self.assertTrue(os.path.samefile(staging, target))
+
+            with patch.object(
+                workspace_artifact,
+                "_exclusive_link_file",
+                side_effect=AssertionError("final delivery repeated after hard crash"),
+            ) as link_mock:
+                result = self.execute(
+                    self.request("hard-final.txt", "FINAL", task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+            link_mock.assert_not_called()
+            self.assert_completed_once(result)
+
+    def test_hard_process_death_after_cleanup_repairs_without_second_unlink(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="after_cleanup",
+                artifact_name="hard-cleanup.txt",
+                content="CLEANUP",
+            )
+            self.assertEqual(child.returncode, 83, child.stderr)
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            staging = self.staging_path(workspace, "hard-cleanup.txt", task_id)
+            target = self.target_path(workspace, "hard-cleanup.txt")
+            self.assertFalse(staging.exists())
+            self.assertTrue(target.exists())
+
+            original_unlink = Path.unlink
+            def reject_duplicate_cleanup(path: Path, *args, **kwargs) -> None:
+                if path.name.endswith(".staging"):
+                    raise AssertionError("cleanup repeated after hard crash")
+                original_unlink(path, *args, **kwargs)
+
+            with patch.object(Path, "unlink", new=reject_duplicate_cleanup):
+                result = self.execute(
+                    self.request("hard-cleanup.txt", "CLEANUP", task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+            self.assert_completed_once(result)
+
+    def test_delivery_exception_after_applied_stage_repairs_receipt_and_can_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            original_create = workspace_artifact._exclusive_create_file
+
+            def create_then_raise(path: Path, data: bytes) -> None:
+                original_create(path, data)
+                raise OSError("simulated acknowledgement loss after stage write")
+
+            with patch.object(workspace_artifact, "_exclusive_create_file", side_effect=create_then_raise):
+                first = self.execute(
+                    self.request("exception-stage.txt", "EXCEPTION"),
+                    workspace=workspace,
+                    state=state,
+                )
+
+            self.assertEqual(first["status"], "running")
+            self.assertEqual(first["current_node"], "staged_verified")
+            self.assertEqual(first["action_count"], 1)
+            self.assertEqual(
+                [receipt["transition_id"] for receipt in first["transition_receipts"]],
+                ["stage_create"],
+            )
+            task_id = first["task_id"]
+            checkpoint = self.checkpoint(state)
+            self.assertIsNone(checkpoint["prepared_intent"])
+
+            with patch.object(
+                workspace_artifact,
+                "_exclusive_create_file",
+                side_effect=AssertionError("confirmed stage effect was redelivered"),
+            ) as create_mock:
+                result = self.execute(
+                    self.request("exception-stage.txt", "EXCEPTION", task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+            create_mock.assert_not_called()
+            self.assert_completed_once(result)
+
+    def test_delivery_exception_after_final_link_preserves_repaired_state_for_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            original_link = workspace_artifact._exclusive_link_file
+
+            def link_then_raise(source: Path, target: Path) -> None:
+                original_link(source, target)
+                raise OSError("simulated acknowledgement loss after final link")
+
+            with patch.object(workspace_artifact, "_exclusive_link_file", side_effect=link_then_raise):
+                first = self.execute(
+                    self.request("exception-final.txt", "EXCEPTION"),
+                    workspace=workspace,
+                    state=state,
+                )
+
+            self.assertEqual(first["status"], "running")
+            self.assertEqual(first["current_node"], "final_verified")
+            self.assertEqual(first["action_count"], 2)
+            task_id = first["task_id"]
+            staging = self.staging_path(workspace, "exception-final.txt", task_id)
+            target = self.target_path(workspace, "exception-final.txt")
+            self.assertTrue(staging.exists(), "repaired final state must retain staging for cleanup")
+            self.assertTrue(target.exists())
+            self.assertTrue(os.path.samefile(staging, target))
+
+            with patch.object(
+                workspace_artifact,
+                "_exclusive_link_file",
+                side_effect=AssertionError("confirmed final link was redelivered"),
+            ) as link_mock:
+                result = self.execute(
+                    self.request("exception-final.txt", "EXCEPTION", task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+            link_mock.assert_not_called()
+            self.assert_completed_once(result)
+
+    def test_legacy_schema1_cleanup_accepts_distinct_staging_and_target_identities(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            artifact_name = "legacy-cleanup.txt"
+            content = b"LEGACY"
+            task_id = "b" * 32
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            reserved.mkdir(parents=True)
+            staging = reserved / f".{artifact_name}.{task_id}.staging"
+            target = reserved / artifact_name
+            staging.write_bytes(content)
+            target.write_bytes(content)
+            self.assertFalse(os.path.samefile(staging, target))
+
+            staging_stat = staging.stat()
+            target_stat = target.stat()
+            checkpoint = {
+                "schema_version": 1,
+                "task_id": task_id,
+                "procedure_id": PROCEDURE_ID,
+                "procedure_version": PROCEDURE_VERSION,
+                "procedure_status": PROCEDURE_STATUS,
+                "artifact_name": artifact_name,
+                "artifact_relative_path": f".chat-agent-platform/stage26-3a/{artifact_name}",
+                "content_sha256": hashlib.sha256(content).hexdigest(),
+                "content_size": len(content),
+                "current_node": "final_verified",
+                "status": "running",
+                "action_count": 2,
+                "action_budget": MAX_ACTIONS,
+                "transition_receipts": [],
+                "escalation_reason": None,
+                "staging_file_identity": {
+                    "device": int(staging_stat.st_dev),
+                    "inode": int(staging_stat.st_ino),
+                },
+                "target_file_identity": {
+                    "device": int(target_stat.st_dev),
+                    "inode": int(target_stat.st_ino),
+                },
+            }
+            (state / f"{task_id}.json").write_text(
+                json.dumps(checkpoint),
+                encoding="utf-8",
+            )
+
+            result = self.execute(
+                self.request(artifact_name, content.decode("utf-8"), task_id),
+                workspace=workspace,
+                state=state,
+            )
+
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["action_count"], 3)
+            self.assertFalse(staging.exists())
+            self.assertTrue(target.exists())
+            self.assertEqual(target.read_bytes(), content)
+
+
+if __name__ == "__main__":
+    unittest.main()
