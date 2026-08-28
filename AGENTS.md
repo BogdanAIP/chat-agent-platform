@@ -10,7 +10,7 @@ Every fresh development invocation, and every materially changed task within an 
 2. Enumerate `.agents/skills/*/SKILL.md` from the current repository ref instead of relying on remembered skill names.
 3. Read the frontmatter and trigger of each plausibly applicable skill and select every skill whose trigger matches the actual task.
 4. Load the selected skill(s) before planning the implementation.
-5. If `stage-research` applies, production implementation remains blocked until its Stage Research Brief ends with `PROCEED`, `NARROW`, or `DEFER`.
+5. If `stage-research` applies, production implementation remains blocked until its Stage Research Brief ends with `PROCEED`, `NARROW`, or `DEFER`; only `PROCEED` or `NARROW` opens implementation, while `DEFER` keeps it blocked.
 6. Never rely on remembered or cached skill text. Bind the decision to the skill path and the current source ref/head, so an updated skill is picked up automatically after merge/rebase.
 7. Re-run this bootstrap when `main` advances, the working branch is rebased, a new roadmap stage/substage starts, or the task materially changes scope.
 8. If implementation, tests or review introduce a materially new architecture primitive or materially change persistence, recovery, retry, concurrency, identity or authority semantics, treat the prior Stage Research Brief as invalid and re-enter the applicable research skill before continuing production implementation.
@@ -51,9 +51,9 @@ Long-horizon architecture should establish durable boundaries and invariants suc
 
 ### 2. Research each concrete stage immediately before implementation
 
-For every new release-critical stage/substage, major subsystem, new capability family, or materially new recovery/security/authority architecture, invoke the repository skill `.agents/skills/stage-research/SKILL.md` before production implementation begins.
+For every new release-critical stage/substage, major subsystem, new capability family, materially new recovery/security/authority architecture, **or material release-critical change to persistence ordering/ownership, retry/reconciliation semantics, concurrency, identity/correlation, or consequence-bearing authority**, invoke the repository skill `.agents/skills/stage-research/SKILL.md` before production implementation begins.
 
-The skill is the canonical stage-research gate. Its Stage Research Brief must end with `PROCEED`, `NARROW`, or `DEFER`. Do not bypass it merely because an older ADR already contains an implementation design.
+The skill is the canonical stage-research gate. Its Stage Research Brief must end with `PROCEED`, `NARROW`, or `DEFER`. `PROCEED` and `NARROW` may open implementation; `DEFER` does not. Do not bypass the gate merely because an older ADR already contains an implementation design or because the change occurs inside an existing subsystem.
 
 At minimum, stage research must:
 
@@ -72,7 +72,7 @@ At minimum, stage research must:
 
 `NARROW` narrows implementation scope only; it does not reduce research depth for a release-critical mechanism.
 
-If a materially new architecture primitive or materially different persistence/recovery/retry/concurrency/identity/authority design appears after the Stage Research Brief, the previous research decision is no longer sufficient implementation authority. Re-enter `stage-research`, research the newly relevant engineering domain/failure class, revise the alternatives and failure/crash matrix where applicable, and issue a fresh `PROCEED`, `NARROW`, or `DEFER` decision before continuing production implementation. Merely editing the PR body to describe the new design does not satisfy this requirement.
+If a materially new architecture primitive or materially different persistence/recovery/retry/concurrency/identity/authority design appears after the Stage Research Brief, the previous research decision is no longer sufficient implementation authority. Re-enter `stage-research`, research the newly relevant engineering domain/failure class, revise the alternatives and failure/crash matrix where applicable, and issue a fresh decision. Resume production implementation only if that fresh decision is `PROCEED` or `NARROW`; `DEFER` keeps implementation stopped. Merely editing the PR body to describe the new design does not satisfy this requirement.
 
 Future ADRs are architectural hypotheses plus boundary constraints, not immutable implementation specifications. A future ADR must not force the project to implement stale fields, APIs, event families or abstractions when current evidence supports a simpler design.
 
@@ -147,7 +147,7 @@ Do not weaken:
 For runtime/security/recovery/authority changes, use this order:
 
 ```text
-stage-research skill when the change starts a new stage/subsystem
+stage-research skill when the change starts a new stage/subsystem or materially changes a release-critical persistence/recovery/identity/concurrency/authority mechanism
  -> implementation
  -> focused tests
  -> required hosted CI on the exact head
