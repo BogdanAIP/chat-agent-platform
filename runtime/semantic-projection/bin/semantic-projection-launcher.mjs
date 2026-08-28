@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -63,6 +65,40 @@ function stringEnvironment(source) {
   return env;
 }
 
+export function resolveSemanticRuntimePaths({
+  env = process.env,
+  platform = process.platform,
+  pid = process.pid,
+  tempDir = os.tmpdir()
+} = {}) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    throw new Error('semantic runtime output ownership requires a positive process id');
+  }
+
+  let localRoot;
+  if (platform === 'win32') {
+    const localAppData = typeof env?.LOCALAPPDATA === 'string' ? env.LOCALAPPDATA.trim() : '';
+    if (!localAppData) {
+      throw new Error('LOCALAPPDATA is required for semantic runtime output ownership on Windows');
+    }
+    localRoot = path.join(path.resolve(localAppData), 'ChatAgentPlatform');
+  } else {
+    localRoot = path.join(path.resolve(tempDir), 'ChatAgentPlatform');
+  }
+
+  const runtimeDir = path.join(localRoot, 'logs', 'semantic-runtime', `semantic-${pid}`);
+  const playwrightOutputDir = path.join(runtimeDir, 'playwright-mcp');
+  return { localRoot, runtimeDir, playwrightOutputDir };
+}
+
+export function prepareSemanticRuntimeEnvironment(options = {}) {
+  const paths = resolveSemanticRuntimePaths(options);
+  fs.mkdirSync(paths.playwrightOutputDir, { recursive: true });
+  const env = stringEnvironment(options.env ?? process.env);
+  env.PLAYWRIGHT_MCP_OUTPUT_DIR = paths.playwrightOutputDir;
+  return { ...paths, env };
+}
+
 export async function assertExpectedSemanticInventory({ entry, env = process.env }) {
   if (typeof entry !== 'string' || entry.length === 0) {
     throw new Error('semantic inventory guard requires one semantic entry path');
@@ -116,13 +152,25 @@ async function main() {
     process.exit(0);
   }
 
+  const runtime = prepareSemanticRuntimeEnvironment({ env: process.env });
+
+  if (process.argv.includes('--verify-runtime-output-ownership')) {
+    console.log(JSON.stringify({
+      caller_cwd: path.resolve(process.cwd()),
+      runtime_dir: runtime.runtimeDir,
+      playwright_output_dir: runtime.playwrightOutputDir,
+      playwright_env_output_dir: runtime.env.PLAYWRIGHT_MCP_OUTPUT_DIR
+    }));
+    process.exit(0);
+  }
+
   const launcherDir = path.dirname(fileURLToPath(import.meta.url));
   const semanticEntry = path.join(launcherDir, 'semantic-control-plane-projection.mjs');
 
   try {
     await assertExpectedSemanticInventory({
       entry: semanticEntry,
-      env: process.env
+      env: runtime.env
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -132,7 +180,8 @@ async function main() {
   }
 
   const child = spawn(process.execPath, [semanticEntry], {
-    env: process.env,
+    cwd: runtime.runtimeDir,
+    env: runtime.env,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true
   });
