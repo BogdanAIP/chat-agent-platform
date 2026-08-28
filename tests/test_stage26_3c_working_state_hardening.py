@@ -422,22 +422,11 @@ class WorkingStateHardeningTests(unittest.TestCase):
             elif budget["kind"] == BudgetKind.STRATEGY.value:
                 budget["used"] = 1 if budget["scope_id"] in ("s1", "s2") else 0
 
-        restored = WorkingState.from_dict(payload)
-        candidate = self.intent(
-            restored,
-            operation="op-2",
-            strategy="s2",
-            action="different-operation",
-        )
-        decision = LoopGuard().evaluate(
-            restored,
-            candidate,
-            expected_revision=restored.revision,
-        )
-        self.assertEqual(
-            decision.failure.code,
-            "unresolved_mutation_blocks_other_operation",
-        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "attempt occurred while reconciliation was pending",
+        ):
+            WorkingState.from_dict(payload)
 
     def test_resolved_reconciliation_cannot_be_reversed(self) -> None:
         state = self.unknown_state()
