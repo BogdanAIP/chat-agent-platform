@@ -158,7 +158,7 @@ try {
   assert.equal(report.playwright_output_dir, report.playwright_env_output_dir);
   assert.equal(isWithin(callerRoot, report.runtime_dir), false);
   assert.equal(isWithin(callerRoot, report.playwright_output_dir), false);
-  assert.equal(path.resolve(report.playwright_output_dir), path.resolve(hostileOutput), false);
+  assert.notEqual(path.resolve(report.playwright_output_dir), path.resolve(hostileOutput));
   assert.equal(fs.existsSync(path.join(callerRoot, '.playwright-mcp')), false);
   assert.equal(fs.existsSync(hostileOutput), false);
 
