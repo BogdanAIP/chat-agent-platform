@@ -278,6 +278,10 @@ class WorkingStateHardeningTests(unittest.TestCase):
             self.failure(first),
             expected_revision=state.revision,
         )
+        state = state.record_observation(
+            self.observation(1, "state-a"),
+            expected_revision=state.revision,
+        )
         candidate = self.intent(
             state,
             operation="op-2",
