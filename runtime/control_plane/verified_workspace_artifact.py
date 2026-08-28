@@ -50,6 +50,7 @@ from ._verified_workspace_artifact_support import (
     _same_node_applied_operation,
     _sha256,
     _unknown_failure,
+    _utc_now,
     _validate_resume_state,
     _verify_current_state,
     _verify_transition,
@@ -285,9 +286,6 @@ def _reconcile_exceptional_delivery(
     task_state["working_state"] = state.as_dict()
 
     if status is ReconciliationStatus.CONFIRMED_APPLIED:
-        # The physical effect is already proven.  Repair the original transition
-        # receipt now; never leave an applied operation stranded at the old node
-        # and never redeliver it merely because the delivery call raised.
         _commit_recovered_applied_transition(
             task_state,
             state,
@@ -306,8 +304,6 @@ def _reconcile_exceptional_delivery(
         task_state["status"] = "abstained"
         task_state["escalation_reason"] = "delivery_error_confirmed_not_applied"
     else:
-        # Preserve the prepared marker for forensic/reconciliation evidence and
-        # block compensation/retry while the physical outcome remains unknown.
         task_state["status"] = "abstained"
         task_state["escalation_reason"] = "delivery_error_reconciliation_unknown"
     checkpoint()
