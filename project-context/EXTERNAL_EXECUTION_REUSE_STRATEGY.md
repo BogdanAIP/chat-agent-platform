@@ -4,7 +4,7 @@ Status: **AUTHORITATIVE INTEGRATION DIRECTION**.
 
 This document records how `chat-agent-platform` may reuse OpenAdapt and Microsoft UFO/UFO² mechanics without replacing project-owned authority, WorkingState, verification, recovery or completion boundaries.
 
-`ARCHITECTURE_REUSE_BASELINE.md` is the canonical prior-lineage comparison point for fresh Stage Research. This document supplies detailed rationale; it does not make an upstream component automatically valid for every new consumer.
+`ARCHITECTURE_REUSE_BASELINE.md` is the canonical prior-lineage comparison point for fresh Stage Research. This document supplies detailed rationale; it does not own active PR state, release order or acceptance evidence.
 
 ## Executive decision
 
@@ -76,7 +76,7 @@ project Finish Gate decides task completion
 
 ### Qualified sources
 
-Exact qualified versions/pins belong to `config/stage26-openadapt-lock.json` and supply-chain owner files. Do not duplicate transient pins into the architecture reuse baseline.
+Exact qualified versions/pins belong to `config/stage26-openadapt-lock.json` and supply-chain owner files. Do not duplicate transient pins into architecture prose or the reuse baseline.
 
 Current selected OpenAdapt role families are:
 
@@ -108,7 +108,7 @@ OpenAdapt verifier result
  -> PASS | FAIL | UNKNOWN
 ```
 
-Therefore a positive upstream verdict may still produce project `FAIL` or `UNKNOWN` when subject identity, stream/freshness, effect-contract identity, required evidence or provenance does not satisfy project policy.
+A positive upstream verdict may still produce project `FAIL` or `UNKNOWN` when subject identity, stream/freshness, effect-contract identity, required evidence or provenance does not satisfy project policy.
 
 Never use:
 
@@ -132,6 +132,8 @@ project WorkingState
 ```
 
 OpenAdapt state must not replace project WorkingState or independent recovery authority.
+
+When a release-critical consumer proposes custom procedure-local persistence/recovery mechanics, Stage Research must explicitly compare those mechanics with the prior selected OpenAdapt role and explain whether the decision is `KEEP`, `REUSE_MORE`, `REFINE`, `REPLACE`, `DEFER` or `REJECT`.
 
 ### Capture privacy boundary
 
@@ -179,27 +181,21 @@ ChatGPT planner
 
 UFO³ Galaxy remains deferred until multi-device orchestration is an observed bottleneck and then requires fresh architecture research.
 
-## Current Stage 26 mapping
+## Stage interaction
 
-Historical #114/#115 Windows verification work is complete; it is not an active integration constraint anymore.
+Stage/release ordering belongs to `ROADMAP.md`; active work belongs to `CURRENT_STATE.md`. This strategy only constrains how external mechanics may be reused when a stage needs them.
 
-### Stage 26.3B — accepted/closed
+Durable stage interaction rules are:
 
-Shared Verification Kernel + Finish Gate is accepted for recorded representative file/Browser/Windows scope. Do not reopen that stage merely to adopt OpenAdapt/UFO.
+- accepted project Verification Kernel / Finish Gate semantics remain authoritative regardless of external executor/verifier choice;
+- accepted project WorkingState/reconciliation/LoopGuard semantics remain project-owned and capability-spanning;
+- a new consumer must revalidate the exact upstream role rather than assuming an old qualification automatically transfers;
+- fresh Stage Research must compare custom mechanics against previously selected external roles before duplicating them;
+- upstream procedure/session state may be referenced from project state but must not replace project-wide authority/state ownership.
 
-### Stage 26.3C — project-owned state/recovery foundation accepted
+## Bounded OpenAdapt spike direction
 
-PR #124 accepted the L1 WorkingState/reconciliation/budget/LoopGuard foundation without production procedure wiring.
-
-The current production integration must preserve the project-owned state/authority boundary while comparing any procedure-local custom mechanics with the previously selected OpenAdapt roles.
-
-At this snapshot draft #126 has re-entered strengthened Stage Research and currently returns `NARROW` for a process-restart workspace-artifact integration. Its comparison includes procedure-local checkpoint/resume as a prior selected OpenAdapt role; the draft must explain precisely what upstream semantics do or do not cover before retaining custom prepared-intent/reconciliation mechanics.
-
-Draft implementation is not acceptance.
-
-### Pre-26.4 bounded OpenAdapt spike
-
-After the current 26.3C production recovery shape is accepted, run a bounded integration spike only after a fresh Architecture Lineage comparison:
+When the roadmap reaches the bounded OpenAdapt integration spike, use a fresh Architecture Lineage comparison and test an explicit composition such as:
 
 ```text
 human demonstration
@@ -223,9 +219,9 @@ Acceptance requires:
 
 If the exact role does not fit, keep the component qualified but outside production rather than forcing architecture around it.
 
-### Stage 26.4 — primary procedure/capture reuse target
+## Candidate-skill / Office reuse direction
 
-If revalidated, prefer upstream mechanics for demonstration -> candidate procedure, compile/IR, replay, checkpoint/resume, correction and certification/effect coverage.
+For demonstration-to-skill work, prefer revalidated mature upstream mechanics for capture, compile/IR, replay, checkpoint/resume, correction and certification/effect coverage rather than rebuilding them locally.
 
 Project trust remains:
 
@@ -236,9 +232,7 @@ one demo/success -> at most CANDIDATE
  -> promoted reusable skill
 ```
 
-### Stage 26.5 — selective Office reuse
-
-Adopt one application adapter at a time. Each must define:
+For Office breadth, adopt one focused application adapter at a time. Each must define:
 
 ```text
 allowed operations
@@ -266,7 +260,7 @@ need
  -> relevant physical/L3 gate when behavior/authority changes
 ```
 
-The current OpenAdapt lock already reflects the accepted six-tool semantic contract. Older prose claiming that the lock still refers to five tools is superseded and must not be revived.
+The current OpenAdapt lock reflects the accepted six-tool semantic contract. Older prose claiming that the lock still refers to five tools is superseded and must not be revived.
 
 ## Why reuse remains valuable
 
@@ -293,6 +287,7 @@ This strategy does not:
 
 - make OpenAdapt/UFO production-approved merely by documentation;
 - replace fresh Stage Research for a material new consumer;
+- own active PR/design snapshots or release order;
 - add public desktop/office/shell/Python/generic-dispatch tools;
 - accept OpenAdapt Cloud as baseline dependency;
 - accept UFO HostAgent/AppAgent/Galaxy as current planner/authority;
