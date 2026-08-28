@@ -11,6 +11,8 @@ metadata:
 
 Use this skill before implementation of a new release-critical stage/substage, a major subsystem, a new capability family, or a materially new recovery/security/authority mechanism.
 
+The repository-wide session bootstrap in `AGENTS.md` resolves applicable `.agents/skills/*/SKILL.md` before planning. Do not depend on chat memory or a previously read copy of this skill; use the current repository ref so merged skill changes are picked up automatically on the next development invocation.
+
 The goal is not to produce a research document for its own sake. The goal is to make the next implementation decision from current evidence while preserving the long-horizon product model and avoiding both weak minimalism and unnecessary infrastructure.
 
 ## Trigger
