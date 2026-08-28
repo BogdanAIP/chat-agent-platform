@@ -14,15 +14,15 @@ future_native_language=UNRESOLVED
 critical_path_change=NO
 -->
 
-## Decision
+## Decision contract
 
-**Top-level Stage Research decision: `DEFER`.**
+The structured `RUST_BOUNDARY_DECISION_V1` block above is the **sole implementation-decision representation in this Brief**. All prose below is explanatory evidence and constraints subordinate to that block.
 
 Production Rust work is blocked. This Brief does not authorize implementation, a dependency/toolchain change, a public-tool change, or a Stage 26.3C architecture change.
 
 Do **not** migrate the deterministic Control Plane, `WorkingState`, Verification Kernel, Finish Gate, public semantic projection, skills/configuration or Stage 26.3C artifact-recovery logic merely because major agent runtimes use Rust.
 
-The research identifies a credible **future native-host boundary**, but **does not select its implementation language**. If a concrete process/PTY/sandbox/native-handle problem later triggers re-entry, a new Stage Research must compare Rust against a language-neutral/current-runtime native boundary on the then-current requirements before production work can open.
+The research identifies a credible **future native-host boundary**, but **does not select its implementation language**. A future implementation requires fresh Stage Research against then-current requirements and must compare Rust against an equivalent language-neutral/current-runtime implementation of the same boundary.
 
 Conceptual future boundary:
 
@@ -73,6 +73,7 @@ Out of scope:
 - rewriting active Stage 26.3C;
 - choosing a database/WAL/storage engine;
 - same-task wake/scheduler design;
+- selecting a durable native idempotency/attempt ledger;
 - replacing OpenAdapt/UFO/Playwright roles;
 - a general language benchmark.
 
@@ -150,9 +151,15 @@ These requirements are visible in mature open agent code today.
 
 ### P3 — the boundary can stay narrow, but the language is not proven
 
-Cline proves that a native desktop/process shell can remain separate from a TypeScript agent sidecar. Codex and Goose prove that Rust can implement strong native lifecycle mechanics. Microsoft/Linux documentation proves the underlying OS mechanisms are not Rust-specific.
+Cline demonstrates that a native desktop/process shell can remain separate from a TypeScript agent sidecar. Codex and Goose demonstrate that Rust can implement strong native lifecycle mechanics. Microsoft/Linux documentation shows the underlying OS mechanisms are not Rust-specific.
 
 Therefore the evidence supports **the boundary**, not a current Rust selection.
+
+### P4 — lost acknowledgement exposes a separate idempotency/concurrency research problem
+
+If process creation may have happened but acknowledgement is lost, a retry can create a duplicate physical effect unless the system can prove otherwise. The current evidence set proves process-lifecycle mechanisms, not the consistency semantics of an atomic request-claim or durable deduplication store.
+
+Therefore this Brief records only the **observable safety invariant** required of any future implementation. It intentionally does **not** select how that invariant is enforced.
 
 ---
 
@@ -375,34 +382,22 @@ A future spike must compare Approach B and Approach C against the **same** proce
 
 ---
 
-## Duplicate delivery / lost acknowledgement contract for any future spike
+## Duplicate delivery / lost acknowledgement safety invariant
 
 Process launch is a consequence-bearing side effect. A future native boundary must not treat request transport as exactly-once delivery.
 
-Authority remains split as follows:
+Project `WorkingState` remains authoritative for `logical_operation_id`, `AttemptIntent`/`AttemptRecord`, unresolved outcome and reconciliation authority. A future request may carry `logical_operation_id + attempt_id` for correlation, but this Brief does not choose a host-side claim, deduplication database, lock, transaction, durable ledger, queue or other consistency primitive.
 
-```text
-project WorkingState
-  owns logical_operation_id, AttemptIntent/AttemptRecord,
-  unresolved outcome and reconciliation authority
+Required observable behavior:
 
-native boundary
-  receives logical_operation_id + attempt_id
-  may atomically claim one attempt_id for delivery
-  must never create more than one physical spawn for the same attempt_id
-```
+- **maximum physical effects before reconciliation: at most one spawn for one authorized attempt;**
+- duplicate or concurrent delivery must never increase that maximum;
+- if spawn may have happened but acknowledgement is lost, project `WorkingState` records the attempt as `OUTCOME_UNKNOWN` / unresolved and blocks another physical attempt;
+- another physical attempt under the same logical operation is permitted only after fresh reconciliation proves the prior attempt `CONFIRMED_NOT_APPLIED` and normal LoopGuard/budget/authority checks pass;
+- `CONFIRMED_APPLIED` advances without a re-spawn; `STILL_UNKNOWN` remains blocked;
+- if a candidate implementation cannot establish the at-most-one-spawn invariant across its declared concurrency/crash scope, that implementation does not qualify for the consequence-bearing path.
 
-Required rule:
-
-- **maximum physical effects before reconciliation: one spawn per authorized `attempt_id`;**
-- concurrent callers delivering the same `attempt_id` must be atomically deduplicated before spawn;
-- replay of the same `attempt_id` after delivery must not spawn again; it may return a previously retained receipt/state or an explicit duplicate/unresolved result;
-- if spawn may have happened but acknowledgement is lost, project `WorkingState` records the attempt as `OUTCOME_UNKNOWN` / unresolved and blocks a new physical attempt;
-- a new `attempt_id` under the same logical operation may be authorized only after fresh reconciliation proves the prior attempt `CONFIRMED_NOT_APPLIED` and normal LoopGuard/budget/authority checks pass;
-- `CONFIRMED_APPLIED` completes/advances without re-spawn; `STILL_UNKNOWN` remains blocked;
-- host-local claiming is not sufficient after host crash. Cross-restart safety is owned by project WorkingState + fresh observation/reconciliation unless a future Brief separately selects a durable native attempt ledger.
-
-This defines the required behavior without prematurely selecting a native persistence primitive.
+**Implementation mechanism is intentionally unspecified.** The consistency boundary, crash behavior, retained state, contention model, alternatives and failure history of any mechanism proposed to enforce duplicate/concurrent-delivery safety require fresh Stage Research before that primitive can enter production architecture.
 
 ---
 
@@ -413,10 +408,10 @@ This defines the required behavior without prematurely selecting a native persis
 | binary/helper missing or wrong version | capability unavailable; no fallback mutation |
 | IPC/binding contract mismatch | reject before delivery |
 | Control Plane disconnect before delivery | no execution without current authorization |
-| duplicate/concurrent same `attempt_id` before spawn | atomic claim/dedup; **at most one spawn** |
+| duplicate/concurrent delivery before spawn | **at most one spawn** within the declared scope; enforcement mechanism requires separate research |
 | host/helper crashes before spawn | `NOT_APPLIED` only if freshly established; otherwise reconcile |
-| spawn occurs but acknowledgement is lost | one attempt becomes unresolved; replay/same attempt cannot spawn again; no new attempt until fresh reconciliation |
-| host/helper restarts while prior attempt unresolved | project WorkingState remains authoritative; no redelivery until reconciliation |
+| spawn occurs but acknowledgement is lost | attempt becomes unresolved; no blind retry or second physical attempt before reconciliation |
+| host/helper restarts while prior attempt unresolved | project WorkingState remains authoritative; no redelivery before reconciliation |
 | owner dies | owned descendant tree terminates unless reviewed semantics explicitly preserve it |
 | child spawns before containment | prevent with suspended/atomic containment where required; otherwise fail closed |
 | Windows nested-job/assignment failure | explicit containment failure; no silent uncontained consequence fallback |
@@ -455,7 +450,7 @@ ExecuteNativeOperation {
 
 not `run_anything(command)`.
 
-The executor returns lifecycle/delivery evidence with the same `logical_operation_id` and `attempt_id`, native identity, containment state, started/exited/cancelled/unknown status, exit/signal metadata and evidence refs. Project observation + Verification Kernel still decides whether the intended effect occurred.
+The executor returns lifecycle/delivery evidence with the same logical/attempt correlation, native identity, containment state, started/exited/cancelled/unknown status, exit/signal metadata and evidence refs. Project observation + Verification Kernel still decides whether the intended effect occurred.
 
 ---
 
@@ -498,6 +493,8 @@ Re-run fresh Stage Research before production Rust work **or any new native-host
 
 Re-entry must re-pin then-current references. The refs in this 2026-08-28 Brief are evidence for this decision, **not timeless architecture**.
 
+Any proposed duplicate/concurrent-delivery primitive is itself a material concurrency/recovery mechanism and must receive its own solution-domain evidence, alternatives and failure/crash analysis during re-entry rather than inheriting authority from this Brief.
+
 ---
 
 ## Verification plan for a future bounded spike
@@ -510,9 +507,10 @@ If future re-entry authorizes a prototype, compare language-neutral/current-runt
 - Windows Job Object root + grandchild cleanup test;
 - Windows nested-job/assignment-failure fail-closed test;
 - Linux owner-death/process-group test comparable to Goose;
-- duplicate concurrent delivery of the same `attempt_id` => exactly one spawn;
-- replay after spawn/lost acknowledgement => zero second spawn and unresolved project state until reconciliation;
-- restart with unresolved attempt => zero redelivery before fresh reconciliation;
+- duplicate/concurrent delivery fault test proving the **at-most-one-spawn** invariant for the candidate's declared scope;
+- spawn/lost-ack fault test proving zero new physical attempt before fresh reconciliation;
+- restart with unresolved attempt proving zero redelivery before fresh reconciliation;
+- separate research evidence for whatever consistency primitive is proposed to enforce those invariants;
 - crash before spawn, after spawn/before ack and after exit/before ack;
 - cancellation/completion race tests;
 - stale/expired grant rejection before delivery;
@@ -526,10 +524,10 @@ If future re-entry authorizes a prototype, compare language-neutral/current-runt
 
 ## Final conclusion
 
-Rust is **not currently justified as a migration target for Chat Agent Platform's control/state architecture**, and this research does not yet justify selecting Rust even for a future narrow native-host implementation.
+Rust is **not currently justified as a migration target for Chat Agent Platform's control/state architecture**, and this research does not justify selecting Rust even for a future narrow native-host implementation.
 
 The code plus OS-mechanism evidence supports a more careful conclusion:
 
-> If future work requires stronger process-tree, PTY, sandbox or native-handle guarantees, introduce one small project-owned native execution boundary *below* existing semantic/Control Plane authority. At that future re-entry, compare Rust against an equivalent language-neutral/current-runtime implementation of the same boundary before selecting the language.
+> If future work requires stronger process-tree, PTY, sandbox or native-handle guarantees, introduce one small project-owned native execution boundary *below* existing semantic/Control Plane authority. At that future re-entry, compare Rust against an equivalent language-neutral/current-runtime implementation of the same boundary before selecting the language. Research any duplicate/concurrent-delivery consistency primitive separately rather than smuggling one in as part of the language choice.
 
-For the current roadmap the decision remains **`DEFER`**. Stage 26.3C continues on its already-researched Python/project-owned recovery path.
+For the current roadmap the structured decision remains `DEFER`. Stage 26.3C continues on its already-researched Python/project-owned recovery path.
