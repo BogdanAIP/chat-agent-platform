@@ -87,6 +87,23 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, skill)
 
+    def test_initial_material_persistence_or_concurrency_change_triggers_stage_research(self) -> None:
+        skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
+        agents = AGENTS.read_text(encoding="utf-8")
+
+        for phrase in (
+            "material change to persistence ordering/ownership",
+            "retry/reconciliation",
+            "concurrency",
+            "identity/correlation",
+            "including inside an existing subsystem",
+        ):
+            with self.subTest(skill_phrase=phrase):
+                self.assertIn(phrase, skill)
+
+        self.assertIn("material release-critical change to persistence ordering/ownership", agents)
+        self.assertIn("because the change occurs inside an existing subsystem", agents)
+
     def test_material_architecture_change_reenters_research_before_more_production_code(self) -> None:
         agents = AGENTS.read_text(encoding="utf-8")
 
@@ -102,6 +119,22 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
         for phrase in required:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, agents)
+
+    def test_defer_is_fail_closed_and_never_opens_implementation(self) -> None:
+        skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
+        agents = AGENTS.read_text(encoding="utf-8")
+
+        for phrase in (
+            "`DEFER` is fail-closed",
+            "resume production implementation only after `PROCEED` or `NARROW`",
+            "if the fresh decision is `DEFER`, keep implementation stopped",
+            "`DEFER` never opens or resumes production implementation",
+        ):
+            with self.subTest(skill_phrase=phrase):
+                self.assertIn(phrase, skill)
+
+        self.assertIn("only `PROCEED` or `NARROW` opens implementation", agents)
+        self.assertIn("`DEFER` keeps implementation stopped", agents)
 
 
 if __name__ == "__main__":
