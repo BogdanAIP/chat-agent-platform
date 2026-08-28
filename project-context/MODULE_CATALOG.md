@@ -15,7 +15,7 @@ Ordinary ChatGPT is the only current general planner. The project may use Codex 
 - **ACCEPTED-SPECIALIST** — bounded specialist backend behind project authority.
 - **ACCEPTED-L1** — accepted state/contract foundation not yet sufficient for every production consequence path.
 - **TARGET-QUALIFIED** — exact component/path qualified but not promoted to general production use.
-- **ACTIVE-INTEGRATION** — current production-integration work.
+- **ACTIVE-INTEGRATION** — current production-integration work; details live in `CURRENT_STATE.md`.
 - **FUTURE-SCOPED-GATE** — future capability requiring explicit research/acceptance.
 - **PARALLEL-TRACK** — future layer not on current release-critical path.
 - **OPTIONAL-RESEARCH** — only if later evidence justifies it.
@@ -49,7 +49,7 @@ Ordinary ChatGPT is the only current general planner. The project may use Codex 
 | Procedure/effect evidence | OpenAdapt effect-verifier mechanics through project adapter | **TARGET-QUALIFIED / REVALIDATE** | upstream verdict is evidence, never unconditional project PASS/DONE. |
 | Human desktop demonstration capture | OpenAdapt Capture + Flow adapter | **TARGET-QUALIFIED** | privacy/trust/promotion remain future gates. |
 | Human demonstration -> candidate skill | live-state re-resolved candidate lineage | **FUTURE-SCOPED-GATE** | Stage 26.4; no blind macro replay. |
-| Selective Office/Windows native adapters | UFO/UFO²-derived UIA/Win32/WinCOM/app mechanics | **FUTURE-SCOPED-GATE / SELECTIVE REUSE** | focused adapters only; no UFO planner hierarchy/Galaxy authority. |
+| Selective Office/Windows native adapters | UFO/UFO²-derived UIA, Win32, WinCOM and app mechanics | **FUTURE-SCOPED-GATE / SELECTIVE REUSE** | focused adapters only; no UFO planner hierarchy/Galaxy authority. |
 | Hybrid cross-capability computer use | common observation/recovery/routing semantics | **FUTURE-SCOPED-GATE** | Stage 26.5; do not flatten rich native state prematurely. |
 | Site Capability / broader Browser authority | restricted-by-default -> explicitly scoped trusted-site profiles | **FUTURE-SCOPED-GATE** | requires network/security/public-contract/physical acceptance. |
 | Local Execution Kernel | task-scoped Python/program grant | **FUTURE-SCOPED-GATE** | separate consequence class; not hidden Browser/procedure authority. |
@@ -99,10 +99,10 @@ Do not use `Control Plane` as a synonym for planner, agent host or unrestricted 
 26.3A six-tool Verified Procedure Runtime               ACCEPTED
 26.3B Verification Kernel + independent Finish Gate     ACCEPTED / CLOSED FOR RECORDED SCOPE
 26.3C WorkingState/LoopGuard L1 foundation              ACCEPTED / MERGED #124
-26.3C first production restart/reconciliation consumer ACTIVE / NOT YET ACCEPTED
+26.3C consequence-bearing production/restart use        ACTIVE-INTEGRATION / NOT YET ACCEPTED
 ```
 
-At this snapshot draft #126 owns the first bounded production consumer; resolve its live state before work.
+Live integration PR/design/check state belongs in `CURRENT_STATE.md`.
 
 ## Reuse / architecture lineage
 
