@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -63,6 +65,30 @@ function stringEnvironment(source) {
   return env;
 }
 
+export function resolveSemanticRuntimeDirectory({ env = process.env, pid = process.pid } = {}) {
+  const override = typeof env?.CHAT_SEMANTIC_RUNTIME_ROOT === 'string'
+    ? env.CHAT_SEMANTIC_RUNTIME_ROOT.trim()
+    : '';
+  if (override && !path.isAbsolute(override)) {
+    throw new Error('CHAT_SEMANTIC_RUNTIME_ROOT must be an absolute path.');
+  }
+
+  const localAppData = typeof env?.LOCALAPPDATA === 'string' ? env.LOCALAPPDATA.trim() : '';
+  const root = override || (
+    localAppData && path.isAbsolute(localAppData)
+      ? path.join(localAppData, 'ChatAgentPlatform', 'runtime', 'semantic')
+      : path.join(os.tmpdir(), 'ChatAgentPlatform', 'runtime', 'semantic')
+  );
+  const processId = Number.isInteger(pid) && pid > 0 ? pid : process.pid;
+  return path.join(root, `session-${processId}`);
+}
+
+export function prepareSemanticRuntimeDirectory(options = {}) {
+  const runtimeDirectory = resolveSemanticRuntimeDirectory(options);
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  return runtimeDirectory;
+}
+
 export async function assertExpectedSemanticInventory({ entry, env = process.env }) {
   if (typeof entry !== 'string' || entry.length === 0) {
     throw new Error('semantic inventory guard requires one semantic entry path');
@@ -115,6 +141,9 @@ async function main() {
     console.log('SEMANTIC_TUNNEL_CREDENTIAL_SCRUB=PASS');
     process.exit(0);
   }
+
+  const runtimeCwd = prepareSemanticRuntimeDirectory();
+  process.chdir(runtimeCwd);
 
   const launcherDir = path.dirname(fileURLToPath(import.meta.url));
   const semanticEntry = path.join(launcherDir, 'semantic-control-plane-projection.mjs');
