@@ -14,26 +14,40 @@ def _split_markdown_table_row(line: str) -> tuple[str, ...]:
     body = line.strip().strip("|")
     cells: list[str] = []
     current: list[str] = []
-    in_code = False
+    code_delimiter_len: int | None = None
     escaped = False
-    for char in body:
+    index = 0
+    while index < len(body):
+        char = body[index]
         if escaped:
             current.append(char)
             escaped = False
+            index += 1
             continue
         if char == "\\":
             current.append(char)
             escaped = True
+            index += 1
             continue
         if char == "`":
-            in_code = not in_code
-            current.append(char)
+            run_end = index + 1
+            while run_end < len(body) and body[run_end] == "`":
+                run_end += 1
+            run_len = run_end - index
+            current.append(body[index:run_end])
+            if code_delimiter_len is None:
+                code_delimiter_len = run_len
+            elif run_len == code_delimiter_len:
+                code_delimiter_len = None
+            index = run_end
             continue
-        if char == "|" and not in_code:
+        if char == "|" and code_delimiter_len is None:
             cells.append("".join(current).strip())
             current = []
+            index += 1
             continue
         current.append(char)
+        index += 1
     cells.append("".join(current).strip())
     return tuple(cells)
 
