@@ -22,7 +22,7 @@ CAP-M0 is accepted: the Verification Kernel curated pilot proved its unmutated b
 
 Representative Browser/Windows physical gates also exposed real acceptance-harness defect classes. Invalid runs were rejected rather than waived.
 
-Stage 26.3C then advanced: PR #124 accepted the L1 WorkingState/typed reconciliation/budget/LoopGuard foundation. Therefore the current CAP-M7 target is **production integration/restart behavior**, not merely designing the WorkingState type from scratch.
+Stage 26.3C has an accepted L1 WorkingState/typed reconciliation/budget/LoopGuard foundation. CAP-M7 therefore targets **production integration/restart behavior** rather than merely proving that the state types exist.
 
 ## CAP-M0 invariant
 
@@ -50,7 +50,7 @@ Harness failure is never proof that the guarantee held.
 | `SRC-001` | wrong exact qualification HEAD | fail before consequence path |
 | `SRC-002` | dirty tracked source | fail |
 | `SRC-003` | runtime artifact appears in source worktree during qualification | provenance revalidation fail |
-| `SRC-004` | installed runtime already differs from independently materialized expected source | fail |
+| `SRC-004` | installed runtime differs from independently materialized expected source | fail |
 | `SRC-005` | executed runtime helper omitted from attestation | closure meta-test fail |
 | `SRC-006` | transitive runtime dependency omitted from complete-tree proof | fail |
 | `SRC-007` | committed lock correct but installed dependency bytes modified | fail |
@@ -107,34 +107,40 @@ Closure tests should derive/compare actual runtime/install closure rather than m
 | `AUTH-102` | backend/PID/HWND/selector/raw execution authority leaks into bounded public procedure | schema/authority contract fails |
 | `AUTH-103` | evidence object treated as grant | policy/authority test rejects operation |
 
-## CAP-M7 — Stage 26.3C WorkingState / recovery
+## CAP-M7 — WorkingState / recovery / LoopGuard production composition
 
-The L1 foundation now exists; CAP-M7 must prove that production consumers preserve it under real restart/failure composition.
+The L1 foundation exists; CAP-M7 proves that consequence-bearing consumers preserve it under restart, delivery ambiguity and concurrent execution.
 
-Minimum guarantee families:
+Permanent guarantee families include:
 
 - `WS-*` — stale/mismatched WorkingState/provenance cannot authorize another effect;
-- `REC-*` — ambiguous delivery reconciles from fresh state before retry;
+- `REC-*` — ambiguous delivery reconciles from fresh authoritative state before retry;
 - `LOOP-*` — repeated equivalent physical intents/budgets fail closed before unbounded redelivery;
 - restart cannot replay a proven-applied logical operation;
 - durable history cannot attach another actor/environment/generation/evidence stream;
 - `candidate_done` and stale success remain non-authoritative after recovery;
-- StagnationReport is diagnostic/escalation data, not grant/planner.
+- `StagnationReport` is diagnostic/escalation data, not grant/planner;
+- concurrent duplicate resume/caller cannot produce an extra consequence;
+- persistence failure between intent/delivery/outcome checkpoints cannot silently authorize redelivery;
+- identity replacement/ABA or same-state-but-different-object ambiguity fails closed where ownership identity matters;
+- unresolved mutating outcome blocks unsafe compensation/rollback and unrelated continuation.
 
-For the current draft workspace-artifact production integration, add deterministic cases for:
+For each consequence-bearing recovery consumer, derive the concrete fault-injection matrix from its accepted Stage Research Brief and effect model. Typical cases include:
 
 ```text
 concurrent duplicate resume -> loser performs zero mutation
-process death -> task lock becomes recoverable
-prepared intent persisted before delivery
-crash after delivery before recovery commit
-recovery-commit persistence failure
-same-content but different file identity
-ABA delete/recreate identity mismatch
-unresolved outcome blocks compensation
+process death -> exclusive ownership becomes safely recoverable
+intent/preparation state is persisted before effect delivery where required
+crash after delivery before durable outcome -> reconcile before redelivery
+recovery-commit persistence failure -> no blind duplicate effect
+same visible/content state but wrong object identity -> UNKNOWN/conflict where identity matters
+ABA delete/recreate -> stale ownership is rejected
+unresolved outcome -> compensation/next mutation blocked
 ```
 
-Because that draft changes a real `procedure_run` effect path, deterministic CAP-M7 tests do not replace the required target-Windows physical qualification.
+These examples are reusable defect classes, not a specification of one active PR. The exact storage primitive, lock, identity tuple or recovery protocol belongs to the relevant current Stage Research/implementation owner.
+
+Deterministic CAP-M7 tests do not replace a required physical gate when the guarantee depends on a real target consequence that hosted tests cannot represent faithfully.
 
 ## Meta-tests: prove assurance liveness
 
@@ -187,7 +193,7 @@ CAP-M3 transition verification/timing                   staged
 CAP-M4 authority/registry/reporting guarantees          staged
 CAP-M5 acceptance-system behavioral adversarial cases   staged/current source of permanent defects
 CAP-M6 source provenance / closure                      accepted physical lessons + further deterministic hardening
-CAP-M7 WorkingState/recovery/LoopGuard production use   ACTIVE with Stage 26.3C integration
+CAP-M7 WorkingState/recovery/LoopGuard production use   ACTIVE during Stage 26.3C integration
 CAP-M8 assurance CI tiering/aggregation                 future
 ```
 
