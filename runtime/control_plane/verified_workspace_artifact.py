@@ -98,7 +98,7 @@ def _direct_reconciliation_status(
             sha256=expected_sha,
         ):
             return ReconciliationStatus.CONFIRMED_APPLIED
-        if _is_missing(snapshot, "staging"):
+        if _is_missing(snapshot, "staging") and _is_missing(snapshot, "target"):
             return ReconciliationStatus.CONFIRMED_NOT_APPLIED
         return ReconciliationStatus.STILL_UNKNOWN
 
@@ -159,10 +159,10 @@ def _recover_prepared_intent(
     expected_sha: str,
     content_size: int,
     checkpoint: Callable[[], None],
-) -> tuple[WorkingState, dict[str, Any] | None]:
+) -> tuple[WorkingState, dict[str, Any] | None, ObservationSnapshot | None]:
     marker = task_state.get("prepared_intent")
     if marker is None:
-        return state, None
+        return state, None, None
     if not isinstance(marker, dict):
         raise ValueError("prepared_intent is invalid")
 
@@ -211,7 +211,7 @@ def _recover_prepared_intent(
     if status is ReconciliationStatus.CONFIRMED_NOT_APPLIED:
         task_state["prepared_intent"] = None
         checkpoint()
-        return state, None
+        return state, None, fresh
 
     if status is ReconciliationStatus.CONFIRMED_APPLIED:
         recovery_result = _commit_recovered_applied_transition(
@@ -225,7 +225,7 @@ def _recover_prepared_intent(
             expected_sha=expected_sha,
             checkpoint=checkpoint,
         )
-        return state, recovery_result
+        return state, recovery_result, None
 
     task_state["status"] = "abstained"
     task_state["escalation_reason"] = "resume_reconciliation_unknown"
@@ -233,7 +233,7 @@ def _recover_prepared_intent(
     return state, {
         "status": task_state["status"],
         "escalation_reason": task_state["escalation_reason"],
-    }
+    }, None
 
 
 def _reconcile_exceptional_delivery(
@@ -519,8 +519,9 @@ def _run_verified_workspace_artifact_locked(
     if node not in _RESUMABLE_NODES:
         raise ValueError("resume checkpoint node is not safely resumable")
 
+    reconciled_retry_snapshot: ObservationSnapshot | None = None
     if working_state is not None and task_state.get("prepared_intent") is not None:
-        working_state, recovery_result = _recover_prepared_intent(
+        working_state, recovery_result, reconciled_retry_snapshot = _recover_prepared_intent(
             task_state,
             working_state,
             observer,
@@ -571,17 +572,20 @@ def _run_verified_workspace_artifact_locked(
             resumed=resume_task_id is not None,
         )
 
-    migrated_snapshot: ObservationSnapshot | None = None
+    migrated_snapshot: ObservationSnapshot | None = reconciled_retry_snapshot
 
     if node == "preflight":
-        preflight = observer.observe()
-        if working_state is None:
-            working_state = _new_working_state(task_id, preflight)
-            task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
-            task_state["working_state"] = working_state.as_dict()
-            task_state["prepared_intent"] = None
+        if reconciled_retry_snapshot is None:
+            preflight = observer.observe()
+            if working_state is None:
+                working_state = _new_working_state(task_id, preflight)
+                task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
+                task_state["working_state"] = working_state.as_dict()
+                task_state["prepared_intent"] = None
+            else:
+                working_state = _advance_working_observation(working_state, preflight)
         else:
-            working_state = _advance_working_observation(working_state, preflight)
+            preflight = reconciled_retry_snapshot
         migrated_snapshot = preflight
         if preflight.ambiguous:
             task_state["status"] = "abstained"
@@ -619,37 +623,40 @@ def _run_verified_workspace_artifact_locked(
         checkpoint()
     elif node == "staged_verified":
         legacy_identity = task_state.get("staging_file_identity")
-        resume_staged, resume_staged_snapshot = _verify_current_state(
-            observer,
-            effect_id="resume_staged_current_state",
-            predicates=(
-                *_file_predicates(
-                    "staging",
-                    size=len(content_bytes),
-                    sha256=expected_sha,
-                    identity=(legacy_identity if working_state is not None else None),
+        if reconciled_retry_snapshot is None:
+            resume_staged, resume_staged_snapshot = _verify_current_state(
+                observer,
+                effect_id="resume_staged_current_state",
+                predicates=(
+                    *_file_predicates(
+                        "staging",
+                        size=len(content_bytes),
+                        sha256=expected_sha,
+                        identity=(legacy_identity if working_state is not None else None),
+                    ),
+                    *_missing_predicates("target"),
                 ),
-                *_missing_predicates("target"),
-            ),
-        )
-        if (
-            resume_staged.status is not VerificationStatus.PASS
-            or (working_state is None and not _same_file_identity(staging, legacy_identity))
-        ):
-            task_state["status"] = "abstained"
-            task_state["escalation_reason"] = (
-                "resume_unexpected_target_state"
-                if resume_staged_snapshot.state["target"].get("exists") is True
-                else "resume_staging_identity_mismatch"
             )
-            checkpoint()
-            return _result(
-                task_state,
-                artifact_relative_path=relative_target,
-                final_verification=_evidence(target),
-                rollback={"staging_removed": False, "target_removed": False},
-                resumed=True,
-            )
+            if (
+                resume_staged.status is not VerificationStatus.PASS
+                or (working_state is None and not _same_file_identity(staging, legacy_identity))
+            ):
+                task_state["status"] = "abstained"
+                task_state["escalation_reason"] = (
+                    "resume_unexpected_target_state"
+                    if resume_staged_snapshot.state["target"].get("exists") is True
+                    else "resume_staging_identity_mismatch"
+                )
+                checkpoint()
+                return _result(
+                    task_state,
+                    artifact_relative_path=relative_target,
+                    final_verification=_evidence(target),
+                    rollback={"staging_removed": False, "target_removed": False},
+                    resumed=True,
+                )
+        else:
+            resume_staged_snapshot = reconciled_retry_snapshot
         upgraded_staging_identity = _observed_identity(resume_staged_snapshot, "staging")
         if upgraded_staging_identity is None:
             raise ValueError("resume staging identity is unavailable")
@@ -668,44 +675,47 @@ def _run_verified_workspace_artifact_locked(
     elif node == "final_verified":
         legacy_staging_identity = task_state.get("staging_file_identity")
         legacy_target_identity = task_state.get("target_file_identity")
-        resume_final, resume_final_snapshot = _verify_current_state(
-            observer,
-            effect_id="resume_final_current_state",
-            predicates=(
-                *_file_predicates(
-                    "staging",
-                    size=len(content_bytes),
-                    sha256=expected_sha,
-                    identity=(legacy_staging_identity if working_state is not None else None),
+        if reconciled_retry_snapshot is None:
+            resume_final, resume_final_snapshot = _verify_current_state(
+                observer,
+                effect_id="resume_final_current_state",
+                predicates=(
+                    *_file_predicates(
+                        "staging",
+                        size=len(content_bytes),
+                        sha256=expected_sha,
+                        identity=(legacy_staging_identity if working_state is not None else None),
+                    ),
+                    *_file_predicates(
+                        "target",
+                        size=len(content_bytes),
+                        sha256=expected_sha,
+                        identity=(legacy_target_identity if working_state is not None else None),
+                    ),
                 ),
-                *_file_predicates(
-                    "target",
-                    size=len(content_bytes),
-                    sha256=expected_sha,
-                    identity=(legacy_target_identity if working_state is not None else None),
-                ),
-            ),
-        )
-        if (
-            resume_final.status is not VerificationStatus.PASS
-            or (
-                working_state is None
-                and (
-                    not _same_file_identity(staging, legacy_staging_identity)
-                    or not _same_file_identity(target, legacy_target_identity)
+            )
+            if (
+                resume_final.status is not VerificationStatus.PASS
+                or (
+                    working_state is None
+                    and (
+                        not _same_file_identity(staging, legacy_staging_identity)
+                        or not _same_file_identity(target, legacy_target_identity)
+                    )
                 )
-            )
-        ):
-            task_state["status"] = "abstained"
-            task_state["escalation_reason"] = "resume_final_identity_mismatch"
-            checkpoint()
-            return _result(
-                task_state,
-                artifact_relative_path=relative_target,
-                final_verification=_evidence(target),
-                rollback={"staging_removed": False, "target_removed": False},
-                resumed=True,
-            )
+            ):
+                task_state["status"] = "abstained"
+                task_state["escalation_reason"] = "resume_final_identity_mismatch"
+                checkpoint()
+                return _result(
+                    task_state,
+                    artifact_relative_path=relative_target,
+                    final_verification=_evidence(target),
+                    rollback={"staging_removed": False, "target_removed": False},
+                    resumed=True,
+                )
+        else:
+            resume_final_snapshot = reconciled_retry_snapshot
         upgraded_staging_identity = _observed_identity(resume_final_snapshot, "staging")
         upgraded_target_identity = _observed_identity(resume_final_snapshot, "target")
         if upgraded_staging_identity is None or upgraded_target_identity is None:
@@ -734,8 +744,11 @@ def _run_verified_workspace_artifact_locked(
 
     try:
         if node == "preflight":
-            stage_before = observer.observe()
-            working_state = _advance_working_observation(working_state, stage_before)
+            if reconciled_retry_snapshot is None:
+                stage_before = observer.observe()
+                working_state = _advance_working_observation(working_state, stage_before)
+            else:
+                stage_before = reconciled_retry_snapshot
             intent = _prepare_transition(
                 task_state,
                 working_state,
@@ -839,27 +852,31 @@ def _run_verified_workspace_artifact_locked(
             )
             checkpoint()
             node = "staged_verified"
+            reconciled_retry_snapshot = None
 
         if node == "staged_verified":
-            final_before_check, final_before = _verify_current_state(
-                observer,
-                effect_id="final_create_precondition",
-                predicates=(
-                    *_file_predicates(
-                        "staging",
-                        size=len(content_bytes),
-                        sha256=expected_sha,
-                        identity=task_state.get("staging_file_identity"),
+            if reconciled_retry_snapshot is None:
+                final_before_check, final_before = _verify_current_state(
+                    observer,
+                    effect_id="final_create_precondition",
+                    predicates=(
+                        *_file_predicates(
+                            "staging",
+                            size=len(content_bytes),
+                            sha256=expected_sha,
+                            identity=task_state.get("staging_file_identity"),
+                        ),
+                        *_missing_predicates("target"),
                     ),
-                    *_missing_predicates("target"),
-                ),
-            )
-            working_state = _advance_working_observation(working_state, final_before)
-            if final_before_check.status is not VerificationStatus.PASS:
-                task_state["status"] = "abstained"
-                task_state["escalation_reason"] = "final_create_precondition_failed"
-                checkpoint()
-                raise RuntimeError("final create precondition failed")
+                )
+                working_state = _advance_working_observation(working_state, final_before)
+                if final_before_check.status is not VerificationStatus.PASS:
+                    task_state["status"] = "abstained"
+                    task_state["escalation_reason"] = "final_create_precondition_failed"
+                    checkpoint()
+                    raise RuntimeError("final create precondition failed")
+            else:
+                final_before = reconciled_retry_snapshot
             intent = _prepare_transition(
                 task_state,
                 working_state,
@@ -974,32 +991,36 @@ def _run_verified_workspace_artifact_locked(
             )
             checkpoint()
             node = "final_verified"
+            reconciled_retry_snapshot = None
 
         if node == "final_verified":
-            cleanup_before_check, cleanup_before = _verify_current_state(
-                observer,
-                effect_id="staging_cleanup_precondition",
-                predicates=(
-                    *_file_predicates(
-                        "staging",
-                        size=len(content_bytes),
-                        sha256=expected_sha,
-                        identity=task_state.get("staging_file_identity"),
+            if reconciled_retry_snapshot is None:
+                cleanup_before_check, cleanup_before = _verify_current_state(
+                    observer,
+                    effect_id="staging_cleanup_precondition",
+                    predicates=(
+                        *_file_predicates(
+                            "staging",
+                            size=len(content_bytes),
+                            sha256=expected_sha,
+                            identity=task_state.get("staging_file_identity"),
+                        ),
+                        *_file_predicates(
+                            "target",
+                            size=len(content_bytes),
+                            sha256=expected_sha,
+                            identity=task_state.get("target_file_identity"),
+                        ),
                     ),
-                    *_file_predicates(
-                        "target",
-                        size=len(content_bytes),
-                        sha256=expected_sha,
-                        identity=task_state.get("target_file_identity"),
-                    ),
-                ),
-            )
-            working_state = _advance_working_observation(working_state, cleanup_before)
-            if cleanup_before_check.status is not VerificationStatus.PASS:
-                task_state["status"] = "abstained"
-                task_state["escalation_reason"] = "cleanup_precondition_failed"
-                checkpoint()
-                raise RuntimeError("cleanup precondition failed")
+                )
+                working_state = _advance_working_observation(working_state, cleanup_before)
+                if cleanup_before_check.status is not VerificationStatus.PASS:
+                    task_state["status"] = "abstained"
+                    task_state["escalation_reason"] = "cleanup_precondition_failed"
+                    checkpoint()
+                    raise RuntimeError("cleanup precondition failed")
+            else:
+                cleanup_before = reconciled_retry_snapshot
             intent = _prepare_transition(
                 task_state,
                 working_state,
@@ -1120,7 +1141,8 @@ def _run_verified_workspace_artifact_locked(
     finally:
         if task_state["status"] != "completed":
             safe_to_compensate = (
-                task_state.get("prepared_intent") is None
+                task_state["status"] != "running"
+                and task_state.get("prepared_intent") is None
                 and working_state is not None
                 and not working_state.unresolved_attempts()
             )
