@@ -7,6 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 AGENTS = ROOT / "AGENTS.md"
 SKILLS_ROOT = ROOT / ".agents" / "skills"
+REUSE_BASELINE = ROOT / "project-context" / "ARCHITECTURE_REUSE_BASELINE.md"
 
 
 class AgentSkillBootstrapContractTests(unittest.TestCase):
@@ -86,6 +87,43 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
         for phrase in required:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, skill)
+
+    def test_stage_research_compares_against_canonical_architecture_reuse_lineage(self) -> None:
+        self.assertTrue(REUSE_BASELINE.is_file())
+        skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
+        baseline = REUSE_BASELINE.read_text(encoding="utf-8")
+
+        for phrase in (
+            "## 2A. Architecture Lineage Gate — compare with canonical reuse baseline",
+            "project-context/ARCHITECTURE_REUSE_BASELINE.md",
+            "### Architecture lineage comparison",
+            "KEEP",
+            "REUSE_MORE",
+            "REFINE",
+            "REPLACE",
+            "DEFER",
+            "REJECT",
+            "custom code duplicates mechanics that the project had already selected for upstream reuse",
+            "previously selected baseline component",
+        ):
+            with self.subTest(skill_phrase=phrase):
+                self.assertIn(phrase, skill)
+
+        for phrase in (
+            "AUTHORITATIVE RESEARCH COMPARISON BASELINE",
+            "canonical baseline for comparing new research with prior design choices",
+            "Procedure-local checkpoint / durable resume mechanics",
+            "OpenAdapt Flow 1.31.0",
+            "Capability-spanning operational state",
+            "project-owned `WorkingState`",
+            "Transition verification authority",
+            "project Verification Kernel",
+            "Task completion authority",
+            "project independent Finish Gate",
+            "REPLACE` and `REJECT` require explicit evidence",
+        ):
+            with self.subTest(baseline_phrase=phrase):
+                self.assertIn(phrase, baseline)
 
     def test_initial_material_persistence_or_concurrency_change_triggers_stage_research(self) -> None:
         skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
