@@ -1262,6 +1262,27 @@ class LoopGuard:
                         ),
                     )
 
+        if state.attempts:
+            most_recent_attempt = state.attempts[-1]
+            if (
+                state.observation_ref.sequence
+                <= most_recent_attempt.intent.observation_ref.sequence
+            ):
+                return self._block(
+                    state,
+                    intent,
+                    self._reason(
+                        "fresh_observation_required_after_attempt",
+                        FailureCategory.STALE_STATE,
+                        (
+                            "A fresh authoritative observation after the most recent "
+                            "physical attempt is required before another mutation."
+                        ),
+                        intent,
+                        evidence_refs=intent.evidence_refs,
+                    ),
+                )
+
         identical = sum(
             1
             for item in state.attempts
