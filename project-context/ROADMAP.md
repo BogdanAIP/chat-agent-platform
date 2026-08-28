@@ -6,7 +6,7 @@ Keep ordinary ChatGPT as the **only current general planning layer** while the l
 
 The deterministic Control Plane is not a second planner. It may advance already-selected known transitions under explicit authorization/verification and must escalate when a new strategy is required.
 
-`ROADMAP.md` owns **release order**, not exact accepted SHAs or machine evidence. Use `CURRENT_STATE.md` for the live boundary and `EVIDENCE_INDEX.md` for accepted physical evidence.
+`ROADMAP.md` owns **release order and stage-level completion conditions**, not active PR mechanics, exact accepted SHAs or machine evidence. Use `CURRENT_STATE.md` for the live boundary/active work and `EVIDENCE_INDEX.md` for accepted physical evidence.
 
 ## Accepted public semantic surface
 
@@ -43,28 +43,19 @@ Relevant accepted progression:
 Stage 24/24.1 typed file/browser foundation                 ACCEPTED
 Stage 25/25.1/25.2 Browser + local vision                   ACCEPTED
 Stage 26.1A-E / 26.2A-E Windows foundation                 ACCEPTED FOR RECORDED SCOPE
-Stage 26.3A canonical six-tool Verified Procedure Runtime  ACCEPTED / MERGED #92
-Transport Supervisor                                       ACCEPTED / MERGED #94
-Verification Kernel foundation                              MERGED #99
-file/artifact shared-kernel path                            PHYSICAL ACCEPTED / MERGED #102
-Browser web_open/web_interact verification                  PHYSICAL ACCEPTED / MERGED #107/#111
-Browser L3                                                  PHYSICAL ACCEPTED / MERGED #113
-Windows shared-kernel + application L3                      PHYSICAL ACCEPTED / MERGED #114/#115
-Track M + ADR-037 future architecture                       MERGED #116 / NO CURRENT AUTHORITY
-CAP-M0 Verification mutation pilot                          ACCEPTED / MERGED #117
-Browser stronger source-provenance L3 repeat                PHYSICAL ACCEPTED / MERGED #118
-post-26.3B adversarial assurance direction                  MERGED #119
-Stage 26.3B                                                 ACCEPTED / CLOSED FOR RECORDED SCOPE
-Stage 26.3C WorkingState / LoopGuard L1 foundation          ACCEPTED / MERGED #124
-stage-research mechanism-depth/re-entry hardening            MERGED #127
+Stage 26.3A canonical six-tool Verified Procedure Runtime  ACCEPTED
+Transport Supervisor                                       ACCEPTED
+Stage 26.3B Verification Kernel + Finish Gate              ACCEPTED / CLOSED FOR RECORDED SCOPE
+CAP-M0 Verification mutation pilot                         ACCEPTED
+Stage 26.3C WorkingState / reconciliation / LoopGuard L1   ACCEPTED FOUNDATION
 ```
 
-Exact physical evidence belongs in `EVIDENCE_INDEX.md`.
+Exact PR/physical evidence belongs in `CURRENT_STATE.md` / `EVIDENCE_INDEX.md`, not here.
 
 ## Current release-critical sequence
 
 ```text
-26.3C production WorkingState/restart-reconciliation integration     ACTIVE
+26.3C consequence-bearing production integration + restart/reconciliation acceptance
  -> broad real-application physical coverage gate
  -> bounded OpenAdapt integration spike
  -> 26.4 Human Demo -> verified candidate skill / skill lineage
@@ -95,9 +86,7 @@ independent evidence-batch-bound Finish Gate
 separate task-success and safety/policy result dimensions
 ```
 
-Accepted production/evidence slices include Files, Browser and Windows/application paths through the recorded #102/#107/#111/#113/#114/#115/#118 lineage.
-
-The accepted Browser route is headless Playwright/Chrome on target Windows. It does not claim visible headed desktop-browser control.
+Accepted representative production/evidence slices cover Files, Browser and Windows/application paths. The accepted Browser route is headless Playwright/Chrome on target Windows and does not claim visible headed desktop-browser control.
 
 Do not reopen 26.3B merely to add another variant. New completion predicates or physical gates belong to the stage/capability that introduces the new requirement.
 
@@ -105,9 +94,9 @@ Do not reopen 26.3B merely to add another variant. New completion predicates or 
 
 # 26.3C — WorkingState + recovery/reconciliation + LoopGuard
 
-## Foundation — ACCEPTED / MERGED #124
+## Foundation — ACCEPTED
 
-The L1 project-owned state-machine foundation is already merged.
+The L1 project-owned state-machine foundation is already accepted.
 
 WorkingState remains **capability-spanning structured operational state**, not private chain-of-thought and not a vendor procedure/session store.
 
@@ -119,7 +108,7 @@ facts + provenance + freshness
 evidence refs
 stable mutating-operation identity
 AttemptIntent / AttemptRecord
-VERIFIED_APPLIED / NOT_APPLIED / APPLIED_BUT_ACK_FAILED / OUTCOME_UNKNOWN
+verified-applied / not-applied / ack-failed / unknown outcomes
 fresh same-stream reconciliation
 task / procedure / strategy budgets
 LoopGuard
@@ -129,42 +118,19 @@ fail-closed durable history validation
 
 The foundation is L1 only; it does not by itself prove restart-safe delivery on every production path.
 
-## Current slice — production procedure integration / ACTIVE
+## Remaining stage work
 
-At this snapshot draft #126 is the first bounded production integration for `verified_workspace_artifact_v1`; resolve its live state before work.
+Integrate the accepted state/reconciliation/LoopGuard semantics into bounded consequence-bearing production consumers and prove the intended restart/failure guarantees without blind duplicate effects.
 
-Its current fresh Stage Research decision is `NARROW` and deliberately limits the guarantee to **process crash/restart** on the supported local Windows filesystem. It does not claim machine/power-loss transactional durability.
+Any material persistence/recovery/concurrency/identity mechanism used for that work must pass the current `stage-research` gate before implementation and must explicitly compare affected roles against `ARCHITECTURE_REUSE_BASELINE.md`.
 
-Current selected design direction:
-
-```text
-existing procedure checkpoint
- + procedure-local prepared intent (not authority)
- + one cooperating runner/task via exclusive OS lock
- + stable logical operation id / WorkingState revision
- + same-stream fresh reconciliation
- + reconstructible file identity
- + hard-link final create on supported same-volume local NTFS
- + one post-verification recovery commit
-```
-
-Materially distinct alternatives such as a SQLite operation ledger/WAL, TxF and reconciliation-without-prepared-intent were evaluated by the fresh Stage Research; they are not part of this narrow slice.
-
-Before merge of a consequence-bearing integration, require:
-
-- focused deterministic/state-machine tests;
-- concurrent-resume and subprocess-death lock tests;
-- crash/fault injection at every delivery/commit boundary;
-- same-content/different-identity and ABA tests;
-- exact-head hosted CI/security;
-- independent review when required/available;
-- target-Windows physical `verified_workspace_artifact_v1` qualification.
+Before acceptance of a consequence-bearing integration, require the evidence appropriate to that exact path, including focused deterministic/fault-injection tests, exact-head hosted CI/security, independent review when required/available and target-machine physical qualification when the consequence boundary cannot be represented faithfully in hosted tests.
 
 ## 26.3C completion condition
 
-26.3C is ready to leave the critical path when accepted production consumers can use WorkingState/reconciliation/LoopGuard without blind duplicate effects across the intended restart/failure scope, and the project has enough evidence to reuse the same semantics across later capabilities.
+26.3C is ready to leave the critical path when accepted production consumers can use WorkingState/reconciliation/LoopGuard without blind duplicate effects across their declared restart/failure scope and the project has enough evidence to reuse the same semantics across later capabilities.
 
-Do not expand 26.3C into Track M, a generic event bus, a scheduler, a second planner or a new persistence framework without fresh evidence and Stage Research.
+Do not expand 26.3C into Track M, a generic event bus, scheduler, second planner or new persistence framework without fresh evidence and Stage Research.
 
 ---
 
@@ -188,7 +154,7 @@ Success means a materially broader characterized accepted scope, not universal W
 
 # Pre-26.4 — bounded OpenAdapt integration spike
 
-After the project-owned 26.3C production state/recovery shape is accepted, revalidate the selected OpenAdapt roles through `ARCHITECTURE_REUSE_BASELINE.md` and fresh Stage Research rather than assuming prior selection is sufficient.
+After the project-owned 26.3C production state/recovery shape is accepted, revalidate selected OpenAdapt roles through `ARCHITECTURE_REUSE_BASELINE.md` and fresh Stage Research rather than assuming prior selection is sufficient.
 
 Target bounded spike:
 
