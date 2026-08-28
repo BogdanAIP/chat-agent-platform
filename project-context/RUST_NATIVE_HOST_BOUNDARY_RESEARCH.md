@@ -375,6 +375,37 @@ A future spike must compare Approach B and Approach C against the **same** proce
 
 ---
 
+## Duplicate delivery / lost acknowledgement contract for any future spike
+
+Process launch is a consequence-bearing side effect. A future native boundary must not treat request transport as exactly-once delivery.
+
+Authority remains split as follows:
+
+```text
+project WorkingState
+  owns logical_operation_id, AttemptIntent/AttemptRecord,
+  unresolved outcome and reconciliation authority
+
+native boundary
+  receives logical_operation_id + attempt_id
+  may atomically claim one attempt_id for delivery
+  must never create more than one physical spawn for the same attempt_id
+```
+
+Required rule:
+
+- **maximum physical effects before reconciliation: one spawn per authorized `attempt_id`;**
+- concurrent callers delivering the same `attempt_id` must be atomically deduplicated before spawn;
+- replay of the same `attempt_id` after delivery must not spawn again; it may return a previously retained receipt/state or an explicit duplicate/unresolved result;
+- if spawn may have happened but acknowledgement is lost, project `WorkingState` records the attempt as `OUTCOME_UNKNOWN` / unresolved and blocks a new physical attempt;
+- a new `attempt_id` under the same logical operation may be authorized only after fresh reconciliation proves the prior attempt `CONFIRMED_NOT_APPLIED` and normal LoopGuard/budget/authority checks pass;
+- `CONFIRMED_APPLIED` completes/advances without re-spawn; `STILL_UNKNOWN` remains blocked;
+- host-local claiming is not sufficient after host crash. Cross-restart safety is owned by project WorkingState + fresh observation/reconciliation unless a future Brief separately selects a durable native attempt ledger.
+
+This defines the required behavior without prematurely selecting a native persistence primitive.
+
+---
+
 ## Failure / Crash Matrix for any future native-host spike
 
 | Failure | Required behavior |
@@ -382,8 +413,10 @@ A future spike must compare Approach B and Approach C against the **same** proce
 | binary/helper missing or wrong version | capability unavailable; no fallback mutation |
 | IPC/binding contract mismatch | reject before delivery |
 | Control Plane disconnect before delivery | no execution without current authorization |
+| duplicate/concurrent same `attempt_id` before spawn | atomic claim/dedup; **at most one spawn** |
 | host/helper crashes before spawn | `NOT_APPLIED` only if freshly established; otherwise reconcile |
-| host/helper crashes after spawn before ack | process/job state must be observable; never blind-redeliver |
+| spawn occurs but acknowledgement is lost | one attempt becomes unresolved; replay/same attempt cannot spawn again; no new attempt until fresh reconciliation |
+| host/helper restarts while prior attempt unresolved | project WorkingState remains authoritative; no redelivery until reconciliation |
 | owner dies | owned descendant tree terminates unless reviewed semantics explicitly preserve it |
 | child spawns before containment | prevent with suspended/atomic containment where required; otherwise fail closed |
 | Windows nested-job/assignment failure | explicit containment failure; no silent uncontained consequence fallback |
@@ -408,7 +441,8 @@ A future request should resemble:
 ```text
 ExecuteNativeOperation {
   protocol_version
-  operation_id
+  logical_operation_id
+  attempt_id
   capability_id
   actor/environment binding
   scoped executable/argv/cwd/env policy
@@ -421,7 +455,7 @@ ExecuteNativeOperation {
 
 not `run_anything(command)`.
 
-The executor returns lifecycle/delivery evidence such as native identity, containment state, started/exited/cancelled/unknown status, exit/signal metadata and evidence refs. Project observation + Verification Kernel still decides whether the intended effect occurred.
+The executor returns lifecycle/delivery evidence with the same `logical_operation_id` and `attempt_id`, native identity, containment state, started/exited/cancelled/unknown status, exit/signal metadata and evidence refs. Project observation + Verification Kernel still decides whether the intended effect occurred.
 
 ---
 
@@ -476,6 +510,9 @@ If future re-entry authorizes a prototype, compare language-neutral/current-runt
 - Windows Job Object root + grandchild cleanup test;
 - Windows nested-job/assignment-failure fail-closed test;
 - Linux owner-death/process-group test comparable to Goose;
+- duplicate concurrent delivery of the same `attempt_id` => exactly one spawn;
+- replay after spawn/lost acknowledgement => zero second spawn and unresolved project state until reconciliation;
+- restart with unresolved attempt => zero redelivery before fresh reconciliation;
 - crash before spawn, after spawn/before ack and after exit/before ack;
 - cancellation/completion race tests;
 - stale/expired grant rejection before delivery;
