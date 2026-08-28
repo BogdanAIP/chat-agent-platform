@@ -1,83 +1,27 @@
 # Start Here — authoritative continuation guide
 
-Use this file first after resolving live repository state.
+Use this file after resolving live GitHub state. Do not treat recorded prose as a substitute for live `main`, open PRs, exact heads, hosted checks or required physical evidence.
 
-## 1. Resolve live state before reading prose as truth
+## Minimal read set
 
-Check:
+For ordinary continuation, read:
 
-```text
-live main
-open release-critical / architecture PRs
-exact PR heads
-hosted checks
-required target-machine / ordinary-Chat physical evidence
-```
+1. `CURRENT_STATE.md`
+2. `ROADMAP.md`
+3. `PROJECT_RISKS.md`
+4. `ARCHITECTURE.md` only when the current task changes or depends on architecture
 
-Exact code/tests/current CI/physical evidence outrank documentation snapshots.
+Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs and historical Stage documents only when the current task needs them.
 
-## 2. Current accepted boundary
+The repository should not require a fresh agent to reconstruct the whole build history before continuing current work.
 
-Stage 26.3B is **accepted/closed for its recorded representative scope**. The stronger Browser L3 source-provenance repeat was physically accepted and merged in PR #118. The post-26.3B adversarial-assurance plan was merged in PR #119.
+## Current boundary
 
-Exact accepted SHAs and machine-local result locations belong in `EVIDENCE_INDEX.md`; live context should point there instead of duplicating raw evidence dumps.
+Stage 26.3B is accepted/closed for its recorded representative scope. The current release-critical direction is Stage 26.3C: project-owned WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport.
 
-Accepted foundation relevant to current work:
+Exact accepted heads and machine-local evidence locators belong in `EVIDENCE_INDEX.md`, not here.
 
-```text
-26.3A canonical six-tool runtime                   MERGED #92
-Verification Kernel foundation                     MERGED #99
-file/artifact kernel integration                   PHYSICAL ACCEPTED / MERGED #102
-Browser observation foundation                     MERGED #106
-web_open final-state verification                  PHYSICAL ACCEPTED / MERGED #107
-Browser Harness / ADR-036 docs                     MERGED #110
-web_interact postcondition verification            PHYSICAL ACCEPTED / MERGED #111
-Browser L3 real-task acceptance                    PHYSICAL ACCEPTED / MERGED #113
-Windows DesktopState shared-kernel verification    PHYSICAL ACCEPTED / MERGED #114
-Windows/application real-task L3                   PHYSICAL ACCEPTED / MERGED #115
-CAP-M0 Verification mutation pilot                 ACCEPTED / MERGED #117
-Track M + ADR-037 architecture                     MERGED #116 / FUTURE AUTHORITY ONLY
-Browser stronger-provenance L3 repeat              PHYSICAL ACCEPTED / MERGED #118
-post-26.3B adversarial assurance plan              MERGED #119
-```
-
-## 3. Current release-critical focus
-
-**Stage 26.3C** is next: project-owned WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport.
-
-Required shape:
-
-```text
-fresh authoritative observation
- -> classify outcome / failure
- -> reconcile ambiguous logical effect when required
- -> retry only when evidence proves retry safety
- -> bounded alternate/recovery branch
- -> LoopGuard + budgets
- -> structured StagnationReport / ChatGPT replan / ABSTAIN
-```
-
-Never persist private chain-of-thought.
-
-Do not replace cross-capability WorkingState with OpenAdapt procedure-local resume state or future vendor/session state.
-
-Mutating outcomes must distinguish:
-
-```text
-NOT_APPLIED
-APPLIED_BUT_ACK_FAILED
-OUTCOME_UNKNOWN
-```
-
-`OUTCOME_UNKNOWN` is reconciled before retry. Repeated physical attempt fingerprints are bounded; identical blind retries are not an acceptable recovery strategy.
-
-Structured failure reasons and LoopGuard are mandatory 26.3C guarantees. Phases/checkpoint nodes are used for `procedure_run` / resumable procedures where useful, not imposed on all planning.
-
-The corresponding CAP-M7 adversarial guarantees are defined in `MUTATION_ASSURANCE.md` and should be developed with the runtime slice.
-
-## 4. Current semantic surface
-
-Exactly six Chat-facing tools:
+The accepted Chat-facing surface remains exactly:
 
 ```text
 workspace_read
@@ -94,46 +38,51 @@ Normal route:
 ordinary ChatGPT
  -> OpenAI Secure MCP Tunnel
  -> official tunnel-client
- -> canonical six-tool projection
+ -> canonical semantic projection
  -> deterministic Control Plane / focused capabilities
 ```
 
-1MCP remains optional internal Extension Manager infrastructure only.
+Ordinary ChatGPT is the only current general planner/intelligence. The deterministic Control Plane owns bounded execution state/policy, authorization, ExpectedEffect verification, recovery budgets and independent completion checks for already-defined transitions.
 
-The deterministic Control Plane is not a second planner. Ordinary ChatGPT remains the **only current general planner/intelligence**.
+## Product model vs stage implementation
 
-## 5. Browser L3 scope clarification
+The project intentionally designs the **general product model** ahead: Files, Browser, Windows/Desktop, Vision, Procedures/Skills, Agent Sessions/Delegation, Connectors, Scheduled Tasks and other capability classes should fit one coherent product and trust model.
 
-The accepted Browser L3 production route uses headless Playwright/Chrome on target Windows. “Physical” here means real target-machine runtime/effects/evidence, not a promise that the user sees a headed Chrome window on the desktop.
+That does **not** mean future detailed APIs are implementation commitments.
 
-The independent Finish Gate outranks Chat self-report. #118 demonstrated this directly: the planner's prose was imperfect, while independent audit/history evidence authoritatively established the actual save/mutation result.
+Before implementing each concrete stage or subsystem:
 
-A separate visible-desktop Browser claim would require its own acceptance definition/evidence.
+```text
+current repo/runtime audit
+ -> focused current research for that exact stage
+ -> compare with existing ADRs and constraints
+ -> revise/reject stale future implementation details
+ -> choose the smallest stage architecture that fits the product model
+ -> implement minimal slice
+ -> adversarial/acceptance tests
+ -> independent review
+ -> exact-head acceptance
+```
 
-## 6. Read current authoritative context
+Future ADRs are design hypotheses plus durable boundary constraints. They are inputs to the stage research, not substitutes for it.
 
-1. `project-context/CONTINUATION_CONTEXT.md`
-2. `project-context/CURRENT_STATE.md`
-3. `project-context/PROJECT_RISKS.md`
-4. `project-context/ROADMAP.md`
-5. `project-context/MUTATION_ASSURANCE.md`
-6. `project-context/SOURCE_PROVENANCE_ACCEPTANCE.md`
-7. `project-context/REAL_TASK_ACCEPTANCE.md`
-8. `project-context/ARCHITECTURE.md`
-9. `project-context/CONTROL_PLANE.md`
-10. `project-context/COMPUTER_USE_ARCHITECTURE.md`
-11. `project-context/SECURITY_POLICY.md`
-12. `project-context/CONVERSATION_BRIDGE_ARCHITECTURE.md` for ADR-035 / future Track M
-13. `project-context/CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` for ADR-037
-14. `project-context/BROWSER_HARNESS_ARCHITECTURE.md` for ADR-036 future authority
-15. `project-context/TECH_DEBT.md`
-16. `project-context/DOCUMENT_STATUS.md`
-17. `project-context/EVIDENCE_INDEX.md` for exact historical evidence
-18. accepted/historical Stage 26.3 files when detailed lineage is needed.
+Do not implement a future `CapabilityRegistry`, `TypedEventBus`, `PolicyHooks`, Session API, Connector model or other broad abstraction merely because it is already described in a future architecture document. Introduce only the parts current evidence and current consumers require while preserving the long-horizon product boundaries.
 
-`PROJECT_RISKS.md` owns the ranked risk list. `ROADMAP.md` owns explicit release order. Do not reconstruct competing stale copies.
+## Complexity rule
 
-## 7. State-first computer use
+When adding a framework, workflow, gate, ADR, state type or documentation owner, ask:
+
+```text
+Is this a new capability/guarantee?
+Can an existing mechanism express it?
+What old complexity will this replace or consolidate?
+```
+
+Avoid one new infrastructure layer per Stage/CAP/guarantee family. Historical Stage/PR lineage belongs primarily in Git history and `EVIDENCE_INDEX.md`.
+
+Prefer behavioral/instrumented tests of invariants over source-text/order assertions when practical.
+
+## Computer-use invariant
 
 ```text
 semantic/native state first
@@ -146,61 +95,35 @@ semantic/native state first
  -> independent Finish Gate
 ```
 
-Action/message delivery is not transition success. Transition PASS is not task DONE.
+Mutating outcomes must distinguish safe retry from ambiguous delivery. `OUTCOME_UNKNOWN` is reconciled from fresh authoritative state before retry. Repeated physical attempts are bounded; identical blind retries are not an acceptable recovery strategy.
 
-## 8. Track M / ADR-035 — future parallel capability
+WorkingState stores structured operational state, never private chain-of-thought.
 
-Track M is future architecture, not current public-tool/runtime expansion.
+## Current Browser scope
 
-Keep separate:
+The accepted Browser L3 path uses real target-Windows runtime/effects through isolated headless Playwright/Chrome. It does not by itself prove control of an already-open visible desktop Chrome session. Any visible/attached-browser claim requires its own acceptance definition and evidence.
 
-```text
-HarnessSession
-Conversation / Chat
-DelegationTask
-MessageDelivery
-ExecutionEnvironment
-```
+## Future architecture
 
-Primary cross-provider target: authenticated web-AI conversations. Browser Companion is the common web adapter family; `GenericChatAdapter` owns common structural extraction/normalization/fallback, while thin provider adapters remain for exact selectors, identity and provider quirks. Stronger reviewed native interfaces may be preferred for a specific target when available.
+Track M / Agent Sessions, ADR-036 Browser Harness expansion and ADR-037 CapabilityRegistry/Event/Hook substrate remain future architecture. Read their dedicated documents only when the current task touches those areas.
 
-Track M requires explicit ownership, stable operation identity, ambiguous-outcome reconciliation, result correlation, minimum worker authority, bounded fan-out/LoopGuard and independent Finish Gate. Initial nested spawn depth defaults to 1.
+Their durable authority boundaries remain useful; their detailed implementation shapes may be revised after focused stage research.
 
-## 9. ADR-037 — future capability/event/policy substrate
+## Merge rule
+
+For runtime/security/recovery/authority changes:
 
 ```text
-CapabilityRegistry != authorization / generic dispatch
-TypedEventBus       != effect-success proof / WorkingState
-PolicyHooks         != second planner / arbitrary shell-Python
+implementation
+ -> focused tests
+ -> required hosted CI on exact head
+ -> Codex Review / independent review when available and required
+ -> fixes
+ -> repeat review after material fixes when appropriate
+ -> final exact-head CI / required physical acceptance
+ -> merge
 ```
 
-26.3C may use only minimal typed internal seams needed by WorkingState/recovery/LoopGuard/Finish Gate.
+Do not auto-merge while active hardening/review changes are still being made. If independent review is unavailable, record that fact rather than representing the review as completed.
 
-## 10. Immediate hardening beside 26.3C
-
-A small Browser runtime ownership issue was exposed by #118 qualification: Playwright MCP diagnostic/output files follow inherited CWD unless explicitly isolated. The accepted gate avoided source contamination by using an isolated runtime CWD, but production/runtime hardening should make output ownership explicit under project-owned state/log storage with a regression test.
-
-This is hardening, not a reason to reopen the accepted #118 physical result.
-
-## 11. Priority sequence
-
-`ROADMAP.md` is authoritative. Current direction is:
-
-```text
-26.3B accepted
- -> 26.3C WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport
- -> broad real-app physical coverage
- -> bounded OpenAdapt integration spike
- -> 26.4 candidate skills
- -> 26.5 hybrid integration
- -> 27 distribution/maintenance
- -> 28 clean-user stable release
-```
-
-Track M remains parallel future work and must not displace release-critical prerequisites.
-
-## 12. Merge rule
-
-When a branch is logically complete, intended diff is reviewed, required CI/physical evidence passes on the exact final head and no unresolved finding/conflict remains, merge it without waiting for a separate merge instruction.
-
-Never merge on stale evidence, unresolved findings, ambiguous scope, or skipped/failed required gates.
+`AGENTS.md` owns the repository-wide development method. `CURRENT_STATE.md` owns the present accepted boundary. `ROADMAP.md` owns release order.
