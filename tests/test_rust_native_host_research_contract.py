@@ -17,7 +17,9 @@ _DECISION_RE = re.compile(
 def _decision_fields(text: str) -> dict[str, str]:
     matches = list(_DECISION_RE.finditer(text))
     if len(matches) != 1:
-        raise AssertionError(f"expected exactly one structured Rust research decision, got {len(matches)}")
+        raise AssertionError(
+            f"expected exactly one structured Rust research decision, got {len(matches)}"
+        )
 
     fields: dict[str, str] = {}
     for line in matches[0].group("body").splitlines():
@@ -46,13 +48,17 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
                 "critical_path_change": "NO",
             },
         )
-        self.assertNotRegex(
+        self.assertIn(
+            "sole implementation-decision representation in this Brief",
             self.text,
-            r"Top-level Stage Research decision:\s*`(?:PROCEED|NARROW)`",
         )
+        # The prose may explain DEFER, but it must not contain any alternate
+        # implementation-opening Stage Research decision token at all. This is
+        # deliberately stricter than matching one preferred heading spelling.
+        self.assertNotRegex(self.text, r"\b(?:PROCEED|NARROW)\b")
         self.assertNotRegex(
             self.text.lower(),
-            r"production rust (?:is|=) (?:authorized|allowed|open)",
+            r"production rust(?: work)?[^\n]{0,80}\b(?:authoriz(?:e|ed)|allow(?:ed)?|unblock(?:ed)?|enabled|open(?:ed)?)\b",
         )
         self.assertIn("Production Rust work is blocked", self.text)
         self.assertIn("Stage 26.3C continues", self.text)
@@ -126,24 +132,34 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
             self.text,
         )
 
-    def test_duplicate_delivery_contract_is_fail_closed(self) -> None:
+    def test_duplicate_delivery_contract_keeps_invariant_but_not_mechanism(self) -> None:
         required = (
-            "project WorkingState",
+            "P4 — lost acknowledgement exposes a separate idempotency/concurrency research problem",
             "logical_operation_id + attempt_id",
-            "maximum physical effects before reconciliation: one spawn per authorized `attempt_id`",
-            "concurrent callers delivering the same `attempt_id` must be atomically deduplicated before spawn",
+            "maximum physical effects before reconciliation: at most one spawn for one authorized attempt",
+            "duplicate or concurrent delivery must never increase that maximum",
             "`OUTCOME_UNKNOWN` / unresolved",
             "`CONFIRMED_NOT_APPLIED`",
             "`CONFIRMED_APPLIED`",
             "`STILL_UNKNOWN`",
-            "host-local claiming is not sufficient after host crash",
-            "duplicate concurrent delivery of the same `attempt_id` => exactly one spawn",
-            "replay after spawn/lost acknowledgement => zero second spawn",
-            "restart with unresolved attempt => zero redelivery before fresh reconciliation",
+            "Implementation mechanism is intentionally unspecified",
+            "consistency boundary, crash behavior, retained state, contention model, alternatives and failure history",
+            "duplicate/concurrent delivery fault test proving the **at-most-one-spawn** invariant",
+            "separate research evidence for whatever consistency primitive is proposed",
         )
         for phrase in required:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.text)
+
+        forbidden_selected_mechanisms = (
+            "may atomically claim one attempt_id",
+            "must be atomically deduplicated before spawn",
+            "atomic claim/dedup",
+            "durable native attempt ledger",
+        )
+        for phrase in forbidden_selected_mechanisms:
+            with self.subTest(phrase=phrase):
+                self.assertNotIn(phrase, self.text)
 
     def test_domain_evidence_and_failure_matrix_are_present(self) -> None:
         for phrase in (
@@ -151,7 +167,7 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
             "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
             "PR_SET_PDEATHSIG",
             "Failure / Crash Matrix",
-            "nested-job/assignment-failure",
+            "nested-job/assignment failure",
             "PID reused",
             "OS/machine power loss",
         ):
@@ -165,6 +181,10 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
         self.assertIn("not timeless architecture", self.text)
         self.assertIn(
             "compare Rust against an equivalent language-neutral/current-runtime implementation",
+            self.text,
+        )
+        self.assertIn(
+            "Any proposed duplicate/concurrent-delivery primitive is itself a material concurrency/recovery mechanism",
             self.text,
         )
 
