@@ -2,6 +2,22 @@
 
 This repository is designed to be continued safely from a fresh ordinary ChatGPT session.
 
+## Mandatory session bootstrap — resolve repository skills before planning
+
+Every fresh development invocation, and every materially changed task within an existing session, must resolve repository skills **before proposing an implementation plan or editing production code**.
+
+1. Resolve live `main`, the current branch/PR and their exact heads.
+2. Enumerate `.agents/skills/*/SKILL.md` from the current repository ref instead of relying on remembered skill names.
+3. Read the frontmatter and trigger of each plausibly applicable skill and select every skill whose trigger matches the actual task.
+4. Load the selected skill(s) before planning the implementation.
+5. If `stage-research` applies, production implementation remains blocked until its Stage Research Brief ends with `PROCEED`, `NARROW`, or `DEFER`.
+6. Never rely on remembered or cached skill text. Bind the decision to the skill path and the current source ref/head, so an updated skill is picked up automatically after merge/rebase.
+7. Re-run this bootstrap when `main` advances, the working branch is rebased, a new roadmap stage/substage starts, or the task materially changes scope.
+
+For release-critical work, fail closed if an applicable mandatory skill cannot be read or its required pre-implementation output is missing.
+
+A merge does **not** autonomously start the next stage or launch background work. The next development invocation reruns this bootstrap against the new repository state; that is the automatic stage-transition behavior. Do not create a post-merge daemon, generic workflow engine, runtime `SkillGate`, new public tool or Control Plane authority merely to perform repository-skill discovery.
+
 ## Read first
 
 Resolve live GitHub state first, then read only the current operating set:
