@@ -34,18 +34,26 @@ Long-horizon architecture should establish durable boundaries and invariants suc
 
 ### 2. Research each concrete stage immediately before implementation
 
-Before implementing a new release-critical subsystem or stage:
+For every new release-critical stage/substage, major subsystem, new capability family, or materially new recovery/security/authority architecture, invoke the repository skill `.agents/skills/stage-research/SKILL.md` before production implementation begins.
 
-1. inspect the current repository/runtime and the actual failure history;
-2. research current public approaches relevant to that exact stage;
-3. compare the research with existing future ADRs and project constraints;
-4. keep, revise or reject previously proposed implementation details;
-5. define the smallest stage architecture that solves the current problem;
-6. implement a minimal slice with the required tests and acceptance evidence.
+The skill is the canonical stage-research gate. Its Stage Research Brief must end with `PROCEED`, `NARROW`, or `DEFER`. Do not bypass it merely because an older ADR already contains an implementation design.
+
+At minimum, stage research must:
+
+1. inspect the current repository/runtime and actual failure/evidence history;
+2. research current strong public approaches relevant to that exact stage;
+3. investigate known limitations, issue reports, postmortems and operational failure modes of those approaches;
+4. identify why those failures happen, how others mitigated them, and how this project can avoid repeating them;
+5. compare the research with existing future ADRs and project constraints;
+6. keep, revise or reject previously proposed implementation details;
+7. define the smallest stage architecture that solves the current problem without weakening required guarantees;
+8. define focused/adversarial/independent/physical acceptance evidence before implementation.
 
 Future ADRs are architectural hypotheses plus boundary constraints, not immutable implementation specifications. A future ADR must not force the project to implement stale fields, APIs, event families or abstractions when current evidence supports a simpler design.
 
 Do not skip stage research merely because a future architecture document already exists.
+
+Narrow bug fixes, dependency bumps, isolated regressions and documentation-only corrections do not require the full skill unless they materially alter architecture, authority or a release-critical guarantee.
 
 ## Complexity policy
 
@@ -114,7 +122,8 @@ Do not weaken:
 For runtime/security/recovery/authority changes, use this order:
 
 ```text
-implementation
+stage-research skill when the change starts a new stage/subsystem
+ -> implementation
  -> focused tests
  -> required hosted CI on the exact head
  -> Codex Review / independent review when available and required by the change class
