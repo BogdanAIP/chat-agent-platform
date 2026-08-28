@@ -10,7 +10,7 @@ CONTEXT = ROOT / "project-context"
 
 
 class DocumentationConsistencyTests(unittest.TestCase):
-    def test_authoritative_project_context_documents_are_classified_and_default_is_explicit(self) -> None:
+    def test_current_document_owners_are_classified_and_historical_default_is_explicit(self) -> None:
         status = (CONTEXT / "DOCUMENT_STATUS.md").read_text(encoding="utf-8")
         required = (
             "CONTINUATION_CONTEXT.md",
@@ -24,17 +24,19 @@ class DocumentationConsistencyTests(unittest.TestCase):
             "ROADMAP.md",
             "DOCUMENT_STATUS.md",
             "EVIDENCE_INDEX.md",
+            "ARCHITECTURE_REUSE_BASELINE.md",
             "STAGE26_3B_VERIFICATION_KERNEL.md",
         )
         for name in required:
             with self.subTest(name=name):
                 self.assertIn(f"`{name}`", status)
 
-        # Do not force DOCUMENT_STATUS to enumerate every historical/research
-        # markdown file forever. Unlisted project-context documents are
-        # deliberately non-authoritative until explicitly promoted.
-        self.assertIn("not explicitly listed", status)
-        self.assertIn("HISTORICAL / REFERENCE by default", status)
+        folded = status.casefold()
+        self.assertIn("historical / reference by default", folded)
+        self.assertIn("current continuation aid", folded)
+        self.assertIn("subordinate", folded)
+        self.assertIn("current_state.md", folded)
+        self.assertIn("active pr/design snapshot", folded)
 
     def test_authoritative_docs_use_current_planner_control_plane_boundary(self) -> None:
         files = [
@@ -62,11 +64,12 @@ class DocumentationConsistencyTests(unittest.TestCase):
                 self.assertIn("Control Plane", text)
 
         control_plane = (CONTEXT / "CONTROL_PLANE.md").read_text(encoding="utf-8")
-        self.assertIn("only current general planner", control_plane)
-        self.assertIn("deterministic", control_plane.casefold())
-        self.assertIn("Track P", control_plane)
-        self.assertIn("shadow planner", control_plane)
-        self.assertIn("ABSTAIN", control_plane)
+        folded = control_plane.casefold()
+        self.assertIn("only current general planner", folded)
+        self.assertIn("deterministic", folded)
+        self.assertIn("track p", folded)
+        self.assertIn("optional", folded)
+        self.assertIn("abstain", folded)
 
     def test_obsolete_architecture_phrases_do_not_return_to_live_docs(self) -> None:
         live_files = [
@@ -82,7 +85,6 @@ class DocumentationConsistencyTests(unittest.TestCase):
             CONTEXT / "CONSTRAINTS.md",
             CONTEXT / "DEVELOPMENT_PRINCIPLES.md",
             CONTEXT / "KNOWN_ISSUES.md",
-            CONTEXT / "STAGE26_PROCEDURAL_MEMORY.md",
         ]
         forbidden = [
             "no second local planner/Agent Control Plane",
@@ -91,6 +93,9 @@ class DocumentationConsistencyTests(unittest.TestCase):
             "Stage 26.3 desktop surface",
             "Codex/automation should perform",
             "fresh ChatGPT/Codex session",
+            "active architecture/docs pr = #116",
+            "active — final provenance gap",
+            "pr #114 fresh hosted checks",
         ]
         for path in live_files:
             text = path.read_text(encoding="utf-8")
@@ -102,34 +107,44 @@ class DocumentationConsistencyTests(unittest.TestCase):
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
         current = (CONTEXT / "CURRENT_STATE.md").read_text(encoding="utf-8")
         continuation = (CONTEXT / "CONTINUATION_CONTEXT.md").read_text(encoding="utf-8")
+        status = (CONTEXT / "DOCUMENT_STATUS.md").read_text(encoding="utf-8")
 
-        # ROADMAP owns the explicit release order. Current-state/continuation
-        # docs should point to it rather than duplicating a brittle stage list.
         ordered_sequence = re.compile(
-            r"26\.3B[\s\S]{0,3000}?26\.3C[\s\S]{0,3000}?26\.4[\s\S]{0,3000}?26\.5",
+            r"26\.3C[\s\S]{0,3000}?26\.4[\s\S]{0,3000}?26\.5[\s\S]{0,3000}?27[\s\S]{0,3000}?28",
             re.IGNORECASE,
         )
         self.assertRegex(roadmap, ordered_sequence)
         self.assertIn("ROADMAP.md", current)
         self.assertIn("ROADMAP.md", continuation)
+        self.assertIn("release sequence", status.casefold())
+
+        # Active PR/design snapshots are intentionally centralized in CURRENT_STATE.
+        self.assertIn("active PR/design snapshot", status)
+        self.assertNotIn("draft #126", roadmap.casefold())
+        self.assertNotIn("hard-link final create", roadmap.casefold())
 
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
         control = (CONTEXT / "CONTROL_PLANE.md").read_text(encoding="utf-8")
-        self.assertIn("Optional Track P", roadmap)
-        self.assertIn("future only", roadmap.casefold())
-        self.assertIn("shadow/proposal-only", roadmap)
-        self.assertIn("deterministic Control Plane", roadmap)
-        self.assertIn("not part of the current release-critical path", control)
+        roadmap_folded = roadmap.casefold()
+        control_folded = control.casefold()
+
+        self.assertIn("track p", roadmap_folded)
+        self.assertIn("optional future", roadmap_folded)
+        self.assertIn("shadow/proposal-only", roadmap_folded)
+        self.assertIn("deterministic control plane", roadmap_folded)
+        self.assertIn("optional track p research", control_folded)
 
     def test_computer_use_architecture_preserves_small_surface_and_independent_completion(self) -> None:
         computer_use = (CONTEXT / "COMPUTER_USE_ARCHITECTURE.md").read_text(encoding="utf-8")
-        self.assertIn("current six-tool public surface remains accepted", computer_use)
-        self.assertIn("state first", computer_use.casefold())
-        self.assertIn("Finish Gate", computer_use)
-        self.assertIn("LoopGuard", computer_use)
-        self.assertIn("environmental data", computer_use.casefold())
-        self.assertIn("Control Plane", computer_use)
+        folded = computer_use.casefold()
+        self.assertIn("accepted six-tool/product architecture", folded)
+        self.assertIn("state first", folded)
+        self.assertIn("finish gate", folded)
+        self.assertIn("loopguard", folded)
+        self.assertIn("environmental content is untrusted data", folded)
+        self.assertIn("control plane", folded)
+        self.assertIn("generic backend dispatch", folded)
 
     def test_stage26_2e_document_matches_current_guard_contract(self) -> None:
         stage = (CONTEXT / "STAGE26_2E_REAL_APPLICATION_E2E.md").read_text(encoding="utf-8")
