@@ -10,6 +10,24 @@ SKILLS_ROOT = ROOT / ".agents" / "skills"
 REUSE_BASELINE = ROOT / "project-context" / "ARCHITECTURE_REUSE_BASELINE.md"
 
 
+def _reuse_baseline_rows(text: str) -> dict[str, tuple[str, ...]]:
+    marker = "## Canonical role map"
+    section = text.split(marker, 1)[1]
+    rows: dict[str, tuple[str, ...]] = {}
+    for line in section.splitlines():
+        if not line.startswith("|"):
+            if rows:
+                break
+            continue
+        cells = tuple(cell.strip() for cell in line.strip().strip("|").split("|"))
+        if len(cells) != 7 or cells[0] in {"Architectural role", "---"}:
+            continue
+        if set(cells[0]) == {"-"}:
+            continue
+        rows[cells[0]] = cells
+    return rows
+
+
 class AgentSkillBootstrapContractTests(unittest.TestCase):
     def test_fresh_session_resolves_repository_skills_before_planning(self) -> None:
         agents = AGENTS.read_text(encoding="utf-8")
@@ -115,19 +133,44 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
         for phrase in (
             "AUTHORITATIVE RESEARCH COMPARISON BASELINE",
             "canonical baseline for comparing new research with prior design choices",
-            "Procedure-local checkpoint / durable resume mechanics",
-            "OpenAdapt Flow 1.31.0",
-            "Capability-spanning operational state",
-            "project-owned `WorkingState`",
-            "Transition verification authority",
-            "project Verification Kernel",
-            "Task completion authority",
-            "project independent Finish Gate",
             "REPLACE` and `REJECT` require explicit evidence",
             "Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER`",
+            "adopting PR must update this baseline **before or with merge**",
+            "Release timing, stage ordering, implementation status, exact dependency pins and physical acceptance state",
         ):
             with self.subTest(baseline_phrase=phrase):
                 self.assertIn(phrase, baseline)
+
+        rows = _reuse_baseline_rows(baseline)
+        required_roles = {
+            "Procedure compiler / workflow IR",
+            "Procedure-local checkpoint / durable resume mechanics",
+            "Procedure/effect evidence",
+            "Capability-spanning operational state",
+            "Transition verification authority",
+            "Task completion authority",
+            "Capability authorization / consequence policy",
+        }
+        self.assertTrue(required_roles.issubset(rows))
+
+        checkpoint = rows["Procedure-local checkpoint / durable resume mechanics"]
+        self.assertIn("OpenAdapt Flow", checkpoint[1])
+        self.assertIn("checkpoint/resume", checkpoint[2])
+        self.assertIn("WorkingState", checkpoint[3])
+        self.assertIn("EXTERNAL_EXECUTION_REUSE_STRATEGY.md", checkpoint[5])
+
+        working_state = rows["Capability-spanning operational state"]
+        self.assertIn("project-owned `WorkingState`", working_state[1])
+        self.assertIn("OpenAdapt procedure state", working_state[3])
+        self.assertEqual(working_state[6], "`PROJECT_OWNED`")
+
+        verification = rows["Transition verification authority"]
+        self.assertIn("project Verification Kernel", verification[1])
+        self.assertIn("external verifier", verification[3])
+
+        completion = rows["Task completion authority"]
+        self.assertIn("project independent Finish Gate", completion[1])
+        self.assertIn("self-reported completion", completion[3])
 
         for phrase in (
             "Read `project-context/ARCHITECTURE_REUSE_BASELINE.md` when `stage-research` applies",
