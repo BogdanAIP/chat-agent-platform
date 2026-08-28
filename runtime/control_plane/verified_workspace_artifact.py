@@ -312,6 +312,13 @@ def _kernel_reconciliation_verification(
     )
 
 
+def _legacy_identity_generation_proven(value: Any) -> bool:
+    """Historical schema-1 device/inode alone cannot exclude file-ID ABA reuse."""
+
+    identity = _normalized_identity(value)
+    return identity is not None and "birthtime_ns" in identity
+
+
 def _recover_prepared_intent(
     task_state: dict[str, Any],
     state: WorkingState,
@@ -652,6 +659,13 @@ def _run_verified_workspace_artifact_locked(
             task_state.setdefault("prepared_intent", None)
         _write_checkpoint(state_root, task_state)
 
+    if (
+        schema_version == 1
+        and task_state["status"] == "completed"
+        and not _legacy_identity_generation_proven(task_state.get("target_file_identity"))
+    ):
+        raise ValueError("legacy completed identity generation is unavailable")
+
     if task_state["status"] == "completed":
         completed_result, completed_snapshot = _verify_current_state(
             observer,
@@ -692,6 +706,22 @@ def _run_verified_workspace_artifact_locked(
     node = str(task_state["current_node"])
     if node not in _RESUMABLE_NODES:
         raise ValueError("resume checkpoint node is not safely resumable")
+
+    if schema_version == 1 and node in {"staged_verified", "final_verified"}:
+        identities = [task_state.get("staging_file_identity")]
+        if node == "final_verified":
+            identities.append(task_state.get("target_file_identity"))
+        if not all(_legacy_identity_generation_proven(item) for item in identities):
+            task_state["status"] = "abstained"
+            task_state["escalation_reason"] = "legacy_identity_generation_unproven"
+            checkpoint()
+            return _result(
+                task_state,
+                artifact_relative_path=relative_target,
+                final_verification=_evidence(target),
+                rollback={"staging_removed": False, "target_removed": False},
+                resumed=True,
+            )
 
     reconciled_retry_snapshot: ObservationSnapshot | None = None
     if working_state is not None and task_state.get("prepared_intent") is not None:
