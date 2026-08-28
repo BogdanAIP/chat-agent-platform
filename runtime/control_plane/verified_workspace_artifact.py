@@ -65,6 +65,7 @@ from .verification import (
     VerificationStatus,
     evaluate_finish_gate,
 )
+from .windows_file_pin import pin_file_for_verified_link
 from .working_state import (
     AttemptIntent,
     MutatingOutcome,
@@ -1107,7 +1108,20 @@ def _run_verified_workspace_artifact_locked(
                 checkpoint=checkpoint,
             )
             try:
-                _exclusive_link_file(staging, target)
+                with pin_file_for_verified_link(staging):
+                    pinned_staging = _evidence(staging)
+                    if (
+                        not _same_file_identity(
+                            staging,
+                            task_state.get("staging_file_identity"),
+                        )
+                        or pinned_staging["size"] != len(content_bytes)
+                        or pinned_staging["sha256"] != expected_sha
+                    ):
+                        raise RuntimeError(
+                            "verified staging changed before final hard-link delivery"
+                        )
+                    _exclusive_link_file(staging, target)
             except FileExistsError:
                 final_after = observer.observe()
                 working_state = _record_file_exists_no_effect(
