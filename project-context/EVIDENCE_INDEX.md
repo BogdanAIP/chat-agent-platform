@@ -72,7 +72,7 @@ Exact code/tests/current CI and original physical results remain more authoritat
 
 ## Accepted non-physical foundations
 
-Some accepted architecture/runtime foundations are intentionally absent from the physical table because their accepting PR did not change a production consequence path and required only deterministic/hosted evidence.
+Some accepted architecture/runtime foundations are intentionally absent from the physical table because their accepting PR did not change a production consequence path and required deterministic/hosted evidence only.
 
 Most importantly:
 
@@ -91,7 +91,7 @@ Future or incomplete evidence scopes include:
 - Track M Agent Session/Delegation runtime and multi-worker orchestration;
 - release-grade distribution/maintenance and clean-user stable release.
 
-At this snapshot draft #126 is the first bounded production WorkingState consumer proposal; it must earn its own target-Windows physical procedure qualification before merge because it changes a real consequence path.
+A consequence-bearing Stage 26.3C production integration must earn its own target-Windows physical qualification before merge when the path changes real effects. Its active PR/design state belongs in `CURRENT_STATE.md`, not this evidence ledger.
 
 ## Evidence-to-architecture rule
 
