@@ -4,6 +4,7 @@
 
 - [ ] Resolved live `main`, relevant open PRs and exact heads
 - [ ] Read `AGENTS.md`, `project-context/START_HERE.md`, `project-context/CURRENT_STATE.md`, `project-context/ROADMAP.md`
+- [ ] Resolved applicable `.agents/skills/*/SKILL.md` from the current ref **before planning implementation**
 - [ ] Read additional evidence/ADR/security/stage docs only because this change actually needs them
 
 ## Stage research / design basis
