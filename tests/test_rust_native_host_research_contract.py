@@ -126,6 +126,25 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
             self.text,
         )
 
+    def test_duplicate_delivery_contract_is_fail_closed(self) -> None:
+        required = (
+            "project WorkingState",
+            "logical_operation_id + attempt_id",
+            "maximum physical effects before reconciliation: one spawn per authorized `attempt_id`",
+            "concurrent callers delivering the same `attempt_id` must be atomically deduplicated before spawn",
+            "`OUTCOME_UNKNOWN` / unresolved",
+            "`CONFIRMED_NOT_APPLIED`",
+            "`CONFIRMED_APPLIED`",
+            "`STILL_UNKNOWN`",
+            "host-local claiming is not sufficient after host crash",
+            "duplicate concurrent delivery of the same `attempt_id` => exactly one spawn",
+            "replay after spawn/lost acknowledgement => zero second spawn",
+            "restart with unresolved attempt => zero redelivery before fresh reconciliation",
+        )
+        for phrase in required:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.text)
+
     def test_domain_evidence_and_failure_matrix_are_present(self) -> None:
         for phrase in (
             "Engineering-domain evidence",
