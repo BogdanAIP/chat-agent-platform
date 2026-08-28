@@ -11,6 +11,7 @@ current code/tests/current hosted CI/current physical evidence
  > CURRENT_STATE.md / CONTINUATION_CONTEXT.md / START_HERE.md
  > PROJECT_RISKS.md for ranked engineering risk priority
  > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / SECURITY_POLICY.md
+ > ARCHITECTURE_REUSE_BASELINE.md for prior component/reuse role lineage used by stage research
  > CONVERSATION_BRIDGE_ARCHITECTURE.md for ADR-035 future Agent Session / Delegation architecture
  > CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md for ADR-037 future discovery/event-policy substrate
  > REAL_TASK_ACCEPTANCE.md for L1/L2/L3 acceptance depth
@@ -33,6 +34,9 @@ Any `project-context/*.md` document not explicitly listed here is **HISTORICAL /
 ```text
 architecture/policy docs
   = durable boundaries and invariants for authority, safety and execution
+
+ARCHITECTURE_REUSE_BASELINE
+  = canonical prior decision/reuse lineage for comparison by future Stage Research
 
 CURRENT_STATE
   = concise live accepted/current boundary and immediate critical path
@@ -58,6 +62,8 @@ STAGE*.md
 
 Do not copy full risk rankings, exact acceptance dumps, local paths or release-stage detail across many live documents. Live context should point to `EVIDENCE_INDEX.md` for exact evidence.
 
+`ARCHITECTURE_REUSE_BASELINE.md` must not become a second module catalog or roadmap. It records which architectural role was previously assigned to which selected external mechanism or project-owned boundary, what was intended to be reused, and why. Fresh Stage Research may keep, refine, replace, reject, defer, or reuse more of that choice when current evidence justifies it.
+
 ## Root documents
 
 | File | Status | Use |
@@ -78,12 +84,13 @@ Do not copy full risk rankings, exact acceptance dumps, local paths or release-s
 | `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/authority boundaries. |
 | `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | Planner vs deterministic execution/verification/recovery/completion boundary. |
 | `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid computer-use contract. |
+| `ARCHITECTURE_REUSE_BASELINE.md` | AUTHORITATIVE RESEARCH COMPARISON BASELINE | Prior selected component/project-owned role lineage that applicable Stage Research must compare before silently duplicating or replacing a mechanism. |
 | `CONVERSATION_BRIDGE_ARCHITECTURE.md` | PROVISIONAL AUTHORITATIVE FUTURE ARCHITECTURE / ADR-035 | Agent Session / Delegation object model and cross-provider Browser Companion/native routing. No current runtime authority by itself. |
 | `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` | PROVISIONAL AUTHORITATIVE FUTURE ARCHITECTURE / ADR-037 | Capability discovery + typed event/policy-hook substrate. No current runtime authority by itself. |
 | `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
 | `REAL_TASK_ACCEPTANCE.md` | AUTHORITATIVE ACCEPTANCE-DIRECTION CONTRACT | L1 primitive, L2 workflow and L3 real-task evidence. |
 | `SOURCE_PROVENANCE_ACCEPTANCE.md` | AUTHORITATIVE PHYSICAL-ACCEPTANCE METHODOLOGY | Clean-tree/source/install binding so evidence proves bytes actually executed. |
-| `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | AUTHORITATIVE INTEGRATION DIRECTION | OpenAdapt/UFO reuse boundary; project authority remains authoritative. |
+| `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | AUTHORITATIVE INTEGRATION DIRECTION | OpenAdapt/UFO integration boundaries; project authority remains authoritative. |
 | `MUTATION_ASSURANCE.md` | AUTHORITATIVE ASSURANCE DIRECTION | CAP-M guarantee mutants, adversarial behavioral cases and 26.3C CAP-M7 obligations. |
 | `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence plus parallel future tracks. |
 | `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Future Site Capability/full-browser/helper/Local Execution direction; no current authority by itself. |
@@ -179,4 +186,4 @@ PolicyHooks
 
 ## Maintenance rule
 
-Update this map when a reviewed change alters authoritative document names/read order, planner/Control Plane responsibility, computer-use or Agent Session observation/verification/recovery/completion boundaries, capability discovery/event-policy architecture, mutation/adversarial assurance semantics, source-provenance requirements, external execution reuse boundaries, L1/L2/L3 requirements, Browser/Local Execution authority, risk/debt/release ownership, future-track promotion, or the public Chat-facing capability surface.
+Update this map when a reviewed change alters authoritative document names/read order, planner/Control Plane responsibility, architecture reuse baseline ownership or comparison semantics, computer-use or Agent Session observation/verification/recovery/completion boundaries, capability discovery/event-policy architecture, mutation/adversarial assurance semantics, source-provenance requirements, external execution reuse boundaries, L1/L2/L3 requirements, Browser/Local Execution authority, risk/debt/release ownership, future-track promotion, or the public Chat-facing capability surface.
