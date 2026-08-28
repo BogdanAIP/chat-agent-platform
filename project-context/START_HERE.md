@@ -50,15 +50,20 @@ The project intentionally designs the **general product model** ahead: Files, Br
 
 That does **not** mean future detailed APIs are implementation commitments.
 
+When starting a new release-critical stage/substage, major subsystem, new capability family or materially new recovery/security/authority design, use `.agents/skills/stage-research/SKILL.md` before production implementation. The skill must produce a Stage Research Brief with `PROCEED`, `NARROW`, or `DEFER`.
+
+The research gate explicitly includes both **best practices and failure lessons**: investigate what strong systems do, why they do it, what failure modes they address, what problems/limitations they encounter in practice, root causes and mitigations, and how this project can avoid repeating those failures.
+
 Before implementing each concrete stage or subsystem:
 
 ```text
 current repo/runtime audit
- -> focused current research for that exact stage
+ -> stage-research skill
+ -> current best practices + failure reports / postmortems / limitations
  -> compare with existing ADRs and constraints
  -> revise/reject stale future implementation details
- -> choose the smallest stage architecture that fits the product model
- -> implement minimal slice
+ -> choose the minimum sufficient stage architecture
+ -> implement minimal coherent slice
  -> adversarial/acceptance tests
  -> independent review
  -> exact-head acceptance
@@ -114,7 +119,8 @@ Their durable authority boundaries remain useful; their detailed implementation 
 For runtime/security/recovery/authority changes:
 
 ```text
-implementation
+stage-research skill when applicable
+ -> implementation
  -> focused tests
  -> required hosted CI on exact head
  -> Codex Review / independent review when available and required
