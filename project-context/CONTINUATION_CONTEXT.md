@@ -23,7 +23,8 @@ Then read:
 3. `ROADMAP.md`
 4. `PROJECT_RISKS.md`
 5. `ARCHITECTURE_REUSE_BASELINE.md` when `stage-research` or prior reuse lineage is relevant
-6. architecture/security/evidence owners only as needed
+6. architecture/security owners only as needed
+7. `EVIDENCE_INDEX.md` when exact accepted physical/target heads, result locators or scoped measurements are needed
 
 Do not reconstruct current state from historical Stage documents or recorded SHAs in old prose.
 
