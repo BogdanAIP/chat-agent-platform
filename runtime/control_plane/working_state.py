@@ -457,6 +457,35 @@ class WorkingState:
             for left, right in zip(self.attempts, self.attempts[1:])
         ):
             raise ValueError("attempt history revisions must be strictly increasing")
+
+        for attempt in self.attempts:
+            for name in (
+                "actor_ref",
+                "execution_environment_ref",
+                "evidence_scope_ref",
+            ):
+                if getattr(attempt.intent, name) != getattr(self, name):
+                    raise ValueError(
+                        f"attempt {name} does not match WorkingState"
+                    )
+            if not _same_stream(attempt.intent.observation_ref, self.observation_ref):
+                raise ValueError("attempt observation stream does not match WorkingState")
+        if any(
+            right.intent.observation_ref.sequence
+            <= left.intent.observation_ref.sequence
+            for left, right in zip(self.attempts, self.attempts[1:])
+        ):
+            raise ValueError("attempt observations must advance between physical attempts")
+        if self.attempts:
+            latest_observation = self.attempts[-1].intent.observation_ref
+            if self.observation_ref.sequence < latest_observation.sequence:
+                raise ValueError("current observation is older than latest attempt")
+            if (
+                self.observation_ref.sequence == latest_observation.sequence
+                and self.observation_ref != latest_observation
+            ):
+                raise ValueError("current observation conflicts with latest attempt sequence")
+
         if any(
             reconciliation.revision_after > self.revision
             for reconciliation in self.reconciliations
