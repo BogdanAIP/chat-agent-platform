@@ -22,7 +22,11 @@ def _utc_now() -> str:
 
 
 def _identity(value: os.stat_result) -> dict[str, int]:
-    return {"device": int(value.st_dev), "inode": int(value.st_ino)}
+    identity = {"device": int(value.st_dev), "inode": int(value.st_ino)}
+    birthtime_ns = getattr(value, "st_birthtime_ns", None)
+    if type(birthtime_ns) is int:
+        identity["birthtime_ns"] = int(birthtime_ns)
+    return identity
 
 
 def _missing_state() -> dict[str, Any]:
@@ -48,8 +52,7 @@ def _kind(value: os.stat_result) -> str:
 
 def _same_file_state(left: os.stat_result, right: os.stat_result) -> bool:
     return (
-        left.st_dev == right.st_dev
-        and left.st_ino == right.st_ino
+        _identity(left) == _identity(right)
         and left.st_size == right.st_size
         and left.st_mtime_ns == right.st_mtime_ns
     )
@@ -158,6 +161,7 @@ class FileArtifactObservationStream:
         paths: dict[str, Path],
         max_bytes: int = DEFAULT_MAX_OBSERVED_BYTES,
         stream_id: str | None = None,
+        initial_sequence: int = -1,
     ) -> None:
         if type(subject) is not str or not subject.strip() or len(subject) > 512:
             raise ValueError("file observation subject must be bounded non-empty text")
@@ -165,6 +169,8 @@ class FileArtifactObservationStream:
             raise ValueError("file observation paths must be a bounded non-empty plain mapping")
         if type(max_bytes) is not int or max_bytes < 1 or max_bytes > 16 * 1024 * 1024:
             raise ValueError("file observation byte bound is invalid")
+        if type(initial_sequence) is not int or initial_sequence < -1:
+            raise ValueError("file observation initial_sequence must be >= -1")
 
         resolved_root = Path(root).resolve(strict=True)
         if not resolved_root.is_dir():
@@ -192,7 +198,7 @@ class FileArtifactObservationStream:
         self._paths = normalized
         self._max_bytes = max_bytes
         self._stream_id = stream_id
-        self._sequence = -1
+        self._sequence = initial_sequence
 
     def observe(self) -> ObservationSnapshot:
         state: dict[str, Any] = {}
