@@ -10,6 +10,7 @@ import stat as stat_module
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Callable
 
 from .file_artifact_observation import (
@@ -99,7 +100,7 @@ def _stat_identity(value: os.stat_result) -> dict[str, int]:
 
 
 def _normalized_identity(value: Any) -> dict[str, int] | None:
-    if type(value) is not dict:
+    if type(value) not in (dict, MappingProxyType):
         return None
     if set(value) - {"device", "inode", "birthtime_ns"}:
         return None
