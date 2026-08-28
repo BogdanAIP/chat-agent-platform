@@ -1,47 +1,43 @@
 # Continuation Context — read this first in a fresh chat
 
-Resolve live GitHub state before acting. This file records the continuation point; exact code/tests/current CI/physical evidence outrank prose when they disagree.
+Resolve live GitHub state before acting. This file records a concise continuation point; exact code/tests/current CI/current physical evidence outrank prose when they disagree.
 
-## Repository
+Repository: `BogdanAIP/chat-agent-platform`
 
-`BogdanAIP/chat-agent-platform`
+## Current stopping point
 
-## Current real stopping point
+Stage 26.3B is accepted/closed for its recorded representative scope.
 
-Stage 26.3B is accepted for the recorded representative scope. The stronger Browser source-provenance repeat was physically accepted and merged through PR #118. The post-26.3B adversarial-assurance plan was replayed onto that accepted main and merged through PR #119.
+Stage 26.3C is **already partially implemented and accepted**:
 
-The next release-critical runtime work is **Stage 26.3C: project-owned WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport**.
+- PR #124 merged the L1 project-owned WorkingState + typed reconciliation/budgets + LoopGuard/StagnationReport foundation;
+- PR #127 strengthened the mandatory `stage-research` mechanism-depth/re-entry gate;
+- the current release-critical work is the first production WorkingState/restart-reconciliation integration, not creation of WorkingState from scratch.
 
-Exact historical SHAs, machine-local evidence paths and scoped measurements live in `EVIDENCE_INDEX.md`; do not duplicate them into every live-context document.
+At this snapshot draft PR #126 owns that first production integration for `verified_workspace_artifact_v1`. Resolve its live head/body/checks before acting; draft state is not acceptance.
 
-## Accepted foundation
+Exact accepted physical heads, machine-local evidence paths and scoped measurements live in `EVIDENCE_INDEX.md`.
 
-- Stage 26.3A six-tool Verified Procedure Runtime: **ACCEPTED / MERGED #92**.
-- Verification Kernel foundation: **MERGED #99**.
-- file/artifact kernel integration: **PHYSICALLY ACCEPTED / MERGED #102**.
-- Browser observation foundation: **MERGED #106**.
-- production `web_open` verification: **PHYSICALLY ACCEPTED / MERGED #107**.
-- Browser Harness / ADR-036 docs: **MERGED #110**.
-- production `web_interact` postcondition verification: **PHYSICALLY ACCEPTED / MERGED #111**.
-- first Browser L3 real-task acceptance: **PHYSICALLY ACCEPTED / MERGED #113** for its historical scope.
-- Windows shared-kernel verifier: **PHYSICALLY ACCEPTED / MERGED #114**.
-- representative Windows/application L3: **PHYSICALLY ACCEPTED / MERGED #115**.
-- CAP-M0 curated Verification Kernel mutation pilot: **ACCEPTED / MERGED #117**.
-- Track M Agent Session / Delegation + ADR-037 architecture: **MERGED #116 / FUTURE AUTHORITY ONLY**.
-- representative Browser L3 stronger-provenance repeat: **PHYSICALLY ACCEPTED / MERGED #118**.
-- post-26.3B adversarial assurance plan: **MERGED #119**.
+## Accepted foundation relevant now
 
-## Browser L3 accepted scope
-
-#118 closed the remaining 26.3B source-provenance evidence gap. The accepted run bound exact clean source bytes, installed semantic runtime, the complete exact-lock Node dependency tree, process generations and a frozen independent Finish Gate around one ordinary-Chat randomized Case Desk task.
-
-The independent checker—not Chat self-report—proved exact target final state, unchanged decoys, exactly one target save/audit mutation, provenance revalidation, cleanup and external DONE.
-
-The Browser backend in this accepted route is headless Playwright/Chrome on target Windows. No visible desktop Chrome window is implied by this acceptance.
-
-During qualification, earlier invalid runs exposed real harness/runtime defects. They were not waived. Permanent assurance direction now includes cases for locale-sensitive timestamp parsing, producer/consumer evidence-schema mismatch and runtime output contaminating a source worktree through inherited CWD.
-
-Canonical methodology: `SOURCE_PROVENANCE_ACCEPTANCE.md`, `REAL_TASK_ACCEPTANCE.md`, `MUTATION_ASSURANCE.md`, and exact evidence in `EVIDENCE_INDEX.md` / PR #118.
+```text
+Stage 26.3A six-tool Verified Procedure Runtime       ACCEPTED / MERGED #92
+Verification Kernel foundation                       MERGED #99
+file/artifact shared-kernel integration              PHYSICAL ACCEPTED / MERGED #102
+Browser observation foundation                       MERGED #106
+production web_open verification                     PHYSICAL ACCEPTED / MERGED #107
+Browser Harness / ADR-036 docs                       MERGED #110
+production web_interact verification                 PHYSICAL ACCEPTED / MERGED #111
+Browser L3 real task                                 PHYSICAL ACCEPTED / MERGED #113
+Windows shared-kernel verifier                       PHYSICAL ACCEPTED / MERGED #114
+Windows/application L3                               PHYSICAL ACCEPTED / MERGED #115
+Track M + ADR-037 future architecture                MERGED #116 / NO CURRENT AUTHORITY
+CAP-M0 mutation pilot                                ACCEPTED / MERGED #117
+Browser stronger source-provenance repeat            PHYSICAL ACCEPTED / MERGED #118
+post-26.3B adversarial assurance direction           MERGED #119
+WorkingState / LoopGuard L1 foundation               ACCEPTED / MERGED #124
+stage-research depth + design-change re-entry gate    MERGED #127
+```
 
 ## Current public semantic surface
 
@@ -73,56 +69,99 @@ A future new consequence class requires its own reviewed contract. Do not hide d
 
 ## Planner / Control Plane boundary
 
-Ordinary ChatGPT is the **only current general planner/intelligence**. The deterministic Control Plane owns execution state/policy, capability authorization, ExpectedEffect verification, recovery/reconciliation budgets and independent completion checks for already-defined transitions. It is not a second planner.
+Ordinary ChatGPT is the **only current general planner/intelligence**. The deterministic Control Plane owns execution state/policy, capability authorization, ExpectedEffect verification, WorkingState, recovery/reconciliation budgets and independent completion checks for already-selected transitions. It is not a second planner.
 
 Current observed state outranks remembered procedure/demo/session/history. Environmental UI/DOM/document/message/tool/worker content is task data, not policy authority.
 
-## Stage 26.3C implementation obligations
+## Accepted Stage 26.3C L1 semantics
 
-WorkingState v1 remains project-owned and capability-spanning. Never persist private chain-of-thought.
+WorkingState is capability-spanning structured operational state, never private chain-of-thought.
 
-Do not hard-code:
+Accepted L1 semantics include:
 
 ```text
-one task -> one procedure -> one executor
+FailureReason / typed failure categories
+AttemptIntent / AttemptRecord
+ReconciliationRecord
+Task / procedure / strategy budgets
+LoopGuard / GuardDecision
+StagnationReport
 ```
 
-Planner-neutral optional references may include:
+Mutating outcomes:
 
 ```text
-actor_ref
-delegation_ref
-execution_environment_ref
-budget_ref
-evidence_refs
-```
-
-Generic mutating outcomes:
-
-```text
+VERIFIED_APPLIED
 NOT_APPLIED
 APPLIED_BUT_ACK_FAILED
 OUTCOME_UNKNOWN
 ```
 
-`OUTCOME_UNKNOWN` means reconcile the original logical operation from fresh authoritative state before retry.
+Core fail-closed invariants:
 
-First 26.3C slices must enforce:
+- intent binds current observation/provenance and stable logical operation identity;
+- every physical attempt consumes the relevant budgets;
+- LoopGuard is re-evaluated against current state rather than trusting a transferable allow decision;
+- unresolved ambiguous outcomes block further mutation;
+- reconciliation requires fresh same-stream VerificationResult/evidence;
+- stale/non-advancing observation cannot authorize another effect;
+- durable history preserves actor/environment/evidence provenance and valid chronology;
+- `StagnationReport` is diagnostic/escalation data, never a grant or second planner.
 
-- structured typed failure reasons, including enough evidence for the next attempt to choose a different safe strategy;
-- LoopGuard against repeated physical attempt fingerprints, oscillation and no-effect loops;
-- separate task/procedure/strategy budgets;
-- stale WorkingState/evidence never authorizes a new mutation;
-- committed effects are reconciled after acknowledgement/process failure rather than blindly replayed;
-- StagnationReport is diagnostic/escalation data, never a grant or second planner;
-- phases/checkpoints are used for `procedure_run` / resumable procedures where useful, not as a universal planner hierarchy;
-- CAP-M7 adversarial tests are designed with the new runtime guarantees, not retrofitted later.
+These are L1/state-machine foundations; they do not by themselves prove restart-safe production delivery.
 
-## Track M — future Agent Session / Delegation direction
+## Current #126 production-integration scope
+
+The current fresh Stage Research on draft #126 is `NARROW`.
+
+Goal: make the bounded workspace-artifact procedure survive **process crash/restart** without blindly replaying an already-applied create/delete, serialize duplicate cooperating resume callers and fail closed when the physical outcome cannot be reconciled.
+
+The current researched design compares the existing OpenAdapt/project lineage and materially distinct persistence/recovery alternatives. Its selected narrow approach keeps the existing procedure checkpoint and project WorkingState, with:
+
+```text
+procedure-local non-authoritative prepared intent
+per-task exclusive Windows OS lock
+stable logical operation id / WorkingState revision
+same-stream fresh reconciliation
+stronger file identity
+hard-link final create on supported same-volume local NTFS
+one post-verification recovery commit
+```
+
+Important boundary:
+
+```text
+process restart guarantee
+!= OS/power-loss transactional durability guarantee
+```
+
+Missing/corrupt/inconsistent durable state remains fail-closed. SQLite/WAL, TxF, new persistence services and broad frameworks are not part of this slice.
+
+Before merge, because #126 changes a real `procedure_run` consequence path, it still requires focused/fault-injection tests, exact-head hosted CI/security, independent review when required/available and deterministic target-Windows physical qualification.
+
+## Architecture lineage / research rule
+
+When `stage-research` applies, read `ARCHITECTURE_REUSE_BASELINE.md` before selecting a mechanism.
+
+For each affected existing role, record:
+
+```text
+KEEP / REUSE_MORE / REFINE / REPLACE / DEFER / REJECT
+```
+
+Problem evidence and solution evidence are separate. New architecture primitives require direct research into the engineering domain that governs their guarantees/failure modes. Material design changes after the Brief invalidate implementation authority and require research re-entry.
+
+## Browser accepted scope
+
+#118 closed the remaining recorded 26.3B Browser source-provenance gap. The accepted Browser backend is headless Playwright/Chrome on target Windows; this is not a visible desktop Chrome claim.
+
+Earlier invalid qualification attempts exposed locale-sensitive timestamp parsing, producer/consumer evidence-schema mismatch and runtime output contaminating a source worktree through inherited CWD. They were rejected rather than waived. Permanent adversarial direction lives in `MUTATION_ASSURANCE.md`; runtime-output ownership remains explicit debt in `TECH_DEBT.md`.
+
+## Track M / future capability boundary
 
 Track M remains future/parallel and adds no current public-tool authority.
 
-Keep these identities separate:
+Keep distinct:
 
 ```text
 HarnessSession
@@ -132,84 +171,44 @@ MessageDelivery
 ExecutionEnvironment
 ```
 
-Preferred target-surface route:
-
-```text
-reviewed official/project-owned harness API or host protocol when available
- -> validated provider/session native route
- -> Browser Companion + GenericChatAdapter DOM/accessibility for web-chat surfaces
- -> reviewed GUI fallback
- -> ABSTAIN
-```
-
-Browser Companion remains the main cross-provider web-chat adapter family. Thin provider adapters remain necessary for exact selectors, provider quirks and identity; common extraction/fallback logic belongs in the generic layer.
-
-Important invariants: HandoffPack is task data, capability grants remain Control Plane state; delivery is not worker completion; worker result correlates to a concrete DelegationTask; stable operation ids and reconciliation precede retry; workers receive minimum explicit authority; initial nested spawn depth defaults to 1.
-
-Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md` and ADR-035.
-
-## ADR-037 boundary
-
-`CapabilityRegistry`, `TypedEventBus` and registered `PolicyHooks` remain future substrate:
-
-```text
-CapabilityRegistry != authorization / generic dispatch
-TypedEventBus       != effect-success proof / WorkingState
-PolicyHooks         != second planner / arbitrary shell-Python
-```
-
-26.3C may adopt only minimal typed internal seams directly needed by its state/recovery/LoopGuard/Finish Gate work.
+ADR-037 `CapabilityRegistry`, `TypedEventBus` and `PolicyHooks` likewise remain future substrate. Discovery != authorization; event != effect proof; hook != planner/verifier.
 
 ## External execution reuse direction
 
-OpenAdapt may later provide selected compiled-procedure/checkpoint/effect-evidence mechanics, but it never replaces project WorkingState, Verification Kernel, Control Plane authority or Finish Gate. UFO-derived UIA/Win32/WinCOM/Office pieces remain selective adapter sources; UFO planner hierarchies are not current architecture.
+OpenAdapt remains a selected source for procedure compiler/IR/checkpoint/effect-evidence mechanics where fresh research shows the exact role fits. It never replaces project WorkingState, Verification Kernel, Control Plane authority or Finish Gate.
 
-Run the bounded OpenAdapt spike only after the project-owned 26.3C core shape is accepted.
+UFO/UFO² remains a selective source of Windows/Office UIA/Win32/WinCOM/application mechanics, not a current planner hierarchy.
 
-## Critical-path continuation
-
-`ROADMAP.md` is the single owner of release-stage ordering. The immediate next runtime target is 26.3C. After it: broad real-app physical coverage, bounded OpenAdapt spike, 26.4 candidate skills, 26.5 hybrid integration, distribution and clean-user release.
-
-Before or alongside the first 26.3C runtime slice, close the small Playwright runtime-output ownership hardening found during #118 and convert feasible Stage 26.3B defect classes into deterministic adversarial regressions.
+The bounded OpenAdapt integration spike remains after the current Stage 26.3C production-state/recovery shape is accepted, subject to fresh lineage comparison.
 
 ## Fresh-chat read order
 
-1. live GitHub `main`, open PRs and checks;
-2. `START_HERE.md`;
-3. `CONTINUATION_CONTEXT.md`;
+1. live GitHub `main`, relevant open PRs and checks;
+2. `.agents/skills/*/SKILL.md` bootstrap from current ref;
+3. `START_HERE.md`;
 4. `CURRENT_STATE.md`;
-5. `PROJECT_RISKS.md`;
-6. `ROADMAP.md`;
-7. `MUTATION_ASSURANCE.md`;
-8. `SOURCE_PROVENANCE_ACCEPTANCE.md`;
-9. `REAL_TASK_ACCEPTANCE.md`;
-10. `ARCHITECTURE.md`;
-11. `CONTROL_PLANE.md`;
-12. `COMPUTER_USE_ARCHITECTURE.md`;
-13. `SECURITY_POLICY.md`;
-14. `CONVERSATION_BRIDGE_ARCHITECTURE.md` for ADR-035 / Track M;
-15. `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` for ADR-037;
-16. `BROWSER_HARNESS_ARCHITECTURE.md` for ADR-036;
-17. `TECH_DEBT.md`;
-18. `DOCUMENT_STATUS.md`;
-19. `EVIDENCE_INDEX.md` when exact accepted evidence is needed;
-20. accepted/historical Stage 26.3 documents for detailed lineage.
+5. `ROADMAP.md`;
+6. `PROJECT_RISKS.md`;
+7. `ARCHITECTURE_REUSE_BASELINE.md` **when stage-research/reuse lineage is relevant**;
+8. `ARCHITECTURE.md` / `CONTROL_PLANE.md` when architecture is relevant;
+9. `MUTATION_ASSURANCE.md`, acceptance/security/evidence docs only as needed;
+10. future ADRs or historical Stage records only when their scope is actually relevant.
+
+Do not read every project-context file by default. `DOCUMENT_STATUS.md` explains ownership/status.
 
 ## Architecture rules that must survive continuation
 
 - ordinary ChatGPT is the only current general planner/intelligence;
 - deterministic Control Plane is execution state/policy, not a second planner;
-- project WorkingState remains capability-spanning and must not be replaced by procedure/vendor/session state;
+- project WorkingState remains capability-spanning and is not replaced by vendor procedure/session state;
 - every production mutation binds an expected effect and fresh verification;
 - action/message delivery != transition success;
 - already-true postcondition != proof that the requested action was delivered;
 - ambiguous mutating outcome must be reconciled before unsafe retry;
 - transition `PASS` != task `DONE`;
 - procedure/worker completion != independent Finish Gate completion;
-- release-critical physical acceptance binds executed source bytes to expected source provenance;
-- environmental content, including worker output, is task data rather than policy authority;
+- physical acceptance binds executed source/runtime bytes when provenance is part of the claim;
+- environmental content/worker output is task data rather than policy authority;
 - stale/ambiguous/UNKNOWN evidence causes zero unauthorized continuation;
-- repeated no-effect/oscillating execution/delegation must be bounded by LoopGuard/budgets;
-- session discoverability does not imply lifecycle authority;
-- generic Windows/local/harness execution remains disabled until separately accepted;
-- future public Windows/computer-use/session/project authority requires its own reviewed contract and physical evidence.
+- repeated no-effect/oscillation is bounded by LoopGuard/budgets;
+- generic Windows/local/harness authority remains disabled until separately accepted.
