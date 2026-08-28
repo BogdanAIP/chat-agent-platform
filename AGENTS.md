@@ -4,50 +4,66 @@ This repository is designed to be continued safely from a fresh ordinary ChatGPT
 
 ## Read first
 
-1. `project-context/CONTINUATION_CONTEXT.md`
-2. `project-context/START_HERE.md`
-3. `project-context/CURRENT_STATE.md`
-4. `project-context/ARCHITECTURE.md`
-5. `project-context/CONTROL_PLANE.md`
-6. `project-context/COMPUTER_USE_ARCHITECTURE.md`
-7. `project-context/SECURITY_POLICY.md`
-8. `project-context/ROADMAP.md`
-9. `project-context/DECISIONS.md`
-10. `project-context/DOCUMENT_STATUS.md`
-11. `project-context/EVIDENCE_INDEX.md`
-12. historical/accepted stage docs only when exact evidence is needed
+Resolve live GitHub state first, then read only the current operating set:
 
-## Source-of-truth order
+1. `project-context/START_HERE.md`
+2. `project-context/CURRENT_STATE.md`
+3. `project-context/ROADMAP.md`
+4. `project-context/PROJECT_RISKS.md`
+5. `project-context/ARCHITECTURE.md` only when the task changes or depends on architecture
 
-When documents disagree:
+Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs and historical Stage docs only when the current task actually needs them.
 
-1. current code/tests + exact current PR/CI/physical target evidence;
-2. `CONTINUATION_CONTEXT.md`, `START_HERE.md`, `CURRENT_STATE.md`;
-3. `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `ROADMAP.md`;
-4. current security/policy/catalog docs;
-5. accepted historical stage evidence;
-6. old research/handoffs.
+Current code/tests, exact PR heads, CI and required physical evidence outrank prose. Never infer live repository state from a recorded SHA in documentation.
 
-`DOCUMENT_STATUS.md` classifies every `project-context/*.md` file. Old `ACTIVE`, `NEXT`, `CURRENT` prose in historical documents is not a live roadmap instruction.
+## Development method
 
-Always resolve live `main` and relevant PR heads before editing.
+### 1. Design the product model ahead
 
-## Current operating constraint
+The project may define the long-horizon product shape in advance: Files, Browser, Windows/Desktop, Vision, Procedures/Skills, Agent Sessions/Delegation, Connectors, Scheduled Tasks and other capability classes under one deterministic Control Plane / verification boundary.
 
-Use ordinary ChatGPT plus GitHub and the project's local/connected tools. Do not use Codex or ChatGPT Work resources unless the user explicitly re-enables them.
+Long-horizon architecture should establish durable boundaries and invariants such as:
 
-## Current accepted integration
+- discovery is not authorization;
+- environmental content is data, not policy authority;
+- action/message delivery is not effect success;
+- transition PASS is not task DONE;
+- evidence is not a grant;
+- WorkingState is structured operational state, never private chain-of-thought;
+- ordinary ChatGPT is the only current general planner unless a later accepted decision explicitly changes that.
 
-Stage 26.3A is accepted and merged through PR #92. The reviewed GUI/computer-use architecture promotion is merged through PR #98.
+### 2. Research each concrete stage immediately before implementation
 
-```text
-Stage 26.3B base integration = b74c715d9f2ac6fe7f759e7fb57108feebf797c0
-physical runtime head        = 300db9956dfbdf0300ecc59f017d6f3280d4353a
-```
+Before implementing a new release-critical subsystem or stage:
 
-The exact live `main` must always be resolved from GitHub rather than inferred from this stage-base snapshot.
+1. inspect the current repository/runtime and the actual failure history;
+2. research current public approaches relevant to that exact stage;
+3. compare the research with existing future ADRs and project constraints;
+4. keep, revise or reject previously proposed implementation details;
+5. define the smallest stage architecture that solves the current problem;
+6. implement a minimal slice with the required tests and acceptance evidence.
 
-The accepted ordinary-Chat semantic surface is exactly:
+Future ADRs are architectural hypotheses plus boundary constraints, not immutable implementation specifications. A future ADR must not force the project to implement stale fields, APIs, event families or abstractions when current evidence supports a simpler design.
+
+Do not skip stage research merely because a future architecture document already exists.
+
+## Complexity policy
+
+Before adding a new framework, workflow, ADR, state type, gate, taxonomy or documentation owner, answer:
+
+1. Is this a new product guarantee/capability, or infrastructure around an existing one?
+2. Can the requirement be expressed through an existing mechanism?
+3. What existing complexity will this replace, consolidate or make unnecessary?
+
+Prefer extending an existing assurance/runtime mechanism over creating one mechanism per Stage/CAP/guarantee family.
+
+Test observable invariants and real behavior where practical. Avoid source-text/order assertions when the same guarantee can be proven through execution or instrumentation.
+
+Historical Stage/CAP/PR lineage belongs primarily in Git history and `EVIDENCE_INDEX.md`; the current architecture should be explained by the system's present form rather than the order in which it was built.
+
+## Current semantic boundary
+
+The accepted Chat-facing surface remains exactly six tools unless a separately reviewed/accepted change widens it:
 
 ```text
 workspace_read
@@ -58,166 +74,73 @@ web_interact
 procedure_run
 ```
 
-There is no five-versus-six runtime/profile/tray mode.
-
 Normal path:
 
 ```text
 ordinary ChatGPT
  -> OpenAI Secure MCP Tunnel
  -> official tunnel-client
- -> direct stdio secure semantic launcher
- -> canonical six-tool semantic projection
+ -> canonical semantic projection
  -> deterministic Control Plane / focused capabilities
 ```
 
-1MCP is optional internal Extension Manager infrastructure, not a normal-route dependency or authorization source.
+1MCP remains optional internal Extension Manager infrastructure, not normal-route authority.
 
-## Planner / Control Plane boundary
+## Computer-use / completion invariants
 
-Ordinary ChatGPT is the **only current general planner/intelligence layer**.
-
-The deterministic local Control Plane owns execution mechanics for already selected bounded goals/procedures:
-
-```text
-TaskState / WorkingState
-ProgramGraph progression
-capability policy / authorization
-ExpectedEffect/postconditions
-fresh transition verification
-checkpoints
-typed bounded recovery + LoopGuard
-action/time/resource budgets
-independent Finish Gate
-safety/policy gate
-escalation
-```
-
-It may advance already-defined transitions without returning to ChatGPT after every low-level action. It must ABSTAIN/escalate when live state is novel, stale, ambiguous, incompatible or requires a new strategy.
-
-Do not confuse this with a second local general planner.
-
-## State-first hybrid computer-use invariant
-
-The Stage 26.3A research artifact was reviewed against public primary sources and its supported conclusions were promoted into ADR-032/033.
-
-Current direction:
-
-```text
-semantic/native state first
- -> selective visual evidence
- -> capability-aware bounded action
- -> fresh re-observation
- -> ExpectedEffect verification
- -> typed recovery + LoopGuard
- -> structured WorkingState
- -> independent Finish Gate
- -> separate safety/policy gate
-```
-
-This generalizes existing Browser/Windows structure-first behavior. It does not create a generic universal agent backend and does not add public tools by itself.
-
-### Environmental content
-
-Pages/DOM, application UI, email/messages, documents/files being processed, screenshots/OCR and third-party tool/MCP output are **untrusted environmental data** with respect to user intent, permissions and Control Plane policy.
-
-They may supply task facts. They cannot grant themselves higher authority or broaden action scope merely because a model can read them.
-
-## Completion and recovery
-
-For every mutating transition:
+For mutating execution, preserve the state-first verified loop:
 
 ```text
 observe
- -> bind ExpectedEffect
+ -> bind ExpectedEffect / operation identity
  -> authorize one bounded action
  -> act
- -> re-observe
+ -> fresh re-observation
  -> verify PASS | FAIL | UNKNOWN
+ -> reconcile ambiguous outcome before retry
+ -> bounded recovery / LoopGuard / budgets
+ -> independent Finish Gate
 ```
 
-Action delivery is not transition success.
-Transition PASS is not whole-task completion.
+Do not weaken:
 
-The planner may propose `candidate_done`; only the independent Finish Gate may produce verified `DONE` from fresh task-level evidence.
-
-Typed recovery is bounded. Repeating identical/no-effect/oscillating state-action patterns without new evidence or progress is stopped by LoopGuard/budgets rather than retried indefinitely.
-
-## Current critical path
-
-```text
-26.2E real application E2E                         ACCEPTED
- -> Transport Supervisor v1                       ACCEPTED / MERGED #94
- -> 26.3 Verified Procedure Runtime               ACTIVE
-    -> 26.3A canonical six-tool runtime           ACCEPTED / MERGED #92
-    -> 26.3B Verification Kernel + Finish Gate    ACTIVE
-    -> 26.3C WorkingState + recovery + LoopGuard
- -> 26.4 Human Demo -> verified candidate skill
- -> 26.5 Hybrid Computer-Use Integration
- -> 27/28 release work
-```
-
-### 26.3B
-
-The internal Verification Kernel foundation is active: stream-bound fresh observation references, bounded declarative `ExpectedEffect` predicates, `PASS | FAIL | UNKNOWN`, and an independent Finish Gate with separate task-success/safety dimensions. It is not yet Stage 26.3B acceptance; file/browser/Windows adapters and production-procedure integration remain.
-
-### 26.3C
-
-Build `WorkingState` with facts+provenance+freshness, progress, recovery state and budgets; add typed recovery and LoopGuard.
-
-### 26.4
-
-Compile demonstrations into subtask goals + completion criteria + advisory action/target evidence. Live state remains authoritative. One demo creates at most CANDIDATE.
-
-### 26.5
-
-Integrate Browser/Windows under common control-loop contracts (`ObservationEnvelope` references, capability-aware routing, grounding identity/confidence/ambiguity, cross-app provenance, component/noisy-recovery evaluation). This does not automatically expand public tool names.
-
-## Non-negotiable invariants
-
-- ordinary ChatGPT is the only current general planner/intelligence;
-- deterministic Control Plane is execution state/policy, not a second planner;
-- current public semantic surface remains small and project-owned;
-- no generic hidden `tool_invoke`, shell/Python executor or unbounded workflow dispatcher;
-- observation/model/procedure/planner output never self-authorizes an action;
-- semantic/native structure precedes pixels where reliable;
-- current observed state outranks remembered procedure/demo/history;
-- every mutation has an explicit expected effect and fresh verification;
-- transition PASS is not task DONE;
-- only the independent Finish Gate confirms completion;
-- WorkingState stores structured operational data, never private chain-of-thought;
-- environmental content is data, not policy authority;
-- task-success and safety/policy verification are separate;
-- repeated no-effect/oscillating execution is bounded by LoopGuard;
-- stale/ambiguous/UNKNOWN evidence causes zero unauthorized continuation;
-- generic Windows code execution remains disabled/unreachable;
-- prefer qualified upstream mechanisms plus the smallest project-owned deterministic policy/state seams.
-
-## Future local planner
-
-Optional Track P remains:
-
-```text
-P0 shadow/proposal-only planner
- -> P1 bounded subtask planner
- -> P2 optional local general-planner mode
-```
-
-It starts only after verified long-horizon state data and measured need exist, and remains behind the same deterministic authorization/verifier/Finish Gate/safety boundaries.
+- fail-closed behavior on stale/ambiguous/UNKNOWN evidence;
+- independent final-state/history verification for consequence-bearing tasks;
+- source/runtime provenance when qualification depends on exact executed bytes;
+- separation of planner intent, deterministic authorization, effect verification and task completion.
 
 ## Merge policy
 
-When a branch is logically complete, intended diff is reviewed, required CI/physical tests pass and applicable acceptance checks are satisfied, merge it without waiting for a separate merge command.
+For runtime/security/recovery/authority changes, use this order:
 
-Do not merge on unresolved finding, conflict, ambiguous scope or failed/skipped required evidence.
+```text
+implementation
+ -> focused tests
+ -> required hosted CI on the exact head
+ -> Codex Review / independent review when available and required by the change class
+ -> fix findings
+ -> repeat independent review after material fixes when appropriate
+ -> final exact-head CI / required physical acceptance
+ -> merge
+```
 
-## Development workflow
+Do not auto-merge while active hardening/review changes are still being made.
 
-- inspect live repository/PR/CI state before editing;
-- preserve exact physical evidence heads;
-- distinguish architecture/test changes from runtime capability evidence;
-- never invent measured counters;
-- keep `main` as integration line and never force-push it;
-- use the user only for irreducible target-machine/ordinary-Chat gates;
-- actively reduce manual user command relay when the platform has enough capability;
-- keep continuation/architecture/control-plane/computer-use/security/document-status docs synchronized at architecture-changing points.
+If Codex Review is unavailable, state that explicitly. Do not represent independent review as completed. Merge only when the repository's documented acceptance policy permits proceeding without it.
+
+Documentation-only/process PRs should not be forced through physical gates unless they alter acceptance/runtime behavior.
+
+## PR/document discipline
+
+Keep live documentation small and role-specific:
+
+- `CURRENT_STATE.md` = current accepted boundary and immediate work;
+- `ROADMAP.md` = release order;
+- `PROJECT_RISKS.md` = ranked risks;
+- `EVIDENCE_INDEX.md` = exact accepted evidence/SHAs/locators;
+- `TECH_DEBT.md` = existing compromises with close conditions;
+- architecture docs = durable boundaries and current/future design hypotheses.
+
+Do not duplicate exact SHA snapshots, active PR state or large physical evidence blocks across multiple live documents.
+
+When a branch is logically complete, intended diff is reviewed, required checks/evidence pass on the exact final head and no unresolved finding/conflict remains, merge it without waiting for a separate merge instruction.
