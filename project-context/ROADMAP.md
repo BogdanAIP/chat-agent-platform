@@ -262,6 +262,50 @@ A local runtime being able to mark a task `READY` is not proof that the product 
 
 ---
 
+# Future research seam — Physical Device / IoT Capability Family
+
+This is **not a new release-critical stage, not an accepted production backend and not part of Stage 26.3C**. It does not change the current release-critical sequence.
+
+A future Physical Device / IoT family may reuse the existing project consequence model across smart-home, generic IoT and later laboratory/device adapters:
+
+```text
+identify
+ -> observe
+ -> authorize
+ -> act
+ -> fresh re-observe
+ -> verify
+ -> reconcile/recover
+```
+
+`project-context/IOT_PHYSICAL_DEVICE_CAPABILITY_RESEARCH.md` records the current research direction:
+
+- Home Assistant is the **preferred first backend candidate for future re-entry**, not an accepted dependency;
+- Home Assistant may normalize state/events/actions across Matter, MQTT and other vendor/protocol integrations while project Control Plane, WorkingState, Verification Kernel and Finish Gate remain authoritative;
+- HA service/action completion is delivery/execution evidence, not project `PASS`; fresh post-action observation is required for the declared ExpectedEffect;
+- a human-facing `entity_id` must not be the only durable project subject identity;
+- direct Matter, direct MQTT and vendor-specific adapters are considered only for a **measured gap** in the aggregator path, not built in parallel by default;
+- generic raw `call_service(anything)` is not the intended Chat-facing semantic authority;
+- higher-consequence actuators require stronger scope/freshness/preconditions, and hazardous equipment requires independent/device/process safety interlocks below LLM authority;
+- MHS is a reference-only future laboratory/hardware standard until its public specification/implementation can be independently revalidated.
+
+Before production adoption, re-run Stage Research on the then-current concrete device/user scope, backend versions, identity/security/recovery semantics and any new idempotency/resource-lock/interlock mechanism. A lamp proof cannot authorize locks, water, boilers, gas or laboratory equipment.
+
+The same research also records a separate future **experience -> validated deterministic procedure** seam:
+
+```text
+adaptive attempts
+ -> verified successful traces
+ -> candidate procedure
+ -> independent validation
+ -> bounded deterministic procedure
+ -> versioned procedure / skill lineage
+```
+
+Successful traces are evidence, not automatic self-modification. Promotion requires independent replay/regression/variant evidence; timing-sensitive or safety-critical inner loops should move to a qualified deterministic runtime rather than query an LLM on every control step.
+
+---
+
 # Local Execution Kernel — adjacent future consequence class
 
 Arbitrary Python/program execution may be useful later, but it is not Browser authority and must not be hidden in `web_interact` or generic `procedure_run` dispatch.
