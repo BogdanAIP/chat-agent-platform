@@ -10,6 +10,34 @@ SKILLS_ROOT = ROOT / ".agents" / "skills"
 REUSE_BASELINE = ROOT / "project-context" / "ARCHITECTURE_REUSE_BASELINE.md"
 
 
+def _split_markdown_table_row(line: str) -> tuple[str, ...]:
+    body = line.strip().strip("|")
+    cells: list[str] = []
+    current: list[str] = []
+    in_code = False
+    escaped = False
+    for char in body:
+        if escaped:
+            current.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            current.append(char)
+            escaped = True
+            continue
+        if char == "`":
+            in_code = not in_code
+            current.append(char)
+            continue
+        if char == "|" and not in_code:
+            cells.append("".join(current).strip())
+            current = []
+            continue
+        current.append(char)
+    cells.append("".join(current).strip())
+    return tuple(cells)
+
+
 def _reuse_baseline_rows(text: str) -> dict[str, tuple[str, ...]]:
     marker = "## Canonical role map"
     section = text.split(marker, 1)[1]
@@ -19,7 +47,7 @@ def _reuse_baseline_rows(text: str) -> dict[str, tuple[str, ...]]:
             if rows:
                 break
             continue
-        cells = tuple(cell.strip() for cell in line.strip().strip("|").split("|"))
+        cells = _split_markdown_table_row(line)
         if len(cells) != 7 or cells[0] in {"Architectural role", "---"}:
             continue
         if set(cells[0]) == {"-"}:
