@@ -8,15 +8,21 @@
 
 ## Stage research / design basis
 
-For a new release-critical subsystem or materially new architecture:
+For a new release-critical stage/substage, major subsystem, new capability family or materially new recovery/security/authority architecture:
 
+- [ ] Ran `.agents/skills/stage-research/SKILL.md` before production implementation
+- [ ] Stage Research Brief records `PROCEED`, `NARROW`, or `DEFER`
 - [ ] Audited the current implementation and relevant failure/evidence history
-- [ ] Performed focused current research for this exact stage, or explained why no new research is needed
+- [ ] Researched current strong approaches for this exact stage
+- [ ] Actively researched known limitations, issue reports, postmortems and operational failure modes
+- [ ] Recorded root causes/mitigations and how this implementation avoids repeating known external failures
 - [ ] Compared research/current code with existing future ADRs
 - [ ] Treated future ADR implementation details as revisable hypotheses rather than immutable specifications
-- [ ] Chosen the smallest implementation slice consistent with the long-horizon product model
+- [ ] Chosen the smallest implementation slice consistent with the long-horizon product model and required guarantees
 
-Research output should change implementation decisions, constraints or confidence; do not create research documents merely to satisfy this checklist.
+Research output should change implementation decisions, constraints or confidence; do not create a standalone research document merely to satisfy this checklist. Record the brief in the first implementation PR body or an existing authoritative architecture/stage owner when durable persistence is actually needed.
+
+Narrow bug fixes, dependency bumps, isolated regressions and documentation-only corrections do not require the full skill unless they materially alter architecture, authority or a release-critical guarantee.
 
 ## Complexity check
 
@@ -25,6 +31,7 @@ Research output should change implementation decisions, constraints or confidenc
 - [ ] Did not create a new Stage/CAP-specific framework/workflow/document owner without a concrete need
 - [ ] Tests prefer observable behavior/instrumentation over source-text/order assertions where practical
 - [ ] Historical evidence/SHAs stay in `EVIDENCE_INDEX.md` instead of being duplicated across live docs
+- [ ] New infrastructure that replaces nothing has an explicit necessity justification
 
 ## Planner / authority impact
 
