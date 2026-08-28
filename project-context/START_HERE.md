@@ -1,27 +1,35 @@
 # Start Here — authoritative continuation guide
 
-Use this file after resolving live GitHub state. Do not treat recorded prose as a substitute for live `main`, open PRs, exact heads, hosted checks or required physical evidence.
+Use this file only after resolving live GitHub state. Recorded prose is not a substitute for live `main`, relevant open PRs/exact heads, hosted checks or required physical evidence.
 
-Before planning implementation, follow the mandatory session bootstrap in `AGENTS.md`: enumerate `.agents/skills/*/SKILL.md` from the current repository ref, resolve applicable skills, and load them before planning. This check is repeated after `main` advances or the task moves into a new stage/substage, so merged skill updates are picked up from current repository bytes rather than chat memory.
+Before planning implementation, follow the mandatory repository-skill bootstrap in `AGENTS.md`: enumerate `.agents/skills/*/SKILL.md` from the current ref, resolve applicable triggers and load matching skills before planning/production edits. Re-run the bootstrap after `main` advances, rebase, a new stage/substage, or a material task change.
 
 ## Minimal read set
 
-For ordinary continuation, read:
+For ordinary continuation:
 
 1. `CURRENT_STATE.md`
 2. `ROADMAP.md`
 3. `PROJECT_RISKS.md`
 4. `ARCHITECTURE.md` only when the current task changes or depends on architecture
 
+Additionally read `ARCHITECTURE_REUSE_BASELINE.md` whenever `stage-research` applies or work may duplicate, replace, refine or cross a previously selected external-component/project-owned role.
+
 Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs and historical Stage documents only when the current task needs them.
 
-The repository should not require a fresh agent to reconstruct the whole build history before continuing current work.
+The repository should not require reconstructing the full build history before continuing current work.
 
 ## Current boundary
 
-Stage 26.3B is accepted/closed for its recorded representative scope. The current release-critical direction is Stage 26.3C: project-owned WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport.
+Stage 26.3B is accepted/closed for its recorded representative scope.
 
-Exact accepted heads and machine-local evidence locators belong in `EVIDENCE_INDEX.md`, not here.
+Stage 26.3C has already begun: the project-owned WorkingState/typed reconciliation/budget/LoopGuard/StagnationReport **L1 foundation is accepted and merged through #124**.
+
+The current release-critical task is the first bounded production integration/restart-reconciliation slice, not creation of the WorkingState model from zero. At this snapshot draft #126 carries that work; always resolve its live state before acting.
+
+Exact accepted physical heads and machine-local evidence locators belong in `EVIDENCE_INDEX.md`, not here.
+
+## Current product boundary
 
 The accepted Chat-facing surface remains exactly:
 
@@ -44,50 +52,77 @@ ordinary ChatGPT
  -> deterministic Control Plane / focused capabilities
 ```
 
-Ordinary ChatGPT is the only current general planner/intelligence. The deterministic Control Plane owns bounded execution state/policy, authorization, ExpectedEffect verification, recovery budgets and independent completion checks for already-defined transitions.
+Ordinary ChatGPT is the only current general planner/intelligence. The deterministic Control Plane owns bounded execution state/policy, authorization, ExpectedEffect verification, reconciliation/recovery budgets and independent completion checks for already-selected transitions.
 
-## Product model vs stage implementation
+## Stage Research before implementation
 
-The project intentionally designs the **general product model** ahead: Files, Browser, Windows/Desktop, Vision, Procedures/Skills, Agent Sessions/Delegation, Connectors, Scheduled Tasks and other capability classes should fit one coherent product and trust model.
+For a new release-critical stage/substage, major subsystem, capability family or material persistence/recovery/retry/concurrency/identity/security/authority change, use `.agents/skills/stage-research/SKILL.md` before production implementation.
 
-That does **not** mean future detailed APIs are implementation commitments.
-
-When starting a new release-critical stage/substage, major subsystem, new capability family or materially new recovery/security/authority design, use `.agents/skills/stage-research/SKILL.md` before production implementation. The skill must produce a Stage Research Brief with `PROCEED`, `NARROW`, or `DEFER`.
-
-The research gate explicitly includes both **best practices and failure lessons**: investigate what strong systems do, why they do it, what failure modes they address, what problems/limitations they encounter in practice, root causes and mitigations, and how this project can avoid repeating those failures.
-
-Before implementing each concrete stage or subsystem:
+A valid Stage Research Brief ends in:
 
 ```text
-current repo/runtime audit
- -> stage-research skill
- -> current best practices + failure reports / postmortems / limitations
- -> compare with existing ADRs and constraints
- -> revise/reject stale future implementation details
- -> choose the minimum sufficient stage architecture
- -> implement minimal coherent slice
- -> adversarial/acceptance tests
- -> independent review
- -> exact-head acceptance
+PROCEED
+NARROW
+DEFER
 ```
 
-Future ADRs are design hypotheses plus durable boundary constraints. They are inputs to the stage research, not substitutes for it.
+Only `PROCEED` or `NARROW` opens implementation. `DEFER` keeps it blocked.
 
-Do not implement a future `CapabilityRegistry`, `TypedEventBus`, `PolicyHooks`, Session API, Connector model or other broad abstraction merely because it is already described in a future architecture document. Introduce only the parts current evidence and current consumers require while preserving the long-horizon product boundaries.
+Current research flow:
+
+```text
+resolve current repo/runtime/evidence
+ -> compare affected roles with ARCHITECTURE_REUSE_BASELINE.md
+ -> enumerate architecture primitives + directly relevant engineering domains
+ -> separate problem evidence from solution evidence
+ -> research strong approaches + failure reports/postmortems
+ -> compare materially distinct alternatives
+ -> build failure/crash matrix for persistence/recovery/side-effect/concurrency/authority changes
+ -> issue PROCEED / NARROW / DEFER
+ -> implement minimum coherent slice
+ -> adversarial/acceptance tests
+ -> independent review when required/available
+ -> exact-head CI + required physical acceptance
+```
+
+Future ADRs are design hypotheses plus durable boundary constraints. They are inputs to fresh research, not substitutes for it.
+
+If implementation/tests/review introduce a materially new architecture primitive or materially change persistence/recovery/retry/concurrency/identity/authority semantics, the prior Brief is invalid for further production implementation. Re-enter research before continuing.
+
+## Architecture lineage rule
+
+`ARCHITECTURE_REUSE_BASELINE.md` records prior role assignments such as Playwright, OpenAdapt, UFO-derived mechanics and project-owned WorkingState/Verification/Finish/authorization boundaries.
+
+For every affected role, Stage Research must explicitly decide:
+
+```text
+KEEP / REUSE_MORE / REFINE / REPLACE / DEFER / REJECT
+```
+
+It is not a veto on better evidence. It prevents silent duplication or replacement of a previously selected mechanism.
+
+A role-level `DEFER` cannot hide a requirement needed by an overall `PROCEED`/`NARROW` decision. Accepted lineage changes must update the baseline in the adopting PR before/with merge.
+
+## Current 26.3C integration boundary
+
+The accepted L1 WorkingState foundation does not itself prove crash-safe production effects.
+
+Current draft #126 is deliberately scoped to process crash/restart for the bounded workspace-artifact procedure. Its fresh Stage Research currently chooses a narrow design based on existing checkpoint/WorkingState semantics, one cooperating task runner, fresh same-stream reconciliation and reconstructible file identity; it explicitly does not claim machine/power-loss transactional durability.
+
+Treat that as draft design until exact-head tests/review/physical acceptance pass.
 
 ## Complexity rule
 
-When adding a framework, workflow, gate, ADR, state type or documentation owner, ask:
+Before adding a framework, workflow, gate, state owner, ADR or documentation owner, ask:
 
 ```text
 Is this a new capability/guarantee?
 Can an existing mechanism express it?
-What old complexity will this replace or consolidate?
+What old complexity will it replace or consolidate?
+Does custom code duplicate a role already selected for upstream reuse?
 ```
 
-Avoid one new infrastructure layer per Stage/CAP/guarantee family. Historical Stage/PR lineage belongs primarily in Git history and `EVIDENCE_INDEX.md`.
-
-Prefer behavioral/instrumented tests of invariants over source-text/order assertions when practical.
+Avoid one new infrastructure layer per Stage/CAP/guarantee family. Prefer behavioral/instrumented tests of observable invariants over brittle source-text/order checks where practical.
 
 ## Computer-use invariant
 
@@ -97,41 +132,38 @@ semantic/native state first
  -> bounded authorized action
  -> fresh re-observation
  -> ExpectedEffect verification
- -> typed recovery/reconciliation + LoopGuard
+ -> reconcile ambiguous outcome before retry
+ -> typed bounded recovery / LoopGuard / budgets
  -> structured WorkingState
  -> independent Finish Gate
 ```
-
-Mutating outcomes must distinguish safe retry from ambiguous delivery. `OUTCOME_UNKNOWN` is reconciled from fresh authoritative state before retry. Repeated physical attempts are bounded; identical blind retries are not an acceptable recovery strategy.
 
 WorkingState stores structured operational state, never private chain-of-thought.
 
 ## Current Browser scope
 
-The accepted Browser L3 path uses real target-Windows runtime/effects through isolated headless Playwright/Chrome. It does not by itself prove control of an already-open visible desktop Chrome session. Any visible/attached-browser claim requires its own acceptance definition and evidence.
+The accepted Browser L3 path uses real target-Windows effects through isolated headless Playwright/Chrome. It does not prove control of an already-open visible desktop Chrome session. Visible/attached-browser authority requires its own definition and evidence.
 
 ## Future architecture
 
-Track M / Agent Sessions, ADR-036 Browser Harness expansion and ADR-037 CapabilityRegistry/Event/Hook substrate remain future architecture. Read their dedicated documents only when the current task touches those areas.
-
-Their durable authority boundaries remain useful; their detailed implementation shapes may be revised after focused stage research.
+Track M / Agent Sessions, ADR-036 Browser Harness expansion and ADR-037 CapabilityRegistry/Event/Hook substrate remain future architecture. Their durable authority boundaries are useful; their detailed implementation shapes remain subject to fresh Stage Research when implementation begins.
 
 ## Merge rule
 
 For runtime/security/recovery/authority changes:
 
 ```text
-stage-research skill when applicable
+stage-research when applicable
  -> implementation
  -> focused tests
  -> required hosted CI on exact head
- -> Codex Review / independent review when available and required
- -> fixes
- -> repeat review after material fixes when appropriate
+ -> Codex Review / independent review when required and available
+ -> fix findings
+ -> repeat review after material fixes where appropriate
  -> final exact-head CI / required physical acceptance
  -> merge
 ```
 
-Do not auto-merge while active hardening/review changes are still being made. If independent review is unavailable, record that fact rather than representing the review as completed.
+Do not represent unavailable review as completed. Documentation/process-only changes do not require a physical gate unless they change acceptance/runtime authority.
 
-`AGENTS.md` owns the repository-wide development method. `CURRENT_STATE.md` owns the present accepted boundary. `ROADMAP.md` owns release order.
+`AGENTS.md` owns development method. `CURRENT_STATE.md` owns live accepted/current boundary. `ROADMAP.md` owns release order. `DOCUMENT_STATUS.md` owns document roles.
