@@ -62,6 +62,46 @@ Vision is useful for structural misses, spatial manipulation and independent cro
 
 A model/critic may reject or propose an uncertain target, but deterministic identity/freshness/authorization and Verification Kernel rules remain authoritative.
 
+### Fresh visual post-action verification
+
+A structurally correct state is not always a visually correct user result. When an `ExpectedEffect`, task predicate or acceptance condition includes a rendered/spatial property that semantic/native evidence cannot prove, verification must include **fresh post-action visual evidence** bound to the relevant post-action observation/frame.
+
+Representative visual predicates include:
+
+```text
+visible / actually rendered
+not clipped outside viewport/window
+not occluded by another control/dialog/overlay
+not overlapping an invalid region
+relative placement / alignment
+rendered size where task-relevant
+visual style/state where task-relevant
+```
+
+Rules:
+
+- DOM/accessibility/UIA/native state may prove structural predicates, but it must not by itself produce `PASS` for a required visual predicate it cannot observe;
+- if fresh visual evidence conclusively contradicts a required visual postcondition, verification is `FAIL`;
+- if required visual evidence is unavailable, stale, ambiguous or cannot distinguish the required condition, verification is `UNKNOWN` rather than guessed `PASS`;
+- structural/native success plus a visual contradiction cannot be collapsed into overall `PASS`;
+- visual evidence supplements verification evidence and never grants action authority, overrides identity/freshness, or converts a verifier `FAIL`/`UNKNOWN` into `PASS`;
+- this is **not** a screenshot-after-every-action requirement. Fresh visual evidence is required only when the claimed outcome itself is visual/spatial or structural evidence is insufficient for the relevant predicate.
+
+Example:
+
+```text
+DOM/UIA:
+  control exists
+  text is correct
+  enabled = true
+
+fresh screenshot:
+  control is clipped outside the visible window
+
+result:
+  visual postcondition is not PASS
+```
+
 ### Environmental content is untrusted data
 
 Content from UI/DOM/messages/files/screenshots/tool output is task data with respect to user intent and policy.
