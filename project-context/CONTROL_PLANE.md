@@ -2,7 +2,7 @@
 
 Status: **AUTHORITATIVE EXECUTION ARCHITECTURE**.
 
-Current implementation state belongs in `CURRENT_STATE.md`. Durable execution/authority semantics belong here.
+Current implementation/PR state belongs in `CURRENT_STATE.md`. Durable execution/authority semantics belong here.
 
 The accepted progression now includes:
 
@@ -274,15 +274,20 @@ Fail closed on impossible histories such as:
 
 Persistence mechanism details are consumer-specific and require fresh Stage Research when they introduce new crash/concurrency/identity assumptions.
 
-## Current Stage 26.3C production-integration boundary
+### Production-integration rule
 
-The L1 state model is accepted; production crash/restart behavior is not automatically accepted.
+The accepted L1 state model does not automatically authorize or prove a concrete persistence/restart mechanism for a production consumer.
 
-At this snapshot draft #126 is the first bounded production consumer for the workspace-artifact procedure. Its fresh Stage Research currently narrows the guarantee to process restart on supported local Windows/NTFS and explicitly avoids claiming machine/power-loss database-grade durability.
+Each consequence-bearing integration must:
 
-The current draft design uses procedure-local prepared intent, a per-task OS lock, same-stream reconciliation and reconstructible file identity/hard-link semantics. These remain draft mechanisms until exact-head tests/review/physical qualification pass.
+- compare affected prior reuse/project-owned roles through `ARCHITECTURE_REUSE_BASELINE.md`;
+- research any new persistence/recovery/concurrency/identity primitive in its governing engineering domain;
+- state the exact restart/crash/durability scope being claimed;
+- preserve stable logical operation identity and fresh reconciliation before retry;
+- fail closed on missing/corrupt/inconsistent durable state;
+- pass focused/fault-injection tests, required exact-head CI/review and physical acceptance where the path changes real effects.
 
-If the implementation materially changes those persistence/recovery/concurrency/identity mechanisms, the Stage Research Brief is invalid and must be re-entered before production code continues.
+The live implementation proposal and its current Stage Research decision belong in `CURRENT_STATE.md` / the active PR, not in this durable architecture owner.
 
 ## Capability authorization
 
