@@ -64,6 +64,78 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
         self.assertIn("runtime `SkillGate`", bootstrap)
         self.assertIn("Control Plane authority", bootstrap)
 
+    def test_stage_research_requires_solution_depth_not_only_problem_research(self) -> None:
+        skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
+
+        required = (
+            "## 3. Research Scope Expansion Gate",
+            "architecture primitive/mechanism",
+            "mature engineering domain",
+            "## 6. Separate problem evidence from solution evidence",
+            "### Problem evidence",
+            "### Solution evidence",
+            "three materially distinct architecture approaches",
+            "## 9. Failure/Crash Matrix Gate",
+            "concurrent resume / duplicate worker / duplicate caller",
+            "identity replacement or ABA-style state reuse",
+            "## 14. Design-change invalidation and re-entry",
+            "invalid for implementation authority",
+            "PR-body edit that merely restates the new design",
+            "`NARROW` means a narrower **implementation scope**, not a lower research standard",
+        )
+        for phrase in required:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, skill)
+
+    def test_initial_material_persistence_or_concurrency_change_triggers_stage_research(self) -> None:
+        skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
+        agents = AGENTS.read_text(encoding="utf-8")
+
+        for phrase in (
+            "material change to persistence ordering/ownership",
+            "retry/reconciliation",
+            "concurrency",
+            "identity/correlation",
+            "including inside an existing subsystem",
+        ):
+            with self.subTest(skill_phrase=phrase):
+                self.assertIn(phrase, skill)
+
+        self.assertIn("material release-critical change to persistence ordering/ownership", agents)
+        self.assertIn("because the change occurs inside an existing subsystem", agents)
+
+    def test_material_architecture_change_reenters_research_before_more_production_code(self) -> None:
+        agents = AGENTS.read_text(encoding="utf-8")
+
+        required = (
+            "materially new architecture primitive",
+            "treat the prior Stage Research Brief as invalid",
+            "re-enter the applicable research skill before continuing production implementation",
+            "`NARROW` narrows implementation scope only",
+            "separate evidence that the problem exists from evidence that the proposed mechanism is an appropriate solution",
+            "failure/crash matrix",
+            "Merely editing the PR body to describe the new design does not satisfy this requirement",
+        )
+        for phrase in required:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, agents)
+
+    def test_defer_is_fail_closed_and_never_opens_implementation(self) -> None:
+        skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
+        agents = AGENTS.read_text(encoding="utf-8")
+
+        for phrase in (
+            "`DEFER` is fail-closed",
+            "resume production implementation only after `PROCEED` or `NARROW`",
+            "if the fresh decision is `DEFER`, keep implementation stopped",
+            "`DEFER` never opens or resumes production implementation",
+        ):
+            with self.subTest(skill_phrase=phrase):
+                self.assertIn(phrase, skill)
+
+        self.assertIn("only `PROCEED` or `NARROW` opens implementation", agents)
+        self.assertIn("`DEFER` keeps implementation stopped", agents)
+
 
 if __name__ == "__main__":
     unittest.main()
