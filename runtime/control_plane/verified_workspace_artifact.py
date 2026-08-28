@@ -42,7 +42,6 @@ from ._verified_workspace_artifact_support import (
     _record_file_exists_no_effect,
     _record_normal_outcome,
     _record_transition,
-    _reconciliation_verification,
     _restore_working_state,
     _result,
     _rollback_owned_file,
@@ -54,6 +53,7 @@ from ._verified_workspace_artifact_support import (
     _utc_now,
     _validate_resume_state,
     _verify_current_state,
+    _verify_from_intent,
     _verify_transition,
     _write_checkpoint,
 )
@@ -61,6 +61,7 @@ from .file_artifact_observation import FileArtifactObservationStream
 from .verification import (
     FinishStatus,
     ObservationSnapshot,
+    VerificationResult,
     VerificationStatus,
     evaluate_finish_gate,
 )
@@ -69,6 +70,7 @@ from .working_state import (
     MutatingOutcome,
     ReconciliationStatus,
     WorkingState,
+    reconciliation_effect_id,
 )
 
 
@@ -149,6 +151,167 @@ def _direct_reconciliation_status(
     raise ValueError("unknown workspace transition")
 
 
+def _reconciliation_predicates(
+    transition_id: str,
+    status: ReconciliationStatus,
+    snapshot: ObservationSnapshot,
+    *,
+    content_size: int,
+    expected_sha: str,
+    staging_identity: dict[str, Any] | None,
+    target_identity: dict[str, Any] | None,
+) -> tuple | None:
+    """Return the exact kernel predicates required to confirm reconciliation."""
+
+    staging_identity = _normalized_identity(staging_identity)
+    target_identity = _normalized_identity(target_identity)
+
+    if transition_id == "stage_create":
+        if status is ReconciliationStatus.CONFIRMED_APPLIED:
+            observed_identity = _observed_identity(snapshot, "staging")
+            if observed_identity is None:
+                return None
+            return (
+                *_file_predicates(
+                    "staging",
+                    size=content_size,
+                    sha256=expected_sha,
+                    identity=observed_identity,
+                ),
+                *_missing_predicates("target"),
+            )
+        if status is ReconciliationStatus.CONFIRMED_NOT_APPLIED:
+            return (*_missing_predicates("staging"), *_missing_predicates("target"))
+        return None
+
+    if transition_id == "final_create":
+        if staging_identity is None:
+            return None
+        if status is ReconciliationStatus.CONFIRMED_APPLIED:
+            return (
+                *_file_predicates(
+                    "staging",
+                    size=content_size,
+                    sha256=expected_sha,
+                    identity=staging_identity,
+                ),
+                *_file_predicates(
+                    "target",
+                    size=content_size,
+                    sha256=expected_sha,
+                    identity=staging_identity,
+                ),
+            )
+        if status is ReconciliationStatus.CONFIRMED_NOT_APPLIED:
+            return (
+                *_file_predicates(
+                    "staging",
+                    size=content_size,
+                    sha256=expected_sha,
+                    identity=staging_identity,
+                ),
+                *_missing_predicates("target"),
+            )
+        return None
+
+    if transition_id == "staging_cleanup":
+        if staging_identity is None or target_identity is None:
+            return None
+        target_predicates = _file_predicates(
+            "target",
+            size=content_size,
+            sha256=expected_sha,
+            identity=target_identity,
+        )
+        if status is ReconciliationStatus.CONFIRMED_APPLIED:
+            return (*target_predicates, *_missing_predicates("staging"))
+        if status is ReconciliationStatus.CONFIRMED_NOT_APPLIED:
+            return (
+                *target_predicates,
+                *_file_predicates(
+                    "staging",
+                    size=content_size,
+                    sha256=expected_sha,
+                    identity=staging_identity,
+                ),
+            )
+        return None
+
+    raise ValueError("unknown workspace transition")
+
+
+def _kernel_reconciliation_verification(
+    attempt_revision: int,
+    intent: AttemptIntent,
+    transition_id: str,
+    direct_status: ReconciliationStatus,
+    snapshot: ObservationSnapshot,
+    *,
+    task_id: str,
+    content_size: int,
+    expected_sha: str,
+    staging_identity: dict[str, Any] | None,
+    target_identity: dict[str, Any] | None,
+) -> tuple[ReconciliationStatus, VerificationResult]:
+    """Require the shared Verification Kernel before a confirmed reconciliation."""
+
+    evidence_batch_id = f"{task_id}:reconcile:{attempt_revision}:{snapshot.ref.sequence}"
+    if direct_status is ReconciliationStatus.STILL_UNKNOWN:
+        return direct_status, VerificationResult(
+            effect_id=reconciliation_effect_id(
+                intent.operation_id,
+                attempt_revision,
+                ReconciliationStatus.STILL_UNKNOWN,
+            ),
+            status=VerificationStatus.UNKNOWN,
+            reason="workspace_artifact_reconciliation_unknown",
+            observation=snapshot.ref,
+            evidence_batch_id=evidence_batch_id,
+        )
+
+    predicates = _reconciliation_predicates(
+        transition_id,
+        direct_status,
+        snapshot,
+        content_size=content_size,
+        expected_sha=expected_sha,
+        staging_identity=staging_identity,
+        target_identity=target_identity,
+    )
+    if predicates is not None:
+        result = _verify_from_intent(
+            effect_id=reconciliation_effect_id(
+                intent.operation_id,
+                attempt_revision,
+                direct_status,
+            ),
+            intent=intent,
+            after=snapshot,
+            predicates=predicates,
+            evidence_batch_id=evidence_batch_id,
+        )
+        if result.status is VerificationStatus.PASS:
+            return direct_status, result
+        predicate_results = result.predicate_results
+        reason = f"workspace_artifact_reconciliation_kernel_{result.status.value}"
+    else:
+        predicate_results = ()
+        reason = "workspace_artifact_reconciliation_kernel_predicates_unavailable"
+
+    return ReconciliationStatus.STILL_UNKNOWN, VerificationResult(
+        effect_id=reconciliation_effect_id(
+            intent.operation_id,
+            attempt_revision,
+            ReconciliationStatus.STILL_UNKNOWN,
+        ),
+        status=VerificationStatus.UNKNOWN,
+        reason=reason,
+        observation=snapshot.ref,
+        evidence_batch_id=evidence_batch_id,
+        predicate_results=predicate_results,
+    )
+
+
 def _recover_prepared_intent(
     task_state: dict[str, Any],
     state: WorkingState,
@@ -184,7 +347,7 @@ def _recover_prepared_intent(
     )
     attempt = state.attempts[-1]
     fresh = observer.observe()
-    status = _direct_reconciliation_status(
+    direct_status = _direct_reconciliation_status(
         transition_id,
         fresh,
         content_size=content_size,
@@ -192,12 +355,17 @@ def _recover_prepared_intent(
         staging_identity=task_state.get("staging_file_identity"),
         target_identity=task_state.get("target_file_identity"),
     )
-    verification = _reconciliation_verification(
+    status, verification = _kernel_reconciliation_verification(
         attempt.revision_after,
         intent,
-        status,
+        transition_id,
+        direct_status,
         fresh,
         task_id=task_id,
+        content_size=content_size,
+        expected_sha=expected_sha,
+        staging_identity=task_state.get("staging_file_identity"),
+        target_identity=task_state.get("target_file_identity"),
     )
     state = state.record_reconciliation(
         operation_id=intent.operation_id,
@@ -263,9 +431,21 @@ def _reconcile_exceptional_delivery(
     )
     attempt = state.attempts[-1]
     fresh = observer.observe()
-    status = _direct_reconciliation_status(
+    direct_status = _direct_reconciliation_status(
         transition_id,
         fresh,
+        content_size=content_size,
+        expected_sha=expected_sha,
+        staging_identity=task_state.get("staging_file_identity"),
+        target_identity=task_state.get("target_file_identity"),
+    )
+    status, verification = _kernel_reconciliation_verification(
+        attempt.revision_after,
+        intent,
+        transition_id,
+        direct_status,
+        fresh,
+        task_id=task_id,
         content_size=content_size,
         expected_sha=expected_sha,
         staging_identity=task_state.get("staging_file_identity"),
@@ -275,13 +455,7 @@ def _reconcile_exceptional_delivery(
         operation_id=intent.operation_id,
         attempt_revision=attempt.revision_after,
         status=status,
-        verification=_reconciliation_verification(
-            attempt.revision_after,
-            intent,
-            status,
-            fresh,
-            task_id=task_id,
-        ),
+        verification=verification,
         expected_revision=state.revision,
     )
     task_state["working_state"] = state.as_dict()
