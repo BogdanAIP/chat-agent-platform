@@ -30,7 +30,7 @@ Exact code/tests/current CI and original physical results remain more authoritat
 - Retain older scope when newer evidence strengthens/supersedes it; add a new row.
 - Synthetic/unit/state-machine acceptance is **not** physical evidence and must not be inserted into this table as if it were.
 - Machine-local paths are evidence locators, not portable product requirements.
-- Promote generalized lessons into architecture/policy owners; keep raw counters/locators here.
+- Promote generalized lessons into architecture/policy owners; keep raw acceptance counters/locators here when they materially define the accepted scope.
 
 ## Accepted physical / target evidence
 
@@ -67,8 +67,8 @@ Exact code/tests/current CI and original physical results remain more authoritat
 | Stage 26.3B `web_interact` verification (#111) | `1521e3128a7694be43518c3ee0188cb79f0ca0f5` | ordinary-Chat target-Windows Browser regression | fresh BEFORE/AFTER ExpectedEffect; already-satisfied/missing expected causes zero action |
 | Stage 26.3B Browser real-task L3 historical scope (#113) | `5bb8897c6809cecd15f64da1a8ef6efd2fdf69bf` | target Windows ordinary ChatGPT randomized Case Desk + checker | exact target final state, one save/audit mutation, decoys unchanged; provenance later strengthened #118 |
 | Stage 26.3B Windows DesktopState shared-kernel verification (#114) | `ce3f533d12ab0a5ea0c9a4804accb32cf377ac0e` | target-Windows physical verifier qualification | process/HWND identity/freshness; PASS/FAIL/UNKNOWN/generation drift cases |
-| Stage 26.3B Windows/application real-task L3 (#115) | `5ae5d5ac52f391b1a58662e94a976c6ab8d48c62` | target-Windows ordinary ChatGPT Case Desk + frozen Finish Gate | five bounded verified transitions; exact target state; unchanged decoys; source/install/runtime provenance; cleanup; external DONE |
-| Stage 26.3B Browser stronger source-provenance repeat (#118) | `e29517fdf1c940d36bc822cfcc1a729ed7dd9574` | `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\stage26-3b-browser-real-task-20260828-005002-8BE43853` | six-tool randomized Browser task; source/install/full exact-lock dependency tree revalidated after actions; atomic frozen snapshot; target-only mutation history; cleanup PASS |
+| Stage 26.3B Windows/application real-task L3 (#115) | `5ae5d5ac52f391b1a58662e94a976c6ab8d48c62` | target-Windows ordinary ChatGPT Case Desk + frozen Finish Gate | five bounded verified transitions; exact target state; unchanged decoys; source/install/runtime provenance; cleanup; `EXTERNAL_FINISH_GATE=DONE` |
+| Stage 26.3B Browser stronger source-provenance repeat (#118) | `e29517fdf1c940d36bc822cfcc1a729ed7dd9574` | `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\stage26-3b-browser-real-task-20260828-005002-8BE43853` | target-Windows ordinary-Chat randomized Case Desk through the six-tool headless Playwright/Chrome route; source/install/full exact-lock Node tree revalidated after Browser actions; atomic frozen snapshot; target-only mutation history; `SAVE_COUNT=1`; `AUDIT_COUNT=1`; decoys unchanged; `EXTERNAL_FINISH_GATE=DONE`; fixture/guardian cleanup PASS |
 
 ## Accepted non-physical foundations
 
