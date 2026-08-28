@@ -28,11 +28,17 @@ A document being authoritative for one role does not make every historical sente
 ## Separation rules
 
 ```text
+START_HERE.md
+  = fresh-session entry/read order
+
+CONTINUATION_CONTEXT.md
+  = concise orientation aid subordinate to CURRENT_STATE/live GitHub
+
 CURRENT_STATE.md
-  = concise live accepted boundary + immediate critical path
+  = single live accepted boundary + immediate critical path + active PR/design snapshot
 
 ROADMAP.md
-  = single owner of release sequence and stage progression
+  = single owner of release sequence and stage-level completion conditions
 
 PROJECT_RISKS.md
   = single ranked risk register
@@ -65,7 +71,7 @@ STAGE*.md / qualification records
   = implementation/qualification lineage for their recorded scope, not current status unless explicitly designated active
 ```
 
-Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, machine-local evidence paths or release-stage detail across multiple live documents.
+Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, machine-local evidence paths or active design detail across multiple live documents.
 
 ## Root documents
 
@@ -76,14 +82,14 @@ Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, m
 | `SECURITY.md` | **CURRENT SECURITY OVERVIEW** | public repository/product security summary |
 | `LICENSE` | **AUTHORITATIVE LEGAL** | license |
 
-## Live project/state owners
+## Live project/state documents
 
 | File | Status | Owns |
 |---|---|---|
 | `START_HERE.md` | **AUTHORITATIVE CONTINUATION ENTRY** | minimum fresh-session read path |
-| `CURRENT_STATE.md` | **AUTHORITATIVE CURRENT STATE** | accepted/current boundary and immediate work |
-| `CONTINUATION_CONTEXT.md` | **AUTHORITATIVE CONTINUATION SNAPSHOT** | concise continuation context after live GitHub resolution |
-| `ROADMAP.md` | **AUTHORITATIVE ROADMAP** | release-critical sequence and parallel-track placement |
+| `CURRENT_STATE.md` | **AUTHORITATIVE CURRENT STATE** | accepted/current boundary, immediate work and active PR/design snapshot |
+| `CONTINUATION_CONTEXT.md` | **CURRENT CONTINUATION AID** | concise orientation only; subordinate to live GitHub and `CURRENT_STATE.md` |
+| `ROADMAP.md` | **AUTHORITATIVE ROADMAP** | release-critical sequence and stage-level completion conditions |
 | `PROJECT_RISKS.md` | **AUTHORITATIVE RISK REGISTER** | ranked risks and close conditions |
 | `TECH_DEBT.md` | **AUTHORITATIVE TECH-DEBT REGISTER** | existing implementation/process compromises |
 | `KNOWN_ISSUES.md` | **CURRENT LIMITATION REGISTER** | unresolved limitations/issues that are not necessarily ranked risks or debt |
@@ -104,7 +110,7 @@ Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, m
 | `MODULE_SELECTION_POLICY.md` | **AUTHORITATIVE MODULE-SELECTION POLICY** | external-component selection/adaptation/reuse rules |
 | `MODULE_CATALOG.md` | **CURRENT CAPABILITY CATALOG** | capability/component inventory and role/status reference; live evidence still wins |
 | `ARCHITECTURE_REUSE_BASELINE.md` | **AUTHORITATIVE RESEARCH COMPARISON BASELINE** | prior selected external/project-owned role lineage for applicable `stage-research` |
-| `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | **AUTHORITATIVE INTEGRATION DIRECTION** | detailed OpenAdapt/UFO reuse boundaries; fresh Stage Research may revise mechanisms |
+| `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | **AUTHORITATIVE INTEGRATION DIRECTION** | detailed OpenAdapt/UFO reuse boundaries; does not own active PR state or release order |
 | `REAL_TASK_ACCEPTANCE.md` | **AUTHORITATIVE ACCEPTANCE CONTRACT** | L1/L2/L3 evidence depth and real-task rules |
 | `SOURCE_PROVENANCE_ACCEPTANCE.md` | **AUTHORITATIVE PHYSICAL-PROVENANCE METHOD** | exact executed-source/install/runtime binding |
 | `MUTATION_ASSURANCE.md` | **CURRENT ASSURANCE DIRECTION** | guarantee mutation/adversarial assurance and CAP-M families |
