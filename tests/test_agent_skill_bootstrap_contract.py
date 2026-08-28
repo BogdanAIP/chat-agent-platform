@@ -106,6 +106,8 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
             "REJECT",
             "custom code duplicates mechanics that the project had already selected for upstream reuse",
             "previously selected baseline component",
+            "Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER`",
+            "cannot return `PROCEED` or `NARROW` while leaving it deferred",
         ):
             with self.subTest(skill_phrase=phrase):
                 self.assertIn(phrase, skill)
@@ -122,6 +124,7 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
             "Task completion authority",
             "project independent Finish Gate",
             "REPLACE` and `REJECT` require explicit evidence",
+            "Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER`",
         ):
             with self.subTest(baseline_phrase=phrase):
                 self.assertIn(phrase, baseline)
@@ -131,6 +134,7 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
             "canonical prior-decision comparison baseline",
             "KEEP`, `REUSE_MORE`, `REFINE`, `REPLACE`, `DEFER`, or `REJECT`",
             "accepted lineage change must update the baseline before or with merge",
+            "A role-level lineage `DEFER` is not permission to continue past an unresolved requirement",
         ):
             with self.subTest(agent_phrase=phrase):
                 self.assertIn(phrase, agents)
