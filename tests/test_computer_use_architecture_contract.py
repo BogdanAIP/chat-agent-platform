@@ -41,6 +41,43 @@ class ComputerUseArchitectureContractTests(unittest.TestCase):
         self.assertIn("oscillation", folded)
         self.assertIn("reconcile", folded)
 
+    def test_visual_post_action_verification_is_explicit_and_selective(self) -> None:
+        architecture = (CONTEXT / "COMPUTER_USE_ARCHITECTURE.md").read_text(encoding="utf-8")
+        roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
+        combined = architecture + roadmap
+        folded = combined.casefold()
+        visual_section = architecture.split("### Fresh visual post-action verification", maxsplit=1)[1].split(
+            "### Environmental content is untrusted data", maxsplit=1
+        )[0].casefold()
+
+        self.assertIn("fresh visual post-action verification", folded)
+        self.assertIn("fresh post-action visual evidence", folded)
+        self.assertIn("structural/native success plus a visual contradiction", folded)
+        self.assertIn("this is **not** a screenshot-after-every-action requirement", visual_section)
+        self.assertIn("does **not** require a screenshot after every action", roadmap.casefold())
+        self.assertIn("26.5", combined)
+        self.assertIn("clipping", folded)
+        self.assertIn("occlusion", folded)
+        self.assertIn("unknown", folded)
+        self.assertIn("does not make pixels an authority source", folded)
+
+    def test_future_same_task_continuation_is_research_not_current_runtime(self) -> None:
+        roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
+        folded = roadmap.casefold()
+
+        self.assertIn("future research seam — same-task continuation / wake", folded)
+        self.assertIn("not a new roadmap stage", folded)
+        self.assertIn("not part of 26.3c implementation", folded)
+        self.assertIn("scheduledtask", folded)
+        self.assertIn("same-task continuation", folded)
+        self.assertIn("existing task remains unfinished", folded)
+        self.assertIn("do **not** preselect", folded)
+        self.assertIn("duplicate wake", folded)
+        self.assertIn("concurrent resume", folded)
+        self.assertIn("grant expiry/authority after sleep", folded)
+        self.assertIn("cannot actually resample the planner without a new user turn", folded)
+        self.assertIn("separate harness/product capability boundary", folded)
+
     def test_environmental_content_is_untrusted_and_safety_is_separate(self) -> None:
         decisions = (CONTEXT / "DECISIONS.md").read_text(encoding="utf-8")
         security = (CONTEXT / "SECURITY_POLICY.md").read_text(encoding="utf-8")

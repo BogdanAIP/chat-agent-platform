@@ -204,16 +204,61 @@ capability-native observation identity
 semantic/native vs reviewed GUI routing
 grounding identity/confidence/ambiguity evidence
 selective visual fallback
+fresh visual post-action verification for visual/spatial predicates
 cross-app provenance
 WorkingState/reconciliation/recovery
 independent completion
 ```
+
+A required visual/spatial postcondition must not be declared `PASS` from DOM/accessibility/UIA/native state alone when those channels cannot prove the rendered result. In those cases, verification requires fresh screenshot/ROI evidence bound to the post-action observation. Visual contradiction produces `FAIL` when conclusive; required but stale/unavailable/ambiguous visual evidence produces `UNKNOWN`. This does **not** require a screenshot after every action and does not make pixels an authority source.
+
+Representative visually significant failures include clipping outside the viewport/window, occlusion by overlays/dialogs, invalid overlap, off-screen placement, task-relevant rendered size/alignment and other rendered-state predicates that structural state cannot establish.
 
 For Office/Windows breadth, evaluate focused UFO/UFO²-derived UIA/Win32/WinCOM/application mechanics one application at a time behind project-owned capability, identity, observation, ExpectedEffect and verification boundaries.
 
 Do not adopt UFO HostAgent/AppAgent planner hierarchy or UFO³ Galaxy as the current production planning layer.
 
 Trusted-site full-browser/JS/CDP authority may be promoted only after its Site Capability/network/security boundary is implemented, reviewed and physically accepted.
+
+---
+
+# Future research seam — same-task continuation / wake
+
+This is **not a new roadmap stage, not current architecture acceptance and not part of 26.3C implementation**.
+
+After consequence-bearing 26.3C restart/reconciliation behavior is physically credible, run a separate Stage Research before adding any mechanism that can automatically continue the **same unfinished task** without a new user message.
+
+Keep the semantic distinction explicit:
+
+```text
+ScheduledTask
+  schedule triggers a new TaskRun / AgentSession
+
+same-task continuation
+  existing task remains unfinished
+  -> WAITING
+  -> future wake/readiness condition
+  -> fresh observation + current authority/grant revalidation
+  -> planner continuation
+```
+
+The future research question may examine concepts such as:
+
+```text
+continuation state = WAITING | READY | BLOCKED | COMPLETE
+reason_for_wait
+desired_outcome / stopping_condition
+last_observation_ref
+wake_condition and/or next_check_at
+user_attention_required
+current scope/grant references
+```
+
+Do **not** preselect `TypedEventBus`, `ScheduledTask`, a new scheduler service or any other substrate merely because those future seams are adjacent. Stage Research must compare existing architecture/reuse lineage and current platform/harness capabilities before choosing the mechanism.
+
+At minimum, research must cover wait/sleep/wake semantics, duplicate wake, cancellation/replacement, missed wake, crash during wake, concurrent resume, grant expiry/authority after sleep, backoff/timed checks and what happens when the ordinary-ChatGPT harness cannot actually resample the planner without a new user turn.
+
+A local runtime being able to mark a task `READY` is not proof that the product can autonomously obtain another planner turn. Treat planner resampling/proactive delivery as a separate harness/product capability boundary.
 
 ---
 
