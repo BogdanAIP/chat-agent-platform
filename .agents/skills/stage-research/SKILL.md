@@ -92,6 +92,8 @@ For every affected architectural role:
 
 `REPLACE` and `REJECT` require explicit evidence. Newness, popularity, or convenience is not enough.
 
+Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER`. A role-level `DEFER` is permitted only when that role is explicitly outside the implementation scope selected by the Brief. If the role is required to satisfy the current stage goal or a release-critical guarantee, the Brief cannot return `PROCEED` or `NARROW` while leaving it deferred: either narrow the stage goal so that role is no longer required, or return top-level `DEFER` and keep production implementation blocked.
+
 The baseline is not a veto over new evidence. Its purpose is to make architecture evolution explicit and reviewable rather than repeatedly rediscovering or silently abandoning prior decisions.
 
 If the Stage Research Brief materially changes an existing baseline role, plan a baseline update in the adopting PR or immediate documentation synchronization change so later research compares against the new accepted lineage rather than the superseded choice.
@@ -299,7 +301,8 @@ For every affected role from `project-context/ARCHITECTURE_REUSE_BASELINE.md`, r
 - current evidence about whether the prior choice actually satisfies this stage's exact requirement;
 - comparison with relevant new alternatives/custom implementation;
 - final lineage decision: `KEEP`, `REUSE_MORE`, `REFINE`, `REPLACE`, `DEFER`, or `REJECT`;
-- evidence for any `REPLACE` or `REJECT` decision.
+- evidence for any `REPLACE` or `REJECT` decision;
+- if the role is `DEFER`, whether it is explicitly outside the selected implementation scope; a role required by the current stage goal/guarantee may not remain deferred under an overall `PROCEED`/`NARROW` decision.
 
 If the stage introduces a role absent from the baseline, say so explicitly and treat it as new architecture rather than silently inventing a new responsibility.
 
@@ -334,6 +337,7 @@ What applies directly, what does not, and why.
 - existing components to reuse/consolidate;
 - durable invariants preserved;
 - baseline roles that must be updated because the accepted lineage changed;
+- confirmation that no role required by the selected stage goal/guarantee remains lineage-`DEFER` under `PROCEED`/`NARROW`;
 - if the decision is `DEFER`, implementation remains blocked and the Brief must state what evidence/change could justify re-entry later.
 
 ### Verification plan
@@ -375,7 +379,7 @@ A PR-body edit that merely restates the new design without this re-entry work do
 Only after the current Stage Research Brief is complete, not invalidated, and ends in `PROCEED` or `NARROW`:
 
 1. implement the smallest coherent slice;
-2. reuse existing runtime/assurance/CI mechanisms and the baseline-selected upstream mechanics that the Brief marked `KEEP` or `REUSE_MORE`;
+2. preserve baseline-selected project-owned boundaries marked `KEEP`, and reuse baseline-selected upstream mechanics marked `KEEP` or `REUSE_MORE` where the Brief says they apply;
 3. add the failure shields identified above;
 4. run focused tests and required hosted checks;
 5. obtain Codex Review / equivalent independent review for runtime/security/recovery/authority changes when available/required;
@@ -393,6 +397,7 @@ Before declaring the research gate complete, verify all are true:
 - every affected architecture role was compared with `project-context/ARCHITECTURE_REUSE_BASELINE.md` rather than silently redesigned from scratch;
 - every affected baseline role has an explicit `KEEP`, `REUSE_MORE`, `REFINE`, `REPLACE`, `DEFER`, or `REJECT` decision;
 - `REPLACE` / `REJECT` decisions contain evidence rather than preference or novelty claims;
+- no role required by the selected stage goal or release-critical guarantee remains lineage-`DEFER` under an overall `PROCEED`/`NARROW` decision;
 - proposed custom code was checked for duplication of previously selected upstream reuse mechanics;
 - every proposed architecture primitive was mapped to its directly relevant engineering domain;
 - problem evidence and solution evidence are separate and both sufficient for `PROCEED`/`NARROW`;
