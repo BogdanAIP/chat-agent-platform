@@ -52,9 +52,6 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
             "sole implementation-decision representation in this Brief",
             self.text,
         )
-        # The prose may explain DEFER, but it must not contain any alternate
-        # implementation-opening Stage Research decision token at all. This is
-        # deliberately stricter than matching one preferred heading spelling.
         self.assertNotRegex(self.text, r"\b(?:PROCEED|NARROW)\b")
         self.assertNotRegex(
             self.text.lower(),
