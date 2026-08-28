@@ -317,6 +317,10 @@ class WorkingStateRecoveryTests(unittest.TestCase):
             state,
             self.intent(state, operation="op-a", strategy="s1"),
         )
+        state = state.record_observation(
+            self.observation(1, "state-a"),
+            expected_revision=state.revision,
+        )
         candidate = self.intent(
             state,
             operation="op-b",
@@ -336,9 +340,32 @@ class WorkingStateRecoveryTests(unittest.TestCase):
             "repeated_physical_attempt_fingerprint",
         )
 
-    def test_materially_different_strategy_can_continue_after_not_applied(self) -> None:
+    def test_materially_different_strategy_requires_fresh_observation_after_not_applied(self) -> None:
         state = self.state()
         state = self.apply(state, self.intent(state))
+        candidate = self.intent(
+            state,
+            strategy="s2",
+            action="keyboard-save",
+        )
+        decision = LoopGuard().evaluate(
+            state,
+            candidate,
+            expected_revision=state.revision,
+        )
+        self.assertFalse(decision.allowed)
+        self.assertEqual(
+            decision.failure.code,
+            "fresh_observation_required_after_attempt",
+        )
+
+    def test_materially_different_strategy_can_continue_after_fresh_observation(self) -> None:
+        state = self.state()
+        state = self.apply(state, self.intent(state))
+        state = state.record_observation(
+            self.observation(1, "state-a"),
+            expected_revision=state.revision,
+        )
         candidate = self.intent(
             state,
             strategy="s2",
