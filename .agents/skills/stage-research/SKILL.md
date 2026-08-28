@@ -96,7 +96,7 @@ Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER
 
 The baseline is not a veto over new evidence. Its purpose is to make architecture evolution explicit and reviewable rather than repeatedly rediscovering or silently abandoning prior decisions.
 
-If the Stage Research Brief materially changes an existing baseline role, plan a baseline update in the adopting PR or immediate documentation synchronization change so later research compares against the new accepted lineage rather than the superseded choice.
+If the Stage Research Brief materially changes an existing baseline role, the adopting PR must update `project-context/ARCHITECTURE_REUSE_BASELINE.md` before or with merge so later research cannot observe a known-superseded lineage.
 
 ## 3. Research Scope Expansion Gate
 
