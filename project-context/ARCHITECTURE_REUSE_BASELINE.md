@@ -34,6 +34,8 @@ When `.agents/skills/stage-research/SKILL.md` applies:
 
 `REPLACE` and `REJECT` require explicit evidence. The fact that a new component exists, is newer, or is fashionable is not sufficient.
 
+Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER`. A role may be marked `DEFER` only when it is explicitly outside the implementation scope selected by the Brief. If that role is required to satisfy the current stage goal or a release-critical guarantee, the Brief cannot return `PROCEED` or `NARROW` while leaving the role deferred; it must either narrow the stage goal so the role is no longer required or return top-level `DEFER` and keep implementation blocked.
+
 A baseline row is history plus a current comparison starting point, not automatic implementation authority.
 
 ## Canonical role map
