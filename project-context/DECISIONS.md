@@ -1,52 +1,83 @@
 # Decisions
 
-Historical ADR detail remains in Git history. This file lists decisions that govern current development.
+Status: **CURRENT ADR INDEX**.
 
-A decision marked **PROVISIONAL** is the accepted architecture direction but is not product-accepted until its stated implementation/evidence gate passes.
+This file records decisions that govern current development. Detailed historical rationale remains in Git history and dedicated owner documents.
 
-## ADR-010 — Off-the-shelf MCP bridge — ACCEPTED
+Important ownership rule:
 
-Use standard MCP and mature reachability/runtime components. Prefer official/vendor, mature OSS, mature generic adapter, then the smallest project-owned focused adapter for a measured gap.
+- `DECISIONS.md` owns accepted/provisional **decision status and durable boundary summary**;
+- `ROADMAP.md` owns current release/stage order;
+- `CURRENT_STATE.md` owns current implementation/acceptance boundary;
+- `EVIDENCE_INDEX.md` owns exact accepted physical heads/locators;
+- a fresh applicable Stage Research Brief may revise implementation mechanisms while preserving or explicitly changing durable ADR boundaries.
 
-## ADR-011 — OpenAI Secure MCP Tunnel is primary ChatGPT reachability — ACCEPTED
+Do not keep active PR numbers, live `main` SHAs or temporary “next stage” wording in this index.
 
-Accepted by real ordinary-Chat E2E. Historical custom/public ingress experiments are not the normal path.
+## Decision index
 
-## ADR-012 — Superseded universal core removed — ACCEPTED
+| ADR | Decision | Status | Durable boundary |
+|---|---|---|---|
+| ADR-010 | Off-the-shelf MCP bridge | **ACCEPTED** | Prefer official/vendor/mature OSS mechanisms before custom generic infrastructure. |
+| ADR-011 | Secure MCP Tunnel is primary ChatGPT reachability | **ACCEPTED** | Use OpenAI Secure MCP Tunnel + official tunnel-client; no custom public ingress baseline. |
+| ADR-012 | Superseded universal core removed | **ACCEPTED** | Old universal agent/gateway platform is historical; recover only measured useful pieces. |
+| ADR-013 | 1MCP is optional replaceable internal infrastructure | **ACCEPTED** | Normal semantic route must not depend on 1MCP; neutral tunnel state is project-owned. |
+| ADR-014 | Privileged capabilities require scoped acceptance | **ACCEPTED** | Scope/consequence/lifetime and negative tests; no blanket capability paralysis. |
+| ADR-015 | Thin Windows bootstrap/manager is integration code | **ACCEPTED** | Lifecycle/config/diagnostics only; not planner or generic authority platform. |
+| ADR-016 | Generic adaptive meta-tool is not ordinary-Chat surface | **ACCEPTED NEGATIVE** | No generic `tool_schema`/`tool_invoke`/raw backend dispatch as product contract. |
+| ADR-017 | `AVAILABLE -> ACTIVE -> AUTHORIZED` | **ACCEPTED** | Registration/health/process activity never implies action authorization. |
+| ADR-018 | Small truthful Chat-facing semantic surface | **ACCEPTED** | Current canonical surface is six tools; new consequence classes require truthful reviewed expansion, not hidden dispatch. |
+| ADR-019 | One authoritative Windows manager owner | **ACCEPTED** | Installed/source runtime state has one resolved owner; ambiguity fails closed. |
+| ADR-020 | Local specialist inference is a capability backend | **ACCEPTED** | Specialist/VLM output is bounded proposal/evidence, not planner/authority. |
+| ADR-021 | Direct semantic stdio tunnel binding | **ACCEPTED** | Secure tunnel -> official client -> direct stdio canonical semantic projection; normal path independent of 1MCP. |
+| ADR-022 | Semantic/native first, local vision fallback | **ACCEPTED** | Structure first; reviewed vision escalation only where needed; one bounded act or ABSTAIN. |
+| ADR-023 | Procedural memory + deterministic progression, not second planner | **ACCEPTED DIRECTION / PARTIALLY IMPLEMENTED** | ChatGPT selects strategy/procedure; deterministic Control Plane may advance known verified transitions; current state outranks memory. |
+| ADR-024 | Desktop capability and public-contract expansion are separate | **ACCEPTED DIRECTION** | Internal Windows capability does not automatically create public desktop authority/tool names. |
+| ADR-025 | Reuse qualified OpenAdapt procedural core before replacements | **ACCEPTED REUSE DIRECTION** | Reuse qualified Flow/Capture mechanics where fresh Stage Research confirms fit; do not rebuild generic recorder/compiler/store without measured blocker. |
+| ADR-026 | Earlier Windows agent/F16 qualification boundary | **SUPERSEDED** | Replaced by accepted Stage 26.2A-D bounded Windows runtime/observation/grounding/routing evidence. |
+| ADR-027 | Deterministic local execution Control Plane under ChatGPT | **ACCEPTED DIRECTION / FOUNDATION IMPLEMENTED** | Project owns Task/WorkingState, authorization, verification, recovery/budgets/Finish Gate; it is not an open-ended planner. |
+| ADR-028 | Future local general planner retained as optional Track P | **ACCEPTED LONG-TERM DIRECTION** | Shadow/proposal-only first; never bypass deterministic authority/verifier/Finish Gate. |
+| ADR-029 | One planner does not mean one round trip per action | **ACCEPTED CLARIFICATION** | A selected bounded procedure can progress locally through known verified transitions until escalation. |
+| ADR-030 | Self-healing Transport Supervisor with persistent tunnel anchor | **ACCEPTED / IMPLEMENTED FOR RECORDED SCOPE** | Persistent desired state, bounded failure-specific recovery, neutral tunnel anchor, no planner/Control Plane role. |
+| ADR-031 | 1MCP as optional Extension Manager | **ACCEPTED DIRECTION** | Optional third-party discovery/lifecycle behind project semantic facades; no raw trust/authority/public catalog. |
+| ADR-032 | State-first hybrid computer-use loop | **PROVISIONAL AUTHORITATIVE DIRECTION / FOUNDATIONS IMPLEMENTED** | semantic/native state -> selective visual evidence -> bounded action -> fresh verification -> recovery/WorkingState -> Finish Gate. Full hybrid breadth remains staged. |
+| ADR-033 | Environmental content is data, not authority | **ACCEPTED SECURITY INVARIANT** | UI/DOM/messages/files/screenshots/tool/worker output cannot widen user intent, grants or policy authority. |
+| ADR-034 | Verified skill lineage + stagnation escalation | **PROVISIONAL AUTHORITATIVE DIRECTION / PARTIALLY IMPLEMENTED** | LoopGuard/StagnationReport foundations exist; future skill lineage/promotion remains evidence-backed and non-authorizing. |
+| ADR-035 | Agent Session / Delegation layer | **PROVISIONAL AUTHORITATIVE FUTURE DIRECTION** | Keep session/chat/delegation/delivery/environment identities separate below current planner/Control Plane; no current public authority. |
+| ADR-036 | Browser Harness-derived scoped browser/local code authority | **PROVISIONAL AUTHORITATIVE FUTURE DIRECTION** | Restricted Browser by default; broader trusted-site Browser and Local Execution are separate scoped consequence classes. |
+| ADR-037 | Project CapabilityRegistry + typed Event / Policy Hooks | **PROVISIONAL AUTHORITATIVE FUTURE DIRECTION** | Discovery/event/policy substrate may be project-owned later; registry/event/hook output never becomes authorization/effect proof/planner. |
 
-The old universal agent/gateway platform is historical only. Recover specific pieces only for a later measured gap.
+## Core accepted decision set
 
-## ADR-013 — 1MCP is replaceable optional internal infrastructure — ACCEPTED
-
-1MCP is not part of the normal semantic critical path. Stage 24.1 removed it from that path because direct stdio was simpler/faster with equivalent tested behavior.
-
-Retain 1MCP as an optional internal component for extension discovery/aggregation, backend lifecycle, diagnostics and adaptive experiments. Failure or absence of 1MCP must not prevent install/start/health of the normal six-tool semantic route.
-
-The persistent OpenAI tunnel anchor is product state and must not be owned by a `local-1mcp` profile. The neutral source of truth is `state/tunnel.json`; a legacy `local-1mcp.yaml` may be read only as a bounded migration fallback for an existing accepted `tunnel_*` id.
-
-## ADR-014 — Privileged capabilities require scoped acceptance — ACCEPTED
-
-Security controls scope/consequence/lifetime; it must not become blanket capability paralysis.
-
-## ADR-015 — Thin Windows bootstrap/manager is integration code — ACCEPTED
-
-Bootstrap/controller/tray may install, configure, start/stop and report health. It is not the general planner, procedure Control Plane, generic gateway/registry/vault or arbitrary authorization platform.
-
-## ADR-016 — Generic adaptive meta-tool is not the ordinary-Chat surface — ACCEPTED NEGATIVE DECISION
-
-Do not promote generic `tool_schema` / `tool_invoke` / arbitrary backend dispatch as the Chat-facing product contract.
-
-## ADR-017 — AVAILABLE -> ACTIVE -> AUTHORIZED lifecycle — ACCEPTED
+### Current planner and execution boundary
 
 ```text
-AVAILABLE -> ACTIVE -> AUTHORIZED
+ordinary ChatGPT
+  = only current general planner / strategy / novel adaptation
+
+project deterministic Control Plane
+  = WorkingState / procedure state
+  + capability authorization
+  + ExpectedEffect / Verification Kernel
+  + reconciliation / recovery / LoopGuard / budgets
+  + independent Finish Gate
+  + escalation
 ```
 
-Backend availability, process activation and action authorization are distinct.
+A future planner/worker/external framework remains proposal/execution data above or behind this authority seam.
 
-## ADR-018 — Small concrete semantic Chat-facing surface — ACCEPTED
+### Current public route
 
-Current public tool names are exactly:
+```text
+ordinary ChatGPT
+ -> OpenAI Secure MCP Tunnel
+ -> official tunnel-client
+ -> direct stdio semantic launcher
+ -> canonical six-tool semantic projection
+ -> deterministic Control Plane / focused capabilities
+```
+
+Current public names:
 
 ```text
 workspace_read
@@ -57,521 +88,45 @@ web_interact
 procedure_run
 ```
 
-Six is the current canonical contract, not an eternal maximum. Never preserve a tool count by hiding unrelated consequences behind misleading schemas. New capability classes require a truthful public-contract decision or remain behind existing truthful project-owned semantics.
+Six is the current accepted contract, not an eternal maximum.
 
-## ADR-019 — One authoritative Windows manager owner — ACCEPTED
-
-Installed/source copies coordinate one authoritative runtime owner. Ambiguous/unowned shared runtime state fails closed.
-
-## ADR-020 — Local specialist inference is a capability backend, not a planner — ACCEPTED
-
-Accepted target vision uses llama.cpp + LFM2.5-VL-450M F16. Local models may perform bounded perception/extraction/grounding/classification, but model output is non-authorizing evidence. Heavy inference is task-driven/on-demand/unloadable.
-
-## ADR-021 — Direct semantic stdio tunnel binding — ACCEPTED
+### Verification / recovery boundary
 
 ```text
-ordinary ChatGPT
- -> Secure MCP Tunnel
- -> official tunnel-client
- -> secure launcher
- -> direct stdio canonical six-tool semantic projection
-```
-
-`semantic-projection` remains deterministic and does not become planner/lifecycle/workflow state. Normal semantic install/start/smoke acceptance must not require 1MCP.
-
-## ADR-022 — Semantic-first same-session local vision — ACCEPTED
-
-Structure/accessibility first. Reviewed visual fallback only after specific miss classes; VLM proposal is followed by deterministic authorization/freshness and one action or ABSTAIN.
-
-## ADR-023 — Procedural memory + deterministic progression, not a second planner — PROVISIONAL
-
-OpenAdapt Flow/Capture provide the qualified procedural substrate. The project boundary is now:
-
-```text
-successful trajectory / demonstration
- -> ProgramGraph / versioned candidate procedure
- -> ChatGPT decides applicability / goal / parameters
- -> deterministic local Control Plane loads selected procedure
- -> current state resolves one permitted transition
- -> capability authorization
- -> bounded action
- -> postcondition verification
- -> checkpoint / advance
- -> repeat while state remains known
- -> ABSTAIN/escalate when new strategy is needed
-```
-
-Rules:
-
-- ordinary ChatGPT remains the only **current general planner/interpreter**;
-- a procedure may drive multiple predeclared transitions without ChatGPT micromanaging every low-level step;
-- procedure/model output never grants action authority;
-- current state outranks remembered procedure;
-- blind absolute-coordinate replay is never authority/primary identity;
-- one success/demo creates at most a project CANDIDATE;
-- completion requires verifier/effect evidence;
-- private chain-of-thought is never persisted;
-- raw desktop capture retention requires explicit privacy policy.
-
-This ADR supersedes the older interpretation that procedures are only passive advice to ChatGPT.
-
-## ADR-024 — Desktop capability and public-contract expansion are separate — ACCEPTED DIRECTION
-
-The Windows desktop capability has now progressed through accepted Stage 26.2A-D. A truthful public desktop surface still requires a separate ADR and ordinary-Chat acceptance. Do not overload `web_interact` or add opaque workflow dispatch merely to preserve the current six tool names.
-
-## ADR-025 — Reuse qualified OpenAdapt procedural core before replacements — ACCEPTED
-
-Pinned target-tested sources:
-
-```text
-openadapt-flow 1.31.0 @ d7f58d9f35c8369f16a9b378f23952d425334ad7
-openadapt-capture 1.2.2 @ bcf12942d61d66b64d94e645e9124273a5cc5963
-```
-
-Adopt Flow `Workflow`/`ProgramGraph`; adapt lifecycle/versioning/trust mechanics; do not reimplement generic recorder/compiler/store without a measured blocker.
-
-## ADR-026 — Windows agent/F16 qualification boundary — SUPERSEDED BY ACCEPTED 26.2A-D
-
-The earlier A/B/provisional boundary has been resolved by target evidence:
-
-- hardened typed executor accepted;
-- production runtime promoted;
-- exact-window DesktopState accepted;
-- native F16 Grounder accepted proposal-only;
-- deterministic structure-first Windows visual routing accepted for the bounded controlled-fixture contract.
-
-Broad real-application acceptance remains Stage 26.2E rather than ADR-026.
-
-## ADR-027 — Deterministic local execution Control Plane under ChatGPT — PROVISIONAL / AUTHORITATIVE DIRECTION
-
-The project will implement a local deterministic execution Control Plane rather than make ChatGPT micromanage every low-level procedural transition.
-
-Responsibilities:
-
-```text
-TaskState
-selected procedure/ProgramGraph version
-current node / permitted transitions
-current evidence + provenance
-capability policy / authorization
-checkpoints / rollback metadata
-verifier/postconditions
-bounded retries/recovery
-resource/action/time budgets
-escalation reasons
-```
-
-Boundary:
-
-- it does not infer arbitrary user goals;
-- it does not invent an open-ended strategy;
-- it may advance only known transitions that match current state and pass authorization + verification;
-- novel/ambiguous/stale/incompatible state escalates to ChatGPT;
-- it is separate from `semantic-projection` and Windows manager lifecycle;
-- no model/planner/procedure may bypass it.
-
-Implementation gate: Stage 26.3 Verified Procedure Runtime after accepted Stage 26.2E real-app E2E.
-
-Canonical document: `CONTROL_PLANE.md`.
-
-## ADR-028 — Future local general planner is retained as optional Track P — ACCEPTED LONG-TERM DIRECTION
-
-A local general planner is **not banned forever** and should not be deleted from future architecture discussions.
-
-It is intentionally deferred until real verified procedure-state data and measured need exist. Candidate triggers include offline operation, material planning round-trip latency, multi-machine/highly parallel workloads, deployment/privacy constraints or demonstrated local-model parity.
-
-Research order:
-
-```text
-P0 shadow/proposal-only planner
- -> benchmark against ordinary ChatGPT manager
- -> no authorization/actuation
-
-P1 bounded subtask planner
- -> explicitly scoped workloads
- -> deterministic Control Plane remains authoritative
-
-P2 optional local general planner
- -> only after parity/safety/resource evidence
- -> never silently replaces ChatGPT default
-```
-
-Even a future local planner cannot grant itself capability authority and must remain above the same deterministic Control Plane/verifier boundary.
-
-Track P is not a Stage 27/28 release prerequisite.
-
-## ADR-029 — One planner does not mean one round trip per action — ACCEPTED ARCHITECTURAL CLARIFICATION
-
-`ordinary ChatGPT is the only current general planner` does **not** mean ChatGPT must be invoked after every deterministic action.
-
-A selected verified procedure may execute locally through repeated:
-
-```text
-observe -> match permitted transition -> authorize -> act -> verify -> checkpoint
-```
-
-until an escalation condition occurs. This is the mechanism for long-horizon autonomy without introducing a second current general planner.
-
-## ADR-030 — Self-healing transport supervisor with a persistent tunnel anchor — PROVISIONAL
-
-The normal direct semantic transport should gain a lightweight user-context supervisor that continuously reconciles the user's explicit desired transport state and restores recoverable platform-owned runtime failures.
-
-The supervisor belongs to the Windows lifecycle/diagnostics boundary, not the Stage 26.3 procedure Control Plane and not the planner boundary.
-
-Required principles:
-
-- keep the existing accepted `tunnel_*` id as the persistent anchor;
-- store that anchor in neutral platform state rather than an extension-specific profile;
-- restart/reconnect replaceable local `tunnel-client` / semantic runtime around that anchor;
-- represent local MCP health, local tunnel health, OpenAI control-plane health and last-known ChatGPT route health as distinct evidence;
-- use failure-specific recovery rather than blind restart loops;
-- recover local/process/network/transient-service failures with bounded fast retries followed by indefinite low-rate re-probing while desired state remains `running`;
-- fail closed on authentication, permission or conclusive remote-resource loss;
-- do not claim that remote control-plane health proves a current ChatGPT app route;
-- do not automatically create/delete/rotate tunnel resources as normal recovery;
-- do not require or persist a long-lived `OPENAI_ADMIN_KEY` in the supervisor by default;
-- preserve DPAPI `CurrentUser` secret storage and semantic-child credential scrubbing;
-- keep tray lifetime independent from supervisor lifetime;
-- prefer stable official `tunnel-client` lifecycle/recovery features when a reviewed published release provides them instead of duplicating upstream behavior.
-
-The existing unmerged `chat/tunnel-reliability-e2e-health` branch is prototype evidence only and is not accepted by this ADR.
-
-Implementation/acceptance contract: `TRANSPORT_SUPERVISOR.md`.
-
-## ADR-031 — 1MCP is the optional internal Extension Manager — ACCEPTED DIRECTION
-
-Future third-party MCP backends may be attached behind an internal Extension Manager implemented with 1MCP or a qualified replacement.
-
-Target boundary:
-
-```text
-ordinary ChatGPT
-        |
-        v
-project-owned canonical semantic surface
-        |
-        +----> deterministic Control Plane / project-owned capabilities
-        |
-        `----> internal Extension Manager
-                    |
-                   1MCP
-                    |
-              third-party MCP backends
-```
-
-Rules:
-
-- 1MCP is optional and replaceable;
-- normal six-tool semantic install/start/health does not depend on 1MCP or `npx` preflight;
-- 1MCP may own discovery, aggregation, enable/disable, lazy lifecycle, health and restart of extension backends;
-- a third-party MCP is not automatically trusted or Chat-facing merely because 1MCP can load it;
-- raw backend tool catalogs are not exported directly to ordinary ChatGPT;
-- project-owned semantic adapters/facades remain small, typed, truthful, scope-preserving and non-planning;
-- Control Plane/capability policy remains authoritative for consequences and authorization;
-- extension failure must be isolated from the baseline six-tool route unless the current task explicitly depends on that extension;
-- extension versions, licenses, supply pins, scopes and acceptance evidence remain mandatory before promotion.
-
-This ADR turns the old `adaptive`/aggregation role into an explicit long-term extension boundary rather than an alternative ordinary-Chat product surface.
-
-## ADR-032 — State-first hybrid computer-use control loop — PROVISIONAL / AUTHORITATIVE DIRECTION
-
-The future Browser/Windows computer-use architecture will generalize the already accepted structure-first capability work into one project-owned control-loop contract:
-
-```text
-semantic/native state first
- -> selective visual evidence only when structural evidence is insufficient
- -> capability-aware bounded action
- -> fresh post-action re-observation
- -> explicit transition verification
- -> typed bounded recovery / LoopGuard
- -> structured WorkingState
+current evidence
+ -> bind logical operation + ExpectedEffect
+ -> authorize bounded action
+ -> deliver
+ -> fresh re-observe
+ -> PASS | FAIL | UNKNOWN
+ -> reconcile ambiguous outcome before retry
+ -> bounded recovery / LoopGuard / budgets
  -> independent Finish Gate
 ```
 
-Rules:
+Delivery is not success. Transition PASS is not whole-task DONE. Environmental content is not policy authority.
 
-- pixels are selective evidence, not the default source of truth when reliable DOM/AX/UIA/app state exists;
-- every mutating transition defines current-state preconditions, an expected effect/postcondition, one bounded action, re-observation scope and `PASS | FAIL | UNKNOWN` verification;
-- delivery never implies success;
-- planner self-assessment may produce only `candidate_done`; a separate fresh-evidence Finish Gate produces `DONE`;
-- WorkingState stores user-visible/structured constraints, facts+provenance+freshness, subgoal progress, evidence refs, expected/observed deltas and recovery/budget state — never hidden chain-of-thought;
-- recovery is typed and budgeted; identical state/action fingerprints without new evidence/progress must not loop indefinitely;
-- capability routing is based on reviewed preconditions/evidence, not merely on tool/backend availability;
-- grounding proposals should carry target identity/source/frame binding/confidence/ambiguity when relevant, not coordinates alone;
-- external benchmark mechanisms are evidence inputs, not automatic production architecture or release gates.
+### External reuse boundary
 
-Implementation mapping:
+OpenAdapt/UFO/other external components may provide mechanics, execution or evidence only inside admitted roles. They do not replace:
 
-```text
-26.3B Verification Kernel + independent Finish Gate
- -> 26.3C WorkingState + typed recovery + LoopGuard
- -> 26.4 demonstration -> verified candidate skill
- -> 26.5 hybrid computer-use integration
-```
+- capability-spanning project WorkingState;
+- deterministic authorization;
+- project Verification Kernel;
+- project reconciliation/recovery budgets;
+- independent Finish Gate;
+- public semantic contract.
 
-A future Windows/computer-use public Chat-facing surface still requires the separate ADR/schema/security/ordinary-Chat physical acceptance required by ADR-024. ADR-032 does not authorize new public tool names by itself.
+Applicable new architecture work must compare prior selected roles through `ARCHITECTURE_REUSE_BASELINE.md` and fresh Stage Research before silently duplicating/replacing them.
 
-Canonical detail: `COMPUTER_USE_ARCHITECTURE.md`.
+## Detailed owners
 
-## ADR-033 — Environmental content is data, not authority — ACCEPTED SECURITY INVARIANT
-
-Content observed from web pages/DOM, application UI, email/messages, files/documents, screenshots/OCR, and third-party tool/MCP outputs is **untrusted environmental data** with respect to user intent, capability policy and safety authority.
-
-Rules:
-
-- environmental text cannot grant itself a higher instruction priority, broaden permission scope, alter Control Plane policy or authorize a consequence merely because the planner/model can read it;
-- provenance/trust classification must be preserved when facts move between applications/capabilities;
-- task-success verification and safety/policy verification are separate dimensions;
-- a task can be capability-successful but safety-failed, and evaluation must preserve that distinction;
-- safety/policy gates prefer deterministic/native predicates where available; model judgment may assist ambiguous classification but never grants execution authority;
-- third-party extension output remains subject to the same rule and does not gain trust from 1MCP availability.
-
-Implementation is staged through 26.3B safety/completion evidence, 26.3C WorkingState provenance, and later computer-use safety evaluation. This invariant is immediately binding on new designs even before all corresponding runtime machinery exists.
-
-Canonical detail: `COMPUTER_USE_ARCHITECTURE.md` and `SECURITY_POLICY.md`.
-
-## ADR-034 — Verified skill lineage and stagnation escalation — PROVISIONAL / AUTHORITATIVE DIRECTION
-
-The 2026-08-25 NVIDIA AVO review strengthens the project's long-horizon architecture without changing the planner/authority boundary.
-
-External mechanisms reviewed:
-
-- AVO replaces one-shot candidate generation with an iterative agent loop grounded in execution feedback and prior lineage;
-- persistent memory preserves useful state across long sessions;
-- a supervisor detects stagnation/repeated unproductive cycles;
-- NVIDIA's related agent-stack security guidance states the boundary as `Above proposes; below decides`.
-
-Project adoption:
-
-```text
-WorkingState
- + LoopGuard
- + StagnationReport
- + versioned Skill / Procedure Lineage
- + bounded objective candidate-improvement loop
-```
-
-Rules:
-
-- `LoopGuard` remains deterministic no-progress/repetition/oscillation detection; when local recovery is exhausted it emits a structured `StagnationReport` for ordinary ChatGPT rather than inventing a new open-ended strategy locally;
-- `StagnationReport` contains progress/evidence/failure/retry/budget summaries, never private hidden chain-of-thought;
-- a reusable skill/procedure has explicit candidate ancestry plus verifier/evaluation evidence; lineage is historical evidence, not action authority;
-- a trusted parent does not automatically make a child trusted;
-- failed/unverified variants may remain as compact diagnostics but cannot become trusted executable skills;
-- candidate improvement follows `propose -> bounded execute -> re-observe -> verify -> measure -> diagnose -> revise`; correctness/safety/Finish Gate predicates remain hard gates and cannot be replaced by one scalar score;
-- promotion requires independent verifier evidence and relevant regression/variant coverage;
-- current live state outranks lineage/history;
-- AVO-style autonomy never broadens permissions: planner/supervisor/skill improver stays on the proposal side, while deterministic Control Plane/capability infrastructure remains authoritative below;
-- the project does not adopt unrestricted coding-agent authority or persistence of private model reasoning merely because AVO uses a broader coding harness.
-
-Stage mapping:
-
-```text
-26.3B verifier / Finish Gate foundation
- -> 26.3C WorkingState + LoopGuard + StagnationReport
- -> 26.4 Skill Lineage + bounded candidate evolution / promotion
- -> 26.5 use verified lineage/recovery across hybrid computer-use tasks
-```
-
-The release order is unchanged. This ADR enriches existing stages rather than creating a new detour.
-
-Canonical detail: `AVO_LONG_HORIZON_ARCHITECTURE.md`, `CONTROL_PLANE.md`, and `ROADMAP.md`.
-
-## ADR-035 — Agent Session / Delegation layer with Conversation Bridge adapters remains bounded and provider-open — PROVISIONAL / AUTHORITATIVE FUTURE DIRECTION
-
-The 2026-08-25 CtxPort review identified the need for normalized observation and verified handoff between authenticated AI-chat conversations. The 2026-08-27 review of Codex harness/App Server, Claude Code cross-session messaging/Agent Teams, VS Code Agent Host, A2A and MCP task/session patterns broadens that conclusion: Track M must model **agent sessions, explicit delegation tasks, message delivery and execution environments as separate first-class identities**, while retaining Conversation Bridge / Browser Companion as adapter mechanisms.
-
-Target boundary:
-
-```text
-ordinary ChatGPT
-  = current general planner / manager
-
-local deterministic Control Plane
-  = authority / logical operation state / verification /
-    WorkingState / recovery / finish
-
-Agent Session capability
-  = session/chat observation
-  + bounded cross-session message transport
-  + later bounded session lifecycle
-  = not a second planner
-
-Adapter Registry
-  = official/project-owned harness/host API first when reviewed
-  -> validated provider/session route
-  -> Browser Companion / GenericChatAdapter DOM/accessibility
-  -> selected GUI/visual fallback
-  -> ABSTAIN
-```
-
-Required identity model:
-
-```text
-HarnessSession
-Conversation / Chat
-DelegationTask
-MessageDelivery
-ExecutionEnvironment
-```
-
-Rules:
-
-- the current six-tool ordinary-Chat surface remains unchanged by this ADR;
-- `session_id` is not `delegation_id`; a late/latest response from one worker is not accepted as a delegation result without correlation evidence;
-- one HarnessSession may contain one or multiple chats; do not assume `session == conversation`;
-- execution environment/project/worktree identity is separate from session identity;
-- named systems/providers are adapters/reference examples, not a closed architecture enum;
-- provider/application/harness/adapter identifiers are open-ended strings;
-- `HandoffPack` remains bounded task context derived from WorkingState; it is environmental/task data and never a permission grant;
-- capability/permission grants remain deterministic Control Plane state outside worker-readable messages;
-- split read-only Session/Conversation observation from Message Transport and later Lifecycle Actuation;
-- default message semantics should be non-interrupting/queued where the harness can preserve that distinction; `steer` and `interrupt` are stronger separately-authorized consequences;
-- distinguish transport acceptance, delivered/held/refused/unknown, worker turn start/settle and final delegation correlation/completion;
-- every logical mutating session/message operation gets a stable `operation_id`; where a native harness accepts idempotency keys, use the same logical id;
-- a mutating timeout/error is classified as `NOT_APPLIED | APPLIED_BUT_ACK_FAILED | OUTCOME_UNKNOWN`; `OUTCOME_UNKNOWN` is reconciled from fresh authoritative state before retry;
-- entity creation may use operation-scoped ObservationRef subjects so the existing Verification Kernel verifies BEFORE/AFTER even before a resulting session id exists;
-- event/idle/completion notifications are observation triggers only; fresh re-observation still determines `PASS|FAIL|UNKNOWN`;
-- session discoverability does not imply lifecycle authority; normalize ownership such as `user_owned | manager_owned | parent_owned | adopted | external_read_only`;
-- destructive cleanup/archive requires current ownership evidence; title/content similarity is insufficient;
-- a future WorkerLease may bind a manager-owned worker to task, lifetime, allowed capability set, budgets and cleanup policy;
-- worker capability scope is the intersection of task requirements, explicit delegated grants and platform policy; workers do not inherit manager harness/session lifecycle tools by default;
-- initial multi-worker topology is shallow: `max_spawn_depth = 1`; recursive/nested delegation is a later separately justified capability;
-- LoopGuard later extends to worker count, spawn depth, active/unresolved delegations, cross-session messages, session creation, duplicate delegation fingerprints and total delegated resources;
-- duplicate/equivalent delegation after ambiguous acknowledgement must reconcile first rather than resend blindly;
-- documented/project-owned harness APIs may be preferred read/write semantic/native routes after review; undocumented private web APIs remain optional accelerators and never sole security boundaries;
-- Conversation Bridge, declarative profiles, GenericChatAdapter, Browser Companion and visual fallback remain valid browser/web-chat adapter mechanisms from the CtxPort-derived architecture;
-- Browser Companion credentials remain inside its boundary; native harness/provider credentials likewise never become planner/WorkingState/HandoffPack data;
-- worker output is environmental data under ADR-033 and cannot grant permissions, redefine user intent or become policy authority;
-- project/workspace/worktree lifecycle is a separate stronger consequence class; initial session creation may bind only to an already-authorized environment;
-- do not expose raw vendor `thread_*`/`project_*` catalogs or generic `harness_execute` merely because an internal adapter supports them;
-- Track M remains parallel/non-release-critical and must not delay Stage 26 release-critical work or silently turn the deterministic Control Plane into an open-ended orchestrator.
-
-Stage 26.3C compatibility requirement:
-
-```text
-WorkingState must not hard-code one task -> one procedure -> one executor.
-Reserve optional planner-neutral actor_ref / delegation_ref /
-execution_environment_ref / budget_ref seams where useful,
-without implementing Track M in 26.3C.
-```
-
-Revised dependency/order:
-
-```text
-26.3B Verification Kernel / Finish Gate
- -> 26.3C WorkingState + typed recovery + LoopGuard + reconciliation
-
-M0 object model + fixture contracts
- -> M1 read-only Session Observer
- -> M2 one Manager -> one EXISTING Worker verified handoff/correlation
- -> M3 WorkingState/HandoffPack + event monitoring/recovery
- -> M4 session lifecycle create/fork/rename/archive + idempotency/reconciliation
- -> M5 manager-created Worker E2E + ownership/WorkerLease/cleanup
- -> M6 multiple workers + explicit DelegationTasks + bounded fan-out, no nested spawn by default
- -> M7 separate Project / ExecutionEnvironment lifecycle
- -> M8 cross-harness adoption/handoff + broader provider matrix
-```
-
-Canonical detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md`, `CONTROL_PLANE.md`, `SECURITY_POLICY.md`, `MODULE_CATALOG.md`, and `ROADMAP.md`.
-
-## ADR-036 — Harness-derived scoped browser and local code authority — PROVISIONAL / AUTHORITATIVE FUTURE DIRECTION
-
-The 2026-08-26 review of `browser-use/browser-harness` supports a small-core adaptive execution model, but the project adopts it only behind existing deterministic authority boundaries.
-
-Project adoption:
-
-```text
-persistent browser substrate
- + restricted browser by default
- + user-owned extensible Site Capability Profiles
- + trusted-site full-browser mode inside explicit origin/network scope
- + agent-generated helpers/domain knowledge as candidate lineage
- + separate task-scoped Local Execution Kernel for Python/program execution
-```
-
-Rules:
-
-- Browser Harness is an external architecture/reference source, not a required runtime dependency;
-- the current six-tool ordinary-Chat surface remains unchanged by this ADR;
-- unknown/non-trusted sites retain the current bounded semantic browser mode;
-- an explicit user-owned trust list may grant broader browser authority for one site/profile with `permanent | session | task` lifetime;
-- trusted-site authority may eventually include DOM/AX, JavaScript, selected/raw CDP, background tabs, uploads/downloads and network inspection required by the task, but only after separate implementation/security/physical acceptance;
-- the allowlist must be enforced below JavaScript/CDP at the browser/network layer and cover navigation, redirects, popups/tabs, frames, forms, fetch/XHR, WebSocket-like channels and download/upload destinations as applicable;
-- public-site trust does not silently grant private/link-local/metadata/loopback network access; those require separate policy;
-- `trust destination != trust instructions`: ADR-033 remains binding, so trusted-site content cannot widen permissions, add allowlist entries, grant local execution or redefine user intent;
-- browser/site trust never automatically grants filesystem, Windows, shell or Python authority;
-- local code authority is a separate `LocalExecutionGrant` with explicit filesystem, network, executable, environment, lifetime and resource/process scope;
-- arbitrary generated Python is architecturally allowed for legitimate local tasks under that grant; current generic Python/shell execution remains disabled/unreachable until its own implementation/security/public-contract/physical gates pass;
-- a local execution kernel should be task/session scoped rather than an immortal unrestricted interpreter; useful helpers survive tasks only through candidate/skill lineage;
-- agent-generated browser/local helpers follow ADR-034: one success creates at most CANDIDATE, and promotion requires replay/regression/variant evidence;
-- site/domain experience is advisory knowledge, separate from capability code and procedures, and cannot self-authorize actions;
-- future authenticated Browser Companion use may reuse existing user sessions while keeping cookies/tokens/private auth headers inside the browser boundary;
-- telemetry carrying task code/text/stdout/page/local-file content should default off; any optional telemetry must be explicit/minimised/redacted;
-- every browser/local mutation still follows `observe -> ExpectedEffect -> authorize -> act -> re-observe -> PASS|FAIL|UNKNOWN`, and task completion still requires the independent Finish Gate.
-
-Stage mapping:
-
-```text
-26.3B  Site Capability Policy/network-gate architecture + Browser verification foundations
- -> 26.3C trust/grant lifetime + provenance + budgets/LoopGuard state
- -> 26.4 generated helper/domain-skill candidate lineage and promotion evidence
- -> 26.5 trusted-site full-browser/CDP/JS/Browser Companion integration
-```
-
-A Local Execution Kernel may begin only after 26.3C foundations and must pass a separate security/public-contract/physical acceptance. It must not be smuggled into the browser capability merely to avoid a new consequence-class review.
-
-Canonical detail: `BROWSER_HARNESS_ARCHITECTURE.md`, plus ADR-032/033/034 and the existing Control Plane/security contracts.
-
-## ADR-037 — Project-owned CapabilityRegistry + typed Event / Policy Hooks — PROVISIONAL / AUTHORITATIVE FUTURE DIRECTION
-
-The 2026-08-27 QwenWork review reinforces a product-level need already emerging from the project's own architecture: future Skills, Connectors, Agent Sessions, Scheduled Tasks and deliverables need one truthful capability-discovery layer and one typed lifecycle/event-policy substrate without weakening the deterministic Control Plane.
-
-Project adoption:
-
-```text
-CapabilityRegistry
-  = project-owned semantic discovery / availability / health / trust metadata
-
-TypedEventBus
-  = typed lifecycle events and observation triggers
-
-PolicyHooks
-  = registered bounded deterministic handlers for owned policy scopes
-```
-
-Rules:
-
-- the current six-tool ordinary-Chat surface remains unchanged by this ADR;
-- `CapabilityRegistry` is descriptive state, not a generic dispatcher or authorization source;
-- ADR-017 remains binding: `AVAILABLE -> ACTIVE -> AUTHORIZED`; registry availability/health cannot skip Control Plane authorization;
-- provider/backend identity remains separate from project-owned semantic `capability_id`;
-- raw MCP/provider tool catalogs are not promoted directly to trusted planner-visible capabilities;
-- Skills are reusable methods that declare required capability/grant refs; Skill text cannot create missing authority;
-- event delivery is not proof of external effect success; state-changing events trigger fresh authoritative re-observation before Verification Kernel judgment where effect state matters;
-- `TypedEventBus` is not WorkingState and cannot replace current authoritative state with replay-log assumptions;
-- `PolicyHooks` cannot widen grants, invent user goals, bypass consequence policy, convert `FAIL/UNKNOWN` into `PASS`, or convert `NOT_DONE/UNKNOWN` into `DONE`;
-- initial policy hooks are project-owned registered/versioned bounded handlers, not arbitrary shell/Python scripts;
-- required policy-handler failure semantics are explicit and fail closed where authority/safety depends on the handler;
-- telemetry-only handlers may fail independently without granting or denying unrelated authority;
-- Stage 26.3C may introduce only the smallest typed event/read-only descriptor seams needed for verification/recovery/LoopGuard/Finish Gate and planner-neutral state;
-- Stage 26.4 may integrate verified `SkillPackage` manifests and capability requirements with the registry;
-- Track M may reuse the same event substrate for worker/session observation triggers while preserving ADR-035 session/delegation/correlation identity rules;
-- future Connectors register reviewed project semantic descriptors rather than dumping provider tools into the planner;
-- future Scheduled Tasks create separate run/session identity, re-resolve current capability state and receive explicit scheduled-run grants rather than inheriting every interactive capability;
-- future user-extensible arbitrary-code hooks, if ever needed, are a separate security/consequence class with their own filesystem/network/process grants and acceptance.
-
-The QwenWork references are architecture evidence only, not runtime dependencies or acceptance oracles. The project deliberately preserves stronger verification and grant boundaries where external products use more permissive hook/scheduler models.
-
-Implementation mapping:
-
-```text
-PR #116 / current work    architecture only
-26.3C                     minimal typed event + optional read-only descriptor foundation
-26.4                      SkillPackage / capability-requirement integration
-Track M                   session/delegation descriptor + event reuse
-26.5 / later              broader connector/adapter and optional DeliverableRef seams
-post-core / measured need ScheduledTask and marketplace/discovery UX
-```
-
-Canonical detail: `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md`, plus ADR-017/027/032/033/034/035/036 and the existing Control Plane/security contracts.
+- planner/Control Plane: `CONTROL_PLANE.md`;
+- product architecture: `ARCHITECTURE.md`;
+- state-first computer use: `COMPUTER_USE_ARCHITECTURE.md`;
+- security/environmental trust: `SECURITY_POLICY.md`;
+- OpenAdapt/UFO reuse: `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` + `ARCHITECTURE_REUSE_BASELINE.md`;
+- Agent Sessions: `CONVERSATION_BRIDGE_ARCHITECTURE.md`;
+- broader Browser/local execution: `BROWSER_HARNESS_ARCHITECTURE.md`;
+- Capability/Event/Hook future substrate: `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md`;
+- release order/current state/evidence: `ROADMAP.md`, `CURRENT_STATE.md`, `EVIDENCE_INDEX.md`.

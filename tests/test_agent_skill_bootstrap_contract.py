@@ -7,6 +7,67 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 AGENTS = ROOT / "AGENTS.md"
 SKILLS_ROOT = ROOT / ".agents" / "skills"
+REUSE_BASELINE = ROOT / "project-context" / "ARCHITECTURE_REUSE_BASELINE.md"
+
+
+def _split_markdown_table_row(line: str) -> tuple[str, ...]:
+    body = line.strip().strip("|")
+    cells: list[str] = []
+    current: list[str] = []
+    code_delimiter_len: int | None = None
+    escaped = False
+    index = 0
+    while index < len(body):
+        char = body[index]
+        if escaped:
+            current.append(char)
+            escaped = False
+            index += 1
+            continue
+        if char == "\\":
+            current.append(char)
+            escaped = True
+            index += 1
+            continue
+        if char == "`":
+            run_end = index + 1
+            while run_end < len(body) and body[run_end] == "`":
+                run_end += 1
+            run_len = run_end - index
+            current.append(body[index:run_end])
+            if code_delimiter_len is None:
+                code_delimiter_len = run_len
+            elif run_len == code_delimiter_len:
+                code_delimiter_len = None
+            index = run_end
+            continue
+        if char == "|" and code_delimiter_len is None:
+            cells.append("".join(current).strip())
+            current = []
+            index += 1
+            continue
+        current.append(char)
+        index += 1
+    cells.append("".join(current).strip())
+    return tuple(cells)
+
+
+def _reuse_baseline_rows(text: str) -> dict[str, tuple[str, ...]]:
+    marker = "## Canonical role map"
+    section = text.split(marker, 1)[1]
+    rows: dict[str, tuple[str, ...]] = {}
+    for line in section.splitlines():
+        if not line.startswith("|"):
+            if rows:
+                break
+            continue
+        cells = _split_markdown_table_row(line)
+        if len(cells) != 7 or cells[0] in {"Architectural role", "---"}:
+            continue
+        if set(cells[0]) == {"-"}:
+            continue
+        rows[cells[0]] = cells
+    return rows
 
 
 class AgentSkillBootstrapContractTests(unittest.TestCase):
@@ -86,6 +147,82 @@ class AgentSkillBootstrapContractTests(unittest.TestCase):
         for phrase in required:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, skill)
+
+    def test_stage_research_compares_against_canonical_architecture_reuse_lineage(self) -> None:
+        self.assertTrue(REUSE_BASELINE.is_file())
+        skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")
+        baseline = REUSE_BASELINE.read_text(encoding="utf-8")
+        agents = AGENTS.read_text(encoding="utf-8")
+
+        for phrase in (
+            "## 2A. Architecture Lineage Gate — compare with canonical reuse baseline",
+            "project-context/ARCHITECTURE_REUSE_BASELINE.md",
+            "### Architecture lineage comparison",
+            "KEEP",
+            "REUSE_MORE",
+            "REFINE",
+            "REPLACE",
+            "DEFER",
+            "REJECT",
+            "custom code duplicates mechanics that the project had already selected for upstream reuse",
+            "previously selected baseline component",
+            "Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER`",
+            "cannot return `PROCEED` or `NARROW` while leaving it deferred",
+        ):
+            with self.subTest(skill_phrase=phrase):
+                self.assertIn(phrase, skill)
+
+        for phrase in (
+            "AUTHORITATIVE RESEARCH COMPARISON BASELINE",
+            "canonical baseline for comparing new research with prior design choices",
+            "REPLACE` and `REJECT` require explicit evidence",
+            "Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER`",
+            "adopting PR must update this baseline **before or with merge**",
+            "Release timing, stage ordering, implementation status, exact dependency pins and physical acceptance state",
+        ):
+            with self.subTest(baseline_phrase=phrase):
+                self.assertIn(phrase, baseline)
+
+        rows = _reuse_baseline_rows(baseline)
+        required_roles = {
+            "Procedure compiler / workflow IR",
+            "Procedure-local checkpoint / durable resume mechanics",
+            "Procedure/effect evidence",
+            "Capability-spanning operational state",
+            "Transition verification authority",
+            "Task completion authority",
+            "Capability authorization / consequence policy",
+        }
+        self.assertTrue(required_roles.issubset(rows))
+
+        checkpoint = rows["Procedure-local checkpoint / durable resume mechanics"]
+        self.assertIn("OpenAdapt Flow", checkpoint[1])
+        self.assertIn("checkpoint/resume", checkpoint[2])
+        self.assertIn("WorkingState", checkpoint[3])
+        self.assertIn("EXTERNAL_EXECUTION_REUSE_STRATEGY.md", checkpoint[5])
+
+        working_state = rows["Capability-spanning operational state"]
+        self.assertIn("project-owned `WorkingState`", working_state[1])
+        self.assertIn("OpenAdapt procedure state", working_state[3])
+        self.assertEqual(working_state[6], "`PROJECT_OWNED`")
+
+        verification = rows["Transition verification authority"]
+        self.assertIn("project Verification Kernel", verification[1])
+        self.assertIn("external verifier", verification[3])
+
+        completion = rows["Task completion authority"]
+        self.assertIn("project independent Finish Gate", completion[1])
+        self.assertIn("self-reported completion", completion[3])
+
+        for phrase in (
+            "Read `project-context/ARCHITECTURE_REUSE_BASELINE.md` when `stage-research` applies",
+            "canonical prior-decision comparison baseline",
+            "KEEP`, `REUSE_MORE`, `REFINE`, `REPLACE`, `DEFER`, or `REJECT`",
+            "accepted lineage change must update the baseline before or with merge",
+            "A role-level lineage `DEFER` is not permission to continue past an unresolved requirement",
+        ):
+            with self.subTest(agent_phrase=phrase):
+                self.assertIn(phrase, agents)
 
     def test_initial_material_persistence_or_concurrency_change_triggers_stage_research(self) -> None:
         skill = (SKILLS_ROOT / "stage-research" / "SKILL.md").read_text(encoding="utf-8")

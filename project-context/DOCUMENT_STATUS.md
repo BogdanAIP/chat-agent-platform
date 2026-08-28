@@ -2,181 +2,166 @@
 
 ## Purpose
 
-Prevent stale stage/research/status prose from overriding live repository reality. Before using any document as current truth, resolve live GitHub state.
+This file defines **which document owns which kind of project truth**. It must not become another current-state snapshot.
+
+Always resolve live `main`, relevant open PRs/exact heads, current code/tests, hosted CI and required physical evidence before acting. When prose disagrees with live code/evidence, live code/evidence wins.
 
 ## Source-of-truth order
 
+Use the narrowest owner for the question:
+
 ```text
 current code/tests/current hosted CI/current physical evidence
- > CURRENT_STATE.md / CONTINUATION_CONTEXT.md / START_HERE.md
- > PROJECT_RISKS.md for ranked engineering risk priority
- > ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md / SECURITY_POLICY.md
- > CONVERSATION_BRIDGE_ARCHITECTURE.md for ADR-035 future Agent Session / Delegation architecture
- > CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md for ADR-037 future discovery/event-policy substrate
- > REAL_TASK_ACCEPTANCE.md for L1/L2/L3 acceptance depth
- > SOURCE_PROVENANCE_ACCEPTANCE.md for physical source-byte binding
- > EXTERNAL_EXECUTION_REUSE_STRATEGY.md for OpenAdapt/UFO integration boundaries
- > MUTATION_ASSURANCE.md for guarantee mutation/adversarial assurance direction
- > ROADMAP.md
- > TECH_DEBT.md
- > EVIDENCE_INDEX.md
- > accepted historical stage evidence
- > old research/handoffs
+  > CURRENT_STATE.md for accepted/current boundary and immediate work
+  > ROADMAP.md for release-stage order
+  > PROJECT_RISKS.md for ranked project risk
+  > architecture/security/policy owner documents for durable boundaries
+  > ARCHITECTURE_REUSE_BASELINE.md for prior reuse/project-owned role lineage used by stage-research
+  > EVIDENCE_INDEX.md for exact accepted evidence navigation
+  > accepted Stage/qualification records for detailed historical evidence
+  > reviewed external/research references
+  > old handoffs / superseded stage prose
 ```
 
-When documents disagree on whether work is implemented/accepted/current, live code and exact evidence win.
+A document being authoritative for one role does not make every historical sentence inside it a live-state claim. Exact implementation status belongs in `CURRENT_STATE.md`; exact accepted heads/paths belong in `EVIDENCE_INDEX.md`; release ordering belongs in `ROADMAP.md`.
 
-Any `project-context/*.md` document not explicitly listed here is **HISTORICAL / REFERENCE by default** until reviewed promotion.
-
-## Documentation separation rule
+## Separation rules
 
 ```text
-architecture/policy docs
-  = durable boundaries and invariants for authority, safety and execution
+START_HERE.md
+  = fresh-session entry/read order
 
-CURRENT_STATE
-  = concise live accepted/current boundary and immediate critical path
+CONTINUATION_CONTEXT.md
+  = concise orientation aid subordinate to CURRENT_STATE/live GitHub
 
-CONTINUATION_CONTEXT / START_HERE
-  = fresh-session continuation/read order
+CURRENT_STATE.md
+  = single live accepted boundary + immediate critical path + active PR/design snapshot
 
-PROJECT_RISKS
-  = single authoritative ranked risk table
+ROADMAP.md
+  = single owner of release sequence and stage-level completion conditions
 
-ROADMAP
-  = single owner of explicit release-stage order
+PROJECT_RISKS.md
+  = single ranked risk register
 
-EVIDENCE_INDEX
-  = exact accepted heads, local result locators and scoped measurements
+ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md
+  = durable product/execution boundaries
 
-MUTATION_ASSURANCE
-  = guarantee-oriented mutation/adversarial policy and permanent defect-class catalog
+SECURITY_POLICY.md / SECURITY.md
+  = security/authority/trust boundaries
 
-STAGE*.md
-  = active implementation contract or historical qualification record
+ARCHITECTURE_REUSE_BASELINE.md
+  = canonical prior component/reuse/project-owned role lineage for Stage Research comparison
+
+MODULE_CATALOG.md
+  = current capability inventory/reference; not release-order or acceptance-evidence owner
+
+MODULE_SELECTION_POLICY.md
+  = current component/reuse selection policy
+
+KNOWN_ISSUES.md
+  = unresolved current limitations; not risk ranking or roadmap
+
+TECH_DEBT.md
+  = existing compromises with explicit close conditions
+
+EVIDENCE_INDEX.md
+  = exact accepted physical/target evidence navigation
+
+STAGE*.md / qualification records
+  = implementation/qualification lineage for their recorded scope, not current status unless explicitly designated active
 ```
 
-Do not copy full risk rankings, exact acceptance dumps, local paths or release-stage detail across many live documents. Live context should point to `EVIDENCE_INDEX.md` for exact evidence.
+Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, machine-local evidence paths or active design detail across multiple live documents.
 
 ## Root documents
 
-| File | Status | Use |
+| File | Status | Owns |
 |---|---|---|
-| `AGENTS.md` | AUTHORITATIVE ENTRY | Development/merge/authority rules. |
-| `README.md` | CURRENT PRODUCT OVERVIEW | Human-facing summary. |
-| `SECURITY.md` | CURRENT SECURITY OVERVIEW | Repository/product security boundary. |
-| `LICENSE` | AUTHORITATIVE LEGAL | MIT license. |
+| `AGENTS.md` | **AUTHORITATIVE DEVELOPMENT ENTRY** | bootstrap, research gate, development/merge/document discipline |
+| `README.md` | **CURRENT PRODUCT OVERVIEW** | human-facing product summary; deliberately no live stage snapshot |
+| `SECURITY.md` | **CURRENT SECURITY OVERVIEW** | public repository/product security summary |
+| `LICENSE` | **AUTHORITATIVE LEGAL** | license |
 
-## Authoritative live context
+## Live project/state documents
 
-| File | Status | Use |
+| File | Status | Owns |
 |---|---|---|
-| `CONTINUATION_CONTEXT.md` | AUTHORITATIVE LIVE SNAPSHOT | Continuation point after resolving live GitHub. |
-| `START_HERE.md` | AUTHORITATIVE ENTRY | Read order and current focus. |
-| `CURRENT_STATE.md` | AUTHORITATIVE CURRENT STATE | Accepted/current boundary and immediate critical path. |
-| `PROJECT_RISKS.md` | AUTHORITATIVE RISK REGISTER | Ranked risks, evidence, mitigation and close conditions. |
-| `ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURE | Durable component/authority boundaries. |
-| `CONTROL_PLANE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | Planner vs deterministic execution/verification/recovery/completion boundary. |
-| `COMPUTER_USE_ARCHITECTURE.md` | AUTHORITATIVE ARCHITECTURAL DIRECTION | State-first hybrid computer-use contract. |
-| `CONVERSATION_BRIDGE_ARCHITECTURE.md` | PROVISIONAL AUTHORITATIVE FUTURE ARCHITECTURE / ADR-035 | Agent Session / Delegation object model and cross-provider Browser Companion/native routing. No current runtime authority by itself. |
-| `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` | PROVISIONAL AUTHORITATIVE FUTURE ARCHITECTURE / ADR-037 | Capability discovery + typed event/policy-hook substrate. No current runtime authority by itself. |
-| `SECURITY_POLICY.md` | CURRENT POLICY | Trust/authorization/privacy/environmental-content/safety boundaries. |
-| `REAL_TASK_ACCEPTANCE.md` | AUTHORITATIVE ACCEPTANCE-DIRECTION CONTRACT | L1 primitive, L2 workflow and L3 real-task evidence. |
-| `SOURCE_PROVENANCE_ACCEPTANCE.md` | AUTHORITATIVE PHYSICAL-ACCEPTANCE METHODOLOGY | Clean-tree/source/install binding so evidence proves bytes actually executed. |
-| `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | AUTHORITATIVE INTEGRATION DIRECTION | OpenAdapt/UFO reuse boundary; project authority remains authoritative. |
-| `MUTATION_ASSURANCE.md` | AUTHORITATIVE ASSURANCE DIRECTION | CAP-M guarantee mutants, adversarial behavioral cases and 26.3C CAP-M7 obligations. |
-| `ROADMAP.md` | AUTHORITATIVE ROADMAP | Release-critical sequence plus parallel future tracks. |
-| `BROWSER_HARNESS_ARCHITECTURE.md` | PROVISIONAL FUTURE ARCHITECTURE / ADR-036 | Future Site Capability/full-browser/helper/Local Execution direction; no current authority by itself. |
-| `TECH_DEBT.md` | AUTHORITATIVE TECHNICAL DEBT REGISTER | Existing implementation/process debt. |
-| `DOCUMENT_STATUS.md` | AUTHORITATIVE DOCUMENT MAP | This map. |
-| `EVIDENCE_INDEX.md` | AUTHORITATIVE EVIDENCE NAVIGATION | Exact accepted heads and scoped evidence locations. |
-| `DECISIONS.md` | CURRENT ADR INDEX | Architectural decisions including ADR-035/036/037. |
+| `START_HERE.md` | **AUTHORITATIVE CONTINUATION ENTRY** | minimum fresh-session read path |
+| `CURRENT_STATE.md` | **AUTHORITATIVE CURRENT STATE** | accepted/current boundary, immediate work and active PR/design snapshot |
+| `CONTINUATION_CONTEXT.md` | **CURRENT CONTINUATION AID** | concise orientation only; subordinate to live GitHub and `CURRENT_STATE.md` |
+| `ROADMAP.md` | **AUTHORITATIVE ROADMAP** | release-critical sequence and stage-level completion conditions |
+| `PROJECT_RISKS.md` | **AUTHORITATIVE RISK REGISTER** | ranked risks and close conditions |
+| `TECH_DEBT.md` | **AUTHORITATIVE TECH-DEBT REGISTER** | existing implementation/process compromises |
+| `KNOWN_ISSUES.md` | **CURRENT LIMITATION REGISTER** | unresolved limitations/issues that are not necessarily ranked risks or debt |
+| `EVIDENCE_INDEX.md` | **AUTHORITATIVE EVIDENCE NAVIGATION** | exact accepted physical/target heads, result locators and scoped measurements |
+| `DOCUMENT_STATUS.md` | **AUTHORITATIVE DOCUMENT MAP** | document ownership/status only |
 
-## Stage 26.3 document status
+## Current architecture / policy owners
 
-| File | Status | Use |
+| File | Status | Owns |
 |---|---|---|
-| `STAGE26_PROCEDURAL_MEMORY.md` | ACCEPTED FOUNDATION / REFERENCE | Verified procedure/candidate trust foundations. |
-| `STAGE26_3A_IMPLEMENTATION_NOTES.md` | ACCEPTED 26.3A RECORD | Accepted canonical six-tool implementation/evidence. |
-| `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` | ACCEPTED 26.3A SURFACE CONTRACT | `procedure_run` in the six-tool surface. |
-| `STAGE26_3B_VERIFICATION_KERNEL.md` | ACCEPTED 26.3B CONTRACT / HISTORICAL IMPLEMENTATION RECORD | Shared Verification Kernel and file/Browser/Windows integration lineage. 26.3B is no longer the active stage. |
-| `STAGE26_3B_WINDOWS_VERIFICATION.md` | ACCEPTED 26.3B WINDOWS RECORD / CONTRACT | PR #114 Windows `DesktopState` shared-kernel lineage; #115 supplies representative application L3. |
+| `ARCHITECTURE.md` | **AUTHORITATIVE ARCHITECTURE** | durable component and authority boundaries |
+| `CONTROL_PLANE.md` | **AUTHORITATIVE EXECUTION ARCHITECTURE** | planner vs deterministic execution/state/verification/recovery/completion boundary |
+| `COMPUTER_USE_ARCHITECTURE.md` | **AUTHORITATIVE ARCHITECTURAL DIRECTION** | state-first hybrid computer-use contract |
+| `SECURITY_POLICY.md` | **AUTHORITATIVE CURRENT POLICY** | trust, authorization, environmental-content and consequence boundaries |
+| `CONSTRAINTS.md` | **CURRENT CONSTRAINTS** | project-wide hard constraints consistent with `AGENTS.md` and accepted architecture |
+| `DEVELOPMENT_PRINCIPLES.md` | **CURRENT DEVELOPMENT PRINCIPLES** | stable engineering principles; subordinate to `AGENTS.md` where process wording differs |
+| `COST_POLICY.md` | **CURRENT COST POLICY** | baseline no-extra-subscription/cost boundary |
+| `MODULE_SELECTION_POLICY.md` | **AUTHORITATIVE MODULE-SELECTION POLICY** | external-component selection/adaptation/reuse rules |
+| `MODULE_CATALOG.md` | **CURRENT CAPABILITY CATALOG** | capability/component inventory and role/status reference; live evidence still wins |
+| `ARCHITECTURE_REUSE_BASELINE.md` | **AUTHORITATIVE RESEARCH COMPARISON BASELINE** | prior selected external/project-owned role lineage for applicable `stage-research` |
+| `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | **AUTHORITATIVE INTEGRATION DIRECTION** | detailed OpenAdapt/UFO reuse boundaries; does not own active PR state or release order |
+| `REAL_TASK_ACCEPTANCE.md` | **AUTHORITATIVE ACCEPTANCE CONTRACT** | L1/L2/L3 evidence depth and real-task rules |
+| `SOURCE_PROVENANCE_ACCEPTANCE.md` | **AUTHORITATIVE PHYSICAL-PROVENANCE METHOD** | exact executed-source/install/runtime binding |
+| `MUTATION_ASSURANCE.md` | **CURRENT ASSURANCE DIRECTION** | guarantee mutation/adversarial assurance and CAP-M families |
+| `TRANSPORT_SUPERVISOR.md` | **CURRENT TRANSPORT RELIABILITY OWNER** | accepted supervisor desired-state/recovery/ownership boundary |
+| `EXTENSION_MANAGER.md` | **CURRENT OPTIONAL-EXTENSION REFERENCE** | optional 1MCP Extension Manager role; never baseline transport/authority |
+| `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | **CURRENT COMPATIBILITY REFERENCE** | frozen ChatGPT action/schema compatibility and migration limits |
 
-Stage 26.3B is accepted for the recorded representative scope after #118. New work belongs to Stage 26.3C rather than continuing to label `STAGE26_3B_VERIFICATION_KERNEL.md` as an active implementation contract.
+## Provisional/future architecture
 
-## Current implementation snapshot
+These documents define reviewed future boundaries but **do not add current runtime/public authority by themselves**:
 
-Resolve live `main` for the exact commit. Current semantic state is:
+| File | Status |
+|---|---|
+| `CONVERSATION_BRIDGE_ARCHITECTURE.md` | **PROVISIONAL FUTURE ARCHITECTURE / ADR-035 / Track M** |
+| `BROWSER_HARNESS_ARCHITECTURE.md` | **PROVISIONAL FUTURE ARCHITECTURE / ADR-036** |
+| `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` | **PROVISIONAL FUTURE ARCHITECTURE / ADR-037** |
 
-```text
-Stage 26.3A                                      ACCEPTED / MERGED #92
-Verification Kernel foundation                  MERGED #99
-file/artifact integration                       PHYSICAL ACCEPTED / MERGED #102
-Browser observation foundation                  MERGED #106
-production web_open verification                PHYSICAL ACCEPTED / MERGED #107
-Browser Harness / ADR-036 docs                  MERGED #110
-production web_interact verification            PHYSICAL ACCEPTED / MERGED #111
-Browser L3 real-task acceptance                 PHYSICAL ACCEPTED / MERGED #113
-Windows DesktopState shared-kernel verifier     PHYSICAL ACCEPTED / MERGED #114
-Windows/application L3                          PHYSICAL ACCEPTED / MERGED #115
-CAP-M0 mutation assurance                       ACCEPTED / MERGED #117
-Track M + ADR-037 docs                          MERGED #116 / FUTURE AUTHORITY ONLY
-Browser stronger-provenance repeat              PHYSICAL ACCEPTED / MERGED #118
-adversarial assurance plan                      MERGED #119
-Stage 26.3B                                     ACCEPTED / CLOSED FOR RECORDED SCOPE
-WorkingState + recovery/reconciliation/LoopGuard STAGE 26.3C CURRENT TARGET
-Track M Agent Session / Delegation              PARALLEL FUTURE ARCHITECTURE / NO RUNTIME AUTHORITY
-CapabilityRegistry + TypedEventBus/PolicyHooks  FUTURE ARCHITECTURE / NO RUNTIME AUTHORITY
-OpenAdapt procedure/effect-evidence spike       AFTER 26.3C CORE SHAPE
-```
+`AVO_LONG_HORIZON_ARCHITECTURE.md` is a **REVIEWED EXTERNAL-MECHANISM / REFERENCE RECORD** whose accepted project consequences are promoted through ADR-034 and current owner documents. Its dated research prose is not a live implementation-status source.
 
-Exact physical acceptance heads and result paths are indexed in `EVIDENCE_INDEX.md` rather than duplicated here.
+## ADR / decision index
 
-## Browser accepted-scope note
+`DECISIONS.md` is the **CURRENT ADR INDEX**. Accepted decisions and durable provisional boundaries govern current design. Release-stage mapping, active PR state and exact implementation acceptance belong to their dedicated owners rather than ADR prose.
 
-The accepted Browser L3 route is target-Windows headless Playwright/Chrome through the semantic Browser capability. It does not by itself prove visible headed browser-window control on the Windows desktop.
+## Accepted historical / Stage records
 
-The stronger #118 acceptance also established that independent audit/Finish Gate evidence outranks planner self-report. Earlier invalid physical attempts exposed harness/runtime defects and were rejected, then converted into permanent assurance direction in `MUTATION_ASSURANCE.md`.
+The following are useful scoped accepted/research records but are **not current status owners**:
 
-## Track M / ADR-035 boundary
+- `DIRECT_SEMANTIC_TUNNEL.md` — accepted Stage 24.1 direct-transport record; its historical five-tool contract was later superseded by the current six-tool surface;
+- `LOCAL_SPECIALIST_INFERENCE.md` — Stage 25 local-specialist research/qualification record; current capability status belongs to `MODULE_CATALOG.md` / accepted code/evidence;
+- `ACTIVE_VISUAL_GROUNDING.md` — Stage 25 visual-grounding research/benchmark record; dated provisional wording is historical;
+- `STAGE26_PROCEDURAL_MEMORY.md` — accepted procedural foundation/reference;
+- `STAGE26_3A_IMPLEMENTATION_NOTES.md` — accepted 26.3A record;
+- `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` — accepted six-tool/procedure surface record;
+- `STAGE26_3B_VERIFICATION_KERNEL.md` — accepted 26.3B contract/historical implementation record;
+- `STAGE26_3B_WINDOWS_VERIFICATION.md` — accepted 26.3B Windows verification record.
 
-Track M is future architecture only and adds no current public tool/runtime authority.
+Other `STAGE*.md`, dated handoffs, physical-gate failure reports and research snapshots are **HISTORICAL / REFERENCE by default** unless this map or a current owner explicitly promotes them.
 
-Canonical identities:
+Historical files may correctly contain old five-tool counts, old active-PR wording or candidate/runtime research that was true in their recorded stage. Those statements must not be read as present product state.
 
-```text
-HarnessSession
-Conversation / Chat
-DelegationTask
-MessageDelivery
-ExecutionEnvironment
-```
+## Architecture reuse baseline rule
 
-Browser Companion is the primary cross-provider web adapter family. `GenericChatAdapter` owns common extraction/normalization/fallback; thin provider adapters remain for exact selectors, identity and quirks. Stronger reviewed native routes are preferred per exact target where available.
+`ARCHITECTURE_REUSE_BASELINE.md` is intentionally different from `MODULE_CATALOG.md`:
 
-## Capability Registry + Event / Policy Hooks / ADR-037 boundary
+- the catalog says what capability/component role exists or is planned;
+- the reuse baseline preserves the **prior architecture selection lineage** that new Stage Research must explicitly keep/refine/replace/reject/defer/reuse-more;
+- the baseline must not contain active release scheduling, runtime acceptance claims or transient dependency pins;
+- an accepted Stage Research decision that materially changes a baseline role must update the baseline in the adopting PR before/with merge.
 
-Canonical invariants:
-
-```text
-CapabilityRegistry
-  = semantic discovery / availability / health / trust metadata
-  != authorization
-  != generic dispatch
-
-TypedEventBus
-  = typed lifecycle/observation trigger stream
-  != proof that an external effect succeeded
-  != WorkingState source of truth
-
-PolicyHooks
-  = registered bounded deterministic handlers
-  != second planner
-  != verifier / Finish Gate replacement
-```
-
-26.3C may add only minimal internal seams useful for WorkingState/recovery/LoopGuard/Finish Gate.
+A historical/research document may still be linked as the detailed rationale for a baseline row; that does not promote the entire historical file to current status authority.
 
 ## Maintenance rule
 
-Update this map when a reviewed change alters authoritative document names/read order, planner/Control Plane responsibility, computer-use or Agent Session observation/verification/recovery/completion boundaries, capability discovery/event-policy architecture, mutation/adversarial assurance semantics, source-provenance requirements, external execution reuse boundaries, L1/L2/L3 requirements, Browser/Local Execution authority, risk/debt/release ownership, future-track promotion, or the public Chat-facing capability surface.
+Update this map only when document ownership/status changes. Do **not** update it merely because a stage advances, a PR opens/closes, a SHA changes or a qualification run completes; those facts belong to their dedicated owners.

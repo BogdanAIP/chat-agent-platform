@@ -20,22 +20,26 @@ class ComputerUseArchitectureContractTests(unittest.TestCase):
         decisions = (CONTEXT / "DECISIONS.md").read_text(encoding="utf-8")
         architecture = (CONTEXT / "COMPUTER_USE_ARCHITECTURE.md").read_text(encoding="utf-8")
         control = (CONTEXT / "CONTROL_PLANE.md").read_text(encoding="utf-8")
+        combined = decisions + architecture + control
+        folded = combined.casefold()
 
         for required in (
             "ADR-032",
-            "State-first hybrid computer-use control loop",
             "candidate_done",
             "Finish Gate",
             "WorkingState",
             "LoopGuard",
-            "capability-aware",
+            "ExpectedEffect",
+            "OUTCOME_UNKNOWN",
         ):
-            self.assertIn(required, decisions + architecture + control)
+            self.assertIn(required, combined)
 
-        self.assertIn("PASS | FAIL | UNKNOWN", architecture)
-        self.assertIn("expected_effect", architecture)
-        self.assertIn("action_no_effect", architecture)
-        self.assertIn("oscillation", architecture.casefold())
+        self.assertIn("state-first hybrid", folded)
+        self.assertIn("capability-aware", folded)
+        self.assertIn("pass | fail | unknown", folded)
+        self.assertIn("no-effect", folded)
+        self.assertIn("oscillation", folded)
+        self.assertIn("reconcile", folded)
 
     def test_environmental_content_is_untrusted_and_safety_is_separate(self) -> None:
         decisions = (CONTEXT / "DECISIONS.md").read_text(encoding="utf-8")
@@ -49,7 +53,7 @@ class ComputerUseArchitectureContractTests(unittest.TestCase):
         self.assertIn("safety", security.casefold())
         self.assertIn("third-party", security.casefold())
 
-    def test_roadmap_promotes_research_into_implementation_order(self) -> None:
+    def test_roadmap_owns_current_implementation_order(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
         current = (CONTEXT / "CURRENT_STATE.md").read_text(encoding="utf-8")
         combined = roadmap + current
@@ -67,13 +71,31 @@ class ComputerUseArchitectureContractTests(unittest.TestCase):
         ):
             self.assertIn(required, combined)
 
+        self.assertIn("release order", roadmap.casefold())
+        self.assertIn("CURRENT_STATE.md", roadmap)
+
     def test_research_does_not_expand_public_surface_or_authority_by_itself(self) -> None:
         architecture = (CONTEXT / "COMPUTER_USE_ARCHITECTURE.md").read_text(encoding="utf-8")
         decisions = (CONTEXT / "DECISIONS.md").read_text(encoding="utf-8")
-        self.assertIn("current six-tool public surface remains accepted", architecture)
-        self.assertIn("does not authorize new public tool names", decisions)
-        self.assertIn("unrestricted code/program-state access", architecture)
-        self.assertIn("generic `tool_invoke`", architecture)
+        module_catalog = (CONTEXT / "MODULE_CATALOG.md").read_text(encoding="utf-8")
+        combined = architecture + decisions + module_catalog
+        folded = combined.casefold()
+
+        for tool_name in (
+            "workspace_read",
+            "workspace_write",
+            "web_open",
+            "web_observe",
+            "web_interact",
+            "procedure_run",
+        ):
+            self.assertIn(tool_name, combined)
+
+        self.assertIn("six is the current accepted contract", folded)
+        self.assertIn("does not authorize", folded)
+        self.assertIn("code/program-state", folded)
+        self.assertIn("generic `tool_invoke`", combined)
+        self.assertIn("separate contract/security/physical acceptance", folded)
 
 
 if __name__ == "__main__":

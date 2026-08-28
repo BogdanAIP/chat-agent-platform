@@ -3,7 +3,7 @@ name: stage-research
 description: Research and design gate for starting a new release-critical stage, substage, major subsystem, capability family, or materially new persistence/recovery/retry/concurrency/identity/security/authority architecture. Use before implementation begins. Do not use for narrow bug fixes, dependency bumps, or documentation-only edits unless they materially change architecture or authority.
 compatibility: Designed for Chat Agent Platform work with repository access and current web research.
 metadata:
-  version: "1.1"
+  version: "1.2"
   project: "chat-agent-platform"
 ---
 
@@ -41,6 +41,8 @@ Before implementation, produce a Stage Research Brief with a decision of `PROCEE
 
 A material architecture change after the Brief invalidates the previous research decision. Production implementation is blocked again until the changed mechanism and its adjacent engineering domain are researched and the Brief is revised.
 
+The canonical prior architecture/reuse comparison point is `project-context/ARCHITECTURE_REUSE_BASELINE.md`. A fresh Stage Research decision must not silently ignore, duplicate, or replace a role that the project previously assigned to an external component or a project-owned boundary.
+
 ## 1. Resolve current project truth
 
 Before external research:
@@ -49,7 +51,8 @@ Before external research:
 2. inspect the current implementation that the stage will extend;
 3. read the minimal current owner documents (`CURRENT_STATE.md`, `ROADMAP.md`, `PROJECT_RISKS.md`, and architecture/security/evidence only as needed);
 4. inspect relevant tests, accepted physical evidence, review findings and actual failure history;
-5. identify existing mechanisms that may already solve part of the stage.
+5. identify existing mechanisms that may already solve part of the stage;
+6. read `project-context/ARCHITECTURE_REUSE_BASELINE.md` and identify every previously assigned reuse/project-owned role touched by the current stage question.
 
 Do not infer current state from historical Stage prose or recorded SHAs in stale documents.
 
@@ -64,6 +67,36 @@ State explicitly:
 - tempting adjacent work that is explicitly out of scope.
 
 Keep the long-horizon product model in view: this project is not only a Browser agent. Files, Browser, Windows/Desktop, Vision, Procedures/Skills, Agent Sessions/Delegation, Connectors, Scheduled Tasks and future capability classes should remain able to fit one coherent Control Plane/trust model.
+
+## 2A. Architecture Lineage Gate — compare with canonical reuse baseline
+
+Before selecting new mechanisms or assuming custom implementation is the default, compare the current stage question with `project-context/ARCHITECTURE_REUSE_BASELINE.md`.
+
+For every affected architectural role:
+
+1. identify the previously selected source/component or project-owned boundary;
+2. recover what the project intended to reuse and what it explicitly refused to delegate;
+3. recover the original reason/value for that choice from the baseline's detailed owner documents when needed;
+4. revalidate the previously selected component only for the exact current role and failure model rather than assuming the old choice is still correct;
+5. compare that prior selection with credible current alternatives and with a project-owned implementation where relevant;
+6. explicitly ask whether proposed custom code duplicates mechanics that the project had already selected for upstream reuse;
+7. explicitly ask whether a proposed external component would cross a boundary intentionally kept project-owned;
+8. assign exactly one lineage decision for the role:
+   - `KEEP` — prior choice/boundary remains appropriate;
+   - `REUSE_MORE` — use more of the prior selected component instead of duplicating it locally;
+   - `REFINE` — keep the prior source/boundary but change or narrow its adapter/responsibility;
+   - `REPLACE` — choose another mechanism/component and show why the prior choice no longer fits;
+   - `DEFER` — keep the role unresolved/unimplemented until evidence or a real consumer justifies it;
+   - `REJECT` — explicitly reject the prior mapping for the current architecture with evidence;
+9. if no matching baseline role exists, classify the proposed role/mechanism as new architecture and include it in the Research Scope Expansion Gate.
+
+`REPLACE` and `REJECT` require explicit evidence. Newness, popularity, or convenience is not enough.
+
+Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER`. A role-level `DEFER` is permitted only when that role is explicitly outside the implementation scope selected by the Brief. If the role is required to satisfy the current stage goal or a release-critical guarantee, the Brief cannot return `PROCEED` or `NARROW` while leaving it deferred: either narrow the stage goal so that role is no longer required, or return top-level `DEFER` and keep production implementation blocked.
+
+The baseline is not a veto over new evidence. Its purpose is to make architecture evolution explicit and reviewable rather than repeatedly rediscovering or silently abandoning prior decisions.
+
+If the Stage Research Brief materially changes an existing baseline role, the adopting PR must update `project-context/ARCHITECTURE_REUSE_BASELINE.md` before or with merge so later research cannot observe a known-superseded lineage.
 
 ## 3. Research Scope Expansion Gate
 
@@ -159,6 +192,8 @@ The comparison must contain at least:
 - evidence/maturity;
 - fit with Chat Agent Platform.
 
+The previously selected baseline component for an affected role must appear in this comparison when it is a credible candidate for the current problem. Do not compare only new alternatives while silently omitting the component the project previously chose for that role.
+
 Prefer understanding mechanisms over ranking products.
 
 ## 8. Map external lessons to this repository
@@ -168,9 +203,10 @@ For each important mechanism or failure case ask:
 1. Do we already have this failure mode, or a credible analogous risk?
 2. Has our own physical qualification/review history already exposed it?
 3. Does an existing project mechanism already address it?
-4. Can we avoid the known external problem structurally before adopting the mechanism?
-5. Can the same guarantee be achieved more simply inside our current architecture?
-6. Would adopting it create a new framework, workflow, state owner, gate, taxonomy or document that we then have to maintain?
+4. Does the architecture reuse baseline assign this role to an already selected external component or project-owned boundary?
+5. Can we avoid the known external problem structurally before adopting the mechanism?
+6. Can the same guarantee be achieved more simply inside our current architecture?
+7. Would adopting it create a new framework, workflow, state owner, gate, taxonomy or document that we then have to maintain?
 
 Distinguish:
 
@@ -222,6 +258,7 @@ Before adding any new abstraction answer:
 - Which second current or near-term consumer makes it genuinely common, if applicable?
 - What existing complexity does it replace or consolidate?
 - What is the simplest design that keeps the durable product boundary intact?
+- Is it replacing or duplicating a role already assigned in `ARCHITECTURE_REUSE_BASELINE.md`, and if so what lineage evidence justifies that choice?
 
 The "second consumer" question is evidence, not an absolute rule. A common product primitive may be justified earlier when the multi-capability product model itself clearly requires it; its detailed API should still stay minimal until real consumers constrain it.
 
@@ -256,6 +293,19 @@ What concrete product/runtime outcome is being added.
 ### Current project baseline
 Existing mechanisms, constraints and relevant observed failures.
 
+### Architecture lineage comparison
+For every affected role from `project-context/ARCHITECTURE_REUSE_BASELINE.md`, record:
+
+- prior selected source / project-owned owner;
+- intended reuse and explicit non-delegated boundary;
+- current evidence about whether the prior choice actually satisfies this stage's exact requirement;
+- comparison with relevant new alternatives/custom implementation;
+- final lineage decision: `KEEP`, `REUSE_MORE`, `REFINE`, `REPLACE`, `DEFER`, or `REJECT`;
+- evidence for any `REPLACE` or `REJECT` decision;
+- if the role is `DEFER`, whether it is explicitly outside the selected implementation scope; a role required by the current stage goal/guarantee may not remain deferred under an overall `PROCEED`/`NARROW` decision.
+
+If the stage introduces a role absent from the baseline, say so explicitly and treat it as new architecture rather than silently inventing a new responsibility.
+
 ### Architecture primitives and adjacent domains
 Every proposed primitive/mechanism, the engineering domain that directly studies it, assumptions and relevant adjacent domains.
 
@@ -286,6 +336,8 @@ What applies directly, what does not, and why.
 - mechanisms explicitly deferred/rejected;
 - existing components to reuse/consolidate;
 - durable invariants preserved;
+- baseline roles that must be updated because the accepted lineage changed;
+- confirmation that no role required by the selected stage goal/guarantee remains lineage-`DEFER` under `PROCEED`/`NARROW`;
 - if the decision is `DEFER`, implementation remains blocked and the Brief must state what evidence/change could justify re-entry later.
 
 ### Verification plan
@@ -298,7 +350,7 @@ Do not create a standalone research Markdown file by default. Put the brief in t
 
 ## 14. Design-change invalidation and re-entry
 
-After the Brief, continuously compare actual implementation against the researched mechanism set.
+After the Brief, continuously compare actual implementation against the researched mechanism set and the recorded architecture-lineage decisions.
 
 The current Stage Research Brief becomes **invalid for implementation authority** when any of the following occurs:
 
@@ -307,16 +359,18 @@ The current Stage Research Brief becomes **invalid for implementation authority*
 - retry/reconciliation/identity/concurrency semantics change materially;
 - a new consequence boundary or authority source is added;
 - tests or review reveal a failure class not covered by the existing matrix;
-- the chosen approach changes enough that its solution evidence no longer applies.
+- the chosen approach changes enough that its solution evidence no longer applies;
+- implementation starts duplicating, replacing, or crossing a baseline role differently from the Brief's recorded lineage decision.
 
 When invalidated:
 
 1. stop production implementation at the smallest safe boundary;
 2. update the architecture-primitive/domain map;
-3. research the newly relevant domain/failure mode;
-4. revise alternatives and the failure matrix as needed;
-5. replace the old decision with a fresh `PROCEED`, `NARROW`, or `DEFER` decision;
-6. resume production implementation only after `PROCEED` or `NARROW`; if the fresh decision is `DEFER`, keep implementation stopped.
+3. re-check affected `ARCHITECTURE_REUSE_BASELINE.md` roles and their prior rationale;
+4. research the newly relevant domain/failure mode;
+5. revise alternatives, architecture-lineage decisions and the failure matrix as needed;
+6. replace the old decision with a fresh `PROCEED`, `NARROW`, or `DEFER` decision;
+7. resume production implementation only after `PROCEED` or `NARROW`; if the fresh decision is `DEFER`, keep implementation stopped.
 
 A PR-body edit that merely restates the new design without this re-entry work does not satisfy the gate.
 
@@ -325,20 +379,26 @@ A PR-body edit that merely restates the new design without this re-entry work do
 Only after the current Stage Research Brief is complete, not invalidated, and ends in `PROCEED` or `NARROW`:
 
 1. implement the smallest coherent slice;
-2. reuse existing runtime/assurance/CI mechanisms;
+2. preserve baseline-selected project-owned boundaries marked `KEEP`, and reuse baseline-selected upstream mechanics marked `KEEP` or `REUSE_MORE` where the Brief says they apply;
 3. add the failure shields identified above;
 4. run focused tests and required hosted checks;
 5. obtain Codex Review / equivalent independent review for runtime/security/recovery/authority changes when available/required;
 6. fix findings and repeat review after material changes when appropriate;
 7. if a material architecture change occurs, return to section 14 before continuing;
-8. run final exact-head CI and required physical acceptance;
-9. merge only when the exact final head has the required evidence.
+8. if the accepted decision changed an architecture reuse baseline role, update `project-context/ARCHITECTURE_REUSE_BASELINE.md` before or with merge so the next research invocation starts from the accepted lineage;
+9. run final exact-head CI and required physical acceptance;
+10. merge only when the exact final head has the required evidence.
 
 ## Final quality check
 
 Before declaring the research gate complete, verify all are true:
 
 - research included current external approaches and current repository reality;
+- every affected architecture role was compared with `project-context/ARCHITECTURE_REUSE_BASELINE.md` rather than silently redesigned from scratch;
+- every affected baseline role has an explicit `KEEP`, `REUSE_MORE`, `REFINE`, `REPLACE`, `DEFER`, or `REJECT` decision;
+- `REPLACE` / `REJECT` decisions contain evidence rather than preference or novelty claims;
+- no role required by the selected stage goal or release-critical guarantee remains lineage-`DEFER` under an overall `PROCEED`/`NARROW` decision;
+- proposed custom code was checked for duplication of previously selected upstream reuse mechanics;
 - every proposed architecture primitive was mapped to its directly relevant engineering domain;
 - problem evidence and solution evidence are separate and both sufficient for `PROCEED`/`NARROW`;
 - failure reports/limitations were actively investigated, not omitted;

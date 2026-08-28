@@ -1,305 +1,194 @@
 # Source Provenance Acceptance Contract
 
-Status: **AUTHORITATIVE PHYSICAL-ACCEPTANCE METHODOLOGY — common gate implemented in PR #114, acceptance pending**
+Status: **AUTHORITATIVE / ACCEPTED PHYSICAL-PROVENANCE METHODOLOGY**.
+
+The common methodology was introduced around the Stage 26.3B Windows qualification work and subsequently exercised/strengthened by accepted target-Windows Browser/Windows gates. The stronger #118 Browser repeat is the current reference evidence that exact source/install/runtime/dependency provenance can invalidate an otherwise plausible run and be revalidated after consequence-bearing actions.
+
+Exact accepted heads/result locators belong in `EVIDENCE_INDEX.md`.
 
 ## Purpose
 
-Physical acceptance must prove not only that a named Git commit was checked out, but that the actual source bytes used by the qualification run corresponded to the intended exact head.
-
-A check such as:
+A physical acceptance claim must bind not only a named Git commit but the actual relevant bytes/runtime closure used by the qualification.
 
 ```text
 git rev-parse HEAD == EXPECTED_HEAD
 ```
 
-is necessary but insufficient because tracked files may be locally modified and untracked files may influence execution while `HEAD` remains unchanged.
+is necessary but insufficient because tracked modifications, untracked files, installed runtime copies, helper scripts or transitive dependencies may influence execution while `HEAD` remains unchanged.
 
-For a project whose acceptance model is based on independently verifiable evidence, this was identified as a **P1 methodology defect**. PR #114 introduces the reusable implementation in `scripts/source-provenance-gate.py` and wires it into the Windows physical qualification path. The methodology becomes accepted for release-critical use only after that exact implementation passes hosted tests and target-Windows physical qualification.
+## SourceProvenanceGate
 
----
-
-## 1. SourceProvenanceGate
-
-Every release-critical target-machine physical acceptance run must bind one `SourceProvenanceGate` result to its evidence.
-
-Minimum required fields:
+Every release-critical target-machine qualification whose claim depends on exact executed source/runtime bytes should bind a provenance result containing the relevant subset of:
 
 ```text
 expected_head
 actual_head
+source_root
 working_tree_clean
 tracked_diff_empty
-untracked_empty
-source_root
-critical_asset_hashes
-qualification_driver_hashes
-relevant_lockfile_hashes
-runtime/tool versions required by that gate
-captured_at
+untracked/influencing-file status
+critical project source hashes / Git blobs
+qualification driver hashes
+fixture/checker hashes
+relevant lock/config hashes
+installed runtime hashes
+runtime helper/dependency closure hashes
+runtime/tool versions where material
+captured_at / provenance generation
 ```
 
-Minimum pass conditions:
+The exact evidence shape may evolve by capability, but missing required provenance must fail closed rather than be guessed.
 
-```text
-actual_head == expected_head
-working tree contains no tracked modifications
-working tree contains no untracked files that can influence the run
-critical source hashes match the files from expected_head
-qualification scripts are themselves bound by hash
-relevant dependency/lock configuration is bound by hash
-```
+## Clean-source rule
 
-The gate must fail closed rather than silently accepting an unverifiable checkout.
+For the source root used by release-critical qualification, the equivalent of a reviewed clean-tree check must establish that no tracked/untracked state can influence the claim unexpectedly.
 
-Current PR #114 implementation additionally records, for each bound project file:
+Prefer generated runtime/result artifacts outside the source checkout. If a reviewed generated path is excluded, the exclusion must be narrow and part of the qualification contract; broad wildcard exceptions are not acceptable substitutes for a clean source tree.
+
+The #118 Browser qualification demonstrated why this matters: an invalid attempt wrote Playwright runtime artifacts into the frozen source worktree through inherited CWD, and provenance revalidation correctly failed. The later accepted run isolated runtime CWD. Permanent product hardening of runtime output ownership is tracked separately in `TECH_DEBT.md`.
+
+## Git content vs local raw bytes
+
+On Windows, Git filters such as line-ending normalization can make raw bytes differ from committed blob representation without implying an unauthorized source edit.
+
+Where relevant record both:
 
 ```text
 expected Git blob from EXPECTED_HEAD
-local Git clean-filtered blob
+local clean-filtered Git blob
 local raw SHA-256
 local byte size
 ```
 
-This matters on Windows because Git may legitimately apply line-ending clean filters. The Git-blob comparison proves committed content after Git's configured clean transformation, while raw SHA-256 records the exact local bytes used by the run.
+This proves committed-content equivalence while also recording the exact local bytes that participated in execution.
 
----
+## Critical-asset binding
 
-## 2. Clean working-tree rule
-
-At minimum the qualification source root must satisfy the equivalent of:
-
-```text
-git status --porcelain=v1 --untracked-files=all
-```
-
-returning no entries. The common implementation also checks staged and unstaged diffs independently.
-
-The implementation may use a detached worktree or another isolated checkout, but isolation alone is not proof. The actual run must record and verify cleanliness before executing release-critical qualification logic.
-
-If the physical gate intentionally generates files inside the source checkout, those generated paths must be explicitly excluded by a reviewed rule or, preferably, written outside the source checkout. Broad wildcard exclusions are not acceptable substitutes for a clean source tree.
-
-The PR #114 Windows harness writes provenance/result evidence outside the source checkout. It also performs a launcher-side clean-tree preflight **before** starting the Windows fixture, then invokes the reusable Python gate for the full hash binding.
-
----
-
-## 3. Critical-asset hash binding
-
-A physical acceptance should bind hashes for the files whose local bytes materially determine the result.
-
-Examples:
+Bind the files that materially determine the run, for example:
 
 ```text
 runtime adapter under qualification
-shared Verification Kernel when used
-public semantic launcher/projection when used
-qualification driver script
-fixture implementation
-external Finish Gate/checker
+Verification Kernel / Finish Gate when used
+public semantic launcher/projection
+procedure/runtime helper code
+qualification driver
+fixture / guardian / external checker
 relevant config/lock files
 ```
 
-Do not require a manually maintained list of every repository file when Git already proves the committed tree. The critical-asset hash list is additional evidence that the exact local files actually invoked by the harness were the expected bytes.
+The list must be derived from the actual execution path rather than from a permanently frozen hand-maintained list where practical.
 
-Preferred evidence form:
+## Installed runtime binding
 
-```json
-{
-  "source_provenance": {
-    "expected_head": "...",
-    "actual_head": "...",
-    "working_tree_clean": true,
-    "tracked_diff_empty": true,
-    "untracked_empty": true,
-    "critical_assets": {
-      "runtime/...": {
-        "git_blob_expected": "...",
-        "git_blob_local_clean_filtered": "...",
-        "matches_expected_blob": true,
-        "sha256": "..."
-      }
-    },
-    "lockfiles": {
-      "...": {
-        "matches_expected_blob": true,
-        "sha256": "..."
-      }
-    }
-  }
-}
-```
+Source provenance is incomplete if the physical run executes an installed/copied artifact that is not proven equivalent to reviewed source.
 
-Exact schema may evolve, but the proof obligations above must remain.
-
----
-
-## 4. Relationship to exact-head acceptance
-
-The project should use the phrase **exact-head physical acceptance** only when both are proven:
+Required pattern when installation is involved:
 
 ```text
-commit identity
-AND
-source-byte provenance / clean-tree identity
+materialize expected source from exact head
+ -> independently hash/identify expected installed artifacts
+ -> compare installed files/tree
+ -> launch only proven installed runtime
+ -> record install/runtime identity in evidence
 ```
 
-A commit SHA without source cleanliness proves repository ancestry, not necessarily the complete executed byte state.
+A repository `HEAD` cannot substitute for proof of an installed copy.
 
-This rule applies to:
+## Transitive dependency / runtime closure
+
+If behavior can be changed by transitive runtime dependencies, provenance must bind the relevant complete closure, not only top-level lock/config files.
+
+#118 strengthened Browser qualification by binding the exact-lock Node runtime tree and revalidating it after Browser actions.
+
+General rule:
 
 ```text
-Browser L3
-Windows verifier qualification
-Windows/application L3
-file/artifact qualification
-future Office adapters
-future OpenAdapt procedure acceptance
-future Local Execution Kernel acceptance
-future cross-capability release gates
+committed lock/config proves intended dependency graph
+installed closure proof proves the bytes actually available to runtime
 ```
 
----
+Where closure cannot be completely enumerated, the qualification must explicitly narrow the claim rather than imply full dependency provenance.
 
-## 5. Existing accepted evidence
+## Provenance generation / freshness
 
-Previously accepted physical results are not automatically invalidated merely because this stronger methodology was defined later.
+Provenance evidence is not timeless.
 
-In particular, Browser L3 PR #113 has:
+If a consequence-bearing action can mutate source/install/runtime state, revalidate the relevant provenance after those actions and before authoritative Finish Gate completion.
+
+Do not reuse pre-action provenance after an invalidating action without proving continuity/new generation.
+
+Conceptually:
 
 ```text
-functional result                         PASS
-independent final-state evidence          PASS
-mutation-history evidence                 PASS
-source provenance under this new contract INCOMPLETE
+prepare provenance generation G
+ -> execute admitted actions
+ -> revalidate source/install/runtime closure
+ -> freeze authoritative final evidence
+ -> independent Finish Gate
 ```
 
-The correct interpretation is **not** "PR #113 failed".
+## Qualification script / checker provenance
 
-Instead, before Stage 26.3B is declared fully closed, repeat one representative Browser L3 run on accepted `main` under the new SourceProvenanceGate. This cheaply closes the proof gap without rewriting historical evidence.
+The script that verifies source/runtime provenance and the external checker/Finish Gate cannot be outside the provenance claim when their bytes affect acceptance.
 
-Do not rewrite accepted history to claim the old gate proved cleanliness when it did not.
+Bind or independently materialize/hash qualification drivers, fixtures and checkers as applicable.
 
----
+A checker that can be silently replaced after prepare does not provide independent evidence.
 
-## 6. Physical qualification sequence
+## Process / fixture generation binding
 
-Preferred release-critical sequence:
+Source bytes alone are insufficient when the qualification claim depends on one specific live fixture/runtime generation.
+
+Physical evidence should bind relevant process/session generations, for example:
 
 ```text
-resolve live PR/final head
- -> freeze intended head
- -> fresh hosted checks
- -> prepare isolated target-machine source root
- -> SourceProvenanceGate PASS
- -> run physical capability/L3 qualification
- -> independent Finish Gate / checker where applicable
- -> bind result to same source-provenance evidence
- -> review no unresolved finding
- -> merge
+owned process PID + generation/start identity
+fixture identity / nonce
+tunnel/runtime generation
+source/install provenance generation
 ```
 
-If source provenance changes after the gate, the physical result is stale and must not be attributed to the new bytes.
+Reused PID/title/port alone is not always sufficient ownership proof.
 
----
+## Atomic final evidence
 
-## 7. Infrastructure failure vs semantic failure
+Where an external Finish Gate consumes a final snapshot, produce one authoritative frozen evidence generation after required mutations/cleanup/provenance revalidation.
 
-Physical and hosted acceptance should distinguish failure classes.
+Avoid split-brain final evidence assembled from independently mutable files when one atomic/frozen snapshot is practical.
 
-Example:
+An interrupted/partial final-evidence write must not become authoritative.
+
+## Current Browser / Windows reference scope
+
+Accepted Stage 26.3B Windows/application and Browser L3 gates demonstrated this methodology at increasing strength.
+
+The strongest recorded Browser repeat (#118) bound:
+
+- exact frozen source head/worktree;
+- installed semantic/runtime source equivalence;
+- relevant runtime helpers;
+- complete exact-lock Node dependency tree;
+- post-action provenance revalidation;
+- frozen final state/history;
+- external Finish Gate;
+- fixture/guardian cleanup.
+
+This is scoped evidence for that route, not a claim that every future capability automatically inherits complete provenance coverage.
+
+## Failure semantics
+
+If required provenance cannot be proven:
 
 ```text
-semantic failure
-  target/action delivered but expected effect fails
-  identity is wrong
-  verifier returns FAIL/UNKNOWN for real state
-
-infrastructure failure
-  runner/browser process unavailable
-  environment setup broken
-  UI test framework times out before action delivery
-  fixture never becomes interactable
+UNKNOWN / FAIL / NOT_DONE
 ```
 
-Do not turn an infrastructure timeout into a semantic PASS by merely increasing a timeout.
+as appropriate to the gate.
 
-For timing/settling failures such as a UI framework waiting for an element to become stable:
+Never downgrade missing provenance to a warning merely because functional state appears correct.
 
-```text
-repeat a bounded number of runs
-capture visibility/enabled/geometry/stability evidence
-compare runner/runtime versions
-classify reproducible semantic-fixture defect vs environment/runner drift
-then change settling/timeout behavior only with evidence
-```
+## Maintenance / assurance
 
-Uncharacterized infrastructure instability still blocks release-critical acceptance; it should not be mislabeled as a product semantic failure.
+Mutation/adversarial provenance cases live in `MUTATION_ASSURANCE.md` (CAP-M6 family). Permanent source/runtime-output compromises live in `TECH_DEBT.md`.
 
----
-
-## 8. Source provenance for external dependencies
-
-When a qualification uses pinned third-party code such as OpenAdapt or selected UFO-derived components, source provenance must additionally record:
-
-```text
-upstream repository
-pinned commit/tag/version
-license
-installed/local artifact hash where practical
-project adapter version/hash
-compatibility-test result
-```
-
-An upstream version string alone is not enough if locally installed bytes may differ.
-
-PR #114 applies this rule to the existing accepted Windows resolver dependency on OpenAdapt Flow: the project lockfile is source-bound by the common gate, and the physical Python driver additionally records the installed `openadapt-flow` version plus SHA-256 of the actual imported `openadapt_flow.backends.win_agent.server` source file. Physical acceptance requires the installed version to match the locked declared version.
-
----
-
-## 9. Current implementation and promotion state
-
-Common implementation introduced in PR #114:
-
-```text
-scripts/source-provenance-gate.py
-```
-
-Hosted regression coverage:
-
-```text
-tests/test_source_provenance_gate.py
-  clean exact-head checkout -> PASS
-  tracked modification      -> FAIL
-  untracked file            -> FAIL
-  evidence output inside source checkout -> rejected
-```
-
-The current Windows physical launcher also requires:
-
-```text
-SOURCE_PROVENANCE_GATE=PASS
-WORKING_TREE_CLEAN=True
-TRACKED_DIFF_EMPTY=True
-UNTRACKED_EMPTY=True
-```
-
-before the overall Windows qualification may pass.
-
-Until PR #114 itself passes fresh hosted checks and the target-Windows physical run on one final head, the implementation is **implemented/pending acceptance**, not accepted historical evidence.
-
----
-
-## 10. Non-goals
-
-This methodology does not require:
-
-- rebuilding the repository from scratch before every unit test;
-- hashing every OS file or every package in the machine;
-- invalidating all historical physical evidence;
-- treating a clean tree as proof of semantic correctness;
-- replacing capability-specific independent Finish Gates.
-
-Source provenance answers only:
-
-> **what exact project/source material did this acceptance run execute?**
-
-Capability verification and Finish Gate answer different questions and remain independently required.
+A new capability/physical gate should reuse this methodology instead of inventing another unrelated source-binding protocol, while adapting the concrete closure to its actual execution path.

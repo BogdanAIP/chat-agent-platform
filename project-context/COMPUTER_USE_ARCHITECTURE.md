@@ -2,543 +2,285 @@
 
 Status: **AUTHORITATIVE ARCHITECTURAL DIRECTION / IMPLEMENTATION STAGED**.
 
-This document promotes the 2026-08-24 Stage 26.3A ordinary-Chat research run into project architecture. It does not make external papers or benchmarks authoritative over repository evidence. Instead, it records which externally observed mechanisms were independently checked and which project decisions follow from them.
+This document owns the durable state-first computer-use contract. Detailed dated research evidence remains useful reference but does not own current stage status or release order.
 
-The source research artifact was produced during physical Stage 26.3A session:
+External research inputs reviewed for this direction include ComponentBench, OSWorld 2.0, OSWorld-G/Jedi, UI-Mate/OSWorkerBench, StateAct, MementoGUI, HiViG, WebArena, BrowserGym, ENVS/OSWorld-Noisy, Hybrid GUI-MCP and MobileWorldSafety. Their benchmark numbers are evidence inputs, not project release gates.
 
-```text
-STAGE26_3A_CHAT_E2E_E4F49B4AD4CB4DABA07A9F01A5575255
-```
-
-The accepted project formula is:
+## Accepted formula
 
 ```text
 semantic/native state first
  -> selective visual evidence when structure is insufficient
  -> capability-aware bounded action
- -> post-action re-observation
- -> explicit transition verification
- -> typed bounded recovery / LoopGuard
- -> structured active working state
- -> independent task finish gate
- -> separate safety gate
+ -> fresh post-action re-observation
+ -> explicit ExpectedEffect verification
+ -> reconcile ambiguous mutating outcome before retry
+ -> typed bounded recovery / LoopGuard / budgets
+ -> structured WorkingState
+ -> independent Finish Gate
+ -> separate safety/policy gate
  -> Control Plane authorization remains authoritative
 ```
 
-This extends the existing architecture. It does not replace the accepted six-tool semantic surface, the Windows `DesktopState`/UIA/VLM stack, or the deterministic Control Plane.
+This extends the accepted six-tool/product architecture; it does not authorize screenshot-only control, raw code execution, generic backend dispatch or a second local planner.
 
----
+## Evidence lessons promoted into architecture
 
-# 1. Evidence review
+### State/interface quality matters
 
-The following claims from the Stage 26.3A research were independently checked against the public paper/project sources available on 2026-08-24.
+External GUI research repeatedly shows that observation/action representation materially changes performance. Project consequence:
 
-## ComponentBench
+- prefer semantic/native structure when reliable;
+- preserve target/subject/frame identity rather than only coordinates;
+- keep component-level diagnostics between primitive tests and long-horizon E2E;
+- final functional state matters more than action-sequence similarity.
 
-Sources:
+### Long horizon needs explicit state and finish criteria
 
-- https://arxiv.org/abs/2608.18307
-- https://www.componentbench.com/
+Long tasks fail through stale state, hidden-state changes, constraint drift, missed updates and premature completion.
 
-Verified:
+Project consequence:
 
-- 97 canonical UI component types and 2,910 programmatically verified tasks;
-- human reference trajectories/efficiency baselines;
-- strong dependence on observation/action interface;
-- component families such as drag/drop, precision controls and editors remain diagnostic failure classes.
+- use structured WorkingState, provenance/freshness and checkpoints;
+- treat planner `candidate_done` as proposal only;
+- require independent Finish Gate evidence;
+- bound recovery and repetition.
 
-Project consequence: component-level diagnostics should be a regression layer between atomic grounding tests and long-horizon E2E. Observation/action interface is an architectural variable, not merely a model prompt choice.
+### Demonstrations are advisory, not macros
 
-## OSWorld 2.0
+Demonstration research supports subgoal/workflow transfer with live-state replanning rather than rigid action replay.
 
-Source:
+Project consequence:
 
-- https://osworld-v2.xlang.ai/
+- Stage 26.4 compiles demos into candidate subgoals/verifiers/applicability evidence;
+- live state outranks historical coordinates/actions;
+- one successful trajectory is at most a candidate skill.
 
-Verified:
+### Visual evidence is selective
 
-- 108 long-horizon workflows;
-- median skilled-human operation time around 1.6 hours;
-- hundreds of agent actions/tool calls;
-- performance degrades sharply as task horizon increases;
-- representative failures include stale internal state, missed dynamic updates, hidden-state recovery failures, constraint drift and skipped verification.
+Vision is useful for structural misses, spatial manipulation and independent cross-checks. It remains evidence, not authority.
 
-Project consequence: improving grounding alone is insufficient. Long tasks require structured state, freshness/provenance, checkpoints, progress tracking, bounded search and objective completion predicates.
+A model/critic may reject or propose an uncertain target, but deterministic identity/freshness/authorization and Verification Kernel rules remain authoritative.
 
-## OSWorld-G / Jedi
+### Environmental content is untrusted data
 
-Source:
+Content from UI/DOM/messages/files/screenshots/tool output is task data with respect to user intent and policy.
 
-- https://osworld-grounding.github.io/
+Task-success and safety/policy evaluation remain separate.
 
-Verified:
+## State-first hybrid observation
 
-- OSWorld-G contains 564 annotated grounding samples;
-- categories include text matching, element recognition, layout understanding and fine-grained manipulation;
-- Jedi contains 4M synthesized grounding examples.
-
-Project consequence: grounding should expose target identity/category/confidence/ambiguity rather than only coordinates. Spatial manipulation remains a specialist capability below policy/authorization.
-
-## UI-Mate / OSWorkerBench
-
-Sources:
-
-- https://arxiv.org/abs/2608.15930
-- https://ui-mate.github.io/
-- https://github.com/Tencent/UI-Mate
-
-Verified:
-
-- a closed-loop task/environment/rollout/verifier training stack;
-- multimodal demonstrations are converted into subtask-level workflows instead of rigid action replay;
-- live UI remains authoritative and the agent re-plans when the target diverges from the demonstration;
-- OSWorkerBench contains 100 long-horizon office tasks across 41 applications with dedicated demonstration settings.
-
-Project consequence: Stage 26.4 must compile demonstrations into advisory subgoals + verifiable completion criteria, not macros. Demonstrated low-level actions and historical coordinates never outrank current state.
-
-## StateAct
-
-Source:
-
-- https://arxiv.org/abs/2607.22798
-
-Verified:
-
-- the main agent operates on program state while GUI interaction is delegated only where required;
-- an independent finish gate checks structural output failures such as missing/unsaved/wrong-path artifacts;
-- a code-only variant underperforms the hybrid configuration, so state access does not eliminate GUI needs.
-
-Project consequence: preserve the idea of state grounding without copying unrestricted code/program-state authority. Project-owned bounded semantic adapters remain the state channel; GUI remains selective fallback; task completion needs a gate distinct from action delivery and planner confidence.
-
-## MementoGUI
-
-Source:
-
-- https://arxiv.org/abs/2605.18652
-
-Verified:
-
-- long-horizon GUI control is formulated as active memory control;
-- working memory selectively preserves task-relevant textual summaries plus ROI-level visual evidence;
-- episodic memory retrieves reusable verified trajectories through learned selection.
-
-Project consequence: do not replay unbounded screenshot/history context. Start with deterministic structured WorkingState and verified episodic procedure evidence; learned memory selection is deferred until the project has enough verified traces to justify it.
-
-## HiViG
-
-Source:
-
-- https://arxiv.org/abs/2606.11078
-
-Verified:
-
-- macro-action history summarizes completed achievements;
-- a visually grounded critic checks proposed raw coordinates against the current screenshot before execution;
-- the mechanism is specifically useful for catching execution/grounding errors.
-
-Project consequence: pre-execution visual critique is useful for uncertain coordinate, destructive or otherwise consequential GUI actions, not for every cheap semantic read.
-
-## WebArena
-
-Source:
-
-- https://arxiv.org/abs/2307.13854
-
-Verified:
-
-- realistic functional websites and long-horizon web tasks;
-- evaluation focuses on functional correctness of the resulting state.
-
-Project consequence: browser acceptance should prefer final predicates/system-of-record state over action-sequence similarity.
-
-## BrowserGym ecosystem
-
-Source:
-
-- https://arxiv.org/abs/2412.05467
-
-Verified:
-
-- unified observation/action spaces and a common harness across multiple web benchmarks.
-
-Project consequence: benchmark-specific adapters belong below a normalized project evaluation protocol. Benchmark APIs must not become the product-facing agent architecture.
-
-## ENVS / OSWorld-Noisy
-
-Source:
-
-- https://arxiv.org/abs/2606.22948
-
-Verified:
-
-- training-time search branches behaviorally distinct GUI actions in live environments and verifies successful leaves;
-- OSWorld-Noisy evaluates recoverable interruptions such as refocus/dismiss/wait/recover.
-
-Project consequence: verified branching is useful for training/evaluation, but production must use bounded known alternatives and a recovery state machine rather than broad speculative side effects.
-
-## Hybrid GUI-MCP
-
-Sources:
-
-- https://arxiv.org/abs/2608.03327
-- https://github.com/redai-infra/hybrid-routing-agent
-
-Verified:
-
-- the same MCP tool availability can help one policy and hurt another;
-- tool selection/integration semantics are a bottleneck;
-- a successful tool result can make subsequent screenshots redundant, and context policy materially affects cost/performance.
-
-Project consequence: capability availability is not a routing decision. A project-owned router must choose modalities by explicit preconditions/evidence and avoid redundant visual context after a verified semantic result.
-
-## MobileWorldSafety
-
-Source:
-
-- https://arxiv.org/abs/2608.17659
-
-Verified:
-
-- 142 risk tasks across real Android applications;
-- environmental injection uses untrusted application/tool content to induce unsafe behavior;
-- final-state risk indicators and a two-stage evaluator distinguish safety failure from capability failure.
-
-Project consequence: UI/DOM/email/page/tool-output content is **environmental data, not authority**. Task-success verification and safety/policy verification are separate concerns.
-
----
-
-# 2. Decisions promoted into the architecture
-
-## 2.1 State-first hybrid observation
-
-The normal preference order is:
+Normal preference:
 
 ```text
-project-owned semantic/native state
- -> structural DOM/AX/UIA/app adapter evidence
- -> selected screenshot/ROI evidence only when needed
+project-owned semantic/native/app state
+ -> DOM / accessibility / UIA / native app evidence
+ -> selected screenshot/ROI evidence when needed
 ```
 
-Pixels are not forbidden. They are selective evidence for spatial, visual-only, structure-missing or cross-check cases.
+Pixels are not forbidden; they are selective evidence.
 
-The Windows `DesktopState` remains the accepted Windows state representation. Future cross-capability integration should introduce a small normalized envelope rather than replacing capability-native state:
+Capability-native state remains authoritative for its scope:
+
+- Browser: page/DOM/accessibility/document/session state;
+- Windows: `DesktopState`, UIA/native process/window/frame evidence;
+- Files: rooted path/object/content/identity evidence;
+- future apps/sessions: their own system-of-record state.
+
+A future normalized envelope may reference native observations:
 
 ```text
 ObservationEnvelope
-  capability / app / page / window identity
-  observation version + timestamp/freshness
-  structural evidence reference
-  selected visual evidence reference (optional)
+  capability / app / page / window / session identity
+  observation version / freshness
+  structural/native evidence ref
+  selected visual evidence ref (optional)
   provenance / source
-  confidence / ambiguity where applicable
+  confidence / ambiguity where relevant
 ```
 
-This is a target schema, not yet a public Chat-facing tool schema.
+This is an internal target concept, not a current public tool schema.
 
-## 2.2 One mutating transition = bounded action + expected effect + re-observation + verification
+## One mutation = one bounded action + expected effect + fresh verification
 
-Every state-changing transition admitted into the deterministic Control Plane must define:
+Every consequence-bearing transition admitted by the Control Plane must define:
 
 ```text
-precondition/current-state evidence
-expected_effect / postcondition predicate(s)
+current-state precondition evidence
+stable logical operation identity
+ExpectedEffect / postcondition predicates
 authorized bounded action
-re-observation scope
-verification result = PASS | FAIL | UNKNOWN
+fresh re-observation scope
+verification = PASS | FAIL | UNKNOWN
+recovery / reconciliation policy
+budget impact
 ```
 
-Delivery receipts remain evidence of delivery only. They never imply success.
+Delivery receipts prove delivery only.
 
-The active Stage 26.3B foundation now gives this contract an internal deterministic representation: stream-bound `ObservationRef`, immutable bounded normalized `ObservationSnapshot`, declarative `ExpectedEffect` predicates and explicit `PASS | FAIL | UNKNOWN` results. This is foundation code only; capability adapters and production-procedure migration remain staged.
+Stage 26.3B accepted the shared Verification Kernel/Finish Gate foundation for recorded representative file/Browser/Windows scope. Capability-specific adapters continue to use that common contract without pretending every future capability is already accepted.
 
-## 2.3 Independent finish gate
-
-Transition verification and task completion are different layers.
-
-The planner may propose:
+## Independent Finish Gate
 
 ```text
-candidate_done
+planner/procedure/worker -> candidate_done
+ -> fresh task-level evidence batch
+ -> independent Finish Gate
+ -> DONE | NOT_DONE | UNKNOWN
 ```
 
-Only an independent completion gate may produce:
+Minimum dimensions may include:
 
 ```text
-DONE
+goal predicates
+user constraints
+freshness / required reconciliation
+artifact/browser/application final state
+unresolved required ambiguity/confirmation
+safety/policy predicates
 ```
 
-The finish gate evaluates explicit goal predicates against fresh evidence and must not rely solely on the planner's self-assessment or the historical action sequence.
+Transition PASS remains different from task DONE.
 
-Minimum completion dimensions:
+## WorkingState
 
-```text
-goal predicates satisfied
-constraint consistency
-required freshness/reconciliation completed
-no unresolved required ambiguity/confirmation
-required safety predicates satisfied
-```
+Stage 26.3C L1 WorkingState/reconciliation/budgets/LoopGuard foundation is accepted through #124.
 
-The active Stage 26.3B foundation requires completion verification receipts to be tied to concrete observations and to one explicit `evidence_batch_id`; unbound or mixed/older batch PASS receipts become `UNKNOWN` rather than being composed into `DONE`.
-
-For file tasks completion may require path + existence + identity/content/hash/structure. For browser/app tasks it may require URL/document/server-side/app state. Complex procedures may require a conjunction of checkpoint predicates.
-
-## 2.4 Structured WorkingState, not raw history replay
-
-Long-horizon state should preserve operational facts, not hidden reasoning.
-
-Target WorkingState fields:
+WorkingState may preserve:
 
 ```text
 user constraints
-current subgoals / progress
-verified completed achievements
-authoritative facts + provenance + freshness
-open questions / ambiguities
-current observation/evidence references
-expected vs observed state deltas
-retry/recovery history
-resource/action/time budgets
+subgoals / verified progress
+facts + provenance + freshness
+open ambiguities
+current evidence refs
+expected/observed deltas
+stable operation / attempt / reconciliation state
+recovery history
+task / procedure / strategy budgets
 ```
 
-ROI visual evidence may be retained only when operationally useful and under the same privacy/retention rules as other capture data.
+It never stores private chain-of-thought.
 
-Episodic memory may contain verified trajectories/procedures with applicability evidence. A raw successful trajectory is not automatically a trusted reusable skill.
+The L1 foundation does not automatically prove restart-safe effects for every production consumer; path-specific integration still needs acceptance.
 
-## 2.5 Typed recovery + LoopGuard
+## Typed recovery / reconciliation
 
-Recovery must be explicit state, not an unconstrained `try again` loop.
-
-Initial common failure vocabulary:
+Recovery is explicit state, not unconstrained retry.
 
 ```text
-target_missing
-target_ambiguous
-stale_state
-action_no_effect
-partial_effect
-unexpected_dialog
-navigation_changed
-tool_unavailable
-permission_denied
-unsafe_transition
-external_dynamic_change
+fresh re-observe
+ -> classify failure/outcome
+ -> reconcile ambiguous logical operation before retry
+ -> re-resolve target
+ -> retry only when current evidence permits it
+ -> alternate already-admitted modality
+ -> predeclared recovery branch
+ -> StagnationReport / ChatGPT replan / clarification / ABSTAIN
 ```
 
-Capability-specific failures may extend this vocabulary, but must map to a bounded recovery or escalation decision.
+Representative failure classes include missing/ambiguous target, stale state, no/partial effect, unexpected dialog, navigation change, tool unavailable, permission denial, unsafe transition and external dynamic change.
 
-Default recovery ladder:
+`OUTCOME_UNKNOWN` never means “try again blindly”.
 
-```text
-re-observe
- -> refresh/re-resolve target
- -> retry only when new evidence justifies it
- -> alternate admitted modality/capability
- -> predeclared local recovery branch
- -> ChatGPT replan / user clarification / ABSTAIN
-```
+## LoopGuard
 
-LoopGuard target evidence:
+LoopGuard detects repeated equivalent physical intents, no-effect retries, oscillation and exhausted budgets.
+
+Relevant state includes:
 
 ```text
-fingerprint(relevant_state, intended_subgoal, action_signature)
-no_effect_count
-action-family retry count
-oscillation window (A -> B -> A -> B)
-subgoal budget
-global task budget
-recovery escalation level
+physical/logical attempt fingerprint
 verified progress vector
+no-effect / retry counts
+oscillation window
+task / procedure / strategy budgets
+recovery escalation state
 ```
 
-Repeating an identical state/action fingerprint without new evidence or progress must not continue indefinitely.
+On stagnation, the deterministic layer stops further equivalent effects and emits diagnostic StagnationReport data to the ordinary-ChatGPT planner.
 
-## 2.6 Capability-aware routing
+## Capability-aware routing
 
-Backend/tool availability is not sufficient reason to choose it.
-
-Routing decisions must use capability/precondition evidence:
+Availability is not routing authority.
 
 ```text
-exact safe semantic/native operation available
+exact safe semantic/native route proven
  -> use it
 
-structure unavailable/insufficient for a reviewed case
- -> request selected visual/GUI grounding evidence
+structure insufficient for reviewed case
+ -> selected visual/GUI evidence route
 
-uncertain/ambiguous/high-consequence result
- -> additional verification or ABSTAIN
+ambiguous/high-consequence state
+ -> stronger evidence / reconciliation / ABSTAIN
 ```
 
-The router must remain deterministic/policy-bounded for admitted cases. It must not become another general planner or generic backend dispatcher.
+Routing remains deterministic/policy-bounded for admitted cases; it must not become a hidden general planner or generic backend dispatcher.
 
-## 2.7 Grounding returns identity evidence, not only coordinates
+## Grounding evidence
 
-A common future grounding proposal should be able to carry:
+A useful grounding proposal may carry:
 
 ```text
 semantic target identity
 role/name/state where available
-bounding region / coordinates when required
+bounding region / coordinates only when required
 source = structural | visual | hybrid
 observation/frame binding
 confidence
 ambiguity evidence
 ```
 
-Existing Browser and Windows grounders remain capability-specific implementations. Do not build a generic service merely for architectural symmetry before a measured integration need exists.
+Coordinates alone are not durable authority when stronger identity evidence exists.
 
-## 2.8 Environmental content is untrusted data
+## Browser / Windows integration
 
-Text or instructions observed inside:
+Existing Browser and Windows implementations remain capability-specific.
+
+The accepted Browser L3 backend is headless Playwright/Chrome on target Windows. Existing Windows foundations use DesktopState/native/UIA evidence and selected visual fallback.
+
+Future 26.5 hybrid integration may normalize common envelope/routing/recovery semantics, but does not require one universal runtime class or automatically add public tools.
+
+## Deliberately not adopted
+
+This architecture does **not** authorize:
+
+- screenshot-only computer use as normal loop;
+- unrestricted StateAct-like code/program-state authority;
+- raw hundreds-of-tools UIA/DOM/backend exposure;
+- generic `tool_invoke`/backend dispatch;
+- blind absolute-coordinate demonstration replay;
+- unbounded screenshot/action history replay;
+- learned memory/router/critic components without measured need;
+- mass speculative side effects in production;
+- model/critic verdict as authorization or task completion;
+- arbitrary local Python/shell execution;
+- future Windows/public tool names without separate contract/security/physical acceptance.
+
+## Current staged mapping
+
+Release order belongs to `ROADMAP.md`; this section only maps architectural adoption:
 
 ```text
-web pages / DOM
-email/messages
-application UI
-files/documents being processed
-third-party MCP/tool output
-screenshots/OCR
+26.3A procedure runtime                         accepted
+26.3B Verification Kernel + Finish Gate         accepted for recorded scope
+26.3C WorkingState/LoopGuard L1 foundation      accepted; production recovery integration active
+26.4 demonstration -> verified candidate skill future
+26.5 hybrid computer-use integration            future
 ```
 
-must not be allowed to redefine user intent, Control Plane policy, permission scope or safety rules merely because the planner can read them.
+Future implementation mechanisms are subject to fresh applicable Stage Research and `ARCHITECTURE_REUSE_BASELINE.md`; this architecture document does not pre-authorize a specific persistence/recovery framework.
 
-Task-success verification and safety verification are separate:
+## Evaluation direction
 
-```text
-task verifier: did the requested outcome occur?
-safety/policy gate: was the transition allowed and did it avoid prohibited consequence?
-```
-
-A task can be capability-successful and safety-failed; architecture and evaluation must preserve that distinction.
-
----
-
-# 3. What is deliberately NOT adopted
-
-The research does **not** authorize the following changes:
-
-- screenshot-only computer use as the normal control loop;
-- unrestricted code/program-state access from StateAct;
-- exposing raw UIA/DOM/backend graphs as hundreds of ChatGPT tools;
-- generic `tool_invoke`, backend dispatch or unrestricted execution surfaces;
-- blind absolute-coordinate replay from demonstrations;
-- replaying every screenshot/action in long-horizon context;
-- learned memory/router/critic components before project traces demonstrate a measured need;
-- mass speculative environment branching in production;
-- a critic/model verdict as authorization or final task completion;
-- exact future Windows public tool names without a separate public-contract ADR and physical ordinary-Chat acceptance.
-
-The current six-tool public surface remains accepted until a later reviewed capability contract changes it.
-
----
-
-# 4. Stage mapping
-
-## Stage 26.3B — Verification Kernel + Finish Gate — ACTIVE
-
-Current foundation and first file integration:
+Use layered evidence:
 
 ```text
-ObservationRef / ObservationSnapshot
-same-stream/capability/subject freshness
-bounded immutable normalized evidence
-ExpectedEffect / declarative predicates
-PASS | FAIL | UNKNOWN
-evidence_batch_id-bound Finish Gate
-separate task completion and safety/policy evidence
-bounded file/artifact observation stream
-verified_workspace_artifact_v1 transition + Finish Gate migration
-```
-
-The file integration is locally tested but still needs hosted CI and the ordinary-Chat physical completion/zero-overwrite regression. Remaining Stage 26.3B work then includes truthful Browser/Windows observation adapters, cross-capability completion predicates where needed and physical acceptance whenever those adapters change production procedure/action behavior.
-
-Model-assisted ambiguous judging, if ever added, remains non-authorizing evidence and must not replace system/native predicates when available.
-
-## Stage 26.3C — WorkingState + Typed Recovery + LoopGuard
-
-Implement:
-
-```text
-structured WorkingState v1
-facts + provenance + freshness
-progress/checkpoint vector
-failure taxonomy
-no-effect / repeated-state detection
-oscillation detection
-retry/action/time/resource budgets
-recovery escalation state
-```
-
-This generalizes the bounded retry/checkpoint mechanics already proved by Stage 26.3A.
-
-## Stage 26.4 — Demonstration -> Transferable Verified Candidate Skill
-
-Compile demonstrations into:
-
-```text
-subtask goals
-verifiable completion criteria
-advisory action/target evidence
-applicability/precondition evidence
-```
-
-At replay, live state is authoritative. Historical coordinates/action sequences are not executable authority. One demonstration remains at most CANDIDATE until replay/regression/variant evidence justifies promotion.
-
-## Stage 26.5 — Hybrid Computer-Use Integration
-
-After verifier/recovery/memory foundations are available, integrate Browser and Windows under common control-loop contracts:
-
-```text
-normalized ObservationEnvelope
-capability-aware routing
-common grounding proposal fields
-semantic/native first
-selective visual fallback
-component-level regression diagnostics
-cross-app state/provenance handling
-```
-
-Stage 26.5 does not automatically add public tools. A truthful Windows/computer-use Chat-facing surface still requires the separate ADR/schema/security/physical-acceptance gate already required by ADR-024.
-
----
-
-# 5. Evaluation direction
-
-External benchmarks are evidence sources and optional evaluation harnesses, not automatic release gates.
-
-The project should build a layered evaluation strategy:
-
-```text
-component/primitive diagnostics
+primitive/component diagnostics
  -> capability integration tests
  -> recovery/noisy-state fixtures
  -> long-horizon verified procedures
- -> selected external benchmark runs when reproducible and useful
+ -> selected external benchmark runs when reproducible/useful
 ```
 
-Useful references:
-
-- ComponentBench-style component diagnostics for route/interaction failure families;
-- BrowserGym/WebArena-style normalized browser evaluation and functional correctness;
-- OSWorld 2.0-style long-horizon state/freshness/hidden-state cases;
-- OSWorld-Noisy-style interruption/recovery cases;
-- MobileWorldSafety-style environmental injection and final-state safety predicates.
-
-Benchmark-specific optimizations must not leak into production policy unless they generalize to a project-owned invariant.
-
----
-
-# 6. Implementation order
-
-```text
-26.3A verified procedure runtime                         ACCEPTED
- -> 26.3B Verification Kernel + independent Finish Gate ACTIVE
- -> 26.3C WorkingState + typed recovery + LoopGuard
- -> 26.4 demonstration -> verified candidate skill
- -> 26.5 hybrid computer-use integration
- -> 27 distribution/maintenance
- -> 28 clean-user E2E / stable release
-```
-
-This order intentionally solves long-horizon correctness before broadening raw GUI authority.
+Benchmark-specific optimizations must not enter product policy unless they generalize to a project-owned invariant.

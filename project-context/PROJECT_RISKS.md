@@ -2,39 +2,39 @@
 
 ## Purpose
 
-This is the **single authoritative ranked risk register** for the current project. Other current documents may link to these risks but should not copy the full ranking or maintain competing scores.
+This is the **single authoritative ranked risk register**. Other current documents may link to these risks but must not maintain competing rankings/scores.
 
-Risk scores are engineering priority estimates, not claims of failure. Re-score only when new code, CI, physical evidence or product constraints materially change the risk. Always resolve live `main` and open PRs before acting.
+Risk scores are engineering priority estimates, not claims of failure. Re-score only when current code, CI, physical evidence or product constraints materially change the risk. Resolve live `main` and relevant open PRs first.
 
-## Current execution stop
+## Current execution boundary
 
-Stage 26.3B is accepted for the recorded representative scope. Browser and Windows representative L3 paths now have independent final-state/history evidence, and the Browser path has been repeated under the stronger source/install/full-dependency provenance methodology.
+Stage 26.3B is accepted/closed for its recorded representative scope.
 
-The current release-critical runtime target is Stage 26.3C: WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport. Exact accepted heads and physical result locations live in `EVIDENCE_INDEX.md`.
+Stage 26.3C WorkingState/LoopGuard **L1 foundation is accepted through #124**. The active release-critical reliability gap is production integration/restart reconciliation on consequence-bearing paths; concrete active PR/design status belongs in `CURRENT_STATE.md`.
+
+Exact accepted physical heads/result locations live in `EVIDENCE_INDEX.md`.
 
 ## Ranked risks
 
 | Rank | Risk | Score | Current status | Primary mitigation / close condition |
 |---|---|---:|---|---|
-| 1 | Broad real-application Windows/computer-use coverage is not yet proven | **9/10** | Open; representative Browser + Windows L3 verticals accepted | After 26.3C, run a deliberate cross-app physical matrix covering native Win32, Browser, Electron, office-style apps and standard file/dialog flows across DPI/focus/dialog/noise variants. Close only when accepted scope is materially broader and failures are characterized. |
-| 2 | Long-horizon verified continuation/recovery is not yet complete across capabilities | **8/10** | Open; now the active Stage 26.3C target | Implement project-owned WorkingState, typed failure/outcome classes, reconciliation, distinct budgets, LoopGuard and StagnationReport with deterministic adversarial tests. Close when a long task can survive ambiguous/failed steps without blind redelivery and still reach independently verified completion. |
-| 3 | Ordinary ChatGPT is the only current general planner | **7/10** | Accepted current dependency | Do not build a second planner now. After WorkingState v1 stabilizes, define a narrow planner-neutral proposal/escalation contract; a future second planner first runs shadow/proposal-only above the same deterministic Control Plane. |
-| 4 | Architecture/process/documentation complexity can grow faster than user-visible capability | **7/10** | Open; current docs drift confirmed after #118 | Keep live context small, keep exact evidence in `EVIDENCE_INDEX.md`, convert discovered defect classes into permanent tests, and require capability work to progress toward representative L3 rather than accumulating architecture-only layers. Close when status drift and duplicated invariants are routinely caught by CI/review. |
-| 5 | Packaging and clean-user installation are not release-grade | **6/10** | Open, intentionally deferred | Keep release packaging behind core reliability work. Close with clean-machine install/connect/permissions/ready/update/rollback evidence and Stage 28 clean-user E2E without developer-machine assumptions. |
-| 6 | Browser/computer-use security hardening is incomplete for broader authority | **6/10** | Open | Close Browser network/Site Capability debt before trusted-site JS/CDP/full-browser authority; add environmental-injection coverage, authenticated-session credential isolation, sensitive capture/demo policy and representative L3 evidence before widening authority. |
-| 7 | Runtime/process state ownership still has small hardening gaps | **5/10** | Open; fail-closed qualification caught one CWD-output issue | Make Browser/Playwright runtime output directories explicit under project-owned state/log roots, strengthen remaining local endpoint/session ownership where needed, and keep exact process-generation/cleanup tests. Close when runtime artifacts cannot escape into arbitrary caller/source CWD and ownership regressions fail deterministically. |
+| 1 | Broad real-application Windows/computer-use coverage is not yet proven | **9/10** | Open; representative Browser + Windows L3 verticals accepted | After the current 26.3C reliability integration, run a deliberate cross-app physical matrix across native Win32, Browser, Electron, office-style apps and standard file/dialog flows with DPI/focus/dialog/noise variants. Close only when accepted scope is materially broader and failures are characterized. |
+| 2 | Long-horizon verified continuation/recovery is not yet production-complete across capabilities | **8/10** | Open; L1 WorkingState/LoopGuard foundation accepted #124, production integration remains active work | Integrate the accepted state/reconciliation/LoopGuard model into real consequence paths, prove crash/restart and ambiguous-outcome handling without blind redelivery, then expand cross-capability. Close when long tasks can survive failed/ambiguous steps and still reach independently verified completion without duplicate effects. |
+| 3 | Ordinary ChatGPT is the only current general planner | **7/10** | Accepted current dependency | Do not build a second planner merely to reduce this score. After WorkingState production semantics stabilize, define the smallest planner-neutral proposal/escalation contract; any future second planner begins shadow/proposal-only above the same deterministic Control Plane. |
+| 4 | Architecture/process/documentation complexity can grow faster than user-visible capability | **7/10** | Open; repeated live-doc drift was found during the #128 documentation coherence sweep | Keep owners narrow (`CURRENT_STATE`, `ROADMAP`, `PROJECT_RISKS`, `EVIDENCE_INDEX`, reuse baseline), remove duplicated stage snapshots, make Stage Research compare prior reuse lineage, and convert defect classes into executable tests. Close when status/ownership drift is routinely caught by CI/review and current work no longer requires reconstructing overlapping prose. |
+| 5 | Packaging and clean-user installation are not release-grade | **6/10** | Open, intentionally deferred | Keep packaging behind core reliability/coverage. Close with clean-machine install/connect/permissions/ready/update/rollback evidence and Stage 28 clean-user E2E without developer-machine assumptions. |
+| 6 | Browser/computer-use security hardening is incomplete for broader authority | **6/10** | Open | Close Site Capability/network debt before trusted-site JS/CDP/full-browser authority; add environmental-injection coverage, authenticated-session credential isolation, sensitive capture policy and representative L3 evidence before widening authority. |
+| 7 | Runtime/process state ownership still has small hardening gaps | **5/10** | Open; #118 fail-closed qualification exposed runtime-CWD output ownership | Make Browser/Playwright runtime output directories explicit under project-owned state/log roots and keep process-generation/cleanup tests. Close when runtime artifacts cannot escape into arbitrary caller/source CWD and ownership regressions fail deterministically. |
 
-## Why 26.3B evidence changed the risk picture
+## Why the risk picture changed
 
-Representative Browser and Windows L3 proofs reduce uncertainty that the existing primitives can compose into useful work, but they do not close broad-coverage risk #1.
+Representative Browser/Windows L3 evidence reduced uncertainty that accepted primitives can compose into useful real work, but it did not close broad-coverage risk #1.
 
-More importantly, #118 demonstrated that independent verification/provenance gates are live: several invalid physical attempts were rejected for harness/runtime defects before a final accepted run succeeded. That is positive assurance behavior, not evidence that the defects should be ignored. Their classes are now represented in `MUTATION_ASSURANCE.md` for deterministic regression/adversarial expansion.
+PR #124 reduced the design risk around WorkingState/LoopGuard by accepting the L1 state-machine foundation. It did **not** close risk #2 because production consequence paths still need integration, crash/restart reconciliation and physical proof.
 
-The accepted Browser route is headless Playwright/Chrome on target Windows. It proves the semantic Browser consequence path, not visible headed desktop-browser control.
+PR #118 also demonstrated that provenance/Finish Gate mechanisms are live: invalid physical attempts were rejected for real harness/runtime defects before a final accepted run succeeded. Those defect classes belong in deterministic assurance, not in a waiver list.
 
-## L1/L2/L3 risk interpretation
-
-Passing primitive tests remains necessary but insufficient for risks #1, #2 or #4.
+## L1/L2/L3 interpretation
 
 ```text
 L1 primitive / contract proof
@@ -42,71 +42,59 @@ L1 primitive / contract proof
  -> L3 ordinary user goal + independent final-state/history proof
 ```
 
-Physical release evidence also needs source provenance when applicable. One L3 vertical remains scoped evidence, not a universal reliability claim.
+Passing L1 is necessary but insufficient for risks #1/#2. Physical release evidence additionally needs source/runtime provenance where the claim depends on exact executed bytes.
 
-## Browser Harness / ADR-036 risk interpretation
+One L3 vertical is scoped evidence, not universal reliability.
 
-ADR-036 remains architecture direction, not evidence that wider Browser authority is already safe or useful.
+## Architecture/process risk rule
 
-Trusted-site JS/CDP/full-browser authority cannot be accepted until the Site Capability / Browser Network Gate boundary is implemented and physically verified.
+Future architecture documents do not automatically reduce risk. A future ADR or selected upstream component is a hypothesis/boundary input until the relevant Stage Research and acceptance evidence prove the concrete mechanism.
 
-```text
-verification correctness now
- != automatic authority expansion
+When `stage-research` applies, `ARCHITECTURE_REUSE_BASELINE.md` must be used so new work explicitly checks whether it is duplicating/replacing an already selected mechanism or crossing a deliberately project-owned boundary.
 
-future trusted-site authority
- -> lower-level network/site policy
- -> security/physical acceptance
- -> representative L3 evidence
-```
+## Repository metadata / branch hygiene
 
-`trust destination != trust instructions` remains binding even for allowlisted sites.
+Repository metadata may still describe the project as `Rust-first` although current runtime is primarily Python + Node/MJS + PowerShell/Windows glue. This is technical-debt metadata, not a reason to rewrite working code.
 
-## Messaging / repository hygiene issue
+Historical branch refs may also look graph-ahead after squash merge or intentional supersession. Classify branches by associated PR/content before deletion; ahead/behind counts alone do not prove unfinished work. `TECH_DEBT.md` owns these close conditions.
 
-GitHub repository metadata may still describe the project as `Rust-first` although the current runtime is primarily Python + Node/MJS + PowerShell/Windows glue. Change repository metadata when settings write access is available; do not rewrite working code merely to satisfy stale metadata. This remains technical debt.
+## What is not currently a core problem
 
-The repository also retains many historical branch refs. Do not infer unfinished work from branch existence or `ahead/behind` counts alone: squash-merged source branches can appear graph-ahead even though their PR is merged. In the audited maintenance examples, `maintenance/tech-debt-architecture-ci` is the source branch of merged PR #95, while `maintenance/slim-live-context-docs` belongs to PR #96, which was closed without merge as intentionally superseded and retained for history. Branch cleanup therefore needs PR-disposition/content classification rather than bulk deletion or automatic merging.
-
-## What is not currently considered a core problem
-
-The following remain deliberate strengths unless evidence changes:
+These remain deliberate strengths unless evidence changes:
 
 - small project-owned public semantic surface;
-- semantic/native structure before pixels when reliable;
-- selective visual fallback rather than screenshot-only control;
+- semantic/native structure before pixels where reliable;
+- selective visual fallback;
 - shared Verification Kernel;
 - independent Finish Gate;
 - explicit `PASS | FAIL | UNKNOWN` and fail-closed continuation;
+- project-owned WorkingState/LoopGuard foundation;
 - L1 deterministic tests as diagnostic foundation;
 - L3 natural-language tasks with external evidence as realistic vertical proof;
-- UIA as one bounded Windows mechanism;
-- Python as a current implementation language;
-- PowerShell as Windows lifecycle/bootstrap glue;
 - disabled/unreachable generic shell/Windows code execution;
 - `ABSTAIN` instead of guessing under unresolved evidence.
 
 ## Priority rule
 
-Release-critical work should reduce the highest-ranked actionable risk **without skipping an unfinished prerequisite**. `ROADMAP.md` owns detailed stage order.
+Release-critical work should reduce the highest-ranked actionable risk without skipping prerequisites. `ROADMAP.md` owns exact order.
 
 Current immediate sequence:
 
 ```text
-Stage 26.3C WorkingState + typed recovery/reconciliation + LoopGuard/StagnationReport
+finish Stage 26.3C production WorkingState/restart-reconciliation integration
  -> broad real-app physical coverage gate
 ```
 
-A small Browser runtime-output ownership hardening and deterministic adversarial regressions for Stage 26.3B findings should land before or alongside the first 26.3C runtime slice because they directly protect the qualification/runtime substrate being reused.
+The small Browser runtime-output ownership hardening may land alongside the relevant runtime touch because it protects the qualification/runtime substrate already in use.
 
-Track M multi-chat and Track P local-planner work remain future/parallel and must not displace the release-critical path merely because they are architecturally interesting.
+Track M multi-chat and Track P local-planner work remain future/parallel and must not displace the release-critical path solely because they are architecturally interesting.
 
 ## Update policy
 
 When a risk materially changes:
 
-1. cite the code/CI/physical/product evidence that changed it;
+1. identify the code/CI/physical/product evidence that changed it;
 2. update score/status/close condition here;
 3. update `CURRENT_STATE.md` only if the live critical path changed;
 4. keep exact accepted heads/result paths in `EVIDENCE_INDEX.md`;
-5. do not copy the entire table into README, Roadmap, continuation notes or stage contracts.
+5. do not copy this ranking into README, Roadmap, continuation notes or Stage records.

@@ -1,257 +1,204 @@
 # CAP Mutation Assurance
 
-Status: **pilot / provisional**. This document defines the mutation-testing and adversarial-verification direction for Chat Agent Platform. It does not change production authority, public Chat-facing tools, or current Stage 26 acceptance semantics.
+Status: **CURRENT ASSURANCE DIRECTION / CAP-M0 ACCEPTED / BROADER CATALOG STAGED**.
+
+This document defines mutation-testing and adversarial-verification direction. It does not change production authority, public Chat-facing tools or acceptance semantics by itself.
 
 ## Purpose
 
-Chat Agent Platform needs more than a generic mutation score. The important question is whether a concrete weakening of a verification, provenance, recovery, or completion guarantee is detected by an independent test or gate.
+The important question is not a generic mutation percentage. It is whether a concrete weakening of a verification, provenance, recovery or completion guarantee is detected by an independent test/gate.
 
-The project therefore uses three complementary layers:
+Use three complementary layers:
 
-1. **Generic source mutation testing** — useful for finding unexpected weak spots in ordinary Python tests.
-2. **Curated Guarantee Mutation Suite** — explicit mutants tied to named architectural guarantees and expected detectors.
-3. **Adversarial behavioral verification** — deterministic fault injection and hostile state/action sequences that exercise multiple individually-correct components together.
+1. generic source mutation experiments for ordinary test weakness;
+2. curated **Guarantee Mutation Suite** tied to named architecture guarantees/detectors;
+3. adversarial behavioral/fault-injection tests for multi-component failure sequences.
 
-The primary project metric is **Verification Guarantee Coverage**, not raw mutation percentage. Behavioral adversarial cases are tracked as named guarantees with explicit independent oracles rather than folded into a single opaque coverage percentage.
+Primary metric for curated critical guarantees is **Verification Guarantee Coverage**, not raw mutation score.
 
-## Sequence and merge ordering
+## Current accepted assurance state
 
-PR #115 completed its target-Windows ordinary-Chat physical L3 acceptance and was merged into `main` as `e965e7b5466446c9f065f6b57f438f25168bed9a`. CAP-M0 was then accepted through PR #117.
+CAP-M0 is accepted: the Verification Kernel curated pilot proved its unmutated baseline and killed the accepted curated mutant set using detector tests bound to the actual mutated source overlay.
 
-PR #118 completed the remaining representative Browser L3 source-provenance repeat on exact head `e29517fdf1c940d36bc822cfcc1a729ed7dd9574` and was squash-merged as `b3a23e34f6b550146e3169707f795a193e76eaf9`.
+Representative Browser/Windows physical gates also exposed real acceptance-harness defect classes. Invalid runs were rejected rather than waived.
 
-The accepted independent frozen Finish Gate proved clean-tree/source/install/full Node dependency revalidation after ordinary-Chat Browser actions, exactly one target save and audit mutation, unchanged decoys, `EXTERNAL_FINISH_GATE=DONE`, and fixture/guardian cleanup PASS. Earlier qualification attempts exposed real harness defects and were rejected rather than waived: culture-sensitive guardian READY parsing, a manifest producer/consumer process-generation field mismatch, and Playwright runtime output contaminating the source worktree when the qualification process inherited that CWD.
+Stage 26.3C has an accepted L1 WorkingState/typed reconciliation/budget/LoopGuard foundation. CAP-M7 therefore targets **production integration/restart behavior** rather than merely proving that the state types exist.
 
-Current order:
+## CAP-M0 invariant
 
-1. merge this documentation-only adversarial-assurance replay onto accepted post-#118 `main` after hosted checks pass;
-2. convert already-discovered defect classes into deterministic permanent adversarial/guarantee tests rather than relying on future review rediscovery;
-3. implement the first Stage 26.3C WorkingState / typed Recovery / reconciliation / LoopGuard slice with CAP-M7 adversarial contracts designed alongside the guarantees;
-4. keep expensive physical mutation/adversarial execution for consequence boundaries that deterministic evidence cannot faithfully represent;
-5. do not widen the accepted six-tool public surface merely to implement assurance or recovery internals.
+A mutant is `KILLED` only when the named detector actually observes the mutated target and fails for the intended guarantee. Import errors, harness failures, timeouts, wrong detector cardinality, wrong-source resolution or compile failures are `ERROR`, never `KILLED`.
 
-CAP-M0 remains independent from Browser/Windows physical consequence paths: it mutates isolated temporary verifier copies during tests and does not modify accepted production verifier behavior.
+The mutated verifier/checker cannot be its own oracle.
 
-## CAP-M0 — Verification Kernel pilot
+## Adversarial test shape
 
-Production mutation target is intentionally limited to:
+Every behavioral case states:
 
-`runtime/control_plane/verification.py`
-
-The pilot does not mutate Browser E2E, Windows physical qualification, PowerShell gates, or application fixtures.
-
-The initial curated suite contains 12 deterministic mutants covering:
-
-- FAIL precedence;
-- UNKNOWN never becoming PASS;
-- strict observation sequence freshness;
-- capability identity;
-- subject identity;
-- observation-stream identity;
-- ambiguity handling;
-- missing fields on complete observations;
-- Finish Gate evidence-batch binding;
-- `candidate_done` not self-authorizing completion;
-- unresolved completion requirements;
-- safety failure independently blocking DONE.
-
-Each mutant records:
-
-- stable ID;
-- guarantee being violated;
-- mutation anchor and replacement;
-- human-readable expected detector;
-- exact `unittest` detector selector used to prove the kill.
-
-The runner copies `runtime/control_plane` into an isolated temporary overlay and applies exactly one source mutation. The unmutated baseline still runs the full bounded Verification Kernel test modules and must pass. Each mutant then runs only its named detector test through a structured `unittest.TestResult` protocol.
-
-A mutant is `KILLED` only when exactly one named detector test ran and that test produced an ordinary assertion failure with zero test errors, skips, expected failures, or unexpected successes. A passing named detector is `SURVIVED`. Import/load/runtime errors, wrong detector cardinality, timeouts, mutation-anchor drift, compile failures, malformed detector results, or non-zero detector-harness process exits are `ERROR`, never `KILLED`.
-
-The detector process must also report the resolved `runtime.control_plane.verification` module path, and the runner requires it to equal the exact mutated overlay target. External `PYTHONPATH` state is not inherited into detector resolution. This prevents tests accidentally importing the unmutated checkout while a mutation is applied elsewhere.
-
-These distinctions are required so unrelated test-process failures or source-resolution mistakes cannot inflate Verification Guarantee Coverage.
-
-## Metric
-
-For curated critical guarantees:
-
-`Verification Guarantee Coverage = killed curated mutants / total curated mutants`
-
-CAP-M0 acceptance target is `12 / 12 KILLED` with zero `SURVIVED`, zero `ERROR`, a passing unmutated baseline, and exact mutated-source binding for every detector run.
-
-`KILLED` means **named detector assertion failure against the mutated target**, not merely a non-zero test-process exit code.
-
-Raw mutation score from a future generic engine is secondary and must not replace this guarantee-oriented report.
-
-## Adversarial verification model
-
-The next expansion must target defects that ordinary unit/contract tests and happy-path physical tests are structurally weak at detecting: stale evidence, trust-boundary composition, time-of-check/time-of-use races, process-generation confusion, cleanup ordering, mutate-and-restore history, incomplete provenance closure, and runtime artifacts escaping their intended state directory.
-
-A behavioral adversarial test should state four things explicitly:
-
-1. **Guarantee** — the architectural promise being tested.
-2. **Fault/attack** — the minimum deliberate weakening or hostile sequence.
+1. **Guarantee** — architecture promise being tested.
+2. **Fault/attack** — minimum weakening/hostile sequence.
 3. **Independent oracle** — evidence not controlled by the mutated component.
 4. **Required result** — FAIL / UNKNOWN / NOT_DONE / no delivery / no unrelated mutation, as appropriate.
 
-A failure of the test harness, missing fixture, import error, timeout without a classified expected outcome, or wrong source binding is never evidence that the guarantee held.
+Harness failure is never proof that the guarantee held.
 
-## Concrete post-26.3B adversarial catalog
+## Current permanent defect families
 
-The following catalog is derived from real Stage 26.3B review and physical-gate failure classes. IDs are stable planning identifiers; implementation may split one row into multiple platform-specific cases while preserving the guarantee.
+### Source provenance / executed-byte closure — CAP-M6
 
-### Source Provenance / executed-byte closure — CAP-M6
+| ID | Fault | Required result |
+|---|---|---|
+| `SRC-001` | wrong exact qualification HEAD | fail before consequence path |
+| `SRC-002` | dirty tracked source | fail |
+| `SRC-003` | runtime artifact appears in source worktree during qualification | provenance revalidation fail |
+| `SRC-004` | installed runtime differs from independently materialized expected source | fail |
+| `SRC-005` | executed runtime helper omitted from attestation | closure meta-test fail |
+| `SRC-006` | transitive runtime dependency omitted from complete-tree proof | fail |
+| `SRC-007` | committed lock correct but installed dependency bytes modified | fail |
+| `SRC-008` | source changes after prepare before Finish Gate | fail / NOT_DONE |
+| `SRC-009` | installed semantic runtime changes after prepare | fail / NOT_DONE |
+| `SRC-010` | old provenance reused after an invalidating Chat action | reject old evidence; no DONE |
 
-| ID | Adversarial fault | Required oracle/result |
-| --- | --- | --- |
-| `SRC-001` | qualification starts from the wrong exact HEAD | provenance gate FAIL before consequence path |
-| `SRC-002` | tracked staged/unstaged source is dirty | provenance gate FAIL |
-| `SRC-003` | untracked runtime artifact appears inside the source worktree during qualification | provenance revalidation FAIL; runtime output must be isolated outside source |
-| `SRC-004` | installed runtime is already modified before first local measurement | independently materialized exact-lock/source reference disagrees; FAIL |
-| `SRC-005` | a directly imported runtime helper is omitted from attestation | provenance-closure meta-test FAIL |
-| `SRC-006` | a transitive Node dependency is omitted from an allowlist-style proof | full installed-tree vs fresh exact-lock materialization FAIL |
-| `SRC-007` | committed lock remains correct but installed package bytes are modified | installed-byte proof FAIL |
-| `SRC-008` | source bytes change after prepare but before Finish Gate | Finish Gate provenance revalidation FAIL/NOT_DONE |
-| `SRC-009` | installed semantic-runtime bytes change after prepare | guardian/revalidation FAIL/NOT_DONE |
-| `SRC-010` | an intervening Chat action invalidates provenance freshness and old evidence is reused | old evidence is rejected; no DONE |
-
-`SRC-005` and `SRC-006` must not regress into manually maintained package/file allowlists. The detector should derive or compare the complete runtime load/install closure so adding a new executed dependency without provenance coverage makes the test fail automatically.
+Closure tests should derive/compare actual runtime/install closure rather than maintain fragile allowlists where practical.
 
 ### Finish Gate / stale evidence — CAP-M5/M6
 
-| ID | Adversarial fault | Required oracle/result |
-| --- | --- | --- |
-| `FINISH-101` | reuse a previously valid evidence batch after an invalidating action | `NOT_DONE` or `UNKNOWN`, never DONE |
-| `FINISH-102` | implementation emits authoritative PASS/DONE before cleanup completes | independent detector rejects ordering |
-| `FINISH-103` | final-state verification passes but cleanup fails | no authoritative PASS/DONE survives |
-| `FINISH-104` | final state matches after target mutate -> restore history | history-sensitive predicate still reports forbidden mutation |
-| `FINISH-105` | a decoy/non-target is mutated and restored | Finish Gate rejects despite equal final bytes/state |
+| ID | Fault | Required result |
+|---|---|---|
+| `FINISH-101` | reuse previously valid evidence after invalidating action | NOT_DONE/UNKNOWN |
+| `FINISH-102` | authoritative PASS/DONE emitted before required cleanup completes | ordering rejected |
+| `FINISH-103` | final-state predicates pass but cleanup fails | no authoritative DONE |
+| `FINISH-104` | target mutated then restored | history-sensitive constraint still reports mutation where required |
+| `FINISH-105` | non-target mutated then restored | Finish Gate rejects where non-target integrity is required |
 
-### Process / fixture ownership and cleanup — CAP-M5
+### Process / fixture ownership — CAP-M5
 
-| ID | Adversarial fault | Required oracle/result |
-| --- | --- | --- |
-| `PROC-101` | recorded PID exits and is reused by an unrelated process before cleanup | unrelated process is never killed; generation mismatch is detected |
-| `PROC-102` | harness crashes immediately after spawning one or more owned children | all actually-owned children are cleaned or explicitly reported unresolved; no false PASS |
-| `PROC-103` | semantic transport or fixture dies/restarts between prepare and Finish Gate | process-generation continuity fails |
-| `PROC-104` | cleanup executes against stale ownership metadata | fail closed; no kill of unowned generation |
-| `PROC-105` | serialized process-start timestamp is reparsed through locale-sensitive text conversion | deterministic numeric/generation identity path must reject or avoid locale-dependent ambiguity |
+| ID | Fault | Required result |
+|---|---|---|
+| `PROC-101` | recorded PID exits/reuses unrelated process generation | unrelated process never killed |
+| `PROC-102` | harness crashes after spawning owned children | owned children cleaned or explicitly unresolved; no false PASS |
+| `PROC-103` | transport/fixture restarts between prepare and Finish Gate | generation continuity fails |
+| `PROC-104` | cleanup uses stale ownership metadata | fail closed; no kill of unowned generation |
+| `PROC-105` | process-start identity relies on locale-sensitive text | deterministic generation identity avoids/rejects ambiguity |
 
 ### Fixture freeze / atomic evidence — CAP-M5
 
-| ID | Adversarial fault | Required oracle/result |
-| --- | --- | --- |
-| `FIX-101` | late or in-flight save races with fixture freeze | save is blocked or excluded before authoritative snapshot; no split-brain PASS |
-| `FIX-102` | final evidence write is interrupted halfway | partial snapshot is never accepted as authoritative |
-| `FIX-103` | freeze endpoint is replayed with stale/wrong authentication material | no state transition/final snapshot |
-| `FIX-104` | fixture used by checker is dead/unreferenced while a decoy fixture remains live | fixture-liveness/identity contract rejects the run |
-| `FIX-105` | manifest producer and frozen checker use different field names/schema versions | contract/meta-test fails before physical acceptance |
+| ID | Fault | Required result |
+|---|---|---|
+| `FIX-101` | late/in-flight mutation races authoritative freeze | blocked/excluded before final snapshot; no split-brain PASS |
+| `FIX-102` | final evidence write interrupted | partial snapshot never authoritative |
+| `FIX-103` | freeze endpoint replayed with stale/wrong auth | no final-state transition |
+| `FIX-104` | checker fixture dead while decoy remains | fixture identity/liveness rejects run |
+| `FIX-105` | producer/consumer evidence schema diverges | contract fails before physical acceptance |
 
-### Action/observation timing — CAP-M3/M5
+### Action / observation timing — CAP-M3/M5
 
-| ID | Adversarial fault | Required oracle/result |
-| --- | --- | --- |
-| `OBS-101` | physical action is delivered once but UI postcondition appears only after a short delay | bounded fresh re-observation may verify; action is not blindly redelivered |
-| `OBS-102` | BEFORE and AFTER resolve to same/non-advancing observation | UNKNOWN/stale; never PASS |
-| `OBS-103` | subject/capability/stream changes between delivery and verification | UNKNOWN/FAIL; never PASS |
-| `TIME-101` | outer timeout is shorter than delivery + verification grace | contract test rejects configuration rather than producing ambiguous duplicate attempts |
+| ID | Fault | Required result |
+|---|---|---|
+| `OBS-101` | delivered action has delayed postcondition | bounded fresh observation may verify; no blind redelivery |
+| `OBS-102` | BEFORE/AFTER non-advancing | UNKNOWN/stale |
+| `OBS-103` | subject/capability/stream changes after delivery | UNKNOWN/FAIL |
+| `TIME-101` | outer timeout shorter than delivery + verification window | configuration contract rejects ambiguity |
 
-### Public authority / surface — CAP-M4/M5
+### Public authority — CAP-M4/M5
 
-| ID | Adversarial fault | Required oracle/result |
-| --- | --- | --- |
-| `AUTH-101` | seventh/raw Chat-facing tool or generic dispatch surface is added | public-surface contract fails |
-| `AUTH-102` | backend/executor/PID/HWND/selector authority leaks into a bounded public procedure schema | schema/authority contract fails |
-| `AUTH-103` | evidence object is treated as a grant/authorization token | independent policy/authority test rejects the operation |
+| ID | Fault | Required result |
+|---|---|---|
+| `AUTH-101` | raw/generic seventh tool added without accepted consequence contract | public-surface contract fails |
+| `AUTH-102` | backend/PID/HWND/selector/raw execution authority leaks into bounded public procedure | schema/authority contract fails |
+| `AUTH-103` | evidence object treated as grant | policy/authority test rejects operation |
 
-## Meta-tests: prove the assurance system itself is live
+## CAP-M7 — WorkingState / recovery / LoopGuard production composition
 
-The adversarial suite must contain tests of its own liveness so a refactor cannot leave a green but disconnected qualification fixture or mutation detector.
+The L1 foundation exists; CAP-M7 proves that consequence-bearing consumers preserve it under restart, delivery ambiguity and concurrent execution.
 
-Required meta-guarantees:
+Permanent guarantee families include:
 
-- every curated mutant changes exactly the intended source anchor or structured fault point;
-- every named detector proves it loaded/observed the mutated target, not the checkout baseline;
-- every evidence-corpus case has a known expected result independent from the implementation being tested;
-- adding a new runtime dependency causes provenance-closure tests to fail until it is covered;
-- removing an adversarial fixture from the production/qualification path causes a fixture-liveness test to fail;
-- producer/consumer evidence schemas are checked for field/version parity before physical qualification;
-- runtime/browser diagnostic output is directed to owned state locations rather than the source checkout;
-- an intentionally weakened reference implementation for each major family is rejected by at least one named detector.
+- `WS-*` — stale/mismatched WorkingState/provenance cannot authorize another effect;
+- `REC-*` — ambiguous delivery reconciles from fresh authoritative state before retry;
+- `LOOP-*` — repeated equivalent physical intents/budgets fail closed before unbounded redelivery;
+- restart cannot replay a proven-applied logical operation;
+- durable history cannot attach another actor/environment/generation/evidence stream;
+- `candidate_done` and stale success remain non-authoritative after recovery;
+- `StagnationReport` is diagnostic/escalation data, not grant/planner;
+- concurrent duplicate resume/caller cannot produce an extra consequence;
+- persistence failure between intent/delivery/outcome checkpoints cannot silently authorize redelivery;
+- identity replacement/ABA or same-state-but-different-object ambiguity fails closed where ownership identity matters;
+- unresolved mutating outcome blocks unsafe compensation/rollback and unrelated continuation.
+
+For each consequence-bearing recovery consumer, derive the concrete fault-injection matrix from its accepted Stage Research Brief and effect model. Typical cases include:
+
+```text
+concurrent duplicate resume -> loser performs zero mutation
+process death -> exclusive ownership becomes safely recoverable
+intent/preparation state is persisted before effect delivery where required
+crash after delivery before durable outcome -> reconcile before redelivery
+recovery-commit persistence failure -> no blind duplicate effect
+same visible/content state but wrong object identity -> UNKNOWN/conflict where identity matters
+ABA delete/recreate -> stale ownership is rejected
+unresolved outcome -> compensation/next mutation blocked
+```
+
+These examples are reusable defect classes, not a specification of one active PR. The exact storage primitive, lock, identity tuple or recovery protocol belongs to the relevant current Stage Research/implementation owner.
+
+Deterministic CAP-M7 tests do not replace a required physical gate when the guarantee depends on a real target consequence that hosted tests cannot represent faithfully.
+
+## Meta-tests: prove assurance liveness
+
+Required principles:
+
+- each curated mutant changes exactly the intended source/fault point;
+- named detector proves it loaded/observed the mutated target;
+- evidence-corpus expected outcome is independent from mutated implementation;
+- new runtime dependencies cannot silently escape provenance coverage;
+- producer/consumer evidence schemas are checked for parity;
+- runtime diagnostics stay in owned state locations rather than source checkout;
+- removing/disconnecting a qualification fixture causes a liveness failure rather than a green no-op;
+- intentionally weakened references for each major family are rejected by at least one named detector.
 
 ## Codex Review -> permanent guarantee workflow
 
-Codex Review remains an additive independent reviewer, not a release oracle and not an excuse for weak executable assurance.
+Independent review is additive, not a release oracle and not a substitute for executable assurance.
 
-Every concrete review finding that identifies a new defect class should follow this conversion path:
+For a concrete new defect class:
 
-`finding -> minimal fix -> focused regression -> named guarantee -> curated mutant and/or adversarial case -> permanent suite`
+```text
+finding
+ -> minimal fix
+ -> focused regression
+ -> named guarantee
+ -> curated mutant and/or adversarial case
+ -> permanent suite
+```
 
-The goal is that Codex Review increasingly searches for **new classes of defects**. Previously discovered classes should be caught deterministically before review.
+The same applies to physical-gate findings. A gate that catches a harness/runtime defect is useful evidence that the gate is live, but that failed run is not acceptance.
 
-Physical qualification findings follow the same rule. A physical gate that catches a harness/runtime defect is useful evidence that the gate is live, but that run is not acceptance; the defect class must be converted into a deterministic regression whenever feasible.
-
-If Codex Review is unavailable because of quota or service availability, the project may continue according to its documented acceptance policy only when required hosted/physical gates pass. The unavailable independent-review layer must not be represented as completed.
-
-## Planned expansion
-
-After CAP-M0:
-
-- **CAP-M1**: extend Verification Kernel guarantee catalog and optionally compare against a generic Python mutation engine.
-- **CAP-M2**: observation adapters (`browser_observation.py`, `file_artifact_observation.py`, `windows_observation.py`).
-- **CAP-M3**: transition verification (`browser_transition.py`, `windows_transition.py`), including delayed observation/no-redelivery timing cases.
-- **CAP-M4**: expand the curated Guarantee Mutation Suite and registry/reporting, including public-authority invariants.
-- **CAP-M5**: acceptance-system mutants and behavioral adversarial cases against deterministic evidence corpora; reserve real physical mutants for guarantees that cannot be faithfully represented without a live consequence boundary.
-- **CAP-M6**: Source Provenance mutants and closure meta-tests: exact HEAD, clean tree, untracked/runtime-output isolation, full runtime/dependency closure, installed AppRoot binding, OpenAdapt/runtime binding, frozen qualification code, and Finish Gate revalidation.
-- **CAP-M7**: Stage 26.3C mutants designed together with WorkingState, Recovery, reconciliation and LoopGuard.
-- **CAP-M8**: CI tiers — deterministic critical mutants on PRs, larger state-machine/generic mutation runs scheduled/manual, and physical mutation-contract checks only for release/acceptance consequence boundaries.
-
-## Stage 26.3C design obligations — CAP-M7
-
-WorkingState / Recovery / LoopGuard should land with adversarial contracts from the first implementation PR. At minimum plan for:
-
-- stale WorkingState cannot authorize a new physical effect;
-- a structured failure reason survives handoff/retry and changes the next strategy rather than causing an identical blind attempt;
-- ambiguous delivery is reconciled by observation before retry;
-- repeated physical attempt fingerprints trip LoopGuard before unbounded redelivery;
-- task/procedure/strategy budgets are distinct and exhaustion is fail-closed;
-- recovery after process restart does not replay a proven committed effect;
-- recovery cannot attach another actor/session/process generation's evidence to the current work item;
-- `candidate_done` and stale success evidence remain non-authoritative after recovery;
-- StagnationReport is diagnostic/escalation data, not a grant or second planner.
-
-These guarantees should be implemented as deterministic state-machine/fault-injection tests where possible, with physical qualification only for consequence boundaries that deterministic evidence cannot faithfully model.
+If Codex Review/equivalent independent review is unavailable, do not represent it as completed; follow the merge policy in `AGENTS.md` for whether the change class may proceed without it.
 
 ## CI tiers
 
-Do not run every expensive assurance mechanism on every commit.
+- **T0 every PR:** ordinary unit/contract tests + fast critical assurance for changed modules.
+- **T1 critical-path PR:** relevant CAP-M family, deterministic corpus and provenance closure selected by changed path.
+- **T2 scheduled/manual:** broader state-machine/generic mutation/adversarial corpus.
+- **T3 release/qualification:** exact-head target-Windows/Browser/application physical gates where real consequences are required.
 
-- **T0 — every PR:** ordinary unit/contract tests plus fast P0 curated guarantee mutants/adversarial cases for changed critical modules.
-- **T1 — critical-path PR:** relevant CAP-M family, deterministic evidence corpus and source/provenance closure checks selected by changed paths.
-- **T2 — scheduled/manual:** broader state-machine sequences, generic mutation engine experiments and extended adversarial corpus.
-- **T3 — release/qualification:** exact-head target-Windows / Browser / application physical gates for guarantees requiring real consequences.
+A conditional/path-filtered check is not automatically a universal merge requirement; use a stable required aggregator if later made merge-critical.
 
-A T2/T3 test is not automatically a required repository status check unless it is guaranteed to run for every PR in the protected scope. Conditional/path-filtered assurance should instead be summarized by a stable required aggregator if it later becomes merge-critical.
+## Planned family progression
 
-## Future ID families
+```text
+CAP-M0 Verification Kernel pilot                         ACCEPTED
+CAP-M1 broader Verification Kernel mutants              staged
+CAP-M2 observation adapters                             staged
+CAP-M3 transition verification/timing                   staged
+CAP-M4 authority/registry/reporting guarantees          staged
+CAP-M5 acceptance-system behavioral adversarial cases   staged/current source of permanent defects
+CAP-M6 source provenance / closure                      accepted physical lessons + further deterministic hardening
+CAP-M7 WorkingState/recovery/LoopGuard production use   ACTIVE during Stage 26.3C integration
+CAP-M8 assurance CI tiering/aggregation                 future
+```
 
-- `VK-*` — Verification Kernel
-- `OBS-*` — observation integrity
-- `BROWSER-*` — browser transition verification
-- `WIN-*` — Windows transition verification
-- `FINISH-*` — Finish Gate
-- `SRC-*` — Source Provenance
-- `PROC-*` — process ownership/cleanup
-- `FIX-*` — qualification fixture/freeze/atomic evidence
-- `AUTH-*` — public/internal authority boundaries
-- `TIME-*` — timeout/retry timing contracts
-- `WS-*` — WorkingState
-- `REC-*` — recovery/reconciliation
-- `LOOP-*` — LoopGuard and budgets
-- `SESSION-*` — future Track M agent-session/delegation guarantees
+Do not create one new testing framework/workflow per CAP family. Reuse the same assurance mechanisms where possible.
 
 ## Independence rule
 
-A mutated verifier/checker cannot be its own oracle.
-
-Acceptance-system mutation tests must use an independent known-result corpus or meta-oracle. Physical mutation runs are justified only when the guarantee depends on a real delivery/target/freshness/identity consequence that cannot be proven from deterministic evidence alone.
+A mutated verifier/checker cannot be its own oracle. Physical mutation runs are justified only when the guarantee depends on a live delivery/target/freshness/identity consequence that deterministic evidence cannot faithfully represent.
