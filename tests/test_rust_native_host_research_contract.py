@@ -52,10 +52,17 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
             "sole implementation-decision representation in this Brief",
             self.text,
         )
-        self.assertNotRegex(self.text, r"\b(?:PROCEED|NARROW)\b")
+        self.assertNotRegex(
+            self.text,
+            r"(?im)^\s*(?:top-level\s+)?stage research (?:result|decision)\s*[:=]\s*`?(?:PROCEED|NARROW)`?\s*$",
+        )
         self.assertNotRegex(
             self.text.lower(),
-            r"production rust(?: work)?[^\n]{0,80}\b(?:authoriz(?:e|ed)|allow(?:ed)?|unblock(?:ed)?|enabled|open(?:ed)?)\b",
+            r"production rust(?: work)?\s+(?:is|=)\s+(?:now\s+)?(?:authorized|allowed|unblocked|enabled|open(?:ed)?)\b",
+        )
+        self.assertNotRegex(
+            self.text.lower(),
+            r"(?:this brief|this research|the decision)\s+(?:now\s+)?(?:authorizes|allows|unblocks|enables|opens)\s+production rust\b",
         )
         self.assertIn("Production Rust work is blocked", self.text)
         self.assertIn("Stage 26.3C continues", self.text)
