@@ -100,6 +100,7 @@ Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, m
 | `SECURITY_POLICY.md` | **AUTHORITATIVE CURRENT POLICY** | trust, authorization, environmental-content and consequence boundaries |
 | `CONSTRAINTS.md` | **CURRENT CONSTRAINTS** | project-wide hard constraints consistent with `AGENTS.md` and accepted architecture |
 | `DEVELOPMENT_PRINCIPLES.md` | **CURRENT DEVELOPMENT PRINCIPLES** | stable engineering principles; subordinate to `AGENTS.md` where process wording differs |
+| `COST_POLICY.md` | **CURRENT COST POLICY** | baseline no-extra-subscription/cost boundary |
 | `MODULE_SELECTION_POLICY.md` | **AUTHORITATIVE MODULE-SELECTION POLICY** | external-component selection/adaptation/reuse rules |
 | `MODULE_CATALOG.md` | **CURRENT CAPABILITY CATALOG** | capability/component inventory and role/status reference; live evidence still wins |
 | `ARCHITECTURE_REUSE_BASELINE.md` | **AUTHORITATIVE RESEARCH COMPARISON BASELINE** | prior selected external/project-owned role lineage for applicable `stage-research` |
@@ -107,10 +108,8 @@ Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, m
 | `REAL_TASK_ACCEPTANCE.md` | **AUTHORITATIVE ACCEPTANCE CONTRACT** | L1/L2/L3 evidence depth and real-task rules |
 | `SOURCE_PROVENANCE_ACCEPTANCE.md` | **AUTHORITATIVE PHYSICAL-PROVENANCE METHOD** | exact executed-source/install/runtime binding |
 | `MUTATION_ASSURANCE.md` | **CURRENT ASSURANCE DIRECTION** | guarantee mutation/adversarial assurance and CAP-M families |
-| `DIRECT_SEMANTIC_TUNNEL.md` | **CURRENT TRANSPORT REFERENCE** | accepted direct semantic tunnel route and its bounded lifecycle details |
+| `TRANSPORT_SUPERVISOR.md` | **CURRENT TRANSPORT RELIABILITY OWNER** | accepted supervisor desired-state/recovery/ownership boundary |
 | `EXTENSION_MANAGER.md` | **CURRENT OPTIONAL-EXTENSION REFERENCE** | optional 1MCP Extension Manager role; never baseline transport/authority |
-| `LOCAL_SPECIALIST_INFERENCE.md` | **CURRENT SPECIALIST-INFERENCE REFERENCE** | accepted local specialist/VLM boundary |
-| `ACTIVE_VISUAL_GROUNDING.md` | **CURRENT VISUAL-GROUNDING REFERENCE** | accepted bounded grounding direction/limitations |
 | `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | **CURRENT COMPATIBILITY REFERENCE** | frozen ChatGPT action/schema compatibility and migration limits |
 
 ## Provisional/future architecture
@@ -123,16 +122,19 @@ These documents define reviewed future boundaries but **do not add current runti
 | `BROWSER_HARNESS_ARCHITECTURE.md` | **PROVISIONAL FUTURE ARCHITECTURE / ADR-036** |
 | `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md` | **PROVISIONAL FUTURE ARCHITECTURE / ADR-037** |
 
-`AVO_LONG_HORIZON_ARCHITECTURE.md` is a **reviewed external-mechanism/reference record** whose accepted project consequences are promoted through ADR-034 and current owner documents. Its dated research prose is not a live implementation-status source.
+`AVO_LONG_HORIZON_ARCHITECTURE.md` is a **REVIEWED EXTERNAL-MECHANISM / REFERENCE RECORD** whose accepted project consequences are promoted through ADR-034 and current owner documents. Its dated research prose is not a live implementation-status source.
 
 ## ADR / decision index
 
-`DECISIONS.md` is the **CURRENT ADR INDEX**. Accepted decisions and durable provisional boundaries govern current design, but historical stage mappings or implementation gates inside older ADR text do not override live state, `ROADMAP.md`, or a fresh applicable Stage Research Brief.
+`DECISIONS.md` is the **CURRENT ADR INDEX**. Accepted decisions and durable provisional boundaries govern current design. Release-stage mapping, active PR state and exact implementation acceptance belong to their dedicated owners rather than ADR prose.
 
-## Stage / qualification documents
+## Accepted historical / Stage records
 
-Stage documents are scoped records. In particular:
+The following are useful scoped accepted/research records but are **not current status owners**:
 
+- `DIRECT_SEMANTIC_TUNNEL.md` — accepted Stage 24.1 direct-transport record; its historical five-tool contract was later superseded by the current six-tool surface;
+- `LOCAL_SPECIALIST_INFERENCE.md` — Stage 25 local-specialist research/qualification record; current capability status belongs to `MODULE_CATALOG.md` / accepted code/evidence;
+- `ACTIVE_VISUAL_GROUNDING.md` — Stage 25 visual-grounding research/benchmark record; dated provisional wording is historical;
 - `STAGE26_PROCEDURAL_MEMORY.md` — accepted procedural foundation/reference;
 - `STAGE26_3A_IMPLEMENTATION_NOTES.md` — accepted 26.3A record;
 - `STAGE26_3A_PROCEDURE_RUN_SURFACE.md` — accepted six-tool/procedure surface record;
@@ -140,6 +142,8 @@ Stage documents are scoped records. In particular:
 - `STAGE26_3B_WINDOWS_VERIFICATION.md` — accepted 26.3B Windows verification record.
 
 Other `STAGE*.md`, dated handoffs, physical-gate failure reports and research snapshots are **HISTORICAL / REFERENCE by default** unless this map or a current owner explicitly promotes them.
+
+Historical files may correctly contain old five-tool counts, old active-PR wording or candidate/runtime research that was true in their recorded stage. Those statements must not be read as present product state.
 
 ## Architecture reuse baseline rule
 
@@ -150,6 +154,8 @@ Other `STAGE*.md`, dated handoffs, physical-gate failure reports and research sn
 - the baseline must not contain active release scheduling, runtime acceptance claims or transient dependency pins;
 - an accepted Stage Research decision that materially changes a baseline role must update the baseline in the adopting PR before/with merge.
 
+A historical/research document may still be linked as the detailed rationale for a baseline row; that does not promote the entire historical file to current status authority.
+
 ## Maintenance rule
 
-Update this map only when document ownership/status changes. Do **not** update it merely because a stage advances, a PR opens/closes, a SHA changes, or a qualification run completes; those facts belong to their dedicated owners.
+Update this map only when document ownership/status changes. Do **not** update it merely because a stage advances, a PR opens/closes, a SHA changes or a qualification run completes; those facts belong to their dedicated owners.
