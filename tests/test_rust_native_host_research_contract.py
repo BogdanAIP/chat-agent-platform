@@ -44,14 +44,20 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
                 self.assertIn(phrase, self.text)
 
     def test_research_compares_current_stack_narrow_host_and_broad_rewrite(self) -> None:
-        for heading in (
-            "Approach A — keep the current Python/Node/PowerShell stack",
-            "Approach B — narrow Rust native host below project authority",
-            "Approach C — migrate the Control Plane / WorkingState / agent runtime substantially to Rust",
-            "Approach D — move only durable state/checkpoint storage to Rust",
-        ):
+        headings = (
+            "### A — keep current Python/Node/PowerShell",
+            "### B — narrow Rust native host below project authority",
+            "### C — migrate Control Plane / WorkingState / broad agent runtime to Rust",
+            "### D — move only durable checkpoint/state storage to Rust",
+        )
+        for heading in headings:
             with self.subTest(heading=heading):
                 self.assertIn(heading, self.text)
+
+        self.assertIn("Disposition: **KEEP current production**", self.text)
+        self.assertIn("production `DEFER` now", self.text)
+        self.assertIn("REJECT for the current architecture horizon", self.text)
+        self.assertIn("DEFER as separate persistence research", self.text)
 
     def test_source_code_evidence_is_pinned(self) -> None:
         refs = (
@@ -64,11 +70,16 @@ class RustNativeHostResearchContractTests(unittest.TestCase):
             with self.subTest(ref=ref):
                 self.assertIn(ref, self.text)
 
-    def test_openhands_claim_is_explicitly_partial(self) -> None:
+    def test_source_code_negative_space_is_recorded(self) -> None:
         self.assertIn(
-            "Classification: `OPEN_PARTIAL` for the specific ACP process boundary",
+            "targeted search at this exact ref",
             self.text,
         )
+        self.assertIn(
+            "did **not** locate a dedicated direct test",
+            self.text,
+        )
+        self.assertIn("Classification: `OPEN_PARTIAL`", self.text)
         self.assertIn(
             "does **not** claim to have proven its complete lifecycle implementation",
             self.text,
