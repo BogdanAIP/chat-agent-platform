@@ -188,8 +188,11 @@ class FailureReason:
         )
         if self.outcome is MutatingOutcome.OUTCOME_UNKNOWN and not self.reconciliation_required:
             raise ValueError("OUTCOME_UNKNOWN failure must require reconciliation")
-        if self.outcome is MutatingOutcome.APPLIED_BUT_ACK_FAILED and self.retryable:
-            raise ValueError("APPLIED_BUT_ACK_FAILED failure cannot be directly retryable")
+        if self.outcome is MutatingOutcome.APPLIED_BUT_ACK_FAILED:
+            if self.retryable:
+                raise ValueError("APPLIED_BUT_ACK_FAILED failure cannot be directly retryable")
+            if not self.reconciliation_required:
+                raise ValueError("APPLIED_BUT_ACK_FAILED failure must require reconciliation")
 
     def as_dict(self) -> dict[str, Any]:
         return _json_value(self)
@@ -318,6 +321,7 @@ class ReconciliationRecord:
     operation_id: str
     attempt_revision: int
     status: ReconciliationStatus
+    revision_after: int
     observation_ref: ObservationRef
     verification_effect_id: str
     evidence_batch_id: str
@@ -328,6 +332,8 @@ class ReconciliationRecord:
             raise ValueError("reconciliation attempt_revision must be positive")
         if not isinstance(self.status, ReconciliationStatus):
             raise TypeError("reconciliation status must be ReconciliationStatus")
+        if type(self.revision_after) is not int or self.revision_after <= self.attempt_revision:
+            raise ValueError("reconciliation revision_after must follow attempt revision")
         if not isinstance(self.observation_ref, ObservationRef):
             raise TypeError("reconciliation observation_ref must be ObservationRef")
         _text(self.verification_effect_id, name="reconciliation verification_effect_id")
@@ -444,16 +450,29 @@ class WorkingState:
                 raise ValueError(f"{name} history is invalid")
             object.__setattr__(self, name, items)
 
-        if any(
-            attempt.revision_after > self.revision
-            for attempt in self.attempts
-        ):
+        if any(attempt.revision_after > self.revision for attempt in self.attempts):
             raise ValueError("attempt history revision exceeds WorkingState revision")
         if any(
             left.revision_after >= right.revision_after
             for left, right in zip(self.attempts, self.attempts[1:])
         ):
             raise ValueError("attempt history revisions must be strictly increasing")
+        if any(
+            reconciliation.revision_after > self.revision
+            for reconciliation in self.reconciliations
+        ):
+            raise ValueError("reconciliation revision exceeds WorkingState revision")
+        if any(
+            left.revision_after >= right.revision_after
+            for left, right in zip(self.reconciliations, self.reconciliations[1:])
+        ):
+            raise ValueError("reconciliation revisions must be strictly increasing")
+
+        event_revisions = [item.revision_after for item in self.attempts] + [
+            item.revision_after for item in self.reconciliations
+        ]
+        if len(event_revisions) != len(set(event_revisions)):
+            raise ValueError("attempt/reconciliation event revisions must be unique")
 
         attempts_by_key = {
             (attempt.intent.operation_id, attempt.revision_after): attempt
@@ -505,12 +524,50 @@ class WorkingState:
             if prior is not None:
                 if prior.status is not ReconciliationStatus.STILL_UNKNOWN:
                     raise ValueError("resolved reconciliation cannot be replaced")
+                if reconciliation.revision_after <= prior.revision_after:
+                    raise ValueError("reconciliation revision must advance")
                 if (
                     reconciliation.observation_ref.sequence
                     <= prior.observation_ref.sequence
                 ):
                     raise ValueError("reconciliation refinement must use fresher evidence")
             latest_reconciliation_by_key[key] = reconciliation
+
+        pending_reconciliation: set[tuple[str, int]] = set()
+        applied_operations: set[str] = set()
+        events: list[tuple[int, str, Any]] = [
+            (item.revision_after, "attempt", item) for item in self.attempts
+        ] + [
+            (item.revision_after, "reconciliation", item)
+            for item in self.reconciliations
+        ]
+        for _, kind, item in sorted(events, key=lambda event: event[0]):
+            if kind == "attempt":
+                attempt = item
+                if pending_reconciliation:
+                    raise ValueError("attempt occurred while reconciliation was pending")
+                if attempt.intent.operation_id in applied_operations:
+                    raise ValueError("applied logical operation was replayed in durable history")
+                if attempt.outcome is MutatingOutcome.VERIFIED_APPLIED:
+                    applied_operations.add(attempt.intent.operation_id)
+                elif attempt.outcome in {
+                    MutatingOutcome.OUTCOME_UNKNOWN,
+                    MutatingOutcome.APPLIED_BUT_ACK_FAILED,
+                }:
+                    pending_reconciliation.add(
+                        (attempt.intent.operation_id, attempt.revision_after)
+                    )
+                continue
+
+            reconciliation = item
+            key = (reconciliation.operation_id, reconciliation.attempt_revision)
+            if key not in pending_reconciliation:
+                raise ValueError("reconciliation did not match a pending ambiguous attempt")
+            if reconciliation.status is ReconciliationStatus.STILL_UNKNOWN:
+                continue
+            pending_reconciliation.remove(key)
+            if reconciliation.status is ReconciliationStatus.CONFIRMED_APPLIED:
+                applied_operations.add(reconciliation.operation_id)
 
         expected_usage: dict[tuple[BudgetKind, str], int] = {}
         for attempt in self.attempts:
@@ -799,17 +856,19 @@ class WorkingState:
         if existing is not None and observation.sequence <= existing.observation_ref.sequence:
             raise ValueError("reconciliation refinement requires fresher evidence")
 
+        new_revision = self.revision + 1
         record = ReconciliationRecord(
             operation_id=operation_id,
             attempt_revision=attempt_revision,
             status=status,
+            revision_after=new_revision,
             observation_ref=observation,
             verification_effect_id=verification.effect_id,
             evidence_batch_id=verification.evidence_batch_id,
         )
         return replace(
             self,
-            revision=self.revision + 1,
+            revision=new_revision,
             recovery_epoch=self.recovery_epoch + 1,
             observation_ref=observation,
             reconciliations=self.reconciliations + (record,),
@@ -946,14 +1005,15 @@ class WorkingState:
                 item,
                 name="reconciliation record",
                 keys={
-                    "operation_id", "attempt_revision", "status", "observation_ref",
-                    "verification_effect_id", "evidence_batch_id",
+                    "operation_id", "attempt_revision", "status", "revision_after",
+                    "observation_ref", "verification_effect_id", "evidence_batch_id",
                 },
             )
             return ReconciliationRecord(
                 item["operation_id"],
                 item["attempt_revision"],
                 ReconciliationStatus(item["status"]),
+                item["revision_after"],
                 _observation(
                     item["observation_ref"],
                     name="reconciliation observation_ref",
