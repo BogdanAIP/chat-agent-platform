@@ -46,11 +46,15 @@ class ComputerUseArchitectureContractTests(unittest.TestCase):
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
         combined = architecture + roadmap
         folded = combined.casefold()
+        visual_section = architecture.split("### Fresh visual post-action verification", maxsplit=1)[1].split(
+            "### Environmental content is untrusted data", maxsplit=1
+        )[0].casefold()
 
         self.assertIn("fresh visual post-action verification", folded)
         self.assertIn("fresh post-action visual evidence", folded)
         self.assertIn("structural/native success plus a visual contradiction", folded)
-        self.assertIn("screenshot-after-every-action", folded)
+        self.assertIn("this is **not** a screenshot-after-every-action requirement", visual_section)
+        self.assertIn("does **not** require a screenshot after every action", roadmap.casefold())
         self.assertIn("26.5", combined)
         self.assertIn("clipping", folded)
         self.assertIn("occlusion", folded)
