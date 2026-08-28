@@ -1,80 +1,80 @@
 # Known Issues
 
-Only unresolved issues for the **current** architecture are listed here. Historical findings that are now closed are summarized at the end.
+Status: **CURRENT LIMITATION REGISTER**.
 
-1. **Present-target browser visual capability remains intentionally limited.** Stage 25 blocks difficult/repeated/tiny classes rather than promoting unsafe clicks.
+This file lists unresolved limitations in the current architecture/product. It is not the ranked risk register (`PROJECT_RISKS.md`), release plan (`ROADMAP.md`) or technical-debt owner (`TECH_DEBT.md`).
 
-2. **Browser screenshot -> coordinate action is not atomic.** Freshness is rechecked, but capture and action remain separate calls with a narrow TOCTOU window.
+Resolve live repository state before acting.
 
-3. **Loopback vision endpoint ownership is PID-checked, not cryptographically authenticated.** A same-user process/port race remains theoretically possible.
+## Current unresolved issues
 
-4. **Browser network policy is not a complete DNS/redirect sandbox.** DNS rebinding/redirect/private-network isolation remains residual work.
+1. **Broad real-application computer-use reliability is not yet proven.** Representative Browser and Windows/application L3 verticals are accepted, but native Win32, Electron, Office-style apps, file/dialog flows and environment variants still need broader characterization.
 
-5. **Python/model/OpenAdapt dependency reproducibility is not release-grade.** Stable distribution still needs exact artifact/hash/update policy rather than relying on user-global Python environments.
+2. **Stage 26.3C production recovery integration is incomplete.** WorkingState/typed reconciliation/budgets/LoopGuard L1 foundation is accepted through #124, but consequence-bearing procedures/capabilities still need restart-safe integration and physical qualification. Draft #126 is the first bounded workspace-artifact consumer at this snapshot.
 
-6. **Pinned semantic npm graph includes deprecated transitive dependencies.** Keep dependency remediation separate from capability architecture changes and rerun the full acceptance matrix after any graph change.
+3. **Machine/power-loss transactional durability is not an accepted WorkingState/procedure guarantee.** The current #126 research scope deliberately targets process crash/restart. Missing/corrupt/inconsistent durable state must fail closed rather than imply a database-grade WAL guarantee.
 
-7. **Generic adaptive Chat-facing actions remain unaccepted.** 1MCP is an optional internal Extension Manager; generic `tool_schema` / `tool_invoke` and raw backend catalogs are not the ordinary-Chat product contract.
+4. **Browser runtime output ownership is not fully intrinsic.** #118 caught Playwright runtime artifacts entering a source worktree when process CWD was inherited. The accepted gate isolated runtime CWD; normal runtime still needs an explicit project-owned output/state directory. See TD-010.
 
-8. **Large exported action surfaces can be truncated or become difficult to govern in ChatGPT.** Keep the public semantic surface small and project-owned. The accepted normal public inventory is exactly six tools: `workspace_read`, `workspace_write`, `web_open`, `web_observe`, `web_interact`, `procedure_run`.
+5. **Browser screenshot -> coordinate actuation is non-atomic.** Freshness/identity guards reduce risk, but capture and coordinate action remain separate calls with a narrow TOCTOU window.
 
-9. **ChatGPT MCP app definitions are frozen snapshots and do not automatically track the live server.** Existing app instances may keep historical action IDs or schemas after runtime upgrades. The launcher can rewrite a bounded stale inbound `tools/call` name, but it cannot update ChatGPT's frozen action snapshot, connection state or permissions before a call reaches MCP. The accepted Stage 26.3A run established the operational rule: synchronize/reconnect the app and settle the intended permission mode before a long run; do not change app binding/permissions mid-task. See `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md`.
+6. **Browser network policy is not a complete DNS/redirect/private-network sandbox.** Current Browser authority is intentionally narrower than future trusted-site JS/CDP/full-browser authority.
 
-10. **Compatibility aliases are migration debt, not a permanent contract.** The launcher currently retains exact inbound mappings for historical `semantic-projection_1mcp_*` and former `procedure-qualification-projection_1mcp_*` snapshots. Remove them only after a newly created or explicitly rebound ChatGPT app proves stable canonical six-tool calls across read, write, browser and `procedure_run`.
+7. **Loopback vision endpoint ownership is PID-checked rather than cryptographically authenticated.** A same-user process/port race remains weaker than a token/capability-bound endpoint.
 
-11. **Authorization policy is not accepted for arbitrary Windows consequence classes.** Stage 26.2E proves one harmless isolated real-app VS Code text edit, not universal desktop authority.
+8. **Python/model/OpenAdapt dependency reproduction is not release-grade.** Stable distribution still needs exact artifact/hash/update/rollback handling independent of developer/global environments.
 
-12. **Runtime-key rotation/repair/uninstall are not complete first-class lifecycle flows yet.** Distribution hardening remains Stage 27 work.
+9. **Pinned semantic npm dependencies include deprecated transitive packages.** Upgrade only through a dedicated reviewed lock/dependency change with the relevant semantic/browser/tunnel acceptance matrix.
 
-13. **OpenAdapt procedural substrate is qualified but broader procedural-memory integration is incomplete.** Stage 26.3A physically accepts one deterministic `procedure_run` Control Plane slice, but general ProgramGraph reuse, learned procedure retrieval/promotion and transferable skill lifecycle remain later work.
+10. **ChatGPT app definitions can retain frozen historical action IDs/input schemas.** A launcher alias can repair only calls that reach MCP; it cannot update a client snapshot that rejects a call before transport. Explicit rebind/reconnect remains necessary for material public-schema evolution. See `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md`.
 
-14. **The first procedure must not silently become generally product-trusted.** Stage 26.3A admits only the explicitly registered bounded `verified_workspace_artifact_v1` candidate path. Adding procedures requires separate policy/evidence rather than generic dispatch.
+11. **Compatibility aliases remain migration debt.** Historical inbound semantic action aliases should be removed only after canonical six-tool calls are proven stable across fresh/rebound app instances.
 
-15. **Advanced completion verification remains incomplete.** Stage 26.3A proves one bounded file artifact procedure with exact content/object verification. Stage 26.3B must broaden postconditions for browser/UI/application/process/window/structured-output states without treating action delivery as completion.
+12. **Arbitrary Windows/local execution authority is not accepted.** Existing Windows foundations and representative app evidence do not grant generic desktop, shell, Python or raw UIA/backend dispatch authority.
 
-16. **Human demonstration privacy/retention is unresolved.** Long-lived arbitrary desktop capture is not accepted until deletion, encryption and redaction policy is defined and tested.
+13. **OpenAdapt broader production integration is not accepted.** Flow/Capture are qualified and selected for specific procedure/compiler/resume/effect-evidence roles, but fresh Stage Research must validate each production consumer against `ARCHITECTURE_REUSE_BASELINE.md`. Upstream completion/effect verdicts never become unconditional project PASS/DONE.
 
-17. **Private reasoning must never enter task/procedural memory.** Store structured/user-visible goal summaries, observed state, transitions, receipts and verification only.
+14. **Human demonstration privacy/retention and trusted promotion remain unresolved.** Long-lived arbitrary desktop capture requires deletion/redaction/encryption/retention rules. One demonstration creates at most a candidate skill; promotion needs independent replay/regression/variant evidence.
 
-18. **The 97/97 Stage 26.1E fixture result is not global Windows accuracy.** It proves one controlled role+name path; real apps/custom controls require separate evidence.
+15. **No stable end-user release exists.** Remaining critical work includes Stage 26.3C production integration, broad physical coverage, 26.4/26.5 integration, distribution hardening and clean-user E2E.
 
-19. **`AutomationId` lacks dedicated accepted physical coverage across varied real applications.** Do not claim broad structural reliability from synthetic tests alone.
+## Current public-surface boundary
 
-20. **One real-application E2E is not broad Windows coverage.** Stage 26.2E physically passed isolated VS Code, but OriginPro/Reaper/custom apps and other control shapes remain separately unqualified.
+The normal Chat-facing surface remains exactly:
 
-21. **Arbitrary human “show me once” transfer is not accepted.** Capture/compiler candidates exist; candidate trust, verifier-controlled replay and changed-task reuse remain Stage 26.4 work.
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+procedure_run
+```
 
-22. **Public desktop capability names are still intentionally undecided.** The accepted public semantic surface contains six tools because `procedure_run` is explicit. Future Windows/computer-use exposure still requires a dedicated ADR; do not overload `web_interact` or publish raw backend tool catalogs merely to preserve a count.
+Generic adaptive `tool_schema` / `tool_invoke`, raw backend catalogs and arbitrary dispatch remain unaccepted. Six is the current accepted contract, not an eternal maximum; any new consequence class requires a truthful reviewed contract/acceptance decision.
 
-23. **Specialized tiny reasoning is not committed to the release path.** TRM/STARM/FPRM or another structured reasoner is optional after real verified procedure-state data and measured need.
+## Current evidence-scope cautions
 
-24. **Future local general planning is deliberately deferred, not rejected.** Track P remains non-release-critical shadow/proposal research and may never bypass deterministic authorization/verifier boundaries.
+Do not overclaim from scoped evidence:
 
-25. **Multi-chat orchestration is a separate upper layer.** It is not Windows/procedure safety core and must not become a substitute for the deterministic Control Plane.
-
-26. **No first stable release exists.** Stage 26.3B/26.4, distribution hardening and clean-user release gates remain incomplete.
-
-27. **Normal bootstrap can reuse a locally verified pinned tunnel-client, but first installation still needs the upstream release path.** The 2026-08-24 physical run exposed a transient GitHub Release API `Unicorn` response; bootstrap now avoids that dependency when the installed v0.0.11 binary and metadata hashes already verify. Supply-chain checks remain fail-closed when local evidence does not match.
+- Stage 26.1E controlled UIA results are not global Windows accuracy;
+- Stage 26.2E one VS Code task is not broad application coverage;
+- accepted Browser L3 uses headless Playwright/Chrome on target Windows and does not prove control of an already-open visible desktop Chrome session;
+- `AutomationId`/custom controls/application-specific semantics still need representative real-app evidence where relied upon;
+- physical acceptance of one procedure does not make arbitrary procedures trusted.
 
 ## Closed / superseded findings
 
-- Stage 25.1/25.2 browser semantic/vision foundations are merged/accepted; historical candidate-runtime rankings no longer define the active path.
-- The assumption that Stage 26 must build its own recorder/compiler/skill store from scratch is superseded by exact OpenAdapt Flow/Capture qualification.
-- Stage 26.1B bounded Windows Capture passed at `7a9daa9329d81994833c22b4ca2e321927527dcc`.
-- Stage 26.1C bounded Windows executor passed at `4bf08dd9b8d1ff010f14723f9bb0384b97334a2b`.
-- Stage 26.1D isolated desktop-wide UIA traversal as the ~184 s blocker.
-- Stage 26.1E replaced desktop-wide resolution with bounded exact-window UIA and passed the controlled scoped suite.
-- Stage 26.2A promoted the accepted Windows executor/resolver into maintained runtime code.
-- Stage 26.2B added canonical bounded `DesktopState` observation.
-- Stage 26.2C added the proposal-only native Desktop Grounder.
-- Stage 26.2D added bounded deterministic Windows UIA -> vision routing.
-- Stage 26.2E physically accepted one isolated VS Code real-application E2E on exact runtime head `457db0b634f2e47f53d41e359a238840fa3ca2ee`.
-- Transport Supervisor v1 is accepted and merged through PR #94; desired-state/runtime-owner split, console-free Scheduled Task launch and bounded recovery are no longer open architecture gaps.
-- The normal Stage 26.3A route is direct stdio and does not require 1MCP for bootstrap/start/status/health/smoke.
-- The deterministic Stage 26.3A Control Plane slice is implemented and physically accepted on exact runtime head `300db9956dfbdf0300ecc59f017d6f3280d4353a`.
-- The old separate `procedure-qualification` public profile/route is removed. Stage 26.3A acceptance used the normal `semantic` route.
-- The persistent tunnel id is neutral platform state in `state/tunnel.json`; legacy `local-1mcp.yaml` is migration fallback only.
-- The baseline installed bundle excludes adaptive/1MCP runtime assets; optional 1MCP regression lives in `Optional Extension Manager Acceptance`.
-- A transient GitHub Release API failure no longer blocks bootstrap when the already installed pinned tunnel-client can be independently verified from local metadata and hashes.
-- The 2026-08-24 ChatGPT reconnect/permission-session interruption is closed as a Stage 26.3A blocker: after reconnecting `Chat Local Bridge Test`, setting app-specific `Allow all actions` before the run, and starting a fresh conversation, the full long-horizon six-tool ordinary-Chat E2E completed successfully.
-- Stage 26.3A zero-overwrite is physically accepted: first procedure task `497ecb591779219ef0ee1e55ea7ad0b8` completed three verified actions; second task `02b09a4909b6d71e0578c19b2d395cb8` abstained at preflight with `action_count=0` and `target_already_exists`; independent reread proved unchanged content/SHA.
+These are no longer open issues:
+
+- Stage 25.1/25.2 semantic/vision Browser foundations are accepted for recorded scope.
+- The assumption that Stage 26 must build its recorder/compiler/procedural substrate from scratch is superseded by OpenAdapt qualification and the explicit reuse strategy.
+- Stage 26.1B-E and 26.2A-E established the current bounded Windows foundation and representative VS Code E2E.
+- Transport Supervisor v1 is accepted/merged; normal direct semantic bootstrap does not require 1MCP.
+- Stage 26.3A canonical six-tool `procedure_run` is physically accepted, including zero-overwrite abstention for the registered workspace-artifact procedure.
+- Stage 26.3B shared Verification Kernel + independent Finish Gate is **accepted/closed for recorded representative scope** across file, Browser and Windows/application evidence; it is no longer an unfinished issue.
+- Browser #118 closed the remaining recorded 26.3B source/install/dependency provenance repeat while rejecting invalid earlier attempts.
+- Stage 26.3C WorkingState/typed reconciliation/budget/LoopGuard/StagnationReport **L1 foundation is accepted/merged through #124**. The remaining issue is production/cross-capability integration, not absence of the model itself.
+- The old pre-#127 assumption that a PR-body design update alone could justify a new persistence/recovery primitive is superseded by the current `stage-research` re-entry/mechanism-depth gate.
+
+Historical exact SHAs and detailed closure evidence belong in `EVIDENCE_INDEX.md`, Stage records and Git history rather than this current limitation list.
