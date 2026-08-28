@@ -12,7 +12,7 @@ Project snapshot: `BogdanAIP/chat-agent-platform@bc13c7de3d559f5cf42dbee6f14ad5b
 
 Do **not** introduce Rust into the current release-critical production path and do not migrate the deterministic Control Plane, `WorkingState`, Verification Kernel, Finish Gate, public semantic projection, skills/configuration or Stage 26.3C artifact-recovery logic merely because major agent runtimes use Rust.
 
-The research does identify one credible future boundary worth re-opening when there is a concrete consumer or failure signal:
+The research identifies one credible future boundary worth re-opening when there is a concrete consumer or failure signal:
 
 ```text
 ordinary ChatGPT / current planner
@@ -86,7 +86,7 @@ At the inspected project head, Stage 26.3C production integration/restart reconc
 - signal forwarding;
 - child exit/error propagation.
 
-The current implementation is small and understandable, but it is process-id/child-object oriented rather than a dedicated OS process-tree containment subsystem. This observation is **not** evidence of a current accepted defect; it identifies the seam where stronger native lifecycle requirements would land if future consumers need them.
+The current implementation is small and understandable, but it is child-process-object oriented rather than a dedicated OS process-tree containment subsystem. This observation is **not** evidence of a current accepted defect; it identifies the seam where stronger native lifecycle requirements would land if future consumers need them.
 
 ### Current consequence/recovery boundary
 
@@ -157,6 +157,47 @@ Cline provides a concrete counterexample to a full rewrite: its Tauri/Rust deskt
 
 ## Solution Evidence
 
+### Engineering-domain evidence
+
+Source-code study is not sufficient by itself. The inspected agent implementations are using OS mechanisms whose semantics are independently documented by their platform owners.
+
+#### Windows Job Objects
+
+Primary sources:
+
+- Microsoft `CreateJobObjectW`: <https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-createjobobjectw>
+- Microsoft `AssignProcessToJobObject`: <https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject>
+- Microsoft process handles/identifiers: <https://learn.microsoft.com/en-us/windows/win32/procthread/process-handles-and-identifiers>
+
+Mechanism conclusions:
+
+- `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` terminates associated processes when the last Job Object handle closes;
+- process association is handle-based, and nested-job constraints can make assignment fail;
+- assigning an already-running process is not equivalent to creating it already contained; a child can execute before later assignment unless the design prevents that race;
+- process handles remain bound to the process object while owned, whereas a numeric PID is only a system identifier for the process lifetime and should not be treated as permanent ownership identity.
+
+This supports the **mechanism** used by Codex. It does not make Rust uniquely capable of Job Objects; it supports the narrower conclusion that if this project needs those semantics, they belong behind a small native boundary with explicit handle lifetime and assignment behavior.
+
+#### Linux parent-death signal
+
+Primary source:
+
+- Linux man-pages `PR_SET_PDEATHSIG`: <https://man7.org/linux/man-pages/man2/PR_SET_PDEATHSIG.2const.html>
+
+Mechanism conclusion:
+
+`PR_SET_PDEATHSIG` configures a signal to be delivered to the calling process when its parent dies. That is the underlying lifecycle primitive used in the inspected Codex/Goose paths. The mechanism is Linux-specific and therefore cannot by itself define the project's cross-platform ownership contract.
+
+#### Domain conclusion
+
+The OS sources support three design requirements if a native host is ever introduced:
+
+1. define process ownership independently of language;
+2. use platform-native lifetime/containment mechanisms rather than assuming `kill(pid)` is a process-tree contract;
+3. model unsupported/failed containment explicitly instead of silently degrading an accepted guarantee.
+
+They do **not** support a claim that Rust should own policy/state/verification logic.
+
 ### Source-code evidence
 
 #### 1. OpenAI Codex
@@ -212,7 +253,7 @@ Relevant code/tests inspected:
 
 Mechanism proven by code:
 
-Goose centralizes subprocess configuration in Rust. On Unix it creates a separate process group; on Linux it installs `PR_SET_PDEATHSIG(SIGTERM)` and verifies the parent did not already change during setup. For long-lived MCP subprocesses it uses a dedicated spawning thread so lifecycle is bound to the process rather than an arbitrary Tokio worker thread.
+Goose centralizes subprocess configuration in Rust. On Unix it creates a separate process group; on Linux it installs `PR_SET_PDEATHSIG(SIGTERM)` and verifies the parent did not already change during setup. For long-lived MCP subprocesses it uses a dedicated spawning thread so lifecycle is bound to the owning process rather than an arbitrary Tokio worker thread.
 
 The tests directly exercise lifecycle behavior:
 
@@ -528,7 +569,7 @@ If re-entry authorizes a prototype, require at minimum:
 
 Rust is **not currently justified as a migration target for Chat Agent Platform's control/state architecture**.
 
-The code study does support a much narrower architectural hypothesis:
+The code and engineering-domain study support a much narrower architectural hypothesis:
 
 > If future work requires stronger OS process-tree, PTY, sandbox or native-handle guarantees, introduce one small project-owned Rust native host *below* the existing semantic/Control Plane authority, rather than rewriting the planner, WorkingState, Verification Kernel or semantic projection.
 
