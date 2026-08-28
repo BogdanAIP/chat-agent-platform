@@ -303,3 +303,49 @@ clean supported Windows machine/account
 Stable release requires accepted core behavior, clean install evidence, current documentation and no known P0/P1 debt required for shipped authority.
 
 ---
+
+# Parallel Track M — Agent Sessions / Delegation
+
+Track M is a future work-distribution capability below the ordinary-ChatGPT manager and deterministic Control Plane boundary. It must not displace release-critical Stage 26 prerequisites.
+
+Keep separate:
+
+```text
+HarnessSession
+Conversation / Chat
+DelegationTask
+MessageDelivery
+ExecutionEnvironment
+```
+
+Canonical progression remains:
+
+```text
+M0 object model + fixture contracts
+ -> M1 read-only Session Observer
+ -> M2 Manager -> one EXISTING Worker with verified delivery/correlation
+ -> M3 WorkingState/HandoffPack + recovery/event monitoring
+ -> M4 bounded session lifecycle + operation idempotency/reconciliation
+ -> M5 manager-created Worker + ownership/WorkerLease/cleanup
+ -> M6 multiple workers + bounded fan-out, default max_spawn_depth=1
+ -> M7 separate Project / ExecutionEnvironment lifecycle
+ -> M8 broader cross-harness/provider adoption
+```
+
+Track M may reuse accepted WorkingState/logical-operation/reconciliation/LoopGuard semantics later; it does not justify broadening 26.3C solely for future orchestration.
+
+---
+
+# Parallel Track P — optional future local planner
+
+A future local general planner is not banned, but it is not release-critical now.
+
+Research order remains:
+
+```text
+shadow/proposal-only
+ -> measured bounded subtask role
+ -> optional local general planner only after parity/safety/resource evidence
+```
+
+It always remains above the same deterministic authorization, Verification Kernel and Finish Gate boundaries.
