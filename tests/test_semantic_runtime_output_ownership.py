@@ -11,6 +11,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 LAUNCHER = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-projection-launcher.mjs"
+CONTROL_PLANE = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-control-plane-projection.mjs"
 PACKAGE = ROOT / "runtime" / "semantic-projection" / "package.json"
 
 
@@ -22,11 +23,15 @@ class SemanticRuntimeOutputOwnershipTests(unittest.TestCase):
             "bin/semantic-projection-launcher.mjs",
         )
 
-        source = LAUNCHER.read_text(encoding="utf-8")
-        self.assertIn("env.PLAYWRIGHT_MCP_OUTPUT_DIR = paths.playwrightOutputDir;", source)
-        self.assertIn("fs.mkdirSync(paths.playwrightOutputDir, { recursive: true });", source)
-        self.assertIn("cwd: runtime.runtimeDir", source)
-        self.assertIn("'logs', 'semantic-runtime'", source)
+        launcher = LAUNCHER.read_text(encoding="utf-8")
+        self.assertIn("env.PLAYWRIGHT_MCP_OUTPUT_DIR = paths.playwrightOutputDir;", launcher)
+        self.assertIn("fs.mkdirSync(paths.playwrightOutputDir, { recursive: true });", launcher)
+        self.assertIn("cwd: runtime.runtimeDir", launcher)
+        self.assertIn("'logs', 'semantic-runtime'", launcher)
+
+        control_plane = CONTROL_PLANE.read_text(encoding="utf-8")
+        self.assertIn("'PLAYWRIGHT_MCP_OUTPUT_DIR'", control_plane)
+        self.assertIn("env: safeChildEnvironment()", control_plane)
 
     def test_launcher_ignores_caller_cwd_and_parent_playwright_output_override(self) -> None:
         node = shutil.which("node")
