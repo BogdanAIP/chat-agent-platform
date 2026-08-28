@@ -6,13 +6,25 @@ Research date: 2026-08-28
 
 Project snapshot: `BogdanAIP/chat-agent-platform@bc13c7de3d559f5cf42dbee6f14ad5b2cc8681cc`
 
+<!-- RUST_BOUNDARY_DECISION_V1
+stage_decision=DEFER
+production_rust=BLOCKED
+future_native_boundary=RESEARCH_ONLY
+future_native_language=UNRESOLVED
+critical_path_change=NO
+-->
+
 ## Decision
 
 **Top-level Stage Research decision: `DEFER`.**
 
-Do **not** introduce Rust into the current release-critical production path and do not migrate the deterministic Control Plane, `WorkingState`, Verification Kernel, Finish Gate, public semantic projection, skills/configuration or Stage 26.3C artifact-recovery logic merely because major agent runtimes use Rust.
+Production Rust work is blocked. This Brief does not authorize implementation, a dependency/toolchain change, a public-tool change, or a Stage 26.3C architecture change.
 
-The only credible future Rust boundary identified by this research is a **small optional native host below project authority**:
+Do **not** migrate the deterministic Control Plane, `WorkingState`, Verification Kernel, Finish Gate, public semantic projection, skills/configuration or Stage 26.3C artifact-recovery logic merely because major agent runtimes use Rust.
+
+The research identifies a credible **future native-host boundary**, but **does not select its implementation language**. If a concrete process/PTY/sandbox/native-handle problem later triggers re-entry, a new Stage Research must compare Rust against a language-neutral/current-runtime native boundary on the then-current requirements before production work can open.
+
+Conceptual future boundary:
 
 ```text
 ordinary ChatGPT / current planner
@@ -21,7 +33,7 @@ project semantic surface + Control Plane authority
         |
         | typed private IPC / capability request
         v
-future optional Rust native host
+future optional native host (language unresolved)
         |
         +-- process / process-tree ownership
         +-- PTY / terminal lifecycle
@@ -31,9 +43,7 @@ future optional Rust native host
         +-- narrow OS-specific adapters where qualified
 ```
 
-The host may execute an already-authorized operation and return evidence/receipts. It must not become a planner, grant authority to itself, decide `PASS`, decide task `DONE`, own `WorkingState`, or widen the six-tool Chat-facing surface.
-
-Production implementation remains blocked until a future Stage Research re-entry is triggered by an observed requirement and revalidates current code, failure model, alternatives and upstream references.
+Any future host remains **below project authority**. It may execute an already-authorized operation and return evidence/receipts. It must not become a planner, grant/refresh its own authority, decide `PASS`, decide task `DONE`, own `WorkingState`, or widen the six-tool Chat-facing surface.
 
 ---
 
@@ -41,9 +51,9 @@ Production implementation remains blocked until a future Stage Research re-entry
 
 Question:
 
-> Should Chat Agent Platform adopt Rust now, and if Rust becomes useful later, what is the smallest justified architectural boundary?
+> Should Chat Agent Platform adopt Rust now, and if a native systems boundary becomes useful later, is Rust actually the best implementation language for that exact boundary?
 
-This is not a language-preference or benchmark exercise. The question is where low-level ownership, crash, process-tree, sandbox and native-handle semantics become materially harder to express, verify or distribute safely in the current Python/Node/PowerShell implementation.
+This is not a language-preference or benchmark exercise. The relevant problem is where low-level ownership, crash, process-tree, sandbox and native-handle semantics become materially harder to express, verify or distribute safely in the current Python/Node/PowerShell implementation.
 
 In scope:
 
@@ -53,6 +63,7 @@ In scope:
 - sandbox bootstrap and OS containment;
 - private IPC between project authority and a native executor;
 - future Track M / long-lived Agent Host implications;
+- Rust versus a language-neutral/current-runtime implementation of the **same narrow native boundary**;
 - whether current Control Plane/durable state should move to Rust.
 
 Out of scope:
@@ -71,7 +82,7 @@ Out of scope:
 
 ### Release order
 
-At the inspected project head, Stage 26.3C production integration/restart reconciliation is the immediate critical path. Track M Agent Session / Delegation remains future/parallel and non-release-critical. A Rust/native-host implementation must therefore not be inserted into 26.3C merely because the mechanism is attractive.
+At the inspected project head, Stage 26.3C production integration/restart reconciliation is the immediate critical path. Track M Agent Session / Delegation remains future/parallel and non-release-critical. A native-host implementation must therefore not be inserted into 26.3C merely because its mechanism or implementation language is attractive.
 
 ### Current semantic/process boundary
 
@@ -84,7 +95,7 @@ At the inspected project head, Stage 26.3C production integration/restart reconc
 - signal forwarding;
 - child exit/error propagation.
 
-It is small and understandable, but it is child-process-object oriented rather than a dedicated OS process-tree containment subsystem. This is **not** evidence of a current accepted defect; it identifies the seam where stronger native lifecycle requirements would land.
+It is small and understandable, but it is child-process-object oriented rather than a dedicated OS process-tree containment subsystem. This is **not** evidence of a current accepted defect; it identifies the seam where stronger native lifecycle requirements would land if a future consumer proves the need.
 
 ### Current consequence/recovery boundary
 
@@ -98,7 +109,7 @@ It is small and understandable, but it is child-process-object oriented rather t
 - rollback ownership checks;
 - procedure state/recovery validation.
 
-No evidence found in this research shows Python speed or memory management is the current limiting factor for those semantics. Rust would not by itself solve ambiguous external effects, stale observations, incorrect authorization/operation identity, reconciliation mistakes, power-loss durability or task-completion correctness.
+No evidence found in this research shows Python execution speed or language-level memory management is the current limiting factor for those semantics. Rust would not by itself solve ambiguous external effects, stale observations, incorrect authorization/operation identity, reconciliation mistakes, power-loss durability or task-completion correctness.
 
 ---
 
@@ -108,11 +119,11 @@ No evidence found in this research shows Python speed or memory management is th
 |---|---|---|---|
 | Capability authorization / consequence policy | project deterministic Control Plane | native execution mechanisms do not justify delegating authority | `KEEP` |
 | Capability-spanning operational state | project `WorkingState` | no inspected evidence requires a language migration | `KEEP` |
-| Transition verification / completion | project Verification Kernel + Finish Gate | native host can return evidence, never project `PASS`/`DONE` | `KEEP` |
+| Transition verification / completion | project Verification Kernel + Finish Gate | a native host can return evidence, never project `PASS`/`DONE` | `KEEP` |
 | Agent session / long-lived host reference | Codex reference-only | strong process/native mechanisms; different trust/authority boundary | `KEEP` reference-only |
-| Windows/native execution mechanics | selective project-owned adapters | focused Rust layer is credible for Job Objects/native lifetime | `DEFER` future candidate |
-| Node semantic projection | project-owned six-tool projection | Cline proves Rust shell can coexist with TS sidecar | `KEEP` |
-| Stage 26.3C artifact recovery | Python project-owned implementation + researched failure model | Rust does not remove consequence ambiguity/reconciliation | `KEEP` |
+| Windows/native execution mechanics | selective project-owned adapters | a focused native boundary is credible; language not selected | `DEFER` / `UNRESOLVED` |
+| Node semantic projection | project-owned six-tool projection | Cline demonstrates that a native shell can coexist with a TS sidecar | `KEEP` |
+| Stage 26.3C artifact recovery | Python project-owned implementation + researched failure model | systems language does not remove consequence ambiguity/reconciliation | `KEEP` |
 
 No baseline role is replaced by this Brief, so `ARCHITECTURE_REUSE_BASELINE.md` is not changed.
 
@@ -137,9 +148,11 @@ Future Agent Host / worker / PTY / sandbox work may require:
 
 These requirements are visible in mature open agent code today.
 
-### P3 — the boundary can stay narrow
+### P3 — the boundary can stay narrow, but the language is not proven
 
-Cline is direct evidence that Rust need not own the agent logic: its Tauri/Rust desktop shell owns native/process lifecycle while its TypeScript/Bun sidecar owns the agent-facing HTTP/WebSocket/command runtime.
+Cline proves that a native desktop/process shell can remain separate from a TypeScript agent sidecar. Codex and Goose prove that Rust can implement strong native lifecycle mechanics. Microsoft/Linux documentation proves the underlying OS mechanisms are not Rust-specific.
+
+Therefore the evidence supports **the boundary**, not a current Rust selection.
 
 ---
 
@@ -164,7 +177,7 @@ Mechanism conclusions:
 - a native process handle remains bound to the process object while owned, while a numeric PID should not be treated as permanent ownership identity;
 - Linux `PR_SET_PDEATHSIG` provides a parent-death signal primitive but is platform-specific.
 
-These sources support the **mechanism**, not a claim that Rust is uniquely capable of it. If this project later needs these semantics, they should live behind an explicit native lifetime/containment boundary regardless of implementation language.
+These sources support the **mechanism**, not a claim that Rust is uniquely capable of it.
 
 ### Source-code evidence
 
@@ -187,11 +200,11 @@ Code path:
 
 Tests/failure evidence:
 
-A targeted search at this exact ref for direct `JobObject` / `spawn_contained` / `kill_on_drop` lifecycle tests did **not** locate a dedicated direct test outside the implementation file. Classification remains `OPEN_IMPLEMENTED`, not “independently proven reliable”. This negative space is one reason the future project verification plan requires its own process-tree fault tests rather than inheriting confidence from Codex.
+A targeted search at this exact ref for direct `JobObject` / `spawn_contained` / `kill_on_drop` lifecycle tests did **not** locate a dedicated direct test outside the implementation file. Classification remains `OPEN_IMPLEMENTED`, not “independently proven reliable”. A future project spike must own its fault tests.
 
 Lesson: `ADAPT_MECHANIC` / `REFERENCE_ONLY`.
 
-Project mapping: strong evidence for a future narrow process/native host; no evidence to move Control Plane/WorkingState/verification authority into Rust.
+Project mapping: strong evidence that Rust is a credible implementation candidate for a narrow native boundary; no evidence to move Control Plane/WorkingState/verification authority into Rust.
 
 #### Goose
 
@@ -219,28 +232,28 @@ Project mapping: process ownership should be a separately specified/tested contr
 
 Repository/ref: `cline/cline@1fbcfab05dccad23c12ef75ce45f99d711a82fb7`
 
-Classification: `OPEN_IMPLEMENTED` for the inspected desktop example.
+Classification: `OPEN_IMPLEMENTED` for the **boundary shape**; operational lifecycle reliability remains only partially evidenced.
 
 Inspected:
 
 - `apps/examples/desktop-app/src-tauri/src/main.rs`
 - `apps/examples/desktop-app/sidecar/server.ts`
+- commit history around desktop sidecar shutdown, including `036fc75b1f89ca0af9fee84162064758183b0bc0` and `f5224abdf527fe6679a3c8bf1ba35d84222eccbe`
 
 Code path:
 
-Rust/Tauri owns `DesktopBackendState`, explicit lock ordering, child ownership/shutdown, platform-specific termination, Windows `CREATE_NO_WINDOW`, update serialization and native desktop lifecycle. TypeScript/Bun still owns HTTP/WebSocket transport, origin checks, approval-token gating and command routing.
+Rust/Tauri owns `DesktopBackendState`, explicit lock ordering, child ownership/shutdown, platform-specific termination, Windows `CREATE_NO_WINDOW`, update serialization and native desktop lifecycle. TypeScript/Bun owns HTTP/WebSocket transport, origin checks, approval-token gating and command routing.
 
-Lesson: `ADAPT_MECHANIC`.
+Failure/history evidence:
 
-Project mapping: this is the strongest precedent for the preferred future shape:
+- `f5224ab...` recorded an earlier design that waited past the sidecar's graceful-shutdown budget before escalating to kill so restart would not interrupt persistence;
+- `036fc75...` later records a real macOS failure: a malformed shutdown URL meant the sidecar never received shutdown, and polling the child on the main thread caused a 5–7 second beach-ball; the fix changed Unix quit behavior to signal `SIGTERM` and return while the sidecar performs bounded graceful shutdown;
+- current code at the inspected ref contains the corresponding nonblocking Unix shutdown and separate immediate Windows kill/wait path;
+- targeted searches did not locate a dedicated direct unit/integration test for `DesktopBackendState.stop()` process termination itself.
 
-```text
-existing project semantic/control layers
- -> private typed boundary
- -> Rust native/process shell
-```
+Lesson: `REFERENCE_ONLY` for the **separation shape** plus useful failure-history evidence. It is not treated as proof that the exact shutdown implementation is generally reliable.
 
-not a broad rewrite.
+Project mapping: Cline demonstrates that native/process ownership can be separated from a TS agent runtime. It does not decide which language our future native boundary should use.
 
 #### OpenHands
 
@@ -265,15 +278,50 @@ Project mapping: useful negative evidence against “major agent = Rust core eve
 
 ## Approaches compared
 
-### A — keep current Python/Node/PowerShell and harden only observed problems
+### A — keep current Python/Node/PowerShell with no new native-host boundary
 
-Pros: zero migration, preserves acceptance evidence, fastest current 26.3C path, high iteration speed, no compiled distribution artifact.
+Pros:
 
-Cons: native lifecycle semantics may scatter if PTY/Job Object/process-tree requirements expand.
+- zero migration/toolchain risk;
+- preserves current acceptance evidence;
+- fastest 26.3C path;
+- high iteration speed.
+
+Cons:
+
+- native lifecycle semantics may scatter if PTY/Job Object/process-tree requirements later expand.
 
 Disposition: **KEEP current production**.
 
-### B — narrow Rust native host below project authority
+### B — narrow language-neutral/current-runtime native boundary
+
+Shape:
+
+```text
+existing Python/Node project authority
+ -> private typed boundary or focused native binding
+ -> OS process / PTY / Job Object / sandbox mechanism
+```
+
+Possible implementations at future spike time include focused bindings from an existing runtime or a minimal helper written in another systems language. This Brief selects none of them.
+
+Pros:
+
+- may reuse existing runtime/toolchain and reduce migration surface;
+- can expose the same small process/handle contract without changing Control Plane semantics;
+- proves whether a separate compiled Rust component is actually necessary.
+
+Cons:
+
+- FFI/native bindings can still be unsafe and platform-specific;
+- handle lifetime and process-tree ownership may be less ergonomic than RAII-heavy Rust code;
+- a helper in another language may still create packaging/signing/version-skew costs.
+
+Disposition: **DEFER; credible same-boundary alternative. Must be compared directly with Rust on re-entry.**
+
+### C — narrow Rust native host below project authority
+
+Shape:
 
 ```text
 Python/Node project authority
@@ -282,13 +330,21 @@ Python/Node project authority
  -> process / PTY / Job Object / sandbox / native handles
 ```
 
-Pros: isolates native/unsafe details, strong handle/process ownership, independently fault-testable, maps to Codex/Goose mechanisms and Cline boundary shape.
+Pros:
 
-Cons: adds binary/toolchain/signing matrix, IPC/version skew and another crash domain; may be needless until a consumer exists.
+- isolates native/unsafe details;
+- RAII/ownership model maps naturally to process/handle lifetime;
+- strong real-world precedent in Codex/Goose;
+- independently fault-testable.
 
-Disposition: **preferred future candidate; production `DEFER` now**.
+Cons:
 
-### C — migrate Control Plane / WorkingState / broad agent runtime to Rust
+- adds binary/toolchain/signing matrix, IPC/version skew and another crash domain;
+- no current benchmark/failure comparison proves it superior to Approach B for this project's exact boundary.
+
+Disposition: **DEFER; credible candidate, not selected. Future native-host language remains `UNRESOLVED`.**
+
+### D — migrate Control Plane / WorkingState / broad agent runtime to Rust
 
 Pros: one systems language; some low-level invariants could benefit from stronger types/ownership.
 
@@ -296,7 +352,7 @@ Cons: no current problem evidence, large regression/migration surface, invalidat
 
 Disposition: **REJECT for the current architecture horizon**.
 
-### D — move only durable checkpoint/state storage to Rust
+### E — move only durable checkpoint/state storage to Rust
 
 Pros: possible future typed native storage owner.
 
@@ -304,17 +360,30 @@ Cons: persistence correctness is about journal/fsync/transaction/external-effect
 
 Disposition: **DEFER as separate persistence research**.
 
+### Comparison conclusion
+
+The current evidence chooses only this much:
+
+```text
+current release-critical stack        KEEP
+future narrow native-host seam        CREDIBLE / RESEARCH-ONLY
+future native-host implementation     UNRESOLVED: Rust vs language-neutral/current-runtime boundary
+broad Rust control/state migration    REJECT current horizon
+```
+
+A future spike must compare Approach B and Approach C against the **same** process-tree/PTY/Job Object requirements and the same packaging, crash, security and physical-qualification tests before selecting a language.
+
 ---
 
 ## Failure / Crash Matrix for any future native-host spike
 
 | Failure | Required behavior |
 |---|---|
-| binary missing/wrong version | capability unavailable; no fallback mutation |
-| IPC version mismatch | reject before delivery |
+| binary/helper missing or wrong version | capability unavailable; no fallback mutation |
+| IPC/binding contract mismatch | reject before delivery |
 | Control Plane disconnect before delivery | no execution without current authorization |
-| host crashes before spawn | `NOT_APPLIED` only if freshly established; otherwise reconcile |
-| host crashes after spawn before ack | process/job state must be observable; never blind-redeliver |
+| host/helper crashes before spawn | `NOT_APPLIED` only if freshly established; otherwise reconcile |
+| host/helper crashes after spawn before ack | process/job state must be observable; never blind-redeliver |
 | owner dies | owned descendant tree terminates unless reviewed semantics explicitly preserve it |
 | child spawns before containment | prevent with suspended/atomic containment where required; otherwise fail closed |
 | Windows nested-job/assignment failure | explicit containment failure; no silent uncontained consequence fallback |
@@ -322,10 +391,10 @@ Disposition: **DEFER as separate persistence research**.
 | cancel races with completion | one terminal lifecycle outcome; distinguish cancelled/completed/unknown |
 | sandbox bootstrap fails | no unsandboxed fallback when sandbox is required |
 | stdio/PTY task dies | bounded cleanup; no leaked tree |
-| stale/expired grant | reject before native delivery; host cannot renew its own authority |
-| host says success, postcondition false | project Kernel can return `FAIL`; delivery success is evidence only |
+| stale/expired grant | reject before native delivery; executor cannot renew its own authority |
+| executor says success, postcondition false | project Kernel can return `FAIL`; delivery success is evidence only |
 | external effect happened but ack lost | project reconciliation handles `OUTCOME_UNKNOWN`; no blind retry |
-| native binary differs from qualified source | source-provenance gate rejects release-critical claim |
+| native/helper binary differs from qualified source | source-provenance gate rejects release-critical claim |
 | OS/machine power loss | outside process-lifetime guarantee unless separately researched |
 | IPC peer/request mismatch | reject actor/environment/capability/effect mismatch |
 | package/update failure | keep known-good runtime or capability unavailable; never weaken policy |
@@ -352,7 +421,7 @@ ExecuteNativeOperation {
 
 not `run_anything(command)`.
 
-The host returns lifecycle/delivery evidence such as native identity, containment state, started/exited/cancelled/unknown status, exit/signal metadata and evidence refs. Project observation + Verification Kernel still decides whether the intended effect occurred.
+The executor returns lifecycle/delivery evidence such as native identity, containment state, started/exited/cancelled/unknown status, exit/signal metadata and evidence refs. Project observation + Verification Kernel still decides whether the intended effect occurred.
 
 ---
 
@@ -372,8 +441,6 @@ The host returns lifecycle/delivery evidence such as native identity, containmen
 - Playwright/browser integration;
 - higher-level UI/adapters not requiring native ownership guarantees.
 
-Cline demonstrates that a Rust native shell does not require the agent sidecar to stop being TypeScript.
-
 ### Keep declarative
 
 - skills;
@@ -385,14 +452,14 @@ Cline demonstrates that a Rust native shell does not require the agent sidecar t
 
 ## Re-entry triggers
 
-Re-run fresh Stage Research before production Rust work if one or more becomes true:
+Re-run fresh Stage Research before production Rust work **or any new native-host implementation** if one or more becomes true:
 
 1. repeated accepted evidence of leaked child/grandchild processes or incorrect process ownership;
 2. a release-critical capability requires Job Object/native-handle semantics that current code cannot provide cleanly/testably;
 3. Track M needs a long-lived local Agent Host with strong child/process/PTY lifecycle guarantees;
 4. 26.5/native computer-use needs a shared sandbox/PTY/native layer across capabilities;
 5. process-lifecycle logic is duplicated across enough Node/Python/PowerShell capabilities that one owner measurably reduces risk;
-6. distribution/signing/update needs favor one small native host;
+6. distribution/signing/update needs favor one small native helper/host;
 7. benchmark/failure evidence shows the current language/runtime itself — not architecture semantics — causes a material reliability/security/performance problem.
 
 Re-entry must re-pin then-current references. The refs in this 2026-08-28 Brief are evidence for this decision, **not timeless architecture**.
@@ -401,30 +468,31 @@ Re-entry must re-pin then-current references. The refs in this 2026-08-28 Brief 
 
 ## Verification plan for a future bounded spike
 
-If future re-entry authorizes a prototype, require at minimum:
+If future re-entry authorizes a prototype, compare language-neutral/current-runtime and Rust implementations against the same contract and require at minimum:
 
 - no public Chat-facing tool change;
-- strict versioned private protocol;
-- exact native-binary source provenance;
+- strict versioned private protocol/binding contract;
+- exact executed native/helper source provenance;
 - Windows Job Object root + grandchild cleanup test;
 - Windows nested-job/assignment-failure fail-closed test;
 - Linux owner-death/process-group test comparable to Goose;
 - crash before spawn, after spawn/before ack and after exit/before ack;
 - cancellation/completion race tests;
 - stale/expired grant rejection before delivery;
-- proof native `success` cannot directly create project Verification `PASS` or Finish `DONE`;
+- proof executor `success` cannot directly create project Verification `PASS` or Finish `DONE`;
 - unsupported platform => capability unavailable, not broad fallback;
 - target-Windows packaging/update/provenance qualification;
+- measurement of binary/toolchain/packaging complexity and failure surface for each candidate;
 - physical ordinary-Chat qualification only if the host enters a release-critical consequence path.
 
 ---
 
 ## Final conclusion
 
-Rust is **not currently justified as a migration target for Chat Agent Platform's control/state architecture**.
+Rust is **not currently justified as a migration target for Chat Agent Platform's control/state architecture**, and this research does not yet justify selecting Rust even for a future narrow native-host implementation.
 
-The code plus OS-mechanism research supports a narrower hypothesis:
+The code plus OS-mechanism evidence supports a more careful conclusion:
 
-> If future work requires stronger process-tree, PTY, sandbox or native-handle guarantees, introduce one small project-owned Rust native host *below* existing semantic/Control Plane authority instead of rewriting the planner, WorkingState, Verification Kernel or semantic projection.
+> If future work requires stronger process-tree, PTY, sandbox or native-handle guarantees, introduce one small project-owned native execution boundary *below* existing semantic/Control Plane authority. At that future re-entry, compare Rust against an equivalent language-neutral/current-runtime implementation of the same boundary before selecting the language.
 
-For the current roadmap this remains **`DEFER`**. Stage 26.3C continues on its already-researched Python/project-owned recovery path. Reopen the Rust boundary only for a concrete native-lifecycle consumer or accepted failure signal.
+For the current roadmap the decision remains **`DEFER`**. Stage 26.3C continues on its already-researched Python/project-owned recovery path.
