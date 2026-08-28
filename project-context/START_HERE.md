@@ -2,6 +2,8 @@
 
 Use this file after resolving live GitHub state. Do not treat recorded prose as a substitute for live `main`, open PRs, exact heads, hosted checks or required physical evidence.
 
+Before planning implementation, follow the mandatory session bootstrap in `AGENTS.md`: enumerate `.agents/skills/*/SKILL.md` from the current repository ref, resolve applicable skills, and load them before planning. This check is repeated after `main` advances or the task moves into a new stage/substage, so merged skill updates are picked up from current repository bytes rather than chat memory.
+
 ## Minimal read set
 
 For ordinary continuation, read:
