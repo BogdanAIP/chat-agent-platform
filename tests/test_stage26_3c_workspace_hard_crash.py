@@ -107,6 +107,41 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
                         os._exit(83)
                     return original_unlink(path, *args, **kwargs)
                 Path.unlink = crash_after_cleanup
+            elif mode == "before_final":
+                def crash_before_final(source, target):
+                    os._exit(84)
+                wa._exclusive_link_file = crash_before_final
+            elif mode == "before_cleanup":
+                original_unlink = Path.unlink
+                def crash_before_cleanup(path, *args, **kwargs):
+                    if path.name.endswith(".staging"):
+                        os._exit(85)
+                    return original_unlink(path, *args, **kwargs)
+                Path.unlink = crash_before_cleanup
+            elif mode in {"after_stage_commit", "after_final_commit", "after_cleanup_commit"}:
+                original_write = wa._write_checkpoint
+                expected_node = {
+                    "after_stage_commit": "staged_verified",
+                    "after_final_commit": "final_verified",
+                    "after_cleanup_commit": "completed",
+                }[mode]
+                exit_code = {
+                    "after_stage_commit": 86,
+                    "after_final_commit": 87,
+                    "after_cleanup_commit": 88,
+                }[mode]
+                def crash_after_transition_commit(state_root, task_state):
+                    original_write(state_root, task_state)
+                    if (
+                        task_state.get("current_node") == expected_node
+                        and task_state.get("prepared_intent") is None
+                        and (
+                            expected_node != "completed"
+                            or task_state.get("status") == "completed"
+                        )
+                    ):
+                        os._exit(exit_code)
+                wa._write_checkpoint = crash_after_transition_commit
             else:
                 raise RuntimeError("unknown crash mode")
 
@@ -163,10 +198,68 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             self.assertEqual(child.returncode, 80, child.stderr)
             checkpoint = self.checkpoint(state)
             self.assertIsInstance(checkpoint["prepared_intent"], dict)
+            self.assertEqual(checkpoint["prepared_intent"]["transition_id"], "stage_create")
             self.assertEqual(checkpoint["action_count"], 0)
 
             result = self.execute(
                 self.request("hard-before.txt", "BEFORE", checkpoint["task_id"]),
+                workspace=workspace,
+                state=state,
+            )
+            self.assert_completed_once(result)
+
+    def test_hard_process_death_before_final_delivery_resumes_from_durable_prepare(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="before_final",
+                artifact_name="hard-before-final.txt",
+                content="BEFORE_FINAL",
+            )
+            self.assertEqual(child.returncode, 84, child.stderr)
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            self.assertEqual(checkpoint["current_node"], "staged_verified")
+            self.assertEqual(checkpoint["action_count"], 1)
+            self.assertEqual(checkpoint["prepared_intent"]["transition_id"], "final_create")
+            self.assertTrue(self.staging_path(workspace, "hard-before-final.txt", task_id).exists())
+            self.assertFalse(self.target_path(workspace, "hard-before-final.txt").exists())
+
+            result = self.execute(
+                self.request("hard-before-final.txt", "BEFORE_FINAL", task_id),
+                workspace=workspace,
+                state=state,
+            )
+            self.assert_completed_once(result)
+
+    def test_hard_process_death_before_cleanup_delivery_resumes_from_durable_prepare(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="before_cleanup",
+                artifact_name="hard-before-cleanup.txt",
+                content="BEFORE_CLEANUP",
+            )
+            self.assertEqual(child.returncode, 85, child.stderr)
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            staging = self.staging_path(workspace, "hard-before-cleanup.txt", task_id)
+            target = self.target_path(workspace, "hard-before-cleanup.txt")
+            self.assertEqual(checkpoint["current_node"], "final_verified")
+            self.assertEqual(checkpoint["action_count"], 2)
+            self.assertEqual(checkpoint["prepared_intent"]["transition_id"], "staging_cleanup")
+            self.assertTrue(staging.exists())
+            self.assertTrue(target.exists())
+            self.assertTrue(os.path.samefile(staging, target))
+
+            result = self.execute(
+                self.request("hard-before-cleanup.txt", "BEFORE_CLEANUP", task_id),
                 workspace=workspace,
                 state=state,
             )
@@ -262,6 +355,105 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             with patch.object(Path, "unlink", new=reject_duplicate_cleanup):
                 result = self.execute(
                     self.request("hard-cleanup.txt", "CLEANUP", task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+            self.assert_completed_once(result)
+
+    def test_hard_process_death_after_stage_commit_resumes_without_recreating_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="after_stage_commit",
+                artifact_name="hard-stage-commit.txt",
+                content="STAGE_COMMIT",
+            )
+            self.assertEqual(child.returncode, 86, child.stderr)
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            self.assertEqual(checkpoint["current_node"], "staged_verified")
+            self.assertEqual(checkpoint["action_count"], 1)
+            self.assertIsNone(checkpoint["prepared_intent"])
+
+            with patch.object(
+                workspace_artifact,
+                "_exclusive_create_file",
+                side_effect=AssertionError("committed stage was recreated"),
+            ) as create_mock:
+                result = self.execute(
+                    self.request("hard-stage-commit.txt", "STAGE_COMMIT", task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+            create_mock.assert_not_called()
+            self.assert_completed_once(result)
+
+    def test_hard_process_death_after_final_commit_resumes_without_relink(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="after_final_commit",
+                artifact_name="hard-final-commit.txt",
+                content="FINAL_COMMIT",
+            )
+            self.assertEqual(child.returncode, 87, child.stderr)
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            self.assertEqual(checkpoint["current_node"], "final_verified")
+            self.assertEqual(checkpoint["action_count"], 2)
+            self.assertIsNone(checkpoint["prepared_intent"])
+
+            with patch.object(
+                workspace_artifact,
+                "_exclusive_link_file",
+                side_effect=AssertionError("committed final link was repeated"),
+            ) as link_mock:
+                result = self.execute(
+                    self.request("hard-final-commit.txt", "FINAL_COMMIT", task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+            link_mock.assert_not_called()
+            self.assert_completed_once(result)
+
+    def test_hard_process_death_after_cleanup_commit_returns_completed_without_unlink(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="after_cleanup_commit",
+                artifact_name="hard-cleanup-commit.txt",
+                content="CLEANUP_COMMIT",
+            )
+            self.assertEqual(child.returncode, 88, child.stderr)
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            staging = self.staging_path(workspace, "hard-cleanup-commit.txt", task_id)
+            target = self.target_path(workspace, "hard-cleanup-commit.txt")
+            self.assertEqual(checkpoint["status"], "completed")
+            self.assertEqual(checkpoint["current_node"], "completed")
+            self.assertEqual(checkpoint["action_count"], 3)
+            self.assertIsNone(checkpoint["prepared_intent"])
+            self.assertFalse(staging.exists())
+            self.assertTrue(target.exists())
+
+            original_unlink = Path.unlink
+            def reject_duplicate_cleanup(path: Path, *args, **kwargs) -> None:
+                if path.name.endswith(".staging"):
+                    raise AssertionError("committed cleanup was repeated")
+                original_unlink(path, *args, **kwargs)
+
+            with patch.object(Path, "unlink", new=reject_duplicate_cleanup):
+                result = self.execute(
+                    self.request("hard-cleanup-commit.txt", "CLEANUP_COMMIT", task_id),
                     workspace=workspace,
                     state=state,
                 )
