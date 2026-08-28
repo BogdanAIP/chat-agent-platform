@@ -29,7 +29,7 @@ Resolve live GitHub state first, then read only the current operating set:
 4. `project-context/PROJECT_RISKS.md`
 5. `project-context/ARCHITECTURE.md` only when the task changes or depends on architecture
 
-Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs and historical Stage docs only when the current task actually needs them.
+Read `project-context/ARCHITECTURE_REUSE_BASELINE.md` when `stage-research` applies or when work may duplicate, replace, or cross a previously selected external-component/project-owned role. Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs and historical Stage docs only when the current task actually needs them.
 
 Current code/tests, exact PR heads, CI and required physical evidence outrank prose. Never infer live repository state from a recorded SHA in documentation.
 
@@ -65,10 +65,12 @@ At minimum, stage research must:
 6. compare materially distinct architecture approaches rather than variants of one favored design;
 7. for persistence/recovery/side-effect/concurrency/authority changes, build a failure/crash matrix covering the consequence-bearing boundaries before code;
 8. identify why failures happen, how others mitigated them, and how this project can avoid repeating them;
-9. compare the research with existing future ADRs and project constraints;
+9. compare the research with `project-context/ARCHITECTURE_REUSE_BASELINE.md`, existing future ADRs and project constraints; for every affected prior role record `KEEP`, `REUSE_MORE`, `REFINE`, `REPLACE`, `DEFER`, or `REJECT` rather than silently redesigning it;
 10. keep, revise or reject previously proposed implementation details;
 11. define the smallest stage architecture that solves the current problem without weakening required guarantees;
 12. define focused/adversarial/independent/physical acceptance evidence before implementation.
+
+`ARCHITECTURE_REUSE_BASELINE.md` is the canonical prior-decision comparison baseline, not immutable implementation authority. It exists so new research explicitly checks whether custom code duplicates an already selected upstream mechanism and whether a new external component crosses a boundary intentionally kept project-owned. `REPLACE` or `REJECT` of a prior baseline role requires explicit evidence, and an accepted lineage change must update the baseline before or with merge.
 
 `NARROW` narrows implementation scope only; it does not reduce research depth for a release-critical mechanism.
 
@@ -92,7 +94,7 @@ Prefer extending an existing assurance/runtime mechanism over creating one mecha
 
 Test observable invariants and real behavior where practical. Avoid source-text/order assertions when the same guarantee can be proven through execution or instrumentation.
 
-Historical Stage/CAP/PR lineage belongs primarily in Git history and `EVIDENCE_INDEX.md`; the current architecture should be explained by the system's present form rather than the order in which it was built.
+Historical Stage/CAP/PR lineage belongs primarily in Git history and `EVIDENCE_INDEX.md`; the current architecture should be explained by the system's present form rather than the order in which it was built. `ARCHITECTURE_REUSE_BASELINE.md` is the narrow exception for selected component/project-owned role lineage because future research must know which prior reuse decision it is keeping or changing.
 
 ## Current semantic boundary
 
@@ -171,6 +173,7 @@ Keep live documentation small and role-specific:
 - `CURRENT_STATE.md` = current accepted boundary and immediate work;
 - `ROADMAP.md` = release order;
 - `PROJECT_RISKS.md` = ranked risks;
+- `ARCHITECTURE_REUSE_BASELINE.md` = selected external-component/project-owned role lineage for Stage Research comparison, not runtime status;
 - `EVIDENCE_INDEX.md` = exact accepted evidence/SHAs/locators;
 - `TECH_DEBT.md` = existing compromises with close conditions;
 - architecture docs = durable boundaries and current/future design hypotheses.
