@@ -312,6 +312,18 @@ def _kernel_reconciliation_verification(
     )
 
 
+def _authoritative_normal_status(
+    direct_status: ReconciliationStatus,
+    *,
+    kernel_pass: bool,
+) -> ReconciliationStatus:
+    """Only shared-kernel success may turn a normal delivery into verified-applied state."""
+
+    if direct_status is ReconciliationStatus.CONFIRMED_APPLIED and kernel_pass:
+        return ReconciliationStatus.CONFIRMED_APPLIED
+    return ReconciliationStatus.STILL_UNKNOWN
+
+
 def _legacy_identity_generation_proven(value: Any) -> bool:
     """Historical schema-1 device/inode alone cannot exclude file-ID ABA reuse."""
 
@@ -1024,21 +1036,24 @@ def _run_verified_workspace_artifact_locked(
                     *_missing_predicates("target"),
                 ),
             )
+            authoritative_status = _authoritative_normal_status(
+                direct_status,
+                kernel_pass=(
+                    stage_result.status is VerificationStatus.PASS
+                    and staging_identity is not None
+                ),
+            )
             working_state = _record_normal_outcome(
                 working_state,
                 intent,
-                direct_status,
+                authoritative_status,
                 stage_after,
                 task_id=task_id,
             )
             task_state["action_count"] = int(task_state["action_count"]) + 1
             task_state["working_state"] = working_state.as_dict()
             task_state["prepared_intent"] = None
-            if (
-                direct_status is not ReconciliationStatus.CONFIRMED_APPLIED
-                or stage_result.status is not VerificationStatus.PASS
-                or staging_identity is None
-            ):
+            if authoritative_status is not ReconciliationStatus.CONFIRMED_APPLIED:
                 task_state["status"] = "abstained"
                 task_state["escalation_reason"] = "staging_postcondition_failed"
                 checkpoint()
@@ -1159,22 +1174,25 @@ def _run_verified_workspace_artifact_locked(
                 ),
             )
             target_identity = _observed_identity(final_after, "target")
+            authoritative_status = _authoritative_normal_status(
+                direct_status,
+                kernel_pass=(
+                    final_result.status is VerificationStatus.PASS
+                    and staging_identity is not None
+                    and target_identity == staging_identity
+                ),
+            )
             working_state = _record_normal_outcome(
                 working_state,
                 intent,
-                direct_status,
+                authoritative_status,
                 final_after,
                 task_id=task_id,
             )
             task_state["action_count"] = int(task_state["action_count"]) + 1
             task_state["working_state"] = working_state.as_dict()
             task_state["prepared_intent"] = None
-            if (
-                direct_status is not ReconciliationStatus.CONFIRMED_APPLIED
-                or final_result.status is not VerificationStatus.PASS
-                or staging_identity is None
-                or target_identity != staging_identity
-            ):
+            if authoritative_status is not ReconciliationStatus.CONFIRMED_APPLIED:
                 task_state["status"] = "abstained"
                 task_state["escalation_reason"] = "final_create_postcondition_failed"
                 checkpoint()
@@ -1294,10 +1312,14 @@ def _run_verified_workspace_artifact_locked(
                 goal_results=(goal_result,),
                 safety_results=(safety_result,),
             )
+            authoritative_status = _authoritative_normal_status(
+                direct_status,
+                kernel_pass=finish_gate.status is FinishStatus.DONE,
+            )
             working_state = _record_normal_outcome(
                 working_state,
                 intent,
-                direct_status,
+                authoritative_status,
                 completion_after,
                 task_id=task_id,
             )
@@ -1306,10 +1328,7 @@ def _run_verified_workspace_artifact_locked(
             task_state["prepared_intent"] = None
             staging_owned = False
             final_verification = _observed_evidence(completion_after, "target")
-            if (
-                direct_status is not ReconciliationStatus.CONFIRMED_APPLIED
-                or finish_gate.status is not FinishStatus.DONE
-            ):
+            if authoritative_status is not ReconciliationStatus.CONFIRMED_APPLIED:
                 task_state["status"] = "abstained"
                 task_state["escalation_reason"] = "completion_postcondition_failed"
                 checkpoint()
