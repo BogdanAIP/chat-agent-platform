@@ -1,6 +1,6 @@
 ---
 name: stage-research
-description: Research and design gate for starting a new release-critical stage, substage, major subsystem, capability family, or materially new recovery/security/authority architecture. Use before implementation begins. Do not use for narrow bug fixes, dependency bumps, or documentation-only edits unless they materially change architecture or authority.
+description: Research and design gate for starting a new release-critical stage, substage, major subsystem, capability family, or materially new persistence/recovery/retry/concurrency/identity/security/authority architecture. Use before implementation begins. Do not use for narrow bug fixes, dependency bumps, or documentation-only edits unless they materially change architecture or authority.
 compatibility: Designed for Chat Agent Platform work with repository access and current web research.
 metadata:
   version: "1.1"
@@ -9,7 +9,7 @@ metadata:
 
 # Stage Research
 
-Use this skill before implementation of a new release-critical stage/substage, a major subsystem, a new capability family, or a materially new recovery/security/authority mechanism.
+Use this skill before implementation of a new release-critical stage/substage, a major subsystem, a new capability family, or a materially new persistence/recovery/retry/concurrency/identity/security/authority mechanism.
 
 The repository-wide session bootstrap in `AGENTS.md` resolves applicable `.agents/skills/*/SKILL.md` before planning. Do not depend on chat memory or a previously read copy of this skill; use the current repository ref so merged skill changes are picked up automatically on the next development invocation.
 
@@ -22,7 +22,7 @@ Activate when work starts on one of these:
 - a new roadmap stage or substage;
 - a major new runtime subsystem;
 - a new capability family or cross-capability abstraction;
-- a material change to recovery, verification, security or authority boundaries;
+- a material change to persistence ordering/ownership, recovery, retry/reconciliation, concurrency, identity/correlation, verification, security or consequence-bearing authority boundaries, including inside an existing subsystem;
 - implementation of a future ADR that has not yet been validated against current code and current external practice.
 
 Do not require this gate for a narrow bug fix, mechanical dependency update, isolated regression, or documentation-only correction unless the change materially alters architecture, authority, or a release-critical guarantee.
@@ -34,6 +34,8 @@ Do not start production implementation merely because an older ADR already descr
 A future ADR is an input: durable boundary constraints may remain authoritative, while implementation details are revisable hypotheses.
 
 Before implementation, produce a Stage Research Brief with a decision of `PROCEED`, `NARROW`, or `DEFER`.
+
+`PROCEED` or `NARROW` may open production implementation. `DEFER` is fail-closed: production implementation remains blocked until later evidence supports a fresh `PROCEED` or `NARROW` decision.
 
 `NARROW` means a narrower **implementation scope**, not a lower research standard. A release-critical mechanism receives the same depth of mechanism/failure research whether it has one consumer or many.
 
@@ -283,7 +285,8 @@ What applies directly, what does not, and why.
 - must-have mechanisms now;
 - mechanisms explicitly deferred/rejected;
 - existing components to reuse/consolidate;
-- durable invariants preserved.
+- durable invariants preserved;
+- if the decision is `DEFER`, implementation remains blocked and the Brief must state what evidence/change could justify re-entry later.
 
 ### Verification plan
 Focused, adversarial, independent-review and physical acceptance requirements.
@@ -312,14 +315,14 @@ When invalidated:
 2. update the architecture-primitive/domain map;
 3. research the newly relevant domain/failure mode;
 4. revise alternatives and the failure matrix as needed;
-5. replace the old `PROCEED`/`NARROW`/`DEFER` decision with a fresh decision;
-6. only then resume production implementation.
+5. replace the old decision with a fresh `PROCEED`, `NARROW`, or `DEFER` decision;
+6. resume production implementation only after `PROCEED` or `NARROW`; if the fresh decision is `DEFER`, keep implementation stopped.
 
 A PR-body edit that merely restates the new design without this re-entry work does not satisfy the gate.
 
 ## 15. Implementation handoff
 
-Only after the current Stage Research Brief is complete and not invalidated:
+Only after the current Stage Research Brief is complete, not invalidated, and ends in `PROCEED` or `NARROW`:
 
 1. implement the smallest coherent slice;
 2. reuse existing runtime/assurance/CI mechanisms;
@@ -337,14 +340,15 @@ Before declaring the research gate complete, verify all are true:
 
 - research included current external approaches and current repository reality;
 - every proposed architecture primitive was mapped to its directly relevant engineering domain;
-- problem evidence and solution evidence are separate and both sufficient;
+- problem evidence and solution evidence are separate and both sufficient for `PROCEED`/`NARROW`;
 - failure reports/limitations were actively investigated, not omitted;
 - materially distinct alternatives were compared when available;
-- the required failure/crash matrix has no release-critical unknown cell;
+- the required failure/crash matrix has no release-critical unknown cell for `PROCEED`/`NARROW`;
 - known external problems have an explicit avoidance/mitigation decision;
 - best practices were not copied without explaining their purpose;
 - the chosen design is not weaker than required for the guarantee;
 - `NARROW` reduced implementation scope, not research depth;
+- `DEFER` never opens or resumes production implementation;
 - the chosen design does not introduce broad future infrastructure without current justification;
 - future ADR details were allowed to change when current evidence justified it;
 - no material architecture primitive/change appeared after the current Brief without re-entering research;
