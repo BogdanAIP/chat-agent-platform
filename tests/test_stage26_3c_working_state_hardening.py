@@ -396,6 +396,58 @@ class WorkingStateHardeningTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "shape mismatch"):
             WorkingState.from_dict(payload)
 
+    def test_durable_attempt_actor_mismatch_fails_closed(self) -> None:
+        state = self.state()
+        intent = self.intent(state)
+        state = state.record_attempt(
+            intent,
+            MutatingOutcome.NOT_APPLIED,
+            self.failure(intent),
+            expected_revision=state.revision,
+        )
+        payload = json.loads(json.dumps(state.as_dict()))
+        payload["attempts"][0]["intent"]["actor_ref"] = "foreign-actor"
+        with self.assertRaisesRegex(
+            ValueError,
+            "attempt actor_ref does not match WorkingState",
+        ):
+            WorkingState.from_dict(payload)
+
+    def test_durable_attempt_observations_must_advance_between_attempts(self) -> None:
+        state = self.state()
+        first = self.intent(state)
+        state = state.record_attempt(
+            first,
+            MutatingOutcome.NOT_APPLIED,
+            self.failure(first),
+            expected_revision=state.revision,
+        )
+        state = state.record_observation(
+            self.observation(1, "state-a"),
+            expected_revision=state.revision,
+        )
+        second = self.intent(
+            state,
+            operation="op-2",
+            strategy="s2",
+            action="keyboard-save",
+        )
+        state = state.record_attempt(
+            second,
+            MutatingOutcome.NOT_APPLIED,
+            self.failure(second),
+            expected_revision=state.revision,
+        )
+        payload = json.loads(json.dumps(state.as_dict()))
+        payload["attempts"][1]["intent"]["observation_ref"] = json.loads(
+            json.dumps(payload["attempts"][0]["intent"]["observation_ref"])
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "attempt observations must advance between physical attempts",
+        ):
+            WorkingState.from_dict(payload)
+
     def test_earlier_unresolved_attempt_cannot_be_hidden_by_later_durable_attempt(self) -> None:
         state = self.unknown_state()
         payload = json.loads(json.dumps(state.as_dict()))
