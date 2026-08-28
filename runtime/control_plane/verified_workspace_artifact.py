@@ -26,6 +26,7 @@ from ._verified_workspace_artifact_support import (
     _evidence,
     _exclusive_create_file,
     _exclusive_link_file,
+    _file_identity,
     _file_predicates,
     _intent_from_marker,
     _is_missing,
