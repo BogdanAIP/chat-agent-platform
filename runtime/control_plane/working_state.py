@@ -450,6 +450,19 @@ class WorkingState:
                 raise ValueError(f"{name} history is invalid")
             object.__setattr__(self, name, items)
 
+        attempt_failures = tuple(
+            attempt.failure
+            for attempt in self.attempts
+            if attempt.failure is not None
+        )
+        if any(
+            failure.outcome is not None and failure not in attempt_failures
+            for failure in self.failures
+        ):
+            raise ValueError("mutating outcome failure is not bound to an attempt")
+        if any(failure not in self.failures for failure in attempt_failures):
+            raise ValueError("attempt failure is missing from WorkingState failure history")
+
         if any(attempt.revision_after > self.revision for attempt in self.attempts):
             raise ValueError("attempt history revision exceeds WorkingState revision")
         if any(
@@ -782,6 +795,8 @@ class WorkingState:
             raise ValueError("stale WorkingState revision")
         if not isinstance(failure, FailureReason):
             raise TypeError("failure must be FailureReason")
+        if failure.outcome is not None:
+            raise ValueError("mutating outcome failures must be recorded with an attempt")
         return replace(
             self,
             revision=self.revision + 1,
