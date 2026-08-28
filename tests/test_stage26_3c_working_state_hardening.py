@@ -364,6 +364,48 @@ class WorkingStateHardeningTests(unittest.TestCase):
             1,
         )
 
+    def test_record_failure_rejects_mutating_outcome_without_attempt(self) -> None:
+        state = self.state()
+        hidden_unknown = FailureReason(
+            code="hidden-unknown",
+            category=FailureCategory.RUNTIME_UNCERTAIN,
+            message="A mutating outcome cannot be hidden in generic failure history.",
+            retryable=False,
+            reconciliation_required=True,
+            operation_id="op-1",
+            strategy_id="s1",
+            outcome=MutatingOutcome.OUTCOME_UNKNOWN,
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "mutating outcome failures must be recorded with an attempt",
+        ):
+            state.record_failure(
+                hidden_unknown,
+                expected_revision=state.revision,
+            )
+
+    def test_durable_standalone_mutating_failure_fails_closed(self) -> None:
+        payload = json.loads(json.dumps(self.state().as_dict()))
+        payload["failures"].append(
+            {
+                "code": "hidden-unknown",
+                "category": FailureCategory.RUNTIME_UNCERTAIN.value,
+                "message": "Forged standalone mutating failure.",
+                "retryable": False,
+                "reconciliation_required": True,
+                "operation_id": "op-1",
+                "strategy_id": "s1",
+                "outcome": MutatingOutcome.OUTCOME_UNKNOWN.value,
+                "evidence_refs": [],
+            }
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "mutating outcome failure is not bound to an attempt",
+        ):
+            WorkingState.from_dict(payload)
+
     def test_durable_budget_reset_tamper_fails_closed(self) -> None:
         state = self.state()
         intent = self.intent(state)
