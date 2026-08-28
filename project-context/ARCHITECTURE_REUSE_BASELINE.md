@@ -40,6 +40,8 @@ Role-level `DEFER` is distinct from the top-level Stage Research decision `DEFER
 
 A baseline row is history plus a current comparison starting point, not automatic implementation authority.
 
+When a baseline role points to a public **reference implementation**, and `.agents/skills/source-code-research/SKILL.md` applies, the comparison must inspect source code at an exact commit/tag. README/docs-level familiarity alone does not revalidate that lineage.
+
 ## Canonical role map
 
 | Architectural role | Prior selected source / owner | Intended reuse | Explicitly not delegated | Original reason / value | Detailed owner | Prior lineage posture |
@@ -55,6 +57,7 @@ A baseline row is history plus a current comparison starting point, not automati
 | Human desktop demonstration capture | OpenAdapt Capture + Flow adapter | local demonstration capture and inputs for candidate procedure compilation | automatic trust/promotion, cloud dependency, task completion authority | avoid writing recorder/capture stack from scratch; defer trust to project evidence | `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`, `STAGE26_PROCEDURAL_MEMORY.md`, `MODULE_CATALOG.md` | `SELECTED_REVALIDATE_BEFORE_ADOPTION` |
 | Windows / Office application mechanics | selective Microsoft UFO/UFO²-derived UIA, Win32, WinCOM and app-specific patterns | focused Excel/Word/PowerPoint/Outlook/native adapter mechanics where they are stronger than generic GUI action | UFO HostAgent/AppAgent planner hierarchy, UFO completion authority, Galaxy orchestration | reuse expensive app-specific Windows mechanics without importing a second AgentOS/planner | `EXTERNAL_EXECUTION_REUSE_STRATEGY.md`, `MODULE_CATALOG.md` | `SELECTIVE_REUSE_REVALIDATE_PER_APP` |
 | Multi-chat / provider conversation extraction and browser adaptation | CtxPort-derived ideas plus project Browser Companion / `GenericChatAdapter` direction | structured extraction, provider/profile registry ideas, bounded handoff/context normalization, browser authenticated-session adaptation | treating Markdown transcript as source of truth, provider UI as authority, whole third-party extension as project control plane | reuse cross-provider extraction/adaptation ideas while keeping stable session/delegation identity and authority project-owned | `CONVERSATION_BRIDGE_ARCHITECTURE.md`, `MODULE_CATALOG.md`, `DECISIONS.md` | `IDEA_SOURCE_REVALIDATE_PER_ROLE` |
+| Agent session / long-lived host lifecycle and orchestration | `openai/codex` as a source-code reference implementation, not a selected runtime dependency | App Server/thread lifecycle, resume/fork, WorldState/context reinjection, agent-graph ownership, typed hooks/events, async user messaging and multi-agent lifecycle as mechanisms to compare | project Control Plane authority, WorkingState, Verification Kernel, Finish Gate, capability grants, bounded public semantic surface, broad shared-filesystem/tool authority, unproven wake/scheduler semantics | public Codex code exposes a mature agent-harness lifecycle layer that complements rather than replaces this project's verified consequence/control layer | `CONTROL_PLANE.md`, `ROADMAP.md`, `DECISIONS.md` | `REFERENCE_REVALIDATE_PER_STAGE` |
 | Capability-spanning operational state | project-owned `WorkingState` | constraints, subgoals/progress, provenance/freshness, evidence refs, recovery/reconciliation history, budgets, grants/procedure refs | OpenAdapt procedure state, provider/session task stores, private chain-of-thought | no external procedure/session runtime spans the full product authority/state boundary | `CONTROL_PLANE.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `DECISIONS.md` | `PROJECT_OWNED` |
 | Transition verification authority | project Verification Kernel | current-state binding, fresh same-stream evidence, ExpectedEffect, `PASS | FAIL | UNKNOWN` | external verifier/model/procedure self-declared success | external evidence may help, but project policy must remain able to reject stale/mismatched/insufficient evidence | `CONTROL_PLANE.md`, `STAGE26_3B_VERIFICATION_KERNEL.md`, `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | `PROJECT_OWNED` |
 | Task completion authority | project independent Finish Gate | fresh goal/safety/constraint evidence -> `DONE | NOT_DONE | UNKNOWN` | planner/procedure/worker/external framework self-reported completion | transition success and task completion are different contracts | `CONTROL_PLANE.md`, `ROADMAP.md`, `DECISIONS.md` | `PROJECT_OWNED` |
@@ -77,6 +80,8 @@ prior role / selected source
 ```
 
 The comparison is about mechanisms and boundaries, not project popularity.
+
+For a source-code reference row, this comparison must also identify the exact upstream ref, concrete implementation paths/symbols, tests/failure evidence, and any material lifecycle piece that is not open or not found. Use the classifications and evidence rules from `.agents/skills/source-code-research/SKILL.md`.
 
 ## Example: Stage 26.3C procedure recovery
 
@@ -108,7 +113,7 @@ Do not turn this document into:
 - a replacement for detailed ADR/reuse documents;
 - proof that a component is currently implemented or physically accepted.
 
-Exact versions/pins that are security/supply-chain critical remain in their lock/config/source-owner documents. This baseline records architectural role lineage and points to those owners.
+Exact versions/pins that are security/supply-chain critical remain in their lock/config/source-owner documents. Research comparison refs belong in the current Stage Research Brief / source-code evidence, not as mutable snapshot claims in this baseline.
 
 ## Relationship to existing documents
 
@@ -117,4 +122,5 @@ Exact versions/pins that are security/supply-chain critical remain in their lock
 - `MODULE_SELECTION_POLICY.md` — rules for selecting or adapting external components.
 - `DECISIONS.md` — ADR-level architecture decisions.
 - `ARCHITECTURE.md` / `CONTROL_PLANE.md` — durable product/authority boundaries.
+- `.agents/skills/source-code-research/SKILL.md` — exact-ref code archaeology and source-code evidence rules for public implementations.
 - this document — **canonical prior-decision baseline used by future Stage Research comparisons**.
