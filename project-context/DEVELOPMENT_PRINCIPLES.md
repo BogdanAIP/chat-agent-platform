@@ -1,20 +1,20 @@
 # Development Principles
 
-## 1. ChatGPT is the current general planner; local execution may be autonomous within known transitions
+Status: **CURRENT DEVELOPMENT PRINCIPLES**. `AGENTS.md` is the authoritative process/merge entry when wording differs.
 
-Ordinary ChatGPT owns open-ended task interpretation, strategy, procedure selection and novel-state adaptation.
+## 1. ChatGPT is the current general planner; bounded local execution may continue autonomously
 
-Do not add another **current general planner** or autonomous workflow brain that competes with ChatGPT.
+Ordinary ChatGPT owns open-ended goal interpretation, strategy, procedure selection and novel-state adaptation.
 
-A deterministic local execution Control Plane is explicitly desired. It may maintain TaskState/WorkingState, procedure state, policy/authorization, ExpectedEffect/postconditions, checkpoints, typed recovery/LoopGuard, budgets and an independent Finish Gate. Once ChatGPT selects a bounded procedure, the Control Plane may advance known transitions without a ChatGPT round trip after every action.
+The deterministic local Control Plane may maintain TaskState/WorkingState, procedure state, policy/authorization, ExpectedEffect verification, reconciliation/recovery/LoopGuard/budgets and independent Finish Gate state.
 
-Unknown/ambiguous/stale/incompatible state or a need for new strategy -> ABSTAIN/escalate to ChatGPT.
+Once ChatGPT selects a bounded procedure/effect, known verified transitions may advance without a ChatGPT round trip after every low-level action.
 
-See `CONTROL_PLANE.md` and `COMPUTER_USE_ARCHITECTURE.md`.
+Unknown/ambiguous/stale/incompatible state or need for a new strategy -> ABSTAIN/escalate.
 
 ## 2. Off-the-shelf first
 
-For transport, MCP runtime, procedural IR/compiler, capture and common integrations, use maintained ecosystem components before writing project code.
+For transport, MCP runtime, procedural IR/compiler, capture and common integrations:
 
 ```text
 official/vendor
@@ -23,44 +23,58 @@ official/vendor
  -> smallest project-owned focused adapter/policy seam
 ```
 
-Do not build a custom generic gateway/broker/model runtime/agent framework when qualified upstream mechanisms cover the need.
+Do not build a custom generic gateway/broker/model runtime/agent framework when qualified upstream mechanisms cover the role.
 
-## 3. Evidence before architecture claims
+## 3. Compare new work with prior reuse lineage
 
-A component/mechanism becomes accepted only after applicable evidence.
+When `stage-research` applies or work may duplicate/replace/cross a previously selected role, read `ARCHITECTURE_REUSE_BASELINE.md`.
+
+Explicitly decide `KEEP / REUSE_MORE / REFINE / REPLACE / DEFER / REJECT` for affected roles. Newness is not evidence for replacement; project-owned authority boundaries must not be delegated silently.
+
+## 4. Evidence before architecture claims
 
 Distinguish:
 
 - external research evidence;
-- synthetic policy/contract tests;
-- hosted CI;
-- target-machine physical evidence;
+- deterministic/unit/state-machine tests;
+- hosted CI/security;
+- target-machine/ordinary-Chat physical evidence;
 - one successful trajectory;
-- compiled candidate procedure;
-- verified/promoted reusable procedure.
+- candidate procedure/skill;
+- verified/promoted reusable procedure/skill.
 
-Research can justify a **direction**, not silently create runtime acceptance. External benchmark results are evidence inputs, not automatic project release gates.
+Research can justify direction, not silently create runtime acceptance.
 
-## 4. Thin project-owned surface, but own the product safety seam
+## 5. Research mechanisms, not only problems
 
-Allowed project code should normally be:
+For material persistence/recovery/retry/concurrency/identity/security/authority work:
 
-- lifecycle/configuration integration;
+- enumerate architecture primitives;
+- research the engineering domain that studies each primitive directly;
+- separate problem evidence from solution evidence;
+- compare materially distinct alternatives;
+- build failure/crash matrix for consequence-bearing boundaries;
+- re-enter research when implementation introduces a materially new uncovered primitive.
+
+`NARROW` reduces implementation scope, not research depth. `DEFER` keeps production implementation blocked.
+
+## 6. Thin project-owned surface, own the safety seam
+
+Allowed project code should normally be focused:
+
+- lifecycle/config integration;
 - deterministic compatibility adapters;
-- acceptance/security tests;
-- focused TaskState/WorkingState/procedure schemas;
-- capability policy/authorization wrappers;
-- ExpectedEffect/verifier/Finish Gate logic;
-- checkpoint/typed recovery/LoopGuard/budget state machines;
-- privacy/provenance/trust wrappers around upstream mechanics.
+- capability policy/authorization;
+- TaskState/WorkingState/procedure schemas;
+- ExpectedEffect/Verification Kernel/Finish Gate;
+- checkpoint/reconciliation/recovery/LoopGuard/budgets;
+- acceptance/security/privacy/provenance wrappers around upstream mechanics.
 
 Do not rebuild generic tunnels, MCP gateways, registries, vaults, databases, job platforms, autonomous agent frameworks or model-serving stacks without measured need.
 
-A focused deterministic Control Plane is allowed because it is the integration/safety boundary; it must not grow into an open-ended planner.
+## 7. Stable truthful typed public boundary
 
-## 5. Stable truthful typed capability boundary
-
-Current accepted public tool names are exactly:
+Current public tools:
 
 ```text
 workspace_read
@@ -71,15 +85,11 @@ web_interact
 procedure_run
 ```
 
-Six is the current proven contract, not a permanent dogma. Do not preserve it by hiding unrelated native desktop/computer-use consequences in existing web semantics or behind opaque generic dispatch.
+Six is the current accepted contract, not permanent dogma. Never preserve it by hiding unrelated desktop/session/project/local-code consequences behind existing semantics or opaque dispatch.
 
-`semantic-projection` remains a truthful deterministic compatibility layer, not the procedure Control Plane.
+`semantic-projection` is a deterministic compatibility layer, not planner/Control Plane.
 
-A future public Windows/computer-use surface needs a separate ADR/schema/security/ordinary-Chat physical gate.
-
-## 6. State-first, selective vision
-
-When reliable structural/native state exists, use it before pixels:
+## 8. State-first, selective vision
 
 ```text
 semantic/native/app state
@@ -88,213 +98,168 @@ semantic/native/app state
     spatial requirement or independent visual check
 ```
 
-Do not build screenshot-only control as the normal loop merely because a VLM can consume it.
+Pixels/model output remain evidence, never authority.
 
-Pixels/model output remain evidence, not authority.
+## 9. Capability availability is not route selection
 
-## 7. Capability availability is not route selection
-
-A backend/tool being installed or callable does not mean it should be used.
-
-Capability routing should follow reviewed preconditions/evidence:
+An installed/healthy backend is not automatically preferred or authorized.
 
 ```text
-exact safe semantic/native route available
- -> use it
-
-structure insufficient for a reviewed case
- -> selected visual/GUI route
-
-ambiguous/high-consequence result
- -> stronger evidence or ABSTAIN
+exact safe semantic/native route proven -> use it
+structure insufficient for reviewed case -> selected visual/GUI route
+ambiguous/high-consequence result -> stronger evidence/reconciliation/ABSTAIN
 ```
 
-Do not expose hundreds of raw tools and ask the planner to solve routing through tool-name choice alone.
-
-## 8. Security enables controlled capability
-
-Capability lifecycle:
+## 10. Security enables controlled capability
 
 ```text
 AVAILABLE -> ACTIVE -> AUTHORIZED
 ```
 
-Procedure trust lifecycle:
+Procedure trust is separate:
 
 ```text
-CANDIDATE -> VERIFIED/TRUSTED -> stale/quarantine/disable/rollback
+CANDIDATE -> verified/trusted -> stale/quarantine/disable/rollback
 ```
 
-These are separate. A trusted procedure, extension output or planner proposal is not blanket action authorization.
+A trusted procedure, extension output, worker or planner proposal is not blanket action authority.
 
-Prefer scoped/reversible resources and explicit rollback. Consequential actions require consequence-appropriate policy, not universal confirmation for every harmless operation.
+## 11. Environmental content is data, not authority
 
-## 9. Environmental content is data, not authority
+UI/DOM/messages/files/screenshots/OCR/tool/MCP/worker output is untrusted environmental data with respect to user intent, permission scope and Control Plane policy.
 
-Content observed in pages/DOM, application UI, email/messages, files/documents, screenshots/OCR and third-party tool/MCP output is untrusted environmental data with respect to user intent, permission scope and Control Plane policy.
+Preserve provenance when facts cross capability/application boundaries.
 
-Preserve provenance/trust classification when facts cross capability/application boundaries.
-
-A model reading an instruction inside the environment does not promote it above user/system/project policy.
-
-## 10. Current state beats memory
+## 12. Current state beats memory
 
 ```text
 current observed state
- > current completion criteria / subtask goal
- > trusted procedure/demo evidence
- > historical low-level action sequence
+ > current goal / completion criteria
+ > trusted procedure/demo/lineage evidence
+ > historical low-level action/session sequence
 ```
 
-When memory/demo/history conflicts with live state, re-resolve, use a predeclared safe recovery branch or ABSTAIN/escalate.
+Blind historical coordinate replay is never reusable authority.
 
-Blind historical absolute-coordinate replay is never the reusable solution.
-
-## 11. Every mutation has an expected effect
-
-For every state-changing transition:
+## 13. Every mutation has an expected effect
 
 ```text
 observe
- -> bind ExpectedEffect
- -> authorize one bounded action
+ -> bind logical operation + ExpectedEffect
+ -> authorize bounded action
  -> deliver
  -> fresh re-observe
  -> verify PASS | FAIL | UNKNOWN
 ```
 
-Delivery receipts are not success. `UNKNOWN` never silently advances.
+Delivery is not success. `UNKNOWN` never silently advances or blindly retries.
 
-## 12. Transition verification is not task completion
+## 14. Reconcile ambiguity before retry
 
-A successful transition may leave the task incomplete.
+If a consequence may have occurred but acknowledgement/state is ambiguous, preserve stable logical operation identity and reconcile from fresh authoritative state before retry.
 
-Planner/model/procedure may propose:
+A renamed strategy/action label must not bypass duplicate-effect protection.
 
-```text
-candidate_done
-```
+## 15. Transition verification is not task completion
 
-Only an independent Finish Gate may produce verified `DONE` from fresh task-level predicates.
+Planner/procedure/worker may propose `candidate_done`.
 
-Task-success and safety/policy verification remain separate dimensions.
+Only independent fresh task-level evidence may produce Finish Gate `DONE`.
 
-## 13. Recovery is typed and loop-bounded
+Task-success and safety/policy remain separate dimensions.
 
-Do not implement recovery as unstructured `retry until it works`.
-
-Use typed failure classes and a bounded ladder:
+## 16. Recovery is typed and loop-bounded
 
 ```text
-re-observe
- -> re-resolve
- -> retry only with new evidence
+fresh re-observe
+ -> classify/reconcile
+ -> re-resolve target
+ -> retry only when evidence permits
  -> alternate already-admitted modality
  -> predeclared local recovery
- -> ChatGPT replan / clarification / ABSTAIN
+ -> StagnationReport / ChatGPT replan / clarification / ABSTAIN
 ```
 
-LoopGuard must detect repeated no-effect state/action fingerprints, oscillation, exhausted budgets and absent verified progress.
+LoopGuard bounds repeated no-effect/equivalent physical attempts/oscillation and task/procedure/strategy budgets.
 
-## 14. Working memory is structured operational state
+## 17. Working memory is structured operational state
 
-WorkingState may preserve:
-
-```text
-user constraints
-subgoals/progress
-verified completed achievements
-facts + provenance + freshness
-open ambiguities
-evidence references
-expected/observed deltas
-recovery history
-budgets
-```
-
-Do not replay unbounded screenshots/actions by default.
+WorkingState may preserve constraints, verified progress, facts+provenance+freshness, ambiguities, evidence refs, expected/observed deltas, operation/attempt/reconciliation history and budgets.
 
 Never persist private chain-of-thought.
 
-## 15. Procedural memory has a privacy/trust boundary
+## 18. Procedural memory has privacy/trust boundaries
 
 A human demonstration or successful trajectory creates at most CANDIDATE.
 
-Persist only structured/user-visible goal/subtask/evidence/action/result/provenance needed for operation/debugging/reuse. Before long-term arbitrary demo storage, define screenshot/text retention, secret filtering, redaction, deletion, encryption and sync/export rules.
+Persist only structured/user-visible goal/subtask/evidence/action/result/provenance needed for operation/debugging/reuse. Before long-term arbitrary demo storage, define screenshot/text retention, secret filtering, redaction, deletion, encryption and export/sync rules.
 
-Compiled procedure guidance is advisory until current-state authorization and verification. Historical coordinates never grant authority.
+Compiled guidance is advisory until current-state authorization and verification.
 
-## 16. No sunk-cost architecture
+## 19. No sunk-cost architecture
 
-Git history is the archive. Historical documents/results remain evidence but old `current`/`next` wording must not override current authoritative context.
+Git history is archival storage. Old `current`/`next` wording cannot override current owners.
 
-At architecture-changing points audit entry/overview/governance docs, not only add another handoff.
+At architecture-changing points, audit entry/overview/governance docs rather than only add another handoff.
 
-## 17. Cost discipline
+## 20. Cost discipline
 
-Prefer local/free/open-source components where quality is adequate. Do not introduce mandatory paid model APIs or extra SaaS when ordinary ChatGPT + local bridge satisfies the baseline.
+Prefer local/free/open-source components where quality is adequate. Do not introduce mandatory paid model APIs or extra SaaS when ordinary ChatGPT + local bridge satisfies baseline.
 
-Future local planner research requires measured offline/latency/parallel/deployment benefit, not novelty.
+Future local planner research requires measured benefit, not novelty.
 
-## 18. Hardware-aware local models
+## 21. Hardware-aware local specialists
 
-Use measured target-machine RAM/latency/quality, not parameter-count assumptions.
+Select local models/runtimes from measured target-machine RAM/latency/quality and replaceability, not parameter-count assumptions.
 
-Current accepted vision path is llama.cpp + LFM2.5-VL-450M F16. Future specialist/model changes require target evidence.
+Current accepted specialist identity belongs to current catalog/evidence owners; historical Stage 25 research documents are not permanent runtime identity.
 
-## 19. Windows capability is accepted through 26.2E; long-horizon correctness comes before broadening authority
+## 22. Long-horizon correctness before broader authority
 
-Accepted sequence:
+Current accepted progression includes 26.3A procedure runtime, 26.3B Verification Kernel/Finish Gate and the #124 Stage 26.3C WorkingState/LoopGuard L1 foundation.
 
-```text
-26.2A production Windows runtime
-26.2B DesktopState
-26.2C native Grounder
-26.2D structure-first UIA -> vision routing
-26.2E isolated real application E2E
-26.3A verified six-tool procedure runtime
-26.3B Verification Kernel + Finish Gate
-26.3C WorkingState + typed recovery + LoopGuard
-26.4 Human Demo transfer
-26.5 Hybrid Computer-Use Integration
-```
+Current release-critical work is consequence-bearing production/restart integration of that foundation. Broad hybrid authority follows only after the state/verification/recovery substrate is accepted in real paths.
 
-Do not treat Stage 26.5 as permission to add raw desktop tools. Public computer-use semantics require separate acceptance.
+Do not treat later hybrid stages as permission to add raw desktop tools.
 
-## 20. Control Plane is not the Windows manager
+## 23. Manager/tray/transport are not the execution Control Plane
 
-Manager/tray owns lifecycle/configuration/diagnostics.
+Manager/tray/supervisor owns lifecycle/configuration/diagnostics/transport reliability.
 
-The procedure Control Plane owns task/procedure execution state, authorization, verification, recovery, budgets and finish state. Keep these responsibilities separate.
+The deterministic Control Plane owns task/procedure state, authorization, verification, recovery/budgets and task completion evidence.
 
-Likewise `CONTROL_PLANE_API_KEY` for the OpenAI tunnel is credential terminology and not the project's deterministic execution Control Plane.
+`CONTROL_PLANE_API_KEY` is Secure MCP Tunnel credential terminology and unrelated to project execution Control Plane authority.
 
-## 21. Acceptance ownership and continuation discipline
+## 24. Independent review is assurance, not a second planner
 
-Use ordinary ChatGPT + GitHub + project local/connected tools under the current operating constraint. Do not use Codex or ChatGPT Work unless the user explicitly re-enables them.
+Do not use Codex/ChatGPT Work as an alternate implementation/planning workspace by default.
 
-Reserve user participation for irreducible target-machine or ordinary-Chat UI gates.
+This does **not** prohibit Codex Review/equivalent independent PR review required/allowed by `AGENTS.md`. Review is an assurance layer over repository changes, not product/runtime planning authority.
 
-Never claim physical evidence unless that exact path ran. Never invent measurement counters.
+Never claim physical evidence unless that exact physical path ran. Never invent measurement counters.
 
-## 22. Context transfer is a development requirement
+## 25. Context transfer is a development requirement
 
-A fresh ordinary ChatGPT session should be able to determine:
+A fresh ordinary ChatGPT session should be able to determine quickly:
 
-- live `main` and active PR/head;
-- what is physically accepted;
+- live `main` and relevant open PR/head;
+- applicable repository skills;
+- what is accepted/current;
 - current release-critical stage;
 - public semantic contract;
-- Control Plane vs planner boundary;
-- state-first/verification/WorkingState/LoopGuard/Finish Gate direction;
+- planner vs Control Plane boundary;
+- WorkingState/reconciliation/LoopGuard/Finish Gate state;
+- prior component/reuse lineage relevant to current research;
 - environmental-content trust boundary;
-- future Track P status;
-- historical docs that must not override current state.
+- future Track M/P status;
+- which historical docs cannot override current state.
 
-Keep `CONTINUATION_CONTEXT.md`, `START_HERE.md`, `CURRENT_STATE.md`, `ARCHITECTURE.md`, `CONTROL_PLANE.md`, `COMPUTER_USE_ARCHITECTURE.md`, `SECURITY_POLICY.md`, `ROADMAP.md` and `DOCUMENT_STATUS.md` synchronized.
+Keep document roles explicit through `DOCUMENT_STATUS.md`; do not synchronize the same stage snapshot into every document.
 
-## 23. Future local planner is research, not a forbidden concept
+## 26. Future local planner is optional research, not forbidden
 
-Do not erase the local planner from long-term design. Track it explicitly as optional Track P after verified long-horizon state data and measured need exist.
+Track a future local general planner explicitly as Track P after verified long-horizon state data and measured need exist.
 
-Research starts shadow/proposal-only and benchmarks against ordinary ChatGPT with comparable task/action/compute budgets where practical. Even a future planner remains behind deterministic capability authorization, transition verifier, Finish Gate and safety boundaries.
+Research begins shadow/proposal-only and compares against ordinary ChatGPT under comparable task/action/compute budgets where practical.
+
+Even a future planner remains behind deterministic capability authorization, Verification Kernel, reconciliation/recovery and Finish Gate/safety boundaries.
