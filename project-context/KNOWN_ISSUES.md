@@ -4,15 +4,15 @@ Status: **CURRENT LIMITATION REGISTER**.
 
 This file lists unresolved limitations in the current architecture/product. It is not the ranked risk register (`PROJECT_RISKS.md`), release plan (`ROADMAP.md`) or technical-debt owner (`TECH_DEBT.md`).
 
-Resolve live repository state before acting.
+Resolve live repository state before acting. Active PR/design detail belongs in `CURRENT_STATE.md`.
 
 ## Current unresolved issues
 
 1. **Broad real-application computer-use reliability is not yet proven.** Representative Browser and Windows/application L3 verticals are accepted, but native Win32, Electron, Office-style apps, file/dialog flows and environment variants still need broader characterization.
 
-2. **Stage 26.3C production recovery integration is incomplete.** WorkingState/typed reconciliation/budgets/LoopGuard L1 foundation is accepted through #124, but consequence-bearing procedures/capabilities still need restart-safe integration and physical qualification. Draft #126 is the first bounded workspace-artifact consumer at this snapshot.
+2. **Stage 26.3C production recovery integration is incomplete.** WorkingState/typed reconciliation/budgets/LoopGuard L1 foundation is accepted through #124, but consequence-bearing procedures/capabilities still need restart-safe integration and physical qualification.
 
-3. **Machine/power-loss transactional durability is not an accepted WorkingState/procedure guarantee.** The current #126 research scope deliberately targets process crash/restart. Missing/corrupt/inconsistent durable state must fail closed rather than imply a database-grade WAL guarantee.
+3. **Machine/power-loss transactional durability is not an accepted WorkingState/procedure guarantee.** Current Stage 26.3C production research deliberately scopes concrete guarantees; missing/corrupt/inconsistent durable state must fail closed rather than imply a database-grade WAL guarantee that has not been accepted.
 
 4. **Browser runtime output ownership is not fully intrinsic.** #118 caught Playwright runtime artifacts entering a source worktree when process CWD was inherited. The accepted gate isolated runtime CWD; normal runtime still needs an explicit project-owned output/state directory. See TD-010.
 
