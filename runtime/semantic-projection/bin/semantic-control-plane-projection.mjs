@@ -58,7 +58,6 @@ function procedureFailure(reason, correlationTaskId = null) {
     schema_version: 1,
     status: 'error',
     reason,
-    action_count: 0,
     ...(correlationTaskId === null ? {} : { resume_task_id: correlationTaskId })
   };
   return {
