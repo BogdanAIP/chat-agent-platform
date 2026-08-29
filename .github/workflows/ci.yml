@@ -4,7 +4,6 @@ name: ci
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 concurrency:
@@ -15,79 +14,6 @@ permissions:
   contents: read
 
 jobs:
-  one-shot-schema2-identity-fix:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.action == 'synchronize' &&
-      github.actor == 'BogdanAIP' &&
-      github.event.pull_request.number == 126 &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'chat/stage26-3c-workspace-working-state'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: chat/stage26-3c-workspace-working-state
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Apply confirmed schema-2 identity fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('runtime/control_plane/_verified_workspace_artifact_support.py')
-          lines = path.read_text(encoding='utf-8').splitlines()
-          marker = '            raise ValueError("resume checkpoint prepared_intent is invalid")'
-          matches = [index for index, line in enumerate(lines) if line == marker]
-          if len(matches) != 1:
-              raise SystemExit(f'expected one insertion marker, found {len(matches)}')
-          index = matches[0]
-          if index + 1 >= len(lines) or lines[index + 1] != '    return schema_version':
-              raise SystemExit('resume validation return moved unexpectedly')
-          insertion = [
-              '',
-              '        owned_identity_fields = set(',
-              '            {',
-              '                "staged_verified": ("staging_file_identity",),',
-              '                "final_verified": (',
-              '                    "staging_file_identity",',
-              '                    "target_file_identity",',
-              '                ),',
-              '                "completed": ("target_file_identity",),',
-              '            }.get(str(task_state["current_node"]), ())',
-              '        )',
-              '        if str(task_state["status"]) == "completed":',
-              '            owned_identity_fields.add("target_file_identity")',
-              '        for field in sorted(owned_identity_fields):',
-              '            identity = _normalized_identity(task_state.get(field))',
-              '            if identity is None or "birthtime_ns" not in identity:',
-              '                raise ValueError(',
-              '                    f"resume checkpoint {field} is missing generation-bound identity"',
-              '                )',
-          ]
-          lines[index + 1:index + 1] = insertion
-          path.write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
-          PY
-
-          python -m unittest discover -s tests -p 'test_stage26_3c_checkpoint_identity_validation.py' -v
-          git diff --check
-
-          if git diff --quiet -- runtime/control_plane/_verified_workspace_artifact_support.py; then
-            echo 'Expected support-file patch was not produced.' >&2
-            exit 1
-          fi
-
-          git config user.name 'chat-agent-platform one-shot fix'
-          git config user.email 'actions@users.noreply.github.com'
-          git add runtime/control_plane/_verified_workspace_artifact_support.py
-          git commit -m 'Stage 26.3C: reject missing schema-2 ownership identity'
-          git push origin HEAD:chat/stage26-3c-workspace-working-state
-
   verify-windows:
     runs-on: windows-latest
     timeout-minutes: 15
