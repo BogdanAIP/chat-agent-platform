@@ -12,8 +12,6 @@ explicit ChatGPT deep link
 
 It does **not** call the Local Bridge, any model API, Work, Codex, shell, filesystem, or network API. It has no extension permissions beyond the static content-script match for `https://chatgpt.com/*`.
 
-The `cap_run_id` below is only a correlation/deduplication identifier. It is **not a secret, credential, capability token, or authorization grant**.
-
 ## Install for the physical probe
 
 1. Open `chrome://extensions`.
@@ -27,14 +25,14 @@ The `cap_run_id` below is only a correlation/deduplication identifier. It is **n
 Use a fresh run id for every intended new worker. Example:
 
 ```text
-autosend-run-example-001
+autosend-run-20260829-001
 ```
 
 Prompt before URL encoding:
 
 ```text
 @Chat Local Bridge Test DEEPLINK_AUTOSEND_GATE
-CAP_AUTOSEND_RUN_ID=autosend-run-example-001
+CAP_AUTOSEND_RUN_ID=autosend-run-20260829-001
 
 Use only Chat Local Bridge Test. Call workspace_read exactly once on stage26-3b-browser-real-task.txt. If the callable tool is exposed and the call reaches the bridge, report DEEPLINK_AUTOSEND_BRIDGE=PASS. A downstream bridge/tunnel error still counts as exposed. Do not modify any file or repository.
 ```
@@ -68,25 +66,24 @@ The extension does nothing when any of these is true:
 
 The one-shot marker is written **before** `button.click()`. An ambiguous click therefore never causes an automatic same-run retry.
 
-## What this experiment intentionally does not solve
+## Physical result
 
-- Windows Task Scheduler integration;
-- generating/rotating run ids;
-- cross-browser-restart deduplication;
-- deciding when a worker should wake;
-- WorkingState/task lease ownership;
-- detecting worker completion;
-- rotating to another fresh chat;
-- ChatGPT DOM compatibility beyond the physically qualified build.
+The target-browser probe on 2026-08-29 proved:
 
-Those remain blocked until the single-send physical gate is proven.
+```text
+fresh ordinary Chat
+ -> plugin chip resolved
+ -> extension auto-sent once
+ -> Chat Local Bridge Test.workspace_read reached bridge once
+ -> DEEPLINK_AUTOSEND_BRIDGE=PASS
+```
+
+That proof opens only the next narrow one-shot scheduler experiment; it does not by itself accept recurring autonomous wake/resume.
+
+## One-shot Windows scheduler follow-up
+
+See `SCHEDULER_PROBE.md`. The follow-up adds a bounded PowerShell launcher and one-time Task Scheduler registration helper. It deliberately excludes recurrence, WorkingState ownership, worker rotation and automatic retries.
 
 ## Focused tests
 
-The repository Python suite validates the narrow manifest and executes the JavaScript policy through Node:
-
-```text
-python -m unittest tests.test_chatgpt_deeplink_autosend_extension
-```
-
-A real ChatGPT physical probe is still required because the private ChatGPT composer DOM and plugin-chip behavior cannot be truthfully represented by a hosted unit test.
+The repository Python suite validates the narrow manifest/policy plus the one-shot Windows launcher/scheduler contract. A real ChatGPT physical probe remains required because the private ChatGPT composer DOM, plugin-chip behavior and interactive Windows browser launch cannot be truthfully represented by hosted unit tests.
