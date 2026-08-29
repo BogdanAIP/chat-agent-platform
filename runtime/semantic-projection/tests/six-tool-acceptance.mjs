@@ -207,6 +207,54 @@ try {
   assert.equal(abstainPayload.escalation_reason, 'target_already_exists');
   assert.equal(fs.readFileSync(path.join(protectedDir, conflictName), 'utf8'), 'DO_NOT_OVERWRITE');
 
+  const setupFailureEnv = childEnvironment({});
+  delete setupFailureEnv.CHAT_LOCAL_FILES_ROOT;
+  delete setupFailureEnv.CHAT_PROCEDURE_STATE_ROOT;
+  const setupFailureClient = new Client({ name: 'procedure-setup-correlation-acceptance', version: '1.0.0' });
+  const setupFailureTransport = new StdioClientTransport({
+    command: process.execPath,
+    args: [entry],
+    env: setupFailureEnv
+  });
+  try {
+    await setupFailureClient.connect(setupFailureTransport);
+    const freshSetupFailure = await setupFailureClient.callTool({
+      name: 'procedure_run',
+      arguments: {
+        procedure: 'verified_workspace_artifact_v1',
+        artifact_name: 'setup-failure.txt',
+        content: 'SETUP_FAILURE'
+      }
+    });
+    assert.equal(freshSetupFailure.isError, true, textOf(freshSetupFailure));
+    const freshSetupPayload = freshSetupFailure.structuredContent ?? JSON.parse(textOf(freshSetupFailure));
+    assert.equal(freshSetupPayload.status, 'error');
+    assert.match(freshSetupPayload.reason, /^control_plane_setup:/);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(freshSetupPayload, 'resume_task_id'),
+      false,
+      'pre-spawn fresh-call failure must not advertise a non-durable resume id',
+    );
+
+    const existingResumeId = 'a'.repeat(32);
+    const resumeSetupFailure = await setupFailureClient.callTool({
+      name: 'procedure_run',
+      arguments: {
+        procedure: 'verified_workspace_artifact_v1',
+        artifact_name: 'setup-failure.txt',
+        content: 'SETUP_FAILURE',
+        resume_task_id: existingResumeId
+      }
+    });
+    assert.equal(resumeSetupFailure.isError, true, textOf(resumeSetupFailure));
+    const resumeSetupPayload = resumeSetupFailure.structuredContent ?? JSON.parse(textOf(resumeSetupFailure));
+    assert.equal(resumeSetupPayload.status, 'error');
+    assert.match(resumeSetupPayload.reason, /^control_plane_setup:/);
+    assert.equal(resumeSetupPayload.resume_task_id, existingResumeId);
+  } finally {
+    try { await setupFailureClient.close(); } catch {}
+  }
+
   // Force the outer semantic projection's Python child to terminate without a
   // JSON result. This exercises the public procedure_run failure receipt rather
   // than importing a helper or reading private checkpoint inventory.
@@ -262,6 +310,7 @@ try {
   console.log('SEMANTIC_PUBLIC_PROCEDURE_RUN=PASS');
   console.log('SEMANTIC_PUBLIC_INDEPENDENT_READ=PASS');
   console.log('SEMANTIC_PUBLIC_RESUME=PASS');
+  console.log('SEMANTIC_PUBLIC_SETUP_FAILURE_CORRELATION=PASS');
   console.log('SEMANTIC_PUBLIC_CRASH_CORRELATION_RECEIPT=PASS');
   console.log('SEMANTIC_PUBLIC_ABSTAIN_NO_OVERWRITE=PASS');
   console.log('SEMANTIC_PUBLIC_SIX_TOOL_ACCEPTANCE=PASS');
