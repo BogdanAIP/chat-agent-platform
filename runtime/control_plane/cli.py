@@ -22,6 +22,7 @@ from runtime.control_plane.windows_case_update import (  # noqa: E402
 WORKSPACE_ARTIFACT_PROCEDURE_ID = workspace_artifact.PROCEDURE_ID
 MAX_REQUEST_BYTES = 32_768
 _ASSIGNED_TASK_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+_MIN_WORKSPACE_PYTHON = (3, 12)
 
 
 def _error(reason: str) -> dict[str, Any]:
@@ -31,6 +32,14 @@ def _error(reason: str) -> dict[str, Any]:
         "reason": reason,
         "action_count": 0,
     }
+
+
+def _require_workspace_python() -> None:
+    # Schema-2 restart identity relies on st_birthtime_ns, which is available on
+    # the supported Windows path in CPython 3.12+. Reject an incompatible
+    # interpreter before the procedure can create durable state or a file effect.
+    if sys.version_info < _MIN_WORKSPACE_PYTHON:
+        raise RuntimeError("workspace procedure requires Python 3.12 or newer")
 
 
 class _AssignedTaskIdSecrets:
@@ -83,6 +92,8 @@ def _run_workspace_artifact(
     state_root: Path,
     candidate_admission: str | None,
 ) -> dict[str, Any]:
+    _require_workspace_python()
+
     assigned_task_id = os.environ.get("CHAT_PROCEDURE_ASSIGNED_TASK_ID")
     if assigned_task_id is None:
         return workspace_artifact.run_verified_workspace_artifact(
