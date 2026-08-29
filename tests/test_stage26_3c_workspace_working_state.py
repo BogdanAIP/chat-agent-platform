@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -228,19 +229,26 @@ class Stage263CWorkspaceWorkingStateTests(unittest.TestCase):
             self.assertFalse(staging.exists())
             self.assertTrue(target.exists())
 
-    def test_resume_after_cleanup_delivery_finishes_without_second_unlink(self) -> None:
+    def test_resume_after_cleanup_delivery_finishes_without_second_delete(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
-            original_unlink = Path.unlink
+            real_delete_pin = workspace_artifact.pin_file_for_verified_delete
 
-            def unlink_then_crash(path: Path, *args, **kwargs) -> None:
-                if path.name.endswith(".staging"):
-                    original_unlink(path, *args, **kwargs)
-                    raise SystemExit("simulated crash after cleanup")
-                original_unlink(path, *args, **kwargs)
+            @contextmanager
+            def delete_then_crash(path: Path, *, workspace_root: Path | None = None):
+                with real_delete_pin(path, workspace_root=workspace_root) as mark_delete:
+                    def mark_then_crash() -> None:
+                        mark_delete()
+                        raise SystemExit("simulated crash after cleanup")
 
-            with patch.object(Path, "unlink", new=unlink_then_crash):
+                    yield mark_then_crash
+
+            with patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                new=delete_then_crash,
+            ):
                 with self.assertRaisesRegex(SystemExit, "after cleanup"):
                     self.execute(
                         self.request("resume-cleanup.txt", "CLEAN"),
@@ -255,18 +263,18 @@ class Stage263CWorkspaceWorkingStateTests(unittest.TestCase):
             self.assertFalse(staging.exists())
             self.assertTrue(target.exists())
 
-            def reject_staging_unlink(path: Path, *args, **kwargs) -> None:
-                if path.name.endswith(".staging"):
-                    raise AssertionError("cleanup was redelivered")
-                original_unlink(path, *args, **kwargs)
-
-            with patch.object(Path, "unlink", new=reject_staging_unlink):
+            with patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                side_effect=AssertionError("cleanup was redelivered"),
+            ) as delete_mock:
                 result = self.execute(
                     self.request("resume-cleanup.txt", "CLEAN", task_id),
                     workspace=workspace,
                     state=state,
                 )
 
+            delete_mock.assert_not_called()
             self.assertEqual(result["status"], "completed")
             self.assertEqual(result["action_count"], 3)
             self.assertTrue(target.exists())
