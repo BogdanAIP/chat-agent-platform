@@ -6,7 +6,12 @@ import { fileURLToPath } from 'node:url';
 
 const MAX_PLAYWRIGHT_SNAPSHOT_CHARS = 1_000_000;
 const MAX_VERIFIER_RESPONSE_BYTES = 128_000;
-const VERIFIER_TIMEOUT_MS = 7_500;
+// The verifier is fail-closed, but its helper is a cold Python process. On
+// hosted Windows runners process start/import can legitimately exceed 7.5s
+// even though the same exact browser transition succeeds on adjacent runs.
+// Keep a bounded timeout aligned with the Playwright action budget rather than
+// converting host startup variance into a false browser-verification failure.
+const VERIFIER_TIMEOUT_MS = 15_000;
 const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'PATH', 'Path', 'PATHEXT',
   'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC',
