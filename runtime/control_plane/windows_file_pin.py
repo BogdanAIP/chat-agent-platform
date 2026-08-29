@@ -183,12 +183,21 @@ def _namespace_components(workspace_root: Path, path: Path) -> tuple[Path, ...]:
 
 @contextmanager
 def _pin_namespace(workspace_root: Path, path: Path) -> Iterator[None]:
+    root = workspace_root.resolve(strict=False)
     with ExitStack() as stack:
-        for directory in _namespace_components(workspace_root, path):
+        for directory in _namespace_components(root, path):
+            # The configured workspace root itself is a capability boundary and
+            # is not claimed against external relocation here. Descendant
+            # namespace components are opened with DELETE access while refusing
+            # FILE_SHARE_DELETE, so another actor cannot rename/delete/repoint
+            # them during a consequence-bearing path resolution window.
+            desired_access = _FILE_READ_ATTRIBUTES
+            if directory != root:
+                desired_access |= _DELETE
             stack.enter_context(
                 _open_pinned_handle(
                     directory,
-                    desired_access=_FILE_READ_ATTRIBUTES,
+                    desired_access=desired_access,
                     share_mode=_FILE_SHARE_READ | _FILE_SHARE_WRITE,
                     directory=True,
                 )
