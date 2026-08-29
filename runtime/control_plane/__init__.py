@@ -6,6 +6,8 @@ transitions.  It does not expose generic code execution or persist private
 reasoning.
 """
 
+import os
+
 from .file_artifact_observation import (
     FILE_ARTIFACT_CAPABILITY,
     FileArtifactObservationStream,
@@ -23,6 +25,17 @@ from .verification import (
     evaluate_finish_gate,
     verify_expected_effect,
 )
+
+# Stage 26.3C is supported for consequence-bearing workspace mutation on
+# Windows. Bind the already-researched namespace-pinned create primitive before
+# the procedure module imports its internal helper by value. Non-Windows hosted
+# tests retain the portable helper and do not claim the Windows namespace gate.
+if os.name == "nt":
+    from . import _verified_workspace_artifact_support as _workspace_artifact_support
+    from .windows_file_pin import create_file_in_pinned_namespace as _pinned_workspace_create
+
+    _workspace_artifact_support._exclusive_create_file = _pinned_workspace_create
+
 from .verified_workspace_artifact import (
     PROCEDURE_ID,
     PROCEDURE_VERSION,
