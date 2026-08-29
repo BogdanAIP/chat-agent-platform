@@ -24,7 +24,7 @@ jobs:
       github.event.pull_request.draft == true &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'chat/stage26-3c-workspace-working-state' &&
-      contains(github.event.pull_request.body, '<!-- CAP_READY_26_3C_0B761FC7_8D4F2A91 -->')
+      contains(github.event.pull_request.title, '[CAP_READY_26_3C_0B761FC7_8D4F2A91]')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
