@@ -73,6 +73,7 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             """
             import os
             import sys
+            from contextlib import contextmanager
             from pathlib import Path
             import runtime.control_plane.verified_workspace_artifact as wa
 
@@ -100,24 +101,28 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
                     os._exit(82)
                 wa._exclusive_link_file = crash_after_final
             elif mode == "after_cleanup":
-                original_unlink = Path.unlink
-                def crash_after_cleanup(path, *args, **kwargs):
-                    if path.name.endswith(".staging"):
-                        original_unlink(path, *args, **kwargs)
-                        os._exit(83)
-                    return original_unlink(path, *args, **kwargs)
-                Path.unlink = crash_after_cleanup
+                original_delete_pin = wa.pin_file_for_verified_delete
+                @contextmanager
+                def crash_after_cleanup(path, *, workspace_root=None):
+                    with original_delete_pin(path, workspace_root=workspace_root) as mark_delete:
+                        def mark_then_crash():
+                            mark_delete()
+                            os._exit(83)
+                        yield mark_then_crash
+                wa.pin_file_for_verified_delete = crash_after_cleanup
             elif mode == "before_final":
                 def crash_before_final(source, target):
                     os._exit(84)
                 wa._exclusive_link_file = crash_before_final
             elif mode == "before_cleanup":
-                original_unlink = Path.unlink
-                def crash_before_cleanup(path, *args, **kwargs):
-                    if path.name.endswith(".staging"):
-                        os._exit(85)
-                    return original_unlink(path, *args, **kwargs)
-                Path.unlink = crash_before_cleanup
+                original_delete_pin = wa.pin_file_for_verified_delete
+                @contextmanager
+                def crash_before_cleanup(path, *, workspace_root=None):
+                    with original_delete_pin(path, workspace_root=workspace_root):
+                        def crash_before_mark():
+                            os._exit(85)
+                        yield crash_before_mark
+                wa.pin_file_for_verified_delete = crash_before_cleanup
             elif mode in {"after_stage_commit", "after_final_commit", "after_cleanup_commit"}:
                 original_write = wa._write_checkpoint
                 expected_node = {
@@ -327,7 +332,7 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             link_mock.assert_not_called()
             self.assert_completed_once(result)
 
-    def test_hard_process_death_after_cleanup_repairs_without_second_unlink(self) -> None:
+    def test_hard_process_death_after_cleanup_repairs_without_second_delete(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
@@ -346,18 +351,17 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             self.assertFalse(staging.exists())
             self.assertTrue(target.exists())
 
-            original_unlink = Path.unlink
-            def reject_duplicate_cleanup(path: Path, *args, **kwargs) -> None:
-                if path.name.endswith(".staging"):
-                    raise AssertionError("cleanup repeated after hard crash")
-                original_unlink(path, *args, **kwargs)
-
-            with patch.object(Path, "unlink", new=reject_duplicate_cleanup):
+            with patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                side_effect=AssertionError("cleanup repeated after hard crash"),
+            ) as delete_mock:
                 result = self.execute(
                     self.request("hard-cleanup.txt", "CLEANUP", task_id),
                     workspace=workspace,
                     state=state,
                 )
+            delete_mock.assert_not_called()
             self.assert_completed_once(result)
 
     def test_hard_process_death_after_stage_commit_resumes_without_recreating_stage(self) -> None:
@@ -422,7 +426,7 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             link_mock.assert_not_called()
             self.assert_completed_once(result)
 
-    def test_hard_process_death_after_cleanup_commit_returns_completed_without_unlink(self) -> None:
+    def test_hard_process_death_after_cleanup_commit_returns_completed_without_delete(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
@@ -445,18 +449,17 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             self.assertFalse(staging.exists())
             self.assertTrue(target.exists())
 
-            original_unlink = Path.unlink
-            def reject_duplicate_cleanup(path: Path, *args, **kwargs) -> None:
-                if path.name.endswith(".staging"):
-                    raise AssertionError("committed cleanup was repeated")
-                original_unlink(path, *args, **kwargs)
-
-            with patch.object(Path, "unlink", new=reject_duplicate_cleanup):
+            with patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                side_effect=AssertionError("committed cleanup was repeated"),
+            ) as delete_mock:
                 result = self.execute(
                     self.request("hard-cleanup-commit.txt", "CLEANUP_COMMIT", task_id),
                     workspace=workspace,
                     state=state,
                 )
+            delete_mock.assert_not_called()
             self.assert_completed_once(result)
 
     def test_delivery_exception_after_applied_stage_repairs_receipt_and_can_resume(self) -> None:
@@ -647,7 +650,7 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             self.assertTrue(staging.exists())
             self.assertFalse(target.exists())
 
-    def test_historical_schema1_cleanup_weak_identities_fail_closed_before_unlink(self) -> None:
+    def test_historical_schema1_cleanup_weak_identities_fail_closed_before_delete(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
@@ -689,19 +692,18 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             }
             (state / f"{task_id}.json").write_text(json.dumps(checkpoint), encoding="utf-8")
 
-            original_unlink = Path.unlink
-            def reject_staging_unlink(path: Path, *args, **kwargs) -> None:
-                if path == staging:
-                    raise AssertionError("weak legacy identity must not authorize cleanup")
-                return original_unlink(path, *args, **kwargs)
-
-            with patch.object(Path, "unlink", new=reject_staging_unlink):
+            with patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                side_effect=AssertionError("weak legacy identity must not authorize cleanup"),
+            ) as delete_mock:
                 result = self.execute(
                     self.request(artifact_name, content.decode("utf-8"), task_id),
                     workspace=workspace,
                     state=state,
                 )
 
+            delete_mock.assert_not_called()
             self.assertEqual(result["status"], "abstained")
             self.assertEqual(result["escalation_reason"], "legacy_identity_generation_unproven")
             self.assertEqual(result["action_count"], 2)
