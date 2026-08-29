@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +15,20 @@ import runtime.control_plane.windows_file_pin as windows_file_pin
 
 @unittest.skipUnless(os.name == "nt", "workspace namespace pin is Windows-specific")
 class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
+    @staticmethod
+    def _create_junction(link: Path, target: Path) -> None:
+        completed = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(target)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            raise AssertionError(
+                f"failed to create test junction {link} -> {target}: "
+                f"stdout={completed.stdout!r} stderr={completed.stderr!r}"
+            )
+
     def test_stage_create_holds_namespace_pins_before_exclusive_open(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
@@ -71,6 +87,72 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
             self.assertEqual(result["action_count"], 3)
             target = workspace / ".chat-agent-platform" / "stage26-3a" / "stage-create-pin.txt"
             self.assertEqual(target.read_text(encoding="utf-8"), "PINNED_STAGE_CREATE")
+
+    def test_stage_create_rejects_preexisting_junction_without_following_it(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as external_dir:
+            workspace = Path(workspace_dir)
+            external = Path(external_dir)
+            external_stage = external / "stage26-3a"
+            external_stage.mkdir()
+            reserved_parent = workspace / ".chat-agent-platform"
+            self._create_junction(reserved_parent, external)
+            staging = reserved_parent / "stage26-3a" / ".preexisting.staging"
+            try:
+                self.assertEqual(
+                    windows_file_pin._infer_workspace_root(staging),
+                    workspace,
+                    "workspace trust must be reconstructed lexically, not by following the junction",
+                )
+                with self.assertRaisesRegex(ValueError, "reparse point"):
+                    windows_file_pin.create_file_in_pinned_namespace(staging, b"MUST_NOT_ESCAPE")
+                self.assertFalse((external_stage / ".preexisting.staging").exists())
+            finally:
+                if reserved_parent.exists() or reserved_parent.is_symlink():
+                    os.rmdir(reserved_parent)
+
+    def test_stage_create_rejects_junction_inserted_before_descendant_handle_open(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as external_dir:
+            workspace = Path(workspace_dir)
+            external = Path(external_dir)
+            reserved_parent = workspace / ".chat-agent-platform"
+            reserved_stage = reserved_parent / "stage26-3a"
+            reserved_stage.mkdir(parents=True)
+            external_stage = external / "stage26-3a"
+            external_stage.mkdir()
+            staging = reserved_stage / ".interleaved.staging"
+            moved_parent = workspace / ".chat-agent-platform.original"
+            original_open_pinned = windows_file_pin._open_pinned_handle
+            attack_ran = False
+
+            @contextmanager
+            def attack_then_pin(path: Path, *, desired_access: int, share_mode: int, directory: bool):
+                nonlocal attack_ran
+                if not attack_ran and directory and path.name == ".chat-agent-platform":
+                    attack_ran = True
+                    os.rename(reserved_parent, moved_parent)
+                    self._create_junction(reserved_parent, external)
+                with original_open_pinned(
+                    path,
+                    desired_access=desired_access,
+                    share_mode=share_mode,
+                    directory=directory,
+                ) as pinned:
+                    yield pinned
+
+            try:
+                with patch.object(windows_file_pin, "_open_pinned_handle", new=attack_then_pin):
+                    with self.assertRaisesRegex(ValueError, "reparse point"):
+                        windows_file_pin.create_file_in_pinned_namespace(
+                            staging,
+                            b"MUST_NOT_ESCAPE_INTERLEAVED",
+                        )
+                self.assertTrue(attack_ran)
+                self.assertFalse((external_stage / ".interleaved.staging").exists())
+            finally:
+                if reserved_parent.exists() or reserved_parent.is_symlink():
+                    os.rmdir(reserved_parent)
+                if moved_parent.exists():
+                    os.rename(moved_parent, reserved_parent)
 
 
 if __name__ == "__main__":
