@@ -147,7 +147,7 @@ Before any scheduler integration or production status:
 6. open ordinary ChatGPT URLs without the opt-in contract and prove zero extension action;
 7. if any selector mismatch or ambiguous state occurs, classify the run as fail/unknown rather than adding blind fallbacks.
 
-Scheduler wake/resume, run-id generation, cross-restart deduplication, WorkingState ownership, and automatic worker rotation are explicitly out of scope until this physical bootstrap is proven.
+The primary physical path above passed on 2026-08-29 with `DEEPLINK_AUTOSEND_BRIDGE=PASS`; scheduler wake/resume, run-id generation, cross-restart deduplication, WorkingState ownership, and automatic worker rotation remain separate scope and require their own research/acceptance.
 
 ## Decision
 
