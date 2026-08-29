@@ -156,6 +156,12 @@ try {
   assert.equal(payload.status, 'completed', textOf(run));
   assert.equal(payload.action_count, 3, textOf(run));
   assert.equal(payload.procedure_id, 'verified_workspace_artifact_v1', textOf(run));
+  assert.match(payload.task_id, /^[0-9a-f]{32}$/);
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(stateRoot, `${payload.task_id}.json`), 'utf8')).task_id,
+    payload.task_id,
+    'public procedure result must expose the exact durable task correlation id',
+  );
 
   const relative = '.chat-agent-platform/stage26-3a/six-tool-result.txt';
   assert.equal(fs.readFileSync(path.join(workspace, relative), 'utf8'), 'SIX_TOOL_PROCEDURE_OK');
@@ -181,6 +187,7 @@ try {
   assert.equal(resumedPayload.status, 'completed');
   assert.equal(resumedPayload.resumed, true);
   assert.equal(resumedPayload.action_count, 3);
+  assert.equal(resumedPayload.task_id, payload.task_id);
 
   const conflictName = 'protected-existing.txt';
   const protectedDir = path.join(workspace, '.chat-agent-platform', 'stage26-3a');
@@ -200,12 +207,57 @@ try {
   assert.equal(abstainPayload.escalation_reason, 'target_already_exists');
   assert.equal(fs.readFileSync(path.join(protectedDir, conflictName), 'utf8'), 'DO_NOT_OVERWRITE');
 
+  // Force the outer semantic projection's Python child to terminate without a
+  // JSON result. This exercises the public procedure_run failure receipt rather
+  // than importing a helper or reading private checkpoint inventory.
+  const failureWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-procedure-failure-workspace-'));
+  const failureState = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-procedure-failure-state-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-fake-python-'));
+  const fakePython = path.join(fakeBin, process.platform === 'win32' ? 'python.exe' : 'python');
+  fs.copyFileSync(process.execPath, fakePython);
+  if (process.platform !== 'win32') fs.chmodSync(fakePython, 0o755);
+  const fakePath = `${fakeBin}${path.delimiter}${process.env.PATH ?? process.env.Path ?? ''}`;
+  const failureClient = new Client({ name: 'procedure-failure-correlation-acceptance', version: '1.0.0' });
+  const failureTransport = new StdioClientTransport({
+    command: process.execPath,
+    args: [entry],
+    env: childEnvironment({
+      CHAT_LOCAL_FILES_ROOT: failureWorkspace,
+      CHAT_PROCEDURE_STATE_ROOT: failureState,
+      PATH: fakePath,
+      Path: fakePath
+    })
+  });
+  try {
+    await failureClient.connect(failureTransport);
+    const failed = await failureClient.callTool({
+      name: 'procedure_run',
+      arguments: {
+        procedure: 'verified_workspace_artifact_v1',
+        artifact_name: 'crash-receipt.txt',
+        content: 'CRASH_RECEIPT'
+      }
+    });
+    assert.equal(failed.isError, true, textOf(failed));
+    const failedPayload = failed.structuredContent ?? JSON.parse(textOf(failed));
+    assert.equal(failedPayload.status, 'error');
+    assert.match(failedPayload.reason, /^invalid_control_plane_response:/);
+    assert.match(failedPayload.resume_task_id, /^[0-9a-f]{32}$/);
+    assert.equal(fs.readdirSync(failureState).filter(name => name.endsWith('.json')).length, 0);
+  } finally {
+    try { await failureClient.close(); } catch {}
+    fs.rmSync(failureWorkspace, { recursive: true, force: true });
+    fs.rmSync(failureState, { recursive: true, force: true });
+    fs.rmSync(fakeBin, { recursive: true, force: true });
+  }
+
   console.log('SEMANTIC_PUBLIC_TOOL_COUNT=6');
   console.log('SEMANTIC_PUBLIC_WEB_INTERACT_EXPECTED=PASS');
   console.log('SEMANTIC_PUBLIC_PROCEDURE_REGISTRY=PASS');
   console.log('SEMANTIC_PUBLIC_PROCEDURE_RUN=PASS');
   console.log('SEMANTIC_PUBLIC_INDEPENDENT_READ=PASS');
   console.log('SEMANTIC_PUBLIC_RESUME=PASS');
+  console.log('SEMANTIC_PUBLIC_CRASH_CORRELATION_RECEIPT=PASS');
   console.log('SEMANTIC_PUBLIC_ABSTAIN_NO_OVERWRITE=PASS');
   console.log('SEMANTIC_PUBLIC_SIX_TOOL_ACCEPTANCE=PASS');
 } finally {
