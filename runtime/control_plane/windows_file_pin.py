@@ -252,6 +252,17 @@ def _snapshot_from_open_handle(
             close_handle(duplicate)
 
 
+def _same_snapshot(left: PinnedFileSnapshot, right: PinnedFileSnapshot) -> bool:
+    if left.data is None or right.data is None or left.data != right.data:
+        return False
+    for name in ("st_dev", "st_ino", "st_size"):
+        if getattr(left.stat, name) != getattr(right.stat, name):
+            return False
+    left_birth = getattr(left.stat, "st_birthtime_ns", None)
+    right_birth = getattr(right.stat, "st_birthtime_ns", None)
+    return type(left_birth) is int and left_birth == right_birth
+
+
 @contextmanager
 def pin_file_for_verified_link(
     path: Path,
@@ -277,32 +288,64 @@ def pin_file_for_verified_delete(
     workspace_root: Path | None = None,
     max_bytes: int = _DEFAULT_MAX_VERIFY_BYTES,
 ) -> Iterator[VerifiedDeletePin]:
-    """Pin, snapshot and delete one exact file object without reopening its path."""
+    """Pin verified state, then revalidate the exact object before handle deletion."""
 
     root = _infer_workspace_root(path) if workspace_root is None else workspace_root
-    with _pin_namespace(root, path), _open_pinned_handle(
-        path,
-        desired_access=_GENERIC_READ | _DELETE,
-        share_mode=_FILE_SHARE_READ,
-        directory=False,
-    ) as (handle, api):
-        set_file_information, _, _, disposition_type, ctypes, _ = api
-        snapshot = _snapshot_from_open_handle(
-            handle,
-            api,
-            path=path,
-            max_bytes=max_bytes,
+    with _pin_namespace(root, path):
+        read_context = _open_pinned_handle(
+            path,
+            desired_access=_GENERIC_READ,
+            share_mode=_FILE_SHARE_READ,
+            directory=False,
         )
+        read_handle, read_api = read_context.__enter__()
+        read_open = True
+        try:
+            entry_snapshot = _snapshot_from_open_handle(
+                read_handle,
+                read_api,
+                path=path,
+                max_bytes=max_bytes,
+            )
+            delivered = False
 
-        def mark_delete() -> None:
-            disposition = disposition_type(True)
-            if not set_file_information(
-                handle,
-                _FILE_DISPOSITION_INFO_CLASS,
-                ctypes.byref(disposition),
-                ctypes.sizeof(disposition),
-            ):
-                code = ctypes.get_last_error()
-                raise OSError(code, ctypes.FormatError(code), str(path))
+            def mark_delete() -> None:
+                nonlocal read_open, delivered
+                if delivered:
+                    raise RuntimeError("verified delete delivery may run only once")
+                if read_open:
+                    read_context.__exit__(None, None, None)
+                    read_open = False
 
-        yield VerifiedDeletePin(snapshot, mark_delete)
+                with _open_pinned_handle(
+                    path,
+                    desired_access=_GENERIC_READ | _DELETE,
+                    share_mode=_FILE_SHARE_READ,
+                    directory=False,
+                ) as (delete_handle, delete_api):
+                    delivery_snapshot = _snapshot_from_open_handle(
+                        delete_handle,
+                        delete_api,
+                        path=path,
+                        max_bytes=max_bytes,
+                    )
+                    if not _same_snapshot(entry_snapshot, delivery_snapshot):
+                        raise RuntimeError(
+                            "verified file changed before handle-bound delete delivery"
+                        )
+                    set_file_information, _, _, disposition_type, ctypes, _ = delete_api
+                    disposition = disposition_type(True)
+                    if not set_file_information(
+                        delete_handle,
+                        _FILE_DISPOSITION_INFO_CLASS,
+                        ctypes.byref(disposition),
+                        ctypes.sizeof(disposition),
+                    ):
+                        code = ctypes.get_last_error()
+                        raise OSError(code, ctypes.FormatError(code), str(path))
+                    delivered = True
+
+            yield VerifiedDeletePin(entry_snapshot, mark_delete)
+        finally:
+            if read_open:
+                read_context.__exit__(None, None, None)
