@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import runtime.control_plane._verified_workspace_artifact_support as workspace_support
 import runtime.control_plane.verified_workspace_artifact as workspace_artifact
+import runtime.control_plane.windows_file_pin as windows_file_pin
 
 
 @unittest.skipUnless(os.name == "nt", "verified workspace file pins are Windows-specific")
@@ -166,6 +167,74 @@ class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
             self.assertFalse(staging.exists())
             self.assertTrue(target.exists())
             self.assertEqual(target.read_bytes(), b"PINNED_DELETE")
+
+    def test_delete_revalidates_same_bytes_replacement_in_handle_transition_gap(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            workspace = Path(workspace_dir)
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            reserved.mkdir(parents=True)
+            staging = reserved / ".delete-gap.staging"
+            target = reserved / "delete-gap.txt"
+            content = b"SAME_BYTES_GAP"
+            staging.write_bytes(content)
+            os.link(staging, target)
+            original_identity = workspace_artifact._file_identity(staging)
+            self.assertIsNotNone(original_identity)
+
+            real_open = windows_file_pin._open_pinned_handle
+            replacement_identity: dict[str, int] | None = None
+            injected = False
+
+            @contextmanager
+            def replace_before_delete_handle(
+                path: Path,
+                *,
+                desired_access: int,
+                share_mode: int,
+                directory: bool,
+            ):
+                nonlocal replacement_identity, injected
+                if (
+                    not directory
+                    and desired_access & windows_file_pin._DELETE
+                    and not injected
+                ):
+                    path.unlink()
+                    path.write_bytes(content)
+                    replacement_identity = workspace_artifact._file_identity(path)
+                    self.assertIsNotNone(replacement_identity)
+                    self.assertNotEqual(original_identity, replacement_identity)
+                    injected = True
+                with real_open(
+                    path,
+                    desired_access=desired_access,
+                    share_mode=share_mode,
+                    directory=directory,
+                ) as opened:
+                    yield opened
+
+            with patch.object(
+                windows_file_pin,
+                "_open_pinned_handle",
+                new=replace_before_delete_handle,
+            ):
+                with windows_file_pin.pin_file_for_verified_delete(
+                    staging,
+                    workspace_root=workspace,
+                ) as mark_delete:
+                    with self.assertRaisesRegex(
+                        RuntimeError,
+                        "changed before handle-bound delete delivery",
+                    ):
+                        mark_delete()
+
+            self.assertTrue(injected)
+            self.assertTrue(staging.exists())
+            self.assertEqual(staging.read_bytes(), content)
+            self.assertTrue(target.exists())
+            self.assertEqual(target.read_bytes(), content)
+            self.assertFalse(os.path.samefile(staging, target))
+            self.assertNotEqual(original_identity, replacement_identity)
 
     def test_compensation_delete_refuses_same_bytes_replacement_identity(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir:
