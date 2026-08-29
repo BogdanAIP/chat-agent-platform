@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -11,12 +12,6 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod/v4';
-
-import {
-  WORKSPACE_ARTIFACT_PROCEDURE,
-  prepareProcedureCorrelation,
-  procedureFailure
-} from '../lib/procedure-run-correlation.mjs';
 
 const TUNNEL_ONLY_CREDENTIAL_KEYS = [
   'CONTROL_PLANE_API_KEY',
@@ -30,7 +25,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const semanticEntry = path.join(here, 'semantic-projection.mjs');
 const repoRoot = path.resolve(here, '..', '..', '..');
 const controlPlaneCli = path.join(repoRoot, 'runtime', 'control_plane', 'cli.py');
+const WORKSPACE_ARTIFACT_PROCEDURE = 'verified_workspace_artifact_v1';
 const WINDOWS_CASE_PROCEDURE = 'windows_case_update_v1';
+const TASK_ID_RE = /^[0-9a-f]{32}$/;
 const INTERNAL_SEMANTIC_TOOLS = new Set([
   'workspace_read',
   'workspace_write',
@@ -54,6 +51,38 @@ const SAFE_CHILD_ENV_ALLOWLIST = new Set([
 
 function toolError(message) {
   return { content: [{ type: 'text', text: message }], isError: true };
+}
+
+function procedureFailure(reason, correlationTaskId = null) {
+  const payload = {
+    schema_version: 1,
+    status: 'error',
+    reason,
+    action_count: 0,
+    ...(correlationTaskId === null ? {} : { resume_task_id: correlationTaskId })
+  };
+  return {
+    content: [{ type: 'text', text: JSON.stringify(payload) }],
+    structuredContent: payload,
+    isError: true
+  };
+}
+
+function prepareProcedureCorrelation(request) {
+  if (request?.procedure !== WORKSPACE_ARTIFACT_PROCEDURE) {
+    return { correlationTaskId: null, assignedTaskId: null };
+  }
+  const resumeTaskId = typeof request?.resume_task_id === 'string'
+    ? request.resume_task_id
+    : null;
+  if (resumeTaskId !== null) {
+    if (!TASK_ID_RE.test(resumeTaskId)) {
+      throw new Error('resume_task_id must be a 32-character lowercase hex task id');
+    }
+    return { correlationTaskId: resumeTaskId, assignedTaskId: null };
+  }
+  const assignedTaskId = randomBytes(16).toString('hex');
+  return { correlationTaskId: assignedTaskId, assignedTaskId };
 }
 
 function normalizeResult(result) {
