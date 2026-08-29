@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -16,14 +17,13 @@ ADMISSION = "stage26-3a-qualification"
 
 
 class Stage263CTaskCorrelationTests(unittest.TestCase):
-    def invoke_cli(
+    def child_env(
         self,
         *,
         workspace: Path,
         state: Path,
-        request: dict,
         assigned_task_id: str | None = None,
-    ) -> tuple[subprocess.CompletedProcess[str], dict]:
+    ) -> dict[str, str]:
         env = os.environ.copy()
         env["CHAT_LOCAL_FILES_ROOT"] = str(workspace)
         env["CHAT_PROCEDURE_STATE_ROOT"] = str(state)
@@ -32,10 +32,24 @@ class Stage263CTaskCorrelationTests(unittest.TestCase):
             env.pop("CHAT_PROCEDURE_ASSIGNED_TASK_ID", None)
         else:
             env["CHAT_PROCEDURE_ASSIGNED_TASK_ID"] = assigned_task_id
+        return env
+
+    def invoke_cli(
+        self,
+        *,
+        workspace: Path,
+        state: Path,
+        request: dict,
+        assigned_task_id: str | None = None,
+    ) -> tuple[subprocess.CompletedProcess[str], dict]:
         completed = subprocess.run(
             [sys.executable, str(CLI)],
             cwd=ROOT,
-            env=env,
+            env=self.child_env(
+                workspace=workspace,
+                state=state,
+                assigned_task_id=assigned_task_id,
+            ),
             input=json.dumps(request),
             capture_output=True,
             text=True,
@@ -76,6 +90,70 @@ class Stage263CTaskCorrelationTests(unittest.TestCase):
             checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
             self.assertEqual(checkpoint["task_id"], assigned)
             self.assertEqual(checkpoint["status"], "completed")
+
+    def test_preknown_assigned_id_survives_hard_child_crash_and_resumes_without_discovery(self) -> None:
+        assigned = "abcdefabcdefabcdefabcdefabcdefab"
+        request = self.request("assigned-crash.txt", "ASSIGNED_CRASH")
+        crash_script = textwrap.dedent(
+            """
+            import os
+            from runtime.control_plane import verified_workspace_artifact as wa
+
+            def crash_after_stage(path, data):
+                with path.open("xb") as handle:
+                    handle.write(data)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os._exit(81)
+
+            wa._exclusive_create_file = crash_after_stage
+            from runtime.control_plane import cli
+            raise SystemExit(cli.main())
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            crashed = subprocess.run(
+                [sys.executable, "-c", crash_script],
+                cwd=ROOT,
+                env=self.child_env(
+                    workspace=workspace,
+                    state=state,
+                    assigned_task_id=assigned,
+                ),
+                input=json.dumps(request),
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(crashed.returncode, 81, crashed.stderr)
+            self.assertEqual(crashed.stdout, "")
+
+            # The test already knows the parent-assigned correlation id. It does
+            # not enumerate the private state directory to discover a task id.
+            checkpoint_path = state / f"{assigned}.json"
+            self.assertTrue(checkpoint_path.is_file())
+            checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            self.assertEqual(checkpoint["task_id"], assigned)
+            self.assertEqual(checkpoint["prepared_intent"]["transition_id"], "stage_create")
+
+            resumed, payload = self.invoke_cli(
+                workspace=workspace,
+                state=state,
+                request=self.request(
+                    "assigned-crash.txt",
+                    "ASSIGNED_CRASH",
+                    resume_task_id=assigned,
+                ),
+            )
+            self.assertEqual(resumed.returncode, 0, resumed.stderr)
+            self.assertEqual(payload["status"], "completed")
+            self.assertEqual(payload["task_id"], assigned)
+            self.assertEqual(payload["resumed"], True)
+            self.assertEqual(payload["action_count"], 3)
 
     def test_assigned_task_id_cannot_replace_existing_durable_task(self) -> None:
         assigned = "11111111111111111111111111111111"
