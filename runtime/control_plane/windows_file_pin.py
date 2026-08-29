@@ -15,6 +15,7 @@ _FILE_READ_ATTRIBUTES = 0x00000080
 _FILE_SHARE_READ = 0x00000001
 _FILE_SHARE_WRITE = 0x00000002
 _OPEN_EXISTING = 3
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400
 _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
 _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
 _FILE_DISPOSITION_INFO_CLASS = 4
@@ -120,7 +121,9 @@ def _open_pinned_handle(
         get_current_process,
         disposition_type,
     ) = _win32_api()
-    flags = _FILE_FLAG_BACKUP_SEMANTICS if directory else _FILE_FLAG_OPEN_REPARSE_POINT
+    flags = _FILE_FLAG_OPEN_REPARSE_POINT
+    if directory:
+        flags |= _FILE_FLAG_BACKUP_SEMANTICS
     handle = create_file(
         str(path),
         desired_access,
@@ -151,10 +154,50 @@ def _open_pinned_handle(
         close_handle(handle)
 
 
-def _infer_workspace_root(path: Path) -> Path:
+def _handle_file_attributes(handle: object, path: Path) -> int:
+    if os.name != "nt":
+        raise OSError(errno.ENOTSUP, "verified Windows file pin requires Windows")
+
+    import ctypes
+    from ctypes import wintypes
+
+    class ByHandleFileInformation(ctypes.Structure):
+        _fields_ = [
+            ("dwFileAttributes", wintypes.DWORD),
+            ("ftCreationTime", wintypes.FILETIME),
+            ("ftLastAccessTime", wintypes.FILETIME),
+            ("ftLastWriteTime", wintypes.FILETIME),
+            ("dwVolumeSerialNumber", wintypes.DWORD),
+            ("nFileSizeHigh", wintypes.DWORD),
+            ("nFileSizeLow", wintypes.DWORD),
+            ("nNumberOfLinks", wintypes.DWORD),
+            ("nFileIndexHigh", wintypes.DWORD),
+            ("nFileIndexLow", wintypes.DWORD),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_file_information = kernel32.GetFileInformationByHandle
+    get_file_information.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(ByHandleFileInformation),
+    ]
+    get_file_information.restype = wintypes.BOOL
+
+    info = ByHandleFileInformation()
+    if not get_file_information(handle, ctypes.byref(info)):
+        code = ctypes.get_last_error()
+        raise OSError(code, ctypes.FormatError(code), str(path))
+    return int(info.dwFileAttributes)
+
+
+def _absolute_lexical(path: Path) -> Path:
     if not isinstance(path, Path):
         raise TypeError("pinned path must be pathlib.Path")
-    absolute = path.resolve(strict=False)
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _infer_workspace_root(path: Path) -> Path:
+    absolute = _absolute_lexical(path)
     if (
         absolute.parent.name != _RESERVED_STAGE
         or absolute.parent.parent.name != _RESERVED_PARENT
@@ -166,8 +209,8 @@ def _infer_workspace_root(path: Path) -> Path:
 def _namespace_components(workspace_root: Path, path: Path) -> tuple[Path, ...]:
     if not isinstance(workspace_root, Path) or not isinstance(path, Path):
         raise TypeError("workspace_root and pinned path must be pathlib.Path")
-    root = workspace_root.resolve(strict=False)
-    absolute = path.resolve(strict=False)
+    root = _absolute_lexical(workspace_root)
+    absolute = _absolute_lexical(path)
     try:
         relative_parent = absolute.parent.relative_to(root)
     except ValueError as exc:
@@ -183,7 +226,7 @@ def _namespace_components(workspace_root: Path, path: Path) -> tuple[Path, ...]:
 
 @contextmanager
 def _pin_namespace(workspace_root: Path, path: Path) -> Iterator[None]:
-    root = workspace_root.resolve(strict=False)
+    root = _absolute_lexical(workspace_root)
     with ExitStack() as stack:
         for directory in _namespace_components(root, path):
             # The configured workspace root itself is a capability boundary and
@@ -194,7 +237,7 @@ def _pin_namespace(workspace_root: Path, path: Path) -> Iterator[None]:
             desired_access = _FILE_READ_ATTRIBUTES
             if directory != root:
                 desired_access |= _DELETE
-            stack.enter_context(
+            handle, _ = stack.enter_context(
                 _open_pinned_handle(
                     directory,
                     desired_access=desired_access,
@@ -202,12 +245,18 @@ def _pin_namespace(workspace_root: Path, path: Path) -> Iterator[None]:
                     directory=True,
                 )
             )
+            if _handle_file_attributes(handle, directory) & _FILE_ATTRIBUTE_REPARSE_POINT:
+                raise ValueError("workspace namespace component is a reparse point")
         yield
 
 
 def create_file_in_pinned_namespace(path: Path, data: bytes) -> None:
     """Create a new staging file while the trusted workspace namespace is pinned."""
 
+    # Infer only from the lexical staging path that the procedure already built
+    # under its configured workspace root. Do not call Path.resolve() here:
+    # following a raced junction while reconstructing trust would let an
+    # attacker redefine the capability root before the first physical effect.
     root = _infer_workspace_root(path)
     with _pin_namespace(root, path):
         with path.open("xb") as handle:
