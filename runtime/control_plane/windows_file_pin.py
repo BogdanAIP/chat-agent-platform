@@ -11,10 +11,13 @@ _GENERIC_READ = 0x80000000
 _DELETE = 0x00010000
 _FILE_READ_ATTRIBUTES = 0x00000080
 _FILE_SHARE_READ = 0x00000001
+_FILE_SHARE_WRITE = 0x00000002
 _OPEN_EXISTING = 3
 _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
 _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
 _FILE_DISPOSITION_INFO_CLASS = 4
+_RESERVED_PARENT = ".chat-agent-platform"
+_RESERVED_STAGE = "stage26-3a"
 
 
 def _win32_api():
@@ -62,6 +65,7 @@ def _open_pinned_handle(
     path: Path,
     *,
     desired_access: int,
+    share_mode: int,
     directory: bool,
 ) -> Iterator[tuple[object, tuple[object, object, object]]]:
     ctypes, create_file, close_handle, set_file_information, disposition_type = _win32_api()
@@ -69,7 +73,7 @@ def _open_pinned_handle(
     handle = create_file(
         str(path),
         desired_access,
-        _FILE_SHARE_READ,
+        share_mode,
         None,
         _OPEN_EXISTING,
         flags,
@@ -87,6 +91,18 @@ def _open_pinned_handle(
         # must not mask the primary mutation/verification result; process exit is
         # the final OS cleanup boundary for an otherwise leaked handle.
         close_handle(handle)
+
+
+def _infer_workspace_root(path: Path) -> Path:
+    if not isinstance(path, Path):
+        raise TypeError("pinned path must be pathlib.Path")
+    absolute = path.absolute()
+    if (
+        absolute.parent.name != _RESERVED_STAGE
+        or absolute.parent.parent.name != _RESERVED_PARENT
+    ):
+        raise ValueError("pinned path is outside the verified workspace artifact layout")
+    return absolute.parent.parent.parent
 
 
 def _namespace_components(workspace_root: Path, path: Path) -> tuple[Path, ...]:
@@ -115,6 +131,7 @@ def _pin_namespace(workspace_root: Path, path: Path) -> Iterator[None]:
                 _open_pinned_handle(
                     directory,
                     desired_access=_FILE_READ_ATTRIBUTES,
+                    share_mode=_FILE_SHARE_READ | _FILE_SHARE_WRITE,
                     directory=True,
                 )
             )
@@ -122,12 +139,18 @@ def _pin_namespace(workspace_root: Path, path: Path) -> Iterator[None]:
 
 
 @contextmanager
-def pin_file_for_verified_link(path: Path, *, workspace_root: Path) -> Iterator[None]:
-    """Pin staging and its in-workspace namespace through hard-link verification."""
+def pin_file_for_verified_link(
+    path: Path,
+    *,
+    workspace_root: Path | None = None,
+) -> Iterator[None]:
+    """Pin staging plus its trusted namespace during hard-link delivery."""
 
-    with _pin_namespace(workspace_root, path), _open_pinned_handle(
+    root = _infer_workspace_root(path) if workspace_root is None else workspace_root
+    with _pin_namespace(root, path), _open_pinned_handle(
         path,
         desired_access=_GENERIC_READ,
+        share_mode=_FILE_SHARE_READ,
         directory=False,
     ):
         yield
@@ -137,13 +160,15 @@ def pin_file_for_verified_link(path: Path, *, workspace_root: Path) -> Iterator[
 def pin_file_for_verified_delete(
     path: Path,
     *,
-    workspace_root: Path,
+    workspace_root: Path | None = None,
 ) -> Iterator[Callable[[], None]]:
     """Pin one exact path and expose a handle-bound delete-on-close operation."""
 
-    with _pin_namespace(workspace_root, path), _open_pinned_handle(
+    root = _infer_workspace_root(path) if workspace_root is None else workspace_root
+    with _pin_namespace(root, path), _open_pinned_handle(
         path,
         desired_access=_GENERIC_READ | _DELETE,
+        share_mode=_FILE_SHARE_READ,
         directory=False,
     ) as (handle, api):
         set_file_information, disposition_type, ctypes = api
