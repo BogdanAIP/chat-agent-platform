@@ -131,18 +131,29 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
 
     def test_standalone_layout_fixture_copies_shared_verification_modules(self) -> None:
         for marker in (
+            "runtime/control_plane/_verified_workspace_artifact_support.py",
             "runtime/control_plane/browser_observation.py",
             "runtime/control_plane/browser_transition.py",
             "runtime/control_plane/browser_transition_cli.py",
             "runtime/control_plane/file_artifact_observation.py",
             "runtime/control_plane/verification.py",
+            "runtime/control_plane/verified_workspace_artifact.py",
+            "runtime/control_plane/windows_file_pin.py",
+            "runtime/control_plane/working_state.py",
             "runtime/semantic-projection/lib/browser-verification-bridge.mjs",
+            "control_plane/_verified_workspace_artifact_support.py",
             "control_plane/browser_observation.py",
             "control_plane/browser_transition.py",
             "control_plane/browser_transition_cli.py",
             "control_plane/file_artifact_observation.py",
             "control_plane/verification.py",
+            "control_plane/verified_workspace_artifact.py",
+            "control_plane/windows_file_pin.py",
+            "control_plane/working_state.py",
             "SEMANTIC_INSTALLED_BROWSER_VERIFIER=PASS",
+            "SEMANTIC_INSTALLED_PROCEDURE=PASS",
+            "verified_workspace_artifact_v1",
+            "target_already_exists",
         ):
             self.assertIn(marker, self.semantic_workflow)
 
