@@ -184,6 +184,54 @@ class Stage263CTaskCorrelationTests(unittest.TestCase):
                 (workspace / ".chat-agent-platform" / "stage26-3a" / "second.txt").exists()
             )
 
+    def test_assigned_task_id_collision_is_rechecked_after_task_lock_acquisition(self) -> None:
+        assigned = "33333333333333333333333333333333"
+        sentinel = '{"owner":"first-run-prepared"}\n'
+        race_script = textwrap.dedent(
+            f"""
+            from runtime.control_plane import verified_workspace_artifact as wa
+
+            original_acquire = wa._acquire_task_lock
+            sentinel = {sentinel!r}
+
+            def acquire_then_publish_owner(state_root, task_id):
+                task_lock = original_acquire(state_root, task_id)
+                (state_root / f"{{task_id}}.json").write_text(sentinel, encoding="utf-8")
+                return task_lock
+
+            wa._acquire_task_lock = acquire_then_publish_owner
+            from runtime.control_plane import cli
+            raise SystemExit(cli.main())
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            completed = subprocess.run(
+                [sys.executable, "-c", race_script],
+                cwd=ROOT,
+                env=self.child_env(
+                    workspace=workspace,
+                    state=state,
+                    assigned_task_id=assigned,
+                ),
+                input=json.dumps(self.request("collision-race.txt", "MUST_NOT_MUTATE")),
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            payload = json.loads(completed.stdout)
+
+            self.assertEqual(completed.returncode, 2, completed.stderr)
+            self.assertEqual(payload["status"], "error")
+            self.assertIn("assigned task id already has durable procedure state", payload["reason"])
+            self.assertEqual((state / f"{assigned}.json").read_text(encoding="utf-8"), sentinel)
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            self.assertFalse((reserved / "collision-race.txt").exists())
+            self.assertEqual(list(reserved.glob(f".collision-race.txt.{assigned}.staging")), []) if reserved.exists() else None
+
     def test_assigned_task_id_is_rejected_on_public_resume(self) -> None:
         assigned = "22222222222222222222222222222222"
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
