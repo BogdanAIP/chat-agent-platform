@@ -5,8 +5,6 @@ param(
 
     [string]$RunId,
 
-    [string]$BrowserPath,
-
     [switch]$NoLaunch
 )
 
@@ -26,37 +24,6 @@ function Assert-CapRunId {
     if ($Value -notmatch $runIdPattern) {
         throw 'RunId must be 8-128 characters and contain only letters, digits, dot, underscore, colon, or hyphen.'
     }
-}
-
-function Resolve-ChromePath {
-    param([string]$ExplicitPath)
-
-    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
-        $resolved = (Resolve-Path -LiteralPath $ExplicitPath -ErrorAction Stop).Path
-        if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) {
-            throw "Chrome executable not found: $ExplicitPath"
-        }
-        return $resolved
-    }
-
-    $command = Get-Command chrome.exe -ErrorAction SilentlyContinue
-    if ($null -ne $command) {
-        return $command.Source
-    }
-
-    $candidates = @(
-        (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
-        (if (${env:ProgramFiles(x86)}) { Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe' }),
-        (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe')
-    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return $candidate
-        }
-    }
-
-    throw 'Google Chrome was not found. Install Chrome or pass -BrowserPath explicitly. The launcher will not fall back to the Windows default browser.'
 }
 
 if ([string]::IsNullOrWhiteSpace($RunId)) {
@@ -92,7 +59,6 @@ $result = [ordered]@{
     run_id = $RunId
     prompt_path = $resolvedPromptPath
     url = $url
-    browser_path = $null
     launched = $false
 }
 
@@ -101,16 +67,12 @@ if (-not $NoLaunch) {
         throw 'This launcher physically opens ChatGPT only on Windows.'
     }
 
-    $resolvedBrowserPath = Resolve-ChromePath -ExplicitPath $BrowserPath
-    $result.browser_path = $resolvedBrowserPath
-
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $resolvedBrowserPath
-    $startInfo.ArgumentList.Add($url)
-    $startInfo.UseShellExecute = $false
+    $startInfo.FileName = $url
+    $startInfo.UseShellExecute = $true
     $process = [System.Diagnostics.Process]::Start($startInfo)
     if ($null -eq $process) {
-        throw 'Chrome launch did not return a process handle.'
+        throw 'Windows did not return a process handle for the HTTPS URI launch.'
     }
     $result.launched = $true
 }
