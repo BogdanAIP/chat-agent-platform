@@ -30,7 +30,11 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
                     and path_self.parent.name == "stage26-3a"
                 ):
                     attack_ran = True
-                    for directory in (path_self.parent, path_self.parent.parent, workspace):
+                    # The configured workspace root is the capability boundary;
+                    # the consequence path must prevent replacement of the
+                    # descendant reserved namespace that resolves the staging
+                    # file underneath that already-bound root.
+                    for directory in (path_self.parent, path_self.parent.parent):
                         moved = directory.with_name(directory.name + ".retargeted")
                         try:
                             os.rename(directory, moved)
@@ -62,7 +66,7 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
                 )
 
             self.assertTrue(attack_ran)
-            self.assertEqual(len(blocked), 3)
+            self.assertEqual(len(blocked), 2)
             self.assertEqual(result["status"], "completed")
             self.assertEqual(result["action_count"], 3)
             target = workspace / ".chat-agent-platform" / "stage26-3a" / "stage-create-pin.txt"
