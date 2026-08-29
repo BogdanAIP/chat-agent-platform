@@ -196,6 +196,17 @@ def _pin_namespace(workspace_root: Path, path: Path) -> Iterator[None]:
         yield
 
 
+def create_file_in_pinned_namespace(path: Path, data: bytes) -> None:
+    """Create a new staging file while the trusted workspace namespace is pinned."""
+
+    root = _infer_workspace_root(path)
+    with _pin_namespace(root, path):
+        with path.open("xb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+
 def _snapshot_from_open_handle(
     handle: object,
     api: tuple[object, ...],
