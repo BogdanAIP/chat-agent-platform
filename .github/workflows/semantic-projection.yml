@@ -225,6 +225,7 @@ jobs:
             'runtime/semantic-projection/lib/runtime-backed-bridge-grounder.mjs',
             'runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs',
             'runtime/control_plane/__init__.py',
+            'runtime/control_plane/_verified_workspace_artifact_support.py',
             'runtime/control_plane/browser_observation.py',
             'runtime/control_plane/browser_transition.py',
             'runtime/control_plane/browser_transition_cli.py',
@@ -232,6 +233,8 @@ jobs:
             'runtime/control_plane/file_artifact_observation.py',
             'runtime/control_plane/verification.py',
             'runtime/control_plane/verified_workspace_artifact.py',
+            'runtime/control_plane/windows_file_pin.py',
+            'runtime/control_plane/working_state.py',
             'runtime/local_vision_adapter/__init__.py',
             'runtime/local_vision_adapter/benchmark.py',
             'runtime/local_vision_adapter/mark_grid.py',
@@ -254,12 +257,16 @@ jobs:
           foreach ($required in @(
             (Join-Path $installedRuntime 'semantic-projection/bin/semantic-control-plane-projection.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/browser-verification-bridge.mjs'),
+            (Join-Path $installedRuntime 'control_plane/_verified_workspace_artifact_support.py'),
             (Join-Path $installedRuntime 'control_plane/browser_observation.py'),
             (Join-Path $installedRuntime 'control_plane/browser_transition.py'),
             (Join-Path $installedRuntime 'control_plane/browser_transition_cli.py'),
             (Join-Path $installedRuntime 'control_plane/cli.py'),
             (Join-Path $installedRuntime 'control_plane/file_artifact_observation.py'),
             (Join-Path $installedRuntime 'control_plane/verification.py'),
+            (Join-Path $installedRuntime 'control_plane/verified_workspace_artifact.py'),
+            (Join-Path $installedRuntime 'control_plane/windows_file_pin.py'),
+            (Join-Path $installedRuntime 'control_plane/working_state.py'),
             (Join-Path $installedRuntime 'semantic-projection/lib/semantic-vision-click-router.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/runtime-backed-visual-grounder.mjs'),
             (Join-Path $installedRuntime 'local_vision_adapter/native_bbox.py'),
@@ -284,8 +291,66 @@ jobs:
           }
 
           $workspace = Join-Path $env:RUNNER_TEMP 'semantic-installed-workspace'
+          $procedureState = Join-Path $env:RUNNER_TEMP 'semantic-installed-procedure-state'
+          Remove-Item -LiteralPath $workspace -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $procedureState -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path $workspace | Out-Null
+          New-Item -ItemType Directory -Force -Path $procedureState | Out-Null
           Set-Content -LiteralPath (Join-Path $workspace 'input.txt') -Value 'SEMANTIC_INSTALLED_INPUT' -Encoding utf8
+
+          $env:CAP_INSTALLED_RUNTIME = $installedRuntime
+          $env:CAP_INSTALLED_WORKSPACE = $workspace
+          $env:CAP_INSTALLED_PROCEDURE_STATE = $procedureState
+          @'
+          import os
+          import sys
+          from pathlib import Path
+
+          runtime = Path(os.environ["CAP_INSTALLED_RUNTIME"])
+          workspace = Path(os.environ["CAP_INSTALLED_WORKSPACE"])
+          state_root = Path(os.environ["CAP_INSTALLED_PROCEDURE_STATE"])
+          sys.path.insert(0, str(runtime))
+
+          from control_plane.verified_workspace_artifact import run_verified_workspace_artifact
+
+          artifact_name = "installed-stage26-3c.txt"
+          content = "SEMANTIC_INSTALLED_STAGE26_3C_OK"
+          request = {
+              "procedure": "verified_workspace_artifact_v1",
+              "artifact_name": artifact_name,
+              "content": content,
+          }
+          result = run_verified_workspace_artifact(
+              request,
+              workspace_root=workspace,
+              state_root=state_root,
+              candidate_admission="stage26-3a-qualification",
+          )
+          if result.get("status") != "completed":
+              raise SystemExit(f"installed procedure did not complete: {result}")
+          if result.get("action_count") != 3 or result.get("current_node") != "completed":
+              raise SystemExit(f"installed procedure action graph drifted: {result}")
+
+          target = workspace / ".chat-agent-platform" / "stage26-3a" / artifact_name
+          if target.read_text(encoding="utf-8") != content:
+              raise SystemExit("installed procedure target bytes differ")
+
+          repeat = run_verified_workspace_artifact(
+              request,
+              workspace_root=workspace,
+              state_root=state_root,
+              candidate_admission="stage26-3a-qualification",
+          )
+          if repeat.get("status") != "abstained":
+              raise SystemExit(f"installed procedure repeat did not abstain: {repeat}")
+          if repeat.get("action_count") != 0 or repeat.get("escalation_reason") != "target_already_exists":
+              raise SystemExit(f"installed procedure repeat mutated or drifted: {repeat}")
+          if target.read_text(encoding="utf-8") != content:
+              raise SystemExit("installed procedure repeat changed target bytes")
+
+          print("SEMANTIC_INSTALLED_PROCEDURE=PASS")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw "Standalone installed procedure proof failed with exit code $LASTEXITCODE" }
 
           try {
             & (Join-Path $installedScripts 'start-semantic-profile.ps1') -FilesRoot $workspace -Port 3068 -ReadyTimeoutSeconds 120
