@@ -29,7 +29,7 @@ The remaining bootstrap gap is now only deterministic local URL construction plu
 
 - ordinary ChatGPT remains the only general planner;
 - the accepted six-tool semantic surface and Secure MCP Tunnel route are unchanged;
-- the Windows launcher generates only correlation/run identity and a ChatGPT URL; it has no Bridge, shell-execution, model, Work, Codex, or task-completion authority;
+- the Windows launcher generates only correlation/run identity and a ChatGPT URL; it has no Bridge, model, Work, Codex, or task-completion authority;
 - a scheduled probe must run only in the signed-in interactive user session because the desired effect is opening that user's ordinary browser/ChatGPT surface;
 - one scheduled probe launches one fresh run id once; no blind recurring loop is introduced in this slice;
 - failed browser launch, missing extension/plugin, logged-out ChatGPT, DOM drift, or Bridge failure remains visible downstream and must not trigger an automatic same-run retry;
@@ -53,11 +53,13 @@ No existing accepted component owns target-Windows interactive wake of an ordina
 
 Engineering domain: Windows Task Scheduler / OS process scheduling.
 
-Microsoft documents `schtasks`/Task Scheduler as the built-in facility for creating scheduled tasks that run a specified executable or script, including one-time schedules. The task executes under a selected user/security context. For this experiment the required context is the currently signed-in user, not SYSTEM, because a browser window must appear in that user's interactive desktop.
+Microsoft documents Task Scheduler / `schtasks` as the built-in facility for creating scheduled tasks that run a specified executable or script, including one-time schedules. The PowerShell `ScheduledTasks` module likewise exposes a `-Once -At` trigger and a principal with `Interactive` logon type. For this experiment the required context is the currently signed-in user, not SYSTEM, because a browser window must appear in that user's interactive desktop.
 
-Primary reference:
+Primary references:
 - Microsoft Learn, `schtasks create`: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create
 - Microsoft Learn, `schtasks`: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks
+- Microsoft Learn, `New-ScheduledTaskTrigger`: https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/new-scheduledtasktrigger
+- Microsoft Learn, `New-ScheduledTaskPrincipal`: https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/new-scheduledtaskprincipal
 
 ### 2. Fresh run-id-bound URL construction
 
@@ -119,7 +121,7 @@ Decision: reject.
 2. hosted PowerShell parse/test coverage proves the one-shot task registration command/spec is bounded to the current interactive user and one trigger;
 3. on target Windows, register one probe a few minutes ahead;
 4. without user click/Computer Use/Work, observe a fresh ordinary Chat open and autosend;
-5. resulting chat reports the expected run id and `DEEPLINK_AUTOSEND_BRIDGE=PASS` (or a truthful downstream Bridge error if intentionally testing reachability);
+5. resulting chat reports the expected run id and `DEEPLINK_SCHEDULED_BRIDGE=PASS` (or a truthful downstream Bridge error if intentionally testing reachability);
 6. inspect Task Scheduler history/status to show the launcher itself ran once;
 7. no recurring schedule, worker rotation, WorkingState resume, lease, or automatic retry is accepted by this gate.
 
