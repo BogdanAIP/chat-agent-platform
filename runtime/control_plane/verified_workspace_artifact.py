@@ -65,7 +65,10 @@ from .verification import (
     VerificationStatus,
     evaluate_finish_gate,
 )
-from .windows_file_pin import pin_file_for_verified_link
+from .windows_file_pin import (
+    pin_file_for_verified_delete,
+    pin_file_for_verified_link,
+)
 from .working_state import (
     AttemptIntent,
     MutatingOutcome,
@@ -330,6 +333,31 @@ def _legacy_identity_generation_proven(value: Any) -> bool:
 
     identity = _normalized_identity(value)
     return identity is not None and "birthtime_ns" in identity
+
+
+def _delete_verified_owned_file(
+    path: Path,
+    expected_sha256: str,
+    expected_file_identity: dict[str, Any] | None,
+    *,
+    workspace_root: Path,
+) -> bool:
+    """Delete only the exact retained object/link proven while its handle is pinned."""
+
+    try:
+        with pin_file_for_verified_delete(
+            path,
+            workspace_root=workspace_root,
+        ) as mark_delete:
+            evidence = _evidence(path)
+            if evidence["sha256"] != expected_sha256:
+                return False
+            if not _same_file_identity(path, expected_file_identity):
+                return False
+            mark_delete()
+    except FileNotFoundError:
+        return True
+    return not path.exists()
 
 
 def _recover_prepared_intent(
@@ -1108,7 +1136,10 @@ def _run_verified_workspace_artifact_locked(
                 checkpoint=checkpoint,
             )
             try:
-                with pin_file_for_verified_link(staging):
+                with pin_file_for_verified_link(
+                    staging,
+                    workspace_root=workspace_root,
+                ):
                     pinned_staging = _evidence(staging)
                     if (
                         not _same_file_identity(
@@ -1268,7 +1299,23 @@ def _run_verified_workspace_artifact_locked(
                 checkpoint=checkpoint,
             )
             try:
-                staging.unlink()
+                with pin_file_for_verified_delete(
+                    staging,
+                    workspace_root=workspace_root,
+                ) as mark_delete:
+                    pinned_staging = _evidence(staging)
+                    if (
+                        not _same_file_identity(
+                            staging,
+                            task_state.get("staging_file_identity"),
+                        )
+                        or pinned_staging["size"] != len(content_bytes)
+                        or pinned_staging["sha256"] != expected_sha
+                    ):
+                        raise RuntimeError(
+                            "verified staging changed before cleanup delivery"
+                        )
+                    mark_delete()
             except Exception:
                 working_state = _reconcile_exceptional_delivery(
                     task_state,
@@ -1385,18 +1432,26 @@ def _run_verified_workspace_artifact_locked(
             )
             changed = False
             if safe_to_compensate and staging_owned:
-                rollback["staging_removed"] = _rollback_owned_file(
-                    staging,
-                    expected_sha,
-                    task_state.get("staging_file_identity"),
-                )
+                try:
+                    rollback["staging_removed"] = _delete_verified_owned_file(
+                        staging,
+                        expected_sha,
+                        task_state.get("staging_file_identity"),
+                        workspace_root=workspace_root,
+                    )
+                except OSError:
+                    rollback["staging_removed"] = False
                 changed = changed or rollback["staging_removed"]
             if safe_to_compensate and target_owned:
-                rollback["target_removed"] = _rollback_owned_file(
-                    target,
-                    expected_sha,
-                    task_state.get("target_file_identity"),
-                )
+                try:
+                    rollback["target_removed"] = _delete_verified_owned_file(
+                        target,
+                        expected_sha,
+                        task_state.get("target_file_identity"),
+                        workspace_root=workspace_root,
+                    )
+                except OSError:
+                    rollback["target_removed"] = False
                 changed = changed or rollback["target_removed"]
             if changed and working_state is not None:
                 try:
