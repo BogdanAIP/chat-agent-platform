@@ -497,6 +497,25 @@ def _validate_resume_state(
             task_state["prepared_intent"], dict
         ):
             raise ValueError("resume checkpoint prepared_intent is invalid")
+
+        owned_identity_fields = set(
+            {
+                "staged_verified": ("staging_file_identity",),
+                "final_verified": (
+                    "staging_file_identity",
+                    "target_file_identity",
+                ),
+                "completed": ("target_file_identity",),
+            }.get(str(task_state["current_node"]), ())
+        )
+        if str(task_state["status"]) == "completed":
+            owned_identity_fields.add("target_file_identity")
+        for field in sorted(owned_identity_fields):
+            identity = _normalized_identity(task_state.get(field))
+            if identity is None or "birthtime_ns" not in identity:
+                raise ValueError(
+                    f"resume checkpoint {field} is missing generation-bound identity"
+                )
     return schema_version
 
 
