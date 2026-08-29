@@ -194,10 +194,11 @@ function runProcedure(request) {
       python = controlPlanePython(request, env);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
+      const resumableCorrelationTaskId = assignedTaskId === null ? correlationTaskId : null;
       resolve(
         correlationTaskId === null
           ? toolError(`procedure_run failed: ${reason}`)
-          : procedureFailure(`control_plane_setup:${reason}`, correlationTaskId)
+          : procedureFailure(`control_plane_setup:${reason}`, resumableCorrelationTaskId)
       );
       return;
     }
@@ -358,7 +359,7 @@ server.registerTool('web_interact', {
 server.registerTool('procedure_run', {
   title: 'Run Verified Procedure',
   description:
-    'Run one registered bounded local procedure. verified_workspace_artifact_v1 accepts a leaf .txt artifact/content pair and returns resume_task_id on a child-process failure when correlation is available. windows_case_update_v1 accepts only a Case Desk case_id, one bounded note and status Approved or Needs Review. No PID, HWND, path, command, Python, backend or generic tool selector is accepted.',
+    'Run one registered bounded local procedure. verified_workspace_artifact_v1 accepts a leaf .txt artifact/content pair and returns resume_task_id only when a durable child run may exist or when resuming an existing task. windows_case_update_v1 accepts only a Case Desk case_id, one bounded note and status Approved or Needs Review. No PID, HWND, path, command, Python, backend or generic tool selector is accepted.',
   inputSchema: z.union([
     workspaceArtifactProcedureSchema,
     windowsCaseProcedureSchema
