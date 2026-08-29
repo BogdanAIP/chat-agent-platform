@@ -45,6 +45,8 @@ $userId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $argument = @(
     '-NoLogo'
     '-NoProfile'
+    '-ExecutionPolicy'
+    'Bypass'
     '-File'
     (Quote-TaskArgument -Value $launcherPath)
     '-PromptBodyPath'
