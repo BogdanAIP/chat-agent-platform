@@ -96,7 +96,7 @@ def _open_pinned_handle(
 def _infer_workspace_root(path: Path) -> Path:
     if not isinstance(path, Path):
         raise TypeError("pinned path must be pathlib.Path")
-    absolute = path.absolute()
+    absolute = path.resolve(strict=False)
     if (
         absolute.parent.name != _RESERVED_STAGE
         or absolute.parent.parent.name != _RESERVED_PARENT
@@ -108,8 +108,8 @@ def _infer_workspace_root(path: Path) -> Path:
 def _namespace_components(workspace_root: Path, path: Path) -> tuple[Path, ...]:
     if not isinstance(workspace_root, Path) or not isinstance(path, Path):
         raise TypeError("workspace_root and pinned path must be pathlib.Path")
-    root = workspace_root.resolve()
-    absolute = path.absolute()
+    root = workspace_root.resolve(strict=False)
+    absolute = path.resolve(strict=False)
     try:
         relative_parent = absolute.parent.relative_to(root)
     except ValueError as exc:
