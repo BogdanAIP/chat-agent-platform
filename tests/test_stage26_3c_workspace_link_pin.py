@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 import unittest
@@ -11,7 +12,7 @@ import runtime.control_plane._verified_workspace_artifact_support as workspace_s
 import runtime.control_plane.verified_workspace_artifact as workspace_artifact
 
 
-@unittest.skipUnless(os.name == "nt", "verified hard-link source pin is Windows-specific")
+@unittest.skipUnless(os.name == "nt", "verified workspace file pins are Windows-specific")
 class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
     def request(self, name: str, content: str) -> dict:
         return {
@@ -91,7 +92,7 @@ class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
             replacement_identity: dict[str, int] | None = None
 
             @contextmanager
-            def replace_then_pin(path: Path):
+            def replace_then_pin(path: Path, *, workspace_root: Path | None = None):
                 nonlocal original_identity, replacement_identity
                 original_identity = workspace_artifact._file_identity(path)
                 replacement = path.with_name(path.name + ".replacement")
@@ -102,7 +103,7 @@ class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
                 self.assertIsNotNone(original_identity)
                 self.assertIsNotNone(replacement_identity)
                 self.assertNotEqual(original_identity, replacement_identity)
-                with real_pin(path):
+                with real_pin(path, workspace_root=workspace_root):
                     yield
 
             with patch.object(
@@ -125,6 +126,126 @@ class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
             self.assertEqual(result["escalation_reason"], "delivery_error_reconciliation_unknown")
             target = self.target_path(workspace, "pre-pin-swap.txt")
             self.assertFalse(target.exists())
+            self.assertNotEqual(original_identity, replacement_identity)
+
+    def test_delete_pin_removes_only_opened_staging_hardlink(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            workspace = Path(workspace_dir)
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            reserved.mkdir(parents=True)
+            staging = reserved / ".delete-pin.staging"
+            target = reserved / "delete-pin.txt"
+            staging.write_bytes(b"PINNED_DELETE")
+            os.link(staging, target)
+            blocked_errors: list[OSError] = []
+
+            with workspace_artifact.pin_file_for_verified_delete(
+                staging,
+                workspace_root=workspace,
+            ) as mark_delete:
+                try:
+                    handle = target.open("r+b")
+                except OSError as exc:
+                    blocked_errors.append(exc)
+                else:
+                    handle.close()
+                    self.fail("delete pin unexpectedly allowed write through target hardlink")
+
+                replacement = staging.with_name(staging.name + ".replacement")
+                replacement.write_bytes(b"FOREIGN")
+                try:
+                    os.replace(replacement, staging)
+                except OSError as exc:
+                    blocked_errors.append(exc)
+                else:
+                    self.fail("delete pin unexpectedly allowed staging replacement")
+
+                mark_delete()
+
+            self.assertGreaterEqual(len(blocked_errors), 2)
+            self.assertFalse(staging.exists())
+            self.assertTrue(target.exists())
+            self.assertEqual(target.read_bytes(), b"PINNED_DELETE")
+
+    def test_compensation_delete_refuses_same_bytes_replacement_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            workspace = Path(workspace_dir)
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            reserved.mkdir(parents=True)
+            path = reserved / "compensation.txt"
+            content = b"SAME_BYTES"
+            path.write_bytes(content)
+            original_identity = workspace_artifact._file_identity(path)
+            self.assertIsNotNone(original_identity)
+            path.unlink()
+            path.write_bytes(content)
+            replacement_identity = workspace_artifact._file_identity(path)
+            self.assertIsNotNone(replacement_identity)
+            self.assertNotEqual(original_identity, replacement_identity)
+
+            removed = workspace_artifact._delete_verified_owned_file(
+                path,
+                hashlib.sha256(content).hexdigest(),
+                original_identity,
+                workspace_root=workspace,
+            )
+
+            self.assertFalse(removed)
+            self.assertTrue(path.exists())
+            self.assertEqual(path.read_bytes(), content)
+
+    def test_cleanup_replacement_before_pin_is_not_deleted(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            real_delete_pin = workspace_artifact.pin_file_for_verified_delete
+            original_identity: dict[str, int] | None = None
+            replacement_identity: dict[str, int] | None = None
+            replaced = False
+
+            @contextmanager
+            def replace_then_delete_pin(path: Path, *, workspace_root: Path | None = None):
+                nonlocal original_identity, replacement_identity, replaced
+                if path.name.endswith(".staging") and not replaced:
+                    original_identity = workspace_artifact._file_identity(path)
+                    path.unlink()
+                    path.write_bytes(b"CLEAN")
+                    replacement_identity = workspace_artifact._file_identity(path)
+                    self.assertIsNotNone(original_identity)
+                    self.assertIsNotNone(replacement_identity)
+                    self.assertNotEqual(original_identity, replacement_identity)
+                    replaced = True
+                with real_delete_pin(path, workspace_root=workspace_root) as mark_delete:
+                    yield mark_delete
+
+            with patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                new=replace_then_delete_pin,
+            ):
+                result = self.execute(
+                    self.request("cleanup-swap.txt", "CLEAN"),
+                    workspace=workspace,
+                    state=state,
+                )
+
+            self.assertTrue(replaced)
+            self.assertEqual(result["status"], "abstained")
+            self.assertEqual(result["escalation_reason"], "delivery_error_reconciliation_unknown")
+            checkpoint_files = list(state.glob("*.json"))
+            self.assertEqual(len(checkpoint_files), 1)
+            task_id = checkpoint_files[0].stem
+            staging = (
+                workspace
+                / ".chat-agent-platform"
+                / "stage26-3a"
+                / f".cleanup-swap.txt.{task_id}.staging"
+            )
+            target = self.target_path(workspace, "cleanup-swap.txt")
+            self.assertTrue(staging.exists())
+            self.assertEqual(staging.read_bytes(), b"CLEAN")
+            self.assertTrue(target.exists())
+            self.assertEqual(target.read_bytes(), b"CLEAN")
             self.assertNotEqual(original_identity, replacement_identity)
 
 
