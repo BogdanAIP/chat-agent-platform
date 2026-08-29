@@ -104,24 +104,23 @@ class Stage263CWorkspaceNormalAuthorityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
-            original_unlink = Path.unlink
-
-            def reject_staging_cleanup(path: Path, *args, **kwargs) -> None:
-                if path.name.endswith(".staging"):
-                    raise AssertionError("kernel UNKNOWN must block staging cleanup")
-                return original_unlink(path, *args, **kwargs)
 
             with patch.object(
                 workspace_artifact,
                 "_verify_transition",
                 side_effect=self.force_unknown("final_create"),
-            ), patch.object(Path, "unlink", new=reject_staging_cleanup):
+            ), patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                side_effect=AssertionError("kernel UNKNOWN must block staging cleanup"),
+            ) as delete_mock:
                 result = self.execute(
                     self.request("normal-final-unknown.txt", "FINAL"),
                     workspace=workspace,
                     state=state,
                 )
 
+            delete_mock.assert_not_called()
             self.assertEqual(result["status"], "abstained")
             self.assertEqual(result["escalation_reason"], "final_create_postcondition_failed")
             self.assertEqual(result["action_count"], 2)
