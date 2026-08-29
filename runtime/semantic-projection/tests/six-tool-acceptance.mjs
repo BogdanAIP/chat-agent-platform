@@ -243,6 +243,11 @@ try {
     assert.equal(failedPayload.status, 'error');
     assert.match(failedPayload.reason, /^invalid_control_plane_response:/);
     assert.match(failedPayload.resume_task_id, /^[0-9a-f]{32}$/);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(failedPayload, 'action_count'),
+      false,
+      'parent crash receipt must not invent procedure progress it cannot observe',
+    );
     assert.equal(fs.readdirSync(failureState).filter(name => name.endsWith('.json')).length, 0);
   } finally {
     try { await failureClient.close(); } catch {}
