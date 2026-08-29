@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -11,17 +12,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from runtime.control_plane.verified_workspace_artifact import (  # noqa: E402
-    PROCEDURE_ID as WORKSPACE_ARTIFACT_PROCEDURE_ID,
-    run_verified_workspace_artifact,
-)
+from runtime.control_plane import verified_workspace_artifact as workspace_artifact  # noqa: E402
 from runtime.control_plane.windows_case_update import (  # noqa: E402
     PROCEDURE_ID as WINDOWS_CASE_PROCEDURE_ID,
     run_windows_case_update,
 )
 
 
+WORKSPACE_ARTIFACT_PROCEDURE_ID = workspace_artifact.PROCEDURE_ID
 MAX_REQUEST_BYTES = 32_768
+_ASSIGNED_TASK_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
 def _error(reason: str) -> dict[str, Any]:
@@ -33,6 +33,69 @@ def _error(reason: str) -> dict[str, Any]:
     }
 
 
+class _AssignedTaskIdSecrets:
+    """Narrow one-shot adapter for the built-in procedure's existing id source.
+
+    The semantic parent owns new-run correlation and passes the chosen id through
+    a private environment variable.  This child process handles exactly one
+    request, so replacing the procedure module's local `secrets` reference is
+    bounded to this dispatch and is always restored before the CLI exits.
+    """
+
+    def __init__(self, delegate: Any, task_id: str) -> None:
+        self._delegate = delegate
+        self._task_id = task_id
+        self._used = False
+
+    def token_hex(self, nbytes: int | None = None) -> str:
+        if nbytes == 16:
+            if self._used:
+                raise RuntimeError("assigned procedure task id requested more than once")
+            self._used = True
+            return self._task_id
+        return self._delegate.token_hex(nbytes)
+
+
+def _run_workspace_artifact(
+    request: dict[str, Any],
+    *,
+    workspace_root: Path,
+    state_root: Path,
+    candidate_admission: str | None,
+) -> dict[str, Any]:
+    assigned_task_id = os.environ.get("CHAT_PROCEDURE_ASSIGNED_TASK_ID")
+    if assigned_task_id is None:
+        return workspace_artifact.run_verified_workspace_artifact(
+            request,
+            workspace_root=workspace_root,
+            state_root=state_root,
+            candidate_admission=candidate_admission,
+        )
+
+    if request.get("resume_task_id") is not None:
+        raise ValueError("assigned task id is only valid for a new procedure run")
+    if _ASSIGNED_TASK_ID_RE.fullmatch(assigned_task_id) is None:
+        raise ValueError("assigned task id must be a 32-character lowercase hex task id")
+    if (state_root / f"{assigned_task_id}.json").exists():
+        raise ValueError("assigned task id already has durable procedure state")
+
+    original_secrets = workspace_artifact.secrets
+    workspace_artifact.secrets = _AssignedTaskIdSecrets(original_secrets, assigned_task_id)
+    try:
+        result = workspace_artifact.run_verified_workspace_artifact(
+            request,
+            workspace_root=workspace_root,
+            state_root=state_root,
+            candidate_admission=candidate_admission,
+        )
+    finally:
+        workspace_artifact.secrets = original_secrets
+
+    if result.get("task_id") != assigned_task_id:
+        raise RuntimeError("workspace procedure did not retain parent-assigned task id")
+    return result
+
+
 def _dispatch_registered_procedure(
     request: dict[str, Any],
     *,
@@ -42,7 +105,7 @@ def _dispatch_registered_procedure(
 ) -> dict[str, Any]:
     procedure = request.get("procedure")
     if procedure == WORKSPACE_ARTIFACT_PROCEDURE_ID:
-        return run_verified_workspace_artifact(
+        return _run_workspace_artifact(
             request,
             workspace_root=workspace_root,
             state_root=state_root,
