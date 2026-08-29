@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import errno
 import os
+import stat as stat_module
 from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator
 
@@ -16,8 +18,25 @@ _OPEN_EXISTING = 3
 _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
 _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
 _FILE_DISPOSITION_INFO_CLASS = 4
+_DUPLICATE_SAME_ACCESS = 0x00000002
 _RESERVED_PARENT = ".chat-agent-platform"
 _RESERVED_STAGE = "stage26-3a"
+_DEFAULT_MAX_VERIFY_BYTES = 16384
+
+
+@dataclass(frozen=True)
+class PinnedFileSnapshot:
+    stat: os.stat_result
+    data: bytes | None
+
+
+class VerifiedDeletePin:
+    def __init__(self, snapshot: PinnedFileSnapshot, mark_delete: Callable[[], None]) -> None:
+        self.snapshot = snapshot
+        self._mark_delete = mark_delete
+
+    def __call__(self) -> None:
+        self._mark_delete()
 
 
 def _win32_api():
@@ -54,10 +73,34 @@ def _win32_api():
     ]
     set_file_information.restype = wintypes.BOOL
 
+    duplicate_handle = kernel32.DuplicateHandle
+    duplicate_handle.argtypes = [
+        wintypes.HANDLE,
+        wintypes.HANDLE,
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.HANDLE),
+        wintypes.DWORD,
+        wintypes.BOOL,
+        wintypes.DWORD,
+    ]
+    duplicate_handle.restype = wintypes.BOOL
+
+    get_current_process = kernel32.GetCurrentProcess
+    get_current_process.argtypes = []
+    get_current_process.restype = wintypes.HANDLE
+
     class FileDispositionInfo(ctypes.Structure):
         _fields_ = [("DeleteFile", wintypes.BOOLEAN)]
 
-    return ctypes, create_file, close_handle, set_file_information, FileDispositionInfo
+    return (
+        ctypes,
+        create_file,
+        close_handle,
+        set_file_information,
+        duplicate_handle,
+        get_current_process,
+        FileDispositionInfo,
+    )
 
 
 @contextmanager
@@ -67,8 +110,16 @@ def _open_pinned_handle(
     desired_access: int,
     share_mode: int,
     directory: bool,
-) -> Iterator[tuple[object, tuple[object, object, object]]]:
-    ctypes, create_file, close_handle, set_file_information, disposition_type = _win32_api()
+) -> Iterator[tuple[object, tuple[object, ...]]]:
+    (
+        ctypes,
+        create_file,
+        close_handle,
+        set_file_information,
+        duplicate_handle,
+        get_current_process,
+        disposition_type,
+    ) = _win32_api()
     flags = _FILE_FLAG_BACKUP_SEMANTICS if directory else _FILE_FLAG_OPEN_REPARSE_POINT
     handle = create_file(
         str(path),
@@ -85,7 +136,14 @@ def _open_pinned_handle(
         raise OSError(code, ctypes.FormatError(code), str(path))
 
     try:
-        yield handle, (set_file_information, disposition_type, ctypes)
+        yield handle, (
+            set_file_information,
+            duplicate_handle,
+            get_current_process,
+            disposition_type,
+            ctypes,
+            close_handle,
+        )
     finally:
         # A close failure can only retain protection longer than requested. It
         # must not mask the primary mutation/verification result; process exit is
@@ -138,6 +196,62 @@ def _pin_namespace(workspace_root: Path, path: Path) -> Iterator[None]:
         yield
 
 
+def _snapshot_from_open_handle(
+    handle: object,
+    api: tuple[object, ...],
+    *,
+    path: Path,
+    max_bytes: int,
+) -> PinnedFileSnapshot:
+    if type(max_bytes) is not int or max_bytes < 0:
+        raise ValueError("max_bytes must be a non-negative integer")
+
+    _, duplicate_handle, get_current_process, _, ctypes, close_handle = api
+    from ctypes import wintypes
+    import msvcrt
+
+    process = get_current_process()
+    duplicate = wintypes.HANDLE()
+    if not duplicate_handle(
+        process,
+        handle,
+        process,
+        ctypes.byref(duplicate),
+        0,
+        False,
+        _DUPLICATE_SAME_ACCESS,
+    ):
+        code = ctypes.get_last_error()
+        raise OSError(code, ctypes.FormatError(code), str(path))
+
+    duplicate_value = duplicate.value
+    fd: int | None = None
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+        fd = msvcrt.open_osfhandle(int(duplicate_value), flags)
+        duplicate_value = None
+        stat = os.fstat(fd)
+        if not stat_module.S_ISREG(stat.st_mode):
+            return PinnedFileSnapshot(stat=stat, data=None)
+        if stat.st_size > max_bytes:
+            return PinnedFileSnapshot(stat=stat, data=None)
+        os.lseek(fd, 0, os.SEEK_SET)
+        data = bytearray()
+        while len(data) <= max_bytes:
+            chunk = os.read(fd, min(65536, max_bytes + 1 - len(data)))
+            if not chunk:
+                break
+            data.extend(chunk)
+        if len(data) != stat.st_size:
+            return PinnedFileSnapshot(stat=stat, data=None)
+        return PinnedFileSnapshot(stat=stat, data=bytes(data))
+    finally:
+        if fd is not None:
+            os.close(fd)
+        elif duplicate_value is not None:
+            close_handle(duplicate)
+
+
 @contextmanager
 def pin_file_for_verified_link(
     path: Path,
@@ -161,8 +275,9 @@ def pin_file_for_verified_delete(
     path: Path,
     *,
     workspace_root: Path | None = None,
-) -> Iterator[Callable[[], None]]:
-    """Pin one exact path and expose a handle-bound delete-on-close operation."""
+    max_bytes: int = _DEFAULT_MAX_VERIFY_BYTES,
+) -> Iterator[VerifiedDeletePin]:
+    """Pin, snapshot and delete one exact file object without reopening its path."""
 
     root = _infer_workspace_root(path) if workspace_root is None else workspace_root
     with _pin_namespace(root, path), _open_pinned_handle(
@@ -171,7 +286,13 @@ def pin_file_for_verified_delete(
         share_mode=_FILE_SHARE_READ,
         directory=False,
     ) as (handle, api):
-        set_file_information, disposition_type, ctypes = api
+        set_file_information, _, _, disposition_type, ctypes, _ = api
+        snapshot = _snapshot_from_open_handle(
+            handle,
+            api,
+            path=path,
+            max_bytes=max_bytes,
+        )
 
         def mark_delete() -> None:
             disposition = disposition_type(True)
@@ -184,4 +305,4 @@ def pin_file_for_verified_delete(
                 code = ctypes.get_last_error()
                 raise OSError(code, ctypes.FormatError(code), str(path))
 
-        yield mark_delete
+        yield VerifiedDeletePin(snapshot, mark_delete)
