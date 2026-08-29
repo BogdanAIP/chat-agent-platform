@@ -56,6 +56,26 @@ class _AssignedTaskIdSecrets:
         return self._delegate.token_hex(nbytes)
 
 
+class _AssignedTaskIdLockGuard:
+    """Bind new-task durable ownership to the procedure's existing task lock."""
+
+    def __init__(self, delegate: Any, task_id: str) -> None:
+        self._delegate = delegate
+        self._task_id = task_id
+
+    def __call__(self, state_root: Path, task_id: str) -> Any:
+        task_lock = self._delegate(state_root, task_id)
+        try:
+            if task_id != self._task_id:
+                raise RuntimeError("workspace procedure requested an unexpected assigned task id")
+            if (state_root / f"{task_id}.json").exists():
+                raise ValueError("assigned task id already has durable procedure state")
+            return task_lock
+        except Exception:
+            task_lock.close()
+            raise
+
+
 def _run_workspace_artifact(
     request: dict[str, Any],
     *,
@@ -80,7 +100,12 @@ def _run_workspace_artifact(
         raise ValueError("assigned task id already has durable procedure state")
 
     original_secrets = workspace_artifact.secrets
+    original_acquire_task_lock = workspace_artifact._acquire_task_lock
     workspace_artifact.secrets = _AssignedTaskIdSecrets(original_secrets, assigned_task_id)
+    workspace_artifact._acquire_task_lock = _AssignedTaskIdLockGuard(
+        original_acquire_task_lock,
+        assigned_task_id,
+    )
     try:
         result = workspace_artifact.run_verified_workspace_artifact(
             request,
@@ -89,6 +114,7 @@ def _run_workspace_artifact(
             candidate_admission=candidate_admission,
         )
     finally:
+        workspace_artifact._acquire_task_lock = original_acquire_task_lock
         workspace_artifact.secrets = original_secrets
 
     if result.get("task_id") != assigned_task_id:
