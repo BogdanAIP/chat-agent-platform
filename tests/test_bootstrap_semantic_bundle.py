@@ -135,9 +135,11 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             "runtime/control_plane/browser_observation.py",
             "runtime/control_plane/browser_transition.py",
             "runtime/control_plane/browser_transition_cli.py",
+            "runtime/control_plane/cli.py",
             "runtime/control_plane/file_artifact_observation.py",
             "runtime/control_plane/verification.py",
             "runtime/control_plane/verified_workspace_artifact.py",
+            "runtime/control_plane/windows_case_update.py",
             "runtime/control_plane/windows_file_pin.py",
             "runtime/control_plane/windows_observation.py",
             "runtime/control_plane/windows_transition.py",
@@ -147,19 +149,27 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             "control_plane/browser_observation.py",
             "control_plane/browser_transition.py",
             "control_plane/browser_transition_cli.py",
+            "control_plane/cli.py",
             "control_plane/file_artifact_observation.py",
             "control_plane/verification.py",
             "control_plane/verified_workspace_artifact.py",
+            "control_plane/windows_case_update.py",
             "control_plane/windows_file_pin.py",
             "control_plane/windows_observation.py",
             "control_plane/windows_transition.py",
             "control_plane/working_state.py",
+            "CHAT_PROCEDURE_ALLOW_CANDIDATE",
             "SEMANTIC_INSTALLED_BROWSER_VERIFIER=PASS",
             "SEMANTIC_INSTALLED_PROCEDURE=PASS",
+            "SEMANTIC_INSTALLED_PROCEDURE_CLI=PASS",
             "verified_workspace_artifact_v1",
             "target_already_exists",
         ):
             self.assertIn(marker, self.semantic_workflow)
+        self.assertNotIn(
+            "from control_plane.verified_workspace_artifact import run_verified_workspace_artifact",
+            self.semantic_workflow,
+        )
 
     def test_browser_verifier_bridge_is_bounded_and_not_generic_dispatch(self) -> None:
         self.assertIn("browser_transition_cli.py", self.manager)
