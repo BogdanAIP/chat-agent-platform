@@ -27,6 +27,7 @@ jobs:
       contains(github.event.pull_request.title, '[CAP_READY_26_3C_0B761FC7_8D4F2A91]')
     runs-on: ubuntu-latest
     permissions:
+      contents: write
       pull-requests: write
     steps:
       - name: Mark PR ready and verify
