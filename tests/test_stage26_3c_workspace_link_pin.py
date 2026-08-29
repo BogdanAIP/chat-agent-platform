@@ -31,7 +31,7 @@ class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
     def target_path(self, workspace: Path, name: str) -> Path:
         return workspace / ".chat-agent-platform" / "stage26-3a" / name
 
-    def test_live_pin_blocks_write_and_replacement_during_actual_hard_link_window(self) -> None:
+    def test_live_pin_blocks_write_replacement_and_namespace_retarget_during_link(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
@@ -56,6 +56,17 @@ class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
                 else:
                     self.fail("pinned staging unexpectedly allowed path replacement")
 
+                for directory in (source.parent, source.parent.parent, workspace):
+                    moved = directory.with_name(directory.name + ".retargeted")
+                    try:
+                        os.rename(directory, moved)
+                    except OSError as exc:
+                        blocked_errors.append(exc)
+                    else:
+                        self.fail(
+                            f"pinned namespace unexpectedly allowed rename of {directory}"
+                        )
+
                 original_link(source, target)
 
             with patch.object(workspace_support.os, "link", new=attack_then_link):
@@ -67,7 +78,7 @@ class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "completed")
             self.assertEqual(result["action_count"], 3)
-            self.assertGreaterEqual(len(blocked_errors), 2)
+            self.assertGreaterEqual(len(blocked_errors), 5)
             target = self.target_path(workspace, "pin-window.txt")
             self.assertEqual(target.read_text(encoding="utf-8"), "PINNED")
 
