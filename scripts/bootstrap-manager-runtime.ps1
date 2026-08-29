@@ -102,13 +102,16 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
     )
     $controlPlaneFiles = @(
         '__init__.py',
+        '_verified_workspace_artifact_support.py',
         'browser_observation.py',
         'browser_transition.py',
         'browser_transition_cli.py',
         'cli.py',
         'file_artifact_observation.py',
         'verification.py',
-        'verified_workspace_artifact.py'
+        'verified_workspace_artifact.py',
+        'windows_file_pin.py',
+        'working_state.py'
     )
     $visionScripts = @(
         'local-vision-runtime.ps1',
@@ -298,6 +301,7 @@ function Install-ChatManagerBundle {
         @('runtime\semantic-projection\lib\runtime-backed-bridge-grounder.mjs', 'runtime\semantic-projection\lib\runtime-backed-bridge-grounder.mjs'),
         @('runtime\semantic-projection\lib\runtime-backed-visual-grounder.mjs', 'runtime\semantic-projection\lib\runtime-backed-visual-grounder.mjs'),
         @('runtime\control_plane\__init__.py', 'runtime\control_plane\__init__.py'),
+        @('runtime\control_plane\_verified_workspace_artifact_support.py', 'runtime\control_plane\_verified_workspace_artifact_support.py'),
         @('runtime\control_plane\browser_observation.py', 'runtime\control_plane\browser_observation.py'),
         @('runtime\control_plane\browser_transition.py', 'runtime\control_plane\browser_transition.py'),
         @('runtime\control_plane\browser_transition_cli.py', 'runtime\control_plane\browser_transition_cli.py'),
@@ -305,6 +309,8 @@ function Install-ChatManagerBundle {
         @('runtime\control_plane\file_artifact_observation.py', 'runtime\control_plane\file_artifact_observation.py'),
         @('runtime\control_plane\verification.py', 'runtime\control_plane\verification.py'),
         @('runtime\control_plane\verified_workspace_artifact.py', 'runtime\control_plane\verified_workspace_artifact.py'),
+        @('runtime\control_plane\windows_file_pin.py', 'runtime\control_plane\windows_file_pin.py'),
+        @('runtime\control_plane\working_state.py', 'runtime\control_plane\working_state.py'),
         @('config\local-vision-runtime.json', 'config\local-vision-runtime.json'),
         @('runtime\local_vision_adapter\__init__.py', 'runtime\local_vision_adapter\__init__.py'),
         @('runtime\local_vision_adapter\benchmark.py', 'runtime\local_vision_adapter\benchmark.py'),
