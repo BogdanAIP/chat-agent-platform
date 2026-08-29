@@ -4,7 +4,6 @@ name: ci
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 concurrency:
@@ -15,30 +14,6 @@ permissions:
   contents: read
 
 jobs:
-  one-shot-ready:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.action == 'edited' &&
-      github.actor == 'BogdanAIP' &&
-      github.event.pull_request.number == 126 &&
-      github.event.pull_request.draft == true &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'chat/stage26-3c-workspace-working-state' &&
-      contains(github.event.pull_request.title, '[CAP_READY_26_3C_0B761FC7_8D4F2A91]')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Mark PR ready and verify
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh pr ready 126 --repo "$GITHUB_REPOSITORY"
-          test "$(gh pr view 126 --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = "false"
-
   verify-windows:
     runs-on: windows-latest
     timeout-minutes: 15
