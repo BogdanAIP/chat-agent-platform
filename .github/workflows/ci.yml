@@ -18,12 +18,11 @@ jobs:
   one-shot-schema2-identity-fix:
     if: >-
       github.event_name == 'pull_request' &&
-      github.event.action == 'edited' &&
+      github.event.action == 'synchronize' &&
       github.actor == 'BogdanAIP' &&
       github.event.pull_request.number == 126 &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'chat/stage26-3c-workspace-working-state' &&
-      contains(github.event.pull_request.title, '[CAP_FIX_SCHEMA2_ID_7F31A6C2]')
+      github.event.pull_request.head.ref == 'chat/stage26-3c-workspace-working-state'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -38,6 +37,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if test -e tests/test_stage26_3c_checkpoint_identity_validation.py; then
+            echo 'ONE_SHOT_SCHEMA2_IDENTITY_FIX=already-applied'
+            exit 0
+          fi
+
           python - <<'PY'
           from pathlib import Path
 
@@ -79,8 +83,6 @@ jobs:
           support_path.write_text(text.replace(needle, replacement), encoding='utf-8', newline='\n')
 
           test_path = Path('tests/test_stage26_3c_checkpoint_identity_validation.py')
-          if test_path.exists():
-              raise SystemExit(f'unexpected existing test file: {test_path}')
           test_path.write_text('''from __future__ import annotations
 
 import unittest
