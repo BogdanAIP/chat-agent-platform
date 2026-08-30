@@ -84,6 +84,74 @@ class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
             target = self.target_path(workspace, "pin-window.txt")
             self.assertEqual(target.read_text(encoding="utf-8"), "PINNED")
 
+    def test_link_pin_remains_live_through_after_observation_and_receipt_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            name = "receipt-pin.txt"
+            target = self.target_path(workspace, name)
+            original_observe = workspace_artifact.FileArtifactObservationStream.observe
+            original_write_checkpoint = workspace_artifact._write_checkpoint
+            blocked_phases: list[str] = []
+            allowed_phases: list[str] = []
+            observation_probed = False
+            checkpoint_probed = False
+
+            def probe_write_handle(phase: str) -> None:
+                try:
+                    handle = target.open("r+b")
+                except OSError:
+                    blocked_phases.append(phase)
+                else:
+                    handle.close()
+                    allowed_phases.append(phase)
+
+            def observe_with_probe(stream):
+                nonlocal observation_probed
+                if not observation_probed and target.exists():
+                    staging_files = list(target.parent.glob(f".{name}.*.staging"))
+                    if staging_files and os.path.samefile(staging_files[0], target):
+                        observation_probed = True
+                        probe_write_handle("after_observation_entry")
+                return original_observe(stream)
+
+            def checkpoint_with_probe(state_root: Path, task_state: dict) -> None:
+                nonlocal checkpoint_probed
+                if (
+                    not checkpoint_probed
+                    and task_state.get("current_node") == "final_verified"
+                    and target.exists()
+                ):
+                    checkpoint_probed = True
+                    probe_write_handle("final_verified_checkpoint")
+                original_write_checkpoint(state_root, task_state)
+
+            with patch.object(
+                workspace_artifact.FileArtifactObservationStream,
+                "observe",
+                new=observe_with_probe,
+            ), patch.object(
+                workspace_artifact,
+                "_write_checkpoint",
+                new=checkpoint_with_probe,
+            ):
+                result = self.execute(
+                    self.request(name, "PINNED_RECEIPT"),
+                    workspace=workspace,
+                    state=state,
+                )
+
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["action_count"], 3)
+            self.assertTrue(observation_probed)
+            self.assertTrue(checkpoint_probed)
+            self.assertEqual(allowed_phases, [])
+            self.assertEqual(
+                blocked_phases,
+                ["after_observation_entry", "final_verified_checkpoint"],
+            )
+            self.assertEqual(target.read_text(encoding="utf-8"), "PINNED_RECEIPT")
+
     def test_replacement_before_pin_is_rejected_before_hard_link_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
