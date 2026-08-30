@@ -91,7 +91,7 @@ class Stage263CTaskCorrelationTests(unittest.TestCase):
             self.assertEqual(checkpoint["task_id"], assigned)
             self.assertEqual(checkpoint["status"], "completed")
 
-    def test_preknown_assigned_id_survives_hard_child_crash_and_resumes_without_discovery(self) -> None:
+    def test_preknown_assigned_id_survives_hard_child_crash_and_abstains_without_discovery(self) -> None:
         assigned = "abcdefabcdefabcdefabcdefabcdefab"
         request = self.request("assigned-crash.txt", "ASSIGNED_CRASH")
         crash_script = textwrap.dedent(
@@ -150,10 +150,17 @@ class Stage263CTaskCorrelationTests(unittest.TestCase):
                 ),
             )
             self.assertEqual(resumed.returncode, 0, resumed.stderr)
-            self.assertEqual(payload["status"], "completed")
+            self.assertEqual(payload["status"], "abstained")
+            self.assertEqual(payload["escalation_reason"], "resume_reconciliation_unknown")
             self.assertEqual(payload["task_id"], assigned)
             self.assertEqual(payload["resumed"], True)
-            self.assertEqual(payload["action_count"], 3)
+            self.assertEqual(payload["action_count"], 0)
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            staging = reserved / f".assigned-crash.txt.{assigned}.staging"
+            target = reserved / "assigned-crash.txt"
+            self.assertTrue(staging.exists())
+            self.assertEqual(staging.read_text(encoding="utf-8"), "ASSIGNED_CRASH")
+            self.assertFalse(target.exists())
 
     def test_assigned_task_id_cannot_replace_existing_durable_task(self) -> None:
         assigned = "11111111111111111111111111111111"

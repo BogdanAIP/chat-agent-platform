@@ -132,7 +132,7 @@ class Stage263CWorkspaceWorkingStateTests(unittest.TestCase):
                 "confirmed_not_applied",
             )
 
-    def test_resume_after_stage_delivery_repairs_receipt_without_redelivery(self) -> None:
+    def test_resume_after_stage_delivery_without_retained_identity_abstains_without_redelivery(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
@@ -158,11 +158,17 @@ class Stage263CWorkspaceWorkingStateTests(unittest.TestCase):
                     )
 
             task_id = self.checkpoint(state)["task_id"]
+            staging = self.staging_path(workspace, "resume-stage.txt", task_id)
+            target = self.target_path(workspace, "resume-stage.txt")
             with patch.object(
                 workspace_artifact,
                 "_exclusive_create_file",
-                side_effect=AssertionError("stage create was redelivered"),
-            ) as create_mock:
+                side_effect=AssertionError("identity-unbound stage must not be redelivered"),
+            ) as create_mock, patch.object(
+                workspace_artifact,
+                "_exclusive_link_file",
+                side_effect=AssertionError("identity-unbound stage must not be linked"),
+            ) as link_mock:
                 result = self.execute(
                     self.request("resume-stage.txt", "APPLIED", task_id),
                     workspace=workspace,
@@ -170,18 +176,19 @@ class Stage263CWorkspaceWorkingStateTests(unittest.TestCase):
                 )
 
             create_mock.assert_not_called()
-            self.assertEqual(result["status"], "completed")
-            self.assertEqual(result["action_count"], 3)
-            self.assertEqual(
-                [receipt["transition_id"] for receipt in result["transition_receipts"]],
-                ["stage_create", "final_create", "staging_cleanup"],
-            )
+            link_mock.assert_not_called()
+            self.assertEqual(result["status"], "abstained")
+            self.assertEqual(result["escalation_reason"], "resume_reconciliation_unknown")
+            self.assertEqual(result["action_count"], 0)
+            self.assertTrue(staging.exists())
+            self.assertFalse(target.exists())
             checkpoint = self.checkpoint(state)
             working = WorkingState.from_dict(checkpoint["working_state"])
             self.assertEqual(
                 working.reconciliations[0].status.value,
-                "confirmed_applied",
+                "still_unknown",
             )
+            self.assertIsInstance(checkpoint["prepared_intent"], dict)
 
     def test_resume_after_final_link_delivery_never_relinks(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
