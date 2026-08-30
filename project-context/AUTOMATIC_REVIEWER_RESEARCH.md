@@ -87,6 +87,14 @@ The experiment proved useful mechanics but did not establish a production review
 
 At the research baseline, the semantic projection registers bounded procedure schemas and the Python Control Plane CLI dispatches only known procedure IDs. This is the correct existing project-owned extension point for a bounded launch consequence; adding a seventh public tool or a generic launcher dispatcher would duplicate/erode the accepted surface.
 
+### Accepted Stage 26.3C cooperating-runner lock
+
+The accepted Stage 26.3C workspace procedure already serializes cooperating runners through a project-owned OS-backed nonblocking task lock. Current `runtime/control_plane/_verified_workspace_artifact_support.py` uses one lock file per stable task identity and obtains an exclusive process-held lock with `msvcrt.locking(..., LK_NBLCK, ...)` on Windows or `fcntl.flock(..., LOCK_EX | LOCK_NB)` on POSIX. A competing cooperating runner fails closed instead of entering the consequence path concurrently; normal close releases the lock, and process death releases the OS-held lock while durable procedure state remains for reconciliation.
+
+The automatic reviewer needs the same **cooperating-runner single-writer role**, not a new database, event bus, lease system or custom mutex. Implementation may extract/share the accepted lock helper rather than importing a private Stage-specific symbol, but the semantics must remain the same: acquire the OS-backed operation lock before reading/creating the durable automatic-review record, hold it across the irreversible dispatch-attempt transition and one OS/browser launch decision, and release it only after that bounded local launch procedure returns.
+
+This reuse stays within the accepted process-crash/restart guarantee. It does not claim machine/power-loss transactional durability or protection from a non-cooperating process deliberately modifying the state directory.
+
 ### PR #138 deep-link/autosend experiment
 
 The experimental `scripts/launch-chatgpt-deeplink-autosend.ps1` constructs a run-bound `chatgpt.com` URL and uses normal Windows shell URL launch. The experimental content script checks the URL contract, exact composer payload and Send readiness, writes an attempt ledger before the click, and refuses duplicate delivery within its experimental storage scope.
@@ -107,7 +115,7 @@ Sources:
 - https://developer.chrome.com/docs/extensions/reference/api/storage
 - https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies
 
-The authoritative automatic launch-at-most-once boundary remains the local durable launch record. Extension storage is a second cross-tab/browser-side guard, not a substitute for local operation ownership.
+The authoritative automatic launch-at-most-once boundary remains the local OS-backed operation lock plus durable launch record. Extension storage is a second cross-tab/browser-side guard, not a substitute for local operation ownership.
 
 ## Source-code revalidation
 
@@ -160,9 +168,10 @@ Useful lesson: OpenHands explicitly recognizes duplicate child launch/replay as 
 | Role | Prior/source candidate | Decision | Reason |
 |---|---|---|---|
 | General planning / semantic review | ordinary ChatGPT | **KEEP** | Existing required reviewer remains fresh ordinary ChatGPT; automation must not substitute another planner/model/service. |
-| Review protocol / exact identity / falsification | project `code-review` skill | **KEEP / REFINE AUTOMATIC ENVELOPE ONLY** | Accepted semantic-review protocol remains authoritative; automatic path adds bounded correlation/result-publication semantics without weakening falsification or exact-ref rules. |
+| Review protocol / exact identity / falsification | project `code-review` skill | **KEEP / REFINE AUTOMATIC ENVELOPE ONLY** | Accepted semantic-review protocol remains authoritative; automatic path adds bounded correlation/result-publication semantics without weakening falsification or exact-ref rules. The adopting process change updates the HEAD skill to v1.1, while the adopting PR itself remains reviewed under the accepted BASE skill/version. |
 | Chat reachability | current ChatGPT product/browser session | **KEEP** | No custom public ingress is required for reviewer evidence. |
 | Bounded local launch consequence | canonical `procedure_run` registered-procedure boundary | **REUSE_MORE / NARROW** | Use one fixed `launch_independent_review_v1` procedure rather than a seventh tool or arbitrary launcher. Procedure input is exact review identity only, not arbitrary prompt/URL/command. |
+| Cooperating-runner serialization / atomic operation claim | accepted Stage 26.3C OS-backed task-lock mechanism | **REUSE_MORE** | Acquire the stable review-operation lock before any record load/create or nonce generation; hold through durable dispatch-attempted + one launch decision. This closes concurrent first-creator races without adding a new concurrency primitive. |
 | Deep-link + one bounded Send | PR #138 launcher/content-script experiment | **REFINE** | Keep the proved minimal browser mechanics; add fresh-route proof and extension-owned durable cross-tab attempt state; remove experiment-only `Chat Local Bridge Test` dependency from the reviewer prompt. |
 | Windows Task Scheduler | existing supervisor use + #138 one-shot experiment | **DEFER for v1 reviewer** | Immediate review launch does not require a timer. Adding a scheduler owner would widen lifecycle scope without solving a current requirement. |
 | ChatGPT Scheduled Tasks | product feature | **DEFER** | One-time task capability exists, but current evidence does not prove the exact ordinary-Chat isolation + GitHub tool contract required here; event-triggered product paths may require Work, which cannot substitute for the mandatory review. |
@@ -195,23 +204,47 @@ It must not accept arbitrary prompt text, arbitrary URL, shell/command/backend s
 
 The procedure derives the fixed reviewer instruction and ChatGPT launch URL from the typed review identity.
 
-### 2. Stable operation key + private review nonce
+### 2. Stable operation key + atomic single-writer claim + private review nonce
 
-Two identities are intentionally separate:
+Three local identities/roles are intentionally separate:
 
 ```text
 review_operation_key
   deterministic from exact repository / PR / BASE / HEAD / review-skill identity
   local lifecycle ownership / duplicate suppression key
 
+review_operation_lock_id
+  deterministic bounded lock-file identity derived from review_operation_key
+  not a secret and not result correlation
+
 review_run_id
-  high-entropy random nonce generated exactly once for that operation record
+  high-entropy random nonce generated exactly once for that durable operation record
   durable local correlation value
   reused when the same operation is queried again
   not published to the PR before the result comment
 ```
 
-The local procedure durably creates/loads the exact operation record and its once-generated `review_run_id` before external launch.
+The local launch procedure must obtain the accepted project OS-backed **exclusive nonblocking operation lock before any durable review record is read, created or assigned a nonce**.
+
+Required ordering:
+
+```text
+canonical exact review identity
+ -> derive review_operation_key / bounded lock id
+ -> acquire existing project OS-backed exclusive lock
+ -> under lock: load existing record OR create exactly one record
+ -> under lock: generate/persist review_run_id only when creating that record
+ -> under lock: decide whether the one automatic dispatch is still permitted
+ -> under lock: persist irreversible dispatch-attempted state
+ -> under lock: invoke the one OS/browser launch consequence
+ -> release lock when the bounded launcher returns
+```
+
+A concurrent cooperating caller that cannot acquire the operation lock fails/returns `task_already_running`-equivalent state and performs **no** record creation, nonce generation or browser launch. It must not fall back to an unlocked read/create path.
+
+If the lock holder dies, the OS releases the process-held lock. A later caller may then acquire it, but it must reconcile from the durable record before deciding anything. A durable `dispatch-attempted` state forbids a second automatic launch even if there is no result yet. A record that proves the nonce was created but dispatch was never marked may authorize the first launch only after the same lock is reacquired and the exact retained state is validated.
+
+The implementation should reuse/extract the accepted Stage 26.3C lock mechanism rather than add a second lock framework. The stable lock file itself is not ownership evidence after the process exits; the OS lock is the live single-writer claim and the durable operation record is restart evidence.
 
 This avoids using a predictable public exact-head hash as the only result correlation secret. A public commenter who only knows the PR/base/head cannot preemptively fabricate the expected automatic result without the locally held nonce.
 
@@ -232,16 +265,17 @@ review_run_id=<locally generated automatic-run nonce>
 
 ### 3. Write-before-dispatch / no automatic ambiguous retry
 
-The local launch record must transition to an irreversible automatic-dispatch-attempted state **before** invoking the OS/browser launch consequence.
+The local launch record must transition to an irreversible automatic-dispatch-attempted state **while the operation lock is held and before** invoking the OS/browser launch consequence.
 
 Consequences:
 
-- crash before durable dispatch-attempted state -> no external launch has been authorized; exact local state may permit the first attempt later;
+- crash before any durable operation record exists -> the OS releases the lock; a later caller may create the one record and make the first attempt;
+- crash after durable record/nonce creation but before dispatch-attempted -> after reacquiring the lock, a later caller may validate the record and make the still-unused first attempt;
 - once dispatch-attempted is durable -> a repeated procedure invocation returns the existing run state / nonce and does not launch another Chat automatically;
 - if the process/browser launch failed after the durable mark, v1 prefers manual fresh-review fallback over a duplicate automatic conversation;
 - browser/transport failure after Send is always ambiguous delivery and never authorizes blind redelivery.
 
-The content script also writes an extension-owned `chrome.storage.local` attempt marker before Send. This protects against duplicate tabs/browser-side replay for the same run, but the local durable record remains the primary operation owner.
+The content script also writes an extension-owned `chrome.storage.local` attempt marker before Send. This protects against duplicate tabs/browser-side replay for the same run, but the local OS lock + durable record remain the primary operation owner/restart evidence.
 
 ### 4. Fresh ordinary-Chat proof boundary
 
@@ -253,7 +287,9 @@ The request carries no development reasoning, suspected findings or correctness 
 
 During semantic review the reviewer remains read-only to production code/branch/repository configuration.
 
-The only new write allowed by the automatic-review protocol is **one top-level PR conversation comment** containing the structured result for the matching `review_run_id`. It must not:
+The automatic path is governed by the accepted `code-review` skill's bounded automatic result-publication envelope. That envelope permits **exactly one top-level PR conversation comment** containing the reviewer's own structured result for the matching `review_run_id`; it does not permit a second comment retry after an ambiguous creation result.
+
+It must not:
 
 - edit files/branches;
 - submit APPROVE/REQUEST_CHANGES review state;
@@ -266,14 +302,14 @@ This publication is result-evidence transport, not acceptance authority.
 
 The automatic lifecycle has a configured expected GitHub result principal (for the current project, the account through which the ordinary-Chat GitHub connector is expected to publish). The development side rejects a matching-looking result from any other author. The exact configuration mechanism is implementation detail, but it may not be supplied by untrusted PR/page content.
 
-### 6. Structured result publication and immutable-consumption check
+### 6. Structured result publication and mutable-evidence consumption check
 
 The automatic result comment contains the normal `REVIEW_RESULT_V1` identity/result plus matching `review_run_id`.
 
-GitHub conversation comments are treated as **mutable transport records**, not intrinsically immutable acceptance evidence. The development side accepts a result only after independently checking:
+GitHub conversation comments are treated as **mutable transport records**, not intrinsically immutable acceptance evidence. Initial development-side consumption requires querying the complete top-level PR Conversation-comment collection and checking:
 
 ```text
-exactly one matching result comment exists
+exactly one comment carrying the locally expected review_run_id exists
 comment.author == configured expected result principal
 comment was not edited after creation
 result.repository / pr / base / head == frozen request
@@ -284,7 +320,20 @@ result status/validity/count fields parse under current contract
 live PR base/head still match the reviewed identity when CURRENT is consumed
 ```
 
-The development lifecycle records the accepted comment id + body digest/observed metadata for the final merge gate, then re-fetches that same comment before merge. Missing/deleted/edited/body-changed result evidence invalidates the automatic result and requires a safe fallback/fresh review.
+The development lifecycle records the accepted comment id + body digest/created/updated metadata. That snapshot is not enough by itself for merge.
+
+**Final automatic-result merge gate:** immediately before merge, the development side must query the complete top-level PR Conversation-comment collection again (all pages, not only the saved comment) and select every comment carrying the expected `review_run_id`. It must require:
+
+```text
+matching-comment count == 1
+matching comment author == configured expected result principal
+matching comment id == originally accepted comment id
+matching comment body digest == originally accepted body digest
+matching comment created/updated metadata == accepted unedited metadata
+live PR base/head == reviewed exact identity
+```
+
+It then re-fetches that sole exact comment by id and verifies the same body/metadata again. A late second matching comment, deletion, edit, author mismatch, id replacement, body change or live-ref change invalidates the automatic result and requires a safe fallback/fresh review. The gate must not choose the favorable result or silently ignore an identical duplicate.
 
 Do not publish the automatic `review_run_id` in a public REVIEW_REQUEST comment before the reviewer result. The immutable core review identity may still be recorded publicly without the private automatic-run nonce when useful for audit.
 
@@ -302,21 +351,27 @@ The GitHub result removes copy/paste. A user may return to the development conve
 |---|---|---:|
 | request missing exact repo/PR/base/head/skill/version | do not launch; ABSTAIN/error | 0 launches |
 | arbitrary prompt/URL/command supplied to launch procedure | schema rejects; no browser launch | 0 launches |
-| first exact operation record creation | generate one high-entropy `review_run_id`, persist before launch | 0 premature public effects |
-| same exact automatic launch requested again before/after dispatch mark | return existing run state/nonce; never create a second automatic launch | 0 extra launches |
-| crash before durable dispatch-attempted mark | no launch authorized; exact state may permit the first attempt | <= 1 total launch |
-| crash/failure after durable dispatch-attempted mark but before browser actually opens | no automatic retry; manual fresh-review fallback | 0 extra launches |
+| two concurrent same-operation callers before record exists | exactly one acquires OS lock; loser performs no record/nonce/launch work | 0 extra launches |
+| process dies while holding lock before record creation | OS releases lock; later caller may create the single record under a new lock claim | 0 premature effects |
+| first exact operation record creation | under lock, generate one high-entropy `review_run_id`, persist before launch | 0 premature public effects |
+| process dies after record/nonce persistence but before dispatch-attempted | later locked caller validates same record/nonce and may perform the still-unused first attempt | <= 1 total launch |
+| same exact automatic launch requested again while first holder is active | nonblocking lock claim fails/returns already-running; no unlocked fallback | 0 extra launches |
+| same exact automatic launch requested after lock release | acquire lock, load durable state; dispatch-attempted forbids another automatic launch | 0 extra launches |
+| crash before durable dispatch-attempted mark | no launch authorized; exact locked state may permit the first attempt | <= 1 total launch |
+| crash/failure after durable dispatch-attempted mark but before browser actually opens | OS later releases lock; durable mark forbids auto-retry; manual fresh-review fallback | 0 extra launches |
 | browser opens existing `/c/...` conversation | content script refuses Send | 0 Sends |
 | extension duplicate ledger missing/corrupt/ambiguous | fail closed; no automatic Send; manual fallback | 0 Sends |
 | same run appears in multiple tabs | extension/local run guards permit at most one automatic Send attempt | 0 extra Sends |
 | browser/transport error after Send click | outcome ambiguous; do not auto-redeliver | 0 additional Sends |
 | ChatGPT/tool/reviewer times out with no result | mark timeout operationally; manual fresh-review path | 0 automatic relaunches |
 | reviewer cannot prove fresh ordinary context/evidence | publish/return ABSTAIN when possible; no PASS inference | 0 branch effects |
+| automatic result-comment creation outcome is ambiguous | reviewer does not retry comment creation; development side discovers/dispositions evidence | 0 extra comment attempts |
 | arbitrary public commenter guesses repo/head but not private run nonce | result does not match expected `review_run_id`; reject | 0 merge authority |
 | result author differs from configured expected principal | reject | 0 merge authority |
 | reviewer posts malformed result | reject | 0 merge authority |
 | reviewer result comment is edited after creation | reject automatic result | 0 merge authority |
-| accepted result comment disappears/changes before merge | final re-fetch invalidates it; fresh/manual review required | 0 stale merges |
+| accepted result comment disappears/changes before merge | final full collection rescan + exact re-fetch invalidates it; fresh/manual review required | 0 stale merges |
+| second matching result appears after initial acceptance but before merge | final full collection rescan sees count != 1 and fails closed | 0 merge authority |
 | reviewer posts result for stale head | retain only as historical evidence; reject as CURRENT | 0 merge authority |
 | head moves after valid PASS but before merge | final identity gate rejects old result; fresh review required | 0 stale merges |
 | any second matching result comment for same run | duplicate/ambiguous -> fail closed/manual fresh review | 0 merge authority |
@@ -501,20 +556,25 @@ Exact Harbor source inspected for this Brief:
 Tests must cover at least:
 
 1. launch procedure schema contains only exact review identity; arbitrary URL/prompt/command rejected;
-2. deterministic exact-review operation key plus once-generated high-entropy `review_run_id` persisted before launch;
-3. repeated same-head invocation returns the existing run record/nonce and cannot produce a second automatic launch;
-4. durable dispatch-attempted state is written before OS/browser launch and prevents automatic retry after uncertainty;
-5. content script refuses an existing conversation route;
-6. extension-owned ledger is written before Send and provides cross-tab/browser-side duplicate protection for the accepted scope;
-7. missing/corrupt/ambiguous local or extension launch state fails closed;
-8. malformed/missing/mismatched/wrong-author/edited result comment rejects;
-9. any second matching result comment for the same run rejects as duplicate/ambiguous;
-10. stale base/head result rejects;
-11. accepted result comment id/body is re-fetched unchanged at final merge gate;
-12. reviewer result publication cannot alter branch/review approval/labels/settings through the accepted protocol;
-13. manual fresh-review fallback remains valid and Codex remains optional;
-14. existing six-tool public inventory/runtime semantics remain unchanged except for the explicitly registered launch procedure behind `procedure_run`;
-15. no generic scheduler/event bus/shell/Python/URL launcher is reachable from the new procedure.
+2. deterministic exact-review operation key + bounded lock id + once-generated high-entropy `review_run_id`;
+3. two concurrent first callers for the same operation: exactly one acquires the OS lock and only that caller may create the record/nonce or reach launch;
+4. killing the lock holder releases the OS claim, after which a later caller must reconcile from the durable record rather than blindly launch;
+5. repeated same-head invocation after lock release returns the existing run record/nonce and cannot produce a second automatic launch;
+6. durable dispatch-attempted state is written while the lock is held and before OS/browser launch, and prevents automatic retry after uncertainty;
+7. content script refuses an existing conversation route;
+8. extension-owned ledger is written before Send and provides cross-tab/browser-side duplicate protection for the accepted scope;
+9. missing/corrupt/ambiguous local or extension launch state fails closed;
+10. malformed/missing/mismatched/wrong-author/edited result comment rejects;
+11. any second matching result comment for the same run rejects as duplicate/ambiguous;
+12. stale base/head result rejects;
+13. initial result consumption scans the complete top-level Conversation-comment collection and records comment id/body digest/metadata only when exactly one match exists;
+14. final merge gate scans the complete top-level Conversation-comment collection again, requires exactly one matching run-id comment with the same id/author/body/metadata, then re-fetches that sole comment unchanged;
+15. a matching late duplicate inserted after initial acceptance is detected at final gate and blocks automatic-result consumption;
+16. reviewer result publication is exactly the bounded `code-review` automatic envelope and cannot alter branch/review approval/labels/settings;
+17. ambiguous result-comment creation is never retried automatically;
+18. manual fresh-review fallback remains valid and Codex remains optional;
+19. existing six-tool public inventory/runtime semantics remain unchanged except for the explicitly registered launch procedure behind `procedure_run`;
+20. no generic scheduler/event bus/shell/Python/URL launcher is reachable from the new procedure.
 
 ### Physical ordinary-Chat gate
 
@@ -529,8 +589,9 @@ one development-side automatic launch request
  -> exactly one permitted result-evidence comment is published by the expected principal
  -> comment is unedited and carries the expected private run nonce
  -> development side reads it from GitHub without user copy/paste
- -> live PR identity + comment identity/body are independently rechecked
- -> stale/duplicate/edited/wrong-author/timeout negative cases fail closed
+ -> final gate rescans all top-level PR comments for the nonce and still finds exactly one matching expected-principal comment
+ -> sole comment id/body/metadata + live PR identity are independently rechecked
+ -> concurrent-launch/stale/late-duplicate/edited/wrong-author/timeout negative cases fail closed
 ```
 
 The gate must separately record whether the user had to intervene. Routine launch/paste/result-copy intervention must be zero for the successful path.
@@ -556,12 +617,15 @@ Production implementation may begin only for the bounded independent-review life
 ```text
 exact frozen review identity
  -> registered bounded launch procedure
+ -> stable OS-backed single-writer operation lock
  -> durable exact-operation record + private review nonce
+ -> durable dispatch-attempted before one launch
  -> refined fresh-chat deep-link/autosend
  -> one automatic Send attempt
- -> fresh ordinary-Chat reviewer
+ -> fresh ordinary-Chat reviewer under accepted automatic result envelope
  -> one structured top-level PR result comment by expected principal
- -> development-side run/comment/exact-ref validation
+ -> development-side full-comment-set/run/comment/exact-ref validation
+ -> final full-comment-set rescan before merge
  -> manual fallback on ambiguous/failed automatic run
 ```
 
@@ -580,8 +644,9 @@ Any material introduction of the following invalidates this implementation autho
 - automatic wake/resampling of the unfinished development planner;
 - Native Messaging/local callback server as production result transport;
 - new public tool instead of registered `procedure_run` schema;
-- automatic retry after ambiguous dispatch/Send;
-- reviewer code/branch/approval mutation authority;
+- automatic retry after ambiguous dispatch/Send or ambiguous result-comment creation;
+- reviewer code/branch/approval mutation authority beyond the one accepted result-evidence comment envelope;
+- a new concurrency/lease/database framework instead of the accepted OS-backed cooperating-runner lock role;
 - generic benchmark-driven production tool authority;
 - worker rotation/multi-agent runtime;
 - broader result bus/event architecture.
