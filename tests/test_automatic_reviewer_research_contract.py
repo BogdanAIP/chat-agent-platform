@@ -61,7 +61,8 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
                 self.assertIn(phrase, self.research)
 
         self.assertIn("**REUSE_MORE**", self.research)
-        self.assertIn("new concurrency/lease/database framework", self.research)
+        self.assertIn("concurrency/lease/database framework", self.research)
+        self.assertIn("accepted OS-backed cooperating-runner lock role", self.research)
 
     def test_dispatch_mark_is_written_under_lock_before_external_launch(self) -> None:
         for phrase in (
