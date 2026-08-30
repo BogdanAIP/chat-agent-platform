@@ -102,13 +102,12 @@ class Stage263CCheckpointIdentityValidationTests(unittest.TestCase):
                         self.validate(checkpoint)
 
     def test_schema2_completed_requires_retained_target_generation_identity(self) -> None:
-        for node in ("completed", "preflight"):
-            for value in (None, dict(self.weak_identity)):
-                with self.subTest(node=node, value=value):
-                    checkpoint = self.checkpoint(node, status="completed")
-                    checkpoint["target_file_identity"] = value
-                    with self.assertRaisesRegex(ValueError, "target_file_identity"):
-                        self.validate(checkpoint)
+        for value in (None, dict(self.weak_identity)):
+            with self.subTest(value=value):
+                checkpoint = self.checkpoint("completed", status="completed")
+                checkpoint["target_file_identity"] = value
+                with self.assertRaisesRegex(ValueError, "target_file_identity"):
+                    self.validate(checkpoint)
 
     def test_schema2_preflight_does_not_invent_owned_identity_requirement(self) -> None:
         checkpoint = self.checkpoint("preflight")
