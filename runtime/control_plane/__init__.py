@@ -8,11 +8,13 @@ reasoning.
 
 import copy
 import errno
+import hashlib
 import os
 import threading
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
+from . import file_artifact_observation as _file_artifact_observation
 from .file_artifact_observation import (
     FILE_ARTIFACT_CAPABILITY,
     FileArtifactObservationStream,
@@ -246,7 +248,7 @@ def _create_file_in_verified_parent(path: Path, data: bytes) -> None:
         if not pinned_directories or pinned_directories[-1][0] != path.parent:
             raise RuntimeError("verified parent handle was not retained")
         parent_handle = pinned_directories[-1][1]
-        created_handle, _ = stack.enter_context(
+        created_handle, created_api = stack.enter_context(
             _windows_file_pin._create_new_pinned_handle_at(parent_handle, path)
         )
 
@@ -270,15 +272,57 @@ def _create_file_in_verified_parent(path: Path, data: bytes) -> None:
             raise ValueError("created staging file is a reparse point")
 
         _windows_file_pin._write_and_flush_handle(created_handle, path, data)
-        _windows_file_pin._STAGE_CREATE_LOCAL.proof = (
-            _windows_file_pin._StageCreateDeliveryProof(
-                path=_windows_file_pin._absolute_lexical(path),
-                stack=stack,
-            )
+        proof = _windows_file_pin._StageCreateDeliveryProof(
+            path=_windows_file_pin._absolute_lexical(path),
+            stack=stack,
         )
+        # Keep the exact open used for delivery available to the observation
+        # stream. The create handle requests DELETE so that a raced reparse can
+        # be compensated by exact handle before any bytes escape; ordinary CRT
+        # path opens do not share DELETE and therefore cannot be used for the
+        # stage AFTER observation while this proof is live.
+        proof.handle = created_handle
+        proof.api = created_api
+        _windows_file_pin._STAGE_CREATE_LOCAL.proof = proof
     except BaseException:
         stack.close()
         raise
+
+
+_original_file_observe_path = _file_artifact_observation._observe_path
+
+
+def _observe_path_with_stage_create_proof(path: Path, *, max_bytes: int):
+    proof = getattr(_windows_file_pin._STAGE_CREATE_LOCAL, "proof", None)
+    if (
+        os.name == "nt"
+        and proof is not None
+        and getattr(proof, "handle", None) is not None
+        and getattr(proof, "api", None) is not None
+        and proof.path == _windows_file_pin._absolute_lexical(path)
+    ):
+        snapshot = _windows_file_pin._snapshot_from_open_handle(
+            proof.handle,
+            proof.api,
+            path=path,
+            max_bytes=max_bytes,
+        )
+        kind = _file_artifact_observation._kind(snapshot.stat)
+        state = {
+            "exists": True,
+            "kind": kind,
+            "size": int(snapshot.stat.st_size),
+            "sha256": None,
+            "identity": _file_artifact_observation._identity(snapshot.stat),
+        }
+        if kind != "file":
+            return state, True, False
+        if snapshot.data is None or len(snapshot.data) != snapshot.stat.st_size:
+            state.pop("sha256")
+            return state, False, False
+        state["sha256"] = hashlib.sha256(snapshot.data).hexdigest()
+        return state, True, False
+    return _original_file_observe_path(path, max_bytes=max_bytes)
 
 
 # Keep the helper discoverable for Windows adversarial tests, then make the
@@ -286,6 +330,7 @@ def _create_file_in_verified_parent(path: Path, data: bytes) -> None:
 # the support helper by value.
 _windows_file_pin._create_new_pinned_handle_at = _create_new_pinned_handle_at
 _windows_file_pin.create_file_in_pinned_namespace = _create_file_in_verified_parent
+_file_artifact_observation._observe_path = _observe_path_with_stage_create_proof
 
 _original_portable_workspace_create = _workspace_artifact_support._exclusive_create_file
 if os.name == "nt":
