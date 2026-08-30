@@ -362,9 +362,41 @@ _original_workspace_direct_reconciliation_status = (
 _original_workspace_reconciliation_predicates = (
     _workspace_artifact._reconciliation_predicates
 )
+_original_workspace_restore_working_state = _workspace_artifact._restore_working_state
 _original_workspace_write_checkpoint = _workspace_artifact._write_checkpoint
 _original_workspace_run = _workspace_artifact.run_verified_workspace_artifact
 _WORKSPACE_CHECKPOINT_LOCAL = threading.local()
+
+
+def _restore_workspace_working_state_with_progress(task_state, *, task_id):
+    """Require checkpoint progress and WorkingState applied history to agree."""
+
+    state = _original_workspace_restore_working_state(task_state, task_id=task_id)
+    if str(task_state.get("status")) not in {"running", "completed"}:
+        return state
+
+    expected_count = int(task_state["action_count"])
+    transitions = _workspace_artifact_support._TRANSITIONS
+    expected_applied = set(transitions[:expected_count])
+    actual_applied = set()
+    for transition_id in transitions:
+        attempt = state.latest_attempt(f"{task_id}:{transition_id}")
+        if attempt is None:
+            continue
+        if attempt.outcome is _workspace_artifact.MutatingOutcome.VERIFIED_APPLIED:
+            actual_applied.add(transition_id)
+            continue
+        reconciliation = state.reconciliation_for(attempt)
+        if (
+            reconciliation is not None
+            and reconciliation.status
+            is _workspace_artifact.ReconciliationStatus.CONFIRMED_APPLIED
+        ):
+            actual_applied.add(transition_id)
+
+    if actual_applied != expected_applied:
+        raise ValueError("resume checkpoint WorkingState progress mismatch")
+    return state
 
 
 def _bound_workspace_direct_reconciliation_status(
@@ -492,6 +524,7 @@ _workspace_artifact._direct_reconciliation_status = (
     _bound_workspace_direct_reconciliation_status
 )
 _workspace_artifact._reconciliation_predicates = _bound_workspace_reconciliation_predicates
+_workspace_artifact._restore_working_state = _restore_workspace_working_state_with_progress
 _workspace_artifact._write_checkpoint = _write_checkpoint_with_recovery_and_stage_create_proof
 _workspace_artifact.run_verified_workspace_artifact = (
     _run_workspace_artifact_with_stage_create_proof_cleanup
