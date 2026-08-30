@@ -363,7 +363,6 @@ _original_workspace_reconciliation_predicates = (
     _workspace_artifact._reconciliation_predicates
 )
 _original_workspace_write_checkpoint = _workspace_artifact._write_checkpoint
-_original_workspace_validate_resume_state = _workspace_artifact._validate_resume_state
 _original_workspace_run = _workspace_artifact.run_verified_workspace_artifact
 _WORKSPACE_CHECKPOINT_LOCAL = threading.local()
 
@@ -422,99 +421,6 @@ def _bound_workspace_reconciliation_predicates(
         staging_identity=staging_identity,
         target_identity=target_identity,
     )
-
-
-def _validate_workspace_resume_progress(
-    task_state,
-    *,
-    task_id,
-    artifact_name,
-    expected_sha,
-    content_size,
-    relative_target,
-):
-    """Reject inconsistent schema-2 running progress before any new consequence."""
-
-    schema_version = _original_workspace_validate_resume_state(
-        task_state,
-        task_id=task_id,
-        artifact_name=artifact_name,
-        expected_sha=expected_sha,
-        content_size=content_size,
-        relative_target=relative_target,
-    )
-    if (
-        schema_version != _workspace_artifact.CHECKPOINT_SCHEMA_VERSION
-        or str(task_state.get("status")) != "running"
-    ):
-        return schema_version
-
-    expected_actions_by_node = {
-        "preflight": 0,
-        "staged_verified": 1,
-        "final_verified": 2,
-    }
-    node = str(task_state.get("current_node"))
-    expected_action_count = expected_actions_by_node.get(node)
-    if expected_action_count is None:
-        raise ValueError("resume checkpoint running node is invalid")
-    if int(task_state["action_count"]) != expected_action_count:
-        raise ValueError("resume checkpoint running action progress mismatch")
-
-    expected_receipts = (
-        ("stage_create", "preflight", "staged_verified"),
-        ("final_create", "staged_verified", "final_verified"),
-        ("staging_cleanup", "final_verified", "completed"),
-    )
-    receipts = task_state["transition_receipts"]
-    if len(receipts) != expected_action_count:
-        raise ValueError("resume checkpoint running receipt progress mismatch")
-    for receipt, expected in zip(receipts, expected_receipts, strict=False):
-        if not isinstance(receipt, dict):
-            raise ValueError("resume checkpoint running transition receipt is invalid")
-        actual = (
-            receipt.get("transition_id"),
-            receipt.get("from_node"),
-            receipt.get("to_node"),
-        )
-        if actual != expected:
-            raise ValueError("resume checkpoint running transition history mismatch")
-
-    next_transition = {
-        "preflight": "stage_create",
-        "staged_verified": "final_create",
-        "final_verified": "staging_cleanup",
-    }[node]
-    marker = task_state.get("prepared_intent")
-    if marker is not None and (
-        marker.get("transition_id") != next_transition
-        or marker.get("action_count_before") != expected_action_count
-    ):
-        raise ValueError("resume checkpoint prepared progress mismatch")
-
-    working_state = _workspace_artifact._restore_working_state(
-        task_state,
-        task_id=task_id,
-    )
-    for index, transition_id in enumerate(_workspace_artifact._TRANSITIONS):
-        latest = working_state.latest_attempt(f"{task_id}:{transition_id}")
-        if index < expected_action_count:
-            if latest is None:
-                raise ValueError("resume checkpoint WorkingState progress is incomplete")
-            applied = latest.outcome is _workspace_artifact.MutatingOutcome.VERIFIED_APPLIED
-            if not applied:
-                reconciliation = working_state.reconciliation_for(latest)
-                applied = (
-                    reconciliation is not None
-                    and reconciliation.status
-                    is _workspace_artifact.ReconciliationStatus.CONFIRMED_APPLIED
-                )
-            if not applied:
-                raise ValueError("resume checkpoint WorkingState transition is not applied")
-        elif latest is not None:
-            raise ValueError("resume checkpoint WorkingState contains future transition progress")
-
-    return schema_version
 
 
 def _restore_last_durable_task_state(task_state):
@@ -582,8 +488,6 @@ def _run_workspace_artifact_with_stage_create_proof_cleanup(*args, **kwargs):
         _WORKSPACE_CHECKPOINT_LOCAL.active = False
 
 
-_workspace_artifact_support._validate_resume_state = _validate_workspace_resume_progress
-_workspace_artifact._validate_resume_state = _validate_workspace_resume_progress
 _workspace_artifact._direct_reconciliation_status = (
     _bound_workspace_direct_reconciliation_status
 )
