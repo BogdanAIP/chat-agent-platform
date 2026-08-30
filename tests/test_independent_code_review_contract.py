@@ -18,7 +18,7 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
     def test_skill_is_discoverable_and_versioned(self) -> None:
         self.assertTrue(self.skill.startswith("---\n"))
         self.assertRegex(self.skill, r"(?m)^name:\s*code-review\s*$")
-        self.assertRegex(self.skill, r'(?m)^\s*version:\s*"1\.0"\s*$')
+        self.assertRegex(self.skill, r'(?m)^\s*version:\s*"1\.1"\s*$')
         self.assertIn("fresh ordinary-ChatGPT", self.skill)
 
     def test_review_request_is_bound_to_exact_repository_pr_base_and_head(self) -> None:
@@ -42,6 +42,7 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
         self.assertIn("review policy / AGENTS.md / code-review skill -> BASE_SHA", self.skill)
         self.assertIn("review target and its changed code/docs/tests     -> HEAD_SHA", self.skill)
         self.assertIn("cannot weaken the accepted BASE review protocol", self.skill)
+        self.assertIn("accepted BASE review policy governs adoption", self.skill)
 
     def test_primary_review_is_fresh_ordinary_chat_and_not_work_or_codex(self) -> None:
         hard_boundary = self.skill.split("## 1. Require an immutable review request", 1)[0]
@@ -51,7 +52,9 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
         self.assertIn("No other model/service is required", hard_boundary)
 
     def test_scheduled_task_is_only_a_conditional_launcher(self) -> None:
-        launcher = self.skill.split("## 13. One-time Review Task launcher contract", 1)[1]
+        launcher = self.skill.split("## 13. One-time Review Task launcher contract", 1)[1].split(
+            "## 14. Bounded automatic result-publication envelope", 1
+        )[0]
         self.assertIn("REVIEW_REQUEST_V1", launcher)
         self.assertIn("Do not attach development-chat reasoning summaries", launcher)
         self.assertIn("review_context=ordinary_chat_fresh", launcher)
@@ -74,8 +77,10 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.skill)
 
-    def test_reviewer_is_read_only_and_finding_validation_is_separate(self) -> None:
+    def test_reviewer_cannot_self_fix_or_mutate_target(self) -> None:
         self.assertIn("The independent reviewer does not patch the PR in the same review run", self.skill)
+        self.assertIn("does not mutate production/repository state", self.skill)
+        self.assertIn("result-publication exception", self.skill)
         for disposition in ("CONFIRMED", "REJECTED", "SUPERSEDED"):
             self.assertIn(disposition, self.skill)
         self.assertIn("Do not merge with unresolved reported findings", self.skill)
@@ -108,6 +113,33 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.skill)
+
+    def test_automatic_path_has_only_one_bounded_result_comment_write(self) -> None:
+        envelope = self.skill.split("## 14. Bounded automatic result-publication envelope", 1)[1]
+        for phrase in (
+            "review_run_id=<high-entropy automatic-run nonce>",
+            "exactly one",
+            "top-level PR Conversation comment",
+            "evidence transport",
+            "publish a second result comment",
+            "Do not retry",
+            "does not authorize any other GitHub mutation",
+            "APPROVE",
+            "REQUEST_CHANGES",
+            "merge, close or reopen the PR",
+            "change repository settings",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.skill)
+        self.assertIn("review_run_id=<same value received in REVIEW_REQUEST_V1>", self.skill)
+        self.assertIn("automatic path", self.skill)
+
+    def test_automatic_comment_is_not_self_validating_acceptance(self) -> None:
+        envelope = self.skill.split("## 14. Bounded automatic result-publication envelope", 1)[1]
+        self.assertIn("never grants `PASS`, merge authority or finding acceptance", envelope)
+        self.assertIn("independently re-resolves author", envelope)
+        self.assertIn("uniqueness", envelope)
+        self.assertIn("live PR identity", envelope)
 
     def test_agents_merge_policy_requires_chatgpt_review_and_makes_codex_optional(self) -> None:
         merge_policy = self.agents.split("## Merge policy", 1)[1].split(
