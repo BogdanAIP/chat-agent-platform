@@ -123,6 +123,12 @@ Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, m
 | `EXTENSION_MANAGER.md` | **CURRENT OPTIONAL-EXTENSION REFERENCE** | optional 1MCP Extension Manager role; never baseline transport/authority |
 | `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | **CURRENT COMPATIBILITY REFERENCE** | frozen ChatGPT action/schema compatibility and migration limits |
 
+## Evaluation-strategy discovery rule
+
+`BENCHMARK_EVALUATION_STRATEGY.md` is read when a capability becomes externally evaluable, when a benchmark adapter/harness is proposed, when a capability/stage is being closed with public-comparative evidence, or when a major release/architecture change should be compared against prior CAP results.
+
+It does not own current stage scheduling and does not force every benchmark to run after every PR. `ROADMAP.md` still owns order; benchmark selection and frequency follow the evaluation strategy only when the corresponding capability is honestly available.
+
 ## Provisional/future architecture
 
 These documents define reviewed future boundaries but **do not add current runtime/public authority by themselves**:
