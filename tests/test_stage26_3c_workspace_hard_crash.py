@@ -270,7 +270,7 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             )
             self.assert_completed_once(result)
 
-    def test_hard_process_death_after_stage_delivery_repairs_without_redelivery(self) -> None:
+    def test_hard_process_death_after_stage_delivery_without_identity_abstains(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
@@ -284,20 +284,88 @@ class Stage263CWorkspaceHardCrashTests(unittest.TestCase):
             self.assertEqual(child.returncode, 81, child.stderr)
             checkpoint = self.checkpoint(state)
             task_id = checkpoint["task_id"]
-            self.assertTrue(self.staging_path(workspace, "hard-stage.txt", task_id).exists())
+            staging = self.staging_path(workspace, "hard-stage.txt", task_id)
+            target = self.target_path(workspace, "hard-stage.txt")
+            self.assertTrue(staging.exists())
+            self.assertFalse(target.exists())
 
             with patch.object(
                 workspace_artifact,
                 "_exclusive_create_file",
-                side_effect=AssertionError("stage delivery repeated after hard crash"),
-            ) as create_mock:
+                side_effect=AssertionError("ambiguous stage must not be redelivered"),
+            ) as create_mock, patch.object(
+                workspace_artifact,
+                "_exclusive_link_file",
+                side_effect=AssertionError("identity-unbound stage must not be linked"),
+            ) as link_mock:
                 result = self.execute(
                     self.request("hard-stage.txt", "STAGE", task_id),
                     workspace=workspace,
                     state=state,
                 )
+
             create_mock.assert_not_called()
-            self.assert_completed_once(result)
+            link_mock.assert_not_called()
+            self.assertEqual(result["status"], "abstained")
+            self.assertEqual(result["escalation_reason"], "resume_reconciliation_unknown")
+            self.assertEqual(result["action_count"], 0)
+            self.assertTrue(staging.exists())
+            self.assertFalse(target.exists())
+
+    def test_hard_process_death_after_stage_same_bytes_replacement_is_not_adopted(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            child = self.run_hard_crash_child(
+                workspace=workspace,
+                state=state,
+                mode="after_stage",
+                artifact_name="hard-stage-replaced.txt",
+                content="STAGE_REPLACED",
+            )
+            self.assertEqual(child.returncode, 81, child.stderr)
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            staging = self.staging_path(workspace, "hard-stage-replaced.txt", task_id)
+            target = self.target_path(workspace, "hard-stage-replaced.txt")
+            original_identity = workspace_artifact._file_identity(staging)
+            self.assertIsNotNone(original_identity)
+
+            staging.unlink()
+            staging.write_bytes(b"STAGE_REPLACED")
+            replacement_identity = workspace_artifact._file_identity(staging)
+            self.assertIsNotNone(replacement_identity)
+            if replacement_identity == original_identity:
+                self.skipTest("filesystem immediately reused the complete generation identity")
+
+            with patch.object(
+                workspace_artifact,
+                "_exclusive_create_file",
+                side_effect=AssertionError("replacement stage must not authorize redelivery"),
+            ) as create_mock, patch.object(
+                workspace_artifact,
+                "_exclusive_link_file",
+                side_effect=AssertionError("replacement stage must not authorize final link"),
+            ) as link_mock, patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                side_effect=AssertionError("replacement stage must not be treated as owned"),
+            ) as delete_mock:
+                result = self.execute(
+                    self.request("hard-stage-replaced.txt", "STAGE_REPLACED", task_id),
+                    workspace=workspace,
+                    state=state,
+                )
+
+            create_mock.assert_not_called()
+            link_mock.assert_not_called()
+            delete_mock.assert_not_called()
+            self.assertEqual(result["status"], "abstained")
+            self.assertEqual(result["escalation_reason"], "resume_reconciliation_unknown")
+            self.assertEqual(result["action_count"], 0)
+            self.assertEqual(staging.read_bytes(), b"STAGE_REPLACED")
+            self.assertEqual(workspace_artifact._file_identity(staging), replacement_identity)
+            self.assertFalse(target.exists())
 
     def test_hard_process_death_after_final_link_repairs_without_relink(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:

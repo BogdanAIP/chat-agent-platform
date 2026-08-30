@@ -3,6 +3,7 @@ from __future__ import annotations
 import errno
 import os
 import stat as stat_module
+import threading
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,11 +11,15 @@ from typing import Callable, Iterator
 
 
 _GENERIC_READ = 0x80000000
+_GENERIC_WRITE = 0x40000000
 _DELETE = 0x00010000
 _FILE_READ_ATTRIBUTES = 0x00000080
 _FILE_SHARE_READ = 0x00000001
 _FILE_SHARE_WRITE = 0x00000002
+_CREATE_NEW = 1
 _OPEN_EXISTING = 3
+_ERROR_FILE_EXISTS = 80
+_ERROR_ALREADY_EXISTS = 183
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400
 _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
 _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
@@ -23,12 +28,19 @@ _DUPLICATE_SAME_ACCESS = 0x00000002
 _RESERVED_PARENT = ".chat-agent-platform"
 _RESERVED_STAGE = "stage26-3a"
 _DEFAULT_MAX_VERIFY_BYTES = 16384
+_STAGE_CREATE_LOCAL = threading.local()
 
 
 @dataclass(frozen=True)
 class PinnedFileSnapshot:
     stat: os.stat_result
     data: bytes | None
+
+
+@dataclass
+class _StageCreateDeliveryProof:
+    path: Path | None
+    stack: ExitStack | None
 
 
 class VerifiedDeletePin:
@@ -154,6 +166,94 @@ def _open_pinned_handle(
         close_handle(handle)
 
 
+@contextmanager
+def _create_new_pinned_handle(path: Path) -> Iterator[tuple[object, tuple[object, ...]]]:
+    """Create one new file and retain the original restrictive Win32 handle."""
+
+    (
+        ctypes,
+        create_file,
+        close_handle,
+        set_file_information,
+        duplicate_handle,
+        get_current_process,
+        disposition_type,
+    ) = _win32_api()
+    handle = create_file(
+        str(path),
+        _GENERIC_READ | _GENERIC_WRITE,
+        _FILE_SHARE_READ,
+        None,
+        _CREATE_NEW,
+        _FILE_FLAG_OPEN_REPARSE_POINT,
+        None,
+    )
+    invalid_handle = ctypes.c_void_p(-1).value
+    if handle == invalid_handle:
+        code = ctypes.get_last_error()
+        if code in {_ERROR_FILE_EXISTS, _ERROR_ALREADY_EXISTS}:
+            raise FileExistsError(code, ctypes.FormatError(code), str(path))
+        raise OSError(code, ctypes.FormatError(code), str(path))
+
+    try:
+        yield handle, (
+            set_file_information,
+            duplicate_handle,
+            get_current_process,
+            disposition_type,
+            ctypes,
+            close_handle,
+        )
+    finally:
+        close_handle(handle)
+
+
+def _write_and_flush_handle(handle: object, path: Path, data: bytes) -> None:
+    if os.name != "nt":
+        raise OSError(errno.ENOTSUP, "verified Windows file pin requires Windows")
+    if not isinstance(data, bytes):
+        raise TypeError("pinned create data must be bytes")
+
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    write_file = kernel32.WriteFile
+    write_file.argtypes = [
+        wintypes.HANDLE,
+        wintypes.LPCVOID,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+        wintypes.LPVOID,
+    ]
+    write_file.restype = wintypes.BOOL
+    flush_file_buffers = kernel32.FlushFileBuffers
+    flush_file_buffers.argtypes = [wintypes.HANDLE]
+    flush_file_buffers.restype = wintypes.BOOL
+
+    offset = 0
+    while offset < len(data):
+        chunk = data[offset : offset + 65536]
+        buffer = ctypes.create_string_buffer(chunk, len(chunk))
+        written = wintypes.DWORD()
+        if not write_file(
+            handle,
+            buffer,
+            len(chunk),
+            ctypes.byref(written),
+            None,
+        ):
+            code = ctypes.get_last_error()
+            raise OSError(code, ctypes.FormatError(code), str(path))
+        if written.value <= 0:
+            raise OSError(errno.EIO, "zero-byte Win32 write", str(path))
+        offset += int(written.value)
+
+    if not flush_file_buffers(handle):
+        code = ctypes.get_last_error()
+        raise OSError(code, ctypes.FormatError(code), str(path))
+
+
 def _handle_file_attributes(handle: object, path: Path) -> int:
     if os.name != "nt":
         raise OSError(errno.ENOTSUP, "verified Windows file pin requires Windows")
@@ -250,19 +350,56 @@ def _pin_namespace(workspace_root: Path, path: Path) -> Iterator[None]:
         yield
 
 
+def stage_create_delivery_proof_live() -> bool:
+    """Return whether this thread still owns a pre-receipt stage-create proof."""
+
+    return getattr(_STAGE_CREATE_LOCAL, "proof", None) is not None
+
+
+def mark_portable_stage_create_delivery_proof(path: Path) -> None:
+    """Mark non-Windows hosted delivery as in-process only; it carries no OS pin claim."""
+
+    if stage_create_delivery_proof_live():
+        raise RuntimeError("another stage-create delivery proof is already live")
+    _STAGE_CREATE_LOCAL.proof = _StageCreateDeliveryProof(
+        path=_absolute_lexical(path),
+        stack=None,
+    )
+
+
+def release_stage_create_delivery_proof() -> None:
+    proof = getattr(_STAGE_CREATE_LOCAL, "proof", None)
+    if proof is None:
+        return
+    _STAGE_CREATE_LOCAL.proof = None
+    if proof.stack is not None:
+        proof.stack.close()
+
+
 def create_file_in_pinned_namespace(path: Path, data: bytes) -> None:
-    """Create a new staging file while the trusted workspace namespace is pinned."""
+    """Create staging and retain its exact object/namespace pin until receipt commit."""
 
     # Infer only from the lexical staging path that the procedure already built
     # under its configured workspace root. Do not call Path.resolve() here:
     # following a raced junction while reconstructing trust would let an
     # attacker redefine the capability root before the first physical effect.
+    if stage_create_delivery_proof_live():
+        raise RuntimeError("another stage-create delivery proof is already live")
     root = _infer_workspace_root(path)
-    with _pin_namespace(root, path):
-        with path.open("xb") as handle:
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
+    stack = ExitStack()
+    try:
+        stack.enter_context(_pin_namespace(root, path))
+        handle, _ = stack.enter_context(_create_new_pinned_handle(path))
+        if _handle_file_attributes(handle, path) & _FILE_ATTRIBUTE_REPARSE_POINT:
+            raise ValueError("created staging file is a reparse point")
+        _write_and_flush_handle(handle, path, data)
+        _STAGE_CREATE_LOCAL.proof = _StageCreateDeliveryProof(
+            path=_absolute_lexical(path),
+            stack=stack,
+        )
+    except BaseException:
+        stack.close()
+        raise
 
 
 def _snapshot_from_open_handle(

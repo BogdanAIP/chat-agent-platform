@@ -33,24 +33,20 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
-            original_open = Path.open
+            original_create_handle = windows_file_pin._create_new_pinned_handle
             attack_ran = False
             blocked: list[OSError] = []
 
-            def attack_then_open(path_self: Path, mode: str = "r", *args, **kwargs):
+            @contextmanager
+            def attack_then_create(path: Path):
                 nonlocal attack_ran
-                if (
-                    not attack_ran
-                    and mode == "xb"
-                    and path_self.name.endswith(".staging")
-                    and path_self.parent.name == "stage26-3a"
-                ):
+                if not attack_ran:
                     attack_ran = True
-                    # The configured workspace root is the capability boundary;
-                    # the consequence path must prevent replacement of the
-                    # descendant reserved namespace that resolves the staging
-                    # file underneath that already-bound root.
-                    for directory in (path_self.parent, path_self.parent.parent):
+                    # _create_new_pinned_handle is entered only after the trusted
+                    # descendant namespace has been pinned. Renaming either
+                    # reserved directory must therefore be denied before the
+                    # exclusive leaf create can resolve its path.
+                    for directory in (path.parent, path.parent.parent):
                         moved = directory.with_name(directory.name + ".retargeted")
                         try:
                             os.rename(directory, moved)
@@ -60,7 +56,8 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
                             self.fail(
                                 f"stage-create namespace pin allowed replacement precursor for {directory}"
                             )
-                return original_open(path_self, mode, *args, **kwargs)
+                with original_create_handle(path) as created:
+                    yield created
 
             self.assertIs(
                 workspace_support._exclusive_create_file,
@@ -73,7 +70,11 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
                 "artifact_name": "stage-create-pin.txt",
                 "content": "PINNED_STAGE_CREATE",
             }
-            with patch.object(Path, "open", new=attack_then_open):
+            with patch.object(
+                windows_file_pin,
+                "_create_new_pinned_handle",
+                new=attack_then_create,
+            ):
                 result = workspace_artifact.run_verified_workspace_artifact(
                     request,
                     workspace_root=workspace,
@@ -87,6 +88,91 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
             self.assertEqual(result["action_count"], 3)
             target = workspace / ".chat-agent-platform" / "stage26-3a" / "stage-create-pin.txt"
             self.assertEqual(target.read_text(encoding="utf-8"), "PINNED_STAGE_CREATE")
+
+    def test_stage_create_leaf_pin_survives_after_observation_and_receipt_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            name = "stage-receipt-pin.txt"
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            target = reserved / name
+            original_observe = workspace_artifact.FileArtifactObservationStream.observe
+            original_write_checkpoint = workspace_artifact._write_checkpoint
+            blocked_phases: list[str] = []
+            allowed_phases: list[str] = []
+            observation_probed = False
+            checkpoint_probed = False
+
+            def staging_path() -> Path | None:
+                matches = list(reserved.glob(f".{name}.*.staging")) if reserved.exists() else []
+                return matches[0] if len(matches) == 1 else None
+
+            def probe_write_handle(phase: str) -> None:
+                staging = staging_path()
+                self.assertIsNotNone(staging)
+                try:
+                    handle = staging.open("r+b")
+                except OSError:
+                    blocked_phases.append(phase)
+                else:
+                    handle.close()
+                    allowed_phases.append(phase)
+
+            def observe_with_probe(stream):
+                nonlocal observation_probed
+                if (
+                    not observation_probed
+                    and windows_file_pin.stage_create_delivery_proof_live()
+                    and staging_path() is not None
+                    and not target.exists()
+                ):
+                    observation_probed = True
+                    probe_write_handle("stage_after_observation_entry")
+                return original_observe(stream)
+
+            def checkpoint_with_probe(state_root: Path, task_state: dict) -> None:
+                nonlocal checkpoint_probed
+                if (
+                    not checkpoint_probed
+                    and task_state.get("current_node") == "staged_verified"
+                    and task_state.get("prepared_intent") is None
+                    and windows_file_pin.stage_create_delivery_proof_live()
+                ):
+                    checkpoint_probed = True
+                    probe_write_handle("staged_verified_checkpoint")
+                original_write_checkpoint(state_root, task_state)
+
+            with patch.object(
+                workspace_artifact.FileArtifactObservationStream,
+                "observe",
+                new=observe_with_probe,
+            ), patch.object(
+                workspace_artifact,
+                "_write_checkpoint",
+                new=checkpoint_with_probe,
+            ):
+                result = workspace_artifact.run_verified_workspace_artifact(
+                    {
+                        "procedure": workspace_artifact.PROCEDURE_ID,
+                        "artifact_name": name,
+                        "content": "PINNED_STAGE_RECEIPT",
+                    },
+                    workspace_root=workspace,
+                    state_root=state,
+                    candidate_admission=workspace_artifact.QUALIFICATION_ADMISSION,
+                )
+
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["action_count"], 3)
+            self.assertTrue(observation_probed)
+            self.assertTrue(checkpoint_probed)
+            self.assertEqual(allowed_phases, [])
+            self.assertEqual(
+                blocked_phases,
+                ["stage_after_observation_entry", "staged_verified_checkpoint"],
+            )
+            self.assertFalse(windows_file_pin.stage_create_delivery_proof_live())
+            self.assertEqual(target.read_text(encoding="utf-8"), "PINNED_STAGE_RECEIPT")
 
     def test_stage_create_rejects_preexisting_junction_without_following_it(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as external_dir:
@@ -107,6 +193,7 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
                     windows_file_pin.create_file_in_pinned_namespace(staging, b"MUST_NOT_ESCAPE")
                 self.assertFalse((external_stage / ".preexisting.staging").exists())
             finally:
+                windows_file_pin.release_stage_create_delivery_proof()
                 if reserved_parent.exists() or reserved_parent.is_symlink():
                     os.rmdir(reserved_parent)
 
@@ -149,6 +236,7 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
                 self.assertTrue(attack_ran)
                 self.assertFalse((external_stage / ".interleaved.staging").exists())
             finally:
+                windows_file_pin.release_stage_create_delivery_proof()
                 if reserved_parent.exists() or reserved_parent.is_symlink():
                     os.rmdir(reserved_parent)
                 if moved_parent.exists():
