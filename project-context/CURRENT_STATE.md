@@ -14,11 +14,11 @@ Ownership:
 
 ## Current accepted boundary
 
-Stage 26.3B is **ACCEPTED / CLOSED for its recorded representative scope**.
+Stage 26.3B remains **ACCEPTED / CLOSED for its recorded representative scope**.
 
-The next stage has already started: Stage 26.3C is **partially accepted**, not a blank future stage.
+Stage 26.3C is now also **ACCEPTED / CLOSED for its declared production/restart scope** through merged PR #126.
 
-Accepted foundation now includes:
+Relevant accepted progression now includes:
 
 ```text
 Stage 26.3A canonical six-tool runtime             ACCEPTED / MERGED #92
@@ -35,11 +35,45 @@ Track M + ADR-037 future architecture             MERGED #116 / NO CURRENT AUTHO
 CAP-M0 Verification mutation assurance            ACCEPTED / MERGED #117
 Browser stronger source-provenance L3 repeat      PHYSICAL ACCEPTED / MERGED #118
 post-26.3B adversarial assurance direction        MERGED #119
-WorkingState + LoopGuard L1 foundation             ACCEPTED / MERGED #124
-stage-research mechanism-depth hardening           MERGED #127
+WorkingState + LoopGuard L1 foundation            ACCEPTED / MERGED #124
+stage-research mechanism-depth hardening          MERGED #127
+Stage 26.3C production WorkingState integration   PHYSICAL ACCEPTED / MERGED #126
 ```
 
-These are scoped proofs. They do not imply universal Browser/Windows/application reliability.
+These remain scoped proofs. They do not imply universal Browser/Windows/application reliability or machine/power-loss transactional durability.
+
+## Stage 26.3C accepted production scope
+
+PR #126 merged to `main` as:
+
+`d99ec89267de59c5a4b17ffecb4c2989ded9b9e0`
+
+Its exact reviewed implementation head was:
+
+`d53e65d8804b28af0da6902e9beee3991bb26802`
+
+The accepted first bounded production consumer is `verified_workspace_artifact_v1` on the supported local Windows workspace path.
+
+Accepted behavior includes:
+
+```text
+WorkingState + stable logical mutating-operation identity
+procedure-local durable checkpoint + prepared intent
+bounded task/procedure/strategy budgets + LoopGuard
+fresh same-stream reconciliation before unsafe retry
+per-task cooperating-runner serialization
+generation-bound file identity for consequence-bearing resume
+Windows file/namespace pinning around path-based consequences
+three-action stage_create -> final_create -> staging_cleanup graph
+fail-closed corrupt/missing/inconsistent checkpoint handling
+public task correlation only when durable resumable state exists
+```
+
+Historical weak schema-1 consequence-bearing checkpoints that cannot prove generation identity remain fail-closed rather than being upgraded from current filesystem state.
+
+The accepted guarantee is **process crash/restart within the declared local-Windows workspace scope**. It does not claim atomic machine/power-loss durability.
+
+Release evidence for #126 included exact-head hosted CI/security, all review-thread dispositions, mandatory fresh ordinary-ChatGPT independent semantic review with zero surviving findings, and target-Windows physical `procedure_run` qualification. Exact physical locators belong in `EVIDENCE_INDEX.md` / PR history.
 
 ## Current public route
 
@@ -69,88 +103,51 @@ ordinary ChatGPT
 
 Ordinary ChatGPT is the **only current general planner/intelligence**. The deterministic Control Plane owns bounded execution state/policy, authorization, ExpectedEffect verification, recovery/reconciliation budgets and independent completion checks for already-selected transitions. It is not a second planner.
 
-## Stage 26.3C — accepted foundation
+WorkingState is capability-spanning structured operational state, not private reasoning, and must never persist chain-of-thought.
 
-PR #124 merged the L1 project-owned WorkingState/LoopGuard foundation without wiring it into a new production consequence path.
+## Current release-critical work — bounded automatic independent review
 
-The accepted foundation includes capability-spanning structured operational state, typed failures/reconciliation, distinct task/procedure/strategy budgets, LoopGuard decisions and diagnostic StagnationReport semantics.
+With 26.3C closed, the next immediate development priority is to productionize the **bounded automatic independent-review path** before the broad real-application coverage gate.
 
-WorkingState is not private reasoning and must never persist chain-of-thought.
-
-Mutating outcomes include:
-
-```text
-VERIFIED_APPLIED
-NOT_APPLIED
-APPLIED_BUT_ACK_FAILED
-OUTCOME_UNKNOWN
-```
-
-Key accepted invariants include:
-
-- mutating intent is bound to current concrete observation/provenance;
-- physical attempts consume bounded budgets and are rechecked by LoopGuard;
-- unresolved ambiguous outcome blocks further mutation until reconciled;
-- reconciliation requires fresh same-stream evidence;
-- durable history cannot switch actor/environment/evidence provenance or create impossible attempt/reconciliation chronology;
-- stale/non-advancing evidence cannot authorize another physical mutation;
-- `StagnationReport` is diagnostic/escalation data, never authority or a second planner.
-
-This L1 acceptance does **not** prove crash-safe production integration of every existing capability/procedure.
-
-## Current release-critical work
-
-The active Stage 26.3C problem is now **production integration and restart-safe recovery**, not invention of WorkingState from scratch.
-
-At this snapshot, draft PR #126 is the first bounded production consumer proposal for `verified_workspace_artifact_v1`. Resolve its live head/body before acting; its current fresh Stage Research decision is `NARROW`.
-
-The selected scope is deliberately limited to process crash/restart on the supported local Windows filesystem. It does not claim machine/power-loss transactional durability.
-
-Current researched design direction for that draft includes:
-
-```text
-existing procedure checkpoint
- + procedure-local non-authoritative prepared intent
- + one cooperating runner/task via OS lock
- + same-stream fresh reconciliation
- + stable logical operation identity
- + reconstructible file identity
- + hard-link final create on supported local NTFS
- + fail-closed ambiguous/missing/corrupt state
-```
-
-The draft must still earn its required exact-head deterministic/fault-injection CI, independent review and target-Windows physical `procedure_run` acceptance before merge because it changes a real consequence-bearing path.
-
-No draft PR text or implementation is accepted merely because it appears here; live code/evidence remains authoritative.
-
-## Post-26.3C immediate priority — automatic independent review
-
-After the current 26.3C production integration is accepted/closed, the next immediate development priority is to productionize the **bounded automatic independent-review path** proven experimentally by PR #138 before beginning the broad real-application coverage gate.
-
-The immediate product/process problem is narrow and concrete:
+The target lifecycle is narrow:
 
 ```text
 PR reaches review-ready exact head
  -> freeze BASE_SHA + HEAD_SHA
- -> launch a fresh ordinary-ChatGPT context without a user click
- -> run the repository code-review contract with GitHub read-only evidence
+ -> launch a genuinely fresh ordinary-ChatGPT context without a routine user click
+ -> run repository `.agents/skills/code-review/SKILL.md` with GitHub read-only evidence
  -> return REVIEW_RESULT_V1 to the development/review lifecycle
- -> reject stale-head results and repeat after material fixes
+ -> reject stale/malformed/ambiguous results
+ -> repeat after any material head change
 ```
 
-This exists because fresh ordinary-ChatGPT semantic review is the required primary review gate in `AGENTS.md`, while Codex Review is valuable but optional and may be unavailable because of quota. Automating the required reviewer must preserve fresh-context independence, exact-ref binding, read-only review authority, fail-closed result handling and the current `code-review` skill contract; it must not turn the reviewer into another developer context.
+This exists because fresh ordinary-ChatGPT semantic review is the required primary semantic review gate in `AGENTS.md`, while Codex Review is useful optional evidence and may be quota-limited.
 
-PR #138's successful one-shot deep-link/autosend/scheduler probes are evidence for this next bounded consumer, not themselves production acceptance. Before productionizing the review lifecycle, rerun fresh Stage Research against the then-current repo/harness state and define the minimum scheduler/result-handoff/staleness semantics required for the reviewer.
+PR #138 is **experimental evidence**, not production acceptance. Its one-shot deep-link/autosend/scheduler probes demonstrated that a fresh ChatGPT context can be launched and can reach the bridge without a routine user click. It does not yet establish the production reviewer scheduler/result-handoff/staleness contract.
 
-Review-automation runs should retain bounded non-secret operational evidence useful for later qualification: run/correlation identity, trigger reason, exact reviewed refs, launch/delivery outcome, fresh-context proof where available, result disposition, stale detection, duplicate/missed wake, timeout/failure class and whether manual intervention was required. This evidence is intended to build a real test corpus during development.
+Before production implementation of this reviewer lifecycle, rerun fresh Stage Research against the current post-26.3C repository/harness state. Define the minimum launch, correlation, result-handoff, duplicate/missed wake, timeout and stale-head semantics required for this bounded consumer.
 
-The reviewer use case does **not** by itself authorize general same-task autonomous continuation. General `unfinished task -> WAITING -> wake -> planner continuation` remains a separate future Stage Research seam; experience from the bounded reviewer may later inform that research.
+Reviewer automation must preserve:
+
+- genuinely fresh ordinary-ChatGPT context;
+- exact repository / PR / BASE_SHA / HEAD_SHA binding;
+- independent evidence reconstruction;
+- read-only reviewer authority over repository production state;
+- fail-closed missing/malformed/stale/ambiguous result handling;
+- no false representation of unavailable Codex Review as completed;
+- no promotion into a second developer/planner context.
+
+Review runs should retain bounded non-secret operational evidence useful for later qualification: run/correlation identity, trigger reason, exact refs, launch/delivery outcome, fresh-context evidence where available, result disposition, stale detection, duplicate/missed wake, timeout/failure class and whether manual intervention was required.
+
+The bounded reviewer does **not** authorize general same-task autonomous continuation. General `unfinished task -> WAITING -> wake -> planner continuation` remains a separate future Stage Research seam.
 
 ## Architecture research rule now in force
 
 Merged #127 strengthened `stage-research` so materially new persistence/recovery/retry/concurrency/identity/authority mechanisms require direct solution-domain evidence, materially distinct alternatives and a complete failure/crash matrix before production code.
 
-PR #128 adds the canonical architecture/reuse comparison baseline. When that process applies, research must explicitly compare affected prior component/project-owned roles rather than silently rebuilding or replacing them.
+PR #128 added the canonical architecture/reuse comparison baseline. When that process applies, research must explicitly compare affected prior component/project-owned roles rather than silently rebuilding or replacing them.
+
+The automatic-review production implementation therefore requires a fresh Stage Research re-entry before runtime edits.
 
 ## Browser accepted scope and remaining hardening
 
@@ -168,6 +165,8 @@ OpenAdapt remains a selected source of procedure-local compiler/resume/effect-ev
 
 UFO/UFO²-derived Windows/Office mechanics remain selective adapter sources, not a second planner/AgentOS.
 
+General same-task wake/resume, a generic scheduler/event bus, worker rotation and broad autonomous continuation remain unaccepted future mechanisms unless separately researched and reviewed.
+
 ## Immediate critical path
 
 Do not reconstruct another stage list here; `ROADMAP.md` owns release order.
@@ -175,12 +174,13 @@ Do not reconstruct another stage list here; `ROADMAP.md` owns release order.
 Immediate work is:
 
 ```text
-finish the researched Stage 26.3C production WorkingState/reconciliation integration
- -> prove restart/no-duplicate-effect behavior on the real procedure path
- -> productionize bounded automatic fresh-ChatGPT review infrastructure from the #138 evidence
+fresh Stage Research for bounded automatic independent-review infrastructure
+ -> productionize fresh-context launch + exact-ref/result handoff
+ -> prove stale/duplicate/failure handling fail-closed
+ -> remove routine user click/copy-paste from required review lifecycle
 ```
 
-Then continue according to `ROADMAP.md` with broader real-app physical coverage, bounded OpenAdapt integration, 26.4 candidate skills and 26.5 hybrid integration.
+Then continue according to `ROADMAP.md` with the broad real-application physical coverage gate, bounded OpenAdapt integration, 26.4 candidate skills and 26.5 hybrid integration.
 
 ## Non-negotiable rules
 
