@@ -1,9 +1,9 @@
 ---
 name: code-review
-description: Independent semantic review protocol for exact PR diffs before merge. Use from a fresh ordinary-ChatGPT review context to find concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects, falsify candidate findings, and bind the result to exact BASE_SHA/HEAD_SHA. This review is read-only and separate from implementation.
+description: Independent semantic review protocol for exact PR diffs before merge. Use from a fresh ordinary-ChatGPT review context to find concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects, falsify candidate findings, and bind the result to exact BASE_SHA/HEAD_SHA. The reviewer does not mutate production/repository state; the automatic path has one narrowly defined result-evidence Conversation-comment publication envelope.
 compatibility: Designed for Chat Agent Platform pull-request review with GitHub access from ordinary ChatGPT. The mandatory primary review must not depend on ChatGPT Work, Workspace Agents or Codex usage.
 metadata:
-  version: "1.0"
+  version: "1.1"
   project: "chat-agent-platform"
 ---
 
@@ -20,7 +20,8 @@ The same ChatGPT product/model family may develop and review the code. Independe
 The mandatory primary review:
 
 - runs in a fresh **ordinary ChatGPT** conversation/context;
-- is read-only by default and reports findings rather than editing the branch;
+- does not mutate files, branches, review state, labels, merge state, repository settings or other production/repository state;
+- in the automatic path only, may publish exactly one top-level PR Conversation comment containing its own structured result under the bounded envelope in section 14; that publication is evidence transport, not repository acceptance authority;
 - receives an immutable `REVIEW_REQUEST_V1` identity, not a developer-authored reasoning summary;
 - independently fetches the repository, PR, exact refs, diff, tests and relevant evidence;
 - must not use ChatGPT Work, Workspace Agents, Codex automation or Codex Review as a substitute for the mandatory primary review;
@@ -44,6 +45,14 @@ head_sha=<40-hex SHA>
 review_skill=code-review
 review_skill_version=<version expected by caller>
 ```
+
+The bounded automatic path additionally includes:
+
+```text
+review_run_id=<high-entropy automatic-run nonce>
+```
+
+`review_run_id` is transport correlation for the automatic path. It never replaces repository / PR / BASE / HEAD identity and does not weaken any exact-ref check.
 
 Optional informational fields may identify required physical gates or a known change class, but they must not contain a developer argument that the change is correct.
 
@@ -81,7 +90,7 @@ Read `AGENTS.md` and `.agents/skills/code-review/SKILL.md` from `BASE_SHA` as th
 
 Then enumerate `.agents/skills/*/SKILL.md` at `HEAD_SHA` and read target-specific skills whose triggers apply to the changed subsystem. Those HEAD skills constrain the target and can reveal regressions, but a change inside the PR cannot weaken the accepted BASE review protocol for its own review.
 
-When the PR itself introduces `code-review` for the first time, the prior accepted `AGENTS.md` merge policy governs adoption; after merge, this skill becomes the primary review protocol for later PRs.
+When the PR itself introduces or materially changes `code-review`, the accepted BASE review policy governs adoption; only after merge does the changed skill govern later reviews.
 
 ## 4. Determine the exact review surface
 
@@ -165,9 +174,11 @@ Severity means:
 
 If evidence is insufficient, do not report the candidate as a finding.
 
-## 8. Reviewer stays read-only
+## 8. Reviewer does not self-fix or mutate the target
 
-The independent reviewer does not patch the PR in the same review run.
+The independent reviewer does not patch the PR in the same review run and does not mutate production/repository state.
+
+The automatic result-publication exception in section 14 does **not** permit a fix, approval, requested-changes review, label change, merge, branch update or other target mutation. It only transports the reviewer's already-computed structured result.
 
 Flow:
 
@@ -176,6 +187,7 @@ fresh reviewer
  -> candidate findings
  -> falsification
  -> reported findings only
+ -> optional one-comment automatic result publication under section 14
  -> development context validates each finding
  -> confirmed finding: fix
  -> rejected finding: record reason / no code change
@@ -241,6 +253,8 @@ fresh required ChatGPT review on exact BASE_SHA..HEAD_SHA
 
 If any final gate changes the branch materially, repeat review as required.
 
+For an automatic result, the development-side lifecycle must additionally perform the automatic-result integrity/uniqueness checks defined by the accepted automatic-reviewer contract. The reviewer comment is evidence transport, not a self-validating merge grant.
+
 ## 12. Structured result
 
 Return a concise machine-checkable header plus human findings:
@@ -262,6 +276,14 @@ rejected_candidates=<count>
 reviewed_at=<ISO-8601>
 ```
 
+For the automatic path, include the matching request nonce as an additional field:
+
+```text
+review_run_id=<same value received in REVIEW_REQUEST_V1>
+```
+
+Manual reviews omit `review_run_id` unless a later accepted caller contract explicitly requires it.
+
 Meaning:
 
 - `PASS` — no supported findings survived falsification for the exact diff;
@@ -279,7 +301,7 @@ For `ABSTAIN`/`STALE`, explain the blocking condition; never translate missing e
 
 A development chat may create a one-time review task/request only after the intended review head is frozen.
 
-The launcher payload is limited to `REVIEW_REQUEST_V1` plus a direct instruction to perform this skill. Do not attach development-chat reasoning summaries, proposed findings or arguments for correctness.
+The launcher payload is limited to `REVIEW_REQUEST_V1` plus a direct instruction to perform this skill. The automatic launcher may add only its protocol-defined `review_run_id` field to the immutable request. Do not attach development-chat reasoning summaries, proposed findings or arguments for correctness.
 
 The mandatory review result is acceptable only if the eventual reviewer can truthfully report:
 
@@ -290,6 +312,36 @@ review_context=ordinary_chat_fresh
 A launcher that executes through Work, Workspace Agents or Codex is not the mandatory review. A ChatGPT Scheduled Task whose context isolation cannot be established is also not sufficient by itself; use a manually opened fresh ordinary-ChatGPT conversation instead.
 
 The repository must remain mergeable when Codex review quota is exhausted, provided the required fresh ordinary-ChatGPT review, finding validation and all other applicable gates pass.
+
+## 14. Bounded automatic result-publication envelope
+
+This section applies only when the immutable `REVIEW_REQUEST_V1` received by the fresh reviewer contains a valid protocol-defined `review_run_id`.
+
+After the semantic review is complete, the reviewer may make **exactly one** additional write for evidence handoff:
+
+```text
+GitHub PR Conversation
+ -> create one top-level comment
+ -> body = this run's REVIEW_RESULT_V1 + matching review_run_id + any supported finding bodies required by section 7
+```
+
+The publication is permitted only on the exact `repository` / `pr_number` from the request. It does not authorize any other GitHub mutation.
+
+The reviewer must not:
+
+- edit repository files or branches;
+- submit `APPROVE` or `REQUEST_CHANGES` review state;
+- change labels, assignees or milestones;
+- merge, close or reopen the PR;
+- change repository settings;
+- publish a second result comment for the same automatic run;
+- retry comment creation when the outcome of the first creation attempt is ambiguous.
+
+If no suitable top-level Conversation-comment capability is available, or publication cannot be attempted without broader authority, return/display the result locally and treat automatic handoff as failed; do not substitute a different mutation.
+
+If the comment creation attempt returns an error after delivery may have occurred, treat publication as ambiguous. **Do not retry.** The development-side lifecycle must discover/disposition the resulting evidence and may require the manual fresh-review fallback.
+
+The comment itself never grants `PASS`, merge authority or finding acceptance. The development side independently re-resolves author, `review_run_id`, exact refs, uniqueness, comment integrity and live PR identity under the automatic-reviewer contract before consuming it.
 
 ## Completion checklist
 
@@ -303,6 +355,8 @@ Before returning `PASS` or `FINDINGS`, verify:
 - every reported finding is introduced by/directly caused by the diff;
 - every reported finding survived an explicit falsification attempt;
 - no style/taste-only comments remain;
-- reviewer made no branch edits;
+- reviewer made no branch/file/review-state/label/merge/settings mutation;
+- if automatic mode was requested, the result contains the exact received `review_run_id`;
+- if automatic publication was attempted, at most one top-level result comment creation was attempted and ambiguous creation was not retried;
 - result records exact refs, skill version and fresh ordinary-ChatGPT context;
 - missing evidence yields `ABSTAIN`, not `PASS`.
