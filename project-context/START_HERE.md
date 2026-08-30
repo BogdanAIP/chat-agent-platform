@@ -19,11 +19,11 @@ Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs 
 
 ## Current boundary in one line
 
-Stage 26.3B is accepted/closed for its recorded representative scope; Stage 26.3C WorkingState/reconciliation/budget/LoopGuard L1 foundation is accepted through #124; current release-critical work is production/restart integration of that accepted foundation.
+Stage 26.3B is accepted/closed for its recorded representative scope, and Stage 26.3C is now accepted/closed for its declared production process-restart/local-Windows scope through merged PR #126 (`main=d99ec89267de59c5a4b17ffecb4c2989ded9b9e0`).
 
-After 26.3C closes, the next immediate development priority is the bounded automatic independent-review infrastructure proven experimentally in PR #138, before the broad real-application coverage gate. This priority is specifically about making the already-required fresh ordinary-ChatGPT semantic review fast and automatic; it does not by itself authorize general same-task autonomous wake/resume.
+The next immediate development priority is the bounded automatic independent-review infrastructure proven experimentally in PR #138, before the broad real-application coverage gate. This priority is specifically about making the already-required fresh ordinary-ChatGPT semantic review fast and automatic; it does not by itself authorize general same-task autonomous wake/resume.
 
-For the active PR/design/check details, read `CURRENT_STATE.md` and resolve the live PR rather than copying that snapshot here.
+For the active PR/design/check details, read `CURRENT_STATE.md` and resolve live GitHub state rather than copying a snapshot from this file.
 
 ## Current public route
 
@@ -76,6 +76,8 @@ current repo/runtime/evidence
 
 A material new primitive or materially changed persistence/recovery/retry/concurrency/identity/authority design after the Brief invalidates implementation authority and requires research re-entry.
 
+For the current post-26.3C automatic-review priority, Stage Research must be rerun against the current harness/repository state before production runtime edits. PR #138 is experimental evidence, not implementation authority.
+
 ## Architecture lineage rule
 
 For every affected baseline role, record one of:
@@ -122,7 +124,7 @@ stage-research when applicable
  -> merge
 ```
 
-The fresh ordinary-ChatGPT review is the primary required semantic review. Codex Review is additional evidence when available and quota exhaustion does not substitute for or block the primary review. The post-26.3C review-automation priority exists to automate creation of that fresh review context, exact-ref binding and result handoff without weakening the `code-review` contract.
+The fresh ordinary-ChatGPT review is the primary required semantic review. Codex Review is additional evidence when available and quota exhaustion does not substitute for or block the primary review. The current review-automation priority exists to automate creation of that fresh review context, exact-ref binding and result handoff without weakening the `code-review` contract.
 
 Documentation/process-only changes do not require a physical gate unless they change acceptance/runtime authority. Material changes to merge/review semantics remain review-significant under `AGENTS.md`.
 
