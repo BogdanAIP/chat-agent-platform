@@ -1135,6 +1135,7 @@ def _run_verified_workspace_artifact_locked(
                 content_size=len(content_bytes),
                 checkpoint=checkpoint,
             )
+            delivery_completed = False
             try:
                 with pin_file_for_verified_link(
                     staging,
@@ -1153,7 +1154,83 @@ def _run_verified_workspace_artifact_locked(
                             "verified staging changed before final hard-link delivery"
                         )
                     _exclusive_link_file(staging, target)
+                    delivery_completed = True
+
+                    final_after = observer.observe()
+                    staging_identity = _normalized_identity(
+                        task_state.get("staging_file_identity")
+                    )
+                    direct_status = _direct_reconciliation_status(
+                        "final_create",
+                        final_after,
+                        content_size=len(content_bytes),
+                        expected_sha=expected_sha,
+                        staging_identity=staging_identity,
+                        target_identity=staging_identity,
+                    )
+                    final_result = _verify_transition(
+                        effect_id="final_create",
+                        before=final_before,
+                        after=final_after,
+                        predicates=(
+                            *_file_predicates(
+                                "staging",
+                                size=len(content_bytes),
+                                sha256=expected_sha,
+                                identity=staging_identity,
+                            ),
+                            *_file_predicates(
+                                "target",
+                                size=len(content_bytes),
+                                sha256=expected_sha,
+                                identity=staging_identity,
+                            ),
+                        ),
+                    )
+                    target_identity = _observed_identity(final_after, "target")
+                    authoritative_status = _authoritative_normal_status(
+                        direct_status,
+                        kernel_pass=(
+                            final_result.status is VerificationStatus.PASS
+                            and staging_identity is not None
+                            and target_identity == staging_identity
+                        ),
+                    )
+                    working_state = _record_normal_outcome(
+                        working_state,
+                        intent,
+                        authoritative_status,
+                        final_after,
+                        task_id=task_id,
+                    )
+                    task_state["action_count"] = int(task_state["action_count"]) + 1
+                    task_state["working_state"] = working_state.as_dict()
+                    task_state["prepared_intent"] = None
+                    if authoritative_status is not ReconciliationStatus.CONFIRMED_APPLIED:
+                        task_state["status"] = "abstained"
+                        task_state["escalation_reason"] = "final_create_postcondition_failed"
+                        checkpoint()
+                        raise RuntimeError("final create postcondition failed")
+                    task_state["target_file_identity"] = staging_identity
+                    target_owned = True
+                    _record_transition(
+                        task_state,
+                        transition_id="final_create",
+                        from_node="staged_verified",
+                        to_node="final_verified",
+                        action="hardlink_verified_staging_to_final",
+                        verification={
+                            "target": _observed_evidence(final_after, "target"),
+                            "staging": _observed_evidence(final_after, "staging"),
+                        },
+                        kernel_verification=_kernel_receipt(final_result),
+                    )
+                    checkpoint()
+                    node = "final_verified"
+                    reconciled_retry_snapshot = None
             except FileExistsError:
+                if delivery_completed:
+                    raise
                 final_after = observer.observe()
                 working_state = _record_file_exists_no_effect(
                     task_state,
@@ -1170,6 +1247,8 @@ def _run_verified_workspace_artifact_locked(
                     resumed=resume_task_id is not None,
                 )
             except Exception:
+                if delivery_completed:
+                    raise
                 working_state = _reconcile_exceptional_delivery(
                     task_state,
                     working_state,
@@ -1188,77 +1267,6 @@ def _run_verified_workspace_artifact_locked(
                     rollback=rollback,
                     resumed=resume_task_id is not None,
                 )
-
-            final_after = observer.observe()
-            staging_identity = _normalized_identity(task_state.get("staging_file_identity"))
-            direct_status = _direct_reconciliation_status(
-                "final_create",
-                final_after,
-                content_size=len(content_bytes),
-                expected_sha=expected_sha,
-                staging_identity=staging_identity,
-                target_identity=staging_identity,
-            )
-            final_result = _verify_transition(
-                effect_id="final_create",
-                before=final_before,
-                after=final_after,
-                predicates=(
-                    *_file_predicates(
-                        "staging",
-                        size=len(content_bytes),
-                        sha256=expected_sha,
-                        identity=staging_identity,
-                    ),
-                    *_file_predicates(
-                        "target",
-                        size=len(content_bytes),
-                        sha256=expected_sha,
-                        identity=staging_identity,
-                    ),
-                ),
-            )
-            target_identity = _observed_identity(final_after, "target")
-            authoritative_status = _authoritative_normal_status(
-                direct_status,
-                kernel_pass=(
-                    final_result.status is VerificationStatus.PASS
-                    and staging_identity is not None
-                    and target_identity == staging_identity
-                ),
-            )
-            working_state = _record_normal_outcome(
-                working_state,
-                intent,
-                authoritative_status,
-                final_after,
-                task_id=task_id,
-            )
-            task_state["action_count"] = int(task_state["action_count"]) + 1
-            task_state["working_state"] = working_state.as_dict()
-            task_state["prepared_intent"] = None
-            if authoritative_status is not ReconciliationStatus.CONFIRMED_APPLIED:
-                task_state["status"] = "abstained"
-                task_state["escalation_reason"] = "final_create_postcondition_failed"
-                checkpoint()
-                raise RuntimeError("final create postcondition failed")
-            task_state["target_file_identity"] = staging_identity
-            target_owned = True
-            _record_transition(
-                task_state,
-                transition_id="final_create",
-                from_node="staged_verified",
-                to_node="final_verified",
-                action="hardlink_verified_staging_to_final",
-                verification={
-                    "target": _observed_evidence(final_after, "target"),
-                    "staging": _observed_evidence(final_after, "staging"),
-                },
-                kernel_verification=_kernel_receipt(final_result),
-            )
-            checkpoint()
-            node = "final_verified"
-            reconciled_retry_snapshot = None
 
         if node == "final_verified":
             if reconciled_retry_snapshot is None:
