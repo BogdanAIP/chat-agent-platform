@@ -498,39 +498,56 @@ def _validate_resume_state(
         ):
             raise ValueError("resume checkpoint prepared_intent is invalid")
 
-        if str(task_state["status"]) == "running":
-            expected_action_count = {
-                "preflight": 0,
-                "staged_verified": 1,
-                "final_verified": 2,
-            }.get(str(task_state["current_node"]))
-            if expected_action_count is None:
-                raise ValueError("resume checkpoint running node is invalid")
-            if int(task_state["action_count"]) != expected_action_count:
-                raise ValueError("resume checkpoint running action progress mismatch")
-
-            expected_receipts = (
-                ("stage_create", "preflight", "staged_verified"),
-                ("final_create", "staged_verified", "final_verified"),
-                ("staging_cleanup", "final_verified", "completed"),
+        checkpoint_status = str(task_state["status"])
+        checkpoint_node = str(task_state["current_node"])
+        expected_receipts = (
+            ("stage_create", "preflight", "staged_verified"),
+            ("final_create", "staged_verified", "final_verified"),
+            ("staging_cleanup", "final_verified", "completed"),
+        )
+        if checkpoint_status in {"running", "completed"}:
+            expected_action_count = (
+                {
+                    "preflight": 0,
+                    "staged_verified": 1,
+                    "final_verified": 2,
+                }.get(checkpoint_node)
+                if checkpoint_status == "running"
+                else (MAX_ACTIONS if checkpoint_node == "completed" else None)
             )
+            if expected_action_count is None:
+                raise ValueError(f"resume checkpoint {checkpoint_status} node is invalid")
+            if int(task_state["action_count"]) != expected_action_count:
+                raise ValueError(
+                    f"resume checkpoint {checkpoint_status} action progress mismatch"
+                )
+
             receipts = task_state["transition_receipts"]
             if len(receipts) != expected_action_count:
-                raise ValueError("resume checkpoint running receipt progress mismatch")
+                raise ValueError(
+                    f"resume checkpoint {checkpoint_status} receipt progress mismatch"
+                )
             for index, receipt in enumerate(receipts):
                 if not isinstance(receipt, dict):
-                    raise ValueError("resume checkpoint running transition receipt is invalid")
+                    raise ValueError(
+                        f"resume checkpoint {checkpoint_status} transition receipt is invalid"
+                    )
                 expected_transition, expected_from, expected_to = expected_receipts[index]
                 if (
                     receipt.get("transition_id") != expected_transition
                     or receipt.get("from_node") != expected_from
                     or receipt.get("to_node") != expected_to
                 ):
-                    raise ValueError("resume checkpoint running transition history mismatch")
+                    raise ValueError(
+                        f"resume checkpoint {checkpoint_status} transition history mismatch"
+                    )
 
             marker = task_state["prepared_intent"]
-            if marker is not None:
-                if marker.get("transition_id") != _NODE_TRANSITION[str(task_state["current_node"])]:
+            if checkpoint_status == "completed":
+                if marker is not None:
+                    raise ValueError("resume checkpoint completed prepared intent is invalid")
+            elif marker is not None:
+                if marker.get("transition_id") != _NODE_TRANSITION[checkpoint_node]:
                     raise ValueError("resume checkpoint prepared transition mismatch")
                 if marker.get("action_count_before") != expected_action_count:
                     raise ValueError("resume checkpoint prepared action progress mismatch")
