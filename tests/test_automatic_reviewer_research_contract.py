@@ -29,7 +29,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "review_run_id",
             "one top-level PR conversation comment",
             "one automatic Send attempt",
-            "manual fresh review fallback",
+            "manual fresh-review path",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.research)
@@ -62,15 +62,17 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         reuse_folded = self.reuse.casefold()
 
         self.assertIn("harbor is not production authority", research_folded)
-        self.assertIn("evaluation harness only", research_folded)
+        self.assertIn("harbor is selected as the **evaluation harness**", research_folded)
+        self.assertIn("not as the reviewer launch/control plane", research_folded)
         self.assertIn("code-review evaluation harness", reuse_folded)
         self.assertIn("selected_evaluation_only", reuse_folded)
         self.assertIn("automatic independent-review launch / correlation / result publication", reuse_folded)
 
     def test_quality_threshold_is_evidence_based_not_prebaked(self) -> None:
-        self.assertIn("first benchmark run is a **baseline, not a release exam**", self.research)
-        self.assertIn("Do not invent an arbitrary target", self.research)
-        self.assertIn("semantic quality must not materially regress", self.research)
+        folded = self.research.casefold()
+        self.assertIn("first benchmark run is a **baseline, not a release exam**", folded)
+        self.assertIn("do not invent an arbitrary target", folded)
+        self.assertIn("semantic quality must not materially regress", folded)
 
 
 if __name__ == "__main__":
