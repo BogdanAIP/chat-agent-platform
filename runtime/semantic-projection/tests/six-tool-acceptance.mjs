@@ -10,6 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const entry = path.resolve(here, '..', 'bin', 'semantic-projection-launcher.mjs');
+const controlPlaneEntry = path.resolve(here, '..', 'bin', 'semantic-control-plane-projection.mjs');
 const expectedTools = [
   'procedure_run',
   'web_interact',
@@ -156,6 +157,12 @@ try {
   assert.equal(payload.status, 'completed', textOf(run));
   assert.equal(payload.action_count, 3, textOf(run));
   assert.equal(payload.procedure_id, 'verified_workspace_artifact_v1', textOf(run));
+  assert.match(payload.task_id, /^[0-9a-f]{32}$/);
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(stateRoot, `${payload.task_id}.json`), 'utf8')).task_id,
+    payload.task_id,
+    'public procedure result must expose the exact durable task correlation id',
+  );
 
   const relative = '.chat-agent-platform/stage26-3a/six-tool-result.txt';
   assert.equal(fs.readFileSync(path.join(workspace, relative), 'utf8'), 'SIX_TOOL_PROCEDURE_OK');
@@ -181,6 +188,7 @@ try {
   assert.equal(resumedPayload.status, 'completed');
   assert.equal(resumedPayload.resumed, true);
   assert.equal(resumedPayload.action_count, 3);
+  assert.equal(resumedPayload.task_id, payload.task_id);
 
   const conflictName = 'protected-existing.txt';
   const protectedDir = path.join(workspace, '.chat-agent-platform', 'stage26-3a');
@@ -200,12 +208,171 @@ try {
   assert.equal(abstainPayload.escalation_reason, 'target_already_exists');
   assert.equal(fs.readFileSync(path.join(protectedDir, conflictName), 'utf8'), 'DO_NOT_OVERWRITE');
 
+  // controlPlaneEnvironment cannot be forced to fail through the public MCP
+  // route without also preventing the inner semantic server from starting.
+  // Lock the narrow pre-spawn correlation invariant structurally here while the
+  // surrounding public tests continue to execute procedureFailure behavior.
+  const controlPlaneSource = fs.readFileSync(controlPlaneEntry, 'utf8');
+  assert(
+    controlPlaneSource.includes(
+      'const resumableCorrelationTaskId = assignedTaskId === null ? correlationTaskId : null;'
+    ),
+    'fresh pre-spawn setup failures must drop generated non-durable resume ids',
+  );
+  assert(
+    controlPlaneSource.includes(
+      'procedureFailure(`control_plane_setup:${reason}`, resumableCorrelationTaskId)'
+    ),
+    'setup failure must use the durable/resume-aware correlation selection',
+  );
+
+  // Force the outer semantic projection's Python child to terminate without a
+  // JSON result and without creating durable procedure state. This exercises
+  // the public procedure_run failure receipt: a generated id must not become a
+  // resumable id merely because spawn succeeded.
+  const failureWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-procedure-failure-workspace-'));
+  const failureState = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-procedure-failure-state-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-fake-python-'));
+  const fakePython = path.join(fakeBin, process.platform === 'win32' ? 'python.exe' : 'python');
+  fs.copyFileSync(process.execPath, fakePython);
+  if (process.platform !== 'win32') fs.chmodSync(fakePython, 0o755);
+  const fakePath = `${fakeBin}${path.delimiter}${process.env.PATH ?? process.env.Path ?? ''}`;
+  const failureClient = new Client({ name: 'procedure-failure-correlation-acceptance', version: '1.0.0' });
+  const failureTransport = new StdioClientTransport({
+    command: process.execPath,
+    args: [entry],
+    env: childEnvironment({
+      CHAT_LOCAL_FILES_ROOT: failureWorkspace,
+      CHAT_PROCEDURE_STATE_ROOT: failureState,
+      PATH: fakePath,
+      Path: fakePath
+    })
+  });
+  try {
+    await failureClient.connect(failureTransport);
+    const failed = await failureClient.callTool({
+      name: 'procedure_run',
+      arguments: {
+        procedure: 'verified_workspace_artifact_v1',
+        artifact_name: 'crash-receipt.txt',
+        content: 'CRASH_RECEIPT'
+      }
+    });
+    assert.equal(failed.isError, true, textOf(failed));
+    const failedPayload = failed.structuredContent ?? JSON.parse(textOf(failed));
+    assert.equal(failedPayload.status, 'error');
+    assert.match(failedPayload.reason, /^invalid_control_plane_response:/);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(failedPayload, 'resume_task_id'),
+      false,
+      'fresh child crash without durable state must not advertise a resumable task id',
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(failedPayload, 'action_count'),
+      false,
+      'parent crash receipt must not invent procedure progress it cannot observe',
+    );
+    assert.equal(fs.readdirSync(failureState).filter(name => name.endsWith('.json')).length, 0);
+  } finally {
+    try { await failureClient.close(); } catch {}
+    fs.rmSync(failureWorkspace, { recursive: true, force: true });
+    fs.rmSync(failureState, { recursive: true, force: true });
+    fs.rmSync(fakeBin, { recursive: true, force: true });
+  }
+
+  // Reproduce a valid child error after durable state can already exist. The
+  // temporary entrypoint stays inside the installed package directory so it
+  // uses the same MCP dependencies and semantic base, while only its private
+  // controlPlaneCli constant points at an injected child. That child persists
+  // the parent-assigned id and then emits syntactically valid status=error JSON.
+  // The public parent must preserve the same id as resume_task_id.
+  const validErrorWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-valid-error-workspace-'));
+  const validErrorState = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-valid-error-state-'));
+  const validErrorCli = path.join(os.tmpdir(), `chat-valid-error-cli-${process.pid}-${Date.now()}.py`);
+  const validErrorEntry = path.join(
+    path.dirname(controlPlaneEntry),
+    `.semantic-control-plane-valid-error-${process.pid}-${Date.now()}.mjs`,
+  );
+  fs.writeFileSync(
+    validErrorCli,
+    [
+      'import json, os',
+      'from pathlib import Path',
+      'task_id = os.environ["CHAT_PROCEDURE_ASSIGNED_TASK_ID"]',
+      'state_root = Path(os.environ["CHAT_PROCEDURE_STATE_ROOT"])',
+      'state_root.mkdir(parents=True, exist_ok=True)',
+      'checkpoint = {"schema_version": 2, "task_id": task_id, "status": "running", "action_count": 0}',
+      '(state_root / f"{task_id}.json").write_text(json.dumps(checkpoint), encoding="utf-8")',
+      'print(json.dumps({"schema_version": 1, "status": "error", "reason": "runtime_unavailable:InjectedValidChildError", "action_count": 0}))',
+      'raise SystemExit(2)',
+      ''
+    ].join('\n'),
+    'utf8',
+  );
+  const controlPlaneCliBinding = "const controlPlaneCli = path.join(repoRoot, 'runtime', 'control_plane', 'cli.py');";
+  const injectedControlPlaneSource = controlPlaneSource.replace(
+    controlPlaneCliBinding,
+    `const controlPlaneCli = ${JSON.stringify(validErrorCli)};`,
+  );
+  assert.notEqual(
+    injectedControlPlaneSource,
+    controlPlaneSource,
+    'valid-error acceptance must replace exactly the private controlPlaneCli binding',
+  );
+  fs.writeFileSync(validErrorEntry, injectedControlPlaneSource, 'utf8');
+  const validErrorClient = new Client({ name: 'procedure-valid-error-correlation-acceptance', version: '1.0.0' });
+  const validErrorTransport = new StdioClientTransport({
+    command: process.execPath,
+    args: [validErrorEntry],
+    env: childEnvironment({
+      CHAT_LOCAL_FILES_ROOT: validErrorWorkspace,
+      CHAT_PROCEDURE_STATE_ROOT: validErrorState
+    })
+  });
+  try {
+    await validErrorClient.connect(validErrorTransport);
+    const failed = await validErrorClient.callTool({
+      name: 'procedure_run',
+      arguments: {
+        procedure: 'verified_workspace_artifact_v1',
+        artifact_name: 'valid-error-receipt.txt',
+        content: 'VALID_ERROR_RECEIPT'
+      }
+    });
+    assert.equal(failed.isError, true, textOf(failed));
+    const failedPayload = failed.structuredContent ?? JSON.parse(textOf(failed));
+    assert.equal(failedPayload.status, 'error');
+    assert.equal(failedPayload.reason, 'runtime_unavailable:InjectedValidChildError');
+    assert.match(failedPayload.resume_task_id, /^[0-9a-f]{32}$/);
+    const durableFiles = fs.readdirSync(validErrorState).filter(name => name.endsWith('.json'));
+    assert.deepEqual(
+      durableFiles,
+      [`${failedPayload.resume_task_id}.json`],
+      'valid child error must expose the exact parent-owned durable correlation id',
+    );
+    const durable = JSON.parse(
+      fs.readFileSync(path.join(validErrorState, durableFiles[0]), 'utf8'),
+    );
+    assert.equal(durable.task_id, failedPayload.resume_task_id);
+    assert.equal(durable.status, 'running');
+    assert.equal(durable.action_count, 0);
+  } finally {
+    try { await validErrorClient.close(); } catch {}
+    fs.rmSync(validErrorWorkspace, { recursive: true, force: true });
+    fs.rmSync(validErrorState, { recursive: true, force: true });
+    fs.rmSync(validErrorCli, { force: true });
+    fs.rmSync(validErrorEntry, { force: true });
+  }
+
   console.log('SEMANTIC_PUBLIC_TOOL_COUNT=6');
   console.log('SEMANTIC_PUBLIC_WEB_INTERACT_EXPECTED=PASS');
   console.log('SEMANTIC_PUBLIC_PROCEDURE_REGISTRY=PASS');
   console.log('SEMANTIC_PUBLIC_PROCEDURE_RUN=PASS');
   console.log('SEMANTIC_PUBLIC_INDEPENDENT_READ=PASS');
   console.log('SEMANTIC_PUBLIC_RESUME=PASS');
+  console.log('SEMANTIC_PUBLIC_SETUP_FAILURE_CORRELATION=PASS');
+  console.log('SEMANTIC_PUBLIC_CRASH_CORRELATION_RECEIPT=PASS');
+  console.log('SEMANTIC_PUBLIC_VALID_CHILD_ERROR_CORRELATION=PASS');
   console.log('SEMANTIC_PUBLIC_ABSTAIN_NO_OVERWRITE=PASS');
   console.log('SEMANTIC_PUBLIC_SIX_TOOL_ACCEPTANCE=PASS');
 } finally {

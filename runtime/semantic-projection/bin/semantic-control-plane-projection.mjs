@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -24,7 +25,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const semanticEntry = path.join(here, 'semantic-projection.mjs');
 const repoRoot = path.resolve(here, '..', '..', '..');
 const controlPlaneCli = path.join(repoRoot, 'runtime', 'control_plane', 'cli.py');
+const WORKSPACE_ARTIFACT_PROCEDURE = 'verified_workspace_artifact_v1';
 const WINDOWS_CASE_PROCEDURE = 'windows_case_update_v1';
+const TASK_ID_RE = /^[0-9a-f]{32}$/;
 const INTERNAL_SEMANTIC_TOOLS = new Set([
   'workspace_read',
   'workspace_write',
@@ -48,6 +51,53 @@ const SAFE_CHILD_ENV_ALLOWLIST = new Set([
 
 function toolError(message) {
   return { content: [{ type: 'text', text: message }], isError: true };
+}
+
+function procedureFailure(reason, correlationTaskId = null) {
+  const payload = {
+    schema_version: 1,
+    status: 'error',
+    reason,
+    ...(correlationTaskId === null ? {} : { resume_task_id: correlationTaskId })
+  };
+  return {
+    content: [{ type: 'text', text: JSON.stringify(payload) }],
+    structuredContent: payload,
+    isError: true
+  };
+}
+
+function prepareProcedureCorrelation(request) {
+  if (request?.procedure !== WORKSPACE_ARTIFACT_PROCEDURE) {
+    return { correlationTaskId: null, assignedTaskId: null };
+  }
+  const resumeTaskId = typeof request?.resume_task_id === 'string'
+    ? request.resume_task_id
+    : null;
+  if (resumeTaskId !== null) {
+    if (!TASK_ID_RE.test(resumeTaskId)) {
+      throw new Error('resume_task_id must be a 32-character lowercase hex task id');
+    }
+    return { correlationTaskId: resumeTaskId, assignedTaskId: null };
+  }
+  const assignedTaskId = randomBytes(16).toString('hex');
+  return { correlationTaskId: assignedTaskId, assignedTaskId };
+}
+
+function resumableProcedureCorrelation(env, correlationTaskId, assignedTaskId) {
+  if (correlationTaskId === null) return null;
+  // A caller-supplied resume id is already known independently of this child
+  // launch. A newly generated id becomes resumable only after the exact regular
+  // checkpoint file is durably visible in the configured state root.
+  if (assignedTaskId === null) return correlationTaskId;
+  const stateRoot = env?.CHAT_PROCEDURE_STATE_ROOT;
+  if (typeof stateRoot !== 'string' || !stateRoot) return null;
+  const checkpoint = path.join(stateRoot, `${assignedTaskId}.json`);
+  try {
+    return fs.lstatSync(checkpoint).isFile() ? correlationTaskId : null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizeResult(result) {
@@ -140,13 +190,32 @@ async function callSemantic(name, args) {
 
 function runProcedure(request) {
   return new Promise((resolve) => {
+    let correlation;
+    try {
+      correlation = prepareProcedureCorrelation(request);
+    } catch (error) {
+      resolve(toolError(`procedure_run failed: ${error instanceof Error ? error.message : String(error)}`));
+      return;
+    }
+    const { correlationTaskId, assignedTaskId } = correlation;
+
     let env;
     let python;
     try {
       env = controlPlaneEnvironment(request);
+      // This private child-only variable is set after the inherited environment
+      // allowlist is built, so a caller/process environment cannot select a new
+      // task id. Only this reviewed parent generates it for a new workspace run.
+      if (assignedTaskId !== null) env.CHAT_PROCEDURE_ASSIGNED_TASK_ID = assignedTaskId;
       python = controlPlanePython(request, env);
     } catch (error) {
-      resolve(toolError(`procedure_run failed: ${error instanceof Error ? error.message : String(error)}`));
+      const reason = error instanceof Error ? error.message : String(error);
+      const resumableCorrelationTaskId = assignedTaskId === null ? correlationTaskId : null;
+      resolve(
+        correlationTaskId === null
+          ? toolError(`procedure_run failed: ${reason}`)
+          : procedureFailure(`control_plane_setup:${reason}`, resumableCorrelationTaskId)
+      );
       return;
     }
 
@@ -165,31 +234,61 @@ function runProcedure(request) {
       clearTimeout(timer);
       resolve(result);
     };
+    const fail = (reason) => {
+      const resumableCorrelationTaskId = resumableProcedureCorrelation(
+        env,
+        correlationTaskId,
+        assignedTaskId,
+      );
+      finish(
+        correlationTaskId === null
+          ? toolError(`procedure_run failed: ${reason}`)
+          : procedureFailure(reason, resumableCorrelationTaskId)
+      );
+    };
 
     const timer = setTimeout(() => {
       try { child.kill(); } catch {}
-      finish(toolError('procedure_run failed: control_plane_timeout'));
+      fail('control_plane_timeout');
     }, procedureTimeoutMs(request));
 
     child.stdout.on('data', chunk => {
       stdout = Buffer.concat([stdout, Buffer.from(chunk)]);
       if (stdout.length > MAX_PROCEDURE_RESPONSE_BYTES) {
         try { child.kill(); } catch {}
-        finish(toolError('procedure_run failed: response_too_large'));
+        fail('response_too_large');
       }
     });
-    child.on('error', error => finish(toolError(`procedure_run failed: ${error.name}`)));
-    child.on('close', () => {
+    child.on('error', error => fail(`control_plane_child_error:${error.name}`));
+    child.on('close', (code, signal) => {
       if (settled) return;
       try {
         const parsed = JSON.parse(stdout.toString('utf8'));
+        let correlated = parsed;
+        if (parsed?.status === 'error' && correlationTaskId !== null) {
+          const resumableCorrelationTaskId = resumableProcedureCorrelation(
+            env,
+            correlationTaskId,
+            assignedTaskId,
+          );
+          correlated = { ...parsed };
+          delete correlated.resume_task_id;
+          if (resumableCorrelationTaskId !== null) {
+            correlated.resume_task_id = resumableCorrelationTaskId;
+          }
+        }
         finish({
-          content: [{ type: 'text', text: JSON.stringify(parsed) }],
-          structuredContent: parsed,
-          ...(parsed?.status === 'error' ? { isError: true } : {})
+          content: [{ type: 'text', text: JSON.stringify(correlated) }],
+          structuredContent: correlated,
+          ...(correlated?.status === 'error' ? { isError: true } : {})
         });
       } catch {
-        finish(toolError('procedure_run failed: invalid_control_plane_response'));
+        const termination = signal
+          ? `signal_${signal}`
+          : Number.isInteger(code)
+            ? `exit_${code}`
+            : 'unknown_exit';
+        fail(`invalid_control_plane_response:${termination}`);
       }
     });
 
@@ -232,7 +331,7 @@ const server = new McpServer(
   { name: 'chat-semantic-control-plane', version: VERSION },
   {
     instructions:
-      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations require fresh final-state verification. procedure_run admits only registered bounded procedures; Windows Case Desk accepts only case_id, note and reviewed status while PID/window/backend authority remains internal. No shell, arbitrary Python, backend selector, generic dispatch or arbitrary filesystem path is exposed.'
+      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations require fresh final-state verification. procedure_run admits only registered bounded procedures; Windows Case Desk accepts only case_id, one bounded note and status Approved or Needs Review while PID/window/backend authority remains internal. No shell, arbitrary Python, backend selector, generic dispatch or arbitrary filesystem path is exposed.'
   }
 );
 
@@ -296,7 +395,7 @@ server.registerTool('web_interact', {
 server.registerTool('procedure_run', {
   title: 'Run Verified Procedure',
   description:
-    'Run one registered bounded local procedure. verified_workspace_artifact_v1 accepts a leaf .txt artifact/content pair. windows_case_update_v1 accepts only a Case Desk case_id, one bounded note and status Approved or Needs Review. No PID, HWND, path, command, Python, backend or generic tool selector is accepted.',
+    'Run one registered bounded local procedure. verified_workspace_artifact_v1 accepts a leaf .txt artifact/content pair and returns resume_task_id only when a durable child run may exist or when resuming an existing task. windows_case_update_v1 accepts only a Case Desk case_id, one bounded note and status Approved or Needs Review. No PID, HWND, path, command, Python, backend or generic tool selector is accepted.',
   inputSchema: z.union([
     workspaceArtifactProcedureSchema,
     windowsCaseProcedureSchema

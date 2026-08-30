@@ -225,6 +225,7 @@ jobs:
             'runtime/semantic-projection/lib/runtime-backed-bridge-grounder.mjs',
             'runtime/semantic-projection/lib/runtime-backed-visual-grounder.mjs',
             'runtime/control_plane/__init__.py',
+            'runtime/control_plane/_verified_workspace_artifact_support.py',
             'runtime/control_plane/browser_observation.py',
             'runtime/control_plane/browser_transition.py',
             'runtime/control_plane/browser_transition_cli.py',
@@ -232,6 +233,11 @@ jobs:
             'runtime/control_plane/file_artifact_observation.py',
             'runtime/control_plane/verification.py',
             'runtime/control_plane/verified_workspace_artifact.py',
+            'runtime/control_plane/windows_case_update.py',
+            'runtime/control_plane/windows_file_pin.py',
+            'runtime/control_plane/windows_observation.py',
+            'runtime/control_plane/windows_transition.py',
+            'runtime/control_plane/working_state.py',
             'runtime/local_vision_adapter/__init__.py',
             'runtime/local_vision_adapter/benchmark.py',
             'runtime/local_vision_adapter/mark_grid.py',
@@ -254,12 +260,19 @@ jobs:
           foreach ($required in @(
             (Join-Path $installedRuntime 'semantic-projection/bin/semantic-control-plane-projection.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/browser-verification-bridge.mjs'),
+            (Join-Path $installedRuntime 'control_plane/_verified_workspace_artifact_support.py'),
             (Join-Path $installedRuntime 'control_plane/browser_observation.py'),
             (Join-Path $installedRuntime 'control_plane/browser_transition.py'),
             (Join-Path $installedRuntime 'control_plane/browser_transition_cli.py'),
             (Join-Path $installedRuntime 'control_plane/cli.py'),
             (Join-Path $installedRuntime 'control_plane/file_artifact_observation.py'),
             (Join-Path $installedRuntime 'control_plane/verification.py'),
+            (Join-Path $installedRuntime 'control_plane/verified_workspace_artifact.py'),
+            (Join-Path $installedRuntime 'control_plane/windows_case_update.py'),
+            (Join-Path $installedRuntime 'control_plane/windows_file_pin.py'),
+            (Join-Path $installedRuntime 'control_plane/windows_observation.py'),
+            (Join-Path $installedRuntime 'control_plane/windows_transition.py'),
+            (Join-Path $installedRuntime 'control_plane/working_state.py'),
             (Join-Path $installedRuntime 'semantic-projection/lib/semantic-vision-click-router.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/runtime-backed-visual-grounder.mjs'),
             (Join-Path $installedRuntime 'local_vision_adapter/native_bbox.py'),
@@ -284,8 +297,61 @@ jobs:
           }
 
           $workspace = Join-Path $env:RUNNER_TEMP 'semantic-installed-workspace'
+          $procedureState = Join-Path $env:RUNNER_TEMP 'semantic-installed-procedure-state'
+          Remove-Item -LiteralPath $workspace -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $procedureState -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path $workspace | Out-Null
+          New-Item -ItemType Directory -Force -Path $procedureState | Out-Null
           Set-Content -LiteralPath (Join-Path $workspace 'input.txt') -Value 'SEMANTIC_INSTALLED_INPUT' -Encoding utf8
+
+          $env:CHAT_LOCAL_FILES_ROOT = $workspace
+          $env:CHAT_PROCEDURE_STATE_ROOT = $procedureState
+          $env:CHAT_PROCEDURE_ALLOW_CANDIDATE = 'stage26-3a-qualification'
+          $cli = Join-Path $installedRuntime 'control_plane/cli.py'
+          $artifactName = 'installed-stage26-3c.txt'
+          $content = 'SEMANTIC_INSTALLED_STAGE26_3C_OK'
+          $requestJson = [ordered]@{
+            procedure = 'verified_workspace_artifact_v1'
+            artifact_name = $artifactName
+            content = $content
+          } | ConvertTo-Json -Compress
+
+          $resultRaw = $requestJson | & python $cli
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed procedure CLI first call failed with exit code $LASTEXITCODE`: $($resultRaw | Out-String)"
+          }
+          $result = $resultRaw | Out-String | ConvertFrom-Json
+          if ([string]$result.status -ne 'completed') {
+            throw "Installed procedure did not complete: $($result | ConvertTo-Json -Compress -Depth 8)"
+          }
+          if ([int]$result.action_count -ne 3 -or [string]$result.current_node -ne 'completed') {
+            throw "Installed procedure action graph drifted: $($result | ConvertTo-Json -Compress -Depth 8)"
+          }
+
+          $target = Join-Path $workspace ".chat-agent-platform\stage26-3a\$artifactName"
+          if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+            throw 'Installed procedure target is missing.'
+          }
+          if ([System.IO.File]::ReadAllText($target, [System.Text.Encoding]::UTF8) -ne $content) {
+            throw 'Installed procedure target bytes differ.'
+          }
+
+          $repeatRaw = $requestJson | & python $cli
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed procedure CLI repeat failed with exit code $LASTEXITCODE`: $($repeatRaw | Out-String)"
+          }
+          $repeat = $repeatRaw | Out-String | ConvertFrom-Json
+          if ([string]$repeat.status -ne 'abstained') {
+            throw "Installed procedure repeat did not abstain: $($repeat | ConvertTo-Json -Compress -Depth 8)"
+          }
+          if ([int]$repeat.action_count -ne 0 -or [string]$repeat.escalation_reason -ne 'target_already_exists') {
+            throw "Installed procedure repeat mutated or drifted: $($repeat | ConvertTo-Json -Compress -Depth 8)"
+          }
+          if ([System.IO.File]::ReadAllText($target, [System.Text.Encoding]::UTF8) -ne $content) {
+            throw 'Installed procedure repeat changed target bytes.'
+          }
+          Write-Host 'SEMANTIC_INSTALLED_PROCEDURE=PASS'
+          Write-Host 'SEMANTIC_INSTALLED_PROCEDURE_CLI=PASS'
 
           try {
             & (Join-Path $installedScripts 'start-semantic-profile.ps1') -FilesRoot $workspace -Port 3068 -ReadyTimeoutSeconds 120

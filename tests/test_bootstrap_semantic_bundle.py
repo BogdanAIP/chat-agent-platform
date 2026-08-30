@@ -7,6 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
 BOOTSTRAP_MANAGER = ROOT / "scripts" / "bootstrap-manager-runtime.ps1"
+PROCEDURE_RUNTIME = ROOT / "runtime" / "control_plane" / "verified_workspace_artifact.py"
 SEMANTIC_WORKFLOW = ROOT / ".github" / "workflows" / "semantic-projection.yml"
 
 
@@ -15,6 +16,7 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
         cls.manager = BOOTSTRAP_MANAGER.read_text(encoding="utf-8")
+        cls.procedure_runtime = PROCEDURE_RUNTIME.read_text(encoding="utf-8")
         cls.semantic_workflow = SEMANTIC_WORKFLOW.read_text(encoding="utf-8")
         cls.combined = f"{cls.bootstrap}\n{cls.manager}"
 
@@ -30,6 +32,7 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'runtime\\semantic-projection\\lib\\visual-grounding-bridge.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-bridge-grounder.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-visual-grounder.mjs',
+            'runtime\\control_plane\\_verified_workspace_artifact_support.py',
             'runtime\\control_plane\\browser_observation.py',
             'runtime\\control_plane\\browser_transition.py',
             'runtime\\control_plane\\browser_transition_cli.py',
@@ -37,6 +40,8 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'runtime\\control_plane\\file_artifact_observation.py',
             'runtime\\control_plane\\verification.py',
             'runtime\\control_plane\\verified_workspace_artifact.py',
+            'runtime\\control_plane\\windows_file_pin.py',
+            'runtime\\control_plane\\working_state.py',
             'config\\local-vision-runtime.json',
             'runtime\\local_vision_adapter\\native_bbox.py',
             'runtime\\local_vision_adapter\\production_grounder.py',
@@ -53,6 +58,18 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'captureBrowserObservation',
         ):
             self.assertIn(marker, self.combined)
+
+    def test_installed_workspace_procedure_copies_its_stage26_3c_module_closure(self) -> None:
+        for module, marker in (
+            (
+                "_verified_workspace_artifact_support",
+                'runtime\\control_plane\\_verified_workspace_artifact_support.py',
+            ),
+            ("windows_file_pin", 'runtime\\control_plane\\windows_file_pin.py'),
+            ("working_state", 'runtime\\control_plane\\working_state.py'),
+        ):
+            self.assertIn(f"from .{module} import", self.procedure_runtime)
+            self.assertIn(marker, self.manager)
 
     def test_installed_semantic_bundle_verifies_lock_root_pins(self) -> None:
         self.assertIn("ConvertFrom-Json -AsHashtable", self.manager)
@@ -84,6 +101,7 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'runtime\\semantic-projection\\lib\\visual-grounding-bridge.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-bridge-grounder.mjs',
             'runtime\\semantic-projection\\lib\\runtime-backed-visual-grounder.mjs',
+            'runtime\\control_plane\\_verified_workspace_artifact_support.py',
             'runtime\\control_plane\\browser_observation.py',
             'runtime\\control_plane\\browser_transition.py',
             'runtime\\control_plane\\browser_transition_cli.py',
@@ -91,6 +109,8 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
             'runtime\\control_plane\\file_artifact_observation.py',
             'runtime\\control_plane\\verification.py',
             'runtime\\control_plane\\verified_workspace_artifact.py',
+            'runtime\\control_plane\\windows_file_pin.py',
+            'runtime\\control_plane\\working_state.py',
             'runtime\\local_vision_adapter\\native_bbox.py',
             'runtime\\local_vision_adapter\\production_grounder.py',
             'runtime\\local_vision_adapter\\production_policy.py',
@@ -111,20 +131,45 @@ class BootstrapSemanticBundleTests(unittest.TestCase):
 
     def test_standalone_layout_fixture_copies_shared_verification_modules(self) -> None:
         for marker in (
+            "runtime/control_plane/_verified_workspace_artifact_support.py",
             "runtime/control_plane/browser_observation.py",
             "runtime/control_plane/browser_transition.py",
             "runtime/control_plane/browser_transition_cli.py",
+            "runtime/control_plane/cli.py",
             "runtime/control_plane/file_artifact_observation.py",
             "runtime/control_plane/verification.py",
+            "runtime/control_plane/verified_workspace_artifact.py",
+            "runtime/control_plane/windows_case_update.py",
+            "runtime/control_plane/windows_file_pin.py",
+            "runtime/control_plane/windows_observation.py",
+            "runtime/control_plane/windows_transition.py",
+            "runtime/control_plane/working_state.py",
             "runtime/semantic-projection/lib/browser-verification-bridge.mjs",
+            "control_plane/_verified_workspace_artifact_support.py",
             "control_plane/browser_observation.py",
             "control_plane/browser_transition.py",
             "control_plane/browser_transition_cli.py",
+            "control_plane/cli.py",
             "control_plane/file_artifact_observation.py",
             "control_plane/verification.py",
+            "control_plane/verified_workspace_artifact.py",
+            "control_plane/windows_case_update.py",
+            "control_plane/windows_file_pin.py",
+            "control_plane/windows_observation.py",
+            "control_plane/windows_transition.py",
+            "control_plane/working_state.py",
+            "CHAT_PROCEDURE_ALLOW_CANDIDATE",
             "SEMANTIC_INSTALLED_BROWSER_VERIFIER=PASS",
+            "SEMANTIC_INSTALLED_PROCEDURE=PASS",
+            "SEMANTIC_INSTALLED_PROCEDURE_CLI=PASS",
+            "verified_workspace_artifact_v1",
+            "target_already_exists",
         ):
             self.assertIn(marker, self.semantic_workflow)
+        self.assertNotIn(
+            "from control_plane.verified_workspace_artifact import run_verified_workspace_artifact",
+            self.semantic_workflow,
+        )
 
     def test_browser_verifier_bridge_is_bounded_and_not_generic_dispatch(self) -> None:
         self.assertIn("browser_transition_cli.py", self.manager)

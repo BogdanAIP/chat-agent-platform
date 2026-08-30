@@ -51,6 +51,23 @@ class Stage263BFileArtifactObservationTests(unittest.TestCase):
             self.assertEqual(after.ref.sequence, before.ref.sequence + 1)
             self.assertEqual(result.status, VerificationStatus.PASS)
 
+    def test_restart_can_continue_existing_stream_sequence(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir:
+            root = Path(root_dir)
+            target = root / "artifact.txt"
+            observer = FileArtifactObservationStream(
+                root=root,
+                subject="task:restart",
+                paths={"target": target},
+                stream_id="durable-stream",
+                initial_sequence=7,
+            )
+
+            snapshot = observer.observe()
+
+            self.assertEqual(snapshot.ref.stream_id, "durable-stream")
+            self.assertEqual(snapshot.ref.sequence, 8)
+
     def test_oversized_file_is_incomplete_not_false_digest_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir:
             root = Path(root_dir)
