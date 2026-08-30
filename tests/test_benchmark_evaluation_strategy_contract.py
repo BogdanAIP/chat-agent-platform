@@ -7,20 +7,25 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 CONTEXT = ROOT / "project-context"
 STRATEGY = CONTEXT / "BENCHMARK_EVALUATION_STRATEGY.md"
+DOCUMENT_STATUS = CONTEXT / "DOCUMENT_STATUS.md"
 REVIEW_RESEARCH = CONTEXT / "AUTOMATIC_REVIEWER_RESEARCH.md"
 
 
 class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.strategy = STRATEGY.read_text(encoding="utf-8")
+        self.document_status = DOCUMENT_STATUS.read_text(encoding="utf-8")
         self.review_research = REVIEW_RESEARCH.read_text(encoding="utf-8")
         self.folded = self.strategy.casefold()
 
-    def test_strategy_is_cross_capability_not_a_new_stage(self) -> None:
+    def test_strategy_is_registered_as_cross_capability_owner_not_a_new_stage(self) -> None:
         self.assertIn("AUTHORITATIVE CROSS-CAPABILITY EVALUATION STRATEGY", self.strategy)
         self.assertIn("not a new roadmap stage", self.folded)
         self.assertIn("independent public benchmark", self.folded)
         self.assertIn("immediate implementation priority remains the bounded automatic reviewer", self.folded)
+        self.assertIn("BENCHMARK_EVALUATION_STRATEGY.md", self.document_status)
+        self.assertIn("AUTHORITATIVE CROSS-CAPABILITY EVALUATION STRATEGY", self.document_status)
+        self.assertIn("Evaluation-strategy discovery rule", self.document_status)
 
     def test_external_benchmarks_do_not_replace_project_acceptance(self) -> None:
         for concept in (
