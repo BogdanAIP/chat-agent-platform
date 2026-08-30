@@ -241,10 +241,19 @@ function runProcedure(request) {
       if (settled) return;
       try {
         const parsed = JSON.parse(stdout.toString('utf8'));
+        // Once the child has started, the parent cannot know whether durable
+        // workspace state was written before a valid error response. Preserve
+        // the parent-owned correlation on every valid workspace child error so
+        // a potentially durable task is never orphaned behind private state.
+        const correlated = (
+          parsed?.status === 'error' && correlationTaskId !== null
+        )
+          ? { ...parsed, resume_task_id: correlationTaskId }
+          : parsed;
         finish({
-          content: [{ type: 'text', text: JSON.stringify(parsed) }],
-          structuredContent: parsed,
-          ...(parsed?.status === 'error' ? { isError: true } : {})
+          content: [{ type: 'text', text: JSON.stringify(correlated) }],
+          structuredContent: correlated,
+          ...(correlated?.status === 'error' ? { isError: true } : {})
         });
       } catch {
         const termination = signal
