@@ -100,6 +100,40 @@ class Stage263CCheckpointProgressValidationTests(unittest.TestCase):
             relative_target=self.relative_target,
         )
 
+    def durable_preflight_checkpoint(
+        self,
+        workspace_root: Path,
+        state_root: Path,
+    ) -> tuple[Path, dict]:
+        request = {
+            "procedure": PROCEDURE_ID,
+            "artifact_name": self.artifact_name,
+            "content": self.content,
+        }
+        with mock.patch.object(
+            workspace_artifact,
+            "_exclusive_create_file",
+            side_effect=SystemExit("crash before physical stage delivery"),
+        ):
+            with self.assertRaisesRegex(SystemExit, "before physical stage delivery"):
+                workspace_artifact.run_verified_workspace_artifact(
+                    request,
+                    workspace_root=workspace_root,
+                    state_root=state_root,
+                    candidate_admission=QUALIFICATION_ADMISSION,
+                )
+
+        checkpoints = list(state_root.glob("*.json"))
+        self.assertEqual(len(checkpoints), 1)
+        checkpoint_path = checkpoints[0]
+        checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        self.assertEqual(checkpoint["status"], "running")
+        self.assertEqual(checkpoint["current_node"], "preflight")
+        self.assertEqual(checkpoint["action_count"], 0)
+        self.assertIsInstance(checkpoint["working_state"], dict)
+        self.assertIsInstance(checkpoint["prepared_intent"], dict)
+        return checkpoint_path, checkpoint
+
     def test_schema2_running_preflight_cannot_claim_exhausted_action_budget(self) -> None:
         with self.assertRaisesRegex(ValueError, "running action progress mismatch"):
             self.validate(self.corrupt_preflight_checkpoint())
@@ -197,6 +231,77 @@ class Stage263CCheckpointProgressValidationTests(unittest.TestCase):
                 side_effect=AssertionError("completed target certification must not be reached"),
             ):
                 with self.assertRaisesRegex(ValueError, "completed node is invalid"):
+                    workspace_artifact.run_verified_workspace_artifact(
+                        request,
+                        workspace_root=workspace_root,
+                        state_root=state_root,
+                        candidate_admission=QUALIFICATION_ADMISSION,
+                    )
+
+    def test_running_receipt_progress_requires_matching_working_state_history(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_text, tempfile.TemporaryDirectory() as state_text:
+            workspace_root = Path(workspace_text)
+            state_root = Path(state_text)
+            checkpoint_path, checkpoint = self.durable_preflight_checkpoint(
+                workspace_root,
+                state_root,
+            )
+            task_id = checkpoint["task_id"]
+            checkpoint["current_node"] = "staged_verified"
+            checkpoint["action_count"] = 1
+            checkpoint["transition_receipts"] = self.receipt_history()[:1]
+            checkpoint["staging_file_identity"] = dict(self.strong_identity)
+            checkpoint["prepared_intent"] = None
+            checkpoint_path.write_text(json.dumps(checkpoint), encoding="utf-8")
+
+            request = {
+                "procedure": PROCEDURE_ID,
+                "artifact_name": self.artifact_name,
+                "content": self.content,
+                "resume_task_id": task_id,
+            }
+            with mock.patch.object(
+                workspace_artifact,
+                "_verify_current_state",
+                side_effect=AssertionError("filesystem observation must not be reached"),
+            ):
+                with self.assertRaisesRegex(ValueError, "WorkingState progress mismatch"):
+                    workspace_artifact.run_verified_workspace_artifact(
+                        request,
+                        workspace_root=workspace_root,
+                        state_root=state_root,
+                        candidate_admission=QUALIFICATION_ADMISSION,
+                    )
+
+    def test_completed_receipts_require_matching_working_state_history(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_text, tempfile.TemporaryDirectory() as state_text:
+            workspace_root = Path(workspace_text)
+            state_root = Path(state_text)
+            checkpoint_path, checkpoint = self.durable_preflight_checkpoint(
+                workspace_root,
+                state_root,
+            )
+            task_id = checkpoint["task_id"]
+            checkpoint["status"] = "completed"
+            checkpoint["current_node"] = "completed"
+            checkpoint["action_count"] = MAX_ACTIONS
+            checkpoint["transition_receipts"] = self.receipt_history()
+            checkpoint["target_file_identity"] = dict(self.strong_identity)
+            checkpoint["prepared_intent"] = None
+            checkpoint_path.write_text(json.dumps(checkpoint), encoding="utf-8")
+
+            request = {
+                "procedure": PROCEDURE_ID,
+                "artifact_name": self.artifact_name,
+                "content": self.content,
+                "resume_task_id": task_id,
+            }
+            with mock.patch.object(
+                workspace_artifact,
+                "_verify_current_state",
+                side_effect=AssertionError("completed target certification must not be reached"),
+            ):
+                with self.assertRaisesRegex(ValueError, "WorkingState progress mismatch"):
                     workspace_artifact.run_verified_workspace_artifact(
                         request,
                         workspace_root=workspace_root,
