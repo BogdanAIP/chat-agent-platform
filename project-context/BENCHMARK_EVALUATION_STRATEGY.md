@@ -85,7 +85,7 @@ ReviewBench
  -> later additional review suites only when they add a measured gap
 ```
 
-The reviewer-specific production/lifecycle decision remains owned by `AUTOMATIC_REVIEWER_RESEARCH.md`.
+The reviewer-specific production/lifecycle decision remains owned by `AUTOMATIC_REVIEWER_RESEARCH.md`. That Brief is the first concrete consumer of this cross-capability strategy; its Harbor choice is reviewer-specific and does not make Harbor the universal CAP benchmark harness.
 
 ### Browser — evaluate progressively rather than waiting for the final agent
 
