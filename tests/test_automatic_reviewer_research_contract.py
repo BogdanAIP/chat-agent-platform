@@ -35,7 +35,8 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
                 self.assertIn(phrase, self.research)
 
         folded = self.research.casefold()
-        self.assertIn("general same-task continuation", folded)
+        self.assertIn("general `waiting -> wake -> planner continuation` semantics", folded)
+        self.assertIn("same-task-continuation research seam", folded)
         self.assertIn("generic scheduler/event bus", folded)
         self.assertIn("automatic wake/resampling of the unfinished development conversation", folded)
 
