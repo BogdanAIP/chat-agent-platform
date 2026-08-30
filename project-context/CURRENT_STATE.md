@@ -123,6 +123,29 @@ The draft must still earn its required exact-head deterministic/fault-injection 
 
 No draft PR text or implementation is accepted merely because it appears here; live code/evidence remains authoritative.
 
+## Post-26.3C immediate priority — automatic independent review
+
+After the current 26.3C production integration is accepted/closed, the next immediate development priority is to productionize the **bounded automatic independent-review path** proven experimentally by PR #138 before beginning the broad real-application coverage gate.
+
+The immediate product/process problem is narrow and concrete:
+
+```text
+PR reaches review-ready exact head
+ -> freeze BASE_SHA + HEAD_SHA
+ -> launch a fresh ordinary-ChatGPT context without a user click
+ -> run the repository code-review contract with GitHub read-only evidence
+ -> return REVIEW_RESULT_V1 to the development/review lifecycle
+ -> reject stale-head results and repeat after material fixes
+```
+
+This exists because fresh ordinary-ChatGPT semantic review is the required primary review gate in `AGENTS.md`, while Codex Review is valuable but optional and may be unavailable because of quota. Automating the required reviewer must preserve fresh-context independence, exact-ref binding, read-only review authority, fail-closed result handling and the current `code-review` skill contract; it must not turn the reviewer into another developer context.
+
+PR #138's successful one-shot deep-link/autosend/scheduler probes are evidence for this next bounded consumer, not themselves production acceptance. Before productionizing the review lifecycle, rerun fresh Stage Research against the then-current repo/harness state and define the minimum scheduler/result-handoff/staleness semantics required for the reviewer.
+
+Review-automation runs should retain bounded non-secret operational evidence useful for later qualification: run/correlation identity, trigger reason, exact reviewed refs, launch/delivery outcome, fresh-context proof where available, result disposition, stale detection, duplicate/missed wake, timeout/failure class and whether manual intervention was required. This evidence is intended to build a real test corpus during development.
+
+The reviewer use case does **not** by itself authorize general same-task autonomous continuation. General `unfinished task -> WAITING -> wake -> planner continuation` remains a separate future Stage Research seam; experience from the bounded reviewer may later inform that research.
+
 ## Architecture research rule now in force
 
 Merged #127 strengthened `stage-research` so materially new persistence/recovery/retry/concurrency/identity/authority mechanisms require direct solution-domain evidence, materially distinct alternatives and a complete failure/crash matrix before production code.
@@ -154,6 +177,7 @@ Immediate work is:
 ```text
 finish the researched Stage 26.3C production WorkingState/reconciliation integration
  -> prove restart/no-duplicate-effect behavior on the real procedure path
+ -> productionize bounded automatic fresh-ChatGPT review infrastructure from the #138 evidence
 ```
 
 Then continue according to `ROADMAP.md` with broader real-app physical coverage, bounded OpenAdapt integration, 26.4 candidate skills and 26.5 hybrid integration.

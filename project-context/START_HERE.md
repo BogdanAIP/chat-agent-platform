@@ -21,6 +21,8 @@ Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs 
 
 Stage 26.3B is accepted/closed for its recorded representative scope; Stage 26.3C WorkingState/reconciliation/budget/LoopGuard L1 foundation is accepted through #124; current release-critical work is production/restart integration of that accepted foundation.
 
+After 26.3C closes, the next immediate development priority is the bounded automatic independent-review infrastructure proven experimentally in PR #138, before the broad real-application coverage gate. This priority is specifically about making the already-required fresh ordinary-ChatGPT semantic review fast and automatic; it does not by itself authorize general same-task autonomous wake/resume.
+
 For the active PR/design/check details, read `CURRENT_STATE.md` and resolve the live PR rather than copying that snapshot here.
 
 ## Current public route
@@ -102,20 +104,26 @@ WorkingState stores structured operational state, never private chain-of-thought
 
 ## Merge rule
 
-For runtime/security/recovery/authority changes:
+For material runtime/security/recovery/authority/acceptance changes:
 
 ```text
 stage-research when applicable
  -> implementation
  -> focused tests
- -> required hosted CI on exact head
- -> Codex Review / independent review when required and available
- -> fix findings
- -> repeat review after material fixes where appropriate
+ -> preliminary required hosted CI on intended head
+ -> freeze exact BASE_SHA + HEAD_SHA
+ -> required fresh ordinary-ChatGPT semantic review via code-review skill
+ -> optional Codex Review when quota is available
+ -> validate/fix findings
+ -> material fixes invalidate the prior review
+ -> fresh exact-head ChatGPT review
  -> final exact-head CI / required physical acceptance
+ -> verify reviewed refs still match
  -> merge
 ```
 
-Documentation/process-only changes do not require a physical gate unless they change acceptance/runtime authority.
+The fresh ordinary-ChatGPT review is the primary required semantic review. Codex Review is additional evidence when available and quota exhaustion does not substitute for or block the primary review. The post-26.3C review-automation priority exists to automate creation of that fresh review context, exact-ref binding and result handoff without weakening the `code-review` contract.
+
+Documentation/process-only changes do not require a physical gate unless they change acceptance/runtime authority. Material changes to merge/review semantics remain review-significant under `AGENTS.md`.
 
 `AGENTS.md` owns development/merge method. `CURRENT_STATE.md` owns live accepted/current boundary. `ROADMAP.md` owns release order. `DOCUMENT_STATUS.md` owns document roles.

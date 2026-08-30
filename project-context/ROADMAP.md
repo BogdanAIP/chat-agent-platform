@@ -56,6 +56,7 @@ Exact PR/physical evidence belongs in `CURRENT_STATE.md` / `EVIDENCE_INDEX.md`, 
 
 ```text
 26.3C consequence-bearing production integration + restart/reconciliation acceptance
+ -> bounded automatic independent-review infrastructure
  -> broad real-application physical coverage gate
  -> bounded OpenAdapt integration spike
  -> 26.4 Human Demo -> verified candidate skill / skill lineage
@@ -63,6 +64,8 @@ Exact PR/physical evidence belongs in `CURRENT_STATE.md` / `EVIDENCE_INDEX.md`, 
  -> 27 Distribution & Maintenance
  -> 28 Clean User E2E / stable release
 ```
+
+The automatic-review item is **developer/release assurance infrastructure**, not a new product capability family or a general autonomous-wake stage. It is placed immediately after 26.3C because fresh ordinary-ChatGPT semantic review is already the required primary merge gate, while Codex Review is optional and quota-dependent. The bounded reviewer path should remove the current manual launch/result-handoff friction before the larger coverage/skill/hybrid work multiplies review cycles.
 
 Broad real-app coverage is an acceptance objective, not a new architecture family.
 
@@ -134,6 +137,41 @@ Do not expand 26.3C into Track M, a generic event bus, scheduler, second planner
 
 ---
 
+# Post-26.3C — bounded automatic independent-review infrastructure
+
+Productionize the smallest reliable path that automates the repository's already-required fresh ordinary-ChatGPT semantic review. PR #138's one-shot deep-link/autosend/scheduler work is experimental evidence for this item, not automatic production acceptance.
+
+Target lifecycle:
+
+```text
+review-ready PR / intended exact head
+ -> freeze BASE_SHA + HEAD_SHA
+ -> fresh ordinary-ChatGPT context
+ -> repository code-review skill + read-only GitHub evidence
+ -> REVIEW_RESULT_V1
+ -> bounded result handoff to the development lifecycle
+ -> stale-head rejection / fresh review after material fixes
+```
+
+The implementation must preserve the existing review contract rather than weakening it for automation. At minimum preserve:
+
+- a genuinely fresh ordinary-ChatGPT review context;
+- exact repository / PR / BASE_SHA / HEAD_SHA binding;
+- independent reconstruction of evidence from the repository;
+- read-only reviewer authority over production code/repository state;
+- fail-closed handling of missing, malformed, stale or ambiguous review results;
+- no representation of unavailable Codex Review as completed.
+
+Codex Review remains useful optional independent evidence when quota is available. It is not the primary required reviewer and quota exhaustion must not stop the release process when the required ChatGPT review and all other gates pass.
+
+Before production implementation, run fresh Stage Research against the then-current harness/repository state. Keep the first production consumer narrow: automatic code review. Do not silently generalize the mechanism into recurring arbitrary task execution, worker rotation, a generic scheduler/event bus or broad same-task autonomous continuation.
+
+Instrument review launches so development naturally accumulates a bounded acceptance corpus for later continuation research. Useful non-secret evidence includes correlation/run identity, trigger reason, exact refs, launch/delivery result, fresh-context proof where available, result disposition, stale detection, duplicate/missed wake, timeout/failure class and manual-intervention requirement.
+
+Completion condition: the required fresh ordinary-ChatGPT review can be launched and its exact-head `REVIEW_RESULT_V1` can be returned/validated through the normal development lifecycle without a routine user click/copy-paste step, while stale/duplicate/failed runs remain fail-closed.
+
+---
+
 # Broad real-application physical coverage gate
 
 Representative L3 gates are vertical proofs. Broaden coverage across multiple task/application classes and environmental variants.
@@ -148,7 +186,7 @@ Minimum families should include multiple examples from:
 
 Variants should include DPI, moved/resized windows, focus changes, similar windows/records, unexpected dialogs/overlays/noise and reviewed structure-to-vision fallback where applicable.
 
-Success means a materially broader characterized accepted scope, not universal Windows accuracy.
+Define a finite acceptance matrix before expanding this gate so it cannot become open-ended application testing. Success means a materially broader characterized accepted scope, not universal Windows accuracy.
 
 ---
 
@@ -171,11 +209,13 @@ human demonstration
 
 No upstream verdict becomes unconditional project `PASS`/`DONE`. No raw workflow catalog, generic desktop executor, shell/Python authority or second planner is introduced merely for the spike.
 
-If upstream mechanics do not fit the exact current failure/authority model, keep them qualified but outside the production path.
+Before implementation, define a bounded exit decision such as `ADOPT`, `ADAPT` or `REJECT` for each evaluated role. If upstream mechanics do not fit the exact current failure/authority model, keep them qualified but outside the production path rather than extending the spike indefinitely.
 
 ---
 
 # 26.4 — Human Demo -> verified candidate skill / lineage
+
+Before broad candidate-skill accumulation, freeze the minimum stable contract for subtask goal, completion criteria, applicability/preconditions, evidence references and candidate lineage so 26.5 does not require avoidable migration of accumulated skills.
 
 Compile demonstrations into:
 
@@ -220,13 +260,17 @@ Do not adopt UFO HostAgent/AppAgent planner hierarchy or UFO³ Galaxy as the cur
 
 Trusted-site full-browser/JS/CDP authority may be promoted only after its Site Capability/network/security boundary is implemented, reviewed and physically accepted.
 
+Before 26.5 acceptance, rerun a representative regression subset of the earlier broad real-application physical matrix because hybrid routing/cross-capability changes can invalidate assumptions established before integration.
+
 ---
 
 # Future research seam — same-task continuation / wake
 
 This is **not a new roadmap stage, not current architecture acceptance and not part of 26.3C implementation**.
 
-After consequence-bearing 26.3C restart/reconciliation behavior is physically credible, run a separate Stage Research before adding any mechanism that can automatically continue the **same unfinished task** without a new user message.
+The bounded automatic reviewer is an intentional first real consumer of some adjacent launch/correlation mechanics and should accumulate evidence useful here, but reviewer automation does **not** by itself authorize general continuation of unfinished user tasks.
+
+After consequence-bearing 26.3C restart/reconciliation behavior is physically credible and enough bounded reviewer evidence exists to sharpen the question, run separate Stage Research before adding any mechanism that can automatically continue the **same unfinished task** without a new user message.
 
 Keep the semantic distinction explicit:
 
@@ -325,6 +369,8 @@ After core reliability and broad physical scope are credible:
 - make dependency/runtime ownership explicit;
 - close/reassess release-relevant `TECH_DEBT.md`;
 - preserve fail-closed security boundaries.
+
+Run an earlier non-blocking clean/isolated packaging smoke once the post-26.3C runtime is stable enough to expose hidden developer-machine assumptions. Fundamental packaging blockers discovered there must be fixed before they contaminate later stages, but full installer/update/repair/uninstall work remains Stage 27.
 
 Current implementation remains primarily Python + Node/MJS + PowerShell/Windows glue. Rust is not a release prerequisite.
 
