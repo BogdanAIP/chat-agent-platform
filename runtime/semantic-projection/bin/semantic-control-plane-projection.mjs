@@ -212,17 +212,29 @@ function runProcedure(request) {
 
     let stdout = Buffer.alloc(0);
     let settled = false;
+    let spawned = false;
+    child.once('spawn', () => {
+      spawned = true;
+    });
     const finish = (result) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       resolve(result);
     };
-    const fail = (reason) => finish(
-      correlationTaskId === null
-        ? toolError(`procedure_run failed: ${reason}`)
-        : procedureFailure(reason, correlationTaskId)
-    );
+    const fail = (reason) => {
+      const resumableCorrelationTaskId = (
+        correlationTaskId !== null
+        && (assignedTaskId === null || spawned)
+      )
+        ? correlationTaskId
+        : null;
+      finish(
+        correlationTaskId === null
+          ? toolError(`procedure_run failed: ${reason}`)
+          : procedureFailure(reason, resumableCorrelationTaskId)
+      );
+    };
 
     const timer = setTimeout(() => {
       try { child.kill(); } catch {}
@@ -241,12 +253,14 @@ function runProcedure(request) {
       if (settled) return;
       try {
         const parsed = JSON.parse(stdout.toString('utf8'));
-        // Once the child has started, the parent cannot know whether durable
-        // workspace state was written before a valid error response. Preserve
-        // the parent-owned correlation on every valid workspace child error so
-        // a potentially durable task is never orphaned behind private state.
+        // Only a successfully spawned child can possibly have written new
+        // durable workspace state. Preserve the parent-owned correlation on
+        // valid workspace child errors after that boundary; resume calls retain
+        // their caller-known id even when a new child cannot be spawned.
         const correlated = (
-          parsed?.status === 'error' && correlationTaskId !== null
+          parsed?.status === 'error'
+          && correlationTaskId !== null
+          && (assignedTaskId === null || spawned)
         )
           ? { ...parsed, resume_task_id: correlationTaskId }
           : parsed;
@@ -304,7 +318,7 @@ const server = new McpServer(
   { name: 'chat-semantic-control-plane', version: VERSION },
   {
     instructions:
-      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations require fresh final-state verification. procedure_run admits only registered bounded procedures; Windows Case Desk accepts only case_id, note and reviewed status while PID/window/backend authority remains internal. No shell, arbitrary Python, backend selector, generic dispatch or arbitrary filesystem path is exposed.'
+      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations require fresh final-state verification. procedure_run admits only registered bounded procedures; Windows Case Desk accepts only case_id, one bounded note and status Approved or Needs Review while PID/window/backend authority remains internal. No shell, arbitrary Python, backend selector, generic dispatch or arbitrary filesystem path is exposed.'
   }
 );
 
