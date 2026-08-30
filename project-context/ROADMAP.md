@@ -154,16 +154,20 @@ Do not reopen 26.3C merely to add another consumer or variant. Material new pers
 
 Productionize the smallest reliable path that automates the repository's already-required fresh ordinary-ChatGPT semantic review. PR #138's one-shot deep-link/autosend/scheduler work is experimental evidence for this item, not automatic production acceptance.
 
+Fresh Stage Research for this item is owned in `AUTOMATIC_REVIEWER_RESEARCH.md`. Its current decision is **NARROW**: implementation may proceed only for the bounded exact-head reviewer launch/result lifecycle defined there. A material new scheduler, result bus, automatic same-task developer wake, reviewer mutation authority or equivalent new mechanism requires research re-entry rather than silent scope expansion.
+
 Target lifecycle:
 
 ```text
 review-ready PR / intended exact head
  -> freeze BASE_SHA + HEAD_SHA
+ -> bounded automatic launch operation + private run correlation
  -> fresh ordinary-ChatGPT context
- -> repository code-review skill + read-only GitHub evidence
+ -> repository code-review skill + independent GitHub evidence
  -> REVIEW_RESULT_V1
- -> bounded result handoff to the development lifecycle
- -> stale-head rejection / fresh review after material fixes
+ -> one bounded result-evidence handoff
+ -> development-side result + live-identity revalidation
+ -> stale/duplicate/malformed/ambiguous result rejection
 ```
 
 The implementation must preserve the existing review contract rather than weakening it for automation. At minimum preserve:
@@ -171,17 +175,24 @@ The implementation must preserve the existing review contract rather than weaken
 - a genuinely fresh ordinary-ChatGPT review context;
 - exact repository / PR / BASE_SHA / HEAD_SHA binding;
 - independent reconstruction of evidence from the repository;
-- read-only reviewer authority over production code/repository state;
-- fail-closed handling of missing, malformed, stale or ambiguous review results;
+- reviewer read-only authority over production code/branch/configuration, with only the bounded result-publication seam selected by the research contract;
+- fail-closed handling of missing, malformed, stale, edited, wrong-author, duplicated or otherwise ambiguous review results;
+- no blind automatic relaunch after ambiguous dispatch/Send;
 - no representation of unavailable Codex Review as completed.
 
 Codex Review remains useful optional independent evidence when quota is available. It is not the primary required reviewer and quota exhaustion must not stop the release process when the required ChatGPT review and all other gates pass.
 
-Before production implementation, run fresh Stage Research against the current post-26.3C harness/repository state. Keep the first production consumer narrow: automatic code review. Do not silently generalize the mechanism into recurring arbitrary task execution, worker rotation, a generic scheduler/event bus or broad same-task autonomous continuation.
+Keep the first production consumer narrow: automatic code review. Do not silently generalize the mechanism into recurring arbitrary task execution, worker rotation, a generic scheduler/event bus or broad same-task autonomous continuation.
 
-Instrument review launches so development naturally accumulates a bounded acceptance corpus for later continuation research. Useful non-secret evidence includes correlation/run identity, trigger reason, exact refs, launch/delivery result, fresh-context proof where available, result disposition, stale detection, duplicate/missed wake, timeout/failure class and manual-intervention requirement.
+Instrument review launches so development naturally accumulates a bounded acceptance corpus for later continuation research. Useful non-secret evidence includes correlation/run identity, trigger reason, exact refs, launch/delivery result, fresh-context proof where available, result disposition, stale detection, duplicate/missed delivery, timeout/failure class and manual-intervention requirement.
 
-Completion condition: the required fresh ordinary-ChatGPT review can be launched and its exact-head `REVIEW_RESULT_V1` can be returned/validated through the normal development lifecycle without a routine user click/copy-paste step, while stale/duplicate/failed runs remain fail-closed.
+After the first physically working automatic-review E2E, add the **Harbor evaluation seam** before treating the automatic reviewer as stable replacement infrastructure. Harbor remains evaluation-only, not production runtime/authority. Use ReviewBench as the first small baseline, then bounded SWE-Review-Bench and CR-Bench/CR-Evaluator controls as defined in `AUTOMATIC_REVIEWER_RESEARCH.md`. Keep reviewer semantic quality metrics separate from CAP lifecycle reliability metrics, and preserve development/holdout separation so benchmark tuning does not masquerade as independent evidence.
+
+The first benchmark run establishes a baseline rather than an invented fixed threshold. A later acceptance target must be evidence-based relative to the current/manual fresh reviewer and available comparison reviewers. Removing UI friction is not sufficient if semantic review quality materially regresses.
+
+Functional E2E completion condition: the required fresh ordinary-ChatGPT review can be launched and its exact-head `REVIEW_RESULT_V1` can be returned/validated through the normal development lifecycle without a routine user launch/paste/result-copy step, while stale/duplicate/failed/ambiguous runs remain fail-closed.
+
+Stable-infrastructure completion condition: the functional E2E condition is met **and** the Harbor-backed baseline/quality comparison has been recorded with semantic-quality and lifecycle-reliability evidence kept separate, with no material semantic-quality regression accepted merely for automation convenience.
 
 ---
 
