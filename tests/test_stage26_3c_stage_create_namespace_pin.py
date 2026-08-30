@@ -29,23 +29,142 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
                 f"stdout={completed.stdout!r} stderr={completed.stderr!r}"
             )
 
+    @staticmethod
+    def _open_reparse_writer(path: Path):
+        (
+            api_ctypes,
+            create_file,
+            close_handle,
+            _,
+            _,
+            _,
+            _,
+        ) = windows_file_pin._win32_api()
+        handle = create_file(
+            str(path),
+            0x00000100,  # FILE_WRITE_ATTRIBUTES
+            0x00000001 | 0x00000002 | 0x00000004,  # READ|WRITE|DELETE sharing
+            None,
+            windows_file_pin._OPEN_EXISTING,
+            windows_file_pin._FILE_FLAG_OPEN_REPARSE_POINT
+            | windows_file_pin._FILE_FLAG_BACKUP_SEMANTICS,
+            None,
+        )
+        invalid = api_ctypes.c_void_p(-1).value
+        if handle == invalid:
+            code = api_ctypes.get_last_error()
+            raise OSError(code, api_ctypes.FormatError(code), str(path))
+        return api_ctypes, handle, close_handle
+
+    @staticmethod
+    def _set_mount_point(handle, target: Path) -> None:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        device_io_control = kernel32.DeviceIoControl
+        device_io_control.argtypes = [
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+            wintypes.LPVOID,
+        ]
+        device_io_control.restype = wintypes.BOOL
+
+        substitute = "\\??\\" + str(target.resolve())
+        printed = str(target.resolve())
+        substitute_bytes = substitute.encode("utf-16-le")
+        printed_bytes = printed.encode("utf-16-le")
+        path_buffer = substitute_bytes + b"\x00\x00" + printed_bytes + b"\x00\x00"
+        substitute_offset = 0
+        substitute_length = len(substitute_bytes)
+        print_offset = substitute_length + 2
+        print_length = len(printed_bytes)
+        mount_payload = (
+            substitute_offset.to_bytes(2, "little")
+            + substitute_length.to_bytes(2, "little")
+            + print_offset.to_bytes(2, "little")
+            + print_length.to_bytes(2, "little")
+            + path_buffer
+        )
+        tag = 0xA0000003  # IO_REPARSE_TAG_MOUNT_POINT
+        header = (
+            tag.to_bytes(4, "little")
+            + len(mount_payload).to_bytes(2, "little")
+            + b"\x00\x00"
+        )
+        payload = header + mount_payload
+        buffer = ctypes.create_string_buffer(payload, len(payload))
+        returned = wintypes.DWORD()
+        if not device_io_control(
+            handle,
+            0x000900A4,  # FSCTL_SET_REPARSE_POINT
+            buffer,
+            len(payload),
+            None,
+            0,
+            ctypes.byref(returned),
+            None,
+        ):
+            code = ctypes.get_last_error()
+            raise OSError(code, ctypes.FormatError(code), str(target))
+
+    @staticmethod
+    def _delete_mount_point(handle) -> None:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        device_io_control = kernel32.DeviceIoControl
+        device_io_control.argtypes = [
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+            wintypes.LPVOID,
+        ]
+        device_io_control.restype = wintypes.BOOL
+        tag = 0xA0000003
+        payload = tag.to_bytes(4, "little") + b"\x00\x00\x00\x00"
+        buffer = ctypes.create_string_buffer(payload, len(payload))
+        returned = wintypes.DWORD()
+        if not device_io_control(
+            handle,
+            0x000900AC,  # FSCTL_DELETE_REPARSE_POINT
+            buffer,
+            len(payload),
+            None,
+            0,
+            ctypes.byref(returned),
+            None,
+        ):
+            code = ctypes.get_last_error()
+            raise OSError(code, ctypes.FormatError(code))
+
     def test_stage_create_holds_namespace_pins_before_exclusive_open(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
-            original_create_handle = windows_file_pin._create_new_pinned_handle
+            original_create_handle = windows_file_pin._create_new_pinned_handle_at
             attack_ran = False
             blocked: list[OSError] = []
 
             @contextmanager
-            def attack_then_create(path: Path):
+            def attack_then_create(parent_handle, path: Path):
                 nonlocal attack_ran
                 if not attack_ran:
                     attack_ran = True
-                    # _create_new_pinned_handle is entered only after the trusted
+                    # The rooted leaf helper is entered only after the trusted
                     # descendant namespace has been pinned. Renaming either
                     # reserved directory must therefore be denied before the
-                    # exclusive leaf create can resolve its path.
+                    # exclusive leaf create is dispatched.
                     for directory in (path.parent, path.parent.parent):
                         moved = directory.with_name(directory.name + ".retargeted")
                         try:
@@ -56,7 +175,7 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
                             self.fail(
                                 f"stage-create namespace pin allowed replacement precursor for {directory}"
                             )
-                with original_create_handle(path) as created:
+                with original_create_handle(parent_handle, path) as created:
                     yield created
 
             self.assertIs(
@@ -72,7 +191,7 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
             }
             with patch.object(
                 windows_file_pin,
-                "_create_new_pinned_handle",
+                "_create_new_pinned_handle_at",
                 new=attack_then_create,
             ):
                 result = workspace_artifact.run_verified_workspace_artifact(
@@ -88,6 +207,61 @@ class Stage263CStageCreateNamespacePinTests(unittest.TestCase):
             self.assertEqual(result["action_count"], 3)
             target = workspace / ".chat-agent-platform" / "stage26-3a" / "stage-create-pin.txt"
             self.assertEqual(target.read_text(encoding="utf-8"), "PINNED_STAGE_CREATE")
+
+    def test_stage_create_reparse_insert_after_check_cannot_escape_rooted_leaf_create(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir, tempfile.TemporaryDirectory() as external_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            external = Path(external_dir)
+            name = "rooted-reparse-race.txt"
+            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
+            original_create = windows_file_pin._create_new_pinned_handle_at
+            attack_ran = False
+            escaped_during_create = False
+
+            @contextmanager
+            def reparse_then_rooted_create(parent_handle, path: Path):
+                nonlocal attack_ran, escaped_during_create
+                attack_ran = True
+                _, attack_handle, close_handle = self._open_reparse_writer(path.parent)
+                reparse_set = False
+                try:
+                    self._set_mount_point(attack_handle, external)
+                    reparse_set = True
+                    with original_create(parent_handle, path) as created:
+                        escaped_during_create = (external / path.name).exists()
+                        yield created
+                finally:
+                    if reparse_set:
+                        self._delete_mount_point(attack_handle)
+                    close_handle(attack_handle)
+
+            with patch.object(
+                windows_file_pin,
+                "_create_new_pinned_handle_at",
+                new=reparse_then_rooted_create,
+            ):
+                result = workspace_artifact.run_verified_workspace_artifact(
+                    {
+                        "procedure": workspace_artifact.PROCEDURE_ID,
+                        "artifact_name": name,
+                        "content": "MUST_NOT_ESCAPE_ROOTED_CREATE",
+                    },
+                    workspace_root=workspace,
+                    state_root=state,
+                    candidate_admission=workspace_artifact.QUALIFICATION_ADMISSION,
+                )
+
+            self.assertTrue(attack_ran)
+            self.assertFalse(
+                escaped_during_create,
+                "handle-relative NtCreateFile traversed the raced parent reparse point",
+            )
+            self.assertFalse((external / f".{name}.{result['task_id']}.staging").exists())
+            self.assertEqual(result["status"], "abstained")
+            self.assertEqual(result["action_count"], 0)
+            self.assertEqual(result["escalation_reason"], "delivery_error_confirmed_not_applied")
+            self.assertFalse(list(reserved.glob(f".{name}.*.staging")))
 
     def test_stage_create_leaf_pin_survives_after_observation_and_receipt_checkpoint(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
