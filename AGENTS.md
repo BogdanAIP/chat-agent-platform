@@ -29,7 +29,7 @@ Resolve live GitHub state first, then read only the current operating set:
 4. `project-context/PROJECT_RISKS.md`
 5. `project-context/ARCHITECTURE.md` only when the task changes or depends on architecture
 
-Read `project-context/ARCHITECTURE_REUSE_BASELINE.md` when `stage-research` applies or when work may duplicate, replace, or cross a previously selected external-component/project-owned role. Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs and historical Stage docs only when the current task actually needs them.
+Read `project-context/ARCHITECTURE_REUSE_BASELINE.md` when `stage-research` applies or when work may duplicate, replace, or cross a previously selected external-component/project-owned role. Read `project-context/BENCHMARK_EVALUATION_STRATEGY.md` when a capability becomes honestly externally evaluable, a benchmark adapter/harness is proposed, a capability/stage is being closed with comparative evidence, or a major release/material architecture change should be compared against prior CAP results. Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs and historical Stage docs only when the current task actually needs them.
 
 Current code/tests, exact PR heads, CI and required physical evidence outrank prose. Never infer live repository state from a recorded SHA in documentation.
 
@@ -83,6 +83,31 @@ Future ADRs are architectural hypotheses plus boundary constraints, not immutabl
 Do not skip stage research merely because a future architecture document already exists.
 
 Narrow bug fixes, dependency bumps, isolated regressions and documentation-only corrections do not require the full skill unless they materially alter architecture, authority or a release-critical guarantee.
+
+### 3. Add independent external evaluation when a capability is honestly ready
+
+External benchmark evaluation is a cross-cutting quality rule, not a substitute for project acceptance and not a requirement to run every full benchmark after every PR.
+
+Use `project-context/BENCHMARK_EVALUATION_STRATEGY.md` as the owner for benchmark selection, domain-specific harness/adapters, run frequency, reproducibility metadata, development/regression/holdout separation and result interpretation.
+
+The minimum development posture is:
+
+```text
+significant PR
+  -> project unit/contract/focused tests + applicable project gates
+
+capability/stage closure or material capability integration
+  -> fixed external regression subset when an honest benchmark adapter exists
+
+major release / major architecture comparison / public capability claim
+  -> full or officially comparable benchmark where practical
+```
+
+Do not create a privileged `benchmark CAP` with hidden tools or authority unavailable to the product. If a benchmark requires a capability CAP does not yet have, defer that benchmark until the capability exists rather than granting it only for evaluation.
+
+Benchmark scores are quality/competitive evidence only. They cannot waive failed security/provenance/physical/reconciliation/verification/Finish-Gate requirements, and fail-closed behavior must not be weakened merely to improve score.
+
+When a capability is already benchmarked, use materially comparable pre/post runs before claiming that a change improved real task performance. Preserve enough exact CAP/model/benchmark/adapter/budget/environment identity to make retained results reproducible, and protect official/holdout evidence from task-by-task tuning.
 
 ## Complexity policy
 
@@ -191,6 +216,7 @@ Keep live documentation small and role-specific:
 - `CURRENT_STATE.md` = current accepted boundary and immediate work;
 - `ROADMAP.md` = release order;
 - `PROJECT_RISKS.md` = ranked risks;
+- `BENCHMARK_EVALUATION_STRATEGY.md` = cross-capability external benchmark method/frequency/provenance/holdout rules, not release order or project acceptance authority;
 - `ARCHITECTURE_REUSE_BASELINE.md` = selected external-component/project-owned role lineage for Stage Research comparison, not runtime status;
 - `EVIDENCE_INDEX.md` = exact accepted evidence/SHAs/locators;
 - `TECH_DEBT.md` = existing compromises with close conditions;
