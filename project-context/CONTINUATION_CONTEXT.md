@@ -30,20 +30,22 @@ Do not reconstruct current state from historical Stage documents or recorded SHA
 
 ## Current stopping point
 
-The concise current boundary is:
+This aid intentionally does **not** duplicate the active stage, PR, exact head or immediate release-critical work.
+
+Use:
 
 ```text
-Stage 26.3B Verification Kernel + independent Finish Gate
-  accepted/closed for recorded representative scope
+CURRENT_STATE.md
+  -> accepted/current boundary + immediate critical work
 
-Stage 26.3C WorkingState / reconciliation / budgets / LoopGuard L1 foundation
-  accepted/merged through #124
+ROADMAP.md
+  -> release-critical sequence + stage completion conditions
 
-current release-critical work
-  first consequence-bearing production/restart integration of that accepted foundation
+EVIDENCE_INDEX.md
+  -> exact accepted physical/target evidence
 ```
 
-`CURRENT_STATE.md` owns the relevant active PR/design/check status. Do not duplicate it here.
+If this file ever appears to disagree with those owners or live GitHub state, this file is stale by definition and must not drive implementation.
 
 ## Current public boundary
 
