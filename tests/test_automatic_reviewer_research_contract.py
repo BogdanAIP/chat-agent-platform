@@ -9,6 +9,7 @@ CONTEXT = ROOT / "project-context"
 RESEARCH = CONTEXT / "AUTOMATIC_REVIEWER_RESEARCH.md"
 CURRENT = CONTEXT / "CURRENT_STATE.md"
 REUSE = CONTEXT / "ARCHITECTURE_REUSE_BASELINE.md"
+BENCHMARK_STRATEGY = CONTEXT / "BENCHMARK_EVALUATION_STRATEGY.md"
 
 
 class AutomaticReviewerResearchContractTests(unittest.TestCase):
@@ -16,6 +17,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.research = RESEARCH.read_text(encoding="utf-8")
         self.current = CURRENT.read_text(encoding="utf-8")
         self.reuse = REUSE.read_text(encoding="utf-8")
+        self.benchmark_strategy = BENCHMARK_STRATEGY.read_text(encoding="utf-8")
 
     def test_research_decision_is_narrow_and_current_state_uses_it(self) -> None:
         self.assertIn("Status: **STAGE RESEARCH — NARROW**", self.research)
@@ -35,10 +37,10 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
                 self.assertIn(phrase, self.research)
 
         folded = self.research.casefold()
-        self.assertIn("general `waiting -> wake -> planner continuation` semantics", folded)
-        self.assertIn("same-task-continuation research seam", folded)
+        self.assertIn("waiting -> wake -> planner continuation", folded)
+        self.assertIn("same-task-continuation", folded)
         self.assertIn("generic scheduler/event bus", folded)
-        self.assertIn("automatic wake/resampling of the unfinished development conversation", folded)
+        self.assertIn("automatic wake/resampling", folded)
 
     def test_result_handoff_is_private_nonce_bound_and_fail_closed(self) -> None:
         for phrase in (
@@ -56,7 +58,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.assertIn("duplicate/ambiguous", folded)
         self.assertIn("fail closed", folded)
 
-    def test_benchmark_plan_keeps_external_and_internal_quality_planes_separate(self) -> None:
+    def test_reviewer_benchmark_plan_remains_first_specific_application(self) -> None:
         for phrase in (
             "Harbor",
             "ReviewBench",
@@ -73,10 +75,12 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
 
         self.assertIn("Do not collapse these planes into one score", self.research)
         self.assertIn("baseline, not a release exam", self.research)
+        self.assertIn("Reviewer — first active rung", self.benchmark_strategy)
 
-    def test_harbor_is_evaluation_only_in_research_and_reuse_baseline(self) -> None:
+    def test_harbor_is_evaluation_only_for_reviewer(self) -> None:
         research_folded = self.research.casefold()
         reuse_folded = self.reuse.casefold()
+        strategy_folded = self.benchmark_strategy.casefold()
 
         self.assertIn("harbor is not production authority", research_folded)
         self.assertIn("harbor is selected as the **evaluation harness**", research_folded)
@@ -84,6 +88,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.assertIn("code-review evaluation harness", reuse_folded)
         self.assertIn("selected_evaluation_only", reuse_folded)
         self.assertIn("automatic independent-review launch / correlation / result publication", reuse_folded)
+        self.assertIn("no requirement to force all benchmarks through one framework", strategy_folded)
 
     def test_quality_threshold_is_evidence_based_not_prebaked(self) -> None:
         folded = self.research.casefold()
