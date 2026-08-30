@@ -9,6 +9,7 @@ CONTEXT = ROOT / "project-context"
 STRATEGY = CONTEXT / "BENCHMARK_EVALUATION_STRATEGY.md"
 DOCUMENT_STATUS = CONTEXT / "DOCUMENT_STATUS.md"
 REVIEW_RESEARCH = CONTEXT / "AUTOMATIC_REVIEWER_RESEARCH.md"
+AGENTS = ROOT / "AGENTS.md"
 
 
 class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
@@ -16,9 +17,10 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
         self.strategy = STRATEGY.read_text(encoding="utf-8")
         self.document_status = DOCUMENT_STATUS.read_text(encoding="utf-8")
         self.review_research = REVIEW_RESEARCH.read_text(encoding="utf-8")
+        self.agents = AGENTS.read_text(encoding="utf-8")
         self.folded = self.strategy.casefold()
 
-    def test_strategy_is_registered_as_cross_capability_owner_not_a_new_stage(self) -> None:
+    def test_strategy_is_registered_and_discoverable_cross_capability_owner(self) -> None:
         self.assertIn("AUTHORITATIVE CROSS-CAPABILITY EVALUATION STRATEGY", self.strategy)
         self.assertIn("not a new roadmap stage", self.folded)
         self.assertIn("independent public benchmark", self.folded)
@@ -26,6 +28,9 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
         self.assertIn("BENCHMARK_EVALUATION_STRATEGY.md", self.document_status)
         self.assertIn("AUTHORITATIVE CROSS-CAPABILITY EVALUATION STRATEGY", self.document_status)
         self.assertIn("Evaluation-strategy discovery rule", self.document_status)
+        self.assertIn("BENCHMARK_EVALUATION_STRATEGY.md", self.agents)
+        self.assertIn("capability becomes honestly externally evaluable", self.agents)
+        self.assertIn("capability/stage is being closed with comparative evidence", self.agents)
 
     def test_external_benchmarks_do_not_replace_project_acceptance(self) -> None:
         for concept in (
@@ -38,6 +43,15 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
         ):
             with self.subTest(concept=concept):
                 self.assertIn(concept.casefold(), self.folded)
+
+        for policy_phrase in (
+            "Benchmark scores are quality/competitive evidence only",
+            "Do not create a privileged `benchmark CAP`",
+            "fixed external regression subset",
+            "official/holdout evidence",
+        ):
+            with self.subTest(policy_phrase=policy_phrase):
+                self.assertIn(policy_phrase, self.agents)
 
     def test_harness_is_selected_per_domain_not_forced_through_harbor(self) -> None:
         self.assertIn("There is no requirement to force all benchmarks through one framework", self.strategy)
