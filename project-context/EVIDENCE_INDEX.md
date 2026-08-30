@@ -69,6 +69,7 @@ Exact code/tests/current CI and original physical results remain more authoritat
 | Stage 26.3B Windows DesktopState shared-kernel verification (#114) | `ce3f533d12ab0a5ea0c9a4804accb32cf377ac0e` | target-Windows physical verifier qualification | process/HWND identity/freshness; PASS/FAIL/UNKNOWN/generation drift cases |
 | Stage 26.3B Windows/application real-task L3 (#115) | `5ae5d5ac52f391b1a58662e94a976c6ab8d48c62` | target-Windows ordinary ChatGPT Case Desk + frozen Finish Gate | five bounded verified transitions; exact target state; unchanged decoys; source/install/runtime provenance; cleanup; `EXTERNAL_FINISH_GATE=DONE` |
 | Stage 26.3B Browser stronger source-provenance repeat (#118) | `e29517fdf1c940d36bc822cfcc1a729ed7dd9574` | `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\stage26-3b-browser-real-task-20260828-005002-8BE43853` | target-Windows ordinary-Chat randomized Case Desk through the six-tool headless Playwright/Chrome route; source/install/full exact-lock Node tree revalidated after Browser actions; atomic frozen snapshot; target-only mutation history; `SAVE_COUNT=1`; `AUDIT_COUNT=1`; decoys unchanged; `EXTERNAL_FINISH_GATE=DONE`; fixture/guardian cleanup PASS |
+| Stage 26.3C production WorkingState/restart reconciliation (#126) | `d53e65d8804b28af0da6902e9beee3991bb26802` | PR #126 final target-Windows ordinary ChatGPT / `Chat Local Bridge Test`; `RUNTIME_PROVENANCE=PASS`; `STAGE26_3C_PHYSICAL_PROCEDURE=PASS` | `verified_workspace_artifact_v1`: first run completed the three-action graph; a new overwrite attempt abstained at preflight with zero actions / `target_already_exists`; target content remained unchanged; qualification bound installed runtime bytes to the reviewed head |
 
 ## Accepted non-physical foundations
 
@@ -77,21 +78,22 @@ Some accepted architecture/runtime foundations are intentionally absent from the
 Most importantly:
 
 - PR #124 accepted the Stage 26.3C **WorkingState / typed reconciliation / budgets / LoopGuard / StagnationReport L1 foundation** with deterministic/adversarial state-machine evidence.
+- PR #126 subsequently accepted the first consequence-bearing production consumer for the declared local-Windows process-restart scope; that physical evidence is indexed above rather than being inferred from the #124 foundation.
 
-Do **not** misread the absence of a physical row as “WorkingState does not exist”. Conversely, do not promote the #124 L1 foundation into a claim that production crash/restart effects are physically accepted.
+Do **not** misread the earlier absence of a physical row as “WorkingState does not exist”. Conversely, the accepted #126 consumer is still scoped evidence and must not be promoted into universal cross-capability crash/restart acceptance.
 
 ## Not yet physically/production accepted
 
 Future or incomplete evidence scopes include:
 
-- Stage 26.3C **production** WorkingState/restart-reconciliation integration on consequence-bearing procedures/capabilities and broader cross-capability physical qualification;
+- broader cross-capability WorkingState/reconciliation/recovery qualification beyond the accepted `verified_workspace_artifact_v1` #126 scope;
 - broad cross-application Windows/Browser/Electron/Office reliability;
 - trusted-site full-browser/JS/CDP authority and complete Browser Network Gate;
 - generic Local Execution Kernel / arbitrary Python authority;
 - Track M Agent Session/Delegation runtime and multi-worker orchestration;
 - release-grade distribution/maintenance and clean-user stable release.
 
-A consequence-bearing Stage 26.3C production integration must earn its own target-Windows physical qualification before merge when the path changes real effects. Its active PR/design state belongs in `CURRENT_STATE.md`, not this evidence ledger.
+Any later consequence-bearing WorkingState/recovery integration must earn evidence appropriate to its own changed effect boundary; do not treat #126 as universal authorization for unrelated capabilities. Active PR/design state belongs in `CURRENT_STATE.md`, not this evidence ledger.
 
 ## Evidence-to-architecture rule
 
@@ -107,3 +109,4 @@ Examples:
 - VS Code/Monaco demonstrated that focused semantic identity and top-level native window geometry are separate evidence channels.
 - Browser #118 demonstrated that planner self-report is not completion evidence and source/runtime provenance can invalidate an otherwise plausible run.
 - Browser #118 also exposed that runtime diagnostic output must be owned explicitly rather than inherit arbitrary source CWD; permanent hardening is tracked as technical debt.
+- Stage 26.3C #126 demonstrated bounded process-restart recovery/correlation on the real workspace procedure without blind overwrite retry, while preserving fail-closed scope boundaries.
