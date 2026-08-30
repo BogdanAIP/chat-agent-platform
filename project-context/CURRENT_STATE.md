@@ -44,13 +44,7 @@ These remain scoped proofs. They do not imply universal Browser/Windows/applicat
 
 ## Stage 26.3C accepted production scope
 
-PR #126 merged to `main` as:
-
-`d99ec89267de59c5a4b17ffecb4c2989ded9b9e0`
-
-Its exact reviewed implementation head was:
-
-`d53e65d8804b28af0da6902e9beee3991bb26802`
+PR #126 is merged and accepted. Exact commit, reviewed-head and physical-evidence locators belong in `EVIDENCE_INDEX.md` and PR history rather than this live-status document.
 
 The accepted first bounded production consumer is `verified_workspace_artifact_v1` on the supported local Windows workspace path.
 
