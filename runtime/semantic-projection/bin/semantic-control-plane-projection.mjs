@@ -84,6 +84,22 @@ function prepareProcedureCorrelation(request) {
   return { correlationTaskId: assignedTaskId, assignedTaskId };
 }
 
+function resumableProcedureCorrelation(env, correlationTaskId, assignedTaskId) {
+  if (correlationTaskId === null) return null;
+  // A caller-supplied resume id is already known independently of this child
+  // launch. A newly generated id becomes resumable only after the exact regular
+  // checkpoint file is durably visible in the configured state root.
+  if (assignedTaskId === null) return correlationTaskId;
+  const stateRoot = env?.CHAT_PROCEDURE_STATE_ROOT;
+  if (typeof stateRoot !== 'string' || !stateRoot) return null;
+  const checkpoint = path.join(stateRoot, `${assignedTaskId}.json`);
+  try {
+    return fs.lstatSync(checkpoint).isFile() ? correlationTaskId : null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeResult(result) {
   const normalized = { content: Array.isArray(result?.content) ? result.content : [] };
   if (result?.isError) normalized.isError = true;
@@ -212,10 +228,6 @@ function runProcedure(request) {
 
     let stdout = Buffer.alloc(0);
     let settled = false;
-    let spawned = false;
-    child.once('spawn', () => {
-      spawned = true;
-    });
     const finish = (result) => {
       if (settled) return;
       settled = true;
@@ -223,12 +235,11 @@ function runProcedure(request) {
       resolve(result);
     };
     const fail = (reason) => {
-      const resumableCorrelationTaskId = (
-        correlationTaskId !== null
-        && (assignedTaskId === null || spawned)
-      )
-        ? correlationTaskId
-        : null;
+      const resumableCorrelationTaskId = resumableProcedureCorrelation(
+        env,
+        correlationTaskId,
+        assignedTaskId,
+      );
       finish(
         correlationTaskId === null
           ? toolError(`procedure_run failed: ${reason}`)
@@ -253,17 +264,19 @@ function runProcedure(request) {
       if (settled) return;
       try {
         const parsed = JSON.parse(stdout.toString('utf8'));
-        // Only a successfully spawned child can possibly have written new
-        // durable workspace state. Preserve the parent-owned correlation on
-        // valid workspace child errors after that boundary; resume calls retain
-        // their caller-known id even when a new child cannot be spawned.
-        const correlated = (
-          parsed?.status === 'error'
-          && correlationTaskId !== null
-          && (assignedTaskId === null || spawned)
-        )
-          ? { ...parsed, resume_task_id: correlationTaskId }
-          : parsed;
+        let correlated = parsed;
+        if (parsed?.status === 'error' && correlationTaskId !== null) {
+          const resumableCorrelationTaskId = resumableProcedureCorrelation(
+            env,
+            correlationTaskId,
+            assignedTaskId,
+          );
+          correlated = { ...parsed };
+          delete correlated.resume_task_id;
+          if (resumableCorrelationTaskId !== null) {
+            correlated.resume_task_id = resumableCorrelationTaskId;
+          }
+        }
         finish({
           content: [{ type: 'text', text: JSON.stringify(correlated) }],
           structuredContent: correlated,
