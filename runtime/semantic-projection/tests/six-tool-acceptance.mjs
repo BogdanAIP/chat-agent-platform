@@ -227,8 +227,9 @@ try {
   );
 
   // Force the outer semantic projection's Python child to terminate without a
-  // JSON result. This exercises the public procedure_run failure receipt rather
-  // than importing a helper or reading private checkpoint inventory.
+  // JSON result and without creating durable procedure state. This exercises
+  // the public procedure_run failure receipt: a generated id must not become a
+  // resumable id merely because spawn succeeded.
   const failureWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-procedure-failure-workspace-'));
   const failureState = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-procedure-failure-state-'));
   const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-fake-python-'));
@@ -261,7 +262,11 @@ try {
     const failedPayload = failed.structuredContent ?? JSON.parse(textOf(failed));
     assert.equal(failedPayload.status, 'error');
     assert.match(failedPayload.reason, /^invalid_control_plane_response:/);
-    assert.match(failedPayload.resume_task_id, /^[0-9a-f]{32}$/);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(failedPayload, 'resume_task_id'),
+      false,
+      'fresh child crash without durable state must not advertise a resumable task id',
+    );
     assert.equal(
       Object.prototype.hasOwnProperty.call(failedPayload, 'action_count'),
       false,
