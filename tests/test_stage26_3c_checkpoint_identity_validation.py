@@ -34,6 +34,23 @@ class Stage263CCheckpointIdentityValidationTests(unittest.TestCase):
             "final_verified": 2,
             "completed": 3,
         }[node]
+        receipt_history = [
+            {
+                "transition_id": "stage_create",
+                "from_node": "preflight",
+                "to_node": "staged_verified",
+            },
+            {
+                "transition_id": "final_create",
+                "from_node": "staged_verified",
+                "to_node": "final_verified",
+            },
+            {
+                "transition_id": "staging_cleanup",
+                "from_node": "final_verified",
+                "to_node": "completed",
+            },
+        ]
         value = {
             "schema_version": schema_version,
             "task_id": self.task_id,
@@ -48,7 +65,7 @@ class Stage263CCheckpointIdentityValidationTests(unittest.TestCase):
             "status": status,
             "action_count": action_count,
             "action_budget": MAX_ACTIONS,
-            "transition_receipts": [],
+            "transition_receipts": receipt_history[:action_count],
             "staging_file_identity": dict(self.strong_identity),
             "target_file_identity": dict(self.strong_identity),
         }
