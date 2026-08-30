@@ -56,6 +56,31 @@ class LiveContextStageStatusTests(unittest.TestCase):
         self.assertIn("EXTERNAL_FINISH_GATE=DONE", evidence)
         self.assertIn("headless Playwright/Chrome", evidence)
 
+    def test_post_26_3c_risk_and_evidence_owners_match_accepted_boundary(self) -> None:
+        risks = (CONTEXT / "PROJECT_RISKS.md").read_text(encoding="utf-8")
+        evidence = (CONTEXT / "EVIDENCE_INDEX.md").read_text(encoding="utf-8")
+
+        self.assertIn("Stage 26.3C is now **accepted/closed", risks)
+        self.assertNotIn(
+            "finish Stage 26.3C production WorkingState/restart-reconciliation integration",
+            risks,
+        )
+
+        self.assertIn(
+            "Stage 26.3C production WorkingState/restart reconciliation (#126)",
+            evidence,
+        )
+        self.assertIn(
+            "d53e65d8804b28af0da6902e9beee3991bb26802",
+            evidence,
+        )
+        not_accepted = evidence.split("## Not yet physically/production accepted", 1)[1]
+        self.assertNotIn(
+            "Stage 26.3C **production** WorkingState/restart-reconciliation integration",
+            not_accepted,
+        )
+        self.assertIn("broader cross-capability WorkingState/reconciliation/recovery", not_accepted)
+
     def test_26_3b_stage_contract_is_no_longer_classified_active(self) -> None:
         status = (CONTEXT / "DOCUMENT_STATUS.md").read_text(encoding="utf-8")
         line = next(
