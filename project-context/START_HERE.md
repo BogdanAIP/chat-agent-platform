@@ -19,7 +19,7 @@ Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs 
 
 ## Current boundary in one line
 
-Stage 26.3B is accepted/closed for its recorded representative scope, and Stage 26.3C is now accepted/closed for its declared production process-restart/local-Windows scope through merged PR #126 (`main=d99ec89267de59c5a4b17ffecb4c2989ded9b9e0`).
+Stage 26.3B is accepted/closed for its recorded representative scope, and Stage 26.3C is now accepted/closed for its declared production process-restart/local-Windows scope through merged PR #126.
 
 The next immediate development priority is the bounded automatic independent-review infrastructure proven experimentally in PR #138, before the broad real-application coverage gate. This priority is specifically about making the already-required fresh ordinary-ChatGPT semantic review fast and automatic; it does not by itself authorize general same-task autonomous wake/resume.
 
