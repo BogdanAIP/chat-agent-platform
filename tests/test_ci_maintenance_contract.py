@@ -36,13 +36,22 @@ class CiMaintenanceContractTests(unittest.TestCase):
         self.assertIn("Transport persistent desired-state/runtime-owner split", physical)
         self.assertIn("Stage 26.3A six-tool ordinary-Chat Verified Procedure Runtime", physical)
         self.assertIn("Stage 26.3B Browser stronger source-provenance repeat", physical)
+        self.assertIn("Stage 26.3C production WorkingState/restart reconciliation (#126)", physical)
+        self.assertIn("d53e65d8804b28af0da6902e9beee3991bb26802", physical)
+        self.assertIn("RUNTIME_PROVENANCE=PASS", physical)
+        self.assertIn("STAGE26_3C_PHYSICAL_PROCEDURE=PASS", physical)
 
         self.assertIn("PR #124", nonphysical)
         self.assertIn("WorkingState", nonphysical)
         self.assertIn("LoopGuard", nonphysical)
+        self.assertIn("PR #126 subsequently accepted", nonphysical)
         self.assertNotIn("PR #124", physical)
 
-        self.assertIn("Stage 26.3C **production** WorkingState/restart-reconciliation integration", not_accepted)
+        self.assertIn("broader cross-capability WorkingState/reconciliation/recovery", not_accepted)
+        self.assertNotIn(
+            "Stage 26.3C **production** WorkingState/restart-reconciliation integration",
+            not_accepted,
+        )
         self.assertIn("Track M Agent Session/Delegation runtime", not_accepted)
         self.assertIn("release-grade distribution/maintenance", not_accepted)
         self.assertNotIn("Stage 26.3B advanced verifier/postcondition library", not_accepted)
