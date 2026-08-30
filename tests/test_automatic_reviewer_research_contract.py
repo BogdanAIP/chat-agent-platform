@@ -39,6 +39,22 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.assertIn("generic scheduler/event bus", folded)
         self.assertIn("automatic wake/resampling of the unfinished development conversation", folded)
 
+    def test_result_handoff_is_private_nonce_bound_and_fail_closed(self) -> None:
+        for phrase in (
+            "high-entropy random nonce generated exactly once",
+            "not published to the PR before the result comment",
+            "comment.author == configured expected result principal",
+            "comment was not edited after creation",
+            "Any second result comment carrying the same expected `review_run_id`",
+            "body digest/observed metadata",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.research)
+
+        folded = self.research.casefold()
+        self.assertIn("duplicate/ambiguous", folded)
+        self.assertIn("fail closed", folded)
+
     def test_benchmark_plan_keeps_external_and_internal_quality_planes_separate(self) -> None:
         for phrase in (
             "Harbor",
