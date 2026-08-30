@@ -10,7 +10,9 @@ Risk scores are engineering priority estimates, not claims of failure. Re-score 
 
 Stage 26.3B is accepted/closed for its recorded representative scope.
 
-Stage 26.3C WorkingState/LoopGuard **L1 foundation is accepted through #124**. The active release-critical reliability gap is production integration/restart reconciliation on consequence-bearing paths; concrete active PR/design status belongs in `CURRENT_STATE.md`.
+Stage 26.3C is now **accepted/closed for its declared production process-restart/local-Windows scope through #126**. The accepted first consequence-bearing production consumer is `verified_workspace_artifact_v1`; broader cross-capability continuation/recovery remains unproven and stays represented in risk #2.
+
+The current release-critical prerequisite is the bounded automatic independent-review infrastructure recorded in `CURRENT_STATE.md` / `ROADMAP.md`, before the broad real-application physical coverage gate.
 
 Exact accepted physical heads/result locations live in `EVIDENCE_INDEX.md`.
 
@@ -18,10 +20,10 @@ Exact accepted physical heads/result locations live in `EVIDENCE_INDEX.md`.
 
 | Rank | Risk | Score | Current status | Primary mitigation / close condition |
 |---|---|---:|---|---|
-| 1 | Broad real-application Windows/computer-use coverage is not yet proven | **9/10** | Open; representative Browser + Windows L3 verticals accepted | After the current 26.3C reliability integration, run a deliberate cross-app physical matrix across native Win32, Browser, Electron, office-style apps and standard file/dialog flows with DPI/focus/dialog/noise variants. Close only when accepted scope is materially broader and failures are characterized. |
-| 2 | Long-horizon verified continuation/recovery is not yet production-complete across capabilities | **8/10** | Open; L1 WorkingState/LoopGuard foundation accepted #124, production integration remains active work | Integrate the accepted state/reconciliation/LoopGuard model into real consequence paths, prove crash/restart and ambiguous-outcome handling without blind redelivery, then expand cross-capability. Close when long tasks can survive failed/ambiguous steps and still reach independently verified completion without duplicate effects. |
-| 3 | Ordinary ChatGPT is the only current general planner | **7/10** | Accepted current dependency | Do not build a second planner merely to reduce this score. After WorkingState production semantics stabilize, define the smallest planner-neutral proposal/escalation contract; any future second planner begins shadow/proposal-only above the same deterministic Control Plane. |
-| 4 | Architecture/process/documentation complexity can grow faster than user-visible capability | **7/10** | Open; repeated live-doc drift was found during the #128 documentation coherence sweep | Keep owners narrow (`CURRENT_STATE`, `ROADMAP`, `PROJECT_RISKS`, `EVIDENCE_INDEX`, reuse baseline), remove duplicated stage snapshots, make Stage Research compare prior reuse lineage, and convert defect classes into executable tests. Close when status/ownership drift is routinely caught by CI/review and current work no longer requires reconstructing overlapping prose. |
+| 1 | Broad real-application Windows/computer-use coverage is not yet proven | **9/10** | Open; representative Browser + Windows L3 verticals accepted | After the bounded automatic-review prerequisite, run a deliberate cross-app physical matrix across native Win32, Browser, Electron, office-style apps and standard file/dialog flows with DPI/focus/dialog/noise variants. Close only when accepted scope is materially broader and failures are characterized. |
+| 2 | Long-horizon verified continuation/recovery is not yet production-complete across capabilities | **8/10** | Open; L1 WorkingState/LoopGuard foundation accepted #124 and first consequence-bearing production consumer physically accepted #126; broader cross-capability use remains unproven | Reuse the accepted state/reconciliation/LoopGuard model in later real consequence paths, preserving bounded crash/restart and ambiguous-outcome handling without blind redelivery. Close when relevant long tasks across the supported capability set can survive failed/ambiguous steps and still reach independently verified completion without duplicate effects. |
+| 3 | Ordinary ChatGPT is the only current general planner | **7/10** | Accepted current dependency | Do not build a second planner merely to reduce this score. The bounded automatic reviewer remains an assurance context, not another developer/planner. Any future second planner begins shadow/proposal-only above the same deterministic Control Plane. |
+| 4 | Architecture/process/documentation complexity can grow faster than user-visible capability | **7/10** | Open; repeated live-doc drift was found during #128 and the #139 independent review caught stale risk/evidence owners after #126 acceptance | Keep owners narrow (`CURRENT_STATE`, `ROADMAP`, `PROJECT_RISKS`, `EVIDENCE_INDEX`, reuse baseline), remove duplicated stage snapshots, make Stage Research compare prior reuse lineage, and convert defect classes into executable tests/review checks. Close when status/ownership drift is routinely caught before merge and current work no longer requires reconstructing overlapping prose. |
 | 5 | Packaging and clean-user installation are not release-grade | **6/10** | Open, intentionally deferred | Keep packaging behind core reliability/coverage. Close with clean-machine install/connect/permissions/ready/update/rollback evidence and Stage 28 clean-user E2E without developer-machine assumptions. |
 | 6 | Browser/computer-use security hardening is incomplete for broader authority | **6/10** | Open | Close Site Capability/network debt before trusted-site JS/CDP/full-browser authority; add environmental-injection coverage, authenticated-session credential isolation, sensitive capture policy and representative L3 evidence before widening authority. |
 | 7 | Runtime/process state ownership still has small hardening gaps | **5/10** | Open; #118 fail-closed qualification exposed runtime-CWD output ownership | Make Browser/Playwright runtime output directories explicit under project-owned state/log roots and keep process-generation/cleanup tests. Close when runtime artifacts cannot escape into arbitrary caller/source CWD and ownership regressions fail deterministically. |
@@ -30,7 +32,7 @@ Exact accepted physical heads/result locations live in `EVIDENCE_INDEX.md`.
 
 Representative Browser/Windows L3 evidence reduced uncertainty that accepted primitives can compose into useful real work, but it did not close broad-coverage risk #1.
 
-PR #124 reduced the design risk around WorkingState/LoopGuard by accepting the L1 state-machine foundation. It did **not** close risk #2 because production consequence paths still need integration, crash/restart reconciliation and physical proof.
+PR #124 reduced the design risk around WorkingState/LoopGuard by accepting the L1 state-machine foundation. PR #126 then accepted the first consequence-bearing production integration for the declared local-Windows process-restart scope, including reconciliation/no-blind-redelivery physical evidence. That materially reduces the earlier 26.3C production-integration gap, but it does **not** close risk #2 because broader cross-capability continuation/recovery remains unproven.
 
 PR #118 also demonstrated that provenance/Finish Gate mechanisms are live: invalid physical attempts were rejected for real harness/runtime defects before a final accepted run succeeded. Those defect classes belong in deterministic assurance, not in a waiver list.
 
@@ -44,7 +46,7 @@ L1 primitive / contract proof
 
 Passing L1 is necessary but insufficient for risks #1/#2. Physical release evidence additionally needs source/runtime provenance where the claim depends on exact executed bytes.
 
-One L3 vertical is scoped evidence, not universal reliability.
+One accepted production consumer or one L3 vertical is scoped evidence, not universal reliability.
 
 ## Architecture/process risk rule
 
@@ -68,7 +70,7 @@ These remain deliberate strengths unless evidence changes:
 - shared Verification Kernel;
 - independent Finish Gate;
 - explicit `PASS | FAIL | UNKNOWN` and fail-closed continuation;
-- project-owned WorkingState/LoopGuard foundation;
+- project-owned WorkingState/LoopGuard semantics with an accepted first production consumer;
 - L1 deterministic tests as diagnostic foundation;
 - L3 natural-language tasks with external evidence as realistic vertical proof;
 - disabled/unreachable generic shell/Windows code execution;
@@ -81,9 +83,12 @@ Release-critical work should reduce the highest-ranked actionable risk without s
 Current immediate sequence:
 
 ```text
-finish Stage 26.3C production WorkingState/restart-reconciliation integration
+productionize bounded automatic independent-review infrastructure
  -> broad real-app physical coverage gate
+ -> reuse accepted WorkingState/reconciliation semantics across later consequence-bearing capabilities as those stages require
 ```
+
+The automatic-review item is release-assurance infrastructure that removes a repeated manual prerequisite before the broader coverage/skill/hybrid review cycles; it is not a second planner or general same-task continuation authority.
 
 The small Browser runtime-output ownership hardening may land alongside the relevant runtime touch because it protects the qualification/runtime substrate already in use.
 

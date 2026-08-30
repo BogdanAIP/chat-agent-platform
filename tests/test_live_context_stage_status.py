@@ -10,7 +10,7 @@ CONTEXT = ROOT / "project-context"
 
 
 class LiveContextStageStatusTests(unittest.TestCase):
-    def test_live_context_marks_26_3b_accepted_and_26_3c_partially_accepted_current(self) -> None:
+    def test_live_context_marks_26_3b_and_26_3c_accepted_current(self) -> None:
         files = (
             "CURRENT_STATE.md",
             "CONTINUATION_CONTEXT.md",
@@ -55,6 +55,46 @@ class LiveContextStageStatusTests(unittest.TestCase):
         self.assertIn("AUDIT_COUNT=1", evidence)
         self.assertIn("EXTERNAL_FINISH_GATE=DONE", evidence)
         self.assertIn("headless Playwright/Chrome", evidence)
+
+    def test_post_26_3c_risk_and_evidence_owners_match_accepted_boundary(self) -> None:
+        risks = (CONTEXT / "PROJECT_RISKS.md").read_text(encoding="utf-8")
+        evidence = (CONTEXT / "EVIDENCE_INDEX.md").read_text(encoding="utf-8")
+        continuation = (CONTEXT / "CONTINUATION_CONTEXT.md").read_text(encoding="utf-8")
+        constraints = (CONTEXT / "CONSTRAINTS.md").read_text(encoding="utf-8")
+
+        self.assertIn("Stage 26.3C is now **accepted/closed", risks)
+        self.assertNotIn(
+            "finish Stage 26.3C production WorkingState/restart-reconciliation integration",
+            risks,
+        )
+
+        self.assertIn(
+            "Stage 26.3C production WorkingState/restart reconciliation (#126)",
+            evidence,
+        )
+        self.assertIn(
+            "d53e65d8804b28af0da6902e9beee3991bb26802",
+            evidence,
+        )
+        not_accepted = evidence.split("## Not yet physically/production accepted", 1)[1]
+        self.assertNotIn(
+            "Stage 26.3C **production** WorkingState/restart-reconciliation integration",
+            not_accepted,
+        )
+        self.assertIn("broader cross-capability WorkingState/reconciliation/recovery", not_accepted)
+
+        self.assertIn("intentionally does **not** duplicate the active stage", continuation)
+        self.assertNotIn(
+            "first consequence-bearing production/restart integration",
+            continuation,
+        )
+
+        self.assertIn("Stage 26.3C WorkingState/reconciliation/budget/LoopGuard is accepted/closed", constraints)
+        self.assertIn("`CURRENT_STATE.md` owns immediate work", constraints)
+        self.assertNotIn(
+            "current release-critical work is its consequence-bearing production/restart integration",
+            constraints,
+        )
 
     def test_26_3b_stage_contract_is_no_longer_classified_active(self) -> None:
         status = (CONTEXT / "DOCUMENT_STATUS.md").read_text(encoding="utf-8")
