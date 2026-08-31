@@ -397,28 +397,40 @@ def _finding_heading_number(line: str) -> int | None:
     return int(match.group(1))
 
 
-def _is_markdown_structure_only(line: str) -> bool:
-    stripped = line.strip()
-    if not stripped:
-        return True
-    if re.fullmatch(r"(?:\s*[-*_]\s*){3,}", stripped):
-        return True
-    if re.fullmatch(r"(?:`{3,}|~{3,})(?:[A-Za-z0-9_.+-]+)?", stripped):
-        return True
-    if re.fullmatch(r"#{1,6}", stripped):
-        return True
-    return False
+def _markdown_schema_visibility(lines: list[str]) -> list[bool]:
+    """Mark schema-eligible lines, excluding fenced Markdown code blocks."""
+
+    visible: list[bool] = []
+    fence_char: str | None = None
+    fence_length = 0
+    for line in lines:
+        leading_spaces = len(line) - len(line.lstrip(" "))
+        stripped = line.lstrip(" ") if leading_spaces <= 3 else line
+
+        if fence_char is None:
+            if leading_spaces <= 3:
+                match = re.match(r"^(`{3,}|~{3,})(.*)$", stripped)
+                if match is not None:
+                    token = match.group(1)
+                    fence_char = token[0]
+                    fence_length = len(token)
+                    visible.append(False)
+                    continue
+            visible.append(True)
+            continue
+
+        visible.append(False)
+        if leading_spaces <= 3 and re.fullmatch(
+            rf"{re.escape(fence_char)}{{{fence_length},}}\s*",
+            stripped,
+        ) is not None:
+            fence_char = None
+            fence_length = 0
+    return visible
 
 
-def _nonempty_finding_field_text(lines: list[str]) -> str:
-    substantive_lines = [line for line in lines if not _is_markdown_structure_only(line)]
-    cleaned = (
-        "\n".join(substantive_lines)
-        .replace("**", "")
-        .replace("__", "")
-        .replace("`", "")
-        .strip()
-    )
+def _substantive_inline_finding_value(value: str) -> str:
+    cleaned = value.replace("**", "").replace("__", "").replace("`", "").strip()
     if not cleaned or not any(character.isalnum() for character in cleaned):
         return ""
     return cleaned
@@ -426,8 +438,11 @@ def _nonempty_finding_field_text(lines: list[str]) -> str:
 
 def _finding_blocks(payload: str, reported_findings: int) -> list[tuple[int, list[str]]]:
     lines = payload.splitlines()
+    visibility = _markdown_schema_visibility(lines)
     headings: list[tuple[int, int]] = []
     for index, line in enumerate(lines):
+        if not visibility[index]:
+            continue
         number = _finding_heading_number(line)
         if number is not None:
             headings.append((index, number))
@@ -446,6 +461,8 @@ def _finding_blocks(payload: str, reported_findings: int) -> list[tuple[int, lis
 
     severity_positions: list[int] = []
     for index, line in enumerate(lines):
+        if not visibility[index]:
+            continue
         marker = _finding_field_marker(line)
         if marker is not None and marker[0] == "severity":
             severity_positions.append(index)
@@ -466,36 +483,30 @@ def _validate_finding_bodies(payload: str, reported_findings: int) -> None:
 
     severity_ranks: list[int] = []
     for number, block in blocks:
-        markers: dict[str, tuple[int, str]] = {}
+        visibility = _markdown_schema_visibility(block)
+        markers: dict[str, str] = {}
         for block_index, line in enumerate(block):
+            if not visibility[block_index]:
+                continue
             marker = _finding_field_marker(line)
             if marker is None:
                 continue
             field_name, inline_value = marker
             if field_name in markers:
                 raise ReviewStateError(f"finding {number} duplicates required field {field_name}")
-            markers[field_name] = (block_index, inline_value)
+            markers[field_name] = inline_value
 
         missing = [field_name for field_name in _REQUIRED_FINDING_FIELDS if field_name not in markers]
         if missing:
             raise ReviewStateError(f"finding {number} is missing required fields: {missing}")
 
-        ordered_positions = sorted((position, field_name) for field_name, (position, _) in markers.items())
-        next_position: dict[str, int] = {}
-        for position_index, (position, field_name) in enumerate(ordered_positions):
-            next_position[field_name] = (
-                ordered_positions[position_index + 1][0]
-                if position_index + 1 < len(ordered_positions)
-                else len(block)
-            )
-
         field_text: dict[str, str] = {}
         for field_name in _REQUIRED_FINDING_FIELDS:
-            position, inline_value = markers[field_name]
-            content_lines = [inline_value, *block[position + 1 : next_position[field_name]]]
-            text = _nonempty_finding_field_text(content_lines)
+            text = _substantive_inline_finding_value(markers[field_name])
             if not text:
-                raise ReviewStateError(f"finding {number} field {field_name} must be non-empty")
+                raise ReviewStateError(
+                    f"finding {number} field {field_name} must have substantive inline content"
+                )
             field_text[field_name] = text
 
         severity = field_text["severity"].strip()
