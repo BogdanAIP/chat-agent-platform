@@ -22,24 +22,21 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.skill = SKILL.read_text(encoding="utf-8")
         self.folded = self.research.casefold()
 
-    def test_stage_research_has_required_substantive_sections(self) -> None:
+    def test_stage_research_has_accepted_required_sections(self) -> None:
         for heading in (
-            "## Goal",
-            "## Non-goals",
-            "## Problem evidence",
-            "## Solution evidence",
-            "## Current implementation evidence",
+            "## Stage goal",
+            "## Current project baseline",
             "## Architecture lineage comparison",
             "## Architecture primitives and adjacent domains",
-            "## Source-code evidence",
+            "## Problem evidence",
+            "## Solution evidence",
             "## Best current approaches",
             "## Failure lessons",
             "## Alternatives comparison",
-            "## Product / options / ecosystem comparison",
-            "## Failure / crash matrix",
-            "## Evaluation method",
-            "## Acceptance checks",
-            "## Stage decision",
+            "## Failure/Crash Matrix",
+            "## Fit to this architecture",
+            "## Architecture decision",
+            "## Source-code evidence",
         ):
             with self.subTest(heading=heading):
                 self.assertIn(heading, self.research)
@@ -66,7 +63,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "_TaskLock",
             "_write_checkpoint",
             "_load_checkpoint",
-            "_checkpoint_matches_program",
+            "_validate_resume_state",
             "same-directory sibling temp",
             "flush",
             "os.fsync",
@@ -111,17 +108,23 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, self.research)
 
-    def test_source_code_evidence_is_pinned_and_classified(self) -> None:
+    def test_source_code_evidence_uses_skill_classifications_and_real_tests(self) -> None:
         for phrase in (
             "harbor-framework/harbor",
             "389bd4f8ce796ef4a97de4b62675021e262c8e76",
+            "OPEN_IMPLEMENTED",
+            "REUSE_COMPONENT",
             "openai/codex",
             "94cbbddafc1776d5e377bca1b05932c697e82238",
+            "REFERENCE_ONLY",
+            "NOT_FOUND_AFTER_TARGETED_SEARCH",
             "OpenHands/OpenHands",
             "1098d73df42351a31b2940557efb9fe8750365c4",
-            "classification = OPEN_SOURCE",
-            "lesson =",
-            "NOT_FOUND",
+            "ADAPT_MECHANIC",
+            "REJECT_MECHANIC",
+            "ignores a replayed tool call",
+            "tests/unit/test_single_step_trial.py",
+            "codex-rs/core/src/thread_manager_tests.rs",
         ):
             self.assertIn(phrase, self.research)
 
