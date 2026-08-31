@@ -31,9 +31,7 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
             "review_skill=code-review",
             "review_skill_version=<version expected by caller>",
         ):
-            with self.subTest(field=field):
-                self.assertIn(field, self.skill)
-
+            self.assertIn(field, self.skill)
         self.assertIn("PR.base.sha == REVIEW_REQUEST.base_sha", self.skill)
         self.assertIn("PR.head.sha == REVIEW_REQUEST.head_sha", self.skill)
         self.assertIn("Never silently review a newer head than the request", self.skill)
@@ -61,6 +59,7 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
         self.assertIn("Work, Workspace Agents or Codex", launcher)
         self.assertIn("context isolation cannot be established", launcher)
         self.assertIn("manually opened fresh ordinary-ChatGPT conversation", launcher)
+        self.assertIn("must not return the private `review_run_id` to the development caller", launcher)
 
     def test_findings_require_concrete_evidence_and_falsification(self) -> None:
         for phrase in (
@@ -74,13 +73,13 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
             "falsification_attempt",
             "why_it_survives",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.skill)
+            self.assertIn(phrase, self.skill)
 
     def test_reviewer_cannot_self_fix_or_mutate_target(self) -> None:
         self.assertIn("The independent reviewer does not patch the PR in the same review run", self.skill)
         self.assertIn("does not mutate production/repository state", self.skill)
         self.assertIn("result-publication exception", self.skill)
+        self.assertIn("does **not** give the reviewer GitHub write authority", self.skill)
         for disposition in ("CONFIRMED", "REJECTED", "SUPERSEDED"):
             self.assertIn(disposition, self.skill)
         self.assertIn("Do not merge with unresolved reported findings", self.skill)
@@ -99,8 +98,7 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
             "repository merge/review policy itself",
             "base-branch advance",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, invalidation)
+            self.assertIn(phrase, invalidation)
 
     def test_structured_result_can_fail_closed(self) -> None:
         for phrase in (
@@ -111,33 +109,34 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
             "review_validity=CURRENT | STALE_BASE_CHANGE | STALE_MATERIAL_CHANGE",
             "missing evidence yields `ABSTAIN`, not `PASS`",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.skill)
+            self.assertIn(phrase, self.skill)
 
-    def test_automatic_path_has_only_one_bounded_result_comment_write(self) -> None:
+    def test_automatic_path_uses_only_one_bounded_local_submission(self) -> None:
         envelope = self.skill.split("## 14. Bounded automatic result-publication envelope", 1)[1]
         for phrase in (
             "review_run_id=<high-entropy automatic-run nonce>",
+            "procedure=submit_independent_review_result_v1",
             "exactly one",
+            "no raw GitHub write credential/action",
             "top-level PR Conversation comment",
-            "evidence transport",
-            "publish a second result comment",
-            "Do not retry",
+            "evidence comment",
+            "backend-only",
+            "endpoint-allowlisted",
             "does not authorize any other GitHub mutation",
             "APPROVE",
             "REQUEST_CHANGES",
             "merge, close or reopen the PR",
             "change repository settings",
+            "Do not retry",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.skill)
+            self.assertIn(phrase, envelope)
         self.assertIn("review_run_id=<same value received in REVIEW_REQUEST_V1>", self.skill)
         self.assertIn("automatic path", self.skill)
 
     def test_automatic_comment_is_not_self_validating_acceptance(self) -> None:
         envelope = self.skill.split("## 14. Bounded automatic result-publication envelope", 1)[1]
         self.assertIn("never grants `PASS`, merge authority or finding acceptance", envelope)
-        self.assertIn("independently re-resolves author", envelope)
+        self.assertIn("independently re-resolves publisher author", envelope)
         self.assertIn("uniqueness", envelope)
         self.assertIn("live PR identity", envelope)
 
@@ -145,7 +144,6 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
         merge_policy = self.agents.split("## Merge policy", 1)[1].split(
             "## PR/document discipline", 1
         )[0]
-
         required = (
             "independent semantic review is required",
             ".agents/skills/code-review/SKILL.md",
@@ -160,9 +158,7 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
         )
         folded = merge_policy.casefold()
         for phrase in required:
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase.casefold(), folded)
-
+            self.assertIn(phrase.casefold(), folded)
         self.assertNotRegex(
             merge_policy,
             re.compile(r"(?i)codex review\s+(?:is\s+)?(?:mandatory|required)"),
