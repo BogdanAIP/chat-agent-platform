@@ -430,6 +430,45 @@ def _markdown_schema_visibility(lines: list[str]) -> list[bool]:
     return visible
 
 
+def _review_result_schema_lines(payload: str) -> list[str]:
+    """Remove only a whole-result transport fence before finding-schema parsing."""
+
+    lines = payload.splitlines()
+    cursor = 0
+    while cursor < len(lines) and not lines[cursor].strip():
+        cursor += 1
+    if cursor >= len(lines):
+        return lines
+
+    fence_match = re.fullmatch(
+        r"(`{3,}|~{3,})(?:text|plaintext)?\s*",
+        lines[cursor].strip(),
+        re.IGNORECASE,
+    )
+    if fence_match is None:
+        return lines
+    token = fence_match.group(1)
+
+    marker_index = cursor + 1
+    while marker_index < len(lines) and not lines[marker_index].strip():
+        marker_index += 1
+    if marker_index >= len(lines) or lines[marker_index].strip() != "REVIEW_RESULT_V1":
+        return lines
+
+    closing_index = len(lines) - 1
+    while closing_index > marker_index and not lines[closing_index].strip():
+        closing_index -= 1
+    if closing_index <= marker_index:
+        return lines
+    if re.fullmatch(
+        rf"{re.escape(token[0])}{{{len(token)},}}\s*",
+        lines[closing_index].strip(),
+    ) is None:
+        return lines
+
+    return lines[:cursor] + lines[cursor + 1 : closing_index] + lines[closing_index + 1 :]
+
+
 def _substantive_inline_finding_value(value: str) -> str:
     cleaned = value.replace("**", "").replace("__", "").replace("`", "").strip()
     if not cleaned or not any(character.isalnum() for character in cleaned):
@@ -438,7 +477,7 @@ def _substantive_inline_finding_value(value: str) -> str:
 
 
 def _finding_blocks(payload: str, reported_findings: int) -> list[tuple[int, list[str]]]:
-    lines = payload.splitlines()
+    lines = _review_result_schema_lines(payload)
     visibility = _markdown_schema_visibility(lines)
     headings: list[tuple[int, int]] = []
     for index, line in enumerate(lines):
