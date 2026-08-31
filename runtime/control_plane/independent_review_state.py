@@ -287,7 +287,8 @@ def _load_json_object(
     maximum_bytes: int,
 ) -> dict[str, Any]:
     try:
-        raw = path.read_bytes()
+        with path.open("rb") as handle:
+            raw = handle.read(maximum_bytes + 1)
     except FileNotFoundError as exc:
         raise ReviewStateError(f"{label} does not exist") from exc
     if len(raw) > maximum_bytes:
@@ -725,9 +726,27 @@ def _result_header(payload: str, *, automatic: bool) -> dict[str, str]:
         raise ReviewStateError("review result exceeds the accepted bound")
 
     lines = payload.splitlines()
-    markers = [index for index, line in enumerate(lines) if line.strip() == "REVIEW_RESULT_V1"]
-    if len(markers) != 1:
-        raise ReviewStateError("review result must contain exactly one REVIEW_RESULT_V1 marker")
+    cursor = 0
+    while cursor < len(lines) and not lines[cursor].strip():
+        cursor += 1
+
+    outer_fence: tuple[str, int] | None = None
+    if cursor < len(lines):
+        fence_match = re.fullmatch(
+            r"(`{3,}|~{3,})(?:text|plaintext)?\s*",
+            lines[cursor].strip(),
+            re.IGNORECASE,
+        )
+        if fence_match is not None:
+            token = fence_match.group(1)
+            outer_fence = (token[0], len(token))
+            cursor += 1
+            while cursor < len(lines) and not lines[cursor].strip():
+                cursor += 1
+
+    if cursor >= len(lines) or lines[cursor].strip() != "REVIEW_RESULT_V1":
+        raise ReviewStateError("review result must begin with REVIEW_RESULT_V1")
+    marker_index = cursor
 
     required = set(_RESULT_HEADER_KEYS)
     allowed = set(required)
@@ -737,9 +756,18 @@ def _result_header(payload: str, *, automatic: bool) -> dict[str, str]:
 
     header: dict[str, str] = {}
     started = False
-    for line in lines[markers[0] + 1 :]:
+    for line in lines[marker_index + 1 :]:
         stripped = line.strip()
-        if not stripped or stripped == "```":
+        if outer_fence is not None:
+            fence_char, fence_length = outer_fence
+            if re.fullmatch(
+                rf"{re.escape(fence_char)}{{{fence_length},}}\s*",
+                stripped,
+            ) is not None:
+                if started and required.issubset(header):
+                    break
+                raise ReviewStateError("review result header fence closed before completion")
+        if not stripped:
             if started and required.issubset(header):
                 break
             continue
