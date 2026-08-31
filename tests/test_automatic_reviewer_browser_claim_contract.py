@@ -35,7 +35,7 @@ class AutomaticReviewerBrowserClaimContractTests(unittest.TestCase):
 
     def test_same_run_two_tab_race_has_zero_extra_send_budget(self) -> None:
         for phrase in (
-            "two tabs request same run claim concurrently",
+            "two tabs request the same run claim concurrently",
             "overlapping IndexedDB readwrite transactions serialize",
             "exactly one `add(review_run_id)` can commit",
             "only that caller gets grant",
@@ -58,7 +58,7 @@ class AutomaticReviewerBrowserClaimContractTests(unittest.TestCase):
     def test_claim_schema_is_preinitialized_and_not_lazily_recreated(self) -> None:
         for phrase in (
             "must not lazily create or upgrade the database schema",
-            "Missing marker",
+            "Missing marker/store",
             "unexpected version",
             "onupgradeneeded",
             "fail closed with **no automatic Send**",
@@ -73,13 +73,9 @@ class AutomaticReviewerBrowserClaimContractTests(unittest.TestCase):
         )
 
     def test_browser_claim_does_not_expand_into_general_runtime(self) -> None:
-        for phrase in (
-            "not a general project database or scheduler/event bus",
-            "general browser storage/database dispatcher",
-            "broader browser database/runtime authority",
-        ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+        self.assertIn("not a general project database or scheduler/event bus", self.folded)
+        self.assertIn("general browser database/storage dispatcher", self.folded)
+        self.assertIn("general browser database runtime", self.folded)
 
 
 if __name__ == "__main__":
