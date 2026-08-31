@@ -141,7 +141,7 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
         self.assertIn("reconcile project-owned local review-result state", gate)
         self.assertIn("manual result must be atomically recorded through the same reconciliation state machine", gate)
         self.assertIn("late automatic submit cannot create a second unresolved result", gate)
-        self.assertIn("live PR identity", gate)
+        self.assertIn("verify PR base/head still match reviewed identity", gate)
 
     def test_agents_merge_policy_requires_chatgpt_review_and_makes_codex_optional(self) -> None:
         merge_policy = self.agents.split("## Merge policy", 1)[1].split(
