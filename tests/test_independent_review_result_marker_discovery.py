@@ -84,6 +84,42 @@ class IndependentReviewMarkerDiscoveryTests(unittest.TestCase):
         self.assertEqual("FINDINGS", parsed.header["status"])
         self.assertEqual(1, parsed.header["reported_findings"])
 
+    def test_indented_quoted_result_marker_is_not_a_second_header(self) -> None:
+        payload = "\n".join(
+            [
+                *header_lines(),
+                "",
+                "    REVIEW_RESULT_V1",
+                "    repository=quoted/example",
+            ]
+        )
+        parsed = review_state.parse_review_result(
+            payload,
+            expected_identity=identity(),
+            automatic=False,
+        )
+        self.assertEqual("PASS", parsed.header["status"])
+        self.assertEqual(0, parsed.header["reported_findings"])
+
+    def test_second_top_level_result_marker_after_complete_header_is_rejected(self) -> None:
+        payload = "\n".join(
+            [
+                *header_lines(),
+                "",
+                "REVIEW_RESULT_V1",
+                *header_lines()[1:],
+            ]
+        )
+        with self.assertRaisesRegex(
+            review_state.ReviewStateError,
+            r"exactly one schema-visible REVIEW_RESULT_V1 marker",
+        ):
+            review_state.parse_review_result(
+                payload,
+                expected_identity=identity(),
+                automatic=False,
+            )
+
     def test_governing_text_fenced_header_form_remains_accepted(self) -> None:
         payload = "\n".join(["```text", *header_lines(), "```"])
         parsed = review_state.parse_review_result(
