@@ -783,6 +783,17 @@ def _result_header(payload: str, *, automatic: bool) -> dict[str, str]:
             while cursor < len(lines) and not lines[cursor].strip():
                 cursor += 1
 
+    if outer_fence is not None:
+        closing_index = len(lines) - 1
+        while closing_index >= cursor and not lines[closing_index].strip():
+            closing_index -= 1
+        fence_char, fence_length = outer_fence
+        if closing_index < cursor or re.fullmatch(
+            rf"{re.escape(fence_char)}{{{fence_length},}}\s*",
+            lines[closing_index].strip(),
+        ) is None:
+            raise ReviewStateError("review result outer fence is not closed")
+
     if cursor >= len(lines) or lines[cursor].strip() != "REVIEW_RESULT_V1":
         raise ReviewStateError("review result must begin with REVIEW_RESULT_V1")
     marker_index = cursor
