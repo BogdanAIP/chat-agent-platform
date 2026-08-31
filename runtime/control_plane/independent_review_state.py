@@ -5,16 +5,12 @@ import json
 import os
 import re
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from ._verified_workspace_artifact_support import (
-    _acquire_task_lock,
-    _exclusive_create_file,
-    _safe_child,
-)
+from ._verified_workspace_artifact_support import _acquire_task_lock, _safe_child
 
 
 STATE_SCHEMA_VERSION = 1
@@ -29,7 +25,7 @@ MAX_REPORTED_FINDINGS = 10_000
 
 _REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-_SKILL_VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+$")
+_SKILL_VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 _REVIEW_RUN_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 _HEADER_LINE_RE = re.compile(r"^([a-z_]+)=(.*)$")
 _ALLOWED_STATUS = {"PASS", "FINDINGS", "ABSTAIN", "STALE"}
@@ -86,10 +82,10 @@ class PreparedReviewOperation:
 
     identity: ReviewIdentity
     operation_key: str
-    review_run_id: str
-    dispatch_state: str
-    result_state: str
-    created: bool
+    review_run_id: str = field(repr=False)
+    dispatch_state: str = "prepared"
+    result_state: str = "open"
+    created: bool = False
 
 
 @dataclass(frozen=True)
@@ -123,6 +119,12 @@ def _parse_positive_int(value: Any, label: str, *, maximum: int) -> int:
     return value
 
 
+def _parse_positive_int_from_header(value: str, label: str) -> int:
+    if not value or not value.isascii() or not value.isdigit():
+        raise ReviewStateError(f"{label} must be a positive integer")
+    return _parse_positive_int(int(value), label, maximum=2_147_483_647)
+
+
 def _parse_nonnegative_int(value: str, label: str, *, maximum: int) -> int:
     if not value or not value.isascii() or not value.isdigit():
         raise ReviewStateError(f"{label} must be a non-negative integer")
@@ -132,8 +134,8 @@ def _parse_nonnegative_int(value: str, label: str, *, maximum: int) -> int:
     return parsed
 
 
-def _parse_timestamp(value: str, label: str) -> str:
-    if not value or len(value) > 128:
+def _parse_timestamp(value: Any, label: str) -> str:
+    if type(value) is not str or not value or len(value) > 128:
         raise ReviewStateError(f"{label} must be a bounded ISO-8601 timestamp")
     candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
     try:
@@ -161,6 +163,7 @@ def parse_review_identity(value: Mapping[str, Any], *, exact_keys: bool = True) 
     owner, name = repository.split("/", 1)
     if owner in {".", ".."} or name in {".", ".."}:
         raise ReviewStateError("repository contains an invalid path segment")
+    repository = repository.lower()
 
     pr_number = _parse_positive_int(value.get("pr_number"), "pr_number", maximum=2_147_483_647)
 
@@ -178,7 +181,7 @@ def parse_review_identity(value: Mapping[str, Any], *, exact_keys: bool = True) 
         raise ReviewStateError(f"review_skill must be {REVIEW_SKILL}")
     review_skill_version = value.get("review_skill_version")
     if type(review_skill_version) is not str or _SKILL_VERSION_RE.fullmatch(review_skill_version) is None:
-        raise ReviewStateError("review_skill_version must be a bounded major.minor version")
+        raise ReviewStateError("review_skill_version must be a canonical major.minor version")
 
     return ReviewIdentity(
         repository=repository,
@@ -198,7 +201,7 @@ def review_operation_key(identity: ReviewIdentity) -> str:
 def _lock_id(operation_key: str) -> str:
     if not re.fullmatch(r"[0-9a-f]{64}", operation_key):
         raise ReviewStateError("invalid independent-review operation key")
-    # The accepted Stage 26.3C lock helper uses a 32-hex namespace.  State files
+    # The accepted Stage 26.3C lock helper uses a 32-hex namespace. State files
     # remain bound to the complete 256-bit operation key, so a lock-prefix
     # collision can only serialize unrelated operations; it cannot mix state.
     return operation_key[:32]
@@ -233,6 +236,21 @@ def _encode_json(value: Mapping[str, Any]) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
+def _exclusive_create_file(path: Path, data: bytes) -> None:
+    """Accepted Stage 26.3C exclusive-create/fsync mechanic for private state.
+
+    Do not import the workspace-artifact helper by value here: on Windows the
+    package intentionally replaces that symbol with a workspace-namespace
+    pinned consequence primitive. Independent-review metadata lives under the
+    private procedure state root, not under the workspace artifact layout.
+    """
+
+    with path.open("xb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
 def _load_json_object(path: Path, label: str) -> dict[str, Any]:
     try:
         raw = path.read_bytes()
@@ -250,13 +268,10 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
 
 
 def _write_state_checkpoint(root: Path, operation_key: str, state: Mapping[str, Any]) -> None:
-    """Reuse the accepted sibling-temp + flush/fsync + replace process-crash mechanic."""
+    """Accepted sibling-temp + flush/fsync + replace process-crash mechanic."""
 
     destination = _state_path(root, operation_key)
-    temporary = _safe_child(
-        root,
-        root / f".{operation_key}.state.{secrets.token_hex(8)}.tmp",
-    )
+    temporary = _safe_child(root, root / f".{operation_key}.state.{secrets.token_hex(8)}.tmp")
     payload = _encode_json(state)
     try:
         with temporary.open("xb") as handle:
@@ -323,8 +338,7 @@ def _validate_genesis(value: Mapping[str, Any], identity: ReviewIdentity, operat
         raise ReviewStateError("independent-review genesis schema mismatch")
     if value["operation_key"] != operation_key:
         raise ReviewStateError("independent-review genesis operation key mismatch")
-    persisted_identity = parse_review_identity(value["identity"], exact_keys=True)
-    if persisted_identity != identity:
+    if parse_review_identity(value["identity"], exact_keys=True) != identity:
         raise ReviewStateError("independent-review genesis identity mismatch")
     review_run_id = _validate_review_run_id(value["review_run_id"])
     _parse_timestamp(value["created_at"], "genesis.created_at")
@@ -379,10 +393,7 @@ def _validate_state(
     if result_state == "open":
         if value["result_source"] is not None:
             raise ReviewStateError("open review state cannot have a result source")
-        if any(
-            value[key] is not None
-            for key in ("result_body_sha256", "result_payload", "result_recorded_at")
-        ):
+        if any(value[key] is not None for key in ("result_body_sha256", "result_payload", "result_recorded_at")):
             raise ReviewStateError("open review state cannot contain result evidence")
         if dispatch_state == "automation-abandoned":
             raise ReviewStateError("abandoned automation must be terminal")
@@ -441,13 +452,15 @@ def _load_state(
 
 
 def _paths_present(root: Path, operation_key: str) -> tuple[bool, bool, tuple[Path, ...]]:
-    genesis = _genesis_path(root, operation_key)
-    state = _state_path(root, operation_key)
-    return genesis.exists(), state.exists(), _state_temp_paths(root, operation_key)
+    return (
+        _genesis_path(root, operation_key).exists(),
+        _state_path(root, operation_key).exists(),
+        _state_temp_paths(root, operation_key),
+    )
 
 
 def prepare_review_operation(identity_value: Mapping[str, Any], *, state_root: Path) -> PreparedReviewOperation:
-    """Create/load the private operation. Trusted Control Plane only; contains the nonce."""
+    """Create/load the private operation. Trusted Control Plane only; contains nonce."""
 
     identity = parse_review_identity(identity_value, exact_keys=True)
     operation_key = review_operation_key(identity)
@@ -460,13 +473,14 @@ def prepare_review_operation(identity_value: Mapping[str, Any], *, state_root: P
             review_run_id = secrets.token_hex(32)
             genesis = _build_genesis(identity, operation_key, review_run_id)
             _exclusive_create_file(_genesis_path(root, operation_key), _encode_json(genesis))
-            # Strict reload binds the newly persisted immutable bytes before any
-            # mutable state is attempted.
             _, persisted_run_id = _load_genesis(root, identity, operation_key)
             if persisted_run_id != review_run_id:
                 raise ReviewStateError("new independent-review genesis nonce changed after persistence")
-            initial_state = _build_initial_state(identity, operation_key, review_run_id)
-            _write_state_checkpoint(root, operation_key, initial_state)
+            _write_state_checkpoint(
+                root,
+                operation_key,
+                _build_initial_state(identity, operation_key, review_run_id),
+            )
             state = _load_state(root, identity, operation_key, review_run_id)
             return PreparedReviewOperation(
                 identity=identity,
@@ -481,9 +495,6 @@ def prepare_review_operation(identity_value: Mapping[str, Any], *, state_root: P
             raise ReviewStateError("independent-review state exists without immutable genesis")
         _, review_run_id = _load_genesis(root, identity, operation_key)
         if not state_exists:
-            # Never reconstruct an ordinary open state here.  A valid genesis
-            # proves that this is not clean first creation; only the manual-only
-            # reconciliation transition may close this operation.
             raise ReviewStateError("manual_recovery_required")
         state = _load_state(root, identity, operation_key, review_run_id)
         return PreparedReviewOperation(
@@ -507,26 +518,19 @@ def mark_dispatch_attempted(identity_value: Mapping[str, Any], *, state_root: Pa
             raise ReviewStateError("independent-review result slot is already closed")
         if state["dispatch_state"] != "prepared":
             raise ReviewStateError("independent-review dispatch was already attempted or abandoned")
-        state = dict(state)
-        state["revision"] += 1
-        state["dispatch_state"] = "dispatch-attempted"
-        state["updated_at"] = _utc_now()
-        _write_state_checkpoint(root, operation_key, state)
+        updated = dict(state)
+        updated["revision"] += 1
+        updated["dispatch_state"] = "dispatch-attempted"
+        updated["updated_at"] = _utc_now()
+        _write_state_checkpoint(root, operation_key, updated)
         persisted = _load_state(root, identity, operation_key, review_run_id)
         return _public_state_summary(persisted, include_result=False)
 
 
-def parse_review_result(
-    payload: str,
-    *,
-    expected_identity: ReviewIdentity,
-    automatic: bool,
-    expected_review_run_id: str | None = None,
-) -> ParsedReviewResult:
+def _result_header(payload: str, *, automatic: bool) -> dict[str, str]:
     if type(payload) is not str or not payload.strip():
         raise ReviewStateError("review result must be non-empty text")
-    encoded = payload.encode("utf-8")
-    if len(encoded) > MAX_RESULT_BYTES:
+    if len(payload.encode("utf-8")) > MAX_RESULT_BYTES:
         raise ReviewStateError("review result exceeds the accepted bound")
 
     lines = payload.splitlines()
@@ -534,15 +538,19 @@ def parse_review_result(
     if len(markers) != 1:
         raise ReviewStateError("review result must contain exactly one REVIEW_RESULT_V1 marker")
 
+    required = set(_RESULT_HEADER_KEYS)
+    allowed = set(required)
+    if automatic:
+        required.add("review_run_id")
+        allowed.add("review_run_id")
+
     header: dict[str, str] = {}
     started = False
     for line in lines[markers[0] + 1 :]:
         stripped = line.strip()
         if not stripped or stripped == "```":
-            if started and header:
-                # A blank/fence after the structured header begins the findings/body.
-                if _RESULT_HEADER_KEYS.issubset(header) and ("review_run_id" in header) == automatic:
-                    break
+            if started and required.issubset(header):
+                break
             continue
         match = _HEADER_LINE_RE.fullmatch(stripped)
         if match is None:
@@ -553,23 +561,20 @@ def parse_review_result(
         key, raw_value = match.groups()
         if key in header:
             raise ReviewStateError(f"review result header duplicates {key}")
-        allowed = set(_RESULT_HEADER_KEYS)
-        if automatic:
-            allowed.add("review_run_id")
         if key not in allowed:
             raise ReviewStateError(f"review result header contains unsupported field {key}")
         header[key] = raw_value
 
-    required = set(_RESULT_HEADER_KEYS)
-    if automatic:
-        required.add("review_run_id")
     if set(header) != required:
         raise ReviewStateError(
             f"review result header fields mismatch: missing={sorted(required - set(header)) or 'none'} "
             f"unexpected={sorted(set(header) - required) or 'none'}"
         )
+    return header
 
-    result_identity = parse_review_identity(
+
+def _identity_from_result_header(header: Mapping[str, str]) -> ReviewIdentity:
+    return parse_review_identity(
         {
             "repository": header["repository"],
             "pr_number": _parse_positive_int_from_header(header["pr_number"], "pr_number"),
@@ -580,6 +585,17 @@ def parse_review_result(
         },
         exact_keys=True,
     )
+
+
+def parse_review_result(
+    payload: str,
+    *,
+    expected_identity: ReviewIdentity,
+    automatic: bool,
+    expected_review_run_id: str | None = None,
+) -> ParsedReviewResult:
+    header = _result_header(payload, automatic=automatic)
+    result_identity = _identity_from_result_header(header)
     if result_identity != expected_identity:
         raise ReviewStateError("review result identity does not match the durable operation")
     if header["review_policy_ref"] != expected_identity.base_sha:
@@ -615,21 +631,14 @@ def parse_review_result(
         expected = _validate_review_run_id(expected_review_run_id)
         if _validate_review_run_id(header["review_run_id"]) != expected:
             raise ReviewStateError("review result run capability mismatch")
-    elif "review_run_id" in header:
-        raise ReviewStateError("manual review result must not contain review_run_id")
 
     normalized_header: dict[str, Any] = dict(header)
+    normalized_header["repository"] = result_identity.repository
     normalized_header["pr_number"] = result_identity.pr_number
     normalized_header["reported_findings"] = findings
     normalized_header["rejected_candidates"] = rejected
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     return ParsedReviewResult(payload=payload, header=normalized_header, body_sha256=digest)
-
-
-def _parse_positive_int_from_header(value: str, label: str) -> int:
-    if not value or not value.isascii() or not value.isdigit():
-        raise ReviewStateError(f"{label} must be a positive integer")
-    return _parse_positive_int(int(value), label, maximum=2_147_483_647)
 
 
 def submit_independent_review_result(request: Mapping[str, Any], *, state_root: Path) -> dict[str, Any]:
@@ -641,10 +650,8 @@ def submit_independent_review_result(request: Mapping[str, Any], *, state_root: 
     if type(result_payload) is not str:
         raise ReviewStateError("submit result must be text")
 
-    # Parse enough untrusted header data to derive the deterministic operation;
-    # the full exact identity/nonce validation is repeated after genesis load.
-    preliminary = _extract_result_identity(result_payload, automatic=True)
-    identity = preliminary[0]
+    header = _result_header(result_payload, automatic=True)
+    identity = _identity_from_result_header(header)
     operation_key = review_operation_key(identity)
     root = _review_root(state_root)
     with _acquire_task_lock(root, _lock_id(operation_key)):
@@ -674,14 +681,14 @@ def submit_independent_review_result(request: Mapping[str, Any], *, state_root: 
         if state["dispatch_state"] != "dispatch-attempted":
             raise ReviewStateError("automatic result cannot be recorded before dispatch-attempted")
 
-        state = _record_result(
+        updated = _record_result(
             state,
             source="automatic",
             parsed=parsed,
             dispatch_state="dispatch-attempted",
             recovery_reason=None,
         )
-        _write_state_checkpoint(root, operation_key, state)
+        _write_state_checkpoint(root, operation_key, updated)
         persisted = _load_state(root, identity, operation_key, durable_run_id)
         return {
             "schema_version": 1,
@@ -692,51 +699,13 @@ def submit_independent_review_result(request: Mapping[str, Any], *, state_root: 
         }
 
 
-def _extract_result_identity(payload: str, *, automatic: bool) -> tuple[ReviewIdentity, dict[str, str]]:
-    if type(payload) is not str or len(payload.encode("utf-8")) > MAX_RESULT_BYTES:
-        raise ReviewStateError("review result is invalid or too large")
-    lines = payload.splitlines()
-    markers = [index for index, line in enumerate(lines) if line.strip() == "REVIEW_RESULT_V1"]
-    if len(markers) != 1:
-        raise ReviewStateError("review result must contain exactly one REVIEW_RESULT_V1 marker")
-    header: dict[str, str] = {}
-    for line in lines[markers[0] + 1 :]:
-        stripped = line.strip()
-        if not stripped or stripped == "```":
-            if set(_IDENTITY_KEYS) - {"pr_number"} <= set(header) and "pr_number" in header:
-                break
-            continue
-        match = _HEADER_LINE_RE.fullmatch(stripped)
-        if match is None:
-            break
-        key, value = match.groups()
-        if key in header:
-            raise ReviewStateError(f"review result header duplicates {key}")
-        header[key] = value
-        if len(header) > len(_RESULT_HEADER_KEYS) + 1:
-            raise ReviewStateError("review result header contains too many fields")
-    identity = parse_review_identity(
-        {
-            "repository": header.get("repository"),
-            "pr_number": _parse_positive_int_from_header(header.get("pr_number", ""), "pr_number"),
-            "base_sha": header.get("base_sha"),
-            "head_sha": header.get("head_sha"),
-            "review_skill": header.get("review_skill"),
-            "review_skill_version": header.get("review_skill_version"),
-        },
-        exact_keys=True,
-    )
-    if automatic and "review_run_id" not in header:
-        raise ReviewStateError("automatic review result is missing review_run_id")
-    return identity, header
-
-
 def reconcile_independent_review_result(request: Mapping[str, Any], *, state_root: Path) -> dict[str, Any]:
     if type(request) is not dict:
         raise ReviewStateError("reconcile request must be a plain object")
     allowed = set(_IDENTITY_KEYS) | {"manual_result"}
-    if set(request) - allowed:
-        raise ReviewStateError("reconcile request contains unsupported fields")
+    unexpected = set(request) - allowed
+    if unexpected:
+        raise ReviewStateError(f"reconcile request contains unsupported fields: {sorted(unexpected)}")
     identity = parse_review_identity({key: request.get(key) for key in _IDENTITY_KEYS}, exact_keys=True)
     manual_payload = request.get("manual_result")
     if manual_payload is not None and type(manual_payload) is not str:
@@ -769,12 +738,7 @@ def reconcile_independent_review_result(request: Mapping[str, Any], *, state_roo
                 expected_identity=identity,
                 automatic=False,
             )
-            terminal = _build_recovery_state(
-                identity,
-                operation_key,
-                review_run_id,
-                parsed_manual,
-            )
+            terminal = _build_recovery_state(identity, operation_key, review_run_id, parsed_manual)
             _write_state_checkpoint(root, operation_key, terminal)
             persisted = _load_state(root, identity, operation_key, review_run_id)
             return _public_state_summary(persisted, include_result=True)
@@ -812,14 +776,14 @@ def reconcile_independent_review_result(request: Mapping[str, Any], *, state_roo
             expected_identity=identity,
             automatic=False,
         )
-        state = _record_result(
+        updated = _record_result(
             state,
             source="manual",
             parsed=parsed_manual,
             dispatch_state=state["dispatch_state"],
             recovery_reason=None,
         )
-        _write_state_checkpoint(root, operation_key, state)
+        _write_state_checkpoint(root, operation_key, updated)
         persisted = _load_state(root, identity, operation_key, review_run_id)
         return _public_state_summary(persisted, include_result=True)
 
@@ -838,9 +802,7 @@ def _record_result(
     updated = dict(state)
     updated["revision"] = int(state["revision"]) + 1
     updated["dispatch_state"] = dispatch_state
-    updated["result_state"] = (
-        "automatic-result-recorded" if source == "automatic" else "manual-fallback-recorded"
-    )
+    updated["result_state"] = "automatic-result-recorded" if source == "automatic" else "manual-fallback-recorded"
     updated["result_source"] = source
     updated["result_body_sha256"] = parsed.body_sha256
     updated["result_payload"] = parsed.payload
