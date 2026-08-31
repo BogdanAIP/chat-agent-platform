@@ -35,7 +35,10 @@ _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _SKILL_VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 _REVIEW_RUN_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 _HEADER_LINE_RE = re.compile(r"^([a-z_]+)=(.*)$")
-_FINDING_HEADING_RE = re.compile(r"^###\s+FINDING\s+([1-9][0-9]*)\s*$", re.IGNORECASE)
+_FINDING_HEADING_RE = re.compile(
+    r"^(?:#{1,6}\s*)?FINDING\s+#?([1-9][0-9]*)\s*:?\s*$",
+    re.IGNORECASE,
+)
 _FINDING_FIELD_RE = re.compile(
     r"^(severity|location|introduced_by|failure_mechanism|consequence|supporting_evidence|"
     r"falsification_attempt|why_it_survives)\s*=\s*(.*)$"
@@ -386,34 +389,61 @@ def _finding_field_marker(line: str) -> tuple[str, str] | None:
     return match.group(1), match.group(2).strip()
 
 
+def _finding_heading_number(line: str) -> int | None:
+    normalized = line.strip().replace("**", "").replace("__", "").replace("`", "")
+    match = _FINDING_HEADING_RE.fullmatch(normalized)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
 def _nonempty_finding_field_text(lines: list[str]) -> str:
     cleaned = "\n".join(lines).replace("**", "").replace("__", "").replace("`", "").strip()
     return cleaned
 
 
-def _validate_finding_bodies(payload: str, reported_findings: int) -> None:
+def _finding_blocks(payload: str, reported_findings: int) -> list[tuple[int, list[str]]]:
     lines = payload.splitlines()
     headings: list[tuple[int, int]] = []
     for index, line in enumerate(lines):
-        match = _FINDING_HEADING_RE.fullmatch(line.strip())
-        if match is not None:
-            headings.append((index, int(match.group(1))))
+        number = _finding_heading_number(line)
+        if number is not None:
+            headings.append((index, number))
 
-    if len(headings) != reported_findings:
-        raise ReviewStateError(
-            "review result finding body count does not match reported_findings"
-        )
+    if headings:
+        if len(headings) != reported_findings:
+            raise ReviewStateError("review result finding body count does not match reported_findings")
+        numbers = [number for _, number in headings]
+        if numbers != list(range(1, reported_findings + 1)):
+            raise ReviewStateError("review result findings must be numbered sequentially from 1")
+        blocks: list[tuple[int, list[str]]] = []
+        for heading_index, (start, number) in enumerate(headings):
+            end = headings[heading_index + 1][0] if heading_index + 1 < len(headings) else len(lines)
+            blocks.append((number, lines[start + 1 : end]))
+        return blocks
+
+    severity_positions: list[int] = []
+    for index, line in enumerate(lines):
+        marker = _finding_field_marker(line)
+        if marker is not None and marker[0] == "severity":
+            severity_positions.append(index)
+
+    if len(severity_positions) != reported_findings:
+        raise ReviewStateError("review result finding body count does not match reported_findings")
+    blocks = []
+    for index, start in enumerate(severity_positions):
+        end = severity_positions[index + 1] if index + 1 < len(severity_positions) else len(lines)
+        blocks.append((index + 1, lines[start:end]))
+    return blocks
+
+
+def _validate_finding_bodies(payload: str, reported_findings: int) -> None:
+    blocks = _finding_blocks(payload, reported_findings)
     if reported_findings == 0:
         return
 
-    numbers = [number for _, number in headings]
-    if numbers != list(range(1, reported_findings + 1)):
-        raise ReviewStateError("review result findings must be numbered sequentially from 1")
-
     severity_ranks: list[int] = []
-    for heading_index, (start, number) in enumerate(headings):
-        end = headings[heading_index + 1][0] if heading_index + 1 < len(headings) else len(lines)
-        block = lines[start + 1 : end]
+    for number, block in blocks:
         markers: dict[str, tuple[int, str]] = {}
         for block_index, line in enumerate(block):
             marker = _finding_field_marker(line)
