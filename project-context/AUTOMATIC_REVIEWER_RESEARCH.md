@@ -4,7 +4,7 @@ Status: **STAGE RESEARCH — NARROW (PROPOSED UNTIL THIS PR IS ACCEPTED)**
 
 Research date: 2026-08-31
 
-`NARROW` limits implementation scope; it does **not** reduce the research depth required by accepted `stage-research` v1.2 or `source-code-research` v1.0. Production implementation remains blocked until this research PR passes exact-head CI, mandatory fresh ordinary-Chat review and merge. Only after acceptance does the decision become implementation authority.
+`NARROW` limits implementation scope; it does **not** lower the research standard required by accepted `stage-research` v1.2 or `source-code-research` v1.0. Production implementation remains blocked until this research PR passes exact-head CI, mandatory fresh ordinary-Chat review and merge.
 
 Research baseline:
 
@@ -18,100 +18,137 @@ mandatory primary semantic reviewer = fresh ordinary ChatGPT
 
 ## Stage goal
 
-Remove routine user launch/paste/result-copy work from the already-required independent review gate without weakening exact-head review, falsification, reviewer independence, result integrity, or deterministic least-privilege authority.
+Remove routine user launch/paste/result-copy work from the already-required independent review gate without weakening exact-head review, falsification, reviewer independence, result integrity, crash/retry safety or deterministic least-privilege authority.
 
-Bounded target lifecycle:
+Selected v1 lifecycle:
 
 ```text
 review-ready exact PR identity
- -> registered launch_independent_review_v1 behind procedure_run
- -> immutable genesis record + crash-safe mutable operation checkpoint
- -> private single-use review_run_id
+ -> launch_independent_review_v1 behind procedure_run
+ -> immutable genesis + crash-safe mutable state
+ -> private high-entropy review_run_id
  -> one bounded browser launch
  -> one atomic browser-side Send claim
- -> fresh ordinary-Chat reviewer with no GitHub write credential/action
+ -> fresh ordinary-Chat reviewer in a qualified read-only GitHub authority environment
  -> REVIEW_RESULT_V1
- -> one submit_independent_review_result_v1 call
- -> project-owned allowlisted publisher creates at most one top-level PR result comment
- -> development-side full-comment-set + live-ref validation
- -> manual fallback on ambiguous/failed automatic execution
+ -> submit_independent_review_result_v1
+ -> local crash-safe result state
+ -> reconcile_independent_review_result_v1 in development chat
+ -> exact-head/fresh-context/result validation
+ -> merge gate or fail closed
 ```
 
-Non-goals remain explicit: no recurring/general scheduler, no arbitrary GitHub watcher, no `WAITING -> wake -> planner continuation`, no automatic wake/resampling of the unfinished development conversation, no worker rotation or multi-agent runtime, no seventh public tool/shell, no arbitrary URL/prompt/command launcher, no Native Messaging result bus, no automatic retry after ambiguous external effect, no raw GitHub write credential/action exposed to the reviewer, no generic GitHub proxy, no reviewer merge/approval authority, no Harbor production authority, and no general browser database/storage dispatcher or general browser database runtime.
+There is **no GitHub write in reviewer automation v1**. The earlier top-level PR-comment publisher design is rejected for v1 because it adds a provider credential, a broader permission bucket and an ambiguous external POST that the local crash/reconciliation model cannot make disappear.
+
+Non-goals: no recurring/general scheduler, no arbitrary GitHub watcher, no `WAITING -> wake -> planner continuation`, no automatic wake/resampling of the unfinished development conversation, no worker rotation or multi-agent runtime, no seventh public tool/shell, no arbitrary URL/prompt/command launcher, no Native Messaging result bus, no raw GitHub write credential/action in the reviewer, no generic GitHub proxy, no reviewer merge/approval authority, no Harbor production authority and no general browser database/storage runtime.
 
 ## Current project baseline
 
 ### Existing public/procedure authority
 
-The accepted public Chat-facing surface remains exactly six canonical semantic tools. `procedure_run` already admits only registered bounded procedures through the semantic projection and deterministic Control Plane. The automatic reviewer therefore adds only fixed registered procedures behind this existing boundary; it does not create a seventh tool or generic command/HTTP/GitHub dispatcher.
+The accepted Chat-facing surface remains exactly six tools. `procedure_run` already admits only registered bounded procedures through the semantic projection and deterministic Control Plane. Reviewer automation therefore uses only fixed procedures behind that existing boundary.
 
-Stage 24 already established the project pattern of least-privilege capability projection: concrete profiles expose only admitted actions while broader backend mechanics remain behind the project boundary. The automatic reviewer reuses that principle rather than giving a model a broad external credential and relying on prose not to use it.
+Stage 24 already established least-privilege projection as a project pattern: expose only the typed actions needed by a profile while broader backend mechanics remain outside the planner's authority surface.
 
 ### Accepted Stage 26.3C cooperating-runner lock
 
-Accepted BASE `runtime/control_plane/_verified_workspace_artifact_support.py` contains `_TaskLock` and `_acquire_task_lock`, using an OS-backed nonblocking exclusive lock: `msvcrt.locking(..., LK_NBLCK, ...)` on Windows and `flock(..., LOCK_EX | LOCK_NB)` on POSIX. Process death releases live lock ownership.
-
-Required automatic-review reuse:
-
-```text
-canonical review identity
- -> derive review_operation_key / bounded lock id
- -> acquire existing project OS-backed exclusive lock
- -> no unlocked fallback
- -> only holder may inspect/create/transition operation state
- -> hold through durable dispatch-attempted transition and one launch decision
- -> release after bounded launcher returns
-```
+Accepted BASE `runtime/control_plane/_verified_workspace_artifact_support.py` contains `_TaskLock` / `_acquire_task_lock`, using a process-held OS-backed nonblocking exclusive lock. Process death releases live lock ownership. Reviewer automation reuses that role for exact-operation single-writer ownership before any genesis/state read, nonce generation, result submission or manual-fallback closure.
 
 ### Accepted Stage 26.3C crash-oriented file primitives
 
-The OS lock is **not** the persistence primitive. The same accepted BASE implementation contains:
+The same accepted BASE implementation contains:
 
-- `_write_checkpoint` / `_load_checkpoint` / `_validate_resume_state` for sibling-temp complete JSON -> `flush` -> `os.fsync` -> `os.replace` -> strict canonical load;
-- `_exclusive_create_file` for exclusive create (`xb`) -> complete bytes -> `flush` -> `os.fsync`.
+- `_exclusive_create_file`: exclusive create -> complete bytes -> `flush` -> `os.fsync`;
+- `_write_checkpoint`: same-directory sibling temp -> complete JSON -> `flush` -> `os.fsync` -> `os.replace`;
+- `_load_checkpoint` / `_validate_resume_state`: strict canonical/schema/identity validation.
 
-The automatic reviewer reuses both roles:
-
-1. an immutable **genesis record** uses exclusive-create semantics and is never automatically overwritten or deleted in v1;
-2. mutable operation state uses the accepted atomic checkpoint-replacement pattern.
-
-`tests/test_stage26_3c_workspace_hard_crash.py`, `tests/test_stage26_3c_checkpoint_progress_validation.py` and `tests/test_stage26_3c_checkpoint_identity_validation.py` establish the accepted process-crash/restart and fail-closed validation style. No machine/power-loss transactional guarantee is added.
+Reviewer automation reuses these primitives but keeps their declared guarantee narrow: cooperating process crash/restart on the supported local filesystem, not storage rollback, hostile deletion or machine/power-loss transactional durability.
 
 ### PR #138 launch evidence
 
-PR #138 physically demonstrated a narrow run-bound ChatGPT deep-link/autosend path and one bounded Send. Its page/session state did not prove durable operation ownership, crash-safe local state, cross-tab Send serialization, structured result handoff or general scheduler authority. It is therefore a launch/UI mechanic source only.
+PR #138 physically demonstrated a run-bound ChatGPT deep-link/autosend path and one bounded Send. It did not prove durable operation ownership, browser cross-tab serialization, qualified reviewer tool authority or result handoff. It remains a launch/UI mechanic source only.
 
 ## Architecture lineage comparison
 
-| Role | Prior / candidate | Decision | Reason |
+For every **existing BASE role**, exactly one canonical lineage decision is recorded. Scope qualifiers are separate and are not second decisions.
+
+| Role | Prior source / owner | Canonical lineage decision | Scope qualifier / reason |
 |---|---|---|---|
-| primary semantic reviewer | fresh ordinary ChatGPT | **KEEP** | mandatory accepted reviewer remains unchanged |
-| review protocol | project `code-review` skill | **KEEP / REFINE** | exact refs/falsification remain; proposed v1.1 adds only bounded local result submission |
-| bounded launch consequence | registered `procedure_run` | **REUSE_MORE / NARROW** | no seventh public tool or arbitrary launcher |
-| local concurrent operation ownership | Stage 26.3C OS-backed lock | **REUSE_MORE** | closes cooperating first-creator/writer race |
-| immutable prior-creation evidence | Stage 26.3C `_exclusive_create_file` style | **REUSE_MORE / REFINE** | persistent genesis marker distinguishes first creation from missing mutable state after a known operation |
-| mutable durable local operation state | Stage 26.3C atomic checkpoint pattern | **REUSE_MORE** | closes process-crash write/load ambiguity without new DB/WAL framework |
-| deep-link/composer mechanics | PR #138 | **REFINE** | retain proved UI mechanics, replace page-local ownership |
-| browser-side cross-tab Send ownership | MV3 extension service worker + extension-origin IndexedDB | **SELECT / NARROW** | transactional unique-key claim closes same-run tab race |
-| reviewer GitHub authority | no direct write credential/action; project-owned fixed publisher | **REFINE / LEAST_PRIVILEGE** | planner cannot exercise labels/branch/review/settings mutations because those actions are absent from its authority surface |
-| result transport | fixed local submit procedure -> allowlisted GitHub App publisher -> one PR Conversation comment | **REFINE / SELECT** | keeps durable visible PR evidence without delegating raw GitHub authority to the reviewer |
-| development continuation | current user-driven development chat | **KEEP MANUAL / DEFER automatic wake** | avoids hidden same-task-continuation runtime |
-| evaluation harness | Harbor | **REUSE_MORE / EVALUATION ONLY** | avoids building benchmark runner; no production authority |
-| optional second reviewer | Codex Review | **KEEP OPTIONAL** | additional signal only |
-| generic scheduler/event bus/multi-worker/runtime/GitHub proxy | future concepts | **REJECT for this slice** | unnecessary authority expansion |
+| primary semantic reviewer | fresh ordinary ChatGPT | **KEEP** | required reviewer remains unchanged |
+| review protocol | project `code-review` skill | **REFINE** | keep exact refs/falsification; add bounded local automatic-result submission/reconciliation |
+| bounded launch consequence | registered `procedure_run` | **REUSE_MORE** | reuse existing admission surface; no seventh tool |
+| local concurrent operation ownership | Stage 26.3C OS-backed lock | **REUSE_MORE** | exact reviewer operation gets the same cooperating single-writer role |
+| immutable creation evidence | Stage 26.3C `_exclusive_create_file` mechanic | **REUSE_MORE** | reuse for reviewer genesis; no new persistence framework |
+| mutable durable local state | Stage 26.3C checkpoint mechanic | **REUSE_MORE** | reuse for launch/result/fallback state |
+| deep-link/composer mechanic | PR #138 experiment | **REFINE** | retain proved UI mechanics; replace page-local ownership with durable claim state |
+| development continuation | current user-driven development chat | **KEEP** | result copy/paste is removed; automatic wake remains out of scope |
+| optional second reviewer | Codex Review | **KEEP** | optional evidence only |
+
+New architecture roles introduced by this Stage Research are explicitly marked **NEW_ARCHITECTURE** rather than receiving a fake lineage decision:
+
+- reviewer authority qualification/isolation;
+- browser cross-tab Send claim via MV3 service worker + IndexedDB;
+- local automatic-result submission/reconciliation state;
+- Harbor-backed evaluation seam.
+
+These new roles are covered by the Research Scope Expansion Gate below.
 
 ## Architecture primitives and adjacent domains
 
-The selected design deliberately separates six release-critical primitives:
+### Primitive A — process-held OS lock
 
-1. **Live local ownership** — process-held OS lock. Prevents cooperating concurrent writers but does not make durable writes atomic.
-2. **Immutable operation genesis** — exclusive-created, fsynced identity/nonce record that proves an automatic operation was created. Detects mutable-state disappearance within the cooperating process-crash scope.
-3. **Mutable durable operation state** — complete checkpoint replacement + strict load validation. Protects process-restart state transitions but does not prove first creation by itself.
-4. **Browser Send ownership** — one MV3 extension service worker + IndexedDB unique-key transaction. Prevents same-run multi-tab Send duplication.
-5. **Reviewer submission authority** — a private, single-use `review_run_id` accepted only by a fixed `submit_independent_review_result_v1` procedure. It is correlation plus a one-shot bearer submission capability until consumed; it grants no generic procedure/GitHub authority.
-6. **GitHub publication/evidence** — a project-owned publisher holds the external credential and may invoke only the exact top-level-comment endpoint for the exact repository/PR. The resulting mutable comment is evidence and is independently rescanned before merge.
+Engineering domain: local inter-process concurrency / file locking.
 
-Adjacent domains explicitly researched: filesystem exclusive-create and replacement semantics, SQLite transactional state, append-only journal/WAL recovery, MV3 service-worker lifecycle, IndexedDB transaction serialization, Web Locks, browser KV persistence, capability projection, GitHub App installation tokens/permission buckets, allowlisted outbound clients, idempotency/correlation, mutable GitHub evidence and ambiguous external effects.
+Guarantee here: only one cooperating local caller may create/read/transition one review operation at a time.
+
+Assumptions/boundary: cooperating processes use the lock; process death releases ownership. It is not durable state and does not defend against hostile non-cooperating writers.
+
+### Primitive B — immutable exclusive-created genesis
+
+Engineering domain: filesystem create-if-absent / identity persistence.
+
+Guarantee here: distinguish true first creation from disappearance of mutable state while the genesis survives.
+
+Assumptions/boundary: supported local filesystem; hostile deletion of both genesis and state, storage rollback and machine/power-loss loss are outside the guarantee.
+
+### Primitive C — crash-safe mutable checkpoint replacement
+
+Engineering domain: filesystem persistence / atomic replacement.
+
+Guarantee here: a process restart observes either the old valid canonical state or the new valid canonical state, while failed/ambiguous temp residue fails closed.
+
+Assumptions/boundary: same filesystem/directory; successful `os.replace`; process-crash scope. This does not claim universal power-loss durability.
+
+### Primitive D — MV3 service-worker + IndexedDB unique-key claim
+
+Engineering domain: browser extension lifecycle + transactional browser storage.
+
+Guarantee here: across concurrent tabs for the same `review_run_id`, at most one committed claimant receives automatic Send authority.
+
+Assumptions/boundary: pre-initialized expected IndexedDB schema/version; one extension origin; no lazy schema upgrade on the claim path; transaction success is required before grant.
+
+### Primitive E — reviewer authority-qualified ChatGPT environment
+
+Engineering domain: application capability control / least privilege.
+
+Guarantee here: the fresh reviewer cannot invoke a GitHub mutation action, not merely that it chooses not to.
+
+Accepted qualification states:
+
+1. GitHub app is disconnected/disabled/unavailable in the reviewer account/workspace; or
+2. a workspace Action Control that actually removes GitHub write actions from the reviewer role/app surface is enabled and fresh evidence proves only read actions are available.
+
+Per-message non-selection, `@mention` omission, `Always ask`, `Any changes`, `Important actions`, or another confirmation policy is **not** accepted as authority removal.
+
+If neither accepted qualification state can be proved on the target ordinary-Chat environment, `launch_independent_review_v1` must fail closed as `reviewer_authority_unqualified` before automatic Send. Manual fresh ordinary-Chat review remains the fallback.
+
+### Primitive F — local result submission and reconciliation
+
+Engineering domain: local idempotent state machine / reconciliation.
+
+Guarantee here: automatic result delivery has no external side effect and cannot race a manual fallback into a late unresolved result after fallback closure.
+
+The same OS lock serializes automatic result recording and manual-fallback closure. A final development-side reconciliation is mandatory before merge.
 
 ## Problem evidence
 
@@ -126,240 +163,188 @@ development chat freezes exact refs
  -> development chat validates result + live identity
 ```
 
-The project has already observed or independently reviewed concrete hazards relevant to automation:
+Confirmed hazards from this PR's review history:
 
-- material head changes make earlier reviews stale;
-- Stage 26.3C established that concurrent cooperating ownership needs an explicit OS lock;
-- a fresh review of #140 rejected `chrome.storage.local` check/set as a non-atomic cross-tab claim;
-- a later fresh review correctly separated OS serialization from crash-atomic mutable-state persistence;
-- another review showed that mutable-state disappearance cannot be distinguished from first creation unless separate durable prior-creation evidence exists;
-- giving a reviewer a GitHub credential/action with broader write permissions contradicts a claimed comment-only authority boundary even if the prompt says not to use the extra actions;
-- result comments are mutable/duplicable evidence and therefore need a final complete-set rescan;
-- OpenHands independently documents replayed child-launch ActionEvents as a duplicate/billable side-effect hazard.
-
-These are release-relevant failure modes, not speculative optimization targets.
+- same-run concurrent launch/Send needs explicit serialization;
+- live OS locking does not provide crash-atomic persistence;
+- mutable state disappearance cannot be distinguished from first creation without retained creation evidence;
+- prompt-only GitHub mutation prohibitions do not remove capability;
+- per-message app non-selection proves non-use, not durable capability revocation;
+- an ambiguous external comment POST can complete after a zero-result scan and race manual fallback;
+- remote comments add edit/delete/duplicate integrity work that is unnecessary if the result can remain local;
+- service-worker memory is not durable ownership because MV3 workers terminate;
+- stale BASE/HEAD invalidates otherwise correct review evidence.
 
 ## Solution evidence
 
-### Immutable genesis + mutable operation checkpoint
+### Filesystem genesis/checkpoint evidence
 
-The deterministic `review_operation_key` owns two different durable files under the operation lock:
+Primary/strong solution-domain evidence:
+
+- POSIX `open()` / `O_CREAT|O_EXCL`: the existence check and creation are atomic with respect to competing opens of the same name: https://pubs.opengroup.org/onlinepubs/9799919799/functions/open.html
+- POSIX `fsync()`: waits for requested file synchronization or an error: https://pubs.opengroup.org/onlinepubs/009695399/functions/fsync.html
+- Python `os.fsync`: on Unix invokes native `fsync`, on Windows `_commit`; Python explicitly requires `flush()` before `os.fsync()` for buffered files: https://docs.python.org/3/library/os.html#os.fsync
+- Python `os.replace`: same-filesystem successful replacement is the cross-platform replace primitive; Python documents successful rename/replace as atomic where the platform contract provides it: https://docs.python.org/3/library/os.html#os.replace
+
+Project mapping:
 
 ```text
-<review_operation_key>.genesis.json   # immutable after first successful creation attempt
-<review_operation_key>.state.json     # mutable canonical checkpoint
+operation lock
+ -> clean all-absent check
+ -> generate review_run_id once
+ -> exclusive-create/fsync immutable genesis
+ -> strict reload
+ -> sibling-temp/flush/fsync/replace mutable state
+ -> strict pair validation
 ```
 
-Genesis contains at minimum:
+The direct sources support create-if-absent, flushing/synchronization and replacement mechanics. They do **not** justify a stronger machine/power-loss or hostile-state rollback claim, so v1 does not make one.
+
+### Browser claim evidence
+
+Primary solution-domain evidence:
+
+- W3C IndexedDB 3.0 transaction model: overlapping `readwrite` transactions do not run simultaneously against the same scope; the earlier transaction has exclusive access until it finishes: https://www.w3.org/TR/IndexedDB/#transaction-scheduling
+- W3C IndexedDB `add()`: `add` uses a no-overwrite operation and fails with `ConstraintError` when the key already exists: https://www.w3.org/TR/IndexedDB/#dom-idbobjectstore-add
+- W3C transaction abort semantics revert changes made by an aborted transaction: https://www.w3.org/TR/IndexedDB/#dom-idbtransaction-abort
+- Chrome extension service-worker lifecycle: workers may terminate after inactivity or unexpectedly; globals are lost and important state must be persisted: https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle
+- Chrome's termination testing guidance explicitly recommends testing termination and persisting state: https://developer.chrome.com/docs/extensions/how-to/test/test-serviceworker-termination-with-puppeteer
+
+Project mapping:
 
 ```text
-schema_version
-review_operation_key
-repository
-pr_number
-base_sha
-head_sha
-review_skill
-review_skill_version
-review_run_id
-created_at
-```
-
-Mutable state contains the same exact identity + nonce and at minimum:
-
-```text
-dispatch_state = prepared | dispatch-attempted
-submission_state = open | publication-attempted | published | publication-ambiguous
-dispatch_attempted_at | null
-result_body_sha256 | null
-published_comment_id | null
-```
-
-First-creation ordering:
-
-```text
-derive exact operation identity
- -> acquire OS-backed exclusive operation lock
- -> inspect genesis + canonical + matching temp residues
- -> first creation permitted only when all are absent
- -> generate review_run_id exactly once
- -> _exclusive_create_file-style genesis create + write + flush + os.fsync
- -> strict reload/validate genesis
- -> atomically write canonical prepared state via sibling temp + flush + os.fsync + os.replace
- -> strict reload/validate genesis + canonical pair
-```
-
-A crash during genesis creation may leave no file or a partial/corrupt exclusive-created file. If no genesis was created, a clean first creation remains possible. If any genesis file exists but fails strict validation, future automatic execution fails closed; it is never overwritten/reset automatically. Genesis is never automatically deleted in v1.
-
-Pair invariants after genesis exists:
-
-- `genesis exists + canonical missing` -> `operation_state_missing_after_genesis`; **no new nonce and no automatic recreation**;
-- `canonical exists + genesis missing` -> `operation_genesis_missing`; fail closed;
-- genesis/canonical identity or `review_run_id` mismatch -> fail closed;
-- canonical absent + matching mutable temp residue -> `operation_persistence_ambiguous`; fail closed/manual recovery;
-- canonical valid + mutable temp residue -> canonical remains authority; temp is never consumed as state;
-- invalid canonical JSON/schema/state -> never recreate/reset it automatically;
-- write, flush, `os.fsync` or `os.replace` failure -> **no external browser launch**.
-
-`dispatch-attempted` must be successfully replaced into canonical state **before** invoking the OS/browser launch consequence. A crash before that replace leaves valid `prepared`; a crash after successful replace leaves `dispatch-attempted`, which forbids automatic relaunch.
-
-This detects disappearance of the mutable canonical record because the immutable genesis survives ordinary cooperating process crash/restart. Hostile/non-cooperating deletion of both genesis and canonical, deletion of the whole state root, machine/power-loss filesystem loss and storage rollback are explicitly outside this v1 guarantee and are not claimed as detectable.
-
-### Browser-side cross-tab Send ownership
-
-A content script never self-authorizes Send. The selected owner is one **MV3 extension service worker** and one **extension-origin IndexedDB** object store `review_send_claims`.
-
-```text
-validated ChatGPT root/new-chat route
- -> content script sends claim-review-send-v1(review_run_id)
- -> service worker validates sender/origin/message
- -> open pre-initialized exact-version IndexedDB
+content script requests claim(review_run_id)
+ -> MV3 service worker validates sender/origin/message
+ -> exact pre-initialized DB/store/version
  -> one readwrite transaction
- -> add primary-key record review_run_id
+ -> objectStore.add(claim, review_run_id)
  -> wait for transaction completion
- -> only the caller whose add transaction committed receives claim_status=granted
- -> winning content script revalidates route/composer/button
- -> one Send click
+ -> committed winner receives grant
+ -> duplicate key / abort / lost response receives no new automatic grant
 ```
 
-Never treat `chrome.storage.local` `get()` / `set()` as an atomic Send-claim primitive; **it is not Send ownership**.
+This directly supports the selected cross-tab serialization claim. It does not justify keeping ownership in service-worker globals, and the design explicitly does not do that.
 
-The claim path **must not lazily create or upgrade the database schema**. Missing marker/store, unexpected version, `onupgradeneeded`, transaction abort/error, service-worker failure, malformed response or ambiguous response all fail closed with **no automatic Send**.
-
-If **two tabs request the same run claim concurrently**, overlapping IndexedDB readwrite transactions serialize; **exactly one `add(review_run_id)` can commit** and **only that caller gets grant**. The budget is **0 extra Sends**.
-
-If the **service worker / claim transaction fails or aborts before commit**, no grant exists. If the **claim commits but response is lost or winning tab dies before click**, the **durable claim remains** and blocks a second automatic grant; use **manual fallback**. The content script **does not automatically retry an ambiguous claim response**.
-
-### Deterministic reviewer GitHub authority
-
-The fresh reviewer must not receive a raw GitHub installation/user token and must not have a selected mutation-capable GitHub app/action in the automatic review context. For this public-repository v1, repository evidence is reconstructed through credentialless/public GitHub GET/web evidence or another physically proven read-only evidence path. ChatGPT app approval settings are not treated as a security boundary: OpenAI documents that permission settings primarily control when actions ask for approval and do not remove underlying app access.
+### Reviewer authority evidence
 
 Primary product evidence:
 
-- https://help.openai.com/en/articles/11487775 — app permissions and action controls; personal permission settings do not grant/remove provider capability by themselves;
-- https://docs.github.com/en/rest/issues/comments — public issue-comment reads can be unauthenticated for public resources; creating a comment requires write permission;
-- https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app — GitHub App endpoint permissions;
-- https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation — installation tokens can be scoped to repositories/permissions and expire after one hour.
+- OpenAI `Apps in ChatGPT`: app permissions control when ChatGPT asks; they do not remove provider access, and to remove an app's access it must be disconnected or disabled by workspace control: https://help.openai.com/en/articles/11487775
+- OpenAI admin controls: app access determines who can use an app; where supported, **Action control determines what the app can do** and can allow only read actions or a custom action set: https://help.openai.com/en/articles/11509118
+- OpenAI developer-mode docs: app selection applies to the message where it is used and multiple apps may be invoked; selection is an invocation mechanism, not accepted here as a security proof that a separately available write app does not exist: https://help.openai.com/en/articles/12584461
 
-GitHub's own permission bucket for creating a top-level PR Conversation comment (`POST /repos/{owner}/{repo}/issues/{issue_number}/comments`) requires Issues-write or Pull-requests-write, each broader than one exact comment. Therefore **token scope alone is insufficient** for the claimed one-comment authority.
+Therefore the selected security invariant is not “GitHub was not selected.” It is **GitHub mutation actions are unavailable to the reviewer security context**. The target-Windows ordinary-Chat physical gate must prove that condition from fresh platform/app/action evidence before automatic review is accepted.
 
-Selected enforcement is two-layered:
+### Local result-state evidence
 
-```text
-fresh reviewer
- -> no raw GitHub write credential/action
- -> one fixed submit_independent_review_result_v1 procedure call
- -> project Control Plane validates single-use run capability + exact result schema/state
- -> persist publication-attempted before external POST
- -> local publisher mints/loads short-lived dedicated GitHub App installation token
- -> allowlisted client permits only POST /repos/<exact owner>/<exact repo>/issues/<exact pr>/comments
- -> no generic HTTP method/path/GraphQL/GitHub SDK surface is exposed to the reviewer
- -> one comment attempt only
-```
+No provider-side write is needed. `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` reuse the already accepted local OS-lock + checkpoint mechanics.
 
-The GitHub App is installed only on the target repository and requests only the minimum permission bucket needed for comment creation. Its private key/installation token stays outside repository/workspace/chat-visible state. The local publisher additionally enforces exact owner/repo/pr/method/path/body constraints because GitHub's permission bucket is broader than the desired effect.
-
-Negative authorization tests must prove the publisher rejects or has no code path for: file/branch mutation, review submission/approval/request-changes, labels/assignees/milestones, merge/close/reopen, settings, comment edit/delete, arbitrary issue creation, arbitrary repository choice, GraphQL mutation, arbitrary REST method/path, or a second publication attempt.
-
-The automatic launch qualification must also prove the fresh reviewer context has no selected mutation-capable GitHub app/action. A permission prompt or instruction saying “do not mutate” is not accepted as deterministic enforcement.
-
-### Single-use local result submission
-
-`review_run_id` remains high-entropy and private until the one result submission has been consumed. The launcher stores it only in private operation state and injects it into the fresh review request; it **does not return review_run_id to the development caller**, does not place it in PR metadata before submission and does not use it as a general authorization token.
-
-The reviewer calls only:
+Mutable state contains at minimum:
 
 ```text
-procedure=submit_independent_review_result_v1
-review_run_id=<same private value from REVIEW_REQUEST_V1>
-result=<complete REVIEW_RESULT_V1 + findings>
+dispatch_state = prepared | dispatch-attempted
+result_state = open | automatic-result-recorded | manual-fallback-recorded
+result_source = null | automatic | manual
+result_body_sha256 = null | <sha256>
+result_payload = null | <validated REVIEW_RESULT_V1 + findings>
+result_recorded_at = null | <timestamp>
 ```
 
-The fixed procedure, under the operation lock:
+Automatic submit under the operation lock:
 
-1. resolves the operation by the high-entropy run id in private state;
-2. requires valid genesis + canonical exact identity and `dispatch_state=dispatch-attempted`;
-3. requires `submission_state=open` and exact structured result fields;
-4. verifies result repository/PR/BASE/HEAD/policy/skill/context/run id match the operation;
-5. computes and persists `result_body_sha256` and `submission_state=publication-attempted` **before** any GitHub POST;
-6. consumes the run's automatic submission authority at that transition; later calls cannot regain it;
-7. performs at most one allowlisted publisher POST.
+```text
+require valid genesis/state + dispatch-attempted + result_state=open
+ -> validate review_run_id + exact result identity/context/schema
+ -> compute result_body_sha256
+ -> atomically persist automatic-result-recorded + payload + digest
+ -> return recorded receipt
+```
 
-If the local procedure call/POST outcome becomes ambiguous after `publication-attempted`, neither the reviewer nor another caller automatically retries the POST. The development side scans GitHub evidence. If exactly one valid expected-bot comment exists, it may reconcile that external result evidence; if none or multiple exist, automatic handoff fails closed and the manual fresh-review fallback remains available.
+If the transport response is lost after persistence, a repeated same-nonce/same-digest call may return `already_recorded` without another external effect. A different digest or a closed manual-fallback state is rejected.
 
-Once the result comment exists, `review_run_id` is public correlation data, but the local one-shot submission authority has already been consumed, so disclosure does not permit a second publication.
+Development reconciliation:
 
-### Result evidence consumption
+```text
+reconcile_independent_review_result_v1(exact review identity, optional manual_result)
+ -> acquire same operation lock
+ -> load/validate genesis + state
+ -> if automatic-result-recorded: return automatic result; never overwrite it
+ -> if open and no manual_result: return pending
+ -> if open and valid manual_result supplied: atomically persist manual-fallback-recorded
+ -> if manual-fallback-recorded: return stored manual result
+```
 
-The expected comment author is the dedicated publisher GitHub App/bot identity, not the reviewer user's broad GitHub identity.
+This closes the late-result race: automatic submit and manual-fallback closure contend on the same local lock. Whichever commits first defines the authoritative result state. A later automatic submit cannot appear after `manual-fallback-recorded`.
 
-Initial consumption queries the **top-level PR comment collection** and requires exact nonce, expected publisher principal, unedited body, exact repository/PR/BASE/HEAD/policy/context identity and valid structured result. It records comment id/body digest/created/updated metadata.
-
-Final gate queries the **complete collection again**, requires `matching-comment count == 1`, same accepted id/author/body digest/metadata, and then **re-fetches that sole exact comment**. A **late duplicate**, edit, deletion or **author mismatch** invalidates automatic result evidence.
-
-The comment never self-authorizes `PASS` or merge. The development lifecycle remains the consumer/acceptance authority.
+Before merge, development must perform a final reconciliation against the live exact PR identity. `open`, corrupt, mismatched, stale or ambiguous state blocks merge.
 
 ## Best current approaches
 
-The strongest current fit is a composition of narrow primitives rather than an imported general framework:
+Selected composition:
 
-- local single writer: accepted Stage 26.3C OS lock;
-- durable prior-creation evidence: immutable exclusive-created genesis;
-- mutable operation state: accepted Stage 26.3C sibling-temp/flush/fsync/replace + strict load-validation pattern;
-- browser Send claim: MV3 service worker + IndexedDB unique `add(review_run_id)` transaction;
-- reviewer result authority: private single-use run capability + fixed local submit procedure;
-- GitHub mutation: dedicated repository-scoped GitHub App credential hidden behind an endpoint-allowlisted publisher;
-- result transport: one top-level PR Conversation comment + full-set integrity rescan;
-- semantic reviewer: fresh ordinary ChatGPT under project `code-review` policy;
-- evaluation: Harbor only after the first honest production-like E2E.
+- Stage 26.3C OS lock — local cooperating single-writer ownership;
+- immutable exclusive-created genesis — prior-creation evidence;
+- Stage 26.3C atomic checkpoint — launch/result/fallback mutable state;
+- MV3 service worker + IndexedDB `readwrite`/`add(review_run_id)` — browser cross-tab Send ownership;
+- qualified ordinary-Chat reviewer environment — no GitHub mutation action available;
+- fixed local `submit_independent_review_result_v1` — automatic result record;
+- fixed local `reconcile_independent_review_result_v1` — development consumption/manual fallback closure/final gate;
+- fresh ordinary ChatGPT — semantic judgment;
+- Harbor — evaluation only after first honest production-like E2E.
 
-This preserves the existing Control Plane/public-tool boundary and introduces no generic scheduler, callback bus, GitHub proxy or local database framework.
+No local callback server, GitHub publisher, generic scheduler, generic GitHub proxy or second planner is introduced.
 
 ## Failure lessons
 
-- **Prompt prohibition != deterministic least privilege.** A planner holding a broader write credential still has the forbidden authority even if instructed not to exercise it.
-- **Provider permission bucket != exact action boundary.** GitHub comment creation requires a permission bucket broader than one comment, so an allowlisted local publisher is still required.
-- **Lock != crash-atomic persistence.** Serializing writers cannot make an in-place JSON transition recoverable.
-- **Atomic replace != prior-creation proof.** If the only mutable canonical state disappears, absence alone cannot distinguish first creation; immutable genesis is a separate invariant.
-- **Durable KV != atomic claim.** `chrome.storage.local` persistence does not provide transactional compare-and-claim semantics.
-- **Service-worker memory != durable ownership.** MV3 workers may terminate; globals cannot own the Send claim.
-- **Committed effect + lost response is ambiguity.** A committed browser claim, clicked Send or created GitHub comment is never blindly repeated because acknowledgement was lost.
-- **Checkpoint replacement is scoped.** sibling temp + flush/fsync + replace is reused only for the accepted process-crash/restart model, not promoted to power-loss durability.
-- **OpenHands availability-first behavior is wrong for this gate.** Its inspected launch ledger may proceed when local claim state is corrupt/unavailable; CAP must fail closed instead.
-- **Mutable remote evidence must be revalidated.** A once-valid result comment can later be edited, deleted or duplicated.
-- **General persistence/credential frameworks create obligations.** SQLite/WAL, custom event logs, generic GitHub proxies and native callback buses add broader lifecycle/authority than this one bounded operation needs.
+- **Prompt prohibition != least privilege.** If a mutation action is technically available, prose does not remove it.
+- **Per-message app non-selection != capability revocation.** Automatic review qualifies only an environment where write actions are actually unavailable.
+- **Approval policy != action removal.** Asking before writes is useful safety UX but is not the project security boundary.
+- **Lock != durable state.** Process serialization and crash-safe persistence are separate roles.
+- **Atomic replacement != prior-creation proof.** Immutable genesis remains separate from mutable state.
+- **Service-worker memory != durable browser ownership.** MV3 workers terminate and lose globals.
+- **Durable KV != atomic claim.** `chrome.storage.local` check/set is not a transactional unique claim.
+- **Ambiguous external POST creates a distributed reconciliation problem.** v1 removes the POST instead of adding timeouts/quarantine heuristics.
+- **Local result state can close fallback races deterministically.** Automatic submit and manual closure share one operation lock/state machine.
+- **Benchmark infrastructure is evidence, not authority.** Harbor never decides production acceptance.
 
 ## Alternatives comparison
 
+### Result handoff / authority
+
+| Approach | Core owner | Crash/ambiguity boundary | Strength | Failure/maintenance cost | Decision |
+|---|---|---|---|---|---|
+| direct reviewer GitHub write app/token | Chat reviewer | provider mutation | simple | broad authority; prompt-only restriction | **REJECT** |
+| backend GitHub App + allowlisted one-comment publisher | local publisher + provider | ambiguous external POST can complete late | durable PR-visible evidence | credential lifecycle, provider permission bucket, late POST reconciliation | **REJECT for v1** |
+| local crash-safe result state + fixed submit/reconcile procedures | Control Plane | accepted local process-crash scope | no provider write; same-lock fallback closure | result is local rather than PR-visible | **SELECT** |
+| local callback/result HTTP server | new ingress service | network/auth/receiver lifecycle | direct | new privileged service/result bus | **REJECT** |
+| user copy/paste | user | manual | already works | routine friction | **KEEP as fallback** |
+
 ### Local durable operation state
 
-| Alternative | State/crash model | Strength | Failure/maintenance cost | Decision |
+| Approach | State owner | Strength | Failure/maintenance cost | Decision |
 |---|---|---|---|---|
-| immutable exclusive-created genesis + accepted Stage 26.3C atomic checkpoint | genesis proves prior creation; mutable file uses sibling-temp/flush/fsync/replace | reuses accepted primitives and distinguishes missing mutable state | two small files and pair validation; no power-loss claim | **SELECT / REUSE_MORE** |
-| **SQLite transaction** / optional WAL | DB transaction/journal recovery with UNIQUE operation key | mature ACID and relational uniqueness | new DB/schema/migrations/WAL/checkpoint owner | **REJECT for v1; reconsider if state becomes relational/multi-record** |
-| **append-only journal/WAL** | replay from immutable events | rich audit/replay history | framing, checksums, torn-tail detection, replay, compaction, schema evolution | **REJECT for v1** |
-| **raw/in-place JSON write** | overwrite live record | simplest code | torn/partial state and no prior-creation proof | **REJECT** |
+| exclusive genesis + accepted atomic checkpoint | project files | reuses accepted mechanics, detects missing mutable state | two small files/pair validation | **SELECT** |
+| SQLite transaction/WAL | database | mature transactional state | new schema/migrations/journal owner | **REJECT for v1** |
+| append-only event journal | local log | rich replay history | framing/checksum/replay/compaction lifecycle | **REJECT for v1** |
+| raw in-place JSON | one file | simple | torn/corrupt overwrite; no creation proof | **REJECT** |
 
-### Browser Send ownership
+### Browser Send claim
 
-| Alternative | Strength | Failure/cost | Decision |
-|---|---|---|---|
-| service worker + IndexedDB transaction | durable same-origin transactional unique claim | bounded schema/transaction lifecycle needed | **SELECT / NARROW** |
-| **Web Locks** + durable ledger | good live origin-scoped exclusion | lock is ephemeral and still needs a second durable store | **REJECT for v1** |
-| **service-worker in-memory Set** + `chrome.storage.local` | easy | worker lifetime ephemeral; KV check/set non-atomic | **REJECT** |
-| **Native Messaging** / local dispatcher | could centralize browser ownership | privileged host/transport/deployment authority expansion | **REJECT for this slice** |
+| Approach | Owner | Strength | Failure/maintenance cost | Decision |
+|---|---|---|---|---|
+| MV3 service worker + IndexedDB unique-key `add` | extension origin | transactional same-run claim across tabs | small schema/version lifecycle | **SELECT** |
+| Web Locks + durable ledger | browser lock + store | good live exclusion | ephemeral lock still requires separate durable claim | **REJECT for v1** |
+| service-worker memory / `chrome.storage.local` check-set | worker/KV | easy | worker termination + non-atomic check/set | **REJECT** |
+| Native Messaging local dispatcher | native host | centralized ownership | privileged host/transport expansion | **REJECT** |
 
-### Reviewer result/GitHub authority
+### Reviewer authority isolation
 
-| Alternative | Strength | Failure/cost | Decision |
-|---|---|---|---|
-| reviewer directly uses connected GitHub write app/token | simple UI flow | permission bucket/actions broader than one comment; prompt-only restriction | **REJECT** |
-| fixed local submit procedure + hidden dedicated GitHub App token + exact endpoint allowlist | deterministic planner authority, durable visible PR evidence | needs one project-owned publisher and bot setup | **SELECT / NARROW** |
-| local-only result artifact, no GitHub comment | smallest external authority | development-side discovery/history less portable; adds local result-read contract | **DEFER as fallback design** |
-| **local callback/result server** | direct transport | new ingress/auth/state owner | **REJECT for v1** |
-| **user copy/paste** | already accepted manual route | human friction remains | **KEEP as fallback** |
-
-Three materially distinct approaches are therefore compared for each new persistence/transport/authority role; no fewer-than-three exception is used.
+| Approach | Authority owner | Strength | Failure/maintenance cost | Decision |
+|---|---|---|---|---|
+| per-message GitHub non-selection / approval prompts | Chat UI policy | low friction | does not prove write action unavailable | **REJECT as security boundary** |
+| reviewer workspace/role with GitHub Action Control limited to read actions | ChatGPT workspace policy | explicit action removal where supported | workspace/admin configuration and revalidation | **SELECT when available** |
+| dedicated reviewer account/workspace with GitHub app disconnected/disabled | ChatGPT account/workspace | simple deterministic absence | separate qualified environment may be operationally inconvenient | **SELECT fallback qualification** |
+| same broad development context | user account | no setup | broad GitHub write authority remains | **REJECT for automatic mode** |
 
 ## Source-code evidence
 
@@ -369,18 +354,18 @@ Three materially distinct approaches are therefore compared for each new persist
 repository = BogdanAIP/chat-agent-platform
 exact ref = b10a5fa3122bb6c76c12d37d67911b88e5e1ce28
 research date = 2026-08-31
-classification = OPEN_IMPLEMENTED (project accepted implementation)
-lesson = ADAPT_MECHANIC / REUSE_COMPONENT within project lineage
+classification = OPEN_IMPLEMENTED
+lesson = REUSE_COMPONENT / ADAPT_MECHANIC
 ```
 
-Inspected symbols/files:
+Inspected symbols/tests:
 
-- `runtime/control_plane/_verified_workspace_artifact_support.py`: `_TaskLock`, `_acquire_task_lock`, `_exclusive_create_file`, `_write_checkpoint`, `_load_checkpoint`, `_validate_resume_state`;
+- `_TaskLock`, `_acquire_task_lock`, `_exclusive_create_file`, `_write_checkpoint`, `_load_checkpoint`, `_validate_resume_state`;
 - `tests/test_stage26_3c_workspace_hard_crash.py`;
 - `tests/test_stage26_3c_checkpoint_progress_validation.py`;
 - `tests/test_stage26_3c_checkpoint_identity_validation.py`.
 
-Execution path followed: stable task identity -> OS lock -> strict retained-state validation -> exclusive consequence/create mechanics or sibling-temp full checkpoint write -> flush/fsync -> `os.replace` -> reconciliation from canonical state. Mapping: reuse lock, exclusive-create genesis and atomic checkpoint mechanics, but not file-artifact-specific effect authority.
+Reuse only the accepted local process-crash mechanics; do not import workspace-artifact effect authority into reviewer semantics.
 
 ### Harbor
 
@@ -388,18 +373,12 @@ Execution path followed: stable task identity -> OS lock -> strict retained-stat
 repository = harbor-framework/harbor
 exact ref = 389bd4f8ce796ef4a97de4b62675021e262c8e76
 research date = 2026-08-31
-classification = OPEN_IMPLEMENTED for custom-agent / SingleStepTrial evaluation lifecycle
-production fresh-Chat launch = NOT_FOUND_AFTER_TARGETED_SEARCH
+classification = OPEN_IMPLEMENTED
 lesson = REUSE_COMPONENT for evaluation only
+exact CAP production fresh-Chat launch = NOT_FOUND_AFTER_TARGETED_SEARCH
 ```
 
-Inspected:
-
-- `src/harbor/agents/base.py`: `BaseAgent.run`, capabilities, session/context identity;
-- `src/harbor/trial/single_step.py`: `_run`, `_run_agent`, `_recover_outputs`, verifier/error paths;
-- `tests/unit/test_single_step_trial.py`: artifact collection idempotence, recovery collection, success/error output cleanup.
-
-Execution path: task/trial -> one agent run -> output sync/artifact collection -> verifier -> result. The exact CAP fresh ordinary-Chat/result-publication lifecycle was **NOT_FOUND_AFTER_TARGETED_SEARCH**; Harbor remains evaluation-only.
+Inspected `src/harbor/agents/base.py`, `src/harbor/trial/single_step.py`, `src/harbor/models/agent/context.py`, and `tests/unit/test_single_step_trial.py`. Harbor owns evaluation trial execution/artifact/verifier lifecycle; it does not become production authority.
 
 ### openai/codex
 
@@ -407,17 +386,12 @@ Execution path: task/trial -> one agent run -> output sync/artifact collection -
 repository = openai/codex
 exact ref = 94cbbddafc1776d5e377bca1b05932c697e82238
 research date = 2026-08-31
-thread/session lifecycle classification = OPEN_IMPLEMENTED
-exact fresh ordinary-Chat reviewer wake path = NOT_FOUND_AFTER_TARGETED_SEARCH / OPEN_PARTIAL for adjacent lifecycle
+classification = OPEN_IMPLEMENTED for adjacent thread/session lifecycle
+exact CAP fresh ordinary-Chat reviewer wake = NOT_FOUND_AFTER_TARGETED_SEARCH
 lesson = REFERENCE_ONLY
 ```
 
-Inspected:
-
-- `codex-rs/core/src/thread_manager.rs`: `ThreadManager`, `StartThreadOptions`, thread store, reserved IDs, start/resume/fork paths;
-- `codex-rs/core/src/thread_manager_tests.rs`: reserved ID rules, distinct root/child/fork identities and resume preserving stored thread ID.
-
-Execution path: allocate/reserve thread identity -> start/store -> child/fork or resume from persisted rollout -> resume retains original identity. A complete public mechanism matching `fresh ordinary ChatGPT -> CAP evidence -> bounded result submission` was **NOT_FOUND_AFTER_TARGETED_SEARCH**, so Codex remains `REFERENCE_ONLY`.
+Inspected `codex-rs/core/src/thread_manager.rs` and `thread_manager_tests.rs`. Stable/resumed identity is a useful reference; Codex remains optional evidence, not the mandatory reviewer runtime.
 
 ### OpenHands
 
@@ -427,135 +401,117 @@ exact ref = 1098d73df42351a31b2940557efb9fe8750365c4
 research date = 2026-08-31
 classification = OPEN_IMPLEMENTED
 claim-before-effect lesson = ADAPT_MECHANIC
-corrupt/unavailable-ledger fail-open lesson = REJECT_MECHANIC
+availability-first corrupt-ledger behavior = REJECT_MECHANIC
 ```
 
-Inspected:
-
-- `src/services/child-conversation-launch.ts`: `claimToolCall`, local/cloud child launch and bounded readiness polling;
-- `__tests__/services/child-conversation-launch.test.ts`: `ignores a replayed tool call`, no unnecessary retry, worktree fallback/error cases.
-
-Execution path: validate action -> `claimToolCall(parentConversationId, toolCallId)` before network launch -> create child -> report result. The replay test calls the same tool-call id twice and asserts one creation. CAP adapts claim-before-effect but rejects availability-first behavior when claim state is corrupt/unavailable.
+Inspected `src/services/child-conversation-launch.ts` and `__tests__/services/child-conversation-launch.test.ts`, including `ignores a replayed tool call`. Claim-before-effect is useful; fail-open replay risk is not.
 
 ## Failure/Crash Matrix
 
-Every row names authoritative durable state, possible physical state, fresh evidence, retry/reconciliation permission and the shield that must falsify an unsafe implementation.
-
-| Boundary / failure | Authoritative durable state | Possible physical state | Required fresh evidence | Retry / reconciliation permission | Invariant / shield / test | Max unauthorized additional effect |
+| Boundary / failure | Authoritative durable state | Possible physical state | Required fresh evidence | Retry / reconciliation permission | Shield / test | Max unauthorized additional effect |
 |---|---|---|---|---|---|---:|
-| malformed/missing exact launch identity | none | no operation state/effect | fresh live PR + schema validation | no retry until corrected immutable request | fixed-schema negatives | 0 effects |
-| two concurrent local callers before genesis | operation OS lock | one winner, competitor alive | lock result + genesis/state/temp inspection | loser performs no create/nonce/launch | concurrent first-caller barrier | 0 extra launches |
-| crash before genesis file is created | genesis/state absent | no browser launch | locked scan proves genesis/state/temp absent | clean first creation allowed | hard-crash-before-genesis-create | 0 effects |
-| crash during exclusive genesis write | genesis may be partial/corrupt; state absent | no browser launch | strict genesis reload/validation | existing invalid genesis fails closed; never overwrite | genesis-write fault injection | 0 launches |
-| genesis write/fsync failure | no valid genesis | no browser launch | exclusive-create result + strict reload | no automatic overwrite/retry if file exists; manual recovery | genesis persistence fault test | 0 launches |
-| valid genesis but canonical state missing | immutable genesis proves prior creation | historical launch has not/has potentially progressed only if state was externally lost | locked genesis/state/temp inspection | **no automatic canonical recreation, no new nonce**; manual recovery | genesis-with-missing-state disappearance test | 0 launches |
-| canonical state exists but genesis missing | canonical is untrusted because genesis invariant broken | historical state unknown | locked pair validation | fail closed; no launch | missing-genesis test | 0 launches |
-| genesis/canonical identity or nonce mismatch | both files untrusted as a pair | historical effect unknown | strict pair validation | fail closed/manual recovery | pair-mismatch tests | 0 launches |
-| crash during prepared-state temp write | valid genesis; canonical absent or old valid state; temp may exist | no browser launch by ordering | locked pair + temp scan | ambiguous temp with missing canonical -> manual only | temp-residue fault injection | 0 launches |
-| prepared-state write/flush/fsync/replace failure | valid genesis + prior canonical or no canonical; temp may remain | no browser launch | persistence error + locked reload | no launch; ambiguous state manual only | persistence-step fault injection | 0 launches |
-| canonical corrupt/schema/identity mismatch | valid genesis + invalid canonical bytes | historical effect unknown | strict pair/schema/state validation | never recreate/reset automatically | corrupt-record tests | 0 launches |
-| valid canonical + sibling temp residue | valid genesis + valid canonical authority | stale temp may remain | strict pair validation + temp enumeration | follow canonical state only; temp never consumed | canonical-plus-temp test | 0 duplicate launches |
-| crash after prepared state but before dispatch-attempted | genesis + canonical `prepared` same run id | external browser launch cannot have occurred by ordering | locked pair validation | same nonce may make one dispatch transition | crash-before-dispatch test | <=1 total launch |
-| **crash/persistence failure while replacing dispatch-attempted checkpoint** | valid genesis + old `prepared` or new `dispatch-attempted`; temp may remain | browser launch only if replacement returned success | locked pair reload + temp scan + persistence result | valid prepared may attempt transition once; dispatch-attempted never relaunches; ambiguity manual only | **replacement fault injection** | <=1 total launch |
-| dispatch-attempted durable then crash before/during browser open | genesis + canonical `dispatch-attempted` | browser may be unopened/opened/delivery unknown | locked state + optional browser diagnosis | no automatic relaunch | crash-after-dispatch test | 0 extra launches |
-| existing `/c/...` route receives payload | dispatch-attempted; no browser claim | existing conversation visible | fresh route/root/composer observation | refuse claim/Send; manual fresh-review path | route refusal physical/DOM test | 0 Sends |
-| claim schema/store missing/version mismatch | no trusted browser claim state | no Send | service-worker DB validation | no claim-time create/upgrade | schema/version negatives | 0 Sends |
-| claim transaction aborts before commit | no committed claim | no Send authority | transaction result | no automatic Send; manual fallback | transaction-abort test | 0 Sends |
-| two tabs request same run concurrently | one IndexedDB primary-key claim may commit | two prepared tabs | both transaction results + claim row | exactly one grant; loser never retries automatically | deterministic barrier + **two-real-tab physical gate** | **0 extra Sends** |
-| claim commits but response lost/tab dies | durable claim exists | zero or one Send attempt | fresh claim-store/tab evidence | no regrant/reclaim; **manual fallback** | lost-response/tab-death test | 0 extra Sends |
-| Send click/transport ambiguous | dispatch-attempted + durable claim | message may/may not be sent | fresh conversation/result evidence if obtainable | no automatic redelivery | ambiguous-Send physical test | 0 extra Sends |
-| reviewer sees mutation-capable GitHub app/action or raw GitHub token | qualification invariant violated | forbidden GitHub mutations are technically possible | fresh tool/app inventory + credential boundary evidence | abort automatic review; no submission/publication | negative authority-surface physical test | 0 GitHub mutations |
-| submit call has wrong/guessed/stale run id | private operation state does not match | no GitHub POST | locked genesis/state lookup + result identity validation | reject; no retry with guessed identity | submission-auth negative tests | 0 GitHub mutations |
-| first valid submit reaches local procedure | state `open` -> durable `publication-attempted` with result digest | no comment yet before external POST | locked pair + structured result validation | consumes automatic submit authority before POST | single-use submission test | <=1 comment attempt |
-| publisher asked for wrong repo/pr/method/path/body shape | publication-attempted; no allowed request | no GitHub mutation | deterministic allowlist validation | reject; never fall through to generic client | endpoint/method/path negative tests | 0 GitHub mutations |
-| GitHub App token has broader provider permission bucket | token remains backend-only | publisher could technically call more endpoints only if code exposed them | code-path/allowlist tests + credential non-exposure evidence | no generic request API exists; only exact comment POST admitted | publisher authority test | 0 unauthorized GitHub mutations |
-| result-comment POST returns ambiguous/crash after dispatch | durable `publication-attempted` + result digest | zero or one expected-bot comment may exist | complete top-level PR comment scan | **no automatic second POST**; reconcile evidence or manual fallback | API ambiguity/crash integration test | 0 extra comment attempts |
-| valid POST returns success | publication-attempted then optional `published` receipt/comment id | one expected-bot comment exists | exact response + full comment scan | no second submit/publication | one-comment success test | 0 extra comments |
-| malformed/wrong-author/edited/stale result comment | remote evidence non-authoritative | comment exists | parse + publisher author + metadata + exact refs | reject; explicit fresh review only | result-validation tests | 0 merge authority |
-| valid result followed by **late duplicate**/edit/delete | accepted id/digest recorded | remote set changed | **full comment-set rescan** over all pages + sole-id re-fetch + live PR identity | fail closed; no merge | late-duplicate/edit/delete tests | 0 merge authority |
-| live BASE/HEAD moves | retained result bound to old refs | PR points elsewhere | fresh PR identity | mark stale; new immutable review required | stale-head integration test | 0 stale merge authority |
-| hostile/non-cooperating deletion of entire genesis+state root | no surviving local proof | history can be lost | outside declared v1 process-crash/cooperating-runner scope | no guarantee claimed; requires separate hardening/research | scope assertion test | no false guarantee |
-| Harbor unavailable during evaluation | production review state unaffected | benchmark absent/failed | harness status | retry evaluation only | evaluation isolation test | 0 production effects |
+| malformed exact launch identity | none | no operation | live PR + schema | no launch | fixed-schema negatives | 0 |
+| concurrent first callers | OS lock | one holder / loser | lock result + directory state | loser no create/nonce | barrier test | 0 extra launches |
+| crash before genesis create | none | no effect | all-absent scan under lock | clean first creation allowed | crash-before-genesis | 0 |
+| crash during genesis create | invalid/partial genesis possible | no browser launch | strict genesis reload | existing invalid genesis blocks | create fault injection | 0 launches |
+| valid genesis, missing mutable state | genesis proves prior creation | historical progress uncertain | pair/temp scan | no recreate/new nonce | missing-state test | 0 launches |
+| state exists, genesis missing | untrusted state | history unknown | pair validation | fail closed | missing-genesis test | 0 launches |
+| pair/nonce mismatch | untrusted pair | history unknown | strict pair validation | fail closed | mismatch tests | 0 launches |
+| mutable temp write/replace failure | old canonical or no canonical + residue | no browser effect before dispatch state committed | persistence result + reload | ambiguity manual only | replacement fault injection | 0 launches |
+| prepared durable, crash before dispatch-attempted | prepared | no browser launch by ordering | strict state reload | same nonce may transition once | crash-before-dispatch | <=1 total launch |
+| dispatch-attempted durable, browser open ambiguous | dispatch-attempted | browser unopened/opened | state + browser diagnosis | no automatic relaunch | crash-after-dispatch | 0 extra launches |
+| existing `/c/...` route | dispatch-attempted; no Send claim | wrong conversation | fresh route/composer state | refuse claim/Send | route-refusal physical test | 0 Sends |
+| authority environment not qualified | no Send claim | GitHub write action may exist | fresh app/action/access evidence | abort automatic mode | negative authority gate | 0 GitHub mutations |
+| service worker terminates before claim commit | no committed claim | no Send authority | IDB transaction state | no Send | termination test | 0 Sends |
+| two tabs claim same run | one IDB key may commit | two composers | both transaction outcomes | one grant only | deterministic + two-real-tab test | 0 extra Sends |
+| claim commits, response lost/tab dies | committed claim | zero or one click attempt | durable claim + tab state | no regrant; manual fallback | lost-response test | 0 extra Sends |
+| automatic reviewer submit before local state commit | result_state=open | no result recorded | locked reload | same request may be retried/reconciled | submit fault injection | 0 repository effects |
+| result state commit succeeds, submit response lost | automatic-result-recorded | result durable | locked reload + digest | same nonce/digest returns already_recorded; different result rejected | lost-response idempotence test | 0 repository effects |
+| manual fallback and automatic submit race | one operation lock | either may arrive first | locked state | winner commits authoritative result; loser cannot overwrite | concurrent submit/fallback barrier | 0 late accepted results |
+| manual fallback commits first | manual-fallback-recorded | late automatic submit may arrive | locked state | late submit rejected | late-submit test | 0 late results |
+| automatic result commits first | automatic-result-recorded | manual result may exist separately | locked state | manual path cannot overwrite; automatic result must be dispositioned | precedence test | 0 overwritten findings |
+| corrupt/stale/mismatched local result | invalid result state | result bytes exist | strict result + live PR identity validation | no merge | corruption/stale tests | 0 merge authority |
+| live BASE/HEAD moves | result bound to old identity | PR now different | fresh PR identity | mark stale/new review required | stale-head test | 0 stale merge authority |
+| hostile deletion/storage rollback/power loss | local proof may disappear | history may be lost | outside declared v1 guarantee | no guarantee claimed | scope assertion | no false guarantee |
+| Harbor unavailable | production state unchanged | benchmark absent | harness status | retry evaluation only | isolation test | 0 production effects |
 
-No release-critical cell is left `unknown` within the declared cooperating process-crash/restart scope. Machine/power-loss durability, storage rollback and hostile deletion of the whole private state root remain outside the claimed guarantee.
+No release-critical cell is left `unknown` within the declared cooperating process-crash/restart and qualified-reviewer-environment scope.
 
 ## Fit to this architecture
 
-The selected composition preserves current authority layers instead of importing a new agent runtime:
-
 ```text
-fresh ordinary ChatGPT reviewer       -> semantic judgment / findings; no GitHub write credential
+fresh ordinary ChatGPT reviewer       -> semantic judgment; GitHub write actions unavailable
 project code-review policy            -> exact review protocol + falsification
 procedure_run launch                   -> bounded launch consequence
 Stage 26.3C OS lock                   -> local live single-writer ownership
-exclusive-created genesis             -> durable prior-creation evidence
-Stage 26.3C checkpoint pattern        -> local mutable crash-safe operation state
+exclusive-created genesis             -> prior-creation evidence
+Stage 26.3C checkpoint pattern        -> launch/result/fallback durable local state
 MV3 service worker + IndexedDB        -> browser Send ownership only
-procedure_run submit                  -> one-shot result submission capability
-project-owned GitHub publisher        -> exact allowlisted comment POST only
-GitHub PR comment                     -> mutable result transport evidence
-development lifecycle                 -> result disposition + final live-ref/merge gate
-Harbor                                -> evaluation only, not production
+procedure_run submit                  -> automatic result recording only
+procedure_run reconcile               -> development consumption/manual closure/final gate
+public web/GitHub GET evidence        -> repository evidence without GitHub mutation
+Harbor                                -> evaluation only
 ```
 
-The reviewer does not hold a credential that can mutate GitHub. The publisher does hold the minimum provider permission needed to create a comment, but it is not a generic GitHub client: its code surface is deterministically constrained to the exact repository/PR/comment endpoint and body generated from validated `REVIEW_RESULT_V1`.
-
-This architecture does **not** add a second planner, general scheduler/event bus, generic GitHub proxy, general browser database runtime, local callback service or broad native-host ingress.
+The selected v1 removes the entire automated GitHub mutation path rather than attempting to constrain a broad provider permission bucket with more local code.
 
 ## Reviewer evaluation method
 
-Reviewer quality and automation reliability remain separate planes.
+Keep two planes separate.
 
-### Plane A — reviewer semantic quality
+### Plane A — semantic reviewer quality
 
-Measure benchmark-native precision/recall/F1/decision accuracy, false approve/reject behavior, revision resolution and signal/noise as applicable.
+Measure precision, coverage/recall, F1, decision accuracy, false approve/reject behavior, revision resolution and signal/noise as supported by each benchmark.
 
 ### Plane B — lifecycle reliability
 
-Measure fresh-context success, exact-head binding, stale rejection, duplicate suppression, deterministic authority-surface enforcement, timeout/failure disposition, malformed/wrong-author/edited-result rejection, human interventions, wall time and cost where measurable.
+Measure fresh-context success, authority qualification success/failure, exact-head binding, launch/Send duplicate suppression, result handoff, stale rejection, timeout/failure classes, human interventions, wall time and cost where measurable.
 
-**Do not collapse these planes into one score.**
+Do **not** collapse these planes into one score.
 
-First evaluation ladder after the honest production E2E:
+Evaluation ladder after the first honest production-like E2E:
 
 ```text
-Harbor evaluation adapter -> ReviewBench baseline
+Harbor adapter -> ReviewBench baseline
  -> bounded SWE-Review-Bench subset
  -> CR-Bench / CR-Evaluator signal-to-noise control
  -> CAP Review Regression Set
 ```
 
-Harbor is selected as evaluation infrastructure only, not production authority. Use a development set for iteration, fixed regression subsets for routine comparison and a holdout set / official evaluation for periodic validation. The first benchmark run is a **baseline, not a release exam**; do not invent an arbitrary quality target before measuring the manual/current control. Semantic quality must not materially regress merely because lifecycle friction improves.
+Use a development subset for iteration, fixed regression subsets for routine comparison and a holdout/official evaluation for independent validation. The first run is a **baseline, not a release exam**.
 
 ## Acceptance checks
 
-Before a later production implementation can be accepted, tests/qualification must prove:
+Before later production implementation can be accepted, tests/qualification must prove:
 
-1. fixed `launch_independent_review_v1` and `submit_independent_review_result_v1` schemas only; arbitrary URL/prompt/command/GitHub request rejected;
-2. deterministic operation key + immutable genesis + one durable high-entropy `review_run_id`;
-3. `review_run_id` is not returned to the development caller and is consumed as one-shot automatic submission authority before external publication;
-4. OS lock acquired before genesis/state inspection or creation and no unlocked fallback;
-5. genesis uses `_exclusive_create_file`-style exclusive create + `flush` + `os.fsync`, is strictly validated and is never automatically overwritten/deleted;
-6. mutable operation writes use sibling-temp + `flush` + `os.fsync` + `os.replace`;
-7. genesis-with-missing-state, state-with-missing-genesis, identity/nonce mismatch, invalid canonical and ambiguous temp residue all fail closed without new nonce;
-8. `dispatch-attempted` replacement succeeds before browser launch; persistence failure produces no launch;
-9. hard-crash tests cover before/during/after genesis creation, mutable checkpoint replacement and dispatch marker;
-10. MV3 service worker is sole Send-claim owner and claim-time DB upgrade/recreation is forbidden;
-11. deterministic concurrency test proves one IndexedDB committed grant;
-12. **two real same-run tabs released concurrently prove exactly one service-worker IndexedDB claim grant and exactly one Send click**;
-13. committed-claim/lost-response and tab-death cases do not re-grant;
-14. fresh automatic reviewer context has no raw GitHub write credential and no selected mutation-capable GitHub app/action; approval prompts are not accepted as enforcement;
-15. `submit_independent_review_result_v1` validates exact operation/result identity, persists `publication-attempted` before GitHub POST and rejects second/wrong/stale submissions;
-16. dedicated GitHub App credential remains backend-only, repository-scoped/minimum-permission and short-lived where supported;
-17. publisher has no generic HTTP/GitHub/GraphQL mutation surface and permits only `POST /repos/<exact owner>/<exact repo>/issues/<exact pr>/comments` with validated result body;
-18. negative tests prove branch/file/review/label/merge/settings/comment-edit/delete/arbitrary-repo/arbitrary-endpoint mutations unreachable through automatic reviewer path;
-19. ambiguous publication causes no automatic second POST;
-20. stale/malformed/wrong-author/edited/duplicate result comments reject;
-21. final gate rescans all top-level comments and **re-fetches that sole exact comment** after `matching-comment count == 1`;
-22. existing public semantic tool surface remains unchanged; the new behavior is registered procedures/admission behind `procedure_run`;
-23. no generic scheduler/event bus, generic GitHub proxy, general browser database/storage dispatcher, Native Messaging result bus or automatic developer wake is reachable;
-24. mandatory fresh ordinary-Chat review + exact-head CI remain required;
-25. target-Windows ordinary-Chat physical E2E proves zero routine launch/paste/result-copy intervention plus authority/genesis/crash/stale/duplicate negative cases fail closed.
+1. fixed `launch_independent_review_v1`, `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` schemas only;
+2. arbitrary URL/prompt/command/GitHub mutation/result-bus inputs rejected;
+3. deterministic operation key + immutable genesis + one durable high-entropy `review_run_id`;
+4. `review_run_id` is not returned to the development caller before automatic result recording;
+5. OS lock precedes genesis/state access and has no unlocked fallback;
+6. genesis uses exclusive create + flush/fsync and is never automatically overwritten/deleted;
+7. mutable writes use sibling-temp + flush/fsync + replace + strict reload;
+8. genesis/state missing/mismatch/corruption/temp-residue cases fail closed without a new nonce;
+9. `dispatch-attempted` is durable before browser launch;
+10. hard-crash tests cover genesis creation and mutable transition replacement;
+11. MV3 service worker is the sole Send-claim owner and claim-time DB create/upgrade is forbidden;
+12. W3C-compatible readwrite unique-key claim semantics are exercised by deterministic concurrency tests;
+13. two real same-run tabs released concurrently produce exactly one committed grant and one Send click;
+14. committed-claim/lost-response/tab-death cases never re-grant automatically;
+15. automatic reviewer qualification proves GitHub mutation actions are **unavailable**, not merely unselected or approval-gated;
+16. accepted qualification is either disconnected/disabled GitHub app or workspace Action Control that exposes only read actions; otherwise automatic launch fails closed;
+17. ordinary-Chat physical gate proves required Chat Local Bridge capability remains available in that qualified reviewer environment;
+18. `submit_independent_review_result_v1` validates nonce/exact refs/policy/context/result schema and atomically records result locally;
+19. same-nonce/same-digest duplicate submit is reconciliation only; different/stale/late-after-manual result is rejected;
+20. `reconcile_independent_review_result_v1` under the same operation lock atomically resolves automatic-result vs manual-fallback races;
+21. `manual-fallback-recorded` permanently closes automatic submission for that operation;
+22. final merge gate performs fresh live PR identity + local result reconciliation and rejects open/corrupt/mismatched/stale state;
+23. no GitHub write credential, GitHub publisher, generic GitHub/HTTP/GraphQL proxy or automatic PR comment exists in v1;
+24. existing public semantic tool surface remains six tools;
+25. no generic scheduler/event bus/general browser DB/Native Messaging result bus/automatic developer wake is reachable;
+26. mandatory fresh ordinary-Chat review + exact-head hosted CI remain required;
+27. target-Windows ordinary-Chat E2E proves zero routine user launch/paste/result-copy intervention **when the authority environment qualifies**;
+28. if target environment cannot prove reviewer write-action unreachability, automatic mode fails closed and manual fresh review remains valid.
 
 ## Architecture decision
 
@@ -565,23 +521,23 @@ If accepted, implementation authority is limited to:
 
 ```text
 exact frozen review identity
- -> registered bounded procedure_run launcher
+ -> registered launch_independent_review_v1
  -> Stage 26.3C OS-backed single-writer lock
  -> immutable exclusive-created genesis + private review_run_id
- -> Stage 26.3C crash-atomic mutable checkpoint
+ -> Stage 26.3C crash-safe mutable checkpoint
  -> durable dispatch-attempted before one browser launch
  -> fresh-root ChatGPT deep-link/autosend
+ -> qualified ordinary-Chat reviewer environment with GitHub mutation actions unavailable
  -> MV3 service-worker IndexedDB unique-key Send claim
- -> exactly one automatic Send attempt
- -> fresh ordinary-Chat reviewer with no GitHub write credential/action
- -> one fixed submit_independent_review_result_v1 call using private single-use run capability
- -> durable publication-attempted before external mutation
- -> project-owned allowlisted publisher with backend-only dedicated GitHub App credential
- -> at most one exact top-level PR result-comment POST
- -> complete-comment-set + live exact-ref validation
- -> manual fallback after ambiguity
+ -> exactly one automatic Send authority grant
+ -> fresh ordinary-Chat reviewer
+ -> fixed submit_independent_review_result_v1 storing result locally
+ -> fixed reconcile_independent_review_result_v1 for development consumption/manual fallback/final merge gate
+ -> no automated GitHub write
 ```
 
-After the first real E2E, the thin Harbor/ReviewBench/SWE-Review-Bench/CR-Bench evaluation seam may be added without granting benchmark infrastructure production authority.
+The automatic path is **conditionally available**: if the target ChatGPT account/workspace cannot prove GitHub mutation actions unavailable while retaining the required review bridge/read evidence, the launcher must not send an automatic review request. That environment failure does not weaken the mandatory manual fresh-review path.
 
-Any requirement for a recurring/general scheduler, automatic developer wake, new public tool, arbitrary launcher, generic GitHub proxy/client exposed to Chat, reviewer-held GitHub write credential, new local DB/lease framework, general browser database runtime, Native Messaging/local result bus, blind retry after ambiguity, broader reviewer mutation authority, machine/power-loss transactional guarantee, worker rotation or multi-agent runtime invalidates this decision and requires Stage Research re-entry.
+After the first honest E2E, the thin Harbor/ReviewBench/SWE-Review-Bench/CR-Bench evaluation seam may be added without granting benchmark infrastructure production authority.
+
+Any requirement for recurring/general scheduling, automatic developer wake, new public tool, arbitrary launcher, reviewer-held GitHub write capability, automatic GitHub publisher/comment path, new general DB/lease framework, Native Messaging/local callback bus, blind retry after ambiguous external consequence, machine/power-loss transactional guarantee, worker rotation or multi-agent runtime invalidates this decision and requires Stage Research re-entry.
