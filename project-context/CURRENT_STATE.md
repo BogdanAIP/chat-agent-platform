@@ -152,6 +152,8 @@ Reviewer authority is now an explicit environment qualification. Accepted automa
 
 Automatic result handoff is local. `submit_independent_review_result_v1` validates the private nonce/exact refs/policy/context/result and atomically records `automatic-result-recorded`. `reconcile_independent_review_result_v1`, under the same operation lock, either returns that result or can atomically record a valid manual fresh-review fallback, permanently closing later automatic submission. This removes the late external-comment race structurally.
 
+Only a structurally complete `CURRENT PASS` or `CURRENT FINDINGS` is a completing review outcome for durable result authority. `ABSTAIN` and `STALE` are non-completing: they must not close the local result slot or make the deterministic exact-head operation uncloseable, and a fresh manual review must remain reachable through the same reconciliation path. A `FINDINGS` result must match `reported_findings` and contain every code-review v1.1 required finding field with non-empty content before any checkpoint write; persisted terminal state is revalidated under the same rule when loaded.
+
 Automatic wake/resampling of the unfinished development conversation after the reviewer finishes is **not** part of this slice. The development conversation still resumes when the user returns; result copy/paste is removed because the development side reads the local review operation state itself. General same-task continuation remains separate future Stage Research.
 
 The same research makes quality measurement part of the reviewer work:
