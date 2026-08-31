@@ -50,12 +50,20 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             with self.subTest(heading=heading):
                 self.assertIn(heading, self.research)
 
-    def test_narrow_is_proposed_until_pr_acceptance(self) -> None:
+    def test_narrow_is_accepted_after_research_pr_merge(self) -> None:
+        # The immutable research Brief keeps the historical adoption condition.
         self.assertIn("NARROW (PROPOSED UNTIL THIS PR IS ACCEPTED)", self.research)
         self.assertIn("Production implementation remains blocked until this research PR", self.research)
         self.assertIn("effective only after this PR is accepted and merged", self.research)
+
+        # CURRENT_STATE is the live owner and must advance after #140 merged.
         self.assertIn("AUTOMATIC_REVIEWER_RESEARCH.md", self.current)
-        self.assertIn("Production implementation is **still blocked** until #140", self.current)
+        self.assertIn("PR #140 is **merged and accepted**", self.current)
+        self.assertIn("supplies the current `NARROW` implementation authority", self.current)
+        self.assertIn("PR #141 is the current first production implementation slice", self.current)
+        self.assertIn("does **not** yet register the three automatic-review procedures", self.current)
+        self.assertNotIn("Production implementation is **still blocked** until #140", self.current)
+        self.assertNotIn("PR #140 is currently the **open acceptance gate**", self.current)
 
     def test_first_slice_stays_review_specific_and_local_result_only(self) -> None:
         for phrase in (
