@@ -399,7 +399,7 @@ def _finding_heading_number(line: str) -> int | None:
 
 
 def _markdown_schema_visibility(lines: list[str]) -> list[bool]:
-    """Mark schema-eligible lines, excluding fenced Markdown code blocks."""
+    """Mark schema-eligible lines, excluding fenced and indented Markdown code blocks."""
 
     visible: list[bool] = []
     fence_char: str | None = None
@@ -409,14 +409,16 @@ def _markdown_schema_visibility(lines: list[str]) -> list[bool]:
         stripped = line.lstrip(" ") if leading_spaces <= 3 else line
 
         if fence_char is None:
-            if leading_spaces <= 3:
-                match = re.match(r"^(`{3,}|~{3,})(.*)$", stripped)
-                if match is not None:
-                    token = match.group(1)
-                    fence_char = token[0]
-                    fence_length = len(token)
-                    visible.append(False)
-                    continue
+            if leading_spaces > 3:
+                visible.append(False)
+                continue
+            match = re.match(r"^(`{3,}|~{3,})(.*)$", stripped)
+            if match is not None:
+                token = match.group(1)
+                fence_char = token[0]
+                fence_length = len(token)
+                visible.append(False)
+                continue
             visible.append(True)
             continue
 
