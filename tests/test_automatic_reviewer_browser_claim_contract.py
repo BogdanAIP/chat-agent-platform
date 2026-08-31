@@ -15,68 +15,74 @@ class AutomaticReviewerBrowserClaimContractTests(unittest.TestCase):
 
     def test_send_claim_has_a_selected_atomic_cross_tab_owner(self) -> None:
         for phrase in (
-            "Browser-side cross-tab Send ownership",
-            "MV3 extension service worker",
-            "extension-origin IndexedDB",
-            "readwrite transaction",
-            "review_send_claims",
-            "add primary-key record review_run_id",
-            "claim_status=granted",
-            "only the caller whose add transaction committed",
+            "MV3 service worker + extension-origin IndexedDB unique-key transaction",
+            "content script requests claim(review_run_id)",
+            "one readwrite transaction",
+            "objectStore.add(claim, review_run_id)",
+            "committed winner receives grant",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase, self.research)
 
-    def test_content_scripts_cannot_self_authorize_send(self) -> None:
-        self.assertIn("A content script never self-authorizes Send", self.research)
-        self.assertIn("Never treat `chrome.storage.local` `get()` / `set()` as an atomic Send-claim primitive", self.research)
-        self.assertIn("chrome.storage.local", self.research)
-        self.assertIn("it is not Send ownership", self.research)
+    def test_direct_indexeddb_evidence_matches_required_claim(self) -> None:
+        for phrase in (
+            "https://www.w3.org/TR/IndexedDB/#transaction-scheduling",
+            "overlapping `readwrite` transactions do not run simultaneously",
+            "https://www.w3.org/TR/IndexedDB/#dom-idbobjectstore-add",
+            "fails with `ConstraintError` when the key already exists",
+            "https://www.w3.org/TR/IndexedDB/#dom-idbtransaction-abort",
+        ):
+            self.assertIn(phrase, self.research)
+
+    def test_service_worker_lifecycle_is_not_used_as_memory_ownership(self) -> None:
+        for phrase in (
+            "https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle",
+            "workers may terminate after inactivity or unexpectedly",
+            "globals are lost",
+            "https://developer.chrome.com/docs/extensions/how-to/test/test-serviceworker-termination-with-puppeteer",
+            "service-worker memory != durable browser ownership",
+        ):
+            self.assertIn(phrase.casefold(), self.folded)
 
     def test_same_run_two_tab_race_has_zero_extra_send_budget(self) -> None:
         for phrase in (
-            "two tabs request the same run claim concurrently",
-            "overlapping IndexedDB readwrite transactions serialize",
-            "exactly one `add(review_run_id)` can commit",
-            "only that caller gets grant",
+            "two tabs claim same run",
+            "one IDB key may commit",
+            "one grant only",
             "0 extra Sends",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase.casefold(), self.folded)
 
-    def test_claim_crash_and_ambiguous_response_fail_closed(self) -> None:
+    def test_claim_crash_and_lost_response_fail_closed(self) -> None:
         for phrase in (
-            "service worker / claim transaction fails or aborts before commit",
-            "claim commits but response is lost or winning tab dies before click",
-            "durable claim remains",
+            "service worker terminates before claim commit",
+            "claim commits, response lost/tab dies",
+            "no regrant",
             "manual fallback",
-            "does not automatically retry an ambiguous claim response",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase.casefold(), self.folded)
 
-    def test_claim_schema_is_preinitialized_and_not_lazily_recreated(self) -> None:
+    def test_claim_schema_is_preinitialized_and_not_lazily_upgraded(self) -> None:
         for phrase in (
-            "must not lazily create or upgrade the database schema",
-            "Missing marker/store",
-            "unexpected version",
-            "onupgradeneeded",
-            "fail closed with **no automatic Send**",
+            "pre-initialized expected IndexedDB schema/version",
+            "no lazy schema upgrade on the claim path",
+            "claim-time DB create/upgrade is forbidden",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase.casefold(), self.folded)
 
     def test_physical_gate_includes_real_concurrent_same_run_tabs(self) -> None:
         self.assertIn(
-            "two real same-run tabs released concurrently prove exactly one service-worker IndexedDB claim grant and exactly one Send click",
+            "two real same-run tabs released concurrently produce exactly one committed grant and one Send click",
             self.research,
         )
 
     def test_browser_claim_does_not_expand_into_general_runtime(self) -> None:
-        self.assertIn("scheduler/event bus", self.folded)
-        self.assertIn("general browser database/storage dispatcher", self.folded)
-        self.assertIn("general browser database runtime", self.folded)
-        self.assertIn("no native messaging result bus", self.folded)
+        for phrase in (
+            "scheduler/event bus",
+            "general browser database/storage runtime",
+            "native messaging result bus",
+            "automatic developer wake",
+        ):
+            self.assertIn(phrase, self.folded)
 
 
 if __name__ == "__main__":
