@@ -89,7 +89,7 @@ class IndependentReviewStructuralContentTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             review_state.ReviewStateError,
-            r"finding 1 field why_it_survives must be non-empty",
+            r"finding 1 field why_it_survives must have substantive inline content",
         ):
             review_state.submit_independent_review_result(
                 {"review_run_id": prepared.review_run_id, "result": payload},
@@ -103,6 +103,51 @@ class IndependentReviewStructuralContentTests(unittest.TestCase):
         self.assertEqual("pending", pending["status"])
         self.assertEqual("open", pending["result_state"])
         self.assertTrue(pending["automatic_submission_open"])
+
+    def test_heading_and_table_scaffold_cannot_fill_empty_inline_field(self) -> None:
+        identity = review_state.parse_review_identity(identity_dict())
+        payload = "\n".join(
+            [
+                "REVIEW_RESULT_V1",
+                "repository=BogdanAIP/chat-agent-platform",
+                "pr_number=141",
+                f"base_sha={BASE_SHA}",
+                f"head_sha={HEAD_SHA}",
+                f"review_policy_ref={BASE_SHA}",
+                "review_skill=code-review",
+                "review_skill_version=1.1",
+                "review_context=ordinary_chat_fresh",
+                "status=FINDINGS",
+                "review_validity=CURRENT",
+                "reported_findings=1",
+                "rejected_candidates=0",
+                "reviewed_at=2026-08-31T15:32:24+00:00",
+                "",
+                "### FINDING 1",
+                "severity = P2",
+                "location = runtime/control_plane/example.py:20",
+                "introduced_by = changed behavior",
+                "failure_mechanism = reachable path",
+                "consequence = broken invariant",
+                "supporting_evidence =",
+                "## Evidence",
+                "| source | detail |",
+                "| --- | --- |",
+                "| code | parser |",
+                "falsification_attempt = checked neighboring guard",
+                "why_it_survives = candidate remains valid",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            review_state.ReviewStateError,
+            r"finding 1 field supporting_evidence must have substantive inline content",
+        ):
+            review_state.parse_review_result(
+                payload,
+                expected_identity=identity,
+                automatic=False,
+            )
 
 
 if __name__ == "__main__":
