@@ -152,9 +152,9 @@ Do not reopen 26.3C merely to add another consumer or variant. Material new pers
 
 # Post-26.3C — bounded automatic independent-review infrastructure
 
-Productionize the smallest reliable path that automates the repository's already-required fresh ordinary-ChatGPT semantic review. PR #138's one-shot deep-link/autosend/scheduler work is experimental evidence for this item, not automatic production acceptance.
+Productionize the smallest reliable path that automates the repository's already-required fresh ordinary-ChatGPT semantic review. PR #138's one-shot deep-link/autosend work is experimental evidence for this item, not automatic production acceptance.
 
-Fresh Stage Research for this item is owned in `AUTOMATIC_REVIEWER_RESEARCH.md`. Its current decision is **NARROW**: implementation may proceed only for the bounded exact-head reviewer launch/result lifecycle defined there. A material new scheduler, result bus, automatic same-task developer wake, reviewer mutation authority or equivalent new mechanism requires research re-entry rather than silent scope expansion.
+Fresh Stage Research for this item is owned in `AUTOMATIC_REVIEWER_RESEARCH.md`. Its current decision is **NARROW**: implementation may proceed only for the bounded exact-head reviewer launch/local-result lifecycle defined there. A material new scheduler, generic result bus, automatic same-task developer wake, reviewer mutation authority or equivalent new mechanism requires research re-entry rather than silent scope expansion.
 
 Target lifecycle:
 
@@ -162,35 +162,43 @@ Target lifecycle:
 review-ready PR / intended exact head
  -> freeze BASE_SHA + HEAD_SHA
  -> bounded automatic launch operation + private run correlation
- -> fresh ordinary-ChatGPT context
- -> repository code-review skill + independent GitHub evidence
+ -> qualified fresh ordinary-ChatGPT context with GitHub mutation actions unavailable
+ -> repository code-review skill + independent public/read-only repository evidence
  -> REVIEW_RESULT_V1
- -> one bounded result-evidence handoff
- -> development-side result + live-identity revalidation
- -> stale/duplicate/malformed/ambiguous result rejection
+ -> fixed local submit_independent_review_result_v1
+ -> project-owned crash-safe result state
+ -> fixed reconcile_independent_review_result_v1 in development chat
+ -> live-identity + result-state revalidation
+ -> merge or fail closed
 ```
 
-The implementation must preserve the existing review contract rather than weakening it for automation. At minimum preserve:
+There is **no automated GitHub write in v1**. Earlier research considered a backend GitHub App / one-comment publisher, but review exposed an avoidable ambiguous external POST race and extra credential/permission surface. The selected v1 keeps the result entirely inside the existing local Control Plane persistence/reconciliation boundary.
+
+The implementation must preserve the existing review contract. At minimum preserve:
 
 - a genuinely fresh ordinary-ChatGPT review context;
 - exact repository / PR / BASE_SHA / HEAD_SHA binding;
 - independent reconstruction of evidence from the repository;
-- reviewer read-only authority over production code/branch/configuration, with only the bounded result-publication seam selected by the research contract;
-- fail-closed handling of missing, malformed, stale, edited, wrong-author, duplicated or otherwise ambiguous review results;
+- deterministic reviewer least privilege: GitHub mutation actions must be unavailable, not merely unselected or approval-gated;
+- fail-closed handling of missing, malformed, pending, stale, corrupt or ambiguous local result state;
 - no blind automatic relaunch after ambiguous dispatch/Send;
 - no representation of unavailable Codex Review as completed.
 
-Codex Review remains useful optional independent evidence when quota is available. It is not the primary required reviewer and quota exhaustion must not stop the release process when the required ChatGPT review and all other gates pass.
+Accepted authority qualification is either a reviewer account/workspace where the GitHub app is disconnected/disabled/unavailable, or a supported workspace Action Control that exposes only read actions. If the target environment cannot prove that condition while retaining the required ordinary-Chat + bridge/read path, automatic review is unavailable and the manual fresh-review route remains mandatory.
+
+Automatic result delivery uses the same local operation lock/state machine as fallback closure. `submit_independent_review_result_v1` records a validated automatic result. `reconcile_independent_review_result_v1` either returns that result or atomically records a valid manual fresh-review fallback if the automatic slot is still open. Whichever result state commits first is authoritative for that operation; a late automatic submit after manual closure is rejected. This prevents a late unresolved result from appearing after fallback acceptance.
+
+Codex Review remains useful optional independent evidence when quota is available. It is not the primary required reviewer and quota exhaustion must not stop release when the required ChatGPT review and other gates pass.
 
 Keep the first production consumer narrow: automatic code review. Do not silently generalize the mechanism into recurring arbitrary task execution, worker rotation, a generic scheduler/event bus or broad same-task autonomous continuation.
 
-Instrument review launches so development naturally accumulates a bounded acceptance corpus for later continuation research. Useful non-secret evidence includes correlation/run identity, trigger reason, exact refs, launch/delivery result, fresh-context proof where available, result disposition, stale detection, duplicate/missed delivery, timeout/failure class and manual-intervention requirement.
+Instrument review launches so development accumulates a bounded acceptance corpus for later continuation research. Useful non-secret evidence includes correlation identity, trigger reason, exact refs, authority-qualification result, launch/Send result, fresh-context proof, result source/disposition, stale detection, timeout/failure class and manual-intervention requirement. Do not expose the private run capability to the development caller before automatic-result closure.
 
-After the first physically working automatic-review E2E, add the **Harbor evaluation seam** before treating the automatic reviewer as stable replacement infrastructure. Harbor remains evaluation-only, not production runtime/authority. Use ReviewBench as the first small baseline, then bounded SWE-Review-Bench and CR-Bench/CR-Evaluator controls as defined in `AUTOMATIC_REVIEWER_RESEARCH.md`. Keep reviewer semantic quality metrics separate from CAP lifecycle reliability metrics, and preserve development/holdout separation so benchmark tuning does not masquerade as independent evidence.
+After the first physically working automatic-review E2E, add the **Harbor evaluation seam** before treating the automatic reviewer as stable replacement infrastructure. Harbor remains evaluation-only, not production runtime/authority. Use ReviewBench as the first small baseline, then bounded SWE-Review-Bench and CR-Bench/CR-Evaluator controls as defined in `AUTOMATIC_REVIEWER_RESEARCH.md`. Keep reviewer semantic quality metrics separate from CAP lifecycle reliability metrics, and preserve development/holdout separation.
 
-The first benchmark run establishes a baseline rather than an invented fixed threshold. A later acceptance target must be evidence-based relative to the current/manual fresh reviewer and available comparison reviewers. Removing UI friction is not sufficient if semantic review quality materially regresses.
+The first benchmark run establishes a baseline rather than an invented fixed threshold. Removing UI friction is not sufficient if semantic review quality materially regresses.
 
-Functional E2E completion condition: the required fresh ordinary-ChatGPT review can be launched and its exact-head `REVIEW_RESULT_V1` can be returned/validated through the normal development lifecycle without a routine user launch/paste/result-copy step, while stale/duplicate/failed/ambiguous runs remain fail-closed.
+Functional E2E completion condition: the required fresh ordinary-ChatGPT review can be launched and its exact-head `REVIEW_RESULT_V1` can be returned/validated from project-owned local result state without routine user launch/paste/result-copy, while unqualified authority environments and stale/failed/ambiguous runs remain fail-closed.
 
 Stable-infrastructure completion condition: the functional E2E condition is met **and** the Harbor-backed baseline/quality comparison has been recorded with semantic-quality and lifecycle-reliability evidence kept separate, with no material semantic-quality regression accepted merely for automation convenience.
 
