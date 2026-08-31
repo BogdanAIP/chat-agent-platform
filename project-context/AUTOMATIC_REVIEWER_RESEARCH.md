@@ -148,7 +148,7 @@ Engineering domain: local idempotent state machine / reconciliation.
 
 Guarantee here: automatic result delivery has no external side effect and cannot race a manual fallback into a late unresolved result after fallback closure.
 
-The same OS lock serializes automatic result recording and manual-fallback closure. A final development-side reconciliation is mandatory before merge.
+The same OS lock serializes automatic result recording and manual-fallback closure. A final development-side reconciliation is mandatory before merge. A valid immutable genesis with missing mutable state never permits automatic relaunch or automatic result submission, but it is not allowed to make the exact PR head permanently uncloseable: the development-side reconciliation procedure may use the retained genesis identity and the same `review_run_id` to record one **manual-only terminal recovery** backed by a complete fresh manual review.
 
 ## Problem evidence
 
@@ -168,6 +168,7 @@ Confirmed hazards from this PR's review history:
 - same-run concurrent launch/Send needs explicit serialization;
 - live OS locking does not provide crash-atomic persistence;
 - mutable state disappearance cannot be distinguished from first creation without retained creation evidence;
+- a fsynced genesis followed by process death before the first mutable checkpoint must not create an unrecoverable merge block;
 - prompt-only GitHub mutation prohibitions do not remove capability;
 - per-message app non-selection proves non-use, not durable capability revocation;
 - an ambiguous external comment POST can complete after a zero-result scan and race manual fallback;
@@ -242,12 +243,13 @@ No provider-side write is needed. `submit_independent_review_result_v1` and `rec
 Mutable state contains at minimum:
 
 ```text
-dispatch_state = prepared | dispatch-attempted
+dispatch_state = prepared | dispatch-attempted | automation-abandoned
 result_state = open | automatic-result-recorded | manual-fallback-recorded
 result_source = null | automatic | manual
 result_body_sha256 = null | <sha256>
 result_payload = null | <validated REVIEW_RESULT_V1 + findings>
 result_recorded_at = null | <timestamp>
+recovery_reason = null | state-missing-after-genesis
 ```
 
 Automatic submit under the operation lock:
@@ -267,16 +269,29 @@ Development reconciliation:
 ```text
 reconcile_independent_review_result_v1(exact review identity, optional manual_result)
  -> acquire same operation lock
- -> load/validate genesis + state
+ -> load/strictly validate genesis
+ -> if canonical state exists: strictly validate the genesis/state pair
  -> if automatic-result-recorded: return automatic result; never overwrite it
  -> if open and no manual_result: return pending
  -> if open and valid manual_result supplied: atomically persist manual-fallback-recorded
  -> if manual-fallback-recorded: return stored manual result
+ -> if valid genesis exists but canonical state is missing:
+      * launcher and automatic submit remain permanently disabled for this operation
+      * without manual_result return manual_recovery_required
+      * with a complete valid fresh manual_result bound to the same exact PR identity,
+        atomically create canonical terminal state using the existing genesis review_run_id,
+        dispatch_state=automation-abandoned,
+        result_state=manual-fallback-recorded,
+        result_source=manual,
+        recovery_reason=state-missing-after-genesis
+      * never generate a replacement nonce and never relaunch
 ```
 
-This closes the late-result race: automatic submit and manual-fallback closure contend on the same local lock. Whichever commits first defines the authoritative result state. A later automatic submit cannot appear after `manual-fallback-recorded`.
+A sibling temp residue is never promoted to authority. When genesis is valid and canonical state is missing, the manual-only recovery transition may leave such residue as forensic evidence; the newly committed terminal canonical state is authoritative because the transition is explicit, same-lock, manual-result-bound and permanently closes automatic launch/submission. This rule deliberately does not apply when a canonical file exists but is corrupt, schema-invalid, identity-mismatched or nonce-mismatched: those states remain fail closed for separate operator recovery rather than being silently overwritten.
 
-Before merge, development must perform a final reconciliation against the live exact PR identity. `open`, corrupt, mismatched, stale or ambiguous state blocks merge.
+This closes both relevant races. Automatic submit and normal manual-fallback closure contend on the same local lock, so whichever commits first defines the authoritative result state. If mutable state vanished or the process crashed after fsynced genesis but before the initial checkpoint, the retained genesis prevents a new automatic attempt while still permitting one explicit manual terminal closure with the same nonce. A later automatic submit cannot appear after either form of `manual-fallback-recorded`.
+
+Before merge, development must perform a final reconciliation against the live exact PR identity. `open`, `manual_recovery_required`, corrupt, mismatched, stale or ambiguous state blocks merge.
 
 ## Best current approaches
 
@@ -285,6 +300,7 @@ Selected composition:
 - Stage 26.3C OS lock — local cooperating single-writer ownership;
 - immutable exclusive-created genesis — prior-creation evidence;
 - Stage 26.3C atomic checkpoint — launch/result/fallback mutable state;
+- manual-only terminal recovery — same-genesis/same-nonce closure after missing mutable state, with automation permanently abandoned;
 - MV3 service worker + IndexedDB `readwrite`/`add(review_run_id)` — browser cross-tab Send ownership;
 - qualified ordinary-Chat reviewer environment — no GitHub mutation action available;
 - fixed local `submit_independent_review_result_v1` — automatic result record;
@@ -301,6 +317,7 @@ No local callback server, GitHub publisher, generic scheduler, generic GitHub pr
 - **Approval policy != action removal.** Asking before writes is useful safety UX but is not the project security boundary.
 - **Lock != durable state.** Process serialization and crash-safe persistence are separate roles.
 - **Atomic replacement != prior-creation proof.** Immutable genesis remains separate from mutable state.
+- **Fail-closed must not mean permanently uncloseable.** A retained valid genesis with missing mutable state abandons automation but may be closed only by an explicit same-lock fresh-manual-result terminal transition that preserves the original nonce.
 - **Service-worker memory != durable browser ownership.** MV3 workers terminate and lose globals.
 - **Durable KV != atomic claim.** `chrome.storage.local` check/set is not a transactional unique claim.
 - **Ambiguous external POST creates a distributed reconciliation problem.** v1 removes the POST instead of adding timeouts/quarantine heuristics.
@@ -414,10 +431,12 @@ Inspected `src/services/child-conversation-launch.ts` and `__tests__/services/ch
 | concurrent first callers | OS lock | one holder / loser | lock result + directory state | loser no create/nonce | barrier test | 0 extra launches |
 | crash before genesis create | none | no effect | all-absent scan under lock | clean first creation allowed | crash-before-genesis | 0 |
 | crash during genesis create | invalid/partial genesis possible | no browser launch | strict genesis reload | existing invalid genesis blocks | create fault injection | 0 launches |
-| valid genesis, missing mutable state | genesis proves prior creation | historical progress uncertain | pair/temp scan | no recreate/new nonce | missing-state test | 0 launches |
+| crash after fsynced genesis before initial mutable checkpoint | valid genesis; canonical state missing; same original review_run_id retained | no launch if crash precedes first checkpoint; if state disappeared later, historical automation progress is unknown | strict genesis validation + canonical/temp scan + live exact PR identity | **automatic relaunch and automatic submit forbidden**; without manual result return `manual_recovery_required`; with complete fresh manual result, `reconcile_independent_review_result_v1` may atomically create same-nonce terminal `automation-abandoned` + `manual-fallback-recorded` state | genesis-only-crash manual-closure test | 0 automatic relaunches / 0 late accepted automatic results |
+| valid genesis, missing mutable state after any later point | valid genesis proves prior creation; canonical absent | earlier automation may have progressed, but v1 has no GitHub write side effect | same evidence as genesis-only crash + complete fresh manual review before closure | same manual-only terminal recovery; never infer old physical progress, never create a new nonce, never relaunch, late automatic submit rejected | missing-state manual-recovery test | 0 automatic relaunches / 0 repository effects |
 | state exists, genesis missing | untrusted state | history unknown | pair validation | fail closed | missing-genesis test | 0 launches |
 | pair/nonce mismatch | untrusted pair | history unknown | strict pair validation | fail closed | mismatch tests | 0 launches |
-| mutable temp write/replace failure | old canonical or no canonical + residue | no browser effect before dispatch state committed | persistence result + reload | ambiguity manual only | replacement fault injection | 0 launches |
+| mutable temp write/replace failure with canonical present | old canonical + residue | effect bounded by canonical state | persistence result + reload | canonical remains authority; temp never consumed | replacement fault injection | 0 unauthorized effects |
+| mutable temp residue with genesis valid and canonical missing | genesis only + non-authoritative residue | interrupted initial/later state write possible | genesis/temp scan + fresh manual review for closure | launcher/submit blocked; reconcile may create terminal manual-only canonical with same nonce and leave temp as forensic residue; temp is never parsed as authority | genesis-plus-temp manual-recovery test | 0 automatic relaunches |
 | prepared durable, crash before dispatch-attempted | prepared | no browser launch by ordering | strict state reload | same nonce may transition once | crash-before-dispatch | <=1 total launch |
 | dispatch-attempted durable, browser open ambiguous | dispatch-attempted | browser unopened/opened | state + browser diagnosis | no automatic relaunch | crash-after-dispatch | 0 extra launches |
 | existing `/c/...` route | dispatch-attempted; no Send claim | wrong conversation | fresh route/composer state | refuse claim/Send | route-refusal physical test | 0 Sends |
@@ -448,7 +467,7 @@ exclusive-created genesis             -> prior-creation evidence
 Stage 26.3C checkpoint pattern        -> launch/result/fallback durable local state
 MV3 service worker + IndexedDB        -> browser Send ownership only
 procedure_run submit                  -> automatic result recording only
-procedure_run reconcile               -> development consumption/manual closure/final gate
+procedure_run reconcile               -> development consumption/manual closure/manual-only recovery/final gate
 public web/GitHub GET evidence        -> repository evidence without GitHub mutation
 Harbor                                -> evaluation only
 ```
@@ -491,27 +510,29 @@ Before later production implementation can be accepted, tests/qualification must
 5. OS lock precedes genesis/state access and has no unlocked fallback;
 6. genesis uses exclusive create + flush/fsync and is never automatically overwritten/deleted;
 7. mutable writes use sibling-temp + flush/fsync + replace + strict reload;
-8. genesis/state missing/mismatch/corruption/temp-residue cases fail closed without a new nonce;
-9. `dispatch-attempted` is durable before browser launch;
-10. hard-crash tests cover genesis creation and mutable transition replacement;
-11. MV3 service worker is the sole Send-claim owner and claim-time DB create/upgrade is forbidden;
-12. W3C-compatible readwrite unique-key claim semantics are exercised by deterministic concurrency tests;
-13. two real same-run tabs released concurrently produce exactly one committed grant and one Send click;
-14. committed-claim/lost-response/tab-death cases never re-grant automatically;
-15. automatic reviewer qualification proves GitHub mutation actions are **unavailable**, not merely unselected or approval-gated;
-16. accepted qualification is either disconnected/disabled GitHub app or workspace Action Control that exposes only read actions; otherwise automatic launch fails closed;
-17. ordinary-Chat physical gate proves required Chat Local Bridge capability remains available in that qualified reviewer environment;
-18. `submit_independent_review_result_v1` validates nonce/exact refs/policy/context/result schema and atomically records result locally;
-19. same-nonce/same-digest duplicate submit is reconciliation only; different/stale/late-after-manual result is rejected;
-20. `reconcile_independent_review_result_v1` under the same operation lock atomically resolves automatic-result vs manual-fallback races;
-21. `manual-fallback-recorded` permanently closes automatic submission for that operation;
-22. final merge gate performs fresh live PR identity + local result reconciliation and rejects open/corrupt/mismatched/stale state;
-23. no GitHub write credential, GitHub publisher, generic GitHub/HTTP/GraphQL proxy or automatic PR comment exists in v1;
-24. existing public semantic tool surface remains six tools;
-25. no generic scheduler/event bus/general browser DB/Native Messaging result bus/automatic developer wake is reachable;
-26. mandatory fresh ordinary-Chat review + exact-head hosted CI remain required;
-27. target-Windows ordinary-Chat E2E proves zero routine user launch/paste/result-copy intervention **when the authority environment qualifies**;
-28. if target environment cannot prove reviewer write-action unreachability, automatic mode fails closed and manual fresh review remains valid.
+8. genesis/state missing/mismatch/corruption/temp-residue cases never create a replacement nonce or permit automatic relaunch;
+9. valid genesis + missing canonical state is recoverable only through `reconcile_independent_review_result_v1` with a complete fresh manual review, preserving the original `review_run_id` and atomically recording terminal `automation-abandoned` + `manual-fallback-recorded` state;
+10. genesis-only crash and genesis-plus-temp crash tests prove the PR head remains manually closeable while automatic launch/submission stay closed;
+11. `dispatch-attempted` is durable before browser launch;
+12. hard-crash tests cover genesis creation and mutable transition replacement;
+13. MV3 service worker is the sole Send-claim owner and claim-time DB create/upgrade is forbidden;
+14. W3C-compatible readwrite unique-key claim semantics are exercised by deterministic concurrency tests;
+15. two real same-run tabs released concurrently produce exactly one committed grant and one Send click;
+16. committed-claim/lost-response/tab-death cases never re-grant automatically;
+17. automatic reviewer qualification proves GitHub mutation actions are **unavailable**, not merely unselected or approval-gated;
+18. accepted qualification is either disconnected/disabled GitHub app or workspace Action Control that exposes only read actions; otherwise automatic launch fails closed;
+19. ordinary-Chat physical gate proves required Chat Local Bridge capability remains available in that qualified reviewer environment;
+20. `submit_independent_review_result_v1` validates nonce/exact refs/policy/context/result schema and atomically records result locally;
+21. same-nonce/same-digest duplicate submit is reconciliation only; different/stale/late-after-manual result is rejected;
+22. `reconcile_independent_review_result_v1` under the same operation lock atomically resolves automatic-result vs manual-fallback races and the missing-state manual-only recovery transition;
+23. `manual-fallback-recorded` permanently closes automatic submission for that operation;
+24. final merge gate performs fresh live PR identity + local result reconciliation and rejects open/manual_recovery_required/corrupt/mismatched/stale state;
+25. no GitHub write credential, GitHub publisher, generic GitHub/HTTP/GraphQL proxy or automatic PR comment exists in v1;
+26. existing public semantic tool surface remains six tools;
+27. no generic scheduler/event bus/general browser DB/Native Messaging result bus/automatic developer wake is reachable;
+28. mandatory fresh ordinary-Chat review + exact-head hosted CI remain required;
+29. target-Windows ordinary-Chat E2E proves zero routine user launch/paste/result-copy intervention **when the authority environment qualifies**;
+30. if target environment cannot prove reviewer write-action unreachability, automatic mode fails closed and manual fresh review remains valid.
 
 ## Architecture decision
 
@@ -532,7 +553,7 @@ exact frozen review identity
  -> exactly one automatic Send authority grant
  -> fresh ordinary-Chat reviewer
  -> fixed submit_independent_review_result_v1 storing result locally
- -> fixed reconcile_independent_review_result_v1 for development consumption/manual fallback/final merge gate
+ -> fixed reconcile_independent_review_result_v1 for development consumption/manual fallback/manual-only missing-state recovery/final merge gate
  -> no automated GitHub write
 ```
 
