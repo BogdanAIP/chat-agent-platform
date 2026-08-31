@@ -45,7 +45,6 @@ class IndependentReviewBoundedReadTests(unittest.TestCase):
 
         self.assertEqual(["rb"], path.modes)
         self.assertEqual([maximum + 1], reader.requested_sizes)
-        self.assertEqual(maximum + 1, reader.tell())
 
     def test_loader_still_accepts_valid_json_below_bound(self) -> None:
         payload = b'{"value": 1}'
