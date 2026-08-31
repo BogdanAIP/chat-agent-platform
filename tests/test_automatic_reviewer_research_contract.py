@@ -97,7 +97,6 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
     def test_genesis_state_pair_fails_closed_without_false_power_loss_claim(self) -> None:
         for phrase in (
             "valid genesis, missing mutable state",
-            "no recreate/new nonce",
             "state exists, genesis missing",
             "pair/nonce mismatch",
             "hostile deletion",
@@ -107,6 +106,25 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "no guarantee claimed",
         ):
             self.assertIn(phrase.casefold(), self.folded)
+
+    def test_genesis_only_crash_has_manual_only_terminal_recovery(self) -> None:
+        for phrase in (
+            "crash after fsynced genesis before initial mutable checkpoint",
+            "same original review_run_id retained",
+            "automatic relaunch and automatic submit forbidden",
+            "manual_recovery_required",
+            "complete fresh manual result",
+            "automation-abandoned",
+            "manual-fallback-recorded",
+            "never generate a replacement nonce and never relaunch",
+            "genesis-only-crash manual-closure test",
+            "genesis-plus-temp manual-recovery test",
+            "manual-only terminal recovery",
+            "fail-closed must not mean permanently uncloseable",
+        ):
+            self.assertIn(phrase.casefold(), self.folded)
+        self.assertIn("0 late accepted automatic results", self.folded)
+        self.assertIn("temp is never parsed as authority", self.folded)
 
     def test_direct_solution_domain_evidence_covers_filesystem_and_browser_claim(self) -> None:
         for source in (
@@ -234,6 +252,8 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "automatic result commits first",
             "late-submit test",
             "0 late results",
+            "crash after fsynced genesis before initial mutable checkpoint",
+            "missing-state manual-recovery test",
         ):
             self.assertIn(phrase, self.research)
 
