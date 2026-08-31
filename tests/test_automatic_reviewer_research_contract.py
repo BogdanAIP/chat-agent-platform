@@ -49,16 +49,11 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.assertIn("Production implementation remains blocked until this research PR", self.research)
         self.assertIn("effective only after this PR is accepted and merged", self.research)
         self.assertIn("AUTOMATIC_REVIEWER_RESEARCH.md", self.current)
+        self.assertIn("Production implementation is **still blocked** until #140", self.current)
 
     def test_first_slice_stays_review_specific(self) -> None:
-        for phrase in (
-            "launch_independent_review_v1",
-            "review_run_id",
-            "one top-level PR",
-            "manual fallback",
-        ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+        for phrase in ("launch_independent_review_v1", "review_run_id", "one top-level PR", "manual fallback"):
+            self.assertIn(phrase, self.research)
         self.assertIn("waiting -> wake -> planner continuation", self.folded)
         self.assertIn("same-task-continuation", self.folded)
         self.assertIn("scheduler/event bus", self.folded)
@@ -78,8 +73,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "os.replace",
             "no unlocked fallback",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase, self.research)
 
     def test_retained_record_corruption_and_temp_residue_fail_closed(self) -> None:
         for phrase in (
@@ -92,8 +86,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "no external browser launch",
             "canonical disappearance",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase, self.research)
 
     def test_dispatch_transition_is_durable_before_browser_launch(self) -> None:
         for phrase in (
@@ -101,10 +94,9 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "successfully replaced into canonical state **before** invoking the OS/browser launch consequence",
             "crash before that replace",
             "crash after successful replace",
-            "no automatic relaunch",
+            "forbids an automatic relaunch",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase, self.research)
 
     def test_materially_distinct_alternatives_are_recorded(self) -> None:
         for phrase in (
@@ -117,8 +109,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "local callback/result server",
             "user copy/paste",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase, self.research)
 
     def test_source_code_evidence_is_pinned_and_classified(self) -> None:
         for phrase in (
@@ -132,8 +123,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "lesson =",
             "NOT_FOUND",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase, self.research)
 
     def test_browser_claim_remains_atomic_and_separate_from_local_lock(self) -> None:
         for phrase in (
@@ -144,19 +134,15 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "add primary-key record review_run_id",
             "only the caller whose add transaction committed receives claim_status=granted",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+            self.assertIn(phrase, self.research)
 
     def test_result_handoff_and_final_rescan_fail_closed(self) -> None:
-        for phrase in (
-            "complete top-level PR comment collection",
-            "matching-comment count == 1",
-            "re-fetches that sole exact comment",
-            "late duplicate",
-            "author mismatch",
-        ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
+        self.assertIn("top-level PR comment collection", self.research)
+        self.assertIn("complete collection again", self.research)
+        self.assertIn("matching-comment count == 1", self.research)
+        self.assertIn("re-fetches that sole exact comment", self.research)
+        self.assertIn("late duplicate", self.research)
+        self.assertIn("author mismatch", self.research)
 
     def test_skill_authorizes_only_bounded_automatic_result_publication(self) -> None:
         self.assertRegex(self.skill, r'(?m)^\s*version:\s*"1\.1"\s*$')
