@@ -471,6 +471,20 @@ def _review_result_schema_lines(payload: str) -> list[str]:
     return lines[:cursor] + lines[cursor + 1 : closing_index] + lines[closing_index + 1 :]
 
 
+def _require_single_visible_result_marker(payload: str) -> None:
+    lines = _review_result_schema_lines(payload)
+    visibility = _markdown_schema_visibility(lines)
+    marker_count = sum(
+        1
+        for index, line in enumerate(lines)
+        if visibility[index] and line.strip() == "REVIEW_RESULT_V1"
+    )
+    if marker_count != 1:
+        raise ReviewStateError(
+            "review result must contain exactly one schema-visible REVIEW_RESULT_V1 marker"
+        )
+
+
 def _substantive_inline_finding_value(value: str) -> str:
     cleaned = value.replace("**", "").replace("__", "").replace("`", "").strip()
     if not cleaned or not any(character.isalnum() for character in cleaned):
@@ -866,6 +880,7 @@ def parse_review_result(
     expected_review_run_id: str | None = None,
 ) -> ParsedReviewResult:
     header = _result_header(payload, automatic=automatic)
+    _require_single_visible_result_marker(payload)
     result_identity = _identity_from_result_header(header)
     if result_identity != expected_identity:
         raise ReviewStateError("review result identity does not match the durable operation")
