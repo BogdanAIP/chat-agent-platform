@@ -59,6 +59,20 @@ def finding_lines() -> list[str]:
     ]
 
 
+def simple_finding_lines() -> list[str]:
+    return [
+        "### FINDING 1",
+        "severity = P2",
+        "location = runtime/control_plane/independent_review_state.py:423",
+        "introduced_by = accepted outer wrapper was treated as evidence fencing",
+        "failure_mechanism = schema visibility hid the complete finding body",
+        "consequence = canonical fenced FINDINGS result could not be recorded",
+        "supporting_evidence = code-review v1.1 structured result contract",
+        "falsification_attempt = checked bare and fenced parser paths",
+        "why_it_survives = only the fenced FINDINGS path lost all schema lines",
+    ]
+
+
 class IndependentReviewMarkerDiscoveryTests(unittest.TestCase):
     def test_quoted_result_marker_in_fenced_evidence_is_not_a_second_header(self) -> None:
         payload = "\n".join([*header_lines(status="FINDINGS", findings=1), "", *finding_lines()])
@@ -79,6 +93,30 @@ class IndependentReviewMarkerDiscoveryTests(unittest.TestCase):
         )
         self.assertEqual("PASS", parsed.header["status"])
         self.assertEqual(0, parsed.header["reported_findings"])
+
+    def test_governing_text_fenced_findings_form_remains_accepted(self) -> None:
+        payload = "\n".join(
+            ["```text", *header_lines(status="FINDINGS", findings=1), "", *simple_finding_lines(), "```"]
+        )
+        parsed = review_state.parse_review_result(
+            payload,
+            expected_identity=identity(),
+            automatic=False,
+        )
+        self.assertEqual("FINDINGS", parsed.header["status"])
+        self.assertEqual(1, parsed.header["reported_findings"])
+
+    def test_outer_transport_fence_does_not_expose_nested_evidence_schema(self) -> None:
+        payload = "\n".join(
+            ["````text", *header_lines(status="FINDINGS", findings=1), "", *finding_lines(), "````"]
+        )
+        parsed = review_state.parse_review_result(
+            payload,
+            expected_identity=identity(),
+            automatic=False,
+        )
+        self.assertEqual("FINDINGS", parsed.header["status"])
+        self.assertEqual(1, parsed.header["reported_findings"])
 
     def test_prose_before_result_marker_is_not_accepted_as_wire_header(self) -> None:
         payload = "\n".join(["preface", *header_lines()])
