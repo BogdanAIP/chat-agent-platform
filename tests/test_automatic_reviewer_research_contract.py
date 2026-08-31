@@ -175,17 +175,18 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             decision = _markdown_value(cells[2])
             with self.subTest(role=cells[0], decision=decision):
                 self.assertIn(decision, CANONICAL_LINEAGE)
-
         self.assertIn("NEW_ARCHITECTURE", section)
         self.assertIn("Scope qualifiers are separate", section)
 
-    def test_reuse_baseline_postures_are_canonical_or_new_architecture(self) -> None:
+    def test_reuse_baseline_preserves_old_postures_and_new_reviewer_rows_are_unambiguous(self) -> None:
+        self.assertIn("`PREFERRED_CANDIDATE_REVALIDATE_BEFORE_ADOPTION`", self.reuse)
+        self.assertIn("`REFERENCE_REVALIDATE_PER_STAGE`", self.reuse)
+        self.assertIn("Existing historical posture labels in this table are preserved", self.reuse)
         role_map = self.reuse.split("## Canonical role map", 1)[1].split("## How to compare a new mechanism", 1)[0]
-        rows = [line for line in role_map.splitlines() if line.startswith("|")]
-        data_rows = [line for line in rows if "---" not in line and "Architectural role |" not in line]
-        self.assertGreaterEqual(len(data_rows), 20)
+        rows = [line for line in role_map.splitlines() if line.startswith("| Automatic")]
+        self.assertGreaterEqual(len(rows), 8)
         allowed = CANONICAL_LINEAGE | {"NEW_ARCHITECTURE"}
-        for row in data_rows:
+        for row in rows:
             cells = [cell.strip() for cell in row.strip("|").split("|")]
             self.assertEqual(7, len(cells), row)
             posture = _markdown_value(cells[-1])
