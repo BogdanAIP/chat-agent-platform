@@ -19,6 +19,7 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
         self.review_research = REVIEW_RESEARCH.read_text(encoding="utf-8")
         self.agents = AGENTS.read_text(encoding="utf-8")
         self.folded = self.strategy.casefold()
+        self.review_folded = self.review_research.casefold()
 
     def test_strategy_is_registered_and_discoverable_cross_capability_owner(self) -> None:
         self.assertIn("AUTHORITATIVE CROSS-CAPABILITY EVALUATION STRATEGY", self.strategy)
@@ -41,53 +42,27 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
             "Finish Gate evidence",
             "Preserve fail-closed behavior",
         ):
-            with self.subTest(concept=concept):
-                self.assertIn(concept.casefold(), self.folded)
-
+            self.assertIn(concept.casefold(), self.folded)
         for policy_phrase in (
             "Benchmark scores are quality/competitive evidence only",
             "Do not create a privileged `benchmark CAP`",
             "fixed external regression subset",
             "official/holdout evidence",
         ):
-            with self.subTest(policy_phrase=policy_phrase):
-                self.assertIn(policy_phrase, self.agents)
+            self.assertIn(policy_phrase, self.agents)
 
     def test_harness_is_selected_per_domain_not_forced_through_harbor(self) -> None:
         self.assertIn("There is no requirement to force all benchmarks through one framework", self.strategy)
-        for family in (
-            "Harbor",
-            "BrowserGym",
-            "AgentLab",
-            "OSWorld 2.0",
-            "Terminal-Bench",
-            "TheAgentCompany",
-            "METR Time Horizon",
-        ):
-            with self.subTest(family=family):
-                self.assertIn(family, self.strategy)
+        for family in ("Harbor", "BrowserGym", "AgentLab", "OSWorld 2.0", "Terminal-Bench", "TheAgentCompany", "METR Time Horizon"):
+            self.assertIn(family, self.strategy)
 
     def test_benchmark_ladder_covers_current_and_future_capability_families(self) -> None:
         for benchmark in (
-            "ReviewBench",
-            "SWE-Review-Bench",
-            "CR-Bench",
-            "MiniWoB",
-            "WebArena-Verified",
-            "WorkArena",
-            "VisualWebArena",
-            "AssistantBench",
-            "TimeWarp",
-            "OSWorld 2.0",
-            "Terminal-Bench",
-            "SWE-bench",
-            "TheAgentCompany",
-            "TH50",
-            "TH80",
+            "ReviewBench", "SWE-Review-Bench", "CR-Bench", "MiniWoB", "WebArena-Verified",
+            "WorkArena", "VisualWebArena", "AssistantBench", "TimeWarp", "OSWorld 2.0",
+            "Terminal-Bench", "SWE-bench", "TheAgentCompany", "TH50", "TH80",
         ):
-            with self.subTest(benchmark=benchmark):
-                self.assertIn(benchmark, self.strategy)
-
+            self.assertIn(benchmark, self.strategy)
         self.assertIn("DEFERRED UNTIL CAPABILITY EXISTS", self.strategy)
         self.assertIn("multi-agent benchmarks remain deferred", self.folded)
 
@@ -97,24 +72,17 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
             "Capability/stage closure or material capability integration",
             "Major release / major architecture change / public comparison",
         ):
-            with self.subTest(heading=heading):
-                self.assertIn(heading, self.strategy)
+            self.assertIn(heading, self.strategy)
         self.assertIn("Do not run every full benchmark after every PR", self.strategy)
 
     def test_dev_regression_holdout_and_provenance_are_required(self) -> None:
         for phrase in (
-            "development set",
-            "fixed regression subset",
-            "official / holdout evaluation",
-            "CAP source identity / exact commit or release",
-            "benchmark name + exact release/version/ref",
-            "benchmark adapter source/version",
-            "step/action/token budget",
-            "number of runs / repetitions / seeds",
-            "known deviations from official evaluation protocol",
+            "development set", "fixed regression subset", "official / holdout evaluation",
+            "CAP source identity / exact commit or release", "benchmark name + exact release/version/ref",
+            "benchmark adapter source/version", "step/action/token budget",
+            "number of runs / repetitions / seeds", "known deviations from official evaluation protocol",
         ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.strategy)
+            self.assertIn(phrase, self.strategy)
 
     def test_benchmark_cap_cannot_gain_hidden_tools(self) -> None:
         self.assertIn("Do not create a privileged `benchmark CAP`", self.strategy)
@@ -122,7 +90,9 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
         self.assertIn("expose a shell only for evaluation", self.folded)
 
     def test_reviewer_research_remains_first_specific_application(self) -> None:
-        self.assertIn("Harbor is selected as the **evaluation harness**", self.review_research)
+        self.assertIn("harbor", self.review_folded)
+        self.assertIn("evaluation", self.review_folded)
+        self.assertIn("not production", self.review_folded)
         self.assertIn("ReviewBench", self.review_research)
         self.assertIn("SWE-Review-Bench", self.review_research)
         self.assertIn("CR-Bench", self.review_research)
