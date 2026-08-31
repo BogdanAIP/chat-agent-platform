@@ -101,16 +101,16 @@ WorkingState is capability-spanning structured operational state, not private re
 
 ## Current release-critical work — bounded automatic independent review
 
-With 26.3C closed, the next immediate development priority is to productionize the **bounded automatic independent-review path** before the broad real-application coverage gate.
+With 26.3C closed, the next immediate development priority is the **bounded automatic independent-review path** before the broad real-application coverage gate.
 
 The target lifecycle remains narrow:
 
 ```text
 PR reaches review-ready exact head
  -> freeze BASE_SHA + HEAD_SHA
- -> launch a genuinely fresh ordinary-ChatGPT context without a routine user click
+ -> launch a genuinely fresh ordinary-ChatGPT context without routine user launch/paste work
  -> run repository `.agents/skills/code-review/SKILL.md` with independent GitHub evidence
- -> return REVIEW_RESULT_V1 to the development/review lifecycle
+ -> return REVIEW_RESULT_V1 through a bounded result-evidence handoff
  -> reject stale/malformed/ambiguous results
  -> repeat after any material head change
 ```
@@ -119,26 +119,30 @@ This exists because fresh ordinary-ChatGPT semantic review is the required prima
 
 PR #138 is **experimental evidence**, not production acceptance. Its one-shot deep-link/autosend/scheduler probes demonstrated that a fresh ChatGPT context can be launched without a routine user click. It does not itself authorize a production scheduler or general continuation runtime.
 
-Fresh Stage Research for the automatic reviewer is now recorded in `AUTOMATIC_REVIEWER_RESEARCH.md` with decision **NARROW**. Production implementation may begin only inside that bounded contract; a material new scheduler/result bus/continuation/authority mechanism requires research re-entry.
+PR #140 records the current **proposed `NARROW` Stage Research decision** in `AUTOMATIC_REVIEWER_RESEARCH.md`. Production implementation is **still blocked** until #140 itself passes exact-head hosted gates, mandatory fresh ordinary-ChatGPT independent semantic review with all findings dispositioned, and merge into `main`. The proposed `NARROW` does not become implementation authority merely because it exists on the open branch.
 
-Selected v1 direction is:
+If #140 is accepted, the selected v1 direction is bounded to:
 
 ```text
 exact frozen REVIEW_REQUEST_V1
  -> registered bounded launch procedure behind existing procedure_run
+ -> accepted Stage 26.3C OS-backed single-writer operation lock
+ -> accepted-style crash-atomic durable operation record + private review_run_id
+ -> durable dispatch-attempted before one browser launch
  -> refined fresh-new-chat deep-link/autosend
+ -> MV3 service-worker IndexedDB unique-key Send claim
  -> one automatic Send attempt; ambiguous delivery is not retried blindly
  -> fresh ordinary-Chat reviewer
  -> one structured top-level PR result-evidence comment with review_run_id
- -> development side re-reads GitHub result + live PR identity
+ -> development side re-reads the complete result-comment set + live PR identity
  -> accept CURRENT result or fail closed
 ```
 
-The reviewer remains read-only to production code/branch and may not approve, request changes, merge, label or otherwise mutate PR/repository state. The one permitted automatic-path write is the bounded result-evidence conversation comment defined by the research Brief; it is handoff evidence, not acceptance authority.
+The reviewer remains read-only to production code/branch and may not approve, request changes, merge, label or otherwise mutate PR/repository state. The one proposed automatic-path write is the bounded result-evidence conversation comment defined by the research Brief; it is evidence transport, not acceptance authority.
 
 Automatic wake/resampling of the unfinished development conversation after the reviewer finishes is **not** part of this slice. The durable PR result removes copy/paste; general same-task continuation remains a separate future Stage Research seam.
 
-The same Brief makes quality measurement part of the reviewer work rather than an afterthought:
+The same research makes quality measurement part of the reviewer work rather than an afterthought:
 
 - Harbor is selected as an **evaluation harness only**, not production runtime/authority;
 - ReviewBench is the first small baseline;
@@ -155,9 +159,9 @@ Reviewer automation must preserve:
 - genuinely fresh ordinary-ChatGPT context;
 - exact repository / PR / BASE_SHA / HEAD_SHA binding;
 - independent evidence reconstruction;
-- read-only reviewer authority over production code/branch;
+- read-only reviewer authority over production code/branch except the bounded result-evidence comment if #140 is accepted;
 - fail-closed missing/malformed/stale/ambiguous result handling;
-- no blind retry after ambiguous delivery;
+- no blind retry after ambiguous launch/claim/Send/comment delivery;
 - no false representation of unavailable Codex Review as completed;
 - no promotion into a second developer/planner context.
 
@@ -169,7 +173,7 @@ Merged #127 strengthened `stage-research` so materially new persistence/recovery
 
 PR #128 added the canonical architecture/reuse comparison baseline. When that process applies, research must explicitly compare affected prior component/project-owned roles rather than silently rebuilding or replacing them.
 
-The automatic-review Stage Research has now satisfied that entry gate only for the bounded `NARROW` scope in `AUTOMATIC_REVIEWER_RESEARCH.md`.
+PR #140 is currently the **open acceptance gate** for automatic-review research. Its proposed decision cannot authorize implementation until the PR itself is accepted. The revised Brief now explicitly separates local OS ownership, crash-atomic durable checkpoint persistence, browser cross-tab Send ownership and mutable result-evidence integrity, and records the required solution/source-code/alternative/failure evidence.
 
 ## Browser accepted scope and remaining hardening
 
@@ -196,9 +200,13 @@ Do not reconstruct another stage list here; `ROADMAP.md` owns release order.
 Immediate work is:
 
 ```text
-implement only the NARROW automatic-reviewer lifecycle from AUTOMATIC_REVIEWER_RESEARCH.md
+finish #140 Stage Research acceptance on a frozen exact head
+ -> require exact-head CI/security + zero unresolved review findings
+ -> require mandatory fresh ordinary-ChatGPT semantic review
+ -> merge #140 only if the proposed NARROW contract is accepted
+ -> only then implement that accepted bounded automatic-review lifecycle
  -> prove fresh launch + one-attempt duplicate safety + exact result handoff
- -> prove stale/malformed/conflicting-result handling fail closed
+ -> prove crash/corrupt/stale/malformed/conflicting-result handling fail closed
  -> run target-Windows ordinary-Chat E2E with zero routine launch/paste/result-copy intervention
  -> attach Harbor evaluation seam after the first real E2E
  -> establish ReviewBench + bounded larger/signal-noise baselines
