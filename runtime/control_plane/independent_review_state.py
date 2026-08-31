@@ -35,8 +35,25 @@ _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _SKILL_VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 _REVIEW_RUN_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 _HEADER_LINE_RE = re.compile(r"^([a-z_]+)=(.*)$")
+_FINDING_HEADING_RE = re.compile(r"^###\s+FINDING\s+([1-9][0-9]*)\s*$", re.IGNORECASE)
+_FINDING_FIELD_RE = re.compile(
+    r"^(severity|location|introduced_by|failure_mechanism|consequence|supporting_evidence|"
+    r"falsification_attempt|why_it_survives)\s*=\s*(.*)$"
+)
 _ALLOWED_STATUS = {"PASS", "FINDINGS", "ABSTAIN", "STALE"}
 _ALLOWED_VALIDITY = {"CURRENT", "STALE_BASE_CHANGE", "STALE_MATERIAL_CHANGE"}
+_COMPLETING_STATUS = {"PASS", "FINDINGS"}
+_REQUIRED_FINDING_FIELDS = (
+    "severity",
+    "location",
+    "introduced_by",
+    "failure_mechanism",
+    "consequence",
+    "supporting_evidence",
+    "falsification_attempt",
+    "why_it_survives",
+)
+_SEVERITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 
 _IDENTITY_KEYS = (
     "repository",
@@ -361,6 +378,92 @@ def _validate_genesis(value: Mapping[str, Any], identity: ReviewIdentity, operat
     return review_run_id
 
 
+def _finding_field_marker(line: str) -> tuple[str, str] | None:
+    normalized = line.strip().replace("**", "").replace("__", "").replace("`", "")
+    match = _FINDING_FIELD_RE.fullmatch(normalized)
+    if match is None:
+        return None
+    return match.group(1), match.group(2).strip()
+
+
+def _nonempty_finding_field_text(lines: list[str]) -> str:
+    cleaned = "\n".join(lines).replace("**", "").replace("__", "").replace("`", "").strip()
+    return cleaned
+
+
+def _validate_finding_bodies(payload: str, reported_findings: int) -> None:
+    lines = payload.splitlines()
+    headings: list[tuple[int, int]] = []
+    for index, line in enumerate(lines):
+        match = _FINDING_HEADING_RE.fullmatch(line.strip())
+        if match is not None:
+            headings.append((index, int(match.group(1))))
+
+    if len(headings) != reported_findings:
+        raise ReviewStateError(
+            "review result finding body count does not match reported_findings"
+        )
+    if reported_findings == 0:
+        return
+
+    numbers = [number for _, number in headings]
+    if numbers != list(range(1, reported_findings + 1)):
+        raise ReviewStateError("review result findings must be numbered sequentially from 1")
+
+    severity_ranks: list[int] = []
+    for heading_index, (start, number) in enumerate(headings):
+        end = headings[heading_index + 1][0] if heading_index + 1 < len(headings) else len(lines)
+        block = lines[start + 1 : end]
+        markers: dict[str, tuple[int, str]] = {}
+        for block_index, line in enumerate(block):
+            marker = _finding_field_marker(line)
+            if marker is None:
+                continue
+            field_name, inline_value = marker
+            if field_name in markers:
+                raise ReviewStateError(f"finding {number} duplicates required field {field_name}")
+            markers[field_name] = (block_index, inline_value)
+
+        missing = [field_name for field_name in _REQUIRED_FINDING_FIELDS if field_name not in markers]
+        if missing:
+            raise ReviewStateError(f"finding {number} is missing required fields: {missing}")
+
+        ordered_positions = sorted((position, field_name) for field_name, (position, _) in markers.items())
+        next_position: dict[str, int] = {}
+        for position_index, (position, field_name) in enumerate(ordered_positions):
+            next_position[field_name] = (
+                ordered_positions[position_index + 1][0]
+                if position_index + 1 < len(ordered_positions)
+                else len(block)
+            )
+
+        field_text: dict[str, str] = {}
+        for field_name in _REQUIRED_FINDING_FIELDS:
+            position, inline_value = markers[field_name]
+            content_lines = [inline_value, *block[position + 1 : next_position[field_name]]]
+            text = _nonempty_finding_field_text(content_lines)
+            if not text:
+                raise ReviewStateError(f"finding {number} field {field_name} must be non-empty")
+            field_text[field_name] = text
+
+        severity = field_text["severity"].strip()
+        if severity not in _SEVERITY_ORDER:
+            raise ReviewStateError(f"finding {number} severity must be P0, P1, P2, or P3")
+        severity_ranks.append(_SEVERITY_ORDER[severity])
+
+    if severity_ranks != sorted(severity_ranks):
+        raise ReviewStateError("review result findings must be listed in severity order")
+
+
+def _require_completing_review_result(parsed: ParsedReviewResult, *, label: str) -> None:
+    status = parsed.header["status"]
+    validity = parsed.header["review_validity"]
+    if status not in _COMPLETING_STATUS or validity != "CURRENT":
+        raise ReviewStateError(
+            f"{label} is non-completing ({status}); fresh manual review remains required"
+        )
+
+
 def _validate_state(
     value: Mapping[str, Any],
     identity: ReviewIdentity,
@@ -436,6 +539,7 @@ def _validate_state(
         automatic=result_state == "automatic-result-recorded",
         expected_review_run_id=review_run_id if result_state == "automatic-result-recorded" else None,
     )
+    _require_completing_review_result(parsed, label="recorded review result")
     if parsed.body_sha256 != digest:
         raise ReviewStateError("recorded review result validation digest mismatch")
 
@@ -650,6 +754,7 @@ def parse_review_result(
     if status in {"PASS", "FINDINGS"} and validity != "CURRENT":
         raise ReviewStateError("current review outcomes require CURRENT validity")
     _parse_timestamp(header["reviewed_at"], "reviewed_at")
+    _validate_finding_bodies(payload, findings)
 
     if automatic:
         expected = _validate_review_run_id(expected_review_run_id)
@@ -689,6 +794,7 @@ def submit_independent_review_result(request: Mapping[str, Any], *, state_root: 
             automatic=True,
             expected_review_run_id=durable_run_id,
         )
+        _require_completing_review_result(parsed, label="automatic review result")
 
         if state["result_state"] == "automatic-result-recorded":
             if state["result_body_sha256"] == parsed.body_sha256 and state["result_payload"] == parsed.payload:
@@ -762,6 +868,7 @@ def reconcile_independent_review_result(request: Mapping[str, Any], *, state_roo
                 expected_identity=identity,
                 automatic=False,
             )
+            _require_completing_review_result(parsed_manual, label="manual recovery review result")
             terminal = _build_recovery_state(identity, operation_key, review_run_id, parsed_manual)
             _write_state_checkpoint(root, operation_key, terminal)
             persisted = _load_state(root, identity, operation_key, review_run_id)
@@ -781,6 +888,7 @@ def reconcile_independent_review_result(request: Mapping[str, Any], *, state_roo
                     expected_identity=identity,
                     automatic=False,
                 )
+                _require_completing_review_result(parsed_manual, label="manual review result")
                 if parsed_manual.body_sha256 != state["result_body_sha256"] or parsed_manual.payload != state["result_payload"]:
                     raise ReviewStateError("manual fallback is already recorded with a different digest")
             return _public_state_summary(state, include_result=True)
@@ -800,6 +908,7 @@ def reconcile_independent_review_result(request: Mapping[str, Any], *, state_roo
             expected_identity=identity,
             automatic=False,
         )
+        _require_completing_review_result(parsed_manual, label="manual review result")
         updated = _record_result(
             state,
             source="manual",
@@ -822,6 +931,7 @@ def _record_result(
 ) -> dict[str, Any]:
     if source not in {"automatic", "manual"}:
         raise ReviewStateError("invalid review result source")
+    _require_completing_review_result(parsed, label="review result")
     now = _utc_now()
     updated = dict(state)
     updated["revision"] = int(state["revision"]) + 1
@@ -842,6 +952,7 @@ def _build_recovery_state(
     review_run_id: str,
     parsed_manual: ParsedReviewResult,
 ) -> dict[str, Any]:
+    _require_completing_review_result(parsed_manual, label="manual recovery review result")
     now = _utc_now()
     return {
         "schema_version": STATE_SCHEMA_VERSION,
