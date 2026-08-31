@@ -397,8 +397,30 @@ def _finding_heading_number(line: str) -> int | None:
     return int(match.group(1))
 
 
+def _is_markdown_structure_only(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return True
+    if re.fullmatch(r"(?:\s*[-*_]\s*){3,}", stripped):
+        return True
+    if re.fullmatch(r"(?:`{3,}|~{3,})(?:[A-Za-z0-9_.+-]+)?", stripped):
+        return True
+    if re.fullmatch(r"#{1,6}", stripped):
+        return True
+    return False
+
+
 def _nonempty_finding_field_text(lines: list[str]) -> str:
-    cleaned = "\n".join(lines).replace("**", "").replace("__", "").replace("`", "").strip()
+    substantive_lines = [line for line in lines if not _is_markdown_structure_only(line)]
+    cleaned = (
+        "\n".join(substantive_lines)
+        .replace("**", "")
+        .replace("__", "")
+        .replace("`", "")
+        .strip()
+    )
+    if not cleaned or not any(character.isalnum() for character in cleaned):
+        return ""
     return cleaned
 
 
