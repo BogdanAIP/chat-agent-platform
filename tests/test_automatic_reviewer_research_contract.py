@@ -13,6 +13,13 @@ BENCHMARK_STRATEGY = CONTEXT / "BENCHMARK_EVALUATION_STRATEGY.md"
 SKILL = ROOT / ".agents" / "skills" / "code-review" / "SKILL.md"
 
 
+CANONICAL_LINEAGE = {"KEEP", "REUSE_MORE", "REFINE", "REPLACE", "DEFER", "REJECT"}
+
+
+def _markdown_value(value: str) -> str:
+    return value.strip().replace("**", "").replace("`", "")
+
+
 class AutomaticReviewerResearchContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.research = RESEARCH.read_text(encoding="utf-8")
@@ -22,7 +29,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.skill = SKILL.read_text(encoding="utf-8")
         self.folded = self.research.casefold()
 
-    def test_stage_research_has_accepted_required_sections(self) -> None:
+    def test_stage_research_has_required_sections(self) -> None:
         for heading in (
             "## Stage goal",
             "## Current project baseline",
@@ -33,107 +40,159 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "## Best current approaches",
             "## Failure lessons",
             "## Alternatives comparison",
+            "## Source-code evidence",
             "## Failure/Crash Matrix",
             "## Fit to this architecture",
+            "## Reviewer evaluation method",
+            "## Acceptance checks",
             "## Architecture decision",
-            "## Source-code evidence",
         ):
-            self.assertIn(heading, self.research)
+            with self.subTest(heading=heading):
+                self.assertIn(heading, self.research)
 
-    def test_narrow_is_proposed_until_pr_acceptance_not_preaccepted(self) -> None:
+    def test_narrow_is_proposed_until_pr_acceptance(self) -> None:
         self.assertIn("NARROW (PROPOSED UNTIL THIS PR IS ACCEPTED)", self.research)
         self.assertIn("Production implementation remains blocked until this research PR", self.research)
         self.assertIn("effective only after this PR is accepted and merged", self.research)
         self.assertIn("AUTOMATIC_REVIEWER_RESEARCH.md", self.current)
         self.assertIn("Production implementation is **still blocked** until #140", self.current)
 
-    def test_first_slice_stays_review_specific(self) -> None:
+    def test_first_slice_stays_review_specific_and_local_result_only(self) -> None:
         for phrase in (
             "launch_independent_review_v1",
             "submit_independent_review_result_v1",
+            "reconcile_independent_review_result_v1",
             "review_run_id",
-            "one top-level PR",
             "manual fallback",
+            "There is **no GitHub write in reviewer automation v1**",
         ):
             self.assertIn(phrase, self.research)
+        for forbidden in (
+            "project-owned allowlisted publisher creates at most one top-level PR result comment",
+            "dedicated GitHub App installation token",
+            "POST /repos/<exact owner>/<exact repo>/issues/<exact pr>/comments",
+        ):
+            self.assertNotIn(forbidden, self.research)
         self.assertIn("waiting -> wake -> planner continuation", self.folded)
-        self.assertIn("same-task-continuation", self.folded)
-        self.assertIn("scheduler/event bus", self.folded)
         self.assertIn("automatic wake/resampling", self.folded)
+        self.assertIn("scheduler/event bus", self.folded)
 
-    def test_local_operation_uses_lock_genesis_and_separate_crash_atomic_checkpoint(self) -> None:
+    def test_local_operation_reuses_lock_genesis_and_atomic_checkpoint(self) -> None:
         for phrase in (
             "Accepted Stage 26.3C cooperating-runner lock",
             "Accepted Stage 26.3C crash-oriented file primitives",
             "_TaskLock",
+            "_acquire_task_lock",
             "_exclusive_create_file",
             "_write_checkpoint",
             "_load_checkpoint",
             "_validate_resume_state",
-            "immutable **genesis record**",
+            "immutable genesis",
             "sibling-temp",
-            "flush",
             "os.fsync",
             "os.replace",
-            "no unlocked fallback",
-        ):
-            self.assertIn(phrase, self.research)
-
-    def test_genesis_proves_prior_creation_and_missing_state_fails_closed(self) -> None:
-        for phrase in (
-            "<review_operation_key>.genesis.json",
-            "<review_operation_key>.state.json",
-            "first creation permitted only when all are absent",
-            "genesis exists + canonical missing",
-            "operation_state_missing_after_genesis",
-            "no new nonce and no automatic recreation",
-            "canonical exists + genesis missing",
-            "operation_genesis_missing",
-            "genesis/canonical identity or `review_run_id` mismatch",
-            "genesis is never automatically deleted in v1",
-            "hostile/non-cooperating deletion of both genesis and canonical",
         ):
             self.assertIn(phrase.casefold(), self.folded)
 
-    def test_retained_record_corruption_and_temp_residue_fail_closed(self) -> None:
+    def test_genesis_state_pair_fails_closed_without_false_power_loss_claim(self) -> None:
         for phrase in (
-            "never recreate/reset it automatically",
-            "canonical absent + matching mutable temp residue",
-            "operation_persistence_ambiguous",
-            "canonical valid + mutable temp residue",
-            "temp is never consumed as state",
-            "write, flush, `os.fsync` or `os.replace` failure",
-            "no external browser launch",
-            "disappearance of the mutable canonical record",
-        ):
-            self.assertIn(phrase, self.research)
-
-    def test_dispatch_transition_is_durable_before_browser_launch(self) -> None:
-        for phrase in (
-            "dispatch-attempted",
-            "successfully replaced into canonical state **before** invoking the os/browser launch consequence",
-            "a crash before that replace",
-            "a crash after successful replace",
-            "forbids automatic relaunch",
+            "valid genesis, missing mutable state",
+            "no recreate/new nonce",
+            "state exists, genesis missing",
+            "pair/nonce mismatch",
+            "hostile deletion",
+            "storage rollback",
+            "machine/power-loss",
+            "outside the declared v1 guarantee",
         ):
             self.assertIn(phrase.casefold(), self.folded)
 
-    def test_materially_distinct_alternatives_are_recorded(self) -> None:
-        for phrase in (
-            "SQLite transaction",
-            "append-only journal/WAL",
-            "raw/in-place JSON write",
-            "Web Locks",
-            "service-worker in-memory Set",
-            "Native Messaging",
-            "reviewer directly uses connected GitHub write app/token",
-            "local-only result artifact",
-            "local callback/result server",
-            "user copy/paste",
+    def test_direct_solution_domain_evidence_covers_filesystem_and_browser_claim(self) -> None:
+        for source in (
+            "https://pubs.opengroup.org/onlinepubs/9799919799/functions/open.html",
+            "https://pubs.opengroup.org/onlinepubs/009695399/functions/fsync.html",
+            "https://docs.python.org/3/library/os.html#os.fsync",
+            "https://docs.python.org/3/library/os.html#os.replace",
+            "https://www.w3.org/TR/IndexedDB/#transaction-scheduling",
+            "https://www.w3.org/TR/IndexedDB/#dom-idbobjectstore-add",
+            "https://www.w3.org/TR/IndexedDB/#dom-idbtransaction-abort",
+            "https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle",
+            "https://developer.chrome.com/docs/extensions/how-to/test/test-serviceworker-termination-with-puppeteer",
         ):
-            self.assertIn(phrase, self.research)
+            with self.subTest(source=source):
+                self.assertIn(source, self.research)
+        self.assertIn("overlapping `readwrite` transactions do not run simultaneously", self.research)
+        self.assertIn("fails with `ConstraintError` when the key already exists", self.research)
+        self.assertIn("workers may terminate after inactivity or unexpectedly", self.research)
 
-    def test_source_code_evidence_uses_skill_classifications_and_real_tests(self) -> None:
+    def test_reviewer_authority_requires_unreachability_not_non_selection(self) -> None:
+        for phrase in (
+            "GitHub mutation actions are unavailable to the reviewer security context",
+            "disconnected/disabled/unavailable",
+            "Action Control",
+            "only read actions are available",
+            "Per-message non-selection",
+            "approval policy",
+            "reviewer_authority_unqualified",
+            "fail closed",
+        ):
+            self.assertIn(phrase.casefold(), self.folded)
+        for source in (
+            "https://help.openai.com/en/articles/11487775",
+            "https://help.openai.com/en/articles/11509118",
+            "https://help.openai.com/en/articles/12584461",
+        ):
+            self.assertIn(source, self.research)
+
+    def test_result_handoff_is_local_and_manual_fallback_closes_late_submit(self) -> None:
+        for phrase in (
+            "result_state = open | automatic-result-recorded | manual-fallback-recorded",
+            "procedure=submit_independent_review_result_v1",
+            "reconcile_independent_review_result_v1",
+            "same operation lock",
+            "same-nonce/same-digest",
+            "already_recorded",
+            "manual-fallback-recorded",
+            "late automatic submit",
+            "later automatic submit after manual closure is rejected",
+            "final reconciliation",
+        ):
+            self.assertIn(phrase.casefold(), self.folded)
+        self.assertIn("manual fallback and automatic submit race", self.folded)
+        self.assertIn("winner commits authoritative result", self.folded)
+        self.assertIn("0 late accepted results", self.folded)
+
+    def test_existing_role_lineage_table_uses_exactly_one_canonical_decision(self) -> None:
+        section = self.research.split("## Architecture lineage comparison", 1)[1].split(
+            "## Architecture primitives and adjacent domains", 1
+        )[0]
+        rows = [line for line in section.splitlines() if line.startswith("|")]
+        data_rows = [line for line in rows if "---" not in line and "Role |" not in line]
+        self.assertGreaterEqual(len(data_rows), 8)
+        for row in data_rows:
+            cells = [cell.strip() for cell in row.strip("|").split("|")]
+            self.assertEqual(4, len(cells), row)
+            decision = _markdown_value(cells[2])
+            with self.subTest(role=cells[0], decision=decision):
+                self.assertIn(decision, CANONICAL_LINEAGE)
+
+        self.assertIn("NEW_ARCHITECTURE", section)
+        self.assertIn("Scope qualifiers are separate", section)
+
+    def test_reuse_baseline_postures_are_canonical_or_new_architecture(self) -> None:
+        role_map = self.reuse.split("## Canonical role map", 1)[1].split("## How to compare a new mechanism", 1)[0]
+        rows = [line for line in role_map.splitlines() if line.startswith("|")]
+        data_rows = [line for line in rows if "---" not in line and "Architectural role |" not in line]
+        self.assertGreaterEqual(len(data_rows), 20)
+        allowed = CANONICAL_LINEAGE | {"NEW_ARCHITECTURE"}
+        for row in data_rows:
+            cells = [cell.strip() for cell in row.strip("|").split("|")]
+            self.assertEqual(7, len(cells), row)
+            posture = _markdown_value(cells[-1])
+            with self.subTest(role=cells[0], posture=posture):
+                self.assertIn(posture, allowed)
+
+    def test_source_code_evidence_uses_required_classifications(self) -> None:
         for phrase in (
             "harbor-framework/harbor",
             "389bd4f8ce796ef4a97de4b62675021e262c8e76",
@@ -149,94 +208,50 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "REJECT_MECHANIC",
             "ignores a replayed tool call",
             "tests/unit/test_single_step_trial.py",
-            "codex-rs/core/src/thread_manager_tests.rs",
+            "thread_manager_tests.rs",
         ):
             self.assertIn(phrase, self.research)
 
-    def test_failure_matrix_cells_are_mechanically_complete(self) -> None:
+    def test_failure_matrix_has_required_dimensions_and_new_race_shields(self) -> None:
         for heading in (
             "Boundary / failure",
             "Authoritative durable state",
             "Possible physical state",
             "Required fresh evidence",
             "Retry / reconciliation permission",
-            "Invariant / shield / test",
+            "Shield / test",
             "Max unauthorized additional effect",
         ):
             self.assertIn(heading, self.research)
         for phrase in (
-            "crash/persistence failure while replacing dispatch-attempted checkpoint",
-            "genesis-with-missing-state disappearance test",
-            "operation_persistence_ambiguous",
-            "replacement fault injection",
-            "full comment-set rescan",
-            "two-real-tab physical gate",
-            "reviewer sees mutation-capable GitHub app/action or raw GitHub token",
-            "publisher asked for wrong repo/pr/method/path/body shape",
+            "authority environment not qualified",
+            "two tabs claim same run",
+            "manual fallback and automatic submit race",
+            "manual fallback commits first",
+            "automatic result commits first",
+            "late-submit test",
+            "0 late results",
         ):
             self.assertIn(phrase, self.research)
 
-    def test_browser_claim_remains_atomic_and_separate_from_local_lock(self) -> None:
-        for phrase in (
-            "MV3 extension service worker",
-            "extension-origin IndexedDB",
-            "readwrite transaction",
-            "review_send_claims",
-            "add primary-key record review_run_id",
-            "only the caller whose add transaction committed receives claim_status=granted",
-        ):
-            self.assertIn(phrase, self.research)
-
-    def test_reviewer_has_no_raw_github_write_authority(self) -> None:
-        for phrase in (
-            "must not receive a raw GitHub installation/user token",
-            "must not have a selected mutation-capable GitHub app/action",
-            "permission settings primarily control when actions ask for approval",
-            "token scope alone is insufficient",
-            "no generic HTTP method/path/GraphQL/GitHub SDK surface is exposed to the reviewer",
-            "approval prompts are not accepted as enforcement",
-        ):
-            self.assertIn(phrase, self.research)
-
-    def test_result_submission_is_single_use_and_publication_is_allowlisted(self) -> None:
-        for phrase in (
-            "procedure=submit_independent_review_result_v1",
-            "does not return review_run_id to the development caller",
-            "submission_state=publication-attempted",
-            "consumes the run's automatic submission authority",
-            "dedicated GitHub App installation token",
-            "POST /repos/<exact owner>/<exact repo>/issues/<exact pr>/comments",
-            "publisher rejects or has no code path",
-            "no generic GitHub proxy",
-        ):
-            self.assertIn(phrase, self.research)
-
-    def test_result_handoff_and_final_rescan_fail_closed(self) -> None:
-        self.assertIn("top-level PR comment collection", self.research)
-        self.assertIn("complete collection again", self.research)
-        self.assertIn("matching-comment count == 1", self.research)
-        self.assertIn("re-fetches that sole exact comment", self.research)
-        self.assertIn("late duplicate", self.research)
-        self.assertIn("author mismatch", self.research)
-        self.assertIn("no automatic second POST", self.research)
-
-    def test_skill_authorizes_only_bounded_local_result_submission(self) -> None:
+    def test_skill_matches_local_only_result_handoff(self) -> None:
         self.assertRegex(self.skill, r'(?m)^\s*version:\s*"1\.1"\s*$')
-        self.assertIn("## 14. Bounded automatic result-publication envelope", self.skill)
+        self.assertIn("## 14. Bounded automatic local result-submission envelope", self.skill)
         self.assertIn("submit_independent_review_result_v1", self.skill)
-        self.assertIn("no raw GitHub write credential/action", self.skill)
-        self.assertIn("top-level PR Conversation comment", self.skill)
-        self.assertIn("does not authorize any other GitHub mutation", self.skill)
-        self.assertIn("Do not retry", self.skill)
+        self.assertIn("reconcile_independent_review_result_v1", self.skill)
+        self.assertIn("no reachable GitHub mutation action", self.skill)
+        self.assertIn("no GitHub write and no external result-publication side effect", self.skill)
+        self.assertNotIn("project-owned publisher", self.skill)
+        self.assertNotIn("PR Conversation comment", self.skill)
 
     def test_benchmark_plan_remains_evaluation_only(self) -> None:
         for phrase in ("Harbor", "ReviewBench", "SWE-Review-Bench", "CR-Bench"):
             self.assertIn(phrase, self.research)
-        self.assertIn("Do not collapse these planes into one score", self.research)
+        self.assertIn("Do **not** collapse these planes into one score", self.research)
         self.assertIn("baseline, not a release exam", self.folded)
         self.assertIn("Reviewer — first active rung", self.benchmark_strategy)
-        self.assertIn("code-review evaluation harness", self.reuse.casefold())
-        self.assertIn("selected_evaluation_only", self.reuse.casefold())
+        self.assertIn("Code-review evaluation harness", self.reuse)
+        self.assertIn("evaluation only", self.research.casefold())
 
 
 if __name__ == "__main__":
