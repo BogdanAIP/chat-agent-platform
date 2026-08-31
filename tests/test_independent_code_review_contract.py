@@ -49,17 +49,19 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
         self.assertIn("Codex quota exhaustion does not waive this skill's required primary review", hard_boundary)
         self.assertIn("No other model/service is required", hard_boundary)
 
-    def test_scheduled_task_is_only_a_conditional_launcher(self) -> None:
+    def test_launcher_requires_fresh_context_and_qualified_authority(self) -> None:
         launcher = self.skill.split("## 13. One-time Review Task launcher contract", 1)[1].split(
-            "## 14. Bounded automatic result-publication envelope", 1
+            "## 14. Bounded automatic local result-submission envelope", 1
         )[0]
         self.assertIn("REVIEW_REQUEST_V1", launcher)
         self.assertIn("Do not attach development-chat reasoning summaries", launcher)
         self.assertIn("review_context=ordinary_chat_fresh", launcher)
         self.assertIn("Work, Workspace Agents or Codex", launcher)
-        self.assertIn("context isolation cannot be established", launcher)
         self.assertIn("manually opened fresh ordinary-ChatGPT conversation", launcher)
-        self.assertIn("must not return the private `review_run_id` to the development caller", launcher)
+        self.assertIn("must not return the private `review_run_id`", launcher)
+        self.assertIn("GitHub mutation actions are actually unavailable", launcher)
+        self.assertIn("Per-message non-selection and approval prompts do not satisfy this condition", launcher)
+        self.assertIn("fail closed before automatic Send", launcher)
 
     def test_findings_require_concrete_evidence_and_falsification(self) -> None:
         for phrase in (
@@ -78,8 +80,8 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
     def test_reviewer_cannot_self_fix_or_mutate_target(self) -> None:
         self.assertIn("The independent reviewer does not patch the PR in the same review run", self.skill)
         self.assertIn("does not mutate production/repository state", self.skill)
-        self.assertIn("result-publication exception", self.skill)
         self.assertIn("does **not** give the reviewer GitHub write authority", self.skill)
+        self.assertIn("store the already-computed review result in project-owned local state", self.skill)
         for disposition in ("CONFIRMED", "REJECTED", "SUPERSEDED"):
             self.assertIn(disposition, self.skill)
         self.assertIn("Do not merge with unresolved reported findings", self.skill)
@@ -107,38 +109,39 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
             "review_context=ordinary_chat_fresh",
             "status=PASS | FINDINGS | ABSTAIN | STALE",
             "review_validity=CURRENT | STALE_BASE_CHANGE | STALE_MATERIAL_CHANGE",
-            "missing evidence yields `ABSTAIN`, not `PASS`",
+            "never translate missing evidence into `PASS`",
         ):
             self.assertIn(phrase, self.skill)
 
-    def test_automatic_path_uses_only_one_bounded_local_submission(self) -> None:
-        envelope = self.skill.split("## 14. Bounded automatic result-publication envelope", 1)[1]
+    def test_automatic_path_is_local_only_and_idempotently_reconcilable(self) -> None:
+        envelope = self.skill.split("## 14. Bounded automatic local result-submission envelope", 1)[1]
         for phrase in (
-            "review_run_id=<high-entropy automatic-run nonce>",
             "procedure=submit_independent_review_result_v1",
-            "exactly one",
-            "no raw GitHub write credential/action",
-            "top-level PR Conversation comment",
-            "evidence comment",
-            "backend-only",
-            "endpoint-allowlisted",
-            "does not authorize any other GitHub mutation",
+            "no reachable GitHub mutation action or raw GitHub write credential",
+            "automatic-result-recorded",
+            "no GitHub write and no external result-publication side effect",
+            "same-nonce/same-digest",
+            "already_recorded",
+            "reconcile_independent_review_result_v1",
+            "manual-fallback-recorded",
+            "late automatic submit after manual closure is rejected",
             "APPROVE",
             "REQUEST_CHANGES",
             "merge, close or reopen the PR",
             "change repository settings",
-            "Do not retry",
         ):
             self.assertIn(phrase, envelope)
+        self.assertNotIn("PR Conversation comment", envelope)
+        self.assertNotIn("project-owned publisher", envelope)
+        self.assertNotIn("GitHub App", envelope)
         self.assertIn("review_run_id=<same value received in REVIEW_REQUEST_V1>", self.skill)
-        self.assertIn("automatic path", self.skill)
 
-    def test_automatic_comment_is_not_self_validating_acceptance(self) -> None:
-        envelope = self.skill.split("## 14. Bounded automatic result-publication envelope", 1)[1]
-        self.assertIn("never grants `PASS`, merge authority or finding acceptance", envelope)
-        self.assertIn("independently re-resolves publisher author", envelope)
-        self.assertIn("uniqueness", envelope)
-        self.assertIn("live PR identity", envelope)
+    def test_final_gate_requires_local_result_reconciliation(self) -> None:
+        gate = self.skill.split("## 11. Final exact-head gate", 1)[1].split("## 12. Structured result", 1)[0]
+        self.assertIn("reconcile project-owned local review-result state", gate)
+        self.assertIn("manual result must be atomically recorded through the same reconciliation state machine", gate)
+        self.assertIn("late automatic submit cannot create a second unresolved result", gate)
+        self.assertIn("live PR identity", gate)
 
     def test_agents_merge_policy_requires_chatgpt_review_and_makes_codex_optional(self) -> None:
         merge_policy = self.agents.split("## Merge policy", 1)[1].split(
