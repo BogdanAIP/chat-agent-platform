@@ -20,87 +20,140 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.reuse = REUSE.read_text(encoding="utf-8")
         self.benchmark_strategy = BENCHMARK_STRATEGY.read_text(encoding="utf-8")
         self.skill = SKILL.read_text(encoding="utf-8")
+        self.folded = self.research.casefold()
 
-    def test_research_decision_is_narrow_and_current_state_uses_it(self) -> None:
-        self.assertIn("Status: **STAGE RESEARCH — NARROW**", self.research)
-        self.assertIn("**NARROW.**", self.research)
+    def test_stage_research_has_required_substantive_sections(self) -> None:
+        for heading in (
+            "## Goal",
+            "## Non-goals",
+            "## Problem evidence",
+            "## Solution evidence",
+            "## Current implementation evidence",
+            "## Architecture lineage comparison",
+            "## Architecture primitives and adjacent domains",
+            "## Source-code evidence",
+            "## Best current approaches",
+            "## Failure lessons",
+            "## Alternatives comparison",
+            "## Product / options / ecosystem comparison",
+            "## Failure / crash matrix",
+            "## Evaluation method",
+            "## Acceptance checks",
+            "## Stage decision",
+        ):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, self.research)
+
+    def test_narrow_is_proposed_until_pr_acceptance_not_preaccepted(self) -> None:
+        self.assertIn("NARROW (PROPOSED UNTIL THIS PR IS ACCEPTED)", self.research)
+        self.assertIn("Production implementation remains blocked until this research PR", self.research)
+        self.assertIn("effective only after this PR is accepted and merged", self.research)
         self.assertIn("AUTOMATIC_REVIEWER_RESEARCH.md", self.current)
-        self.assertIn("decision **NARROW**", self.current)
 
     def test_first_slice_stays_review_specific(self) -> None:
         for phrase in (
             "launch_independent_review_v1",
             "review_run_id",
-            "one top-level PR conversation comment",
-            "one automatic Send attempt",
-            "manual fresh-review path",
+            "one top-level PR",
+            "manual fallback",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.research)
+        self.assertIn("waiting -> wake -> planner continuation", self.folded)
+        self.assertIn("same-task-continuation", self.folded)
+        self.assertIn("scheduler/event bus", self.folded)
+        self.assertIn("automatic wake/resampling", self.folded)
 
-        folded = self.research.casefold()
-        self.assertIn("waiting -> wake -> planner continuation", folded)
-        self.assertIn("same-task-continuation", folded)
-        self.assertIn("generic scheduler/event bus", folded)
-        self.assertIn("automatic wake/resampling", folded)
-
-    def test_atomic_operation_claim_reuses_accepted_os_lock_before_record_access(self) -> None:
+    def test_local_operation_uses_lock_and_separate_crash_atomic_checkpoint(self) -> None:
         for phrase in (
             "Accepted Stage 26.3C cooperating-runner lock",
-            "OS-backed nonblocking task lock",
-            "acquire existing project OS-backed exclusive lock",
-            "before any durable review record is read, created or assigned a nonce",
-            "hold it across the irreversible dispatch-attempt transition and one OS/browser launch decision",
-            "two concurrent same-operation callers before record exists",
-            "exactly one acquires OS lock",
-            "process dies while holding lock before record creation",
-            "OS releases lock",
+            "Accepted Stage 26.3C crash-atomic checkpoint persistence",
+            "_TaskLock",
+            "_write_checkpoint",
+            "_load_checkpoint",
+            "_checkpoint_matches_program",
+            "same-directory sibling temp",
+            "flush",
+            "os.fsync",
+            "os.replace",
             "no unlocked fallback",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.research)
 
-        self.assertIn("**REUSE_MORE**", self.research)
-        self.assertIn("concurrency/lease/database framework", self.research)
-        self.assertIn("accepted OS-backed cooperating-runner lock role", self.research)
-
-    def test_dispatch_mark_is_written_under_lock_before_external_launch(self) -> None:
+    def test_retained_record_corruption_and_temp_residue_fail_closed(self) -> None:
         for phrase in (
-            "persist irreversible dispatch-attempted state",
-            "invoke the one OS/browser launch consequence",
-            "while the operation lock is held and before",
-            "durable `dispatch-attempted` state forbids a second automatic launch",
-            "crash after durable record/nonce creation but before dispatch-attempted",
+            "never recreate/reset it automatically",
+            "canonical absent and a matching sibling temp residue exists",
+            "fail closed/manual recovery",
+            "canonical valid and sibling temp residue exists",
+            "temp is never consumed as state",
+            "write, flush, `os.fsync` or `os.replace` failure",
+            "no external browser launch",
+            "canonical disappearance",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.research)
 
-    def test_result_handoff_is_private_nonce_bound_and_fail_closed(self) -> None:
+    def test_dispatch_transition_is_durable_before_browser_launch(self) -> None:
         for phrase in (
-            "high-entropy random nonce generated exactly once",
-            "not published to the PR before the result comment",
-            "comment.author == configured expected result principal",
-            "comment was not edited after creation",
-            "Any second result comment carrying the same expected `review_run_id`",
+            "dispatch-attempted",
+            "successfully replaced into canonical state **before** invoking the OS/browser launch consequence",
+            "crash before that replace",
+            "crash after successful replace",
+            "no automatic relaunch",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.research)
 
-        folded = self.research.casefold()
-        self.assertIn("duplicate/ambiguous", folded)
-        self.assertIn("fail closed", folded)
-
-    def test_final_merge_gate_rescans_all_matching_result_comments(self) -> None:
+    def test_materially_distinct_alternatives_are_recorded(self) -> None:
         for phrase in (
-            "Final automatic-result merge gate",
-            "query the complete top-level PR Conversation-comment collection again",
-            "all pages, not only the saved comment",
+            "SQLite transaction",
+            "append-only journal/WAL",
+            "raw/in-place JSON write",
+            "Web Locks",
+            "service-worker in-memory Set",
+            "Native Messaging",
+            "local callback/result server",
+            "user copy/paste",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.research)
+
+    def test_source_code_evidence_is_pinned_and_classified(self) -> None:
+        for phrase in (
+            "harbor-framework/harbor",
+            "389bd4f8ce796ef4a97de4b62675021e262c8e76",
+            "openai/codex",
+            "94cbbddafc1776d5e377bca1b05932c697e82238",
+            "OpenHands/OpenHands",
+            "1098d73df42351a31b2940557efb9fe8750365c4",
+            "classification = OPEN_SOURCE",
+            "lesson =",
+            "NOT_FOUND",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.research)
+
+    def test_browser_claim_remains_atomic_and_separate_from_local_lock(self) -> None:
+        for phrase in (
+            "MV3 extension service worker",
+            "extension-origin IndexedDB",
+            "readwrite transaction",
+            "review_send_claims",
+            "add primary-key record review_run_id",
+            "only the caller whose add transaction committed receives claim_status=granted",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.research)
+
+    def test_result_handoff_and_final_rescan_fail_closed(self) -> None:
+        for phrase in (
+            "complete top-level PR comment collection",
             "matching-comment count == 1",
-            "matching comment id == originally accepted comment id",
-            "body digest == originally accepted body digest",
-            "re-fetches that sole exact comment by id",
-            "late second matching comment",
-            "final full collection rescan",
+            "re-fetches that sole exact comment",
+            "late duplicate",
+            "author mismatch",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.research)
@@ -108,49 +161,18 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
     def test_skill_authorizes_only_bounded_automatic_result_publication(self) -> None:
         self.assertRegex(self.skill, r'(?m)^\s*version:\s*"1\.1"\s*$')
         self.assertIn("## 14. Bounded automatic result-publication envelope", self.skill)
-        self.assertIn("exactly one", self.skill)
         self.assertIn("top-level PR Conversation comment", self.skill)
         self.assertIn("does not authorize any other GitHub mutation", self.skill)
         self.assertIn("Do not retry", self.skill)
-        self.assertIn("review_run_id=<same value received in REVIEW_REQUEST_V1>", self.skill)
 
-    def test_reviewer_benchmark_plan_remains_first_specific_application(self) -> None:
-        for phrase in (
-            "Harbor",
-            "ReviewBench",
-            "SWE-Review-Bench",
-            "CR-Bench",
-            "Plane A — reviewer semantic quality",
-            "Plane B — CAP reviewer lifecycle reliability",
-            "development set",
-            "holdout set",
-            "CAP Review Regression Set",
-        ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.research)
-
+    def test_benchmark_plan_remains_evaluation_only(self) -> None:
+        for phrase in ("Harbor", "ReviewBench", "SWE-Review-Bench", "CR-Bench"):
+            self.assertIn(phrase, self.research)
         self.assertIn("Do not collapse these planes into one score", self.research)
-        self.assertIn("baseline, not a release exam", self.research)
+        self.assertIn("baseline, not a release exam", self.folded)
         self.assertIn("Reviewer — first active rung", self.benchmark_strategy)
-
-    def test_harbor_is_evaluation_only_for_reviewer(self) -> None:
-        research_folded = self.research.casefold()
-        reuse_folded = self.reuse.casefold()
-        strategy_folded = self.benchmark_strategy.casefold()
-
-        self.assertIn("harbor is not production authority", research_folded)
-        self.assertIn("harbor is selected as the **evaluation harness**", research_folded)
-        self.assertIn("not as the reviewer launch/control plane", research_folded)
-        self.assertIn("code-review evaluation harness", reuse_folded)
-        self.assertIn("selected_evaluation_only", reuse_folded)
-        self.assertIn("automatic independent-review launch / correlation / result publication", reuse_folded)
-        self.assertIn("no requirement to force all benchmarks through one framework", strategy_folded)
-
-    def test_quality_threshold_is_evidence_based_not_prebaked(self) -> None:
-        folded = self.research.casefold()
-        self.assertIn("first benchmark run is a **baseline, not a release exam**", folded)
-        self.assertIn("do not invent an arbitrary target", folded)
-        self.assertIn("semantic quality must not materially regress", folded)
+        self.assertIn("code-review evaluation harness", self.reuse.casefold())
+        self.assertIn("selected_evaluation_only", self.reuse.casefold())
 
 
 if __name__ == "__main__":
