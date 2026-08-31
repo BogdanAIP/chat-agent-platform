@@ -357,31 +357,33 @@ Negative evidence: when its localStorage ledger is corrupt/unavailable, the insp
 
 ## Failure/Crash Matrix
 
-| Boundary / failure | Authoritative state / rule | Max unauthorized additional effect |
-|---|---|---:|
-| malformed/exact identity missing | reject before any state or launch | 0 |
-| two concurrent same-operation callers before record exists | exactly one acquires OS lock; loser does no record/nonce/launch work | 0 extra launches |
-| process dies while holding lock before record creation | OS releases lock; next caller must re-evaluate retained state | 0 |
-| crash during first temp write | canonical absent + matching temp residue => `operation_persistence_ambiguous` | 0 launches |
-| create/write/flush/fsync/replace fails | no canonical transition completion | 0 launches |
-| canonical corrupt/unsupported/mismatched | never recreate/reset; manual recovery | 0 launches |
-| canonical disappearance after known creation | `operation_persistence_ambiguous`, no replacement nonce | 0 launches |
-| valid canonical + temp residue | canonical only is authoritative; temp never consumed as state | 0 duplicate launches |
-| crash after durable record/nonce creation but before dispatch-attempted | valid `prepared`; same nonce may advance after locked validation | <=1 total launch |
-| crash/persistence failure while replacing dispatch-attempted checkpoint | launch is impossible until replacement call succeeds | <=1 total launch |
-| dispatch-attempted durable then crash before/during browser open | marker forbids automatic relaunch | 0 extra launches |
-| existing `/c/...` route | refuse Send | 0 Sends |
-| claim schema/marker/store missing or unexpected version | fail closed; no claim-time creation/upgrade | 0 Sends |
-| service worker / claim transaction fails or aborts before commit | no grant | 0 Sends |
-| two tabs request the same run claim concurrently | overlapping IndexedDB readwrite transactions serialize; exactly one `add(review_run_id)` can commit; only that caller gets grant | **0 extra Sends** |
-| claim commits but response is lost or winning tab dies before click | durable claim remains; manual fallback; no re-grant | 0 extra Sends |
-| Send click/transport becomes ambiguous | no automatic redelivery | 0 extra Sends |
-| reviewer timeout/no result | manual fresh-review fallback | 0 relaunches |
-| result-comment creation ambiguous | reviewer does not retry | 0 extra comment attempts |
-| malformed/wrong-author/edited/stale result | reject | 0 merge authority |
-| valid result then late duplicate/edit/delete | final complete-set rescan/re-fetch rejects | 0 merge authority |
-| live BASE/HEAD moves | old result stale; new exact-head review required | 0 stale merge authority |
-| Harbor unavailable | production reviewer unaffected | 0 production effects |
+Every row names the authoritative durable state, possible physical state, evidence needed after interruption, retry/reconciliation permission, and the shield that must falsify an unsafe implementation.
+
+| Boundary / failure | Authoritative durable state | Possible physical state | Required fresh evidence | Retry / reconciliation permission | Invariant / shield / test | Max unauthorized additional effect |
+|---|---|---|---|---|---|---:|
+| malformed or missing exact launch identity | none | no operation record; no browser consequence | fresh live PR + schema validation | no retry until corrected immutable request | fixed-schema negative tests | 0 effects |
+| two concurrent local callers before record exists | operation OS lock; canonical record absent | one process owns lock, competitor alive | lock acquisition result + canonical/temp inspection by winner | loser returns without record/nonce/launch; no unlocked retry | concurrent first-caller barrier test | 0 extra launches |
+| process dies while holding lock before record creation | canonical absent; OS releases live lock | no browser launch; temp absent unless write had begun | new holder checks canonical + matching temp residues under lock | continue only if clean first-creation proof; otherwise reconcile/fail closed | hard-crash-before-create test | 0 effects |
+| crash during initial prepared-record temp write | canonical absent; matching temp may exist | partial/complete temp only; no browser launch | locked directory scan + canonical absence + temp identity | no automatic creation; manual recovery because `operation_persistence_ambiguous` | temp-residue fault injection | 0 launches |
+| create/write/flush/fsync/replace failure for prepared record | previous canonical state, or none; temp may remain | no browser launch by ordering | returned persistence error + locked canonical/temp reload | no automatic launch; manual recovery if ambiguous residue | persistence-step fault injection | 0 launches |
+| canonical record corrupt / unsupported schema / identity mismatch | bytes exist but are untrusted | browser effect may be absent or historical/unknown | strict `_load_checkpoint`-style parse + schema/exact-identity validation | never recreate/reset automatically; manual reconciliation | corrupt-record/schema mutation tests | 0 launches |
+| canonical disappears after operation was previously known/created | prior existence is durable/history fact but canonical now absent | historical launch state may be unknown | locked canonical/temp inspection + retained operation metadata | fail closed as `operation_persistence_ambiguous`; no replacement nonce | disappearance fault test | 0 launches |
+| valid canonical + sibling temp residue | canonical valid state is authority | temp may be stale from interrupted later write | strict canonical validation + temp enumeration | canonical may continue only according to its state; temp never consumed as state | canonical-plus-temp test | 0 duplicate launches |
+| crash after durable record/nonce creation but before dispatch-attempted | canonical `prepared` with original review_run_id | external browser launch cannot have occurred by ordering | locked reload validates exact prepared record + nonce | same nonce may make one dispatch transition | crash-before-dispatch test | <=1 total launch |
+| **crash/persistence failure while replacing dispatch-attempted checkpoint** | old valid `prepared` or new valid `dispatch-attempted`; temp may remain | browser launch occurs only if replacement returned success | locked canonical reload + temp scan + persistence return/exception evidence | valid `prepared` may try replacement once; valid `dispatch-attempted` never relaunches; ambiguous residue manual only | **replacement fault injection** | <=1 total launch |
+| dispatch-attempted durable then crash before/during browser open | canonical `dispatch-attempted` | browser may be unopened, opened, or delivery status unknown | canonical reload + optional browser evidence only for diagnosis | no automatic relaunch; manual fallback/reconciliation | crash-after-dispatch test | 0 extra launches |
+| existing `/c/...` route receives payload | local dispatch attempted; no browser claim yet | existing conversation visible | fresh route/root/composer observation | refuse claim/Send; manual fresh-review path | route refusal physical/DOM test | 0 Sends |
+| claim schema/marker/store missing or unexpected version | no trusted claim DB state | no Send should occur | service-worker DB/version/store validation | no claim-time create/upgrade; manual repair then new explicit attempt only | schema/version negative tests | 0 Sends |
+| service worker / claim transaction fails or aborts before commit | no committed `review_send_claims` row | no Send authority granted | transaction completion/abort result | no automatic Send from failed caller; manual fallback | transaction-abort test | 0 Sends |
+| two tabs request the same run claim concurrently | one IndexedDB primary-key claim can commit | two tabs may have identical prepared composer text | transaction results from both tabs + service-worker claim record | exactly one granted caller may Send; loser never retries claim automatically | deterministic two-tab barrier + **two-real-tab physical gate** | **0 extra Sends** |
+| claim commits but response is lost or winning tab dies before click | durable IndexedDB claim exists | zero Send or one winning-tab Send attempt may have happened | fresh claim-store observation plus tab/route evidence | no re-grant/re-claim; **manual fallback** only | lost-response/tab-death fault test | 0 extra Sends |
+| Send click/transport becomes ambiguous | local `dispatch-attempted` + durable browser claim | message may or may not have been sent | fresh conversation/result evidence if obtainable | no automatic redelivery; manual fresh-review path | ambiguous-Send physical test | 0 extra Sends |
+| reviewer timeout / no result | local dispatch attempted + browser claim; no accepted result comment | review may still be running or failed | complete comment-set scan + live PR identity + timeout clock | no automatic relaunch; manual fresh review may be started explicitly | timeout integration test | 0 relaunches |
+| result-comment creation returns ambiguous | reviewer has no trustworthy acknowledgement | GitHub may contain zero or one matching comment | complete top-level PR comment scan by consumer | reviewer does not retry comment creation | API ambiguity integration test | 0 extra automatic comment attempts |
+| malformed / wrong-author / edited / stale result | matching/near-matching remote comment is non-authoritative | comment exists | parse + author + updated/edit metadata + exact BASE/HEAD/policy/context recheck | reject; fresh exact-head review only when explicitly initiated | result-validation integration tests | 0 merge authority |
+| valid result followed by late duplicate/edit/delete | initially accepted comment id/digest retained locally | remote comment set has changed | **full comment-set rescan** over all pages + sole-id re-fetch + live PR identity | fail closed; no merge; new review only after explicit new operation | late-duplicate/edit/delete integration tests | 0 merge authority |
+| live BASE/HEAD moves after review | retained result bound to old exact refs | PR points to different base/head | fresh GitHub PR identity resolution | mark old result stale; fresh immutable review request required | stale-head integration test | 0 stale merge authority |
+| Harbor unavailable during evaluation | production review state unaffected | benchmark run absent/failed | benchmark harness status only | retry benchmark under evaluation policy; never affect production review authority | evaluation isolation test | 0 production effects |
 
 No release-critical cell is left `unknown` within the declared process-crash/restart scope. Machine/power-loss durability and hostile non-cooperating state-directory mutation remain outside the claimed guarantee.
 
