@@ -16,6 +16,7 @@ current code/tests/current hosted CI/current physical evidence
   > ROADMAP.md for release-stage order
   > PROJECT_RISKS.md for ranked project risk
   > architecture/security/policy owner documents for durable boundaries
+  > BENCHMARK_EVALUATION_STRATEGY.md for cross-capability external-evaluation method
   > ARCHITECTURE_REUSE_BASELINE.md for prior reuse/project-owned role lineage used by stage-research
   > EVIDENCE_INDEX.md for exact accepted evidence navigation
   > accepted Stage/qualification records for detailed historical evidence
@@ -42,6 +43,9 @@ ROADMAP.md
 
 PROJECT_RISKS.md
   = single ranked risk register
+
+BENCHMARK_EVALUATION_STRATEGY.md
+  = cross-capability external benchmark ladder, frequency, adapter-integrity, provenance and holdout rules
 
 ARCHITECTURE.md / CONTROL_PLANE.md / COMPUTER_USE_ARCHITECTURE.md
   = durable product/execution boundaries
@@ -109,6 +113,7 @@ Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, m
 | `COST_POLICY.md` | **CURRENT COST POLICY** | baseline no-extra-subscription/cost boundary |
 | `MODULE_SELECTION_POLICY.md` | **AUTHORITATIVE MODULE-SELECTION POLICY** | external-component selection/adaptation/reuse rules |
 | `MODULE_CATALOG.md` | **CURRENT CAPABILITY CATALOG** | capability/component inventory and role/status reference; live evidence still wins |
+| `BENCHMARK_EVALUATION_STRATEGY.md` | **AUTHORITATIVE CROSS-CAPABILITY EVALUATION STRATEGY** | external benchmark ladder, domain-harness selection, run frequency, adapter integrity, provenance and dev/regression/holdout rules |
 | `ARCHITECTURE_REUSE_BASELINE.md` | **AUTHORITATIVE RESEARCH COMPARISON BASELINE** | prior selected external/project-owned role lineage for applicable `stage-research` |
 | `EXTERNAL_EXECUTION_REUSE_STRATEGY.md` | **AUTHORITATIVE INTEGRATION DIRECTION** | detailed OpenAdapt/UFO reuse boundaries; does not own active PR state or release order |
 | `REAL_TASK_ACCEPTANCE.md` | **AUTHORITATIVE ACCEPTANCE CONTRACT** | L1/L2/L3 evidence depth and real-task rules |
@@ -117,6 +122,12 @@ Do not duplicate full risk rankings, active PR snapshots, exact accepted SHAs, m
 | `TRANSPORT_SUPERVISOR.md` | **CURRENT TRANSPORT RELIABILITY OWNER** | accepted supervisor desired-state/recovery/ownership boundary |
 | `EXTENSION_MANAGER.md` | **CURRENT OPTIONAL-EXTENSION REFERENCE** | optional 1MCP Extension Manager role; never baseline transport/authority |
 | `SEMANTIC_FROZEN_ACTION_COMPATIBILITY.md` | **CURRENT COMPATIBILITY REFERENCE** | frozen ChatGPT action/schema compatibility and migration limits |
+
+## Evaluation-strategy discovery rule
+
+`BENCHMARK_EVALUATION_STRATEGY.md` is read when a capability becomes externally evaluable, when a benchmark adapter/harness is proposed, when a capability/stage is being closed with public-comparative evidence, or when a major release/architecture change should be compared against prior CAP results.
+
+It does not own current stage scheduling and does not force every benchmark to run after every PR. `ROADMAP.md` still owns order; benchmark selection and frequency follow the evaluation strategy only when the corresponding capability is honestly available.
 
 ## Provisional/future architecture
 
