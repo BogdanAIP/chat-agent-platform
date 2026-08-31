@@ -1,7 +1,7 @@
 ---
 name: code-review
-description: Independent semantic review protocol for exact PR diffs before merge. Use from a fresh ordinary-ChatGPT review context to find concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects, falsify candidate findings, and bind the result to exact BASE_SHA/HEAD_SHA. The reviewer does not mutate production/repository state; the automatic path has one narrowly defined result-evidence Conversation-comment publication envelope.
-compatibility: Designed for Chat Agent Platform pull-request review with GitHub access from ordinary ChatGPT. The mandatory primary review must not depend on ChatGPT Work, Workspace Agents or Codex usage.
+description: Independent semantic review protocol for exact PR diffs before merge. Use from a fresh ordinary-ChatGPT review context to find concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects, falsify candidate findings, and bind the result to exact BASE_SHA/HEAD_SHA. The reviewer does not mutate production/repository state; the automatic path may submit its result once through the project-owned bounded result-publication envelope.
+compatibility: Designed for Chat Agent Platform pull-request review with repository evidence from ordinary ChatGPT. The mandatory primary review must not depend on ChatGPT Work, Workspace Agents or Codex usage.
 metadata:
   version: "1.1"
   project: "chat-agent-platform"
@@ -21,7 +21,7 @@ The mandatory primary review:
 
 - runs in a fresh **ordinary ChatGPT** conversation/context;
 - does not mutate files, branches, review state, labels, merge state, repository settings or other production/repository state;
-- in the automatic path only, may publish exactly one top-level PR Conversation comment containing its own structured result under the bounded envelope in section 14; that publication is evidence transport, not repository acceptance authority;
+- in the automatic path only, may make exactly one bounded local result-submission call under section 14; the reviewer itself receives no raw GitHub write credential/action and does not directly create the downstream PR comment;
 - receives an immutable `REVIEW_REQUEST_V1` identity, not a developer-authored reasoning summary;
 - independently fetches the repository, PR, exact refs, diff, tests and relevant evidence;
 - must not use ChatGPT Work, Workspace Agents, Codex automation or Codex Review as a substitute for the mandatory primary review;
@@ -52,7 +52,7 @@ The bounded automatic path additionally includes:
 review_run_id=<high-entropy automatic-run nonce>
 ```
 
-`review_run_id` is transport correlation for the automatic path. It never replaces repository / PR / BASE / HEAD identity and does not weaken any exact-ref check.
+`review_run_id` is exact-run correlation and, until the one automatic result submission is consumed, the private one-shot submission capability defined by the accepted automatic-reviewer contract. It never replaces repository / PR / BASE / HEAD identity and does not weaken any exact-ref check.
 
 Optional informational fields may identify required physical gates or a known change class, but they must not contain a developer argument that the change is correct.
 
@@ -178,7 +178,7 @@ If evidence is insufficient, do not report the candidate as a finding.
 
 The independent reviewer does not patch the PR in the same review run and does not mutate production/repository state.
 
-The automatic result-publication exception in section 14 does **not** permit a fix, approval, requested-changes review, label change, merge, branch update or other target mutation. It only transports the reviewer's already-computed structured result.
+The automatic result-publication exception in section 14 does **not** give the reviewer GitHub write authority. It authorizes only one call to the fixed local result-submission procedure. The project-owned publisher may later transport that already-computed result to one PR Conversation comment under deterministic endpoint constraints; the reviewer cannot choose another mutation.
 
 Flow:
 
@@ -187,7 +187,8 @@ fresh reviewer
  -> candidate findings
  -> falsification
  -> reported findings only
- -> optional one-comment automatic result publication under section 14
+ -> optional one-shot local automatic result submission under section 14
+ -> deterministic publisher may create one evidence comment
  -> development context validates each finding
  -> confirmed finding: fix
  -> rejected finding: record reason / no code change
@@ -253,7 +254,7 @@ fresh required ChatGPT review on exact BASE_SHA..HEAD_SHA
 
 If any final gate changes the branch materially, repeat review as required.
 
-For an automatic result, the development-side lifecycle must additionally perform the automatic-result integrity/uniqueness checks defined by the accepted automatic-reviewer contract. The reviewer comment is evidence transport, not a self-validating merge grant.
+For an automatic result, the development-side lifecycle must additionally perform the automatic-result authority/integrity/uniqueness checks defined by the accepted automatic-reviewer contract. The downstream publisher comment is evidence transport, not a self-validating merge grant.
 
 ## 12. Structured result
 
@@ -303,6 +304,8 @@ A development chat may create a one-time review task/request only after the inte
 
 The launcher payload is limited to `REVIEW_REQUEST_V1` plus a direct instruction to perform this skill. The automatic launcher may add only its protocol-defined `review_run_id` field to the immutable request. Do not attach development-chat reasoning summaries, proposed findings or arguments for correctness.
 
+The automatic launcher must not return the private `review_run_id` to the development caller before result submission; that nonce remains private to project operation state and the fresh reviewer until its one-shot submission authority has been consumed.
+
 The mandatory review result is acceptable only if the eventual reviewer can truthfully report:
 
 ```text
@@ -317,15 +320,27 @@ The repository must remain mergeable when Codex review quota is exhausted, provi
 
 This section applies only when the immutable `REVIEW_REQUEST_V1` received by the fresh reviewer contains a valid protocol-defined `review_run_id`.
 
-After the semantic review is complete, the reviewer may make **exactly one** additional write for evidence handoff:
+The fresh reviewer itself must have **no raw GitHub write credential/action** for the automatic path. It must not directly create/edit/delete a GitHub comment or perform any other GitHub mutation. After the semantic review is complete, the reviewer may make **exactly one** bounded local result-submission attempt:
+
+```text
+procedure_run
+procedure=submit_independent_review_result_v1
+review_run_id=<high-entropy automatic-run nonce>
+result=<this run's complete REVIEW_RESULT_V1 + any supported finding bodies required by section 7>
+```
+
+The fixed local procedure validates the private run capability, exact repository/PR/BASE/HEAD/policy/skill/context identity and structured result. Under the accepted automatic-reviewer contract it consumes the run's one-shot submission authority and persists `publication-attempted` before any external GitHub mutation.
+
+Only the project-owned publisher behind that procedure may create the downstream evidence comment:
 
 ```text
 GitHub PR Conversation
- -> create one top-level comment
- -> body = this run's REVIEW_RESULT_V1 + matching review_run_id + any supported finding bodies required by section 7
+ -> create exactly one top-level PR Conversation comment attempt
+ -> exact target = repository/pr from validated operation state
+ -> body = validated result + matching review_run_id
 ```
 
-The publication is permitted only on the exact `repository` / `pr_number` from the request. It does not authorize any other GitHub mutation.
+The publisher's GitHub credential is backend-only and is never exposed to the reviewer. The publisher is endpoint-allowlisted; it is not a generic GitHub/HTTP/GraphQL proxy. The envelope does not authorize any other GitHub mutation.
 
 The reviewer must not:
 
@@ -334,14 +349,17 @@ The reviewer must not:
 - change labels, assignees or milestones;
 - merge, close or reopen the PR;
 - change repository settings;
-- publish a second result comment for the same automatic run;
-- retry comment creation when the outcome of the first creation attempt is ambiguous.
+- create, edit or delete a GitHub comment directly;
+- call a generic GitHub mutation action;
+- make a second result-submission attempt for the same automatic run;
+- cause the publisher to publish a second result comment;
+- retry when the outcome of the first bounded result-submission/publication attempt is ambiguous.
 
-If no suitable top-level Conversation-comment capability is available, or publication cannot be attempted without broader authority, return/display the result locally and treat automatic handoff as failed; do not substitute a different mutation.
+If the fixed local result-submission capability is unavailable, if the fresh context exposes a mutation-capable GitHub app/action/raw credential, or if publication cannot be attempted within the deterministic publisher boundary, display/return the result locally and treat automatic handoff as failed. Do not substitute a broader mutation path.
 
-If the comment creation attempt returns an error after delivery may have occurred, treat publication as ambiguous. **Do not retry.** The development-side lifecycle must discover/disposition the resulting evidence and may require the manual fresh-review fallback.
+If the bounded submit/publisher attempt returns an error after delivery may have occurred, treat publication as ambiguous. **Do not retry.** The development-side lifecycle must scan/disposition the resulting GitHub evidence and may require the manual fresh-review fallback.
 
-The comment itself never grants `PASS`, merge authority or finding acceptance. The development side independently re-resolves author, `review_run_id`, exact refs, uniqueness, comment integrity and live PR identity under the automatic-reviewer contract before consuming it.
+The downstream comment never grants `PASS`, merge authority or finding acceptance. The development side independently re-resolves publisher author, `review_run_id`, exact refs, uniqueness, comment integrity and live PR identity before consuming it.
 
 ## Completion checklist
 
@@ -355,8 +373,9 @@ Before returning `PASS` or `FINDINGS`, verify:
 - every reported finding is introduced by/directly caused by the diff;
 - every reported finding survived an explicit falsification attempt;
 - no style/taste-only comments remain;
-- reviewer made no branch/file/review-state/label/merge/settings mutation;
+- reviewer made no branch/file/review-state/label/merge/settings/GitHub-comment mutation;
 - if automatic mode was requested, the result contains the exact received `review_run_id`;
-- if automatic publication was attempted, at most one top-level result comment creation was attempted and ambiguous creation was not retried;
+- if automatic submission is attempted, only `submit_independent_review_result_v1` is used, at most once, and ambiguous submission/publication is not retried;
+- no raw GitHub write credential/action is used by the reviewer;
 - result records exact refs, skill version and fresh ordinary-ChatGPT context;
 - missing evidence yields `ABSTAIN`, not `PASS`.
