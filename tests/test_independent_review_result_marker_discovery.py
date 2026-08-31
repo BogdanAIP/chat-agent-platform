@@ -118,6 +118,32 @@ class IndependentReviewMarkerDiscoveryTests(unittest.TestCase):
         self.assertEqual("FINDINGS", parsed.header["status"])
         self.assertEqual(1, parsed.header["reported_findings"])
 
+    def test_unclosed_outer_transport_fence_is_rejected_before_body_validation(self) -> None:
+        for opener in ("```text", "~~~plaintext"):
+            with self.subTest(opener=opener):
+                payload = "\n".join([opener, *header_lines(), "", *simple_finding_lines()])
+                with self.assertRaisesRegex(
+                    review_state.ReviewStateError,
+                    r"review result outer fence is not closed",
+                ):
+                    review_state.parse_review_result(
+                        payload,
+                        expected_identity=identity(),
+                        automatic=False,
+                    )
+
+    def test_closed_outer_transport_fence_cannot_hide_unreported_finding(self) -> None:
+        payload = "\n".join(["```text", *header_lines(), "", *simple_finding_lines(), "```"])
+        with self.assertRaisesRegex(
+            review_state.ReviewStateError,
+            r"review result finding body count does not match reported_findings",
+        ):
+            review_state.parse_review_result(
+                payload,
+                expected_identity=identity(),
+                automatic=False,
+            )
+
     def test_prose_before_result_marker_is_not_accepted_as_wire_header(self) -> None:
         payload = "\n".join(["preface", *header_lines()])
         with self.assertRaisesRegex(
