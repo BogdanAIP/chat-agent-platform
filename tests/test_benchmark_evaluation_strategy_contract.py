@@ -91,8 +91,8 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
 
     def test_reviewer_research_remains_first_specific_application(self) -> None:
         self.assertIn("harbor", self.review_folded)
-        self.assertIn("evaluation", self.review_folded)
-        self.assertIn("not production", self.review_folded)
+        self.assertIn("evaluation only", self.review_folded)
+        self.assertIn("harbor never decides production acceptance", self.review_folded)
         self.assertIn("ReviewBench", self.review_research)
         self.assertIn("SWE-Review-Bench", self.review_research)
         self.assertIn("CR-Bench", self.review_research)
