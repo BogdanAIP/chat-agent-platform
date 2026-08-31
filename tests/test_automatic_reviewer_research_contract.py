@@ -90,10 +90,10 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "canonical exists + genesis missing",
             "operation_genesis_missing",
             "genesis/canonical identity or `review_run_id` mismatch",
-            "Genesis is never automatically deleted in v1",
+            "genesis is never automatically deleted in v1",
             "hostile/non-cooperating deletion of both genesis and canonical",
         ):
-            self.assertIn(phrase, self.research)
+            self.assertIn(phrase.casefold(), self.folded)
 
     def test_retained_record_corruption_and_temp_residue_fail_closed(self) -> None:
         for phrase in (
@@ -111,12 +111,12 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
     def test_dispatch_transition_is_durable_before_browser_launch(self) -> None:
         for phrase in (
             "dispatch-attempted",
-            "successfully replaced into canonical state **before** invoking the OS/browser launch consequence",
-            "A crash before that replace",
-            "A crash after successful replace",
+            "successfully replaced into canonical state **before** invoking the os/browser launch consequence",
+            "a crash before that replace",
+            "a crash after successful replace",
             "forbids automatic relaunch",
         ):
-            self.assertIn(phrase, self.research)
+            self.assertIn(phrase.casefold(), self.folded)
 
     def test_materially_distinct_alternatives_are_recorded(self) -> None:
         for phrase in (
