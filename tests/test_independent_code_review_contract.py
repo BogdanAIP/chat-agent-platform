@@ -124,7 +124,7 @@ class IndependentCodeReviewContractTests(unittest.TestCase):
             "already_recorded",
             "reconcile_independent_review_result_v1",
             "manual-fallback-recorded",
-            "late automatic submit after manual closure is rejected",
+            "a later automatic submit after manual closure is rejected",
             "APPROVE",
             "REQUEST_CHANGES",
             "merge, close or reopen the PR",
