@@ -106,6 +106,51 @@ class IndependentReviewFencedSchemaTests(unittest.TestCase):
         self.assertEqual(1, parsed.header["reported_findings"])
         self.assertEqual("FINDINGS", parsed.header["status"])
 
+    def test_indented_code_schema_does_not_duplicate_fields_or_create_findings(self) -> None:
+        payload = "\n".join(
+            [
+                *header(),
+                "### FINDING 1",
+                *valid_fields(),
+                "    ### FINDING 2",
+                "    severity = P0",
+                "    location = quoted/example.py:1",
+                "    why_it_survives = quoted code only",
+            ]
+        )
+        parsed = review_state.parse_review_result(
+            payload,
+            expected_identity=identity(),
+            automatic=False,
+        )
+        self.assertEqual(1, parsed.header["reported_findings"])
+        self.assertEqual("FINDINGS", parsed.header["status"])
+
+    def test_indented_code_cannot_supply_missing_required_fields(self) -> None:
+        payload = "\n".join(
+            [
+                *header(),
+                "### FINDING 1",
+                "severity = P1",
+                "location = runtime/control_plane/example.py:42",
+                "introduced_by = exact changed branch",
+                "    failure_mechanism = quoted example only",
+                "    consequence = quoted example only",
+                "    supporting_evidence = quoted example only",
+                "    falsification_attempt = quoted example only",
+                "    why_it_survives = quoted example only",
+            ]
+        )
+        with self.assertRaisesRegex(
+            review_state.ReviewStateError,
+            r"finding 1 is missing required fields",
+        ):
+            review_state.parse_review_result(
+                payload,
+                expected_identity=identity(),
+                automatic=False,
+            )
+
     def test_legitimate_inline_code_path_sha_and_url_evidence_remain_valid(self) -> None:
         payload = "\n".join([*header(), "FINDING 1", *valid_fields()])
         parsed = review_state.parse_review_result(
