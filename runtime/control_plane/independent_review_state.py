@@ -20,6 +20,13 @@ STATE_DIRECTORY = "independent-review-v1"
 REVIEW_SKILL = "code-review"
 REVIEW_CONTEXT = "ordinary_chat_fresh"
 MAX_RESULT_BYTES = 256_000
+MAX_GENESIS_BYTES = 16_384
+# json.dumps(..., ensure_ascii=False) can expand a one-byte ASCII control
+# character into a six-byte \u00XX escape. The review result dominates the
+# mutable checkpoint size, so six times the accepted raw result bound plus a
+# generous fixed envelope safely covers the serializer's worst-case expansion
+# while keeping corrupted/untrusted persisted state bounded on load.
+MAX_STATE_BYTES = MAX_RESULT_BYTES * 6 + 65_536
 MAX_REJECTED_CANDIDATES = 100_000
 MAX_REPORTED_FINDINGS = 10_000
 
@@ -245,19 +252,26 @@ def _exclusive_create_file(path: Path, data: bytes) -> None:
     private procedure state root, not under the workspace artifact layout.
     """
 
+    if len(data) > MAX_GENESIS_BYTES:
+        raise ReviewStateError("independent-review genesis exceeds the accepted encoded bound")
     with path.open("xb") as handle:
         handle.write(data)
         handle.flush()
         os.fsync(handle.fileno())
 
 
-def _load_json_object(path: Path, label: str) -> dict[str, Any]:
+def _load_json_object(
+    path: Path,
+    label: str,
+    *,
+    maximum_bytes: int,
+) -> dict[str, Any]:
     try:
         raw = path.read_bytes()
     except FileNotFoundError as exc:
         raise ReviewStateError(f"{label} does not exist") from exc
-    if len(raw) > MAX_RESULT_BYTES + 32_768:
-        raise ReviewStateError(f"{label} exceeds the accepted bound")
+    if len(raw) > maximum_bytes:
+        raise ReviewStateError(f"{label} exceeds the accepted encoded bound")
     try:
         value = json.loads(raw.decode("utf-8"))
     except Exception as exc:
@@ -273,6 +287,8 @@ def _write_state_checkpoint(root: Path, operation_key: str, state: Mapping[str, 
     destination = _state_path(root, operation_key)
     temporary = _safe_child(root, root / f".{operation_key}.state.{secrets.token_hex(8)}.tmp")
     payload = _encode_json(state)
+    if len(payload) > MAX_STATE_BYTES:
+        raise ReviewStateError("independent-review state exceeds the accepted encoded bound")
     try:
         with temporary.open("xb") as handle:
             handle.write(payload)
@@ -436,7 +452,11 @@ def _validate_state(
 
 
 def _load_genesis(root: Path, identity: ReviewIdentity, operation_key: str) -> tuple[dict[str, Any], str]:
-    value = _load_json_object(_genesis_path(root, operation_key), "independent-review genesis")
+    value = _load_json_object(
+        _genesis_path(root, operation_key),
+        "independent-review genesis",
+        maximum_bytes=MAX_GENESIS_BYTES,
+    )
     return value, _validate_genesis(value, identity, operation_key)
 
 
@@ -446,7 +466,11 @@ def _load_state(
     operation_key: str,
     review_run_id: str,
 ) -> dict[str, Any]:
-    value = _load_json_object(_state_path(root, operation_key), "independent-review state")
+    value = _load_json_object(
+        _state_path(root, operation_key),
+        "independent-review state",
+        maximum_bytes=MAX_STATE_BYTES,
+    )
     _validate_state(value, identity, operation_key, review_run_id)
     return value
 
