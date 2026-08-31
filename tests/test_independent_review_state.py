@@ -220,7 +220,7 @@ class IndependentReviewStateTests(unittest.TestCase):
             {"review_run_id": prepared.review_run_id, "result": automatic},
             state_root=self.state_root,
         )
-        manual = review_result(status="FINDINGS", findings=1, suffix="### FINDING 1\nmanual-only candidate")
+        manual = review_result(suffix="A distinct complete manual PASS that lost the race.")
         reconciled = review_state.reconcile_independent_review_result(
             {**identity_dict(), "manual_result": manual},
             state_root=self.state_root,
