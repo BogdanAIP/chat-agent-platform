@@ -15,7 +15,7 @@ class AutomaticReviewerBrowserClaimContractTests(unittest.TestCase):
 
     def test_send_claim_has_a_selected_atomic_cross_tab_owner(self) -> None:
         for phrase in (
-            "MV3 service worker + extension-origin IndexedDB unique-key transaction",
+            "MV3 service-worker + IndexedDB unique-key claim",
             "content script requests claim(review_run_id)",
             "one readwrite transaction",
             "objectStore.add(claim, review_run_id)",
