@@ -21,7 +21,7 @@ Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs 
 
 Stage 26.3B is accepted/closed for its recorded representative scope, and Stage 26.3C is now accepted/closed for its declared production process-restart/local-Windows scope through merged PR #126.
 
-The next immediate development priority is the bounded automatic independent-review infrastructure proven experimentally in PR #138, before the broad real-application coverage gate. This priority is specifically about making the already-required fresh ordinary-ChatGPT semantic review fast and automatic; it does not by itself authorize general same-task autonomous wake/resume.
+The next immediate development priority is the bounded automatic independent-review infrastructure proven experimentally in PR #138 and narrowed for production by merged Stage Research PR #140, before the broad real-application coverage gate. This priority is specifically about making the already-required fresh ordinary-ChatGPT semantic review fast and automatic; it does not by itself authorize general same-task autonomous wake/resume.
 
 For the active PR/design/check details, read `CURRENT_STATE.md` and resolve live GitHub state rather than copying a snapshot from this file.
 
@@ -76,7 +76,7 @@ current repo/runtime/evidence
 
 A material new primitive or materially changed persistence/recovery/retry/concurrency/identity/authority design after the Brief invalidates implementation authority and requires research re-entry.
 
-For the current post-26.3C automatic-review priority, Stage Research must be rerun against the current harness/repository state before production runtime edits. PR #138 is experimental evidence, not implementation authority.
+For the current post-26.3C automatic-review priority, merged PR #140 / `AUTOMATIC_REVIEWER_RESEARCH.md` is the accepted **NARROW** implementation authority. PR #138 remains experiment-only evidence. Implementation must stay inside #140's selected local-result-only lifecycle; a materially new primitive or scope expansion requires Stage Research re-entry.
 
 ## Architecture lineage rule
 
