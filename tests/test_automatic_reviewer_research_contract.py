@@ -38,8 +38,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "## Architecture decision",
             "## Source-code evidence",
         ):
-            with self.subTest(heading=heading):
-                self.assertIn(heading, self.research)
+            self.assertIn(heading, self.research)
 
     def test_narrow_is_proposed_until_pr_acceptance_not_preaccepted(self) -> None:
         self.assertIn("NARROW (PROPOSED UNTIL THIS PR IS ACCEPTED)", self.research)
@@ -49,22 +48,30 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.assertIn("Production implementation is **still blocked** until #140", self.current)
 
     def test_first_slice_stays_review_specific(self) -> None:
-        for phrase in ("launch_independent_review_v1", "review_run_id", "one top-level PR", "manual fallback"):
+        for phrase in (
+            "launch_independent_review_v1",
+            "submit_independent_review_result_v1",
+            "review_run_id",
+            "one top-level PR",
+            "manual fallback",
+        ):
             self.assertIn(phrase, self.research)
         self.assertIn("waiting -> wake -> planner continuation", self.folded)
         self.assertIn("same-task-continuation", self.folded)
         self.assertIn("scheduler/event bus", self.folded)
         self.assertIn("automatic wake/resampling", self.folded)
 
-    def test_local_operation_uses_lock_and_separate_crash_atomic_checkpoint(self) -> None:
+    def test_local_operation_uses_lock_genesis_and_separate_crash_atomic_checkpoint(self) -> None:
         for phrase in (
             "Accepted Stage 26.3C cooperating-runner lock",
-            "Accepted Stage 26.3C crash-atomic checkpoint persistence",
+            "Accepted Stage 26.3C crash-oriented file primitives",
             "_TaskLock",
+            "_exclusive_create_file",
             "_write_checkpoint",
             "_load_checkpoint",
             "_validate_resume_state",
-            "same-directory sibling temp",
+            "immutable **genesis record**",
+            "sibling-temp",
             "flush",
             "os.fsync",
             "os.replace",
@@ -72,16 +79,32 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, self.research)
 
+    def test_genesis_proves_prior_creation_and_missing_state_fails_closed(self) -> None:
+        for phrase in (
+            "<review_operation_key>.genesis.json",
+            "<review_operation_key>.state.json",
+            "first creation permitted only when all are absent",
+            "genesis exists + canonical missing",
+            "operation_state_missing_after_genesis",
+            "no new nonce and no automatic recreation",
+            "canonical exists + genesis missing",
+            "operation_genesis_missing",
+            "genesis/canonical identity or `review_run_id` mismatch",
+            "Genesis is never automatically deleted in v1",
+            "hostile/non-cooperating deletion of both genesis and canonical",
+        ):
+            self.assertIn(phrase, self.research)
+
     def test_retained_record_corruption_and_temp_residue_fail_closed(self) -> None:
         for phrase in (
             "never recreate/reset it automatically",
-            "canonical absent and a matching sibling temp residue exists",
-            "fail closed/manual recovery",
-            "canonical valid and sibling temp residue exists",
+            "canonical absent + matching mutable temp residue",
+            "operation_persistence_ambiguous",
+            "canonical valid + mutable temp residue",
             "temp is never consumed as state",
             "write, flush, `os.fsync` or `os.replace` failure",
             "no external browser launch",
-            "canonical disappearance",
+            "disappearance of the mutable canonical record",
         ):
             self.assertIn(phrase, self.research)
 
@@ -89,9 +112,9 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         for phrase in (
             "dispatch-attempted",
             "successfully replaced into canonical state **before** invoking the OS/browser launch consequence",
-            "crash before that replace",
-            "crash after successful replace",
-            "forbids an automatic relaunch",
+            "A crash before that replace",
+            "A crash after successful replace",
+            "forbids automatic relaunch",
         ):
             self.assertIn(phrase, self.research)
 
@@ -103,6 +126,8 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "Web Locks",
             "service-worker in-memory Set",
             "Native Messaging",
+            "reviewer directly uses connected GitHub write app/token",
+            "local-only result artifact",
             "local callback/result server",
             "user copy/paste",
         ):
@@ -141,10 +166,13 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             self.assertIn(heading, self.research)
         for phrase in (
             "crash/persistence failure while replacing dispatch-attempted checkpoint",
+            "genesis-with-missing-state disappearance test",
             "operation_persistence_ambiguous",
             "replacement fault injection",
             "full comment-set rescan",
             "two-real-tab physical gate",
+            "reviewer sees mutation-capable GitHub app/action or raw GitHub token",
+            "publisher asked for wrong repo/pr/method/path/body shape",
         ):
             self.assertIn(phrase, self.research)
 
@@ -159,6 +187,30 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, self.research)
 
+    def test_reviewer_has_no_raw_github_write_authority(self) -> None:
+        for phrase in (
+            "must not receive a raw GitHub installation/user token",
+            "must not have a selected mutation-capable GitHub app/action",
+            "permission settings primarily control when actions ask for approval",
+            "token scope alone is insufficient",
+            "no generic HTTP method/path/GraphQL/GitHub SDK surface is exposed to the reviewer",
+            "approval prompts are not accepted as enforcement",
+        ):
+            self.assertIn(phrase, self.research)
+
+    def test_result_submission_is_single_use_and_publication_is_allowlisted(self) -> None:
+        for phrase in (
+            "procedure=submit_independent_review_result_v1",
+            "does not return review_run_id to the development caller",
+            "submission_state=publication-attempted",
+            "consumes the run's automatic submission authority",
+            "dedicated GitHub App installation token",
+            "POST /repos/<exact owner>/<exact repo>/issues/<exact pr>/comments",
+            "publisher rejects or has no code path",
+            "no generic GitHub proxy",
+        ):
+            self.assertIn(phrase, self.research)
+
     def test_result_handoff_and_final_rescan_fail_closed(self) -> None:
         self.assertIn("top-level PR comment collection", self.research)
         self.assertIn("complete collection again", self.research)
@@ -166,10 +218,13 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.assertIn("re-fetches that sole exact comment", self.research)
         self.assertIn("late duplicate", self.research)
         self.assertIn("author mismatch", self.research)
+        self.assertIn("no automatic second POST", self.research)
 
-    def test_skill_authorizes_only_bounded_automatic_result_publication(self) -> None:
+    def test_skill_authorizes_only_bounded_local_result_submission(self) -> None:
         self.assertRegex(self.skill, r'(?m)^\s*version:\s*"1\.1"\s*$')
         self.assertIn("## 14. Bounded automatic result-publication envelope", self.skill)
+        self.assertIn("submit_independent_review_result_v1", self.skill)
+        self.assertIn("no raw GitHub write credential/action", self.skill)
         self.assertIn("top-level PR Conversation comment", self.skill)
         self.assertIn("does not authorize any other GitHub mutation", self.skill)
         self.assertIn("Do not retry", self.skill)
