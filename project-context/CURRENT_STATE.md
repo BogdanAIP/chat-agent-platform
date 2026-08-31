@@ -38,6 +38,7 @@ post-26.3B adversarial assurance direction        MERGED #119
 WorkingState + LoopGuard L1 foundation            ACCEPTED / MERGED #124
 stage-research mechanism-depth hardening          MERGED #127
 Stage 26.3C production WorkingState integration   PHYSICAL ACCEPTED / MERGED #126
+automatic-review Stage Research / local-result v1 ACCEPTED NARROW / MERGED #140
 ```
 
 These remain scoped proofs. They do not imply universal Browser/Windows/application reliability or machine/power-loss transactional durability.
@@ -123,9 +124,11 @@ This exists because fresh ordinary-ChatGPT semantic review is the required prima
 
 PR #138 is **experimental evidence**, not production acceptance. Its one-shot deep-link/autosend probes demonstrated that a fresh ChatGPT context can be launched without a routine user click. It does not authorize a production scheduler or general continuation runtime.
 
-PR #140 records the current **proposed `NARROW` Stage Research decision** in `AUTOMATIC_REVIEWER_RESEARCH.md`. Production implementation is **still blocked** until #140 itself passes exact-head hosted gates, mandatory fresh ordinary-ChatGPT independent semantic review with all findings dispositioned, and merge into `main`.
+PR #140 is **merged and accepted**. `AUTOMATIC_REVIEWER_RESEARCH.md` therefore supplies the current `NARROW` implementation authority. Production work is now permitted only inside that selected lifecycle; materially broader persistence/recovery/retry/concurrency/identity/authority changes require Stage Research re-entry.
 
-If #140 is accepted, selected v1 implementation is bounded to:
+PR #141 is the current first production implementation slice. It deliberately stops at the local operation/result-state foundation: stable exact-review identity, immutable private genesis, crash-safe mutable checkpoint, durable `dispatch-attempted`, automatic-result recording, same-lock manual fallback, manual-only missing-state recovery and fail-closed corrupt/mismatched state. It does **not** yet register the three automatic-review procedures on `procedure_run`, launch a browser, grant Send authority or change the six-tool public inventory.
+
+Merged #140 bounds the selected v1 implementation to:
 
 ```text
 exact frozen REVIEW_REQUEST_V1
@@ -184,7 +187,7 @@ Merged #127 strengthened `stage-research` so materially new persistence/recovery
 
 PR #128 added the canonical architecture/reuse comparison baseline. When that process applies, research must explicitly compare affected prior roles and assign exactly one canonical lineage decision per existing role; new roles are `NEW_ARCHITECTURE` and use the Scope Expansion Gate.
 
-PR #140 is currently the **open acceptance gate** for automatic-review research. Its revised Brief now records direct filesystem, IndexedDB/service-worker and ChatGPT action-control solution evidence, plus the local result-reconciliation design selected after the latest review findings.
+Merged PR #140 is the accepted automatic-review research authority. Its Brief records direct filesystem, IndexedDB/service-worker and ChatGPT action-control solution evidence, plus the local result-reconciliation design selected after review findings. Current implementation must remain inside that NARROW boundary.
 
 ## Browser accepted scope and remaining hardening
 
@@ -211,15 +214,15 @@ Do not reconstruct another stage list here; `ROADMAP.md` owns release order.
 Immediate work is:
 
 ```text
-finish #140 Stage Research acceptance on a frozen exact head
- -> require exact-head CI/security + zero unresolved review findings
+finish #141 local review-state foundation on a frozen exact head
+ -> require exact-head hosted CI/security + zero unresolved review findings
  -> require mandatory fresh ordinary-ChatGPT semantic review
- -> merge #140 only if the proposed NARROW contract is accepted
- -> only then implement that accepted bounded automatic-review lifecycle
- -> prove immutable-genesis + mutable-state crash/restart invariants
+ -> merge #141 only if the local state/recovery foundation is accepted
+ -> wire the accepted fixed launch/submit/reconcile procedures behind existing procedure_run
+ -> prove immutable-genesis + mutable-state crash/restart invariants through the installed runtime
  -> prove qualified reviewer environment removes GitHub mutation actions
  -> prove MV3/IndexedDB one-claim Send behavior
- -> prove local submit/reconcile + manual-fallback race closure
+ -> prove local submit/reconcile + manual-fallback race closure end to end
  -> prove crash/corrupt/stale/malformed/pending state fail closed
  -> run target-Windows ordinary-Chat E2E with zero routine launch/paste/result-copy intervention when authority qualification succeeds
  -> attach Harbor evaluation seam after the first honest E2E
