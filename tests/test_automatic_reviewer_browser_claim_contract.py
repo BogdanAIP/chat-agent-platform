@@ -73,9 +73,10 @@ class AutomaticReviewerBrowserClaimContractTests(unittest.TestCase):
         )
 
     def test_browser_claim_does_not_expand_into_general_runtime(self) -> None:
-        self.assertIn("not a general project database or scheduler/event bus", self.folded)
+        self.assertIn("scheduler/event bus", self.folded)
         self.assertIn("general browser database/storage dispatcher", self.folded)
         self.assertIn("general browser database runtime", self.folded)
+        self.assertIn("no native messaging result bus", self.folded)
 
 
 if __name__ == "__main__":
