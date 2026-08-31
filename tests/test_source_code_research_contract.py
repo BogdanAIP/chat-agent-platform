@@ -190,7 +190,10 @@ class SourceCodeResearchContractTests(unittest.TestCase):
         self.assertEqual(posture, "`REFERENCE_REVALIDATE_PER_STAGE`")
 
         self.assertIn(".agents/skills/source-code-research/SKILL.md", baseline)
-        self.assertIn("exact upstream ref, concrete implementation paths/symbols", baseline)
+        self.assertIn("exact upstream ref", baseline)
+        self.assertIn("implementation paths/symbols", baseline)
+        self.assertIn("tests/failure evidence", baseline)
+        self.assertIn("material lifecycle piece", baseline)
 
 
 if __name__ == "__main__":
