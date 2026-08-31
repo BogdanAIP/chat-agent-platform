@@ -109,8 +109,9 @@ The target lifecycle remains narrow:
 PR reaches review-ready exact head
  -> freeze BASE_SHA + HEAD_SHA
  -> launch a genuinely fresh ordinary-ChatGPT context without routine user launch/paste work
- -> run repository `.agents/skills/code-review/SKILL.md` with independent GitHub evidence
- -> return REVIEW_RESULT_V1 through a bounded result-evidence handoff
+ -> run repository `.agents/skills/code-review/SKILL.md` with independent repository evidence
+ -> submit REVIEW_RESULT_V1 through one bounded local procedure
+ -> deterministic local publisher creates at most one PR evidence comment
  -> reject stale/malformed/ambiguous results
  -> repeat after any material head change
 ```
@@ -127,18 +128,24 @@ If #140 is accepted, the selected v1 direction is bounded to:
 exact frozen REVIEW_REQUEST_V1
  -> registered bounded launch procedure behind existing procedure_run
  -> accepted Stage 26.3C OS-backed single-writer operation lock
- -> accepted-style crash-atomic durable operation record + private review_run_id
+ -> immutable exclusive-created genesis with private review_run_id
+ -> accepted-style crash-atomic mutable operation checkpoint
  -> durable dispatch-attempted before one browser launch
  -> refined fresh-new-chat deep-link/autosend
  -> MV3 service-worker IndexedDB unique-key Send claim
  -> one automatic Send attempt; ambiguous delivery is not retried blindly
- -> fresh ordinary-Chat reviewer
- -> one structured top-level PR result-evidence comment with review_run_id
+ -> fresh ordinary-Chat reviewer with no GitHub write credential/action
+ -> one submit_independent_review_result_v1 call using the private run capability
+ -> durable publication-attempted before external mutation
+ -> project-owned endpoint-allowlisted publisher with backend-only dedicated GitHub App credential
+ -> at most one exact top-level PR result-evidence comment
  -> development side re-reads the complete result-comment set + live PR identity
  -> accept CURRENT result or fail closed
 ```
 
-The reviewer remains read-only to production code/branch and may not approve, request changes, merge, label or otherwise mutate PR/repository state. The one proposed automatic-path write is the bounded result-evidence conversation comment defined by the research Brief; it is evidence transport, not acceptance authority.
+The immutable genesis and mutable checkpoint are separate: genesis proves that the exact automatic operation was already created; mutable state records progress. `genesis exists + mutable state missing`, the inverse, pair mismatch, invalid state or ambiguous temp residue all fail closed without manufacturing a replacement nonce. Hostile deletion of the whole private state root and machine/power-loss loss remain outside the declared v1 guarantee.
+
+The reviewer remains read-only to production code/branch and does not directly mutate GitHub. It receives no raw GitHub write credential/action. Its only automatic handoff authority is the fixed local `submit_independent_review_result_v1` call. A project-owned publisher, not the model, owns the minimum GitHub App credential and is deterministically limited to the exact top-level-comment POST for the bound repository/PR. GitHub permission/approval prompts are not treated as the enforcement boundary.
 
 Automatic wake/resampling of the unfinished development conversation after the reviewer finishes is **not** part of this slice. The durable PR result removes copy/paste; general same-task continuation remains a separate future Stage Research seam.
 
@@ -159,13 +166,14 @@ Reviewer automation must preserve:
 - genuinely fresh ordinary-ChatGPT context;
 - exact repository / PR / BASE_SHA / HEAD_SHA binding;
 - independent evidence reconstruction;
-- read-only reviewer authority over production code/branch except the bounded result-evidence comment if #140 is accepted;
+- deterministic least privilege: no reviewer-held GitHub write credential/action and no generic publisher/proxy;
+- one-shot local result submission with publication intent durable before external POST;
 - fail-closed missing/malformed/stale/ambiguous result handling;
 - no blind retry after ambiguous launch/claim/Send/comment delivery;
 - no false representation of unavailable Codex Review as completed;
 - no promotion into a second developer/planner context.
 
-Review runs should retain bounded non-secret operational evidence useful for qualification: run/correlation identity, trigger reason, exact refs, launch/delivery outcome, fresh-context evidence where available, result disposition, stale detection, duplicate/missed delivery, timeout/failure class and whether manual intervention was required.
+Review runs should retain bounded non-secret operational evidence useful for qualification: run/correlation identity, trigger reason, exact refs, launch/delivery outcome, fresh-context evidence where available, result disposition, stale detection, duplicate/missed delivery, timeout/failure class and whether manual intervention was required. The private run capability must not be exposed in development-side logs before it is consumed.
 
 ## Architecture research rule now in force
 
@@ -173,7 +181,7 @@ Merged #127 strengthened `stage-research` so materially new persistence/recovery
 
 PR #128 added the canonical architecture/reuse comparison baseline. When that process applies, research must explicitly compare affected prior component/project-owned roles rather than silently rebuilding or replacing them.
 
-PR #140 is currently the **open acceptance gate** for automatic-review research. Its proposed decision cannot authorize implementation until the PR itself is accepted. The revised Brief now explicitly separates local OS ownership, crash-atomic durable checkpoint persistence, browser cross-tab Send ownership and mutable result-evidence integrity, and records the required solution/source-code/alternative/failure evidence.
+PR #140 is currently the **open acceptance gate** for automatic-review research. Its proposed decision cannot authorize implementation until the PR itself is accepted. The revised Brief separates local OS ownership, immutable creation evidence, crash-oriented mutable checkpoint persistence, browser cross-tab Send ownership, one-shot reviewer submission, deterministic GitHub publication authority and mutable result-evidence integrity, and records the required solution/source-code/alternative/failure evidence.
 
 ## Browser accepted scope and remaining hardening
 
@@ -205,7 +213,9 @@ finish #140 Stage Research acceptance on a frozen exact head
  -> require mandatory fresh ordinary-ChatGPT semantic review
  -> merge #140 only if the proposed NARROW contract is accepted
  -> only then implement that accepted bounded automatic-review lifecycle
+ -> prove immutable-genesis + mutable-state crash/restart invariants
  -> prove fresh launch + one-attempt duplicate safety + exact result handoff
+ -> prove reviewer has no direct GitHub write authority and publisher endpoint surface is exact/allowlisted
  -> prove crash/corrupt/stale/malformed/conflicting-result handling fail closed
  -> run target-Windows ordinary-Chat E2E with zero routine launch/paste/result-copy intervention
  -> attach Harbor evaluation seam after the first real E2E
