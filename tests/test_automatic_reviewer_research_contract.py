@@ -103,7 +103,8 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             "hostile deletion",
             "storage rollback",
             "machine/power-loss",
-            "outside the declared v1 guarantee",
+            "outside declared v1 guarantee",
+            "no guarantee claimed",
         ):
             self.assertIn(phrase.casefold(), self.folded)
 
@@ -147,15 +148,16 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
     def test_result_handoff_is_local_and_manual_fallback_closes_late_submit(self) -> None:
         for phrase in (
             "result_state = open | automatic-result-recorded | manual-fallback-recorded",
-            "procedure=submit_independent_review_result_v1",
+            "submit_independent_review_result_v1",
             "reconcile_independent_review_result_v1",
-            "same operation lock",
+            "same OS lock",
             "same-nonce/same-digest",
             "already_recorded",
             "manual-fallback-recorded",
             "late automatic submit",
-            "later automatic submit after manual closure is rejected",
-            "final reconciliation",
+            "late submit rejected",
+            "later automatic submit cannot appear after",
+            "final development-side reconciliation",
         ):
             self.assertIn(phrase.casefold(), self.folded)
         self.assertIn("manual fallback and automatic submit race", self.folded)
