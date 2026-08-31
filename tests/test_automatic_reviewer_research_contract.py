@@ -128,6 +128,26 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, self.research)
 
+    def test_failure_matrix_cells_are_mechanically_complete(self) -> None:
+        for heading in (
+            "Boundary / failure",
+            "Authoritative durable state",
+            "Possible physical state",
+            "Required fresh evidence",
+            "Retry / reconciliation permission",
+            "Invariant / shield / test",
+            "Max unauthorized additional effect",
+        ):
+            self.assertIn(heading, self.research)
+        for phrase in (
+            "crash/persistence failure while replacing dispatch-attempted checkpoint",
+            "operation_persistence_ambiguous",
+            "replacement fault injection",
+            "full comment-set rescan",
+            "two-real-tab physical gate",
+        ):
+            self.assertIn(phrase, self.research)
+
     def test_browser_claim_remains_atomic_and_separate_from_local_lock(self) -> None:
         for phrase in (
             "MV3 extension service worker",
