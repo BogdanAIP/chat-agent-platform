@@ -27,7 +27,15 @@ const repoRoot = path.resolve(here, '..', '..', '..');
 const controlPlaneCli = path.join(repoRoot, 'runtime', 'control_plane', 'cli.py');
 const WORKSPACE_ARTIFACT_PROCEDURE = 'verified_workspace_artifact_v1';
 const WINDOWS_CASE_PROCEDURE = 'windows_case_update_v1';
+const REVIEW_LAUNCH_PROCEDURE = 'launch_independent_review_v1';
+const REVIEW_SUBMIT_PROCEDURE = 'submit_independent_review_result_v1';
+const REVIEW_RECONCILE_PROCEDURE = 'reconcile_independent_review_result_v1';
 const TASK_ID_RE = /^[0-9a-f]{32}$/;
+const REVIEW_RUN_ID_RE = /^[0-9a-f]{64}$/;
+const REVIEW_SHA_RE = /^[0-9a-f]{40}$/;
+const REVIEW_REPOSITORY_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
+const REVIEW_SKILL_VERSION_RE = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+const MAX_REVIEW_RESULT_BYTES = 256_000;
 const INTERNAL_SEMANTIC_TOOLS = new Set([
   'workspace_read',
   'workspace_write',
@@ -36,7 +44,11 @@ const INTERNAL_SEMANTIC_TOOLS = new Set([
   'web_interact'
 ]);
 const PUBLIC_TOOLS = new Set([...INTERNAL_SEMANTIC_TOOLS, 'procedure_run']);
-const MAX_PROCEDURE_RESPONSE_BYTES = 1_000_000;
+// REVIEW_RESULT_V1 is bounded by decoded UTF-8 bytes. JSON transport can expand
+// ASCII controls to six-byte \u00XX escapes, so keep the parent response bound
+// coherent with the child request/state bound rather than silently truncating a
+// result that the review validator itself accepts.
+const MAX_PROCEDURE_RESPONSE_BYTES = MAX_REVIEW_RESULT_BYTES * 6 + 65_536;
 const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'PATH', 'Path', 'PATHEXT',
   'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC',
@@ -314,6 +326,18 @@ const interactionExpectedSchema = z.object({
   url: z.string().url().max(4096).optional(),
   control: interactionExpectedControlSchema.optional(),
 }).strict();
+const reviewResultTextSchema = z.string().min(1).refine(
+  value => Buffer.byteLength(value, 'utf8') <= MAX_REVIEW_RESULT_BYTES,
+  { message: 'review result exceeds the accepted UTF-8 byte bound' }
+);
+const reviewIdentityShape = {
+  repository: z.string().regex(REVIEW_REPOSITORY_RE),
+  pr_number: z.number().int().positive().max(2_147_483_647),
+  base_sha: z.string().regex(REVIEW_SHA_RE),
+  head_sha: z.string().regex(REVIEW_SHA_RE),
+  review_skill: z.literal('code-review'),
+  review_skill_version: z.string().regex(REVIEW_SKILL_VERSION_RE)
+};
 const workspaceArtifactProcedureSchema = z.object({
   procedure: z.literal('verified_workspace_artifact_v1'),
   artifact_name: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}\.txt$/),
@@ -326,12 +350,26 @@ const windowsCaseProcedureSchema = z.object({
   note: z.string().min(1).max(512),
   status: z.enum(['Approved', 'Needs Review'])
 }).strict();
+const reviewLaunchProcedureSchema = z.object({
+  procedure: z.literal(REVIEW_LAUNCH_PROCEDURE),
+  ...reviewIdentityShape
+}).strict();
+const reviewSubmitProcedureSchema = z.object({
+  procedure: z.literal(REVIEW_SUBMIT_PROCEDURE),
+  review_run_id: z.string().regex(REVIEW_RUN_ID_RE),
+  result: reviewResultTextSchema
+}).strict();
+const reviewReconcileProcedureSchema = z.object({
+  procedure: z.literal(REVIEW_RECONCILE_PROCEDURE),
+  ...reviewIdentityShape,
+  manual_result: reviewResultTextSchema.optional()
+}).strict();
 
 const server = new McpServer(
   { name: 'chat-semantic-control-plane', version: VERSION },
   {
     instructions:
-      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations require fresh final-state verification. procedure_run admits only registered bounded procedures; Windows Case Desk accepts only case_id, one bounded note and status Approved or Needs Review while PID/window/backend authority remains internal. No shell, arbitrary Python, backend selector, generic dispatch or arbitrary filesystem path is exposed.'
+      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations require fresh final-state verification. procedure_run admits only registered bounded procedures. The independent-review procedures accept only exact review identity, private run capability/result submission, or exact reconciliation/manual-result fields; launch remains fail-closed before browser dispatch until reviewer authority qualification and Send claiming are separately installed and accepted. No shell, arbitrary Python, URL/prompt launcher, backend selector, generic dispatch or arbitrary filesystem path is exposed.'
   }
 );
 
@@ -395,10 +433,13 @@ server.registerTool('web_interact', {
 server.registerTool('procedure_run', {
   title: 'Run Verified Procedure',
   description:
-    'Run one registered bounded local procedure. verified_workspace_artifact_v1 accepts a leaf .txt artifact/content pair and returns resume_task_id only when a durable child run may exist or when resuming an existing task. windows_case_update_v1 accepts only a Case Desk case_id, one bounded note and status Approved or Needs Review. No PID, HWND, path, command, Python, backend or generic tool selector is accepted.',
+    'Run one registered bounded local procedure. Registered ids are verified_workspace_artifact_v1, windows_case_update_v1, launch_independent_review_v1, submit_independent_review_result_v1 and reconcile_independent_review_result_v1. Reviewer launch accepts only exact review identity and currently ABSTAINS before browser dispatch while reviewer authority is unqualified; it never returns review_run_id. Submit accepts only the private review_run_id plus REVIEW_RESULT_V1 text. Reconcile accepts exact review identity plus optional fresh manual REVIEW_RESULT_V1. No PID, HWND, URL, prompt, path, command, Python, backend, GitHub credential or generic tool selector is accepted.',
   inputSchema: z.union([
     workspaceArtifactProcedureSchema,
-    windowsCaseProcedureSchema
+    windowsCaseProcedureSchema,
+    reviewLaunchProcedureSchema,
+    reviewSubmitProcedureSchema,
+    reviewReconcileProcedureSchema
   ]),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
 }, args => runProcedure(args));
