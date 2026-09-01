@@ -196,7 +196,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             ):
                 with self.subTest(state_root=state_root), self.assertRaisesRegex(
                     ValueError,
-                    r"independent-review state root must be outside the readable workspace",
+                    r"independent-review state directory must be path-disjoint from the readable workspace",
                 ):
                     control_plane_cli._dispatch_registered_procedure(
                         identity_request(LAUNCH_PROCEDURE_ID),
@@ -207,6 +207,29 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                 self.assertFalse(
                     (state_root / review_state.STATE_DIRECTORY).exists(),
                     "privacy rejection must happen before review genesis/state creation",
+                )
+
+    def test_cli_rejects_workspace_equal_to_or_below_actual_review_state_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir:
+            root = Path(root_dir)
+            state_root = root / "procedure-state"
+            review_root = state_root / review_state.STATE_DIRECTORY
+            for workspace_root in (review_root, review_root / "nested-workspace"):
+                workspace_root.mkdir(parents=True, exist_ok=True)
+                with self.subTest(workspace_root=workspace_root), self.assertRaisesRegex(
+                    ValueError,
+                    r"independent-review state directory must be path-disjoint from the readable workspace",
+                ):
+                    control_plane_cli._dispatch_registered_procedure(
+                        identity_request(LAUNCH_PROCEDURE_ID),
+                        workspace_root=workspace_root,
+                        state_root=state_root,
+                        candidate_admission=None,
+                    )
+                self.assertEqual(
+                    [],
+                    list(review_root.glob("*.genesis.json")),
+                    "inverse-overlap rejection must happen before private genesis creation",
                 )
 
     def test_cli_privacy_guard_does_not_change_non_review_procedure_policy(self) -> None:
