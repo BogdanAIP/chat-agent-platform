@@ -65,6 +65,27 @@ function stringEnvironment(source) {
   return env;
 }
 
+function isInsideOrEqual(parentPath, candidatePath) {
+  const relative = path.relative(parentPath, candidatePath);
+  return relative === '' || (
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
+}
+
+function canonicalExistingDirectory(input, label) {
+  if (typeof input !== 'string' || input.trim().length === 0) {
+    throw new Error(`${label} must be configured`);
+  }
+  const resolved = path.resolve(input);
+  const stat = fs.statSync(resolved, { throwIfNoEntry: false });
+  if (!stat?.isDirectory()) {
+    throw new Error(`${label} must be an existing directory: ${resolved}`);
+  }
+  return fs.realpathSync.native(resolved);
+}
+
 export function resolveSemanticRuntimePaths({
   env = process.env,
   platform = process.platform,
@@ -99,8 +120,34 @@ export function resolveSemanticRuntimePaths({
   return { platformRoot, runtimeDirectory, playwrightOutputDirectory };
 }
 
-export function prepareSemanticRuntimeEnvironment(options = {}) {
+export function assertPrivateWorkspaceIsolation(options = {}) {
+  const env = options.env ?? process.env;
   const paths = resolveSemanticRuntimePaths(options);
+  const workspaceRoot = canonicalExistingDirectory(
+    env.CHAT_LOCAL_FILES_ROOT,
+    'CHAT_LOCAL_FILES_ROOT'
+  );
+
+  // The reviewer genesis/state contains the private review_run_id.  Make the
+  // manager-owned tree a permanent non-workspace boundary, not merely a
+  // point-in-time procedure_run check.  Resolve physical paths before comparing
+  // so a symlink/junction alias cannot make manager state Chat-readable.
+  fs.mkdirSync(paths.platformRoot, { recursive: true });
+  const managerRoot = fs.realpathSync.native(paths.platformRoot);
+  if (
+    isInsideOrEqual(managerRoot, workspaceRoot) ||
+    isInsideOrEqual(workspaceRoot, managerRoot)
+  ) {
+    throw new Error(
+      `CHAT_LOCAL_FILES_ROOT must be path-disjoint from manager-owned state: ${managerRoot}`
+    );
+  }
+
+  return { ...paths, workspaceRoot, managerRoot };
+}
+
+export function prepareSemanticRuntimeEnvironment(options = {}) {
+  const paths = assertPrivateWorkspaceIsolation(options);
   fs.mkdirSync(paths.playwrightOutputDirectory, { recursive: true });
   const env = stringEnvironment(options.env ?? process.env);
   env.PLAYWRIGHT_MCP_OUTPUT_DIR = paths.playwrightOutputDirectory;
