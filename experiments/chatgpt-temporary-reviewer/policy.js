@@ -5,6 +5,7 @@
   const TOKEN_RE = /^[0-9a-f]{64}$/;
   const SHA_RE = /^[0-9a-f]{40}$/;
   const HEX64_RE = /^[0-9a-f]{64}$/;
+  const LIBRARY_FILENAME_RE = /^cap-private-review-tmprev-[0-9a-f]{32}\.txt$/;
   const MAX_WAIT_MS = 45 * 60 * 1000;
   const STABLE_MS = 3000;
 
@@ -22,6 +23,46 @@
       if (line.startsWith(prefix)) return line.slice(prefix.length).trim();
     }
     return "";
+  }
+
+  function libraryEvidenceKey(runId) {
+    return `cap-temp-review:v1:library-evidence:${runId}`;
+  }
+
+  function parseLibraryStageIntent(urlString) {
+    let url;
+    try {
+      url = new URL(urlString);
+    } catch {
+      return { enabled: false, reason: "invalid-url" };
+    }
+    if (url.origin !== "https://chatgpt.com") return { enabled: false, reason: "wrong-origin" };
+    if (url.searchParams.get("cap_library_stage") !== "1") return { enabled: false, reason: "not-library-stage" };
+    if (url.searchParams.get("temporary-chat") === "true") return { enabled: false, reason: "library-stage-must-not-be-temporary" };
+
+    const runId = url.searchParams.get("cap_run_id") || "";
+    const token = url.searchParams.get("cap_collector_token") || "";
+    const bundleSha256 = url.searchParams.get("cap_bundle_sha256") || "";
+    const libraryFilename = url.searchParams.get("cap_library_filename") || "";
+    const reviewPrompt = url.searchParams.get("cap_review_prompt") || "";
+    if (!RUN_ID_RE.test(runId)) return { enabled: false, reason: "invalid-run-id" };
+    if (!TOKEN_RE.test(token)) return { enabled: false, reason: "invalid-collector-token" };
+    if (!HEX64_RE.test(bundleSha256)) return { enabled: false, reason: "invalid-library-bundle-sha256" };
+    if (!LIBRARY_FILENAME_RE.test(libraryFilename)) return { enabled: false, reason: "invalid-library-filename" };
+    const sentinel = `CAP_TEMP_REVIEW_RUN_ID=${runId}`;
+    if (!reviewPrompt.includes(sentinel) || !reviewPrompt.includes("LIBRARY_PRIVATE_CONTROL_V1")) {
+      return { enabled: false, reason: "library-review-prompt-binding-mismatch" };
+    }
+    return {
+      enabled: true,
+      runId,
+      token,
+      bundleSha256,
+      libraryFilename,
+      reviewPrompt,
+      sentinel,
+      maxWaitMs: MAX_WAIT_MS,
+    };
   }
 
   function parseIntent(urlString) {
@@ -43,7 +84,33 @@
 
     const sentinel = `CAP_TEMP_REVIEW_RUN_ID=${runId}`;
     const completionMarker = `CAP_TEMP_REVIEW_COMPLETE=${runId}`;
+    const libraryMode = url.searchParams.get("cap_library_review") === "1";
     const bundleMode = url.searchParams.get("cap_bundle") === "1";
+
+    if (libraryMode) {
+      const libraryFilename = url.searchParams.get("cap_library_filename") || "";
+      if (!LIBRARY_FILENAME_RE.test(libraryFilename)) return { enabled: false, reason: "invalid-library-filename" };
+      if (!prompt.includes(sentinel) || !prompt.includes("LIBRARY_PRIVATE_CONTROL_V1")) {
+        return { enabled: false, reason: "library-prompt-binding-mismatch" };
+      }
+      const evidenceNonce = sessionStorage.getItem(libraryEvidenceKey(runId)) || "";
+      if (!HEX64_RE.test(evidenceNonce)) return { enabled: false, reason: "library-evidence-nonce-missing" };
+      return {
+        enabled: true,
+        libraryMode: true,
+        libraryFilename,
+        evidenceNonce,
+        bundleMode: false,
+        runId,
+        token,
+        prompt,
+        sentinel,
+        completionMarker,
+        expected: null,
+        maxWaitMs: MAX_WAIT_MS,
+        stableMs: STABLE_MS,
+      };
+    }
 
     if (bundleMode) {
       const bundleSha256 = url.searchParams.get("cap_bundle_sha256") || "";
@@ -56,6 +123,7 @@
       }
       return {
         enabled: true,
+        libraryMode: false,
         bundleMode: true,
         bundleSha256,
         bundleNonce,
@@ -88,6 +156,7 @@
 
     return {
       enabled: true,
+      libraryMode: false,
       bundleMode: false,
       runId,
       token,
@@ -110,6 +179,9 @@
 
   function hasExpectedPrompt(text, intent) {
     if (typeof text !== "string") return false;
+    if (intent.libraryMode) {
+      return text.includes(intent.sentinel) && text.includes("LIBRARY_PRIVATE_CONTROL_V1");
+    }
     if (intent.bundleMode) {
       return text.includes(intent.sentinel) && text.includes("PRIVATE_BUNDLE_CONTROL_V1");
     }
@@ -131,6 +203,29 @@
     if (typeof text !== "string" || !intent) return { structured: false };
     const { normalized, fields } = parseResultFields(text);
     const completionMarkerAtEnd = normalized.trimEnd().endsWith(intent.completionMarker);
+
+    if (intent.libraryMode) {
+      const status = fields.get("status") || null;
+      const statusValid = new Set(["PASS", "FINDINGS", "ABSTAIN"]).has(status);
+      const headerPresent = /(^|\n)\s*LIBRARY_PRIVATE_REVIEW_RESULT_V1\s*(\n|$)/.test(normalized);
+      const nonceMatches = fields.get("evidence_nonce") === intent.evidenceNonce;
+      const sourceMatches = fields.get("evidence_source") === "library_file";
+      const researchValue = fields.get("external_research_used") || null;
+      const researchFieldValid = new Set(["yes", "no"]).has(researchValue);
+      const missing = [];
+      if (!nonceMatches) missing.push(`evidence_nonce=${intent.evidenceNonce}`);
+      if (!sourceMatches) missing.push("evidence_source=library_file");
+      if (!researchFieldValid) missing.push("external_research_used=yes|no");
+      return {
+        structured: headerPresent && nonceMatches && sourceMatches && researchFieldValid && statusValid && completionMarkerAtEnd,
+        missing,
+        status,
+        header_present: headerPresent,
+        completion_marker_at_end: completionMarkerAtEnd,
+        evidence_nonce_matches: nonceMatches,
+        external_research_used: researchValue,
+      };
+    }
 
     if (intent.bundleMode) {
       const status = fields.get("status") || null;
@@ -186,9 +281,12 @@
     TOKEN_RE,
     SHA_RE,
     HEX64_RE,
+    LIBRARY_FILENAME_RE,
     MAX_WAIT_MS,
     STABLE_MS,
     normalizeReviewText,
+    libraryEvidenceKey,
+    parseLibraryStageIntent,
     parseIntent,
     attemptKey,
     captureKey,
