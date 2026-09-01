@@ -21,7 +21,7 @@ class AutomaticReviewerAuthorityResearchContractTests(unittest.TestCase):
 
     def test_personal_plus_authority_is_removed_by_non_personalized_temporary_chat(self) -> None:
         self.assertIn("non-personalized Temporary Chat", BRIEF)
-        self.assertIn("do not use plugins", BRIEF)
+        self.assertIn("plugins are available only in personalized Temporary Chats", BRIEF)
         self.assertIn("no ChatGPT plugins are available", BRIEF)
         self.assertIn("GitHub plugin mutation actions absent", BRIEF)
         self.assertIn("URL alone is not authority", BRIEF)
@@ -43,7 +43,7 @@ class AutomaticReviewerAuthorityResearchContractTests(unittest.TestCase):
         self.assertIn("no broad Local Bridge/MCP authority", BRIEF)
 
     def test_existing_result_state_remains_authoritative(self) -> None:
-        self.assertIn("accepted local review state remains the only result authority", BRIEF)
+        self.assertIn("authoritative local result state", BRIEF)
         self.assertIn("local state machine remains the final parser/validator", BRIEF)
         self.assertIn("same-nonce/same-digest", BRIEF)
         self.assertIn("manual fallback races late native submit", BRIEF)
