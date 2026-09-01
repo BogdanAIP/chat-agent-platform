@@ -53,7 +53,8 @@ This is an automated physical qualification probe of a fresh ordinary Temporary 
 Independently resolve the live PR identity, governing BASE AGENTS.md and code-review v1.1, applicable target skills from HEAD_SHA, the exact BASE_SHA..HEAD_SHA diff, affected automatic-review fixed-procedure/state/privacy/provenance paths, focused tests, hosted CI and relevant GitHub evidence.
 
 Do not ask follow-up questions. If required evidence cannot be obtained with the capabilities available in this chat, return a truthful REVIEW_RESULT_V1 with status=ABSTAIN and explain the blocking condition. Otherwise return the required REVIEW_RESULT_V1 and only concrete findings that survive the skill's falsification requirements. Do not edit the repository or PR.
-"@.Trim()
+"@
+$prompt = $prompt.Trim()
 
 function Encode-QueryValue([string]$Value) {
     return [Uri]::EscapeDataString($Value)

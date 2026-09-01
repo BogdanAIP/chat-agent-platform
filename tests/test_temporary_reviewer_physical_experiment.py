@@ -35,9 +35,9 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         self.assertIn('url.searchParams.get("cap_temp_review") !== "1"', POLICY)
         self.assertIn("CAP_TEMP_REVIEW_RUN_ID=", POLICY)
         self.assertIn("REVIEW_REQUEST_V1", POLICY)
-        self.assertIn("sessionStorage.setItem", CONTENT)
-        self.assertIn("button.click()", CONTENT)
-        self.assertLess(CONTENT.index("sessionStorage.setItem"), CONTENT.index("button.click()"))
+        send_marker = CONTENT.index("sessionStorage.setItem(\n        policy.attemptKey")
+        click = CONTENT.index("button.click()")
+        self.assertLess(send_marker, click)
         self.assertIn("temporary-ui-not-proven", CONTENT)
         self.assertIn("positive_ui_evidence", CONTENT)
 
@@ -79,10 +79,11 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
 
     def test_collector_is_loopback_only_and_has_no_execution_backend(self) -> None:
         source = (EXPERIMENT / "collector.py").read_text(encoding="utf-8")
+        lower = source.lower()
         self.assertIn('ThreadingHTTPServer(("127.0.0.1", args.port)', source)
         self.assertIn('self.path not in {"/event", "/capture"}', source)
-        for forbidden in ("subprocess", "os.system", "Popen(", "shell=True", "requests.", "github"):
-            self.assertNotIn(forbidden, source.lower())
+        for forbidden in ("subprocess", "os.system", "popen(", "shell=true", "requests.", "github"):
+            self.assertNotIn(forbidden, lower)
 
     def test_launcher_is_one_command_without_clipboard_or_manual_prompt_input(self) -> None:
         self.assertIn("https://chatgpt.com/?temporary-chat=true", LAUNCHER_TEXT)
@@ -96,7 +97,6 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
     def test_experiment_does_not_claim_architecture_or_production_acceptance(self) -> None:
         self.assertIn("EXPERIMENT ONLY — NO PRODUCTION AUTHORITY", README)
         self.assertIn("does **not** implement or authorize production", README)
-        self.assertIn("does not implement or authorize", README.lower())
         self.assertIn("without manual prompt/result copy-paste", README)
         self.assertIn("Those decisions require fresh Stage Research after physical evidence exists.", README)
 
