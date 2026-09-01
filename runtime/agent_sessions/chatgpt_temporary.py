@@ -74,6 +74,10 @@ class TemporaryLaunchIntent:
     delivery_id: str
     launch_url: str
     prompt_sha256: str
+    launch_now: bool
+    launch_state: str
+    delivery_state: str
+    result_state: str
     run_id: str = field(repr=False)
 
 
@@ -162,29 +166,36 @@ The adapter computes payload_sha256 after capture. Do not invent or calculate a 
 """.strip()
 
 
-def prepare_temporary_launch(
+def prepare_temporary_session(
     identity_value: Mapping[str, Any],
     *,
     task: str,
-    collector_token: str,
     state_root: Path,
 ) -> TemporaryLaunchIntent:
+    """Prepare a new child once or resume monitoring an already-attempted child.
+
+    ``launch_now`` is true only for the call that durably moves ``prepared`` to
+    ``launch-attempted``. A restarted controller can recover the same private
+    ``run_id`` and reconnect to an existing browser tab, but it can never gain a
+    second physical launch authority from this function.
+    """
+
     identity = parse_delegation_identity(identity_value)
-    _hex64(collector_token, "collector_token")
     if task_sha256(task) != identity.task_sha256:
         raise DelegationStateError("worker task digest does not match delegation identity")
 
     prepared = prepare_delegation(identity.as_dict(), state_root=state_root)
-    if prepared.result_state != "open":
-        raise DelegationStateError("terminal delegation cannot be launched")
-    if prepared.launch_state != "prepared":
-        raise DelegationStateError("delegation launch was already attempted")
+    launch_now = False
+    launch_state = prepared.launch_state
+    if prepared.result_state == "open" and prepared.launch_state == "prepared":
+        snapshot = mark_launch_attempted(
+            identity.as_dict(),
+            run_id=prepared.run_id,
+            state_root=state_root,
+        )
+        launch_now = True
+        launch_state = snapshot.launch_state
 
-    mark_launch_attempted(
-        identity.as_dict(),
-        run_id=prepared.run_id,
-        state_root=state_root,
-    )
     prompt = build_worker_prompt(
         identity,
         delegation_id=prepared.delegation_id,
@@ -199,7 +210,6 @@ def prepare_temporary_launch(
             "cap_delegation_id": prepared.delegation_id,
             "cap_delivery_id": prepared.delivery_id,
             "cap_task_sha256": identity.task_sha256,
-            "cap_collector_token": collector_token,
             "prompt": prompt,
         }
     )
@@ -210,7 +220,22 @@ def prepare_temporary_launch(
         run_id=prepared.run_id,
         launch_url=f"https://chatgpt.com/?{query}",
         prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        launch_now=launch_now,
+        launch_state=launch_state,
+        delivery_state=prepared.delivery_state,
+        result_state=prepared.result_state,
     )
+
+
+def prepare_temporary_launch(
+    identity_value: Mapping[str, Any],
+    *,
+    task: str,
+    state_root: Path,
+) -> TemporaryLaunchIntent:
+    """Compatibility name for the bounded new-or-resume session preparation."""
+
+    return prepare_temporary_session(identity_value, task=task, state_root=state_root)
 
 
 def bind_temporary_child(
@@ -327,7 +352,7 @@ def normalize_worker_result_text(
         raise DelegationStateError("worker result contains content outside structured block")
     try:
         raw = json.loads(body.strip())
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except json.JSONDecodeError as exc:
         raise DelegationStateError("worker result JSON is invalid") from exc
     raw = _plain_object(raw, "worker result JSON")
     _exact_keys(raw, _RAW_RESULT_KEYS, "worker result JSON")
