@@ -230,6 +230,8 @@ jobs:
             'runtime/control_plane/browser_transition.py',
             'runtime/control_plane/browser_transition_cli.py',
             'runtime/control_plane/cli.py',
+            'runtime/control_plane/independent_review_procedures.py',
+            'runtime/control_plane/independent_review_state.py',
             'runtime/control_plane/file_artifact_observation.py',
             'runtime/control_plane/verification.py',
             'runtime/control_plane/verified_workspace_artifact.py',
@@ -265,6 +267,8 @@ jobs:
             (Join-Path $installedRuntime 'control_plane/browser_transition.py'),
             (Join-Path $installedRuntime 'control_plane/browser_transition_cli.py'),
             (Join-Path $installedRuntime 'control_plane/cli.py'),
+            (Join-Path $installedRuntime 'control_plane/independent_review_procedures.py'),
+            (Join-Path $installedRuntime 'control_plane/independent_review_state.py'),
             (Join-Path $installedRuntime 'control_plane/file_artifact_observation.py'),
             (Join-Path $installedRuntime 'control_plane/verification.py'),
             (Join-Path $installedRuntime 'control_plane/verified_workspace_artifact.py'),
@@ -352,6 +356,47 @@ jobs:
           }
           Write-Host 'SEMANTIC_INSTALLED_PROCEDURE=PASS'
           Write-Host 'SEMANTIC_INSTALLED_PROCEDURE_CLI=PASS'
+
+          $reviewIdentity = [ordered]@{
+            repository = 'BogdanAIP/chat-agent-platform'
+            pr_number = 142
+            base_sha = ('1' * 40)
+            head_sha = ('2' * 40)
+            review_skill = 'code-review'
+            review_skill_version = '1.1'
+          }
+          $launchRequest = [ordered]@{ procedure = 'launch_independent_review_v1' }
+          foreach ($key in $reviewIdentity.Keys) { $launchRequest[$key] = $reviewIdentity[$key] }
+          $launchRaw = ($launchRequest | ConvertTo-Json -Compress) | & python $cli
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed reviewer launch CLI failed with exit code $LASTEXITCODE`: $($launchRaw | Out-String)"
+          }
+          $launch = $launchRaw | Out-String | ConvertFrom-Json
+          if ([string]$launch.status -ne 'abstained' -or [string]$launch.escalation_reason -ne 'reviewer_authority_unqualified') {
+            throw "Installed reviewer launch did not fail closed: $($launch | ConvertTo-Json -Compress -Depth 8)"
+          }
+          if ([string]$launch.dispatch_state -ne 'prepared' -or [string]$launch.result_state -ne 'open') {
+            throw "Installed reviewer launch changed dispatch/result state: $($launch | ConvertTo-Json -Compress -Depth 8)"
+          }
+          if ($launch.PSObject.Properties.Name -contains 'review_run_id') {
+            throw 'Installed reviewer launch disclosed private review_run_id.'
+          }
+
+          $reconcileRequest = [ordered]@{ procedure = 'reconcile_independent_review_result_v1' }
+          foreach ($key in $reviewIdentity.Keys) { $reconcileRequest[$key] = $reviewIdentity[$key] }
+          $reconcileRaw = ($reconcileRequest | ConvertTo-Json -Compress) | & python $cli
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed reviewer reconcile CLI failed with exit code $LASTEXITCODE`: $($reconcileRaw | Out-String)"
+          }
+          $reconcile = $reconcileRaw | Out-String | ConvertFrom-Json
+          if ([string]$reconcile.status -ne 'pending' -or [string]$reconcile.dispatch_state -ne 'prepared') {
+            throw "Installed reviewer reconcile drifted: $($reconcile | ConvertTo-Json -Compress -Depth 8)"
+          }
+          if ([bool]$reconcile.automatic_submission_open) {
+            throw 'Installed reviewer reconcile incorrectly opened automatic submission before dispatch.'
+          }
+          Write-Host 'SEMANTIC_INSTALLED_REVIEW_LAUNCH_FAIL_CLOSED=PASS'
+          Write-Host 'SEMANTIC_INSTALLED_REVIEW_RECONCILE_PENDING=PASS'
 
           try {
             & (Join-Path $installedScripts 'start-semantic-profile.ps1') -FilesRoot $workspace -Port 3068 -ReadyTimeoutSeconds 120
