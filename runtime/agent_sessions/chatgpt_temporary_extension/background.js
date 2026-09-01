@@ -91,6 +91,27 @@ async function claimBrowserSend(message, tabId) {
   });
 }
 
+async function claimRecordByDelivery(deliveryId) {
+  const db = await openExistingClaimDb();
+  return await new Promise((resolve, reject) => {
+    let transaction;
+    try {
+      transaction = db.transaction(CLAIM_STORE, "readonly");
+      const request = transaction.objectStore(CLAIM_STORE).get(deliveryId);
+      request.onerror = () => reject(request.error || new Error("claim-read-failed"));
+      request.onsuccess = () => resolve(request.result || null);
+      transaction.oncomplete = () => db.close();
+      transaction.onabort = () => {
+        db.close();
+        reject(transaction.error || new Error("claim-read-aborted"));
+      };
+    } catch (error) {
+      db.close();
+      reject(error);
+    }
+  });
+}
+
 async function claimRecordsForTab(tabId) {
   const db = await openExistingClaimDb();
   return await new Promise((resolve, reject) => {
@@ -225,6 +246,15 @@ async function authorizeSend(message, sender) {
     return { ok: false, send_authorized: false, reason: `browser-claim-failed:${error?.message || "Error"}` };
   }
   if (!browserClaim.granted) {
+    let existing;
+    try {
+      existing = await claimRecordByDelivery(message.delivery_id);
+    } catch (error) {
+      return { ok: false, send_authorized: false, monitor_only: false, reason: `existing-claim-read-failed:${error?.message || "Error"}` };
+    }
+    if (!validClaimRecord(existing) || existing.tab_id !== tabId || existing.run_id !== message.run_id || existing.delegation_id !== message.delegation_id) {
+      return { ok: true, send_authorized: false, monitor_only: false, reason: "claimed-by-other-tab" };
+    }
     try {
       const status = await controllerStatus(message);
       const monitorOnly = ["claimed", "unknown", "delivered"].includes(status.delivery_state);
