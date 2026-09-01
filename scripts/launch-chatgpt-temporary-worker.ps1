@@ -97,6 +97,7 @@ if (-not (Test-Path -LiteralPath $SourceGatePath -PathType Leaf)) {
 $CriticalAssets = @(
     'runtime/control_plane/delegation_state.py',
     'runtime/agent_sessions/__init__.py',
+    'runtime/agent_sessions/source_attestation.py',
     'runtime/agent_sessions/chatgpt_temporary.py',
     'runtime/agent_sessions/chatgpt_temporary_controller.py',
     'runtime/agent_sessions/chatgpt_temporary_extension/manifest.json',
@@ -127,6 +128,7 @@ New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
 $preProvenance = Join-Path $outputRoot 'source-provenance-before.json'
 $postProvenance = Join-Path $outputRoot 'source-provenance-after.json'
 $identityPath = Join-Path $outputRoot 'identity.json'
+$runtimeAttestationPath = Join-Path $outputRoot 'expected-runtime-attestation.json'
 $taskCopyPath = Join-Path $outputRoot 'task.txt'
 $controllerStdout = Join-Path $outputRoot 'controller.stdout.log'
 $controllerStderr = Join-Path $outputRoot 'controller.stderr.log'
@@ -148,9 +150,24 @@ Write-JsonUtf8NoBom -Path $identityPath -Value $identity
 if ((Get-Sha256 -Path $taskCopyPath) -cne $taskSha256) { throw 'Task copy digest changed.' }
 
 $extensionPath = Join-Path $RepoRoot 'runtime\agent_sessions\chatgpt_temporary_extension'
+$runtimeAssets = [ordered]@{
+    'manifest.json' = Get-Sha256 -Path (Join-Path $extensionPath 'manifest.json')
+    'policy.js' = Get-Sha256 -Path (Join-Path $extensionPath 'policy.js')
+    'background.js' = Get-Sha256 -Path (Join-Path $extensionPath 'background.js')
+    'content.js' = Get-Sha256 -Path (Join-Path $extensionPath 'content.js')
+}
+$expectedRuntimeAttestation = [ordered]@{
+    schema_version = 1
+    adapter_id = 'chatgpt-temporary'
+    expected_head = $ExpectedHead
+    assets = $runtimeAssets
+}
+Write-JsonUtf8NoBom -Path $runtimeAttestationPath -Value $expectedRuntimeAttestation
+
 Write-Host "CAP_AGENT_SESSION_EXACT_HEAD=$ExpectedHead" -ForegroundColor Cyan
 Write-Host "CAP_AGENT_SESSION_TASK_SHA256=$taskSha256"
 Write-Host "CAP_AGENT_SESSION_EXTENSION_PATH=$extensionPath" -ForegroundColor Cyan
+Write-Host "CAP_AGENT_SESSION_EXPECTED_EXTENSION_ATTESTATION=$runtimeAttestationPath"
 Write-Host "CAP_AGENT_SESSION_OUTPUT_DIR=$outputRoot"
 Write-Host "CAP_AGENT_SESSION_STATE_ROOT=$stateRoot"
 Write-Host 'CAP_AGENT_SESSION_PROFILE=fresh_readonly_worker_v1'
@@ -165,6 +182,7 @@ $controllerArgs = @(
     '-m', 'runtime.agent_sessions.chatgpt_temporary_controller',
     '--identity-json', $identityPath,
     '--task-file', $taskCopyPath,
+    '--runtime-attestation-json', $runtimeAttestationPath,
     '--state-root', $stateRoot,
     '--output-dir', $outputRoot,
     '--port', '3078',
@@ -204,6 +222,7 @@ try {
     if (-not (Test-Path -LiteralPath $launchPath -PathType Leaf)) { throw 'Controller did not write launch.json.' }
     $launch = Get-Content -LiteralPath $launchPath -Raw -Encoding utf8 | ConvertFrom-Json
     if ([string]$launch.adapter_id -ne 'chatgpt-temporary') { throw 'Unexpected adapter in launch evidence.' }
+    if ([string]$launch.expected_runtime_head -cne $ExpectedHead) { throw 'Controller runtime-attestation head mismatch.' }
     if ([string]$launch.prompt_sha256 -notmatch '^[0-9a-f]{64}$') { throw 'Launch prompt digest is invalid.' }
     if ([string]$launch.delegation_id -notmatch '^[0-9a-f]{64}$' -or [string]$launch.delivery_id -notmatch '^[0-9a-f]{64}$') {
         throw 'Launch correlation ids are invalid.'
