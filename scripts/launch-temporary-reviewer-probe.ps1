@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('pass142', 'stale140', 'findings146', 'privatebundle140', 'exact')]
+    [ValidateSet('pass142', 'stale140', 'findings146', 'privatebundle140', 'libraryfile140', 'exact')]
     [string]$Control = 'pass142',
     [string]$TargetPrNumber = '',
     [string]$TargetBaseSha = '',
@@ -58,6 +58,13 @@ $controls = @{
         SkillVersion = '1.0'
         Focus = 'bundle-only private repository semantic control'
     }
+    libraryfile140 = [ordered]@{
+        PrNumber = 0
+        BaseSha = 'b10a5fa3122bb6c76c12d37d67911b88e5e1ce28'
+        HeadSha = '7077ecb8496ee89530cbe5efaa1b2112e7be330f'
+        SkillVersion = '1.0'
+        Focus = 'ChatGPT Library private repository semantic control'
+    }
 }
 
 if ($Control -eq 'exact') {
@@ -86,6 +93,8 @@ else {
 }
 
 $bundleMode = $Control -eq 'privatebundle140'
+$libraryMode = $Control -eq 'libraryfile140'
+$localEvidenceMode = $bundleMode -or $libraryMode
 $runId = 'tmprev-' + [Guid]::NewGuid().ToString('N')
 $tokenBytes = [byte[]]::new(32)
 [System.Security.Cryptography.RandomNumberGenerator]::Fill($tokenBytes)
@@ -94,6 +103,7 @@ $bundleNonceBytes = [byte[]]::new(32)
 [System.Security.Cryptography.RandomNumberGenerator]::Fill($bundleNonceBytes)
 $bundleNonce = -join ($bundleNonceBytes | ForEach-Object { $_.ToString('x2') })
 $completionMarker = "CAP_TEMP_REVIEW_COMPLETE=$runId"
+$libraryFilename = "cap-private-review-$runId.txt"
 
 $OutputRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform\experiments\temporary-reviewer\$runId"
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
@@ -101,7 +111,7 @@ $resultPath = Join-Path $OutputRoot 'result.json'
 $progressPath = Join-Path $OutputRoot 'progress.json'
 $stdoutPath = Join-Path $OutputRoot 'collector.stdout.log'
 $stderrPath = Join-Path $OutputRoot 'collector.stderr.log'
-$bundlePath = Join-Path $OutputRoot 'private-review-bundle.txt'
+$bundlePath = Join-Path $OutputRoot $libraryFilename
 
 $python = (Get-Command 'python.exe' -ErrorAction SilentlyContinue)
 if ($null -eq $python) {
@@ -110,7 +120,7 @@ if ($null -eq $python) {
 
 $bundleSha256 = ''
 $bundleBytes = 0
-if ($bundleMode) {
+if ($localEvidenceMode) {
     & $python.Source $BundleBuilderPath `
         --repo-root $RepoRoot `
         --base-sha $target.BaseSha `
@@ -146,6 +156,37 @@ status=PASS|FINDINGS|ABSTAIN
 reported_findings=<count>
 
 If you used any external web/repository source for any reason, set external_web_used=yes. If the bundle is insufficient, return ABSTAIN rather than using web.
+
+When the review is completely finished, append exactly this line as the final line of your final response:
+$completionMarker
+Do not emit that completion line before the final result is complete.
+"@
+}
+elif ($libraryMode) {
+    $prompt = @"
+CAP_TEMP_REVIEW_RUN_ID=$runId
+
+LIBRARY_PRIVATE_CONTROL_V1
+
+This is a non-authoritative physical quality experiment that models a PRIVATE repository. A read-only review package named `$libraryFilename` will be attached automatically from ChatGPT Library before Send.
+
+Treat the attached REVIEW_EVIDENCE_BUNDLE_V1 as the sole source of repository/code truth. Do not use GitHub or web search to locate, reconstruct, or supplement the private repository, and do not search the web for unique identifiers or code snippets copied from the attached package.
+
+You MAY use built-in web search for general public technical documentation or engineering research needed to validate semantics (for example browser, Python, filesystem, database or platform documentation). Keep such searches generic and do not include private repository names, internal identifiers or code snippets.
+
+The attached package was generated from local immutable Git objects and contains the accepted BASE review policy, applicable target skills, changed-file inventory and exact BASE..HEAD diff. For this experiment, treat its manifest identity as frozen; do not require a live PR lookup.
+
+Perform the strongest independent semantic/adversarial review supported by the attached code-review policy. Search for concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects introduced by the exact bundled diff. Falsify candidate findings before reporting them. Do not infer the expected answer from this instruction.
+
+Return exactly this experiment header followed by supported finding bodies when applicable:
+LIBRARY_PRIVATE_REVIEW_RESULT_V1
+evidence_nonce=<copy the exact bundle_nonce from the attached REVIEW_EVIDENCE_BUNDLE_V1>
+evidence_source=library_file
+external_research_used=no|yes
+status=PASS|FINDINGS|ABSTAIN
+reported_findings=<count>
+
+If the attached file is missing, unreadable or insufficient for repository/code evidence, return ABSTAIN. Do not replace missing private repository evidence with GitHub/web lookup.
 
 When the review is completely finished, append exactly this line as the final line of your final response:
 $completionMarker
@@ -188,19 +229,29 @@ function Normalize-ReviewText([string]$Value) {
     return (($Value -replace '\\_', '_') -replace "`r`n?", "`n")
 }
 
-$url = 'https://chatgpt.com/?temporary-chat=true' +
-    '&cap_temp_review=1' +
-    '&cap_run_id=' + (Encode-QueryValue $runId) +
-    '&cap_collector_token=' + (Encode-QueryValue $collectorToken)
-if ($bundleMode) {
-    $url += '&cap_bundle=1' +
+if ($libraryMode) {
+    $url = 'https://chatgpt.com/?cap_library_stage=1' +
+        '&cap_run_id=' + (Encode-QueryValue $runId) +
+        '&cap_collector_token=' + (Encode-QueryValue $collectorToken) +
         '&cap_bundle_sha256=' + (Encode-QueryValue $bundleSha256) +
-        '&cap_bundle_nonce=' + (Encode-QueryValue $bundleNonce)
+        '&cap_library_filename=' + (Encode-QueryValue $libraryFilename) +
+        '&cap_review_prompt=' + (Encode-QueryValue $prompt)
 }
-$url += '&prompt=' + (Encode-QueryValue $prompt)
+else {
+    $url = 'https://chatgpt.com/?temporary-chat=true' +
+        '&cap_temp_review=1' +
+        '&cap_run_id=' + (Encode-QueryValue $runId) +
+        '&cap_collector_token=' + (Encode-QueryValue $collectorToken)
+    if ($bundleMode) {
+        $url += '&cap_bundle=1' +
+            '&cap_bundle_sha256=' + (Encode-QueryValue $bundleSha256) +
+            '&cap_bundle_nonce=' + (Encode-QueryValue $bundleNonce)
+    }
+    $url += '&prompt=' + (Encode-QueryValue $prompt)
+}
 
 Write-Host "TEMP_REVIEW_CONTROL=$Control" -ForegroundColor Cyan
-if (-not $bundleMode) {
+if (-not $localEvidenceMode) {
     Write-Host "TEMP_REVIEW_TARGET_PR=$($target.PrNumber)"
 }
 Write-Host "TEMP_REVIEW_TARGET_BASE=$($target.BaseSha)"
@@ -212,6 +263,13 @@ if ($bundleMode) {
     Write-Host 'TEMP_REVIEW_EVIDENCE_MODE=local_git_bundle_only' -ForegroundColor Yellow
     Write-Host "TEMP_REVIEW_BUNDLE_BYTES=$bundleBytes"
     Write-Host "TEMP_REVIEW_BUNDLE_SHA256=$bundleSha256"
+}
+if ($libraryMode) {
+    Write-Host 'TEMP_REVIEW_EVIDENCE_MODE=chatgpt_library_file' -ForegroundColor Yellow
+    Write-Host "TEMP_REVIEW_LIBRARY_FILENAME=$libraryFilename"
+    Write-Host "TEMP_REVIEW_LIBRARY_FILE_BYTES=$bundleBytes"
+    Write-Host "TEMP_REVIEW_LIBRARY_FILE_SHA256=$bundleSha256"
+    Write-Host 'TEMP_REVIEW_LIBRARY_NONCE_DISCLOSED_TO_PROMPT=False' -ForegroundColor Green
 }
 
 if ($NoLaunch) {
@@ -228,7 +286,7 @@ $collectorArgs = @(
     '--port', [string]$Port,
     '--timeout-seconds', [string]$TimeoutSeconds
 )
-if ($bundleMode) {
+if ($localEvidenceMode) {
     $collectorArgs += @('--bundle-path', $bundlePath)
 }
 $collector = Start-Process `
@@ -260,7 +318,12 @@ try {
     }
 
     Write-Host 'TEMP_REVIEW_COLLECTOR=ready' -ForegroundColor Green
-    Write-Host 'TEMP_REVIEW_LAUNCHING=non-personalized-temporary-chat' -ForegroundColor Cyan
+    if ($libraryMode) {
+        Write-Host 'TEMP_REVIEW_LAUNCHING=regular-chat-library-stage-then-temporary-chat' -ForegroundColor Cyan
+    }
+    else {
+        Write-Host 'TEMP_REVIEW_LAUNCHING=non-personalized-temporary-chat' -ForegroundColor Cyan
+    }
     Start-Process $url
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -276,6 +339,15 @@ try {
                 Write-Host "TEMP_REVIEW_BUNDLE_INJECTED=$($result.diagnostics.bundle_injected)" -ForegroundColor Green
                 $webMarkers = @($result.diagnostics.visible_web_activity)
                 Write-Host "TEMP_REVIEW_VISIBLE_WEB_ACTIVITY_COUNT=$($webMarkers.Count)" -ForegroundColor $(if ($webMarkers.Count -eq 0) { 'Green' } else { 'Yellow' })
+            }
+            if ($libraryMode) {
+                Write-Host "TEMP_REVIEW_LIBRARY_FILE_ATTACHED=$($result.diagnostics.library_file_attached)" -ForegroundColor Green
+                Write-Host "TEMP_REVIEW_LIBRARY_FILENAME_CAPTURED=$($result.diagnostics.library_filename)"
+                $webMarkers = @($result.diagnostics.visible_web_activity)
+                Write-Host "TEMP_REVIEW_LIBRARY_VISIBLE_WEB_ACTIVITY_COUNT=$($webMarkers.Count)"
+                if ($null -ne $result.diagnostics.identity.external_research_used) {
+                    Write-Host "TEMP_REVIEW_EXTERNAL_RESEARCH_USED=$($result.diagnostics.identity.external_research_used)"
+                }
             }
             if ([string]$result.capture_kind -ne 'structured' -and $null -ne $result.diagnostics.identity) {
                 Write-Host "TEMP_REVIEW_IDENTITY_DIAGNOSTICS=$($result.diagnostics.identity | ConvertTo-Json -Compress -Depth 8)" -ForegroundColor Yellow
