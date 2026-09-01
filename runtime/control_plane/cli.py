@@ -36,6 +36,11 @@ WORKSPACE_ARTIFACT_PROCEDURE_ID = workspace_artifact.PROCEDURE_ID
 MAX_REQUEST_BYTES = MAX_RESULT_BYTES * 6 + 65_536
 _ASSIGNED_TASK_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 _MIN_WORKSPACE_PYTHON = (3, 12)
+_REVIEW_PROCEDURE_IDS = {
+    REVIEW_LAUNCH_PROCEDURE_ID,
+    REVIEW_SUBMIT_PROCEDURE_ID,
+    REVIEW_RECONCILE_PROCEDURE_ID,
+}
 _SUCCESS_STATUSES = {
     "completed",
     "abstained",
@@ -61,6 +66,25 @@ def _require_workspace_python() -> None:
     # interpreter before the procedure can create durable state or a file effect.
     if sys.version_info < _MIN_WORKSPACE_PYTHON:
         raise RuntimeError("workspace procedure requires Python 3.12 or newer")
+
+
+def _require_private_review_state_root(
+    procedure: Any,
+    *,
+    workspace_root: Path,
+    state_root: Path,
+) -> None:
+    """Keep the private review capability outside the Chat-readable workspace."""
+
+    if procedure not in _REVIEW_PROCEDURE_IDS:
+        return
+    resolved_workspace = workspace_root.resolve()
+    resolved_state = state_root.resolve()
+    try:
+        resolved_state.relative_to(resolved_workspace)
+    except ValueError:
+        return
+    raise ValueError("independent-review state root must be outside the readable workspace")
 
 
 class _AssignedTaskIdSecrets:
@@ -162,6 +186,11 @@ def _dispatch_registered_procedure(
     candidate_admission: str | None,
 ) -> dict[str, Any]:
     procedure = request.get("procedure")
+    _require_private_review_state_root(
+        procedure,
+        workspace_root=workspace_root,
+        state_root=state_root,
+    )
     if procedure == WORKSPACE_ARTIFACT_PROCEDURE_ID:
         return _run_workspace_artifact(
             request,
