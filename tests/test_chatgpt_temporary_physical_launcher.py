@@ -57,10 +57,13 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertEqual(1, post_gate.count("Start-Process ([string]$launch.launch_url)"))
         self.assertIn("blocked-existing-delegation-monitor-only", post_gate)
 
-    def test_result_must_match_exact_delegation_and_delivery(self) -> None:
+    def test_result_must_match_exact_delegation_delivery_and_success_status(self) -> None:
         self.assertIn("Result delegation correlation mismatch", self.text)
         self.assertIn("Result delivery correlation mismatch", self.text)
-        self.assertIn("CAP_AGENT_SESSION_PHYSICAL=PASS", self.text)
+        self.assertIn("Physical qualification requires COMPLETED worker result", self.text)
+        completion_gate = self.text.index("if ([string]$result.status -ne 'COMPLETED')")
+        pass_marker = self.text.index("CAP_AGENT_SESSION_PHYSICAL=PASS")
+        self.assertLess(completion_gate, pass_marker)
         self.assertIn("CAP_AGENT_SESSION_RESULT_SHA256", self.text)
 
     def test_validate_only_runs_provenance_without_starting_controller(self) -> None:
