@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('pass142', 'stale140', 'findings146', 'exact')]
+    [ValidateSet('pass142', 'stale140', 'findings146', 'privatebundle140', 'exact')]
     [string]$Control = 'pass142',
     [string]$TargetPrNumber = '',
     [string]$TargetBaseSha = '',
@@ -18,12 +18,12 @@ Set-StrictMode -Version Latest
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ExperimentRoot = Join-Path $RepoRoot 'experiments\chatgpt-temporary-reviewer'
 $CollectorPath = Join-Path $ExperimentRoot 'collector.py'
+$BundleBuilderPath = Join-Path $ExperimentRoot 'build_private_bundle.py'
 $ManifestPath = Join-Path $ExperimentRoot 'manifest.json'
-if (-not (Test-Path -LiteralPath $CollectorPath -PathType Leaf)) {
-    throw "Temporary reviewer collector is missing: $CollectorPath"
-}
-if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
-    throw "Temporary reviewer extension manifest is missing: $ManifestPath"
+foreach ($requiredPath in @($CollectorPath, $BundleBuilderPath, $ManifestPath)) {
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+        throw "Temporary reviewer experiment file is missing: $requiredPath"
+    }
 }
 if ($Port -ne 3077) {
     throw 'This experiment extension is intentionally pinned to loopback port 3077.'
@@ -50,6 +50,13 @@ $controls = @{
         HeadSha = '7077ecb8496ee89530cbe5efaa1b2112e7be330f'
         SkillVersion = '1.0'
         Focus = 'affected Stage Research, reviewer authority, local-result publication/reconciliation, persistence, recovery, concurrency, identity, security and acceptance paths, focused tests, hosted CI and relevant GitHub evidence'
+    }
+    privatebundle140 = [ordered]@{
+        PrNumber = 0
+        BaseSha = 'b10a5fa3122bb6c76c12d37d67911b88e5e1ce28'
+        HeadSha = '7077ecb8496ee89530cbe5efaa1b2112e7be330f'
+        SkillVersion = '1.0'
+        Focus = 'bundle-only private repository semantic control'
     }
 }
 
@@ -78,10 +85,14 @@ else {
     $target = $controls[$Control]
 }
 
+$bundleMode = $Control -eq 'privatebundle140'
 $runId = 'tmprev-' + [Guid]::NewGuid().ToString('N')
 $tokenBytes = [byte[]]::new(32)
 [System.Security.Cryptography.RandomNumberGenerator]::Fill($tokenBytes)
 $collectorToken = -join ($tokenBytes | ForEach-Object { $_.ToString('x2') })
+$bundleNonceBytes = [byte[]]::new(32)
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($bundleNonceBytes)
+$bundleNonce = -join ($bundleNonceBytes | ForEach-Object { $_.ToString('x2') })
 $completionMarker = "CAP_TEMP_REVIEW_COMPLETE=$runId"
 
 $OutputRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform\experiments\temporary-reviewer\$runId"
@@ -90,8 +101,59 @@ $resultPath = Join-Path $OutputRoot 'result.json'
 $progressPath = Join-Path $OutputRoot 'progress.json'
 $stdoutPath = Join-Path $OutputRoot 'collector.stdout.log'
 $stderrPath = Join-Path $OutputRoot 'collector.stderr.log'
+$bundlePath = Join-Path $OutputRoot 'private-review-bundle.txt'
 
-$prompt = @"
+$python = (Get-Command 'python.exe' -ErrorAction SilentlyContinue)
+if ($null -eq $python) {
+    $python = (Get-Command 'python' -ErrorAction Stop)
+}
+
+$bundleSha256 = ''
+$bundleBytes = 0
+if ($bundleMode) {
+    & $python.Source $BundleBuilderPath `
+        --repo-root $RepoRoot `
+        --base-sha $target.BaseSha `
+        --head-sha $target.HeadSha `
+        --bundle-nonce $bundleNonce `
+        --output $bundlePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Private review bundle builder failed with exit code $LASTEXITCODE."
+    }
+    $bundleSha256 = (Get-FileHash -LiteralPath $bundlePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $bundleBytes = (Get-Item -LiteralPath $bundlePath).Length
+}
+
+if ($bundleMode) {
+    $prompt = @"
+CAP_TEMP_REVIEW_RUN_ID=$runId
+
+PRIVATE_BUNDLE_CONTROL_V1
+
+This is a non-authoritative physical quality experiment that models a PRIVATE repository.
+A read-only evidence bundle will be injected into this same message automatically before Send.
+
+Use ONLY that injected REVIEW_EVIDENCE_BUNDLE_V1. Do not use built-in web search, GitHub, apps/plugins, APIs, or any external repository/source. Do not ask the user for more evidence. The bundle was generated from local immutable Git objects and contains the accepted BASE review policy, applicable target skills, changed-file inventory and exact BASE..HEAD diff. For this experiment, treat the bundle manifest identity as frozen; do not require a live PR lookup.
+
+Perform the strongest independent semantic/adversarial review supported by the bundled code-review policy. Search for concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects introduced by the exact bundled diff. Falsify candidate findings before reporting them. Do not infer the expected answer from this instruction.
+
+Return exactly this experiment header followed by supported finding bodies when applicable:
+PRIVATE_BUNDLE_REVIEW_RESULT_V1
+bundle_nonce=<copy the exact bundle_nonce from REVIEW_EVIDENCE_BUNDLE_V1>
+evidence_source=bundle_only
+external_web_used=no|yes
+status=PASS|FINDINGS|ABSTAIN
+reported_findings=<count>
+
+If you used any external web/repository source for any reason, set external_web_used=yes. If the bundle is insufficient, return ABSTAIN rather than using web.
+
+When the review is completely finished, append exactly this line as the final line of your final response:
+$completionMarker
+Do not emit that completion line before the final result is complete.
+"@
+}
+else {
+    $prompt = @"
 CAP_TEMP_REVIEW_RUN_ID=$runId
 
 REVIEW_REQUEST_V1
@@ -114,6 +176,7 @@ When the review is completely finished, append exactly this line as the final li
 $completionMarker
 Do not emit that completion line in progress updates or before the final REVIEW_RESULT_V1 is complete.
 "@
+}
 $prompt = $prompt.Trim()
 
 function Encode-QueryValue([string]$Value) {
@@ -128,26 +191,33 @@ function Normalize-ReviewText([string]$Value) {
 $url = 'https://chatgpt.com/?temporary-chat=true' +
     '&cap_temp_review=1' +
     '&cap_run_id=' + (Encode-QueryValue $runId) +
-    '&cap_collector_token=' + (Encode-QueryValue $collectorToken) +
-    '&prompt=' + (Encode-QueryValue $prompt)
+    '&cap_collector_token=' + (Encode-QueryValue $collectorToken)
+if ($bundleMode) {
+    $url += '&cap_bundle=1' +
+        '&cap_bundle_sha256=' + (Encode-QueryValue $bundleSha256) +
+        '&cap_bundle_nonce=' + (Encode-QueryValue $bundleNonce)
+}
+$url += '&prompt=' + (Encode-QueryValue $prompt)
 
 Write-Host "TEMP_REVIEW_CONTROL=$Control" -ForegroundColor Cyan
-Write-Host "TEMP_REVIEW_TARGET_PR=$($target.PrNumber)"
+if (-not $bundleMode) {
+    Write-Host "TEMP_REVIEW_TARGET_PR=$($target.PrNumber)"
+}
 Write-Host "TEMP_REVIEW_TARGET_BASE=$($target.BaseSha)"
 Write-Host "TEMP_REVIEW_TARGET_HEAD=$($target.HeadSha)"
 Write-Host "TEMP_REVIEW_RUN_ID=$runId" -ForegroundColor Cyan
 Write-Host "TEMP_REVIEW_EXTENSION_PATH=$ExperimentRoot"
 Write-Host "TEMP_REVIEW_OUTPUT_DIR=$OutputRoot"
+if ($bundleMode) {
+    Write-Host 'TEMP_REVIEW_EVIDENCE_MODE=local_git_bundle_only' -ForegroundColor Yellow
+    Write-Host "TEMP_REVIEW_BUNDLE_BYTES=$bundleBytes"
+    Write-Host "TEMP_REVIEW_BUNDLE_SHA256=$bundleSha256"
+}
 
 if ($NoLaunch) {
     Write-Host 'TEMP_REVIEW_NO_LAUNCH=True'
     Write-Host "TEMP_REVIEW_URL=$url"
     return
-}
-
-$python = (Get-Command 'python.exe' -ErrorAction SilentlyContinue)
-if ($null -eq $python) {
-    $python = (Get-Command 'python' -ErrorAction Stop)
 }
 
 $collectorArgs = @(
@@ -158,6 +228,9 @@ $collectorArgs = @(
     '--port', [string]$Port,
     '--timeout-seconds', [string]$TimeoutSeconds
 )
+if ($bundleMode) {
+    $collectorArgs += @('--bundle-path', $bundlePath)
+}
 $collector = Start-Process `
     -FilePath $python.Source `
     -ArgumentList $collectorArgs `
@@ -199,6 +272,11 @@ try {
             $reviewStatus = if ([string]$result.capture_kind -eq 'structured' -and $statusMatch.Success) { $statusMatch.Groups[1].Value } else { 'UNSTRUCTURED' }
             Write-Host "TEMP_REVIEW_CAPTURE=$($result.capture_kind)" -ForegroundColor Green
             Write-Host "TEMP_REVIEW_STATUS=$reviewStatus" -ForegroundColor Green
+            if ($bundleMode) {
+                Write-Host "TEMP_REVIEW_BUNDLE_INJECTED=$($result.diagnostics.bundle_injected)" -ForegroundColor Green
+                $webMarkers = @($result.diagnostics.visible_web_activity)
+                Write-Host "TEMP_REVIEW_VISIBLE_WEB_ACTIVITY_COUNT=$($webMarkers.Count)" -ForegroundColor $(if ($webMarkers.Count -eq 0) { 'Green' } else { 'Yellow' })
+            }
             if ([string]$result.capture_kind -ne 'structured' -and $null -ne $result.diagnostics.identity) {
                 Write-Host "TEMP_REVIEW_IDENTITY_DIAGNOSTICS=$($result.diagnostics.identity | ConvertTo-Json -Compress -Depth 8)" -ForegroundColor Yellow
             }
