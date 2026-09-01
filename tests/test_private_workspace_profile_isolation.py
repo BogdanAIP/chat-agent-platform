@@ -20,10 +20,18 @@ class PrivateWorkspaceProfileIsolationTests(unittest.TestCase):
         self.assertIn("export function assertPrivateWorkspaceIsolation", SEMANTIC_LAUNCHER)
         self.assertIn("fs.realpathSync.native", SEMANTIC_LAUNCHER)
         self.assertIn("CHAT_LOCAL_FILES_ROOT", SEMANTIC_LAUNCHER)
-        self.assertIn("ChatAgentPlatform", SEMANTIC_LAUNCHER)
-        self.assertIn("path-disjoint from manager-owned state", SEMANTIC_LAUNCHER)
-        self.assertIn("isInsideOrEqual(managerRoot, workspaceRoot)", SEMANTIC_LAUNCHER)
-        self.assertIn("isInsideOrEqual(workspaceRoot, managerRoot)", SEMANTIC_LAUNCHER)
+        self.assertIn(
+            "const managerStatePath = path.join(paths.platformRoot, 'state');",
+            SEMANTIC_LAUNCHER,
+        )
+        self.assertIn("path-disjoint from private manager state", SEMANTIC_LAUNCHER)
+        self.assertIn(
+            "isInsideOrEqual(managerStateRoot, workspaceRoot)", SEMANTIC_LAUNCHER
+        )
+        self.assertIn(
+            "isInsideOrEqual(workspaceRoot, managerStateRoot)", SEMANTIC_LAUNCHER
+        )
+        self.assertIn("qualification worktrees remain valid workspaces", SEMANTIC_LAUNCHER)
 
         guard = SEMANTIC_LAUNCHER.index(
             "const paths = assertPrivateWorkspaceIsolation(options);"
@@ -35,12 +43,15 @@ class PrivateWorkspaceProfileIsolationTests(unittest.TestCase):
         self.assertLess(guard, inventory)
         self.assertLess(guard, child)
 
-    def test_legacy_file_profiles_resolve_physical_root_and_block_manager_overlap(self):
+    def test_legacy_file_profiles_resolve_physical_root_and_block_private_state_overlap(self):
         self.assertIn("function Resolve-PhysicalDirectoryPath", LEGACY_PROFILE_START)
         self.assertIn("fs.realpathSync.native(process.argv[1])", LEGACY_PROFILE_START)
         self.assertIn("function Test-PathsOverlap", LEGACY_PROFILE_START)
-        self.assertIn("Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'", LEGACY_PROFILE_START)
-        self.assertIn("path-disjoint from manager-owned state", LEGACY_PROFILE_START)
+        self.assertIn(
+            "Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\\state'",
+            LEGACY_PROFILE_START,
+        )
+        self.assertIn("private manager state", LEGACY_PROFILE_START)
         self.assertIn("return $physicalFull", LEGACY_PROFILE_START)
 
         resolve = LEGACY_PROFILE_START.index(
