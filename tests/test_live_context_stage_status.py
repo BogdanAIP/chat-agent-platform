@@ -62,7 +62,7 @@ class LiveContextStageStatusTests(unittest.TestCase):
         continuation = (CONTEXT / "CONTINUATION_CONTEXT.md").read_text(encoding="utf-8")
         constraints = (CONTEXT / "CONSTRAINTS.md").read_text(encoding="utf-8")
 
-        self.assertIn("Stage 26.3C is now **accepted/closed", risks)
+        self.assertIn("Stage 26.3C is **accepted/closed", risks)
         self.assertNotIn(
             "finish Stage 26.3C production WorkingState/restart-reconciliation integration",
             risks,
