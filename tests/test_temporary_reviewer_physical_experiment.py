@@ -124,18 +124,23 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         self.assertNotIn("four p1", prompt.lower())
         self.assertNotIn("known finding", prompt.lower())
 
-    def test_exact_target_mode_is_bounded_and_repository_fixed(self) -> None:
+    def test_exact_target_mode_is_identity_only_and_repository_fixed(self) -> None:
         self.assertIn("if ($Control -eq 'exact')", LAUNCHER_TEXT)
         self.assertIn("TargetPrNumber", LAUNCHER_TEXT)
         self.assertIn("TargetBaseSha", LAUNCHER_TEXT)
         self.assertIn("TargetHeadSha", LAUNCHER_TEXT)
         self.assertIn("^[0-9a-f]{40}$", LAUNCHER_TEXT)
         self.assertIn("TargetSkillVersion -notin @('1.0', '1.1')", LAUNCHER_TEXT)
-        self.assertIn("TargetFocus.Length -gt 2000", LAUNCHER_TEXT)
+        self.assertNotIn("TargetFocus", LAUNCHER_TEXT)
         self.assertIn("repository=BogdanAIP/chat-agent-platform", LAUNCHER_TEXT)
         self.assertNotIn("TargetRepository", LAUNCHER_TEXT)
         self.assertNotIn("TargetUrl", LAUNCHER_TEXT)
         self.assertNotIn("TargetBackend", LAUNCHER_TEXT)
+        self.assertIn("affected experiment-only browser delivery", LAUNCHER_TEXT)
+
+    def test_launcher_never_reports_protocol_status_for_unstructured_capture(self) -> None:
+        self.assertIn("[string]$result.capture_kind -eq 'structured' -and $statusMatch.Success", LAUNCHER_TEXT)
+        self.assertIn("else { 'UNSTRUCTURED' }", LAUNCHER_TEXT)
 
     def test_physical_observations_record_pass_stale_and_findings(self) -> None:
         for run_id in (
