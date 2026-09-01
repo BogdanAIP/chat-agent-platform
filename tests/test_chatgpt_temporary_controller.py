@@ -7,13 +7,19 @@ import threading
 from pathlib import Path
 import unittest
 
-from runtime.agent_sessions import chatgpt_temporary
+from runtime.agent_sessions import chatgpt_temporary, source_attestation
 from runtime.agent_sessions.chatgpt_temporary_controller import TemporaryControllerState
 from runtime.control_plane import delegation_state
 
 
 TASK = "Read the supplied bounded question and return a short research summary without changing external state."
 TASK_SHA = hashlib.sha256(TASK.encode("utf-8")).hexdigest()
+RUNTIME_ASSETS = {
+    "manifest.json": "1" * 64,
+    "policy.js": "2" * 64,
+    "background.js": "3" * 64,
+    "content.js": "4" * 64,
+}
 
 
 def identity_dict() -> dict[str, str]:
@@ -24,6 +30,25 @@ def identity_dict() -> dict[str, str]:
         "worker_profile": delegation_state.WORKER_PROFILE,
         "task_sha256": TASK_SHA,
         "result_contract_id": "research-result-v1",
+    }
+
+
+def expected_runtime_attestation() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "adapter_id": source_attestation.ADAPTER_ID,
+        "expected_head": "a" * 40,
+        "assets": dict(RUNTIME_ASSETS),
+    }
+
+
+def runtime_report(**overrides: str) -> dict[str, object]:
+    assets = dict(RUNTIME_ASSETS)
+    assets.update(overrides)
+    return {
+        "schema_version": 1,
+        "adapter_id": source_attestation.ADAPTER_ID,
+        "assets": assets,
     }
 
 
@@ -42,7 +67,12 @@ def child_evidence(state: TemporaryControllerState, *, session_id: str = "chrome
     }
 
 
-def authority_request(state: TemporaryControllerState, *, evidence: dict[str, object] | None = None) -> dict[str, object]:
+def authority_request(
+    state: TemporaryControllerState,
+    *,
+    evidence: dict[str, object] | None = None,
+    attestation: dict[str, object] | None = None,
+) -> dict[str, object]:
     return {
         "schema_version": 1,
         "run_id": state.launch.run_id,
@@ -51,7 +81,29 @@ def authority_request(state: TemporaryControllerState, *, evidence: dict[str, ob
         "browser_claim_committed": True,
         "browser_claim_id": state.launch.delivery_id,
         "child_evidence": evidence or child_evidence(state),
+        "runtime_attestation": attestation or runtime_report(),
     }
+
+
+def result_text(state: TemporaryControllerState, payload: str) -> str:
+    return (
+        chatgpt_temporary.RAW_RESULT_BEGIN
+        + "\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "delegation_id": state.launch.delegation_id,
+                "delivery_id": state.launch.delivery_id,
+                "worker_kind": "researcher",
+                "result_contract_id": "research-result-v1",
+                "status": "COMPLETED",
+                "payload": payload,
+            },
+            separators=(",", ":"),
+        )
+        + "\n"
+        + chatgpt_temporary.RAW_RESULT_END
+    )
 
 
 class TemporaryControllerTests(unittest.TestCase):
@@ -68,8 +120,23 @@ class TemporaryControllerTests(unittest.TestCase):
         return TemporaryControllerState(
             identity_value=identity_dict(),
             task=TASK,
+            expected_runtime_attestation_value=expected_runtime_attestation(),
             state_root=self.state_root,
             output_dir=self.output_root / suffix,
+        )
+
+    def deliver(self, state: TemporaryControllerState) -> None:
+        state.authorize_send(authority_request(state))
+        state.record_delivery(
+            {
+                "schema_version": 1,
+                "run_id": state.launch.run_id,
+                "delegation_id": state.launch.delegation_id,
+                "delivery_id": state.launch.delivery_id,
+                "task_sha256": TASK_SHA,
+                "outcome": "delivered",
+                "evidence_ref": "chatgpt-temporary:delivery:visible:1",
+            }
         )
 
     def test_controller_restart_recovers_same_private_capability_without_relaunch(self) -> None:
@@ -83,6 +150,7 @@ class TemporaryControllerTests(unittest.TestCase):
         launch = json.loads((self.output_root / "second" / "launch.json").read_text(encoding="utf-8"))
         self.assertFalse(launch["launch_now"])
         self.assertEqual("launch-attempted", launch["launch_state"])
+        self.assertEqual("a" * 40, launch["expected_runtime_head"])
 
     def test_browser_claim_must_be_committed_before_local_send_authority(self) -> None:
         state = self.controller()
@@ -93,6 +161,27 @@ class TemporaryControllerTests(unittest.TestCase):
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
         self.assertEqual("launch-attempted", snapshot.launch_state)
         self.assertEqual("prepared", snapshot.delivery_state)
+
+    def test_runtime_attestation_mismatch_blocks_child_bind_and_send_claim(self) -> None:
+        state = self.controller()
+        wrong = runtime_report(**{"background.js": "f" * 64})
+        with self.assertRaisesRegex(delegation_state.DelegationStateError, "runtime attestation mismatch"):
+            state.authorize_send(authority_request(state, attestation=wrong))
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("launch-attempted", snapshot.launch_state)
+        self.assertEqual("prepared", snapshot.delivery_state)
+        self.assertIsNone(snapshot.worker_session_ref)
+
+    def test_successful_send_authority_durably_binds_running_extension_attestation(self) -> None:
+        state = self.controller()
+        result = state.authorize_send(authority_request(state))
+        self.assertTrue(result["send_authorized"])
+        self.assertRegex(result["runtime_attestation_sha256"], r"^[0-9a-f]{64}$")
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertIn(
+            f":runtime:{result['runtime_attestation_sha256']}",
+            snapshot.worker_session_ref.observation_ref,
+        )
 
     def test_concurrent_authority_requests_can_never_both_authorize_send(self) -> None:
         state = self.controller()
@@ -164,49 +253,42 @@ class TemporaryControllerTests(unittest.TestCase):
         )
         self.assertEqual("delivered", delivered["delivery_state"])
 
-    def test_capture_records_normalized_generic_result_and_restart_reads_terminal_state(self) -> None:
-        state = self.controller("first")
-        state.authorize_send(authority_request(state))
-        state.record_delivery(
-            {
-                "schema_version": 1,
-                "run_id": state.launch.run_id,
-                "delegation_id": state.launch.delegation_id,
-                "delivery_id": state.launch.delivery_id,
-                "task_sha256": TASK_SHA,
-                "outcome": "delivered",
-                "evidence_ref": "chatgpt-temporary:delivery:visible:1",
-            }
-        )
+    def test_capture_attestation_mismatch_cannot_record_terminal_result(self) -> None:
+        state = self.controller()
+        self.deliver(state)
         payload = "A bounded read-only research answer."
-        text = (
-            chatgpt_temporary.RAW_RESULT_BEGIN
-            + "\n"
-            + json.dumps(
+        wrong = runtime_report(**{"content.js": "f" * 64})
+        with self.assertRaisesRegex(delegation_state.DelegationStateError, "runtime attestation mismatch"):
+            state.record_capture(
                 {
                     "schema_version": 1,
+                    "run_id": state.launch.run_id,
                     "delegation_id": state.launch.delegation_id,
                     "delivery_id": state.launch.delivery_id,
-                    "worker_kind": "researcher",
-                    "result_contract_id": "research-result-v1",
-                    "status": "COMPLETED",
-                    "payload": payload,
-                },
-                separators=(",", ":"),
+                    "result_text": result_text(state, payload),
+                    "runtime_attestation": wrong,
+                }
             )
-            + "\n"
-            + chatgpt_temporary.RAW_RESULT_END
-        )
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("delivered", snapshot.delivery_state)
+        self.assertEqual("open", snapshot.result_state)
+
+    def test_capture_records_normalized_generic_result_and_restart_reads_terminal_state(self) -> None:
+        state = self.controller("first")
+        self.deliver(state)
+        payload = "A bounded read-only research answer."
         recorded = state.record_capture(
             {
                 "schema_version": 1,
                 "run_id": state.launch.run_id,
                 "delegation_id": state.launch.delegation_id,
                 "delivery_id": state.launch.delivery_id,
-                "result_text": text,
+                "result_text": result_text(state, payload),
+                "runtime_attestation": runtime_report(),
             }
         )
         self.assertEqual("recorded", recorded["result_state"])
+        self.assertRegex(recorded["runtime_attestation_sha256"], r"^[0-9a-f]{64}$")
         result = json.loads((self.output_root / "first" / "result.json").read_text(encoding="utf-8"))
         self.assertEqual("COMPLETED", result["status"])
         self.assertEqual(hashlib.sha256(payload.encode()).hexdigest(), result["payload_sha256"])
@@ -220,18 +302,7 @@ class TemporaryControllerTests(unittest.TestCase):
 
     def test_timeout_after_proven_delivery_closes_as_error_without_second_send(self) -> None:
         state = self.controller()
-        state.authorize_send(authority_request(state))
-        state.record_delivery(
-            {
-                "schema_version": 1,
-                "run_id": state.launch.run_id,
-                "delegation_id": state.launch.delegation_id,
-                "delivery_id": state.launch.delivery_id,
-                "task_sha256": TASK_SHA,
-                "outcome": "delivered",
-                "evidence_ref": "chatgpt-temporary:delivery:visible:1",
-            }
-        )
+        self.deliver(state)
         self.assertTrue(state.record_timeout_if_delivered())
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
         self.assertEqual("recorded", snapshot.result_state)
