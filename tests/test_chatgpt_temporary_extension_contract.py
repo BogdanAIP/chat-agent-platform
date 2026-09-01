@@ -46,10 +46,13 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, self.background)
         claim_start = self.background.index("async function claimBrowserSend")
-        claim_end = self.background.index("function validCommon", claim_start)
+        claim_end = self.background.index("async function claimRecordsForTab", claim_start)
         claim_body = self.background[claim_start:claim_end]
         self.assertIn('db.transaction(CLAIM_STORE, "readwrite")', claim_body)
         self.assertIn("store.add(", claim_body)
+        self.assertIn("delegation_id: message.delegation_id", claim_body)
+        self.assertIn("task_sha256: message.task_sha256", claim_body)
+        self.assertIn("tab_id: tabId", claim_body)
         self.assertNotIn("createObjectStore", claim_body)
         self.assertNotIn("store.put(", claim_body)
         self.assertNotIn("delete(", claim_body)
@@ -72,7 +75,24 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn('reason: "already-claimed"', self.background)
         self.assertIn("if (!browserClaim.granted)", authorize)
         self.assertIn("monitor_only: monitorOnly", authorize)
-        self.assertNotIn("claimBrowserSend(message.run_id, message.delivery_id);\n    browserClaim =", authorize)
+        self.assertNotIn("store.delete", self.background)
+        self.assertNotIn("store.put", self.background)
+
+    def test_full_tab_reload_recovers_only_one_live_claim_as_monitor_only(self) -> None:
+        self.assertIn("async function claimRecordsForTab(tabId)", self.background)
+        self.assertIn("async function resumeIntent(sender)", self.background)
+        self.assertIn('message.kind === "resume-intent"', self.background)
+        resume = self.background[
+            self.background.index("async function resumeIntent") : self.background.index("async function authorizeSend")
+        ]
+        self.assertIn("active.length !== 1", resume)
+        self.assertIn('monitor_only: true', resume)
+        self.assertIn('["claimed", "unknown", "delivered"]', resume)
+        self.assertIn('status.result_state !== "open"', resume)
+        self.assertIn('kind: "resume-intent"', self.content)
+        self.assertIn("start(recoveredIntent(response), true)", self.content)
+        recovered = self.content[self.content.index("function recoveredIntent") : self.content.index("function start")]
+        self.assertNotIn("sendAuthorized: true", recovered)
 
     def test_content_can_click_send_only_after_both_authorities(self) -> None:
         self.assertEqual(1, self.content.count("button.click();"))
@@ -82,14 +102,14 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         request = self.content.index('sendMessage("authorize-send"')
         self.assertLess(request, gate)
         self.assertIn("if (response.send_authorized === true)", self.content[:gate])
-        self.assertIn("monitor_only", self.content)
+        self.assertIn("monitorOnly = recovered", self.content)
 
     def test_delivery_ambiguity_never_triggers_resend(self) -> None:
-        self.assertIn('postDelivery(\n        "unknown"', self.content)
-        self.assertIn('postDelivery(\n        "delivered"', self.content)
+        self.assertIn('postDelivery(\n          "unknown"', self.content)
+        self.assertIn('postDelivery(\n          "delivered"', self.content)
         self.assertEqual(1, self.content.count("button.click();"))
-        unknown = self.content.index('"unknown"')
-        self.assertNotIn("button.click();", self.content[unknown:])
+        ambiguity_path = self.content[self.content.index('postDelivery(\n          "unknown"') :]
+        self.assertNotIn("sendAuthorized = true", ambiguity_path)
 
     def test_result_capture_requires_exact_single_structured_block(self) -> None:
         for phrase in (
@@ -102,7 +122,11 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn("if (!policy.hasSingleResultBlock(last)) return;", self.content)
         self.assertIn('sendMessage("capture", { result_text: text })', self.content)
 
-    def test_private_run_id_is_transport_capability_not_worker_prompt_content(self) -> None:
+    def test_private_run_id_is_fragment_capability_not_query_or_worker_prompt(self) -> None:
+        self.assertIn("new URLSearchParams(url.hash", self.policy)
+        self.assertIn('fragmentParams.get("cap_run_id")', self.policy)
+        self.assertIn('url.searchParams.has("cap_run_id")', self.policy)
+        self.assertIn('reason: "private-run-id-in-query"', self.policy)
         self.assertIn('prompt.includes(runId)', self.policy)
         self.assertIn('reason: "private-run-id-leaked-to-prompt"', self.policy)
         self.assertIn('"X-CAP-Agent-Token": message.run_id', self.background)
