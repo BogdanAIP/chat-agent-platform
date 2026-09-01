@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "acceptance": "node tests/browser-verification-bridge.mjs && node tests/browser-navigation-verification-playwright.mjs && node tests/browser-interaction-verification-playwright.mjs && node tests/acceptance.mjs && node tests/semantic-vision-click-router.mjs && node tests/semantic-vision-playwright-acceptance.mjs",
-    "acceptance:six-tool": "node tests/six-tool-acceptance.mjs && node tests/procedure-no-spawn-correlation.mjs && node tests/inventory-guard-acceptance.mjs",
+    "acceptance:six-tool": "node tests/six-tool-acceptance.mjs && node tests/independent-review-procedure-acceptance.mjs && node tests/procedure-no-spawn-correlation.mjs && node tests/inventory-guard-acceptance.mjs",
     "acceptance:direct-tunnel": "node tests/direct-tunnel-acceptance.mjs",
     "acceptance:credential-scrub": "node tests/credential-scrub.mjs",
     "acceptance:semantic-vision-router": "node tests/semantic-vision-click-router.mjs",
