@@ -220,20 +220,43 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.assertIn("NEW_ARCHITECTURE", section)
         self.assertIn("Scope qualifiers are separate", section)
 
-    def test_reuse_baseline_preserves_old_postures_and_new_reviewer_rows_are_unambiguous(self) -> None:
+    def test_reuse_baseline_preserves_specialist_reviewer_roles_and_generic_lineage(self) -> None:
         self.assertIn("`PREFERRED_CANDIDATE_REVALIDATE_BEFORE_ADOPTION`", self.reuse)
         self.assertIn("`REFERENCE_REVALIDATE_PER_STAGE`", self.reuse)
         self.assertIn("Existing historical posture labels in this table are preserved", self.reuse)
         role_map = self.reuse.split("## Canonical role map", 1)[1].split("## How to compare a new mechanism", 1)[0]
-        rows = [line for line in role_map.splitlines() if line.startswith("| Automatic")]
-        self.assertGreaterEqual(len(rows), 8)
+        data_rows = []
+        for line in role_map.splitlines():
+            if not line.startswith("|") or "---" in line or "Architectural role" in line:
+                continue
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if len(cells) == 7:
+                data_rows.append(cells)
+        rows = {cells[0]: cells for cells in data_rows}
+        expected_reviewer_roles = {
+            "Automatic-review local concurrent ownership",
+            "Automatic-review immutable operation genesis",
+            "Automatic-review mutable operation/result state",
+            "Automatic-review reviewer authority qualification",
+            "Automatic-review local result submission/reconciliation",
+            "Automatic independent-review consumer launch / correlation",
+        }
+        self.assertTrue(expected_reviewer_roles.issubset(rows))
         allowed = CANONICAL_LINEAGE | {"NEW_ARCHITECTURE"}
-        for row in rows:
-            cells = [cell.strip() for cell in row.strip("|").split("|")]
-            self.assertEqual(7, len(cells), row)
-            posture = _markdown_value(cells[-1])
-            with self.subTest(role=cells[0], posture=posture):
+        for role in expected_reviewer_roles:
+            posture = _markdown_value(rows[role][-1])
+            with self.subTest(role=role, posture=posture):
                 self.assertIn(posture, allowed)
+        for role, posture in (
+            ("Bounded Agent Session / Delegation lifecycle", "REFINE"),
+            ("Agent-session local concurrent ownership", "REUSE_MORE"),
+            ("Agent-session immutable genesis", "REUSE_MORE"),
+            ("Agent-session mutable lifecycle/result state", "REUSE_MORE"),
+            ("Agent-session first-provider fresh-chat/composer mechanics", "REUSE_MORE"),
+            ("Agent-session first-provider browser delivery ownership", "REFINE"),
+        ):
+            self.assertIn(role, rows)
+            self.assertEqual(posture, _markdown_value(rows[role][-1]))
 
     def test_source_code_evidence_uses_required_classifications(self) -> None:
         for phrase in (
