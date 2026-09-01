@@ -24,7 +24,6 @@ MAX_RESULT_BYTES = 256_000
 MAX_SESSION_VALUE_CHARS = 1024
 MAX_EVIDENCE_REF_CHARS = 2048
 
-_HEX32_RE = re.compile(r"^[0-9a-f]{32}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _KIND_RE = re.compile(r"^[a-z][a-z0-9._-]{0,63}$")
@@ -104,7 +103,7 @@ class WorkerSessionRef:
 
 @dataclass(frozen=True)
 class PreparedDelegation:
-    """Trusted Control Plane view. `run_id` is a private local capability."""
+    """Trusted Control Plane view. ``run_id`` is a private local capability."""
 
     identity: DelegationIdentity
     delegation_id: str
@@ -150,7 +149,6 @@ class ParsedWorkerResult:
     payload_sha256: str
 
 
-
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -188,7 +186,13 @@ def _hex64(value: Any, label: str) -> str:
     return value
 
 
-def _bounded_text(value: Any, label: str, *, maximum: int, nullable: bool = False) -> str | None:
+def _bounded_text(
+    value: Any,
+    label: str,
+    *,
+    maximum: int,
+    nullable: bool = False,
+) -> str | None:
     if nullable and value is None:
         return None
     if type(value) is not str or not value or len(value) > maximum:
@@ -231,7 +235,12 @@ def parse_delegation_identity(value: Mapping[str, Any]) -> DelegationIdentity:
 
 
 def delegation_operation_key(identity: DelegationIdentity) -> str:
-    canonical = json.dumps(identity.as_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    canonical = json.dumps(
+        identity.as_dict(),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
     return hashlib.sha256(("cap-agent-delegation-v1\0" + canonical).encode("ascii")).hexdigest()
 
 
@@ -245,7 +254,9 @@ def parse_worker_session_ref(value: Mapping[str, Any]) -> WorkerSessionRef:
     _require_exact_keys(value, _SESSION_KEYS, "worker session ref")
     adapter_id = _bounded_kind(value["adapter_id"], "adapter_id")
     session_id = _bounded_text(
-        value["session_id"], "session_id", maximum=MAX_SESSION_VALUE_CHARS
+        value["session_id"],
+        "session_id",
+        maximum=MAX_SESSION_VALUE_CHARS,
     )
     conversation_id = _bounded_text(
         value["conversation_id"],
@@ -342,8 +353,15 @@ def _temp_paths(root: Path, delegation_id: str) -> tuple[Path, ...]:
     )
 
 
+def _require_no_residue(root: Path, delegation_id: str) -> None:
+    if _temp_paths(root, delegation_id):
+        raise DelegationStateError("delegation has ambiguous temporary state residue")
+
+
 def _encode_json(value: Mapping[str, Any]) -> bytes:
-    return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    return (
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
 
 
 def _exclusive_create(path: Path, payload: bytes) -> None:
@@ -439,7 +457,9 @@ def _build_initial_state(
 
 
 def _validate_genesis(
-    value: Mapping[str, Any], identity: DelegationIdentity, delegation_id: str
+    value: Mapping[str, Any],
+    identity: DelegationIdentity,
+    delegation_id: str,
 ) -> tuple[str, str]:
     expected = {
         "schema_version",
@@ -503,6 +523,7 @@ def _validate_state(
         raise DelegationStateError("delegation state delivery id mismatch")
     if type(value["revision"]) is not int or value["revision"] < 1:
         raise DelegationStateError("delegation state revision is invalid")
+
     launch_state = value["launch_state"]
     delivery_state = value["delivery_state"]
     result_state = value["result_state"]
@@ -525,8 +546,6 @@ def _validate_state(
 
     evidence_ref = value["delivery_evidence_ref"]
     if delivery_state == "prepared":
-        if launch_state != "child-bound" and evidence_ref is not None:
-            raise DelegationStateError("prepared delivery cannot contain evidence")
         if evidence_ref is not None:
             raise DelegationStateError("prepared delivery cannot contain evidence")
     elif delivery_state == "claimed":
@@ -546,7 +565,12 @@ def _validate_state(
     if result_state == "open":
         if any(
             value[key] is not None
-            for key in ("result_status", "result_payload", "result_sha256", "result_recorded_at")
+            for key in (
+                "result_status",
+                "result_payload",
+                "result_sha256",
+                "result_recorded_at",
+            )
         ):
             raise DelegationStateError("open delegation cannot contain terminal result evidence")
         return
@@ -567,9 +591,20 @@ def _validate_state(
     _timestamp(value["result_recorded_at"], "state.result_recorded_at")
 
 
+def _present(root: Path, delegation_id: str) -> tuple[bool, bool, tuple[Path, ...]]:
+    return (
+        _genesis_path(root, delegation_id).exists(),
+        _state_path(root, delegation_id).exists(),
+        _temp_paths(root, delegation_id),
+    )
+
+
 def _load_operation(
-    root: Path, identity: DelegationIdentity, delegation_id: str
+    root: Path,
+    identity: DelegationIdentity,
+    delegation_id: str,
 ) -> tuple[str, str, dict[str, Any]]:
+    _require_no_residue(root, delegation_id)
     genesis = _load_json(
         _genesis_path(root, delegation_id),
         "delegation genesis",
@@ -585,12 +620,27 @@ def _load_operation(
     return run_id, delivery_id, state
 
 
-def _present(root: Path, delegation_id: str) -> tuple[bool, bool, tuple[Path, ...]]:
-    return (
-        _genesis_path(root, delegation_id).exists(),
-        _state_path(root, delegation_id).exists(),
-        _temp_paths(root, delegation_id),
+def _load_operation_after_genesis(
+    root: Path,
+    identity: DelegationIdentity,
+    delegation_id: str,
+    expected_run_id: str,
+    expected_delivery_id: str,
+) -> tuple[str, str, dict[str, Any]]:
+    genesis = _load_json(
+        _genesis_path(root, delegation_id),
+        "delegation genesis",
+        maximum=MAX_GENESIS_BYTES,
     )
+    run_id, delivery_id = _validate_genesis(genesis, identity, delegation_id)
+    if run_id != expected_run_id or delivery_id != expected_delivery_id:
+        raise DelegationStateError("new delegation genesis identity changed after persistence")
+    _write_state(
+        root,
+        delegation_id,
+        _build_initial_state(identity, delegation_id, run_id, delivery_id),
+    )
+    return _load_operation(root, identity, delegation_id)
 
 
 def _bump(state: dict[str, Any]) -> None:
@@ -603,7 +653,10 @@ def _require_run_id(actual: str, supplied: str) -> None:
         raise DelegationStateError("delegation run capability mismatch")
 
 
-def _snapshot(identity: DelegationIdentity, state: Mapping[str, Any]) -> DelegationSnapshot:
+def _snapshot(
+    identity: DelegationIdentity,
+    state: Mapping[str, Any],
+) -> DelegationSnapshot:
     session_value = state["worker_session_ref"]
     session_ref = None if session_value is None else parse_worker_session_ref(session_value)
     return DelegationSnapshot(
@@ -622,7 +675,9 @@ def _snapshot(identity: DelegationIdentity, state: Mapping[str, Any]) -> Delegat
 
 
 def prepare_delegation(
-    identity_value: Mapping[str, Any], *, state_root: Path
+    identity_value: Mapping[str, Any],
+    *,
+    state_root: Path,
 ) -> PreparedDelegation:
     identity = parse_delegation_identity(identity_value)
     delegation_id = delegation_operation_key(identity)
@@ -636,10 +691,16 @@ def prepare_delegation(
             delivery_id = secrets.token_hex(32)
             _exclusive_create(
                 _genesis_path(root, delegation_id),
-                _encode_json(_build_genesis(identity, delegation_id, run_id, delivery_id)),
+                _encode_json(
+                    _build_genesis(identity, delegation_id, run_id, delivery_id)
+                ),
             )
             persisted_run, persisted_delivery, _ = _load_operation_after_genesis(
-                root, identity, delegation_id, run_id, delivery_id
+                root,
+                identity,
+                delegation_id,
+                run_id,
+                delivery_id,
             )
             return PreparedDelegation(
                 identity=identity,
@@ -667,37 +728,10 @@ def prepare_delegation(
         )
 
 
-def _load_operation_after_genesis(
-    root: Path,
-    identity: DelegationIdentity,
-    delegation_id: str,
-    expected_run_id: str,
-    expected_delivery_id: str,
-) -> tuple[str, str, dict[str, Any]]:
-    genesis = _load_json(
-        _genesis_path(root, delegation_id),
-        "delegation genesis",
-        maximum=MAX_GENESIS_BYTES,
-    )
-    run_id, delivery_id = _validate_genesis(genesis, identity, delegation_id)
-    if run_id != expected_run_id or delivery_id != expected_delivery_id:
-        raise DelegationStateError("new delegation genesis identity changed after persistence")
-    _write_state(
-        root,
-        delegation_id,
-        _build_initial_state(identity, delegation_id, run_id, delivery_id),
-    )
-    state = _load_json(
-        _state_path(root, delegation_id),
-        "delegation state",
-        maximum=MAX_STATE_BYTES,
-    )
-    _validate_state(state, identity, delegation_id, run_id, delivery_id)
-    return run_id, delivery_id, state
-
-
 def load_delegation(
-    identity_value: Mapping[str, Any], *, state_root: Path
+    identity_value: Mapping[str, Any],
+    *,
+    state_root: Path,
 ) -> DelegationSnapshot:
     identity = parse_delegation_identity(identity_value)
     delegation_id = delegation_operation_key(identity)
@@ -708,8 +742,13 @@ def load_delegation(
 
 
 def mark_launch_attempted(
-    identity_value: Mapping[str, Any], *, run_id: str, state_root: Path
+    identity_value: Mapping[str, Any],
+    *,
+    run_id: str,
+    state_root: Path,
 ) -> DelegationSnapshot:
+    """Commit the sole initial launch authority before any physical child launch."""
+
     identity = parse_delegation_identity(identity_value)
     delegation_id = delegation_operation_key(identity)
     root = _root(state_root)
@@ -718,11 +757,12 @@ def mark_launch_attempted(
         _require_run_id(actual_run_id, run_id)
         if state["result_state"] != "open":
             raise DelegationStateError("terminal delegation cannot be launched")
-        if state["launch_state"] == "prepared":
-            state["launch_state"] = "launch-attempted"
-            _bump(state)
-            _write_state(root, delegation_id, state)
-            _, _, state = _load_operation(root, identity, delegation_id)
+        if state["launch_state"] != "prepared":
+            raise DelegationStateError("delegation launch was already attempted")
+        state["launch_state"] = "launch-attempted"
+        _bump(state)
+        _write_state(root, delegation_id, state)
+        _, _, state = _load_operation(root, identity, delegation_id)
         return _snapshot(identity, state)
 
 
@@ -756,7 +796,10 @@ def bind_worker_session(
 
 
 def claim_delivery(
-    identity_value: Mapping[str, Any], *, run_id: str, state_root: Path
+    identity_value: Mapping[str, Any],
+    *,
+    run_id: str,
+    state_root: Path,
 ) -> DeliveryClaim:
     identity = parse_delegation_identity(identity_value)
     delegation_id = delegation_operation_key(identity)
@@ -767,14 +810,29 @@ def claim_delivery(
         if state["launch_state"] != "child-bound":
             raise DelegationStateError("delivery cannot be claimed before child binding")
         if state["result_state"] != "open":
-            return DeliveryClaim(delegation_id, delivery_id, False, state["delivery_state"])
+            return DeliveryClaim(
+                delegation_id,
+                delivery_id,
+                False,
+                state["delivery_state"],
+            )
         if state["delivery_state"] != "prepared":
-            return DeliveryClaim(delegation_id, delivery_id, False, state["delivery_state"])
+            return DeliveryClaim(
+                delegation_id,
+                delivery_id,
+                False,
+                state["delivery_state"],
+            )
         state["delivery_state"] = "claimed"
         _bump(state)
         _write_state(root, delegation_id, state)
         _, _, state = _load_operation(root, identity, delegation_id)
-        return DeliveryClaim(delegation_id, delivery_id, True, state["delivery_state"])
+        return DeliveryClaim(
+            delegation_id,
+            delivery_id,
+            True,
+            state["delivery_state"],
+        )
 
 
 def record_delivery_outcome(
@@ -785,6 +843,8 @@ def record_delivery_outcome(
     evidence_ref: str,
     state_root: Path,
 ) -> DelegationSnapshot:
+    """Record Send outcome or reconcile prior ambiguity without authorizing another Send."""
+
     if outcome not in {"delivered", "unknown"}:
         raise DelegationStateError("delivery outcome must be delivered or unknown")
     evidence_ref = _bounded_text(
@@ -799,11 +859,19 @@ def record_delivery_outcome(
     with _acquire_task_lock(root, _lock_id(delegation_id)):
         actual_run_id, _, state = _load_operation(root, identity, delegation_id)
         _require_run_id(actual_run_id, run_id)
-        if state["delivery_state"] == outcome:
+        current = state["delivery_state"]
+        if current == outcome:
             if state["delivery_evidence_ref"] != evidence_ref:
                 raise DelegationStateError("delivery outcome already has different evidence")
             return _snapshot(identity, state)
-        if state["delivery_state"] != "claimed":
+        if current == "unknown" and outcome == "delivered":
+            state["delivery_state"] = "delivered"
+            state["delivery_evidence_ref"] = evidence_ref
+            _bump(state)
+            _write_state(root, delegation_id, state)
+            _, _, state = _load_operation(root, identity, delegation_id)
+            return _snapshot(identity, state)
+        if current != "claimed":
             raise DelegationStateError("delivery outcome requires an active committed claim")
         state["delivery_state"] = outcome
         state["delivery_evidence_ref"] = evidence_ref
