@@ -62,15 +62,14 @@ PR #146 is an experiment control and is never to be merged. Its prompt does not 
 
 `exact` is an experiment-only target mode for a caller-supplied exact PR identity in `BogdanAIP/chat-agent-platform`. It exists so the final frozen head of this experiment PR can itself receive the same fully automatic fresh Temporary-Chat review without adding a self-referential hard-coded SHA.
 
-It requires:
+It accepts only:
 
 - decimal `TargetPrNumber`;
 - exact 40-lowercase-hex `TargetBaseSha`;
 - exact 40-lowercase-hex `TargetHeadSha`;
-- review skill version `1.0` or `1.1`;
-- a bounded review focus string.
+- review skill version `1.0` or `1.1`.
 
-The repository remains hard-coded in the generated `REVIEW_REQUEST_V1`; this mode does not add arbitrary URL/repository/backend authority.
+The repository and semantic review focus remain fixed inside the launcher. There is no caller-supplied prompt/focus/reasoning field, so exact mode cannot smuggle a developer correctness argument into the immutable review request. It also does not add arbitrary URL/repository/backend authority.
 
 ## Target-Windows observations
 
@@ -227,7 +226,7 @@ TEMP_REVIEW_STATUS=PASS|FINDINGS|ABSTAIN|STALE|UNSTRUCTURED
 TEMP_REVIEW_RESULT_PATH=...
 ```
 
-When a completed response fails structured identity parsing, the launcher also prints `TEMP_REVIEW_IDENTITY_DIAGNOSTICS=...` so parser/UI drift is observable rather than guessed.
+A protocol status is printed only when `capture_kind=structured`; otherwise the launcher reports `TEMP_REVIEW_STATUS=UNSTRUCTURED` and prints identity diagnostics. This prevents a malformed capture containing a stray `status=PASS|FINDINGS` line from being presented as a valid protocol outcome.
 
 ## Fail-closed boundaries
 
