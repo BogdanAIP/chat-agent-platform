@@ -62,24 +62,52 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             self.background.index("async function authorizeSend") : self.background.index("chrome.runtime.onInstalled")
         ]
         claim = authorize.index("await claimBrowserSend")
-        local = authorize.index('controllerPost(message, "/authorize-send"')
+        local = authorize.index("await requestLocalSendAuthority")
         self.assertLess(claim, local)
-        self.assertIn("browser_claim_committed: true", authorize)
-        self.assertIn("browser_claim_id: message.delivery_id", authorize)
+        helper = self.background[
+            self.background.index("async function requestLocalSendAuthority") : self.background.index("async function resumeIntent")
+        ]
+        self.assertIn("browser_claim_committed: true", helper)
+        self.assertIn("browser_claim_id: message.delivery_id", helper)
         self.assertIn("send_authorized: false", authorize)
 
-    def test_existing_browser_claim_is_monitor_only_only_for_same_tab(self) -> None:
+    def test_existing_browser_claim_is_monitor_only_only_for_same_exact_tab_and_task(self) -> None:
         authorize = self.background[
             self.background.index("async function authorizeSend") : self.background.index("chrome.runtime.onInstalled")
         ]
+        exact = self.background[
+            self.background.index("function exactClaimMatches") : self.background.index("function senderTab")
+        ]
+        for phrase in (
+            "record.tab_id === tabId",
+            "record.run_id === message.run_id",
+            "record.delegation_id === message.delegation_id",
+            "record.delivery_id === message.delivery_id",
+            "record.task_sha256 === message.task_sha256",
+        ):
+            self.assertIn(phrase, exact)
         self.assertIn('reason: "already-claimed"', self.background)
         self.assertIn("if (!browserClaim.granted)", authorize)
         self.assertIn("await claimRecordByDelivery(message.delivery_id)", authorize)
-        self.assertIn("existing.tab_id !== tabId", authorize)
+        self.assertIn("!exactClaimMatches(existing, message, tabId)", authorize)
         self.assertIn('reason: "claimed-by-other-tab"', authorize)
         self.assertIn("monitor_only: monitorOnly", authorize)
         self.assertNotIn("store.delete", self.background)
         self.assertNotIn("store.put", self.background)
+
+    def test_same_tab_claim_can_finish_only_pre_send_local_claim_after_restart(self) -> None:
+        authorize = self.background[
+            self.background.index("async function authorizeSend") : self.background.index("chrome.runtime.onInstalled")
+        ]
+        self.assertIn('status.delivery_state === "prepared"', authorize)
+        self.assertIn('["launch-attempted", "child-bound"].includes(status.launch_state)', authorize)
+        self.assertIn("await requestLocalSendAuthority(message, tabId)", authorize)
+        self.assertIn('reason: recovered.send_authorized === true ? "recovered-local-authority"', authorize)
+        recovery = authorize[
+            authorize.index('status.delivery_state === "prepared"') : authorize.index("const monitorOnly")
+        ]
+        for terminalish in ('"claimed"', '"unknown"', '"delivered"'):
+            self.assertNotIn(terminalish, recovery)
 
     def test_full_tab_reload_recovers_only_one_live_claim_as_monitor_only(self) -> None:
         self.assertIn("async function claimRecordsForTab(tabId)", self.background)
