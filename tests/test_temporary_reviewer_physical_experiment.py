@@ -41,6 +41,26 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         self.assertIn("temporary-ui-not-proven", CONTENT)
         self.assertIn("positive_ui_evidence", CONTENT)
 
+    def test_capture_requires_explicit_run_bound_terminal_marker(self) -> None:
+        self.assertIn("CAP_TEMP_REVIEW_COMPLETE=", POLICY)
+        self.assertIn("completionMarker", POLICY)
+        self.assertIn("hasTerminalMarker", CONTENT)
+        self.assertIn("if (!hasTerminalMarker(last)) return;", CONTENT)
+        self.assertIn("Do not emit that completion line in progress updates", LAUNCHER_TEXT)
+        self.assertNotEqual(8000, int(POLICY.split("const STABLE_MS = ", 1)[1].split(";", 1)[0]))
+
+    def test_result_identity_is_derived_from_the_exact_request(self) -> None:
+        for marker in (
+            'requestField(prompt, "repository")',
+            'requestField(prompt, "pr_number")',
+            'requestField(prompt, "base_sha")',
+            'requestField(prompt, "head_sha")',
+            'requestField(prompt, "review_skill_version")',
+        ):
+            self.assertIn(marker, POLICY)
+        self.assertIn("resultIdentitySummary(text, intent)", CONTENT)
+        self.assertIn("completion_marker_at_end", POLICY)
+
     def test_extension_transport_is_not_native_messaging_or_mcp(self) -> None:
         for text in (POLICY, CONTENT, BACKGROUND):
             self.assertNotIn("nativeMessaging", text)
@@ -85,12 +105,22 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         for forbidden in ("subprocess", "os.system", "popen(", "shell=true", "requests.", "github"):
             self.assertNotIn(forbidden, lower)
 
+    def test_launcher_has_pass_and_known_finding_controls_without_answer_leak(self) -> None:
+        self.assertIn("[ValidateSet('pass142', 'findings140')]", LAUNCHER_TEXT)
+        self.assertIn("pr_number=$($target.PrNumber)", LAUNCHER_TEXT)
+        self.assertIn("8318a592848cad66bb6d8e56b10b04b646bc9137", LAUNCHER_TEXT)
+        self.assertIn("858dcb7dd065717ea0d59b1e7b931b13a844f8d4", LAUNCHER_TEXT)
+        self.assertIn("b10a5fa3122bb6c76c12d37d67911b88e5e1ce28", LAUNCHER_TEXT)
+        self.assertIn("7077ecb8496ee89530cbe5efaa1b2112e7be330f", LAUNCHER_TEXT)
+        prompt_start = LAUNCHER_TEXT.index('$prompt = @"')
+        prompt_end = LAUNCHER_TEXT.index('"@', prompt_start)
+        prompt = LAUNCHER_TEXT[prompt_start:prompt_end]
+        self.assertNotIn("known accepted outcome", prompt.lower())
+        self.assertNotIn("four p1", prompt.lower())
+
     def test_launcher_is_one_command_without_clipboard_or_manual_prompt_input(self) -> None:
         self.assertIn("https://chatgpt.com/?temporary-chat=true", LAUNCHER_TEXT)
         self.assertIn("Start-Process $url", LAUNCHER_TEXT)
-        self.assertIn("pr_number=142", LAUNCHER_TEXT)
-        self.assertIn("8318a592848cad66bb6d8e56b10b04b646bc9137", LAUNCHER_TEXT)
-        self.assertIn("858dcb7dd065717ea0d59b1e7b931b13a844f8d4", LAUNCHER_TEXT)
         for forbidden in ("Read-Host", "Get-Clipboard", "Set-Clipboard"):
             self.assertNotIn(forbidden, LAUNCHER_TEXT)
 
