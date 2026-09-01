@@ -203,15 +203,15 @@ function Resolve-SafeFilesRoot {
 
     $physicalFull = Resolve-PhysicalDirectoryPath -Path $full
     if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-        $managerRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'
-        if (Test-Path -LiteralPath $managerRoot -PathType Container) {
-            $physicalManagerRoot = Resolve-PhysicalDirectoryPath -Path $managerRoot
+        $managerStateRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\state'
+        if (Test-Path -LiteralPath $managerStateRoot -PathType Container) {
+            $physicalManagerStateRoot = Resolve-PhysicalDirectoryPath -Path $managerStateRoot
         }
         else {
-            $physicalManagerRoot = [System.IO.Path]::GetFullPath($managerRoot).TrimEnd('\', '/')
+            $physicalManagerStateRoot = [System.IO.Path]::GetFullPath($managerStateRoot).TrimEnd('\', '/')
         }
-        if (Test-PathsOverlap -Left $physicalFull -Right $physicalManagerRoot) {
-            throw "Refusing FilesRoot '$physicalFull' because Chat workspaces must be path-disjoint from manager-owned state '$physicalManagerRoot'."
+        if (Test-PathsOverlap -Left $physicalFull -Right $physicalManagerStateRoot) {
+            throw "Refusing FilesRoot '$physicalFull' because Chat workspaces must be path-disjoint from private manager state '$physicalManagerStateRoot'."
         }
     }
 
