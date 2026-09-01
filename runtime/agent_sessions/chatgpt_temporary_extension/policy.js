@@ -16,7 +16,8 @@
     if (url.searchParams.get("temporary-chat") !== "true") return { enabled: false, reason: "temporary-flag-missing" };
     if (url.searchParams.get("cap_agent_delegate") !== "1") return { enabled: false, reason: "delegate-flag-missing" };
 
-    const runId = url.searchParams.get("cap_run_id") || "";
+    const fragmentParams = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+    const runId = fragmentParams.get("cap_run_id") || "";
     const delegationId = url.searchParams.get("cap_delegation_id") || "";
     const deliveryId = url.searchParams.get("cap_delivery_id") || "";
     const taskSha256 = url.searchParams.get("cap_task_sha256") || "";
@@ -24,6 +25,7 @@
     if (![runId, delegationId, deliveryId, taskSha256].every((value) => HEX64_RE.test(value))) {
       return { enabled: false, reason: "invalid-correlation" };
     }
+    if (url.searchParams.has("cap_run_id")) return { enabled: false, reason: "private-run-id-in-query" };
     if (!prompt || prompt.length > 120000) return { enabled: false, reason: "invalid-prompt" };
     for (const marker of [
       "WORKER_TASK_V1",
@@ -63,8 +65,9 @@
     const beginCount = value.split(RESULT_BEGIN).length - 1;
     const endCount = value.split(RESULT_END).length - 1;
     if (beginCount !== 1 || endCount !== 1) return false;
-    const before = value.split(RESULT_BEGIN, 1)[0].trim();
-    const after = value.split(RESULT_END).slice(1).join(RESULT_END).trim();
+    const before = value.slice(0, value.indexOf(RESULT_BEGIN)).trim();
+    const endIndex = value.indexOf(RESULT_END);
+    const after = value.slice(endIndex + RESULT_END.length).trim();
     return !before && !after;
   }
 
