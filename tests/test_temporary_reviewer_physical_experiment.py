@@ -49,7 +49,7 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         self.assertIn("Do not emit that completion line in progress updates", LAUNCHER_TEXT)
         self.assertNotEqual(8000, int(POLICY.split("const STABLE_MS = ", 1)[1].split(";", 1)[0]))
 
-    def test_result_identity_is_derived_from_the_exact_request(self) -> None:
+    def test_result_identity_is_derived_from_exact_request_and_tolerates_rendering(self) -> None:
         for marker in (
             'requestField(prompt, "repository")',
             'requestField(prompt, "pr_number")',
@@ -58,8 +58,12 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
             'requestField(prompt, "review_skill_version")',
         ):
             self.assertIn(marker, POLICY)
+        self.assertIn("normalizeReviewText", POLICY)
+        self.assertIn("parseResultFields", POLICY)
+        self.assertIn('replace(/\\\\_/g, "_")', POLICY)
         self.assertIn("resultIdentitySummary(text, intent)", CONTENT)
         self.assertIn("completion_marker_at_end", POLICY)
+        self.assertIn("TEMP_REVIEW_IDENTITY_DIAGNOSTICS", LAUNCHER_TEXT)
 
     def test_extension_transport_is_not_native_messaging_or_mcp(self) -> None:
         for text in (POLICY, CONTENT, BACKGROUND):
@@ -105,9 +109,10 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         for forbidden in ("subprocess", "os.system", "popen(", "shell=true", "requests.", "github"):
             self.assertNotIn(forbidden, lower)
 
-    def test_launcher_has_pass_and_known_finding_controls_without_answer_leak(self) -> None:
-        self.assertIn("[ValidateSet('pass142', 'findings140')]", LAUNCHER_TEXT)
+    def test_launcher_has_pass_stale_and_live_known_finding_controls_without_answer_leak(self) -> None:
+        self.assertIn("[ValidateSet('pass142', 'stale140', 'findings146')]", LAUNCHER_TEXT)
         self.assertIn("pr_number=$($target.PrNumber)", LAUNCHER_TEXT)
+        self.assertIn("PrNumber = 146", LAUNCHER_TEXT)
         self.assertIn("8318a592848cad66bb6d8e56b10b04b646bc9137", LAUNCHER_TEXT)
         self.assertIn("858dcb7dd065717ea0d59b1e7b931b13a844f8d4", LAUNCHER_TEXT)
         self.assertIn("b10a5fa3122bb6c76c12d37d67911b88e5e1ce28", LAUNCHER_TEXT)
@@ -117,6 +122,7 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         prompt = LAUNCHER_TEXT[prompt_start:prompt_end]
         self.assertNotIn("known accepted outcome", prompt.lower())
         self.assertNotIn("four p1", prompt.lower())
+        self.assertNotIn("known finding", prompt.lower())
 
     def test_launcher_is_one_command_without_clipboard_or_manual_prompt_input(self) -> None:
         self.assertIn("https://chatgpt.com/?temporary-chat=true", LAUNCHER_TEXT)
