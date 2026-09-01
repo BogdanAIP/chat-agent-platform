@@ -99,7 +99,7 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         )
         self.assertEqual("structured", capture["capture_kind"])
         with self.assertRaisesRegex(ValueError, "schema mismatch"):
-            collector.validate_capture({**capture, "command": "whoami"}, run_id)
+            collector.validate_capture({**capture, "command": "invalid"}, run_id)
 
     def test_collector_is_loopback_only_and_has_no_execution_backend(self) -> None:
         source = (EXPERIMENT / "collector.py").read_text(encoding="utf-8")
@@ -109,8 +109,8 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         for forbidden in ("subprocess", "os.system", "popen(", "shell=true", "requests.", "github"):
             self.assertNotIn(forbidden, lower)
 
-    def test_launcher_has_pass_stale_and_live_known_finding_controls_without_answer_leak(self) -> None:
-        self.assertIn("[ValidateSet('pass142', 'stale140', 'findings146')]", LAUNCHER_TEXT)
+    def test_launcher_has_fixed_controls_without_answer_leak(self) -> None:
+        self.assertIn("[ValidateSet('pass142', 'stale140', 'findings146', 'exact')]", LAUNCHER_TEXT)
         self.assertIn("pr_number=$($target.PrNumber)", LAUNCHER_TEXT)
         self.assertIn("PrNumber = 146", LAUNCHER_TEXT)
         self.assertIn("8318a592848cad66bb6d8e56b10b04b646bc9137", LAUNCHER_TEXT)
@@ -123,6 +123,31 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         self.assertNotIn("known accepted outcome", prompt.lower())
         self.assertNotIn("four p1", prompt.lower())
         self.assertNotIn("known finding", prompt.lower())
+
+    def test_exact_target_mode_is_bounded_and_repository_fixed(self) -> None:
+        self.assertIn("if ($Control -eq 'exact')", LAUNCHER_TEXT)
+        self.assertIn("TargetPrNumber", LAUNCHER_TEXT)
+        self.assertIn("TargetBaseSha", LAUNCHER_TEXT)
+        self.assertIn("TargetHeadSha", LAUNCHER_TEXT)
+        self.assertIn("^[0-9a-f]{40}$", LAUNCHER_TEXT)
+        self.assertIn("TargetSkillVersion -notin @('1.0', '1.1')", LAUNCHER_TEXT)
+        self.assertIn("TargetFocus.Length -gt 2000", LAUNCHER_TEXT)
+        self.assertIn("repository=BogdanAIP/chat-agent-platform", LAUNCHER_TEXT)
+        self.assertNotIn("TargetRepository", LAUNCHER_TEXT)
+        self.assertNotIn("TargetUrl", LAUNCHER_TEXT)
+        self.assertNotIn("TargetBackend", LAUNCHER_TEXT)
+
+    def test_physical_observations_record_pass_stale_and_findings(self) -> None:
+        for run_id in (
+            "tmprev-dca1dbf983014bce8341623c8b8fb943",
+            "tmprev-0269cce47a08437c92084f43e60affa5",
+            "tmprev-52933398b0074575b1e0b2fb87ae1036",
+        ):
+            self.assertIn(run_id, README)
+        self.assertIn("TEMP_REVIEW_CAPTURE=structured", README)
+        self.assertIn("TEMP_REVIEW_STATUS=FINDINGS", README)
+        self.assertIn("reported exactly four P1 findings", README)
+        self.assertIn("CONFIRMED -> FIXED MATERIALLY", README)
 
     def test_launcher_is_one_command_without_clipboard_or_manual_prompt_input(self) -> None:
         self.assertIn("https://chatgpt.com/?temporary-chat=true", LAUNCHER_TEXT)
