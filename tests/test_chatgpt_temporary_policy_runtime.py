@@ -34,28 +34,62 @@ process.stdout.write(JSON.stringify(value));
         self.assertEqual(0, completed.returncode, completed.stderr)
         return json.loads(completed.stdout)
 
-    def test_exact_intent_binds_fragment_capability_and_model_visible_identity(self) -> None:
-        run_id = "a" * 64
-        delegation_id = "b" * 64
-        delivery_id = "c" * 64
-        task_sha = "d" * 64
-        prompt = (
+    @staticmethod
+    def intent_expression(
+        *,
+        run_id: str,
+        delegation_id: str,
+        delivery_id: str,
+        task_sha: str,
+        prompt: str,
+        run_in_query: bool = False,
+    ) -> str:
+        run_query_line = (
+            f'u.searchParams.set("cap_run_id", {json.dumps(run_id)});'
+            if run_in_query
+            else ""
+        )
+        return f"""(() => {{
+  const u = new URL("https://chatgpt.com/");
+  u.searchParams.set("temporary-chat", "true");
+  u.searchParams.set("cap_agent_delegate", "1");
+  {run_query_line}
+  u.searchParams.set("cap_delegation_id", {json.dumps(delegation_id)});
+  u.searchParams.set("cap_delivery_id", {json.dumps(delivery_id)});
+  u.searchParams.set("cap_task_sha256", {json.dumps(task_sha)});
+  u.searchParams.set("prompt", {json.dumps(prompt)});
+  u.hash = "cap_run_id={run_id}";
+  return CAPChatGPTTemporaryPolicy.parseIntent(u.toString());
+}})()"""
+
+    @staticmethod
+    def valid_prompt(*, delegation_id: str, delivery_id: str, task_sha: str) -> str:
+        return (
             "WORKER_TASK_V1\n"
             f"delegation_id={delegation_id}\n"
             f"delivery_id={delivery_id}\n"
             f"task_sha256={task_sha}\n"
             "CAP_WORKER_RESULT_V1_BEGIN\nCAP_WORKER_RESULT_V1_END"
         )
-        query = (
-            "?temporary-chat=true&cap_agent_delegate=1"
-            f"&cap_delegation_id={delegation_id}"
-            f"&cap_delivery_id={delivery_id}"
-            f"&cap_task_sha256={task_sha}"
-            f"&prompt=${{encodeURIComponent({json.dumps(prompt)})}}"
-            f"#cap_run_id={run_id}"
+
+    def test_exact_intent_binds_fragment_capability_and_model_visible_identity(self) -> None:
+        run_id = "a" * 64
+        delegation_id = "b" * 64
+        delivery_id = "c" * 64
+        task_sha = "d" * 64
+        prompt = self.valid_prompt(
+            delegation_id=delegation_id,
+            delivery_id=delivery_id,
+            task_sha=task_sha,
         )
         value = self.run_policy(
-            f"CAPChatGPTTemporaryPolicy.parseIntent(`https://chatgpt.com/${{{json.dumps(query)}}}`)"
+            self.intent_expression(
+                run_id=run_id,
+                delegation_id=delegation_id,
+                delivery_id=delivery_id,
+                task_sha=task_sha,
+                prompt=prompt,
+            )
         )
         self.assertTrue(value["enabled"])
         self.assertEqual(run_id, value["runId"])
@@ -68,26 +102,21 @@ process.stdout.write(JSON.stringify(value));
         delegation_id = "b" * 64
         delivery_id = "c" * 64
         task_sha = "d" * 64
-        prompt = (
-            "WORKER_TASK_V1\n"
-            f"delegation_id={delegation_id}\n"
-            f"delivery_id={delivery_id}\n"
-            f"task_sha256={task_sha}\n"
-            "CAP_WORKER_RESULT_V1_BEGIN\nCAP_WORKER_RESULT_V1_END"
+        prompt = self.valid_prompt(
+            delegation_id=delegation_id,
+            delivery_id=delivery_id,
+            task_sha=task_sha,
         )
-        expression = f"""(() => {{
-  const u = new URL("https://chatgpt.com/");
-  u.searchParams.set("temporary-chat", "true");
-  u.searchParams.set("cap_agent_delegate", "1");
-  u.searchParams.set("cap_run_id", {json.dumps(run_id)});
-  u.searchParams.set("cap_delegation_id", {json.dumps(delegation_id)});
-  u.searchParams.set("cap_delivery_id", {json.dumps(delivery_id)});
-  u.searchParams.set("cap_task_sha256", {json.dumps(task_sha)});
-  u.searchParams.set("prompt", {json.dumps(prompt)});
-  u.hash = "cap_run_id={run_id}";
-  return CAPChatGPTTemporaryPolicy.parseIntent(u.toString());
-}})()"""
-        value = self.run_policy(expression)
+        value = self.run_policy(
+            self.intent_expression(
+                run_id=run_id,
+                delegation_id=delegation_id,
+                delivery_id=delivery_id,
+                task_sha=task_sha,
+                prompt=prompt,
+                run_in_query=True,
+            )
+        )
         self.assertFalse(value["enabled"])
         self.assertEqual("private-run-id-in-query", value["reason"])
 
@@ -96,18 +125,20 @@ process.stdout.write(JSON.stringify(value));
         delegation_id = "b" * 64
         delivery_id = "c" * 64
         task_sha = "d" * 64
-        expression = f"""(() => {{
-  const u = new URL("https://chatgpt.com/");
-  u.searchParams.set("temporary-chat", "true");
-  u.searchParams.set("cap_agent_delegate", "1");
-  u.searchParams.set("cap_delegation_id", {json.dumps(delegation_id)});
-  u.searchParams.set("cap_delivery_id", {json.dumps(delivery_id)});
-  u.searchParams.set("cap_task_sha256", {json.dumps(task_sha)});
-  u.searchParams.set("prompt", `WORKER_TASK_V1\ndelegation_id={delegation_id}\ndelivery_id={delivery_id}\ntask_sha256={task_sha}\nCAP_WORKER_RESULT_V1_BEGIN\n${{ {json.dumps(run_id)} }}\nCAP_WORKER_RESULT_V1_END`);
-  u.hash = "cap_run_id={run_id}";
-  return CAPChatGPTTemporaryPolicy.parseIntent(u.toString());
-}})()"""
-        value = self.run_policy(expression)
+        prompt = self.valid_prompt(
+            delegation_id=delegation_id,
+            delivery_id=delivery_id,
+            task_sha=task_sha,
+        ) + "\n" + run_id
+        value = self.run_policy(
+            self.intent_expression(
+                run_id=run_id,
+                delegation_id=delegation_id,
+                delivery_id=delivery_id,
+                task_sha=task_sha,
+                prompt=prompt,
+            )
+        )
         self.assertFalse(value["enabled"])
         self.assertEqual("private-run-id-leaked-to-prompt", value["reason"])
 
