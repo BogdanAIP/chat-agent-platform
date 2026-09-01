@@ -12,6 +12,7 @@ from typing import Any, Mapping
 
 from runtime.agent_sessions import chatgpt_temporary
 from runtime.control_plane.delegation_state import (
+    DelegationSnapshot,
     DelegationStateError,
     load_delegation,
     parse_delegation_identity,
@@ -87,13 +88,15 @@ class TemporaryControllerState:
         self.state_root = state_root.resolve()
         self.output_dir = output_dir.resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.token = secrets.token_hex(32)
-        self.launch = chatgpt_temporary.prepare_temporary_launch(
+        self.launch = chatgpt_temporary.prepare_temporary_session(
             self.identity_value,
             task=task,
-            collector_token=self.token,
             state_root=self.state_root,
         )
+        # The durable private delegation run capability also authenticates the
+        # adapter-local loopback. No second ephemeral secret is introduced, so
+        # a restarted controller can reconnect to the already-open child.
+        self.token = self.launch.run_id
         self.progress_path = self.output_dir / "progress.json"
         self.result_path = self.output_dir / "result.json"
         self.launch_path = self.output_dir / "launch.json"
@@ -109,9 +112,18 @@ class TemporaryControllerState:
                 "delivery_id": self.launch.delivery_id,
                 "launch_url": self.launch.launch_url,
                 "prompt_sha256": self.launch.prompt_sha256,
+                "launch_now": self.launch.launch_now,
+                "launch_state": self.launch.launch_state,
+                "delivery_state": self.launch.delivery_state,
+                "result_state": self.launch.result_state,
                 "created_at": _utc_now(),
             },
         )
+        if self.launch.result_state == "recorded":
+            self._write_snapshot_result(
+                load_delegation(self.identity_value, state_root=self.state_root)
+            )
+            self.done.set()
 
     def _require_correlation(self, value: Mapping[str, Any], label: str) -> str:
         if value.get("schema_version") != 1:
@@ -123,6 +135,20 @@ class TemporaryControllerState:
         if value.get("delivery_id") != self.launch.delivery_id:
             raise DelegationStateError(f"{label} delivery correlation mismatch")
         return self.launch.run_id
+
+    def status(self) -> dict[str, Any]:
+        snapshot = load_delegation(self.identity_value, state_root=self.state_root)
+        return {
+            "schema_version": 1,
+            "status": "ready",
+            "adapter_id": chatgpt_temporary.ADAPTER_ID,
+            "delegation_id": snapshot.delegation_id,
+            "delivery_id": snapshot.delivery_id,
+            "launch_state": snapshot.launch_state,
+            "delivery_state": snapshot.delivery_state,
+            "result_state": snapshot.result_state,
+            "result_status": snapshot.result_status,
+        }
 
     def record_event(self, value: Mapping[str, Any]) -> None:
         event = _plain(value, "adapter event")
@@ -221,6 +247,23 @@ class TemporaryControllerState:
             "result_state": snapshot.result_state,
         }
 
+    def _write_snapshot_result(self, snapshot: DelegationSnapshot) -> None:
+        _atomic_json_write(
+            self.result_path,
+            {
+                "schema_version": 1,
+                "adapter_id": chatgpt_temporary.ADAPTER_ID,
+                "delegation_id": snapshot.delegation_id,
+                "delivery_id": snapshot.delivery_id,
+                "worker_kind": snapshot.identity.worker_kind,
+                "result_contract_id": snapshot.identity.result_contract_id,
+                "status": snapshot.result_status,
+                "payload": snapshot.result_payload,
+                "payload_sha256": snapshot.result_sha256,
+                "recorded_at": _utc_now(),
+            },
+        )
+
     def record_capture(self, value: Mapping[str, Any]) -> dict[str, Any]:
         request = _plain(value, "worker capture request")
         _exact(
@@ -237,21 +280,7 @@ class TemporaryControllerState:
             state_root=self.state_root,
         )
         with self.lock:
-            _atomic_json_write(
-                self.result_path,
-                {
-                    "schema_version": 1,
-                    "adapter_id": chatgpt_temporary.ADAPTER_ID,
-                    "delegation_id": snapshot.delegation_id,
-                    "delivery_id": snapshot.delivery_id,
-                    "worker_kind": snapshot.identity.worker_kind,
-                    "result_contract_id": snapshot.identity.result_contract_id,
-                    "status": snapshot.result_status,
-                    "payload": snapshot.result_payload,
-                    "payload_sha256": snapshot.result_sha256,
-                    "recorded_at": _utc_now(),
-                },
-            )
+            self._write_snapshot_result(snapshot)
             self.done.set()
         return {
             "schema_version": 1,
@@ -309,19 +338,28 @@ def make_handler(state: TemporaryControllerState):
             self.wfile.write(body)
 
         def do_GET(self) -> None:
-            if self.path != "/health":
-                self._write_json(404, {"status": "not_found"})
+            if self.path == "/health":
+                self._write_json(
+                    200,
+                    {
+                        "schema_version": 1,
+                        "status": "ready",
+                        "adapter_id": chatgpt_temporary.ADAPTER_ID,
+                        "delegation_id": state.launch.delegation_id,
+                        "delivery_id": state.launch.delivery_id,
+                    },
+                )
                 return
-            self._write_json(
-                200,
-                {
-                    "schema_version": 1,
-                    "status": "ready",
-                    "adapter_id": chatgpt_temporary.ADAPTER_ID,
-                    "delegation_id": state.launch.delegation_id,
-                    "delivery_id": state.launch.delivery_id,
-                },
-            )
+            if self.path == "/status":
+                if self.headers.get("X-CAP-Agent-Token") != state.token:
+                    self._write_json(403, {"status": "forbidden"})
+                    return
+                try:
+                    self._write_json(200, state.status())
+                except DelegationStateError as exc:
+                    self._write_json(409, {"status": "rejected", "reason": str(exc)[:512]})
+                return
+            self._write_json(404, {"status": "not_found"})
 
         def do_POST(self) -> None:
             handlers = {
@@ -415,7 +453,7 @@ def main() -> int:
     worker.start()
     print(
         f"CAP_AGENT_SESSION_ADAPTER=ready adapter={chatgpt_temporary.ADAPTER_ID} "
-        f"delegation_id={state.launch.delegation_id}",
+        f"delegation_id={state.launch.delegation_id} launch_now={str(state.launch.launch_now).lower()}",
         flush=True,
     )
     completed = state.done.wait(args.timeout_seconds)
