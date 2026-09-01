@@ -104,6 +104,45 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         self.assertNotIn("0123456789abcdef0123456789abcdef01234567", redacted)
         self.assertRegex(redacted, r"PrivateControl/reviewer-fixture [0-9a-f]{40}")
 
+    def test_library_stage_does_not_disclose_evidence_nonce_in_prompt_or_url(self) -> None:
+        self.assertIn("parseLibraryStageIntent", POLICY)
+        self.assertIn("cap_library_stage", POLICY)
+        self.assertIn("libraryEvidenceKey", POLICY)
+        self.assertIn("extractBundleNonce", CONTENT)
+        self.assertIn("sessionStorage.setItem(policy.libraryEvidenceKey(stageIntent.runId), evidenceNonce)", CONTENT)
+        self.assertIn("TEMP_REVIEW_LIBRARY_NONCE_DISCLOSED_TO_PROMPT=False", LAUNCHER_TEXT)
+        self.assertNotIn("cap_library_nonce", LAUNCHER_TEXT)
+        self.assertNotIn("evidence_nonce=$bundleNonce", LAUNCHER_TEXT)
+
+    def test_library_stage_fetches_local_file_and_uploads_it_without_native_filesystem_authority(self) -> None:
+        self.assertIn("library-stage-loaded", CONTENT)
+        self.assertIn('const file = new File([response.text], stageIntent.libraryFilename', CONTENT)
+        self.assertIn('document.querySelectorAll(\'input[type="file"]\')', CONTENT)
+        self.assertIn("new DataTransfer()", CONTENT)
+        self.assertIn("library-file-uploaded", CONTENT)
+        self.assertIn("location.assign(reviewUrl.toString())", CONTENT)
+        self.assertIn("regular-chat-library-stage-then-temporary-chat", LAUNCHER_TEXT)
+
+    def test_library_review_selects_saved_file_before_send_and_binds_final_result_to_file_nonce(self) -> None:
+        self.assertIn('url.searchParams.get("cap_library_review") === "1"', POLICY)
+        self.assertIn("LIBRARY_PRIVATE_CONTROL_V1", POLICY)
+        self.assertIn("LIBRARY_PRIVATE_REVIEW_RESULT_V1", POLICY)
+        self.assertIn('fields.get("evidence_nonce") === intent.evidenceNonce', POLICY)
+        self.assertIn('fields.get("evidence_source") === "library_file"', POLICY)
+        self.assertIn("findLibraryMenuItem", CONTENT)
+        self.assertIn("findLibraryFileNode", CONTENT)
+        self.assertIn("library-file-attached", CONTENT)
+        library_gate = CONTENT.index("if (intent.libraryMode && !libraryAttached)")
+        send_marker = CONTENT.index("sessionStorage.setItem(\n        policy.attemptKey")
+        self.assertLess(library_gate, send_marker)
+
+    def test_library_review_allows_generic_external_research_but_not_repository_lookup(self) -> None:
+        self.assertIn("You MAY use built-in web search for general public technical documentation", LAUNCHER_TEXT)
+        self.assertIn("Do not use GitHub or web search to locate, reconstruct, or supplement the private repository", LAUNCHER_TEXT)
+        self.assertIn("do not search the web for unique identifiers or code snippets", LAUNCHER_TEXT)
+        self.assertIn("external_research_used=no|yes", LAUNCHER_TEXT)
+        self.assertIn("TEMP_REVIEW_EXTERNAL_RESEARCH_USED", LAUNCHER_TEXT)
+
     def test_extension_transport_is_not_native_messaging_or_mcp(self) -> None:
         for text in (POLICY, CONTENT, BACKGROUND):
             self.assertNotIn("nativeMessaging", text)
@@ -120,19 +159,19 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
             {
                 "schema_version": 1,
                 "run_id": run_id,
-                "event": "bundle-injected",
-                "details": {"sha256": "b" * 64},
+                "event": "library-file-attached",
+                "details": {"filename": f"cap-private-review-{run_id}.txt"},
             },
             run_id,
         )
-        self.assertEqual("bundle-injected", event["event"])
+        self.assertEqual("library-file-attached", event["event"])
         capture = collector.validate_capture(
             {
                 "schema_version": 1,
                 "run_id": run_id,
                 "temporary_state": {},
                 "capture_kind": "structured",
-                "result_text": "PRIVATE_BUNDLE_REVIEW_RESULT_V1\nstatus=FINDINGS",
+                "result_text": "LIBRARY_PRIVATE_REVIEW_RESULT_V1\nstatus=FINDINGS",
                 "diagnostics": {},
             },
             run_id,
@@ -152,6 +191,7 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
 
     def test_launcher_has_fixed_controls_without_answer_leak(self) -> None:
         self.assertIn("'privatebundle140'", LAUNCHER_TEXT)
+        self.assertIn("'libraryfile140'", LAUNCHER_TEXT)
         self.assertIn("PrNumber = 146", LAUNCHER_TEXT)
         self.assertIn("8318a592848cad66bb6d8e56b10b04b646bc9137", LAUNCHER_TEXT)
         self.assertIn("858dcb7dd065717ea0d59b1e7b931b13a844f8d4", LAUNCHER_TEXT)
@@ -160,12 +200,11 @@ class TemporaryReviewerPhysicalExperimentTests(unittest.TestCase):
         self.assertNotIn("four P1", LAUNCHER_TEXT)
         self.assertNotIn("known finding", LAUNCHER_TEXT.lower())
 
-    def test_private_bundle_control_forbids_external_evidence_and_requires_self_report(self) -> None:
+    def test_private_bundle_control_forbids_external_evidence(self) -> None:
         self.assertIn("Use ONLY that injected REVIEW_EVIDENCE_BUNDLE_V1", LAUNCHER_TEXT)
         self.assertIn("Do not use built-in web search, GitHub", LAUNCHER_TEXT)
         self.assertIn("evidence_source=bundle_only", LAUNCHER_TEXT)
         self.assertIn("external_web_used=no|yes", LAUNCHER_TEXT)
-        self.assertIn("If you used any external web/repository source", LAUNCHER_TEXT)
         self.assertIn("TEMP_REVIEW_VISIBLE_WEB_ACTIVITY_COUNT", LAUNCHER_TEXT)
         self.assertIn("visible_web_activity", CONTENT)
 
