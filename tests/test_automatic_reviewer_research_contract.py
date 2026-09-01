@@ -56,12 +56,13 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.assertIn("Production implementation remains blocked until this research PR", self.research)
         self.assertIn("effective only after this PR is accepted and merged", self.research)
 
-        # CURRENT_STATE is the live owner and must advance after #140 merged.
+        # CURRENT_STATE is the live owner and must advance as implementation slices merge.
         self.assertIn("AUTOMATIC_REVIEWER_RESEARCH.md", self.current)
         self.assertIn("PR #140 is **merged and accepted**", self.current)
         self.assertIn("supplies the current `NARROW` implementation authority", self.current)
-        self.assertIn("PR #141 is the current first production implementation slice", self.current)
-        self.assertIn("does **not** yet register the three automatic-review procedures", self.current)
+        self.assertIn("PR #141 is **merged and accepted** as the first production implementation slice", self.current)
+        self.assertIn("The current wiring slice registers the accepted fixed", self.current)
+        self.assertIn("It does not yet implement reviewer-authority qualification, browser launch, MV3 claiming or automatic Send", self.current)
         self.assertNotIn("Production implementation is **still blocked** until #140", self.current)
         self.assertNotIn("PR #140 is currently the **open acceptance gate**", self.current)
 
