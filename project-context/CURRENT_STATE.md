@@ -39,6 +39,7 @@ WorkingState + LoopGuard L1 foundation            ACCEPTED / MERGED #124
 stage-research mechanism-depth hardening          MERGED #127
 Stage 26.3C production WorkingState integration   PHYSICAL ACCEPTED / MERGED #126
 automatic-review Stage Research / local-result v1 ACCEPTED NARROW / MERGED #140
+automatic-review local state foundation           ACCEPTED / MERGED #141
 ```
 
 These remain scoped proofs. They do not imply universal Browser/Windows/application reliability or machine/power-loss transactional durability.
@@ -126,7 +127,9 @@ PR #138 is **experimental evidence**, not production acceptance. Its one-shot de
 
 PR #140 is **merged and accepted**. `AUTOMATIC_REVIEWER_RESEARCH.md` therefore supplies the current `NARROW` implementation authority. Production work is now permitted only inside that selected lifecycle; materially broader persistence/recovery/retry/concurrency/identity/authority changes require Stage Research re-entry.
 
-PR #141 is the current first production implementation slice. It deliberately stops at the local operation/result-state foundation: stable exact-review identity, immutable private genesis, crash-safe mutable checkpoint, durable `dispatch-attempted`, automatic-result recording, same-lock manual fallback, manual-only missing-state recovery and fail-closed corrupt/mismatched state. It does **not** yet register the three automatic-review procedures on `procedure_run`, launch a browser, grant Send authority or change the six-tool public inventory.
+PR #141 is **merged and accepted** as the first production implementation slice. It stops at the local operation/result-state foundation: stable exact-review identity, immutable private genesis, crash-safe mutable checkpoint, durable `dispatch-attempted`, automatic-result recording, same-lock manual fallback, manual-only missing-state recovery and fail-closed corrupt/mismatched state.
+
+The current wiring slice registers the accepted fixed `launch_independent_review_v1`, `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` contracts inside the existing `procedure_run` union while preserving exactly six public tools. It does not yet implement reviewer-authority qualification, browser launch, MV3 claiming or automatic Send. Until those separately accepted mechanisms exist, `launch_independent_review_v1` may create/reuse the exact durable review operation but must return structured `ABSTAIN` with `reviewer_authority_unqualified`, leave `dispatch_state=prepared`, perform zero browser launch/Send and never disclose `review_run_id` to the development caller. `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` are real local state-machine operations backed by the accepted #141 core.
 
 Merged #140 bounds the selected v1 implementation to:
 
@@ -216,11 +219,7 @@ Do not reconstruct another stage list here; `ROADMAP.md` owns release order.
 Immediate work is:
 
 ```text
-finish #141 local review-state foundation on a frozen exact head
- -> require exact-head hosted CI/security + zero unresolved review findings
- -> require mandatory fresh ordinary-ChatGPT semantic review
- -> merge #141 only if the local state/recovery foundation is accepted
- -> wire the accepted fixed launch/submit/reconcile procedures behind existing procedure_run
+wire the accepted fixed launch/submit/reconcile procedures behind existing procedure_run
  -> prove immutable-genesis + mutable-state crash/restart invariants through the installed runtime
  -> prove qualified reviewer environment removes GitHub mutation actions
  -> prove MV3/IndexedDB one-claim Send behavior
