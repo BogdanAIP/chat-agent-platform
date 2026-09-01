@@ -51,18 +51,31 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
                 self.assertIn(heading, self.research)
 
     def test_narrow_is_accepted_after_research_pr_merge(self) -> None:
-        # The immutable research Brief keeps the historical adoption condition.
+        # The immutable reviewer research Brief keeps the historical adoption condition.
         self.assertIn("NARROW (PROPOSED UNTIL THIS PR IS ACCEPTED)", self.research)
         self.assertIn("Production implementation remains blocked until this research PR", self.research)
         self.assertIn("effective only after this PR is accepted and merged", self.research)
 
-        # CURRENT_STATE is the live owner and must advance as implementation slices merge.
-        self.assertIn("AUTOMATIC_REVIEWER_RESEARCH.md", self.current)
-        self.assertIn("PR #140 is **merged and accepted**", self.current)
-        self.assertIn("supplies the current `NARROW` implementation authority", self.current)
-        self.assertIn("PR #141 is **merged and accepted** as the first production implementation slice", self.current)
-        self.assertIn("The current wiring slice registers the accepted fixed", self.current)
-        self.assertIn("It does not yet implement reviewer-authority qualification, browser launch, MV3 claiming or automatic Send", self.current)
+        # CURRENT_STATE is the live owner. Agent Session / Delegation may supersede
+        # reviewer automation as the product-level critical path without deleting
+        # the already accepted reviewer-specific fallback and fixed procedures.
+        self.assertIn("AGENT_SESSION_DELEGATION_REENTRY.md", self.current)
+        self.assertIn("PR #149", self.current)
+        self.assertIn("## Automatic reviewer status", self.current)
+        self.assertIn(
+            "automatic-review Stage Research / local-result v1 ACCEPTED NARROW / MERGED #140",
+            self.current,
+        )
+        self.assertIn("automatic-review local state foundation           ACCEPTED / MERGED #141", self.current)
+        self.assertIn("automatic-review fixed procedure wiring           ACCEPTED / MERGED #142", self.current)
+        for procedure in (
+            "launch_independent_review_v1",
+            "submit_independent_review_result_v1",
+            "reconcile_independent_review_result_v1",
+        ):
+            self.assertIn(procedure, self.current)
+        self.assertIn("remain intact", self.current)
+        self.assertIn("not deleted or silently replaced by #149", self.current)
         self.assertNotIn("Production implementation is **still blocked** until #140", self.current)
         self.assertNotIn("PR #140 is currently the **open acceptance gate**", self.current)
 
