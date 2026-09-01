@@ -40,6 +40,7 @@ stage-research mechanism-depth hardening          MERGED #127
 Stage 26.3C production WorkingState integration   PHYSICAL ACCEPTED / MERGED #126
 automatic-review Stage Research / local-result v1 ACCEPTED NARROW / MERGED #140
 automatic-review local state foundation           ACCEPTED / MERGED #141
+automatic-review fixed procedure wiring           ACCEPTED / MERGED #142
 ```
 
 These remain scoped proofs. They do not imply universal Browser/Windows/application reliability or machine/power-loss transactional durability.
@@ -105,7 +106,7 @@ WorkingState is capability-spanning structured operational state, not private re
 
 With 26.3C closed, the next immediate development priority is the **bounded automatic independent-review path** before the broad real-application coverage gate.
 
-The target lifecycle is now deliberately local-result-only:
+The accepted local-result lifecycle remains:
 
 ```text
 PR reaches review-ready exact head
@@ -113,7 +114,7 @@ PR reaches review-ready exact head
  -> launch a genuinely fresh ordinary-ChatGPT context without routine user launch/paste work
  -> require a reviewer security context where GitHub mutation actions are unavailable
  -> run `.agents/skills/code-review/SKILL.md` with independent repository evidence
- -> submit REVIEW_RESULT_V1 through fixed local procedure
+ -> record REVIEW_RESULT_V1 in project-owned local result state
  -> reconcile automatic/manual result under the same local operation lock
  -> reject stale/malformed/pending/ambiguous state
  -> merge only after final live-identity + local-result reconciliation
@@ -125,41 +126,64 @@ This exists because fresh ordinary-ChatGPT semantic review is the required prima
 
 PR #138 is **experimental evidence**, not production acceptance. Its one-shot deep-link/autosend probes demonstrated that a fresh ChatGPT context can be launched without a routine user click. It does not authorize a production scheduler or general continuation runtime.
 
-PR #140 is **merged and accepted**. `AUTOMATIC_REVIEWER_RESEARCH.md` therefore supplies the current `NARROW` implementation authority. Production work is now permitted only inside that selected lifecycle; materially broader persistence/recovery/retry/concurrency/identity/authority changes require Stage Research re-entry.
+PR #140 is **merged and accepted**. `AUTOMATIC_REVIEWER_RESEARCH.md` supplies the accepted exact-operation/local-result NARROW architecture. Materially broader persistence/recovery/retry/concurrency/identity/authority changes still require Stage Research re-entry.
 
-PR #141 is **merged and accepted** as the first production implementation slice. It stops at the local operation/result-state foundation: stable exact-review identity, immutable private genesis, crash-safe mutable checkpoint, durable `dispatch-attempted`, automatic-result recording, same-lock manual fallback, manual-only missing-state recovery and fail-closed corrupt/mismatched state.
+PR #141 is **merged and accepted** as the local operation/result-state foundation: stable exact-review identity, immutable private genesis, crash-safe mutable checkpoint, durable `dispatch-attempted`, automatic-result recording, same-lock manual fallback, manual-only missing-state recovery and fail-closed corrupt/mismatched state.
 
-The current wiring slice registers the accepted fixed `launch_independent_review_v1`, `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` contracts inside the existing `procedure_run` union while preserving exactly six public tools. It does not yet implement reviewer-authority qualification, browser launch, MV3 claiming or automatic Send. Until those separately accepted mechanisms exist, `launch_independent_review_v1` may create/reuse the exact durable review operation but must return structured `ABSTAIN` with `reviewer_authority_unqualified`, leave `dispatch_state=prepared`, perform zero browser launch/Send and never disclose `review_run_id` to the development caller. `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` are real local state-machine operations backed by the accepted #141 core.
+PR #142 is **merged and accepted** as the fixed procedure-wiring slice. `launch_independent_review_v1`, `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` are registered inside the existing `procedure_run` union while preserving exactly six public tools. Production packaging/provenance includes their runtime modules, and private reviewer state is lifetime/path-disjoint from every admitted Chat-readable workspace. Launch still deliberately returns structured `ABSTAIN` with `reviewer_authority_unqualified`, leaves `dispatch_state=prepared`, performs zero browser launch/Send and never discloses `review_run_id` to the development caller.
 
-Merged #140 bounds the selected v1 implementation to:
+### Authority/handoff Stage Research re-entry in progress
+
+`AUTOMATIC_REVIEWER_AUTHORITY_RESEARCH.md` is a **proposed research re-entry only** on the post-#142 base. It does not yet grant production authority and no production/browser consequence is accepted from that document until its research PR passes the normal exact-head CI, mandatory fresh ordinary-Chat review and merge gates.
+
+The re-entry exists because fresh 2026-09-01 product evidence materially changes the personal-Plus authority problem. The current development context exposes GitHub mutation actions, while managed-workspace read-only Action Control is not the current personal Plus surface. Current OpenAI Temporary Chat behavior offers a narrower personal-plan candidate: a non-personalized Temporary Chat has no plugins, so GitHub plugin actions are absent from the semantic reviewer. Because that also removes the Local Bridge plugin, the research compares a project-owned **submit-only Native Messaging host** against dedicated-account, managed-workspace, broad-MCP and manual alternatives.
+
+Until that research decision is accepted, production remains blocked at the #142 fail-closed boundary. In particular:
 
 ```text
-exact frozen REVIEW_REQUEST_V1
- -> registered launch_independent_review_v1 behind existing procedure_run
- -> accepted Stage 26.3C OS-backed single-writer operation lock
- -> immutable exclusive-created genesis with private review_run_id
- -> accepted-style crash-safe mutable operation/result checkpoint
- -> durable dispatch-attempted before one browser launch
- -> refined fresh-new-chat deep-link/autosend
- -> qualified ordinary-Chat reviewer environment where GitHub mutation actions are unavailable
- -> MV3 service-worker IndexedDB unique-key Send claim
- -> one automatic Send authority grant
- -> submit_independent_review_result_v1 stores validated result locally
- -> reconcile_independent_review_result_v1 returns automatic result or atomically records manual fallback
- -> final live PR identity + local result-state validation
+launch_independent_review_v1
+ -> prepare/reuse exact durable operation
+ -> reviewer_authority_unqualified
+ -> zero automatic browser launch
+ -> zero automatic Send
 ```
+
+If the research PR is accepted, the selected personal-Plus direction is intentionally narrow:
+
+```text
+non-personalized Temporary Chat
+ -> positively prove plugin-free Temporary state in the browser
+ -> existing MV3/IndexedDB exact-run Send claim
+ -> fresh plugin-free ordinary-Chat semantic review using built-in web/public repository evidence
+ -> deterministic browser extraction of one completed exact REVIEW_RESULT_V1
+ -> submit-only Native Messaging host
+ -> existing accepted local result state machine
+ -> development reconciliation
+```
+
+The proposed native host is not a generic browser-to-local RPC, does not expose the six-tool Local Bridge, and does not add a seventh public Chat-facing tool. The implementation protocol also requires a separately reviewed refinement of the automatic `code-review` handoff wording before automatic mode can be accepted, because the plugin-free reviewer itself will no longer call `procedure_run`.
+
+The accepted #140/#141/#142 invariants remain non-negotiable through this research re-entry:
+
+- exact frozen review identity;
+- accepted Stage 26.3C OS-backed single-writer operation lock;
+- immutable exclusive-created genesis with private `review_run_id`;
+- accepted-style crash-safe mutable operation/result checkpoint;
+- durable `dispatch-attempted` before any browser launch once launch is implemented;
+- MV3/IndexedDB cross-tab Send ownership before one automatic Send;
+- no GitHub mutation path in reviewer automation;
+- same-lock automatic-result/manual-fallback closure;
+- stale/malformed/pending/ambiguous result fail-closed behavior;
+- no blind automatic relaunch after ambiguous launch/claim/Send;
+- exactly six public semantic tools.
 
 The immutable genesis and mutable checkpoint are separate. `genesis exists + mutable state missing`, the inverse, identity/nonce mismatch, invalid state or ambiguous temp residue fail closed without manufacturing a replacement nonce. Hostile deletion of the whole private state root, storage rollback and machine/power-loss loss remain outside the declared v1 guarantee.
 
-Reviewer authority is now an explicit environment qualification. Accepted automatic environments are those where GitHub mutation actions are **actually unavailable**: for example GitHub app disconnected/disabled, or supported workspace Action Control exposing only read actions. Per-message non-selection and approval prompts are not accepted as the security boundary. If this cannot be proved while preserving the required ordinary-Chat + bridge/read path, automatic launch fails closed and manual fresh review remains required.
-
-Automatic result handoff is local. `submit_independent_review_result_v1` validates the private nonce/exact refs/policy/context/result and atomically records `automatic-result-recorded`. `reconcile_independent_review_result_v1`, under the same operation lock, either returns that result or can atomically record a valid manual fresh-review fallback, permanently closing later automatic submission. This removes the late external-comment race structurally.
-
 Only a structurally complete `CURRENT PASS` or `CURRENT FINDINGS` is a completing review outcome for durable result authority. `ABSTAIN` and `STALE` are non-completing: they must not close the local result slot or make the deterministic exact-head operation uncloseable, and a fresh manual review must remain reachable through the same reconciliation path. A `FINDINGS` result must match `reported_findings` and contain every code-review v1.1 required finding field with non-empty content before any checkpoint write; persisted terminal state is revalidated under the same rule when loaded.
 
-Automatic wake/resampling of the unfinished development conversation after the reviewer finishes is **not** part of this slice. The development conversation still resumes when the user returns; result copy/paste is removed because the development side reads the local review operation state itself. General same-task continuation remains separate future Stage Research.
+Automatic wake/resampling of the unfinished development conversation after the reviewer finishes is **not** part of this work. The development conversation still resumes when the user returns. General same-task continuation remains separate future Stage Research.
 
-The same research makes quality measurement part of the reviewer work:
+The same accepted reviewer research makes quality measurement part of later reviewer work:
 
 - Harbor is an **evaluation harness only**, not production runtime/authority;
 - ReviewBench is the first small baseline;
@@ -176,7 +200,7 @@ Reviewer automation must preserve:
 - genuinely fresh ordinary-ChatGPT context;
 - exact repository / PR / BASE_SHA / HEAD_SHA binding;
 - independent evidence reconstruction;
-- deterministic write-action unreachability in the qualified reviewer environment;
+- deterministic GitHub write-action unreachability in the qualified reviewer environment;
 - no reviewer-held GitHub write credential/action and no automated GitHub publisher/comment path;
 - local crash-safe automatic-result recording and same-lock manual fallback closure;
 - fail-closed missing/malformed/pending/stale/ambiguous result handling;
@@ -192,7 +216,7 @@ Merged #127 strengthened `stage-research` so materially new persistence/recovery
 
 PR #128 added the canonical architecture/reuse comparison baseline. When that process applies, research must explicitly compare affected prior roles and assign exactly one canonical lineage decision per existing role; new roles are `NEW_ARCHITECTURE` and use the Scope Expansion Gate.
 
-Merged PR #140 is the accepted automatic-review research authority. Its Brief records direct filesystem, IndexedDB/service-worker and ChatGPT action-control solution evidence, plus the local result-reconciliation design selected after review findings. Current implementation must remain inside that NARROW boundary.
+Merged PR #140 remains the accepted automatic-review exact-operation/local-state research authority. The proposed `AUTOMATIC_REVIEWER_AUTHORITY_RESEARCH.md` re-entry is required specifically because non-personalized Temporary Chat plus a submit-only Native Messaging transport materially changes the authority/handoff role. Production implementation of that changed mechanism remains blocked until the research re-entry itself is accepted.
 
 ## Browser accepted scope and remaining hardening
 
@@ -219,12 +243,13 @@ Do not reconstruct another stage list here; `ROADMAP.md` owns release order.
 Immediate work is:
 
 ```text
-wire the accepted fixed launch/submit/reconcile procedures behind existing procedure_run
- -> prove immutable-genesis + mutable-state crash/restart invariants through the installed runtime
- -> prove qualified reviewer environment removes GitHub mutation actions
- -> prove MV3/IndexedDB one-claim Send behavior
+accept or reject the authority/handoff Stage Research re-entry on the post-#142 base
+ -> if accepted, refine automatic code-review handoff policy + implement submit-only Native Messaging transport with automatic Send still disabled
+ -> bind browser-companion/native-host installed bytes and Windows registration to reviewed provenance
+ -> productionize MV3/IndexedDB one-claim Send behavior
+ -> add positive non-personalized Temporary Chat qualification before Send/result extraction
+ -> wire bounded browser launch only after durable dispatch-attempted
  -> prove local submit/reconcile + manual-fallback race closure end to end
- -> prove crash/corrupt/stale/malformed/pending state fail closed
  -> run target-Windows ordinary-Chat E2E with zero routine launch/paste/result-copy intervention when authority qualification succeeds
  -> attach Harbor evaluation seam after the first honest E2E
  -> establish ReviewBench + bounded larger/signal-noise baselines
