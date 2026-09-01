@@ -25,15 +25,24 @@ try {
     'case-1'
   );
   const safeWorkspace = path.join(root, 'workspace');
+  const customParent = path.join(root, 'custom-private-parent');
+  const customStateRoot = path.join(customParent, 'procedure-state');
+  const customReviewRoot = path.join(customStateRoot, 'independent-review-v1');
   const tempDir = path.join(root, 'tmp');
 
   fs.mkdirSync(reviewerState, { recursive: true });
   fs.mkdirSync(qualificationWorkspace, { recursive: true });
   fs.mkdirSync(safeWorkspace, { recursive: true });
+  fs.mkdirSync(customReviewRoot, { recursive: true });
   fs.mkdirSync(tempDir, { recursive: true });
   fs.writeFileSync(
     path.join(reviewerState, 'operation.genesis.json'),
     JSON.stringify({ review_run_id: 'a'.repeat(64) }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(customReviewRoot, 'custom-operation.genesis.json'),
+    JSON.stringify({ review_run_id: 'b'.repeat(64) }),
     'utf8'
   );
 
@@ -52,6 +61,20 @@ try {
   });
   assert.equal(safe.workspaceRoot, fs.realpathSync.native(safeWorkspace));
   assert.equal(safe.managerStateRoot, fs.realpathSync.native(managerStateRoot));
+  assert.equal(safe.configuredReviewRoot, null);
+
+  const safeCustom = assertPrivateWorkspaceIsolation({
+    ...baseOptions,
+    env: {
+      LOCALAPPDATA: localAppData,
+      CHAT_LOCAL_FILES_ROOT: safeWorkspace,
+      CHAT_PROCEDURE_STATE_ROOT: customStateRoot
+    }
+  });
+  assert.equal(
+    safeCustom.configuredReviewRoot,
+    fs.realpathSync.native(customReviewRoot)
+  );
 
   const qualification = assertPrivateWorkspaceIsolation({
     ...baseOptions,
@@ -95,6 +118,44 @@ try {
     );
   }
 
+  for (const unsafeWorkspace of [
+    customParent,
+    customStateRoot,
+    customReviewRoot,
+    path.join(customReviewRoot, 'nested-workspace')
+  ]) {
+    fs.mkdirSync(unsafeWorkspace, { recursive: true });
+    assert.throws(
+      () => assertPrivateWorkspaceIsolation({
+        ...baseOptions,
+        env: {
+          LOCALAPPDATA: localAppData,
+          CHAT_LOCAL_FILES_ROOT: unsafeWorkspace,
+          CHAT_PROCEDURE_STATE_ROOT: customStateRoot
+        }
+      }),
+      /path-disjoint from configured independent-review state/
+    );
+  }
+
+  // Reject the future private review directory before it exists, so starting a
+  // session cannot create a readable state placement later in that same session.
+  const futureWorkspace = path.join(root, 'future-custom-workspace');
+  const futureStateRoot = path.join(futureWorkspace, 'future-state');
+  fs.mkdirSync(futureWorkspace, { recursive: true });
+  assert.throws(
+    () => assertPrivateWorkspaceIsolation({
+      ...baseOptions,
+      env: {
+        LOCALAPPDATA: localAppData,
+        CHAT_LOCAL_FILES_ROOT: futureWorkspace,
+        CHAT_PROCEDURE_STATE_ROOT: futureStateRoot
+      }
+    }),
+    /path-disjoint from configured independent-review state/
+  );
+  assert.equal(fs.existsSync(futureStateRoot), false);
+
   const aliasRoot = path.join(root, 'manager-alias');
   fs.symlinkSync(
     managerRoot,
@@ -112,7 +173,26 @@ try {
     /path-disjoint from private manager state/
   );
 
+  const customAlias = path.join(root, 'custom-review-alias');
+  fs.symlinkSync(
+    customReviewRoot,
+    customAlias,
+    process.platform === 'win32' ? 'junction' : 'dir'
+  );
+  assert.throws(
+    () => assertPrivateWorkspaceIsolation({
+      ...baseOptions,
+      env: {
+        LOCALAPPDATA: localAppData,
+        CHAT_LOCAL_FILES_ROOT: customAlias,
+        CHAT_PROCEDURE_STATE_ROOT: customStateRoot
+      }
+    }),
+    /path-disjoint from configured independent-review state/
+  );
+
   console.log('SEMANTIC_PRIVATE_WORKSPACE_ISOLATION=PASS');
+  console.log('SEMANTIC_CONFIGURED_REVIEW_STATE_ISOLATION=PASS');
   console.log('SEMANTIC_QUALIFICATION_WORKTREE_REMAINS_ALLOWED=PASS');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
