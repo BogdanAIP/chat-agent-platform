@@ -1,4 +1,6 @@
 param(
+    [ValidateSet('pass142', 'findings140')]
+    [string]$Control = 'pass142',
     [ValidateRange(1024, 65535)]
     [int]$Port = 3077,
     [ValidateRange(60, 7200)]
@@ -23,10 +25,29 @@ if ($Port -ne 3077) {
     throw 'This experiment extension is intentionally pinned to loopback port 3077.'
 }
 
+$controls = @{
+    pass142 = [ordered]@{
+        PrNumber = 142
+        BaseSha = '8318a592848cad66bb6d8e56b10b04b646bc9137'
+        HeadSha = '858dcb7dd065717ea0d59b1e7b931b13a844f8d4'
+        SkillVersion = '1.1'
+        Focus = 'affected automatic-review fixed-procedure/state/privacy/provenance paths, focused tests, hosted CI and relevant GitHub evidence'
+    }
+    findings140 = [ordered]@{
+        PrNumber = 140
+        BaseSha = 'b10a5fa3122bb6c76c12d37d67911b88e5e1ce28'
+        HeadSha = '7077ecb8496ee89530cbe5efaa1b2112e7be330f'
+        SkillVersion = '1.0'
+        Focus = 'affected Stage Research, reviewer authority, local-result publication/reconciliation, persistence, recovery, concurrency, identity, security and acceptance paths, focused tests, hosted CI and relevant GitHub evidence'
+    }
+}
+$target = $controls[$Control]
+
 $runId = 'tmprev-' + [Guid]::NewGuid().ToString('N')
 $tokenBytes = [byte[]]::new(32)
 [System.Security.Cryptography.RandomNumberGenerator]::Fill($tokenBytes)
 $collectorToken = -join ($tokenBytes | ForEach-Object { $_.ToString('x2') })
+$completionMarker = "CAP_TEMP_REVIEW_COMPLETE=$runId"
 
 $OutputRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform\experiments\temporary-reviewer\$runId"
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
@@ -40,19 +61,23 @@ CAP_TEMP_REVIEW_RUN_ID=$runId
 
 REVIEW_REQUEST_V1
 repository=BogdanAIP/chat-agent-platform
-pr_number=142
-base_sha=8318a592848cad66bb6d8e56b10b04b646bc9137
-head_sha=858dcb7dd065717ea0d59b1e7b931b13a844f8d4
+pr_number=$($target.PrNumber)
+base_sha=$($target.BaseSha)
+head_sha=$($target.HeadSha)
 review_skill=code-review
-review_skill_version=1.1
+review_skill_version=$($target.SkillVersion)
 
 Perform the repository's .agents/skills/code-review/SKILL.md independent semantic review exactly as governed by BASE_SHA.
 
 This is an automated physical qualification probe of a fresh ordinary Temporary Chat. Remain read-only. Use only the built-in web/repository-reading capabilities available in this chat. Do not use ChatGPT Work, Codex, apps/plugins, APIs, or ask the user to paste repository evidence.
 
-Independently resolve the live PR identity, governing BASE AGENTS.md and code-review v1.1, applicable target skills from HEAD_SHA, the exact BASE_SHA..HEAD_SHA diff, affected automatic-review fixed-procedure/state/privacy/provenance paths, focused tests, hosted CI and relevant GitHub evidence.
+Independently resolve the live PR identity, governing BASE AGENTS.md and code-review v$($target.SkillVersion), applicable target skills from HEAD_SHA, the exact BASE_SHA..HEAD_SHA diff, $($target.Focus).
 
 Do not ask follow-up questions. If required evidence cannot be obtained with the capabilities available in this chat, return a truthful REVIEW_RESULT_V1 with status=ABSTAIN and explain the blocking condition. Otherwise return the required REVIEW_RESULT_V1 and only concrete findings that survive the skill's falsification requirements. Do not edit the repository or PR.
+
+When the review is completely finished, append exactly this line as the final line of your final response:
+$completionMarker
+Do not emit that completion line in progress updates or before the final REVIEW_RESULT_V1 is complete.
 "@
 $prompt = $prompt.Trim()
 
@@ -66,6 +91,10 @@ $url = 'https://chatgpt.com/?temporary-chat=true' +
     '&cap_collector_token=' + (Encode-QueryValue $collectorToken) +
     '&prompt=' + (Encode-QueryValue $prompt)
 
+Write-Host "TEMP_REVIEW_CONTROL=$Control" -ForegroundColor Cyan
+Write-Host "TEMP_REVIEW_TARGET_PR=$($target.PrNumber)"
+Write-Host "TEMP_REVIEW_TARGET_BASE=$($target.BaseSha)"
+Write-Host "TEMP_REVIEW_TARGET_HEAD=$($target.HeadSha)"
 Write-Host "TEMP_REVIEW_RUN_ID=$runId" -ForegroundColor Cyan
 Write-Host "TEMP_REVIEW_EXTENSION_PATH=$ExperimentRoot"
 Write-Host "TEMP_REVIEW_OUTPUT_DIR=$OutputRoot"
