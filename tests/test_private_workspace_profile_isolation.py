@@ -19,18 +19,19 @@ class PrivateWorkspaceProfileIsolationTests(unittest.TestCase):
     def test_semantic_launcher_enforces_lifetime_disjointness_before_child_start(self):
         self.assertIn("export function assertPrivateWorkspaceIsolation", SEMANTIC_LAUNCHER)
         self.assertIn("fs.realpathSync.native", SEMANTIC_LAUNCHER)
+        self.assertIn("function canonicalPotentialDirectory", SEMANTIC_LAUNCHER)
         self.assertIn("CHAT_LOCAL_FILES_ROOT", SEMANTIC_LAUNCHER)
+        self.assertIn("CHAT_PROCEDURE_STATE_ROOT", SEMANTIC_LAUNCHER)
         self.assertIn(
             "const managerStatePath = path.join(paths.platformRoot, 'state');",
             SEMANTIC_LAUNCHER,
         )
-        self.assertIn("path-disjoint from private manager state", SEMANTIC_LAUNCHER)
-        self.assertIn(
-            "isInsideOrEqual(managerStateRoot, workspaceRoot)", SEMANTIC_LAUNCHER
-        )
-        self.assertIn(
-            "isInsideOrEqual(workspaceRoot, managerStateRoot)", SEMANTIC_LAUNCHER
-        )
+        self.assertIn("private manager state", SEMANTIC_LAUNCHER)
+        self.assertIn("configured independent-review state", SEMANTIC_LAUNCHER)
+        self.assertIn("configuredReviewRoot", SEMANTIC_LAUNCHER)
+        self.assertIn("protectedRoots", SEMANTIC_LAUNCHER)
+        self.assertIn("isInsideOrEqual(protectedRoot.root, workspaceRoot)", SEMANTIC_LAUNCHER)
+        self.assertIn("isInsideOrEqual(workspaceRoot, protectedRoot.root)", SEMANTIC_LAUNCHER)
         self.assertIn("qualification worktrees remain valid workspaces", SEMANTIC_LAUNCHER)
 
         guard = SEMANTIC_LAUNCHER.index(
