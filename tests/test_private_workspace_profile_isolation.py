@@ -46,6 +46,7 @@ class PrivateWorkspaceProfileIsolationTests(unittest.TestCase):
 
     def test_legacy_file_profiles_resolve_physical_root_and_block_private_state_overlap(self):
         self.assertIn("function Resolve-PhysicalDirectoryPath", LEGACY_PROFILE_START)
+        self.assertIn("function Resolve-PotentialPhysicalDirectoryPath", LEGACY_PROFILE_START)
         self.assertIn("fs.realpathSync.native(process.argv[1])", LEGACY_PROFILE_START)
         self.assertIn("function Test-PathsOverlap", LEGACY_PROFILE_START)
         self.assertIn(
@@ -53,6 +54,9 @@ class PrivateWorkspaceProfileIsolationTests(unittest.TestCase):
             LEGACY_PROFILE_START,
         )
         self.assertIn("private manager state", LEGACY_PROFILE_START)
+        self.assertIn("$env:CHAT_PROCEDURE_STATE_ROOT", LEGACY_PROFILE_START)
+        self.assertIn("'independent-review-v1'", LEGACY_PROFILE_START)
+        self.assertIn("configured independent-review state", LEGACY_PROFILE_START)
         self.assertIn("return $physicalFull", LEGACY_PROFILE_START)
 
         resolve = LEGACY_PROFILE_START.index(
