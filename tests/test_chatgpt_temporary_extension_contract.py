@@ -46,7 +46,7 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, self.background)
         claim_start = self.background.index("async function claimBrowserSend")
-        claim_end = self.background.index("async function claimRecordsForTab", claim_start)
+        claim_end = self.background.index("async function claimRecordByDelivery", claim_start)
         claim_body = self.background[claim_start:claim_end]
         self.assertIn('db.transaction(CLAIM_STORE, "readwrite")', claim_body)
         self.assertIn("store.add(", claim_body)
@@ -68,12 +68,15 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn("browser_claim_id: message.delivery_id", authorize)
         self.assertIn("send_authorized: false", authorize)
 
-    def test_existing_browser_claim_is_monitor_only_and_never_regranted(self) -> None:
+    def test_existing_browser_claim_is_monitor_only_only_for_same_tab(self) -> None:
         authorize = self.background[
             self.background.index("async function authorizeSend") : self.background.index("chrome.runtime.onInstalled")
         ]
         self.assertIn('reason: "already-claimed"', self.background)
         self.assertIn("if (!browserClaim.granted)", authorize)
+        self.assertIn("await claimRecordByDelivery(message.delivery_id)", authorize)
+        self.assertIn("existing.tab_id !== tabId", authorize)
+        self.assertIn('reason: "claimed-by-other-tab"', authorize)
         self.assertIn("monitor_only: monitorOnly", authorize)
         self.assertNotIn("store.delete", self.background)
         self.assertNotIn("store.put", self.background)
