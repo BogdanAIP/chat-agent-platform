@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping
 
-from runtime.agent_sessions import chatgpt_temporary
+from runtime.agent_sessions import chatgpt_temporary, source_attestation
 from runtime.control_plane.delegation_state import (
     DelegationSnapshot,
     DelegationStateError,
@@ -80,11 +80,15 @@ class TemporaryControllerState:
         *,
         identity_value: Mapping[str, Any],
         task: str,
+        expected_runtime_attestation_value: Mapping[str, Any],
         state_root: Path,
         output_dir: Path,
     ) -> None:
         self.identity = parse_delegation_identity(identity_value)
         self.identity_value = self.identity.as_dict()
+        self.expected_runtime_attestation = source_attestation.parse_expected_runtime_attestation(
+            expected_runtime_attestation_value
+        )
         self.state_root = state_root.resolve()
         self.output_dir = output_dir.resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -116,6 +120,7 @@ class TemporaryControllerState:
                 "launch_state": self.launch.launch_state,
                 "delivery_state": self.launch.delivery_state,
                 "result_state": self.launch.result_state,
+                "expected_runtime_head": self.expected_runtime_attestation.expected_head,
                 "created_at": _utc_now(),
             },
         )
@@ -135,6 +140,13 @@ class TemporaryControllerState:
         if value.get("delivery_id") != self.launch.delivery_id:
             raise DelegationStateError(f"{label} delivery correlation mismatch")
         return self.launch.run_id
+
+    def _validate_runtime_attestation(self, value: Any) -> str:
+        report = _plain(value, "runtime attestation")
+        return source_attestation.validate_runtime_attestation(
+            report,
+            expected=self.expected_runtime_attestation,
+        )
 
     def status(self) -> dict[str, Any]:
         snapshot = load_delegation(self.identity_value, state_root=self.state_root)
@@ -191,6 +203,7 @@ class TemporaryControllerState:
                 "browser_claim_committed",
                 "browser_claim_id",
                 "child_evidence",
+                "runtime_attestation",
             },
             "send authority request",
         )
@@ -200,9 +213,19 @@ class TemporaryControllerState:
         if request["browser_claim_id"] != self.launch.delivery_id:
             raise DelegationStateError("browser send claim id mismatch")
 
+        runtime_digest = self._validate_runtime_attestation(request["runtime_attestation"])
+        child_evidence = dict(_plain(request["child_evidence"], "temporary child evidence"))
+        observation_ref = child_evidence.get("observation_ref")
+        if type(observation_ref) is not str:
+            raise DelegationStateError("temporary child observation_ref must be text")
+        attested_ref = f"{observation_ref}:runtime:{runtime_digest}"
+        if len(attested_ref) > chatgpt_temporary.MAX_EVIDENCE_REF_CHARS:
+            raise DelegationStateError("attested child observation_ref exceeds accepted bound")
+        child_evidence["observation_ref"] = attested_ref
+
         chatgpt_temporary.bind_temporary_child(
             self.identity_value,
-            evidence_value=request["child_evidence"],
+            evidence_value=child_evidence,
             state_root=self.state_root,
         )
         claim = chatgpt_temporary.claim_temporary_delivery(
@@ -217,6 +240,7 @@ class TemporaryControllerState:
             "delegation_id": claim.delegation_id,
             "delivery_id": claim.delivery_id,
             "delivery_state": claim.delivery_state,
+            "runtime_attestation_sha256": runtime_digest,
         }
 
     def record_delivery(self, value: Mapping[str, Any]) -> dict[str, Any]:
@@ -264,15 +288,7 @@ class TemporaryControllerState:
             },
         )
 
-    def record_capture(self, value: Mapping[str, Any]) -> dict[str, Any]:
-        request = _plain(value, "worker capture request")
-        _exact(
-            request,
-            {"schema_version", "run_id", "delegation_id", "delivery_id", "result_text"},
-            "worker capture request",
-        )
-        run_id = self._require_correlation(request, "worker capture request")
-        result_text = request["result_text"]
+    def _record_result_text(self, *, run_id: str, result_text: Any) -> DelegationSnapshot:
         snapshot = chatgpt_temporary.record_temporary_worker_result(
             self.identity_value,
             run_id=run_id,
@@ -282,11 +298,34 @@ class TemporaryControllerState:
         with self.lock:
             self._write_snapshot_result(snapshot)
             self.done.set()
+        return snapshot
+
+    def record_capture(self, value: Mapping[str, Any]) -> dict[str, Any]:
+        request = _plain(value, "worker capture request")
+        _exact(
+            request,
+            {
+                "schema_version",
+                "run_id",
+                "delegation_id",
+                "delivery_id",
+                "result_text",
+                "runtime_attestation",
+            },
+            "worker capture request",
+        )
+        run_id = self._require_correlation(request, "worker capture request")
+        runtime_digest = self._validate_runtime_attestation(request["runtime_attestation"])
+        snapshot = self._record_result_text(
+            run_id=run_id,
+            result_text=request["result_text"],
+        )
         return {
             "schema_version": 1,
             "status": "recorded",
             "result_state": snapshot.result_state,
             "worker_status": snapshot.result_status,
+            "runtime_attestation_sha256": runtime_digest,
         }
 
     def record_timeout_if_delivered(self) -> bool:
@@ -309,15 +348,7 @@ class TemporaryControllerState:
             + "\n"
             + chatgpt_temporary.RAW_RESULT_END
         )
-        self.record_capture(
-            {
-                "schema_version": 1,
-                "run_id": self.launch.run_id,
-                "delegation_id": self.launch.delegation_id,
-                "delivery_id": self.launch.delivery_id,
-                "result_text": text,
-            }
-        )
+        self._record_result_text(run_id=self.launch.run_id, result_text=text)
         return True
 
 
@@ -411,6 +442,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Bounded ChatGPT Temporary worker adapter controller")
     parser.add_argument("--identity-json", required=True)
     parser.add_argument("--task-file", required=True)
+    parser.add_argument("--runtime-attestation-json", required=True)
     parser.add_argument("--state-root", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--port", type=int, default=chatgpt_temporary.COLLECTOR_PORT)
@@ -424,7 +456,12 @@ def main() -> int:
 
     identity_path = Path(args.identity_json).resolve()
     task_path = Path(args.task_file).resolve()
+    runtime_attestation_path = Path(args.runtime_attestation_json).resolve()
     identity_value = _load_json_file(identity_path, "identity")
+    expected_runtime_attestation_value = _load_json_file(
+        runtime_attestation_path,
+        "runtime attestation",
+    )
     task_bytes = task_path.read_bytes()
     if not task_bytes or len(task_bytes) > chatgpt_temporary.MAX_TASK_BYTES:
         raise SystemExit("invalid task size")
@@ -437,6 +474,7 @@ def main() -> int:
         state = TemporaryControllerState(
             identity_value=identity_value,
             task=task,
+            expected_runtime_attestation_value=expected_runtime_attestation_value,
             state_root=Path(args.state_root),
             output_dir=Path(args.output_dir),
         )
