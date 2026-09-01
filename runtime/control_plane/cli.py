@@ -21,7 +21,10 @@ from runtime.control_plane.independent_review_procedures import (  # noqa: E402
     run_reconcile_independent_review_result,
     run_submit_independent_review_result,
 )
-from runtime.control_plane.independent_review_state import MAX_RESULT_BYTES  # noqa: E402
+from runtime.control_plane.independent_review_state import (  # noqa: E402
+    MAX_RESULT_BYTES,
+    STATE_DIRECTORY as REVIEW_STATE_DIRECTORY,
+)
 from runtime.control_plane.windows_case_update import (  # noqa: E402
     PROCEDURE_ID as WINDOWS_CASE_PROCEDURE_ID,
     run_windows_case_update,
@@ -74,17 +77,20 @@ def _require_private_review_state_root(
     workspace_root: Path,
     state_root: Path,
 ) -> None:
-    """Keep the private review capability outside the Chat-readable workspace."""
+    """Keep the private review capability path-disjoint from the readable workspace."""
 
     if procedure not in _REVIEW_PROCEDURE_IDS:
         return
     resolved_workspace = workspace_root.resolve()
-    resolved_state = state_root.resolve()
-    try:
-        resolved_state.relative_to(resolved_workspace)
-    except ValueError:
-        return
-    raise ValueError("independent-review state root must be outside the readable workspace")
+    resolved_review_root = (state_root.resolve() / REVIEW_STATE_DIRECTORY).resolve()
+    if (
+        resolved_review_root == resolved_workspace
+        or resolved_review_root.is_relative_to(resolved_workspace)
+        or resolved_workspace.is_relative_to(resolved_review_root)
+    ):
+        raise ValueError(
+            "independent-review state directory must be path-disjoint from the readable workspace"
+        )
 
 
 class _AssignedTaskIdSecrets:
