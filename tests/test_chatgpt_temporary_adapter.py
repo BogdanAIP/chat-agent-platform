@@ -32,7 +32,6 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.state_root = Path(self.temp.name) / "state"
-        self.token = "a" * 64
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -41,7 +40,6 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
         return chatgpt_temporary.prepare_temporary_launch(
             identity_dict(),
             task=TASK,
-            collector_token=self.token,
             state_root=self.state_root,
         )
 
@@ -110,6 +108,8 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
 
     def test_prepare_commits_launch_attempt_before_returning_browser_intent(self) -> None:
         launch = self.launch()
+        self.assertTrue(launch.launch_now)
+        self.assertEqual("launch-attempted", launch.launch_state)
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
         self.assertEqual("launch-attempted", snapshot.launch_state)
         self.assertEqual("prepared", snapshot.delivery_state)
@@ -134,17 +134,21 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
         wrong = identity_dict(task_sha256="b" * 64)
         with self.assertRaisesRegex(delegation_state.DelegationStateError, "task digest"):
             chatgpt_temporary.prepare_temporary_launch(
-                wrong, task=TASK, collector_token=self.token, state_root=self.state_root
+                wrong, task=TASK, state_root=self.state_root
             )
         prepared = delegation_state.prepare_delegation(wrong, state_root=self.state_root)
         self.assertEqual("prepared", prepared.launch_state)
 
-    def test_same_delegation_cannot_receive_a_second_launch_intent(self) -> None:
+    def test_restart_recovers_same_private_run_but_never_reauthorizes_browser_launch(self) -> None:
         first = self.launch()
-        with self.assertRaisesRegex(delegation_state.DelegationStateError, "already attempted"):
-            self.launch()
+        second = self.launch()
+        self.assertTrue(first.launch_now)
+        self.assertFalse(second.launch_now)
+        self.assertEqual(first.run_id, second.run_id)
+        self.assertEqual(first.delegation_id, second.delegation_id)
+        self.assertEqual(first.delivery_id, second.delivery_id)
+        self.assertEqual(first.launch_url, second.launch_url)
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
-        self.assertEqual(first.delegation_id, snapshot.delegation_id)
         self.assertEqual("launch-attempted", snapshot.launch_state)
 
     def test_child_binding_requires_positive_fresh_temporary_nonpersonalized_evidence(self) -> None:
@@ -188,6 +192,16 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
         self.assertTrue(first.claimed_now)
         self.assertFalse(second.claimed_now)
         self.assertEqual("claimed", second.delivery_state)
+
+    def test_restart_after_delivery_is_monitor_only_and_preserves_same_delivery(self) -> None:
+        launch = self.launch()
+        self.delivered(launch)
+        resumed = self.launch()
+        self.assertFalse(resumed.launch_now)
+        self.assertEqual(launch.run_id, resumed.run_id)
+        self.assertEqual(launch.delivery_id, resumed.delivery_id)
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("delivered", snapshot.delivery_state)
 
     def test_unknown_delivery_never_reclaims_and_reconciles_same_delivery(self) -> None:
         launch = self.launch()
