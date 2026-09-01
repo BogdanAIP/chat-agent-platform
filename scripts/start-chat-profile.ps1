@@ -131,6 +131,48 @@ function Stop-KnownRuntime {
     }
 }
 
+function Resolve-PhysicalDirectoryPath {
+    param([Parameter(Mandatory)] [string]$Path)
+
+    $nodeName = if ($IsWindows) { 'node.exe' } else { 'node' }
+    $node = (Get-Command $nodeName -ErrorAction Stop).Source
+    $realPathScript = "const fs=require('node:fs');process.stdout.write(fs.realpathSync.native(process.argv[1]));"
+    $output = @(& $node -e $realPathScript $Path 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not resolve physical FilesRoot '$Path': $($output -join ' ')"
+    }
+    $physical = ($output -join "`n").Trim()
+    if ([string]::IsNullOrWhiteSpace($physical)) {
+        throw "Could not resolve physical FilesRoot '$Path'."
+    }
+    return [System.IO.Path]::GetFullPath($physical).TrimEnd('\', '/')
+}
+
+function Test-PathsOverlap {
+    param(
+        [Parameter(Mandatory)] [string]$Left,
+        [Parameter(Mandatory)] [string]$Right
+    )
+
+    $leftPath = [System.IO.Path]::GetFullPath($Left).TrimEnd('\', '/')
+    $rightPath = [System.IO.Path]::GetFullPath($Right).TrimEnd('\', '/')
+    if ($leftPath -ieq $rightPath) {
+        return $true
+    }
+
+    $separator = [System.IO.Path]::DirectorySeparatorChar
+    return (
+        $leftPath.StartsWith(
+            $rightPath + $separator,
+            [StringComparison]::OrdinalIgnoreCase
+        ) -or
+        $rightPath.StartsWith(
+            $leftPath + $separator,
+            [StringComparison]::OrdinalIgnoreCase
+        )
+    )
+}
+
 function Resolve-SafeFilesRoot {
     param([Parameter(Mandatory)] [string]$Path)
 
@@ -159,7 +201,21 @@ function Resolve-SafeFilesRoot {
         throw "Refusing broad/system FilesRoot '$full'. Choose a narrower workspace subfolder."
     }
 
-    return $full
+    $physicalFull = Resolve-PhysicalDirectoryPath -Path $full
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $managerRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'
+        if (Test-Path -LiteralPath $managerRoot -PathType Container) {
+            $physicalManagerRoot = Resolve-PhysicalDirectoryPath -Path $managerRoot
+        }
+        else {
+            $physicalManagerRoot = [System.IO.Path]::GetFullPath($managerRoot).TrimEnd('\', '/')
+        }
+        if (Test-PathsOverlap -Left $physicalFull -Right $physicalManagerRoot) {
+            throw "Refusing FilesRoot '$physicalFull' because Chat workspaces must be path-disjoint from manager-owned state '$physicalManagerRoot'."
+        }
+    }
+
+    return $physicalFull
 }
 
 function Get-InventoryToolNames {
