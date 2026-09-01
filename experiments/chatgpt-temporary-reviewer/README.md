@@ -2,267 +2,175 @@
 
 Status: **EXPERIMENT ONLY — NO PRODUCTION AUTHORITY**
 
-This probe answers one question before any new automatic-reviewer architecture is selected:
+This probe answers transport/quality questions before any new automatic-reviewer architecture is selected. It deliberately does **not** implement or authorize production `launch_independent_review_v1`, result publication, Native Messaging, a new public tool, a scheduler, or a final reviewer security-context decision.
 
-> Can a fully automatically launched non-personalized Temporary Chat perform a real independent semantic review of a public CAP PR, without ChatGPT plugins and without manual prompt/result copy-paste?
-
-It deliberately does **not** implement or authorize production `launch_independent_review_v1`, Native Messaging, result publication, a new public tool, a scheduler, or a new reviewer security-context decision.
+The common requirement is a fresh ordinary Temporary Chat with **without manual prompt/result copy-paste** after one-time unpacked-extension setup.
 
 ## Controls
 
-The launcher has three fixed controls plus one exact-target mode. Fixed control identity is selected locally; the review prompt itself does not reveal the known historical outcome.
-
 ### `pass142`
 
-Already merged final head of PR #142:
+Merged PR #142 exact final identity:
 
 ```text
-repository=BogdanAIP/chat-agent-platform
-pr_number=142
-base_sha=8318a592848cad66bb6d8e56b10b04b646bc9137
-head_sha=858dcb7dd065717ea0d59b1e7b931b13a844f8d4
-review_skill=code-review
+base=8318a592848cad66bb6d8e56b10b04b646bc9137
+head=858dcb7dd065717ea0d59b1e7b931b13a844f8d4
 review_skill_version=1.1
 known accepted outcome=no surviving findings
 ```
 
+Physical run `tmprev-dca1dbf983014bce8341623c8b8fb943` automatically launched Temporary Chat and returned `REVIEW_RESULT_V1 status=PASS`.
+
 ### `stale140`
 
-Historical intermediate head of PR #140:
+Historical intermediate PR #140 identity:
 
 ```text
-repository=BogdanAIP/chat-agent-platform
-pr_number=140
-base_sha=b10a5fa3122bb6c76c12d37d67911b88e5e1ce28
-head_sha=7077ecb8496ee89530cbe5efaa1b2112e7be330f
-review_skill=code-review
+base=b10a5fa3122bb6c76c12d37d67911b88e5e1ce28
+head=7077ecb8496ee89530cbe5efaa1b2112e7be330f
 review_skill_version=1.0
-known expected protocol outcome=STALE because live PR #140 advanced materially
 ```
 
-This control verifies exact live-identity discipline, not defect detection.
+Physical run `tmprev-0269cce47a08437c92084f43e60affa5` independently discovered that the requested head was superseded and correctly returned `STALE / STALE_MATERIAL_CHANGE`.
 
 ### `findings146`
 
-Experiment-only PR #146 reproduces the exact historical `BASE..HEAD` range above under a current PR identity:
+Experiment-only live PR #146 reproduced the same exact historical defective `BASE..HEAD` range under a current PR identity. Physical run `tmprev-52933398b0074575b1e0b2fb87ae1036` completed as:
 
 ```text
-repository=BogdanAIP/chat-agent-platform
-pr_number=146
-base_sha=b10a5fa3122bb6c76c12d37d67911b88e5e1ce28
-head_sha=7077ecb8496ee89530cbe5efaa1b2112e7be330f
-review_skill=code-review
-review_skill_version=1.0
-known historical outcome=multiple confirmed findings existed in this exact diff
+TEMP_REVIEW_CAPTURE=structured
+TEMP_REVIEW_STATUS=FINDINGS
 ```
 
-PR #146 is an experiment control and is never to be merged. Its prompt does not disclose the historical defects or finding count. It exists because BASE v1.0 correctly forbids semantic review of the same superseded head under the original PR #140 identity.
+The reviewer returned `CURRENT`, **reported exactly four P1 findings**, rejected one candidate, and independently recovered the same four historical categories later recorded in merged PR #140 as `CONFIRMED -> FIXED MATERIALLY`:
+
+1. GitHub mutation authority qualified by non-selection rather than write-action unreachability;
+2. ambiguous result publication racing manual fallback;
+3. missing direct POSIX/Python, W3C IndexedDB and Chrome service-worker evidence;
+4. compound/non-canonical architecture-lineage decisions.
+
+The review prompt did not disclose those defects or their count.
+
+### `privatebundle140`
+
+Private-repository simulation using no public repository lookup. The launcher builds `REVIEW_EVIDENCE_BUNDLE_V1` from local immutable Git objects only, pseudonymizes repository identity/40-hex values, and injects the complete text into the Temporary Chat composer before one Send.
+
+The bundle carries a random `bundle_nonce`; the final result must echo it. This mode forbids external web/repository evidence and exists only to isolate bundle-only semantic quality.
+
+### `libraryfile140`
+
+Private-repository simulation using **ChatGPT Library as the file transport**.
+
+The launcher builds the same pseudonymized `REVIEW_EVIDENCE_BUNDLE_V1` as a uniquely named supported text file:
+
+```text
+cap-private-review-tmprev-<run-id>.txt
+```
+
+Then one browser flow performs:
+
+```text
+local immutable Git objects
+ -> loopback collector
+ -> regular ChatGPT composer
+ -> extension creates a browser File object and uploads it
+ -> ChatGPT saves the upload to Library
+ -> same tab navigates to non-personalized Temporary Chat
+ -> extension opens Add from library
+ -> selects the exact run-bound filename
+ -> verifies the file is attached
+ -> one automatic Send
+ -> Temporary Chat performs semantic review
+ -> extension captures the final result
+ -> result.json
+```
+
+The random evidence nonce exists only inside the file. It is stored by the extension in tab-scoped `sessionStorage` after SHA-256 verification and is not placed into the review prompt or URL. A completed Library result is structured only when it contains:
+
+```text
+LIBRARY_PRIVATE_REVIEW_RESULT_V1
+evidence_nonce=<exact nonce read from the attached file>
+evidence_source=library_file
+external_research_used=no|yes
+status=PASS|FINDINGS|ABSTAIN
+reported_findings=<count>
+```
+
+Unlike `privatebundle140`, Library mode allows generic public technical research. The reviewer is instructed not to use GitHub/web to locate or reconstruct the private repository, and not to search for private identifiers or code snippets. It may use public web documentation for general engineering semantics.
+
+This control first uses TXT because current ChatGPT documentation explicitly supports common text/document formats; ZIP support is not assumed by this experiment.
 
 ### `exact`
 
-`exact` is an experiment-only target mode for a caller-supplied exact PR identity in `BogdanAIP/chat-agent-platform`. It exists so the final frozen head of this experiment PR can itself receive the same fully automatic fresh Temporary-Chat review without adding a self-referential hard-coded SHA.
+Bounded experiment-only self-review target mode for `BogdanAIP/chat-agent-platform`. It accepts only PR number, exact 40-hex BASE/HEAD and review skill version `1.0|1.1`. Repository identity and neutral semantic-review focus stay fixed in the launcher; there is no caller-supplied reasoning/focus field.
 
-It accepts only:
+## Local evidence package
 
-- decimal `TargetPrNumber`;
-- exact 40-lowercase-hex `TargetBaseSha`;
-- exact 40-lowercase-hex `TargetHeadSha`;
-- review skill version `1.0` or `1.1`.
+`build_private_bundle.py` performs local `git show` / `git diff` operations only. It has no GitHub/API/network client. The package contains:
 
-The repository and semantic review focus remain fixed inside the launcher. There is no caller-supplied prompt/focus/reasoning field, so exact mode cannot smuggle a developer correctness argument into the immutable review request. It also does not add arbitrary URL/repository/backend authority.
+- pseudonymized manifest identity and random nonce;
+- `AGENTS.md` from BASE;
+- `code-review` skill from BASE;
+- applicable Stage Research/source-code-research skills from HEAD when present;
+- baseline architecture owner;
+- changed-file inventory;
+- exact `BASE..HEAD` diff.
 
-## Target-Windows observations
+The builder is intentionally bounded to 900,000 bytes for this physical experiment.
 
-### `pass142`
+## Extension/collector boundary
 
-The first physical run on 2026-09-01 used run id:
-
-```text
-tmprev-dca1dbf983014bce8341623c8b8fb943
-```
-
-Observed automatically:
-
-```text
-collector ready
- -> non-personalized Temporary Chat launched
- -> REVIEW_REQUEST_V1 delivered without clipboard/manual paste
- -> Send occurred without user click
- -> reviewer independently used built-in web/public GitHub evidence
- -> final reviewer response returned REVIEW_RESULT_V1 status=PASS
-```
-
-The semantic outcome matched the known accepted PR #142 outcome. The original capture heuristic recorded `UNSTRUCTURED` because it treated an eight-second pause between web-search phases as terminal and captured a progress response before the actual final result existed.
-
-### `stale140`
-
-The second physical run used run id:
-
-```text
-tmprev-0269cce47a08437c92084f43e60affa5
-```
-
-The reviewer independently discovered that supplied `7077ecb...` was no longer the live head of PR #140 and correctly returned:
-
-```text
-status=STALE
-review_validity=STALE_MATERIAL_CHANGE
-```
-
-It appended the exact run-bound completion marker. This is positive evidence that a plugin-free Temporary Chat can reconstruct live GitHub identity and obey governing BASE policy instead of blindly reviewing a stale requested head. It is not finding-recall evidence because BASE v1.0 requires termination before semantic findings on that stale identity.
-
-The collector marked that completed response `unstructured` due to brittle rendered-text field matching. The parser was then changed to field-based parsing tolerant of Markdown escaping/whitespace, with exact identity diagnostics for completed unstructured captures.
-
-### `findings146`
-
-The live known-finding control on 2026-09-01 used run id:
-
-```text
-tmprev-52933398b0074575b1e0b2fb87ae1036
-```
-
-Observed automatically:
-
-```text
-collector ready
- -> non-personalized Temporary Chat launched
- -> exact PR #146 request delivered without clipboard/manual paste
- -> Send occurred without user click
- -> reviewer independently reconstructed BASE policy, exact diff and hosted evidence
- -> run-bound terminal marker emitted
- -> TEMP_REVIEW_CAPTURE=structured
- -> TEMP_REVIEW_STATUS=FINDINGS
-```
-
-The returned result was `CURRENT`, reported exactly four P1 findings and rejected one candidate. The four surviving findings independently matched the four historical P1 categories later recorded as `CONFIRMED -> FIXED MATERIALLY` in merged PR #140:
-
-1. reviewer GitHub mutation authority was qualified by non-selection instead of actual write-action unreachability;
-2. ambiguous GitHub result-comment publication could race a manual fallback because no mutually exclusive local closure existed;
-3. direct POSIX/Python, W3C IndexedDB and Chrome service-worker engineering evidence was missing for selected release-critical primitives;
-4. the Stage Research lineage table used compound/non-canonical decisions instead of exactly one canonical lineage decision per existing role.
-
-The control prompt did not disclose those defects or their count. This is the first physical negative-control evidence that the fully automatic plugin-free Temporary Chat reviewer can recover known real semantic defects rather than merely produce a PASS-shaped response.
-
-These observations remain **experiment evidence, not production reviewer acceptance**.
-
-## Automatic path
-
-After one-time extension setup, one PowerShell command performs the experiment:
-
-```text
-PowerShell launcher
- -> random run id + collector token
- -> experiment-only loopback collector on 127.0.0.1:3077
- -> exact REVIEW_REQUEST_V1 encoded into ChatGPT deep link
- -> https://chatgpt.com/?temporary-chat=true...
- -> extension requires positive Temporary-Chat UI evidence
- -> one Send attempt, marked before click
- -> fresh ChatGPT reviewer works using built-in web/public repository evidence
- -> reviewer ends its final response with the exact run-bound completion marker
- -> extension waits for that marker plus a short stable interval
- -> captures structured REVIEW_RESULT_V1 or completed unstructured response
- -> extension service worker POSTs only experiment evidence to 127.0.0.1:3077
- -> collector atomically writes result.json under LocalAppData
-```
-
-There is no clipboard step and no user prompt/result copy-paste.
-
-## One-time Chrome setup
-
-This is the only intentionally manual setup step for the physical experiment:
-
-1. checkout or unpack the exact probe extension;
-2. open `chrome://extensions`;
-3. enable **Developer mode**;
-4. choose **Load unpacked**;
-5. select the extension directory.
-
-If the extension is already loaded, use **Reload** after updating its files.
-
-The extension has no `nativeMessaging`, filesystem, tabs, scripting or generic network permission. Its only host permission is:
+The extension has no `nativeMessaging`, filesystem, tabs, scripting, GitHub or generic network permission. Its only host permission is:
 
 ```text
 http://127.0.0.1:3077/*
 ```
 
-The loopback collector is experiment-only. It accepts no command, procedure, path, URL, GitHub credential or MCP request. It can only record bounded probe events and one bounded captured assistant result for the exact random run id/token supplied by the launcher.
+The service worker accepts only `event`, `capture`, or authenticated bundle fetch messages from `https://chatgpt.com`. The collector is loopback-only, requires the exact random collector token for `/bundle`, `/event` and `/capture`, and has no execution/GitHub/MCP backend.
+
+For Library staging, the extension receives text bytes from the authenticated loopback collector, constructs an in-memory browser `File`, assigns it to ChatGPT's file input via `DataTransfer`, and dispatches the normal upload change event. It does not receive a local filesystem path or native filesystem authority.
+
+## Result capture
+
+All modes use a run-bound terminal marker. A protocol status is printed only when `capture_kind=structured`; malformed/unbound output is reported as `TEMP_REVIEW_STATUS=UNSTRUCTURED` with diagnostics.
+
+The experiment collector is not production result authority. BASE `code-review` v1.1 still reserves authoritative automatic handoff for the accepted project-owned submit/reconcile state machine.
 
 ## Run
-
-From repository root in PowerShell 7:
 
 ```powershell
 ./scripts/launch-temporary-reviewer-probe.ps1 -Control pass142
 ./scripts/launch-temporary-reviewer-probe.ps1 -Control stale140
 ./scripts/launch-temporary-reviewer-probe.ps1 -Control findings146
-
-./scripts/launch-temporary-reviewer-probe.ps1 `
-    -Control exact `
-    -TargetPrNumber 145 `
-    -TargetBaseSha <EXACT_BASE> `
-    -TargetHeadSha <FROZEN_EXACT_HEAD> `
-    -TargetSkillVersion 1.1
+./scripts/launch-temporary-reviewer-probe.ps1 -Control privatebundle140
+./scripts/launch-temporary-reviewer-probe.ps1 -Control libraryfile140
 ```
 
-Expected early markers:
+Expected Library markers begin with:
 
 ```text
-TEMP_REVIEW_CONTROL=...
-TEMP_REVIEW_TARGET_PR=...
-TEMP_REVIEW_TARGET_BASE=...
-TEMP_REVIEW_TARGET_HEAD=...
-TEMP_REVIEW_RUN_ID=...
-TEMP_REVIEW_EXTENSION_PATH=...
-TEMP_REVIEW_OUTPUT_DIR=...
+TEMP_REVIEW_CONTROL=libraryfile140
+TEMP_REVIEW_EVIDENCE_MODE=chatgpt_library_file
+TEMP_REVIEW_LIBRARY_FILENAME=...
+TEMP_REVIEW_LIBRARY_NONCE_DISCLOSED_TO_PROMPT=False
 TEMP_REVIEW_COLLECTOR=ready
-TEMP_REVIEW_LAUNCHING=non-personalized-temporary-chat
+TEMP_REVIEW_LAUNCHING=regular-chat-library-stage-then-temporary-chat
 ```
 
-On completed capture:
+A successful complete run should end with at least:
 
 ```text
-TEMP_REVIEW_CAPTURE=structured|unstructured
-TEMP_REVIEW_STATUS=PASS|FINDINGS|ABSTAIN|STALE|UNSTRUCTURED
+TEMP_REVIEW_CAPTURE=structured
+TEMP_REVIEW_STATUS=PASS|FINDINGS|ABSTAIN
+TEMP_REVIEW_LIBRARY_FILE_ATTACHED=True
+TEMP_REVIEW_LIBRARY_FILENAME_CAPTURED=...
 TEMP_REVIEW_RESULT_PATH=...
 ```
 
-A protocol status is printed only when `capture_kind=structured`; otherwise the launcher reports `TEMP_REVIEW_STATUS=UNSTRUCTURED` and prints identity diagnostics. This prevents a malformed capture containing a stray `status=PASS|FINDINGS` line from being presented as a valid protocol outcome.
+## What this experiment can and cannot prove
 
-## Fail-closed boundaries
+It can provide physical evidence for automatic Temporary Chat launch, public-web review, stale identity discipline, known-finding recall, local bundle delivery, and ChatGPT Library file reuse in a fresh Temporary Chat.
 
-The extension does not Send unless all of these are true:
-
-- origin is exactly `https://chatgpt.com`;
-- `temporary-chat=true` is present;
-- experiment opt-in and run id/token are valid;
-- the visible composer contains the matching run sentinel and `REVIEW_REQUEST_V1`;
-- the request contains a valid exact repository/PR/BASE/HEAD/skill identity;
-- a Temporary-Chat UI marker exists outside the composer;
-- the Send control is enabled;
-- that run id has not already caused a Send attempt in the tab session.
-
-The attempt marker is written before `button.click()`. There is no automatic same-run review-request retry after an ambiguous click.
-
-Result capture requires the exact run-bound completion marker at the end of the final assistant response. A completed response can still be recorded as `unstructured` when protocol identity/status is invalid; browser capture is **not** production result authority.
-
-## What this experiment can prove
-
-It can provide physical evidence about:
-
-- whether `temporary-chat=true` still reaches the expected real UI;
-- whether the existing logged-in Plus browser session can be driven automatically;
-- whether a Temporary Chat can obtain enough public GitHub/web evidence for the repository's real review protocol;
-- whether it returns a structurally useful `REVIEW_RESULT_V1` without plugins;
-- whether it obeys exact live-identity/staleness rules;
-- whether review quality can recover both accepted PASS and known real semantic defects;
-- where UI/transport failures occur without asking the user to paste anything.
-
-It cannot by itself prove:
-
-- that Temporary Chat is the final production reviewer security boundary;
-- that absence of plugins is safely inferable forever from one DOM marker;
-- that a Native Messaging handoff should be selected;
-- that the automatic reviewer meets quality targets across a representative benchmark set;
-- any production launch, Send or result-authority acceptance.
+It cannot by itself prove the final production reviewer security boundary, long-term DOM stability, safe private-code research policy, representative benchmark quality, production result handoff, or merge authority.
 
 Those decisions require fresh Stage Research after physical evidence exists.
