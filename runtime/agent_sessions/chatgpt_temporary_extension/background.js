@@ -154,6 +154,15 @@ function validClaimRecord(record) {
     Number.isInteger(record.tab_id);
 }
 
+function exactClaimMatches(record, message, tabId) {
+  return validClaimRecord(record) &&
+    record.tab_id === tabId &&
+    record.run_id === message.run_id &&
+    record.delegation_id === message.delegation_id &&
+    record.delivery_id === message.delivery_id &&
+    record.task_sha256 === message.task_sha256;
+}
+
 function senderTab(sender) {
   const senderUrl = sender?.url || sender?.tab?.url || "";
   let origin;
@@ -190,6 +199,33 @@ async function controllerStatus(message) {
   const value = await response.json().catch(() => ({ status: "invalid-controller-response" }));
   if (!response.ok) throw new Error(`controller-${response.status}:${value.reason || value.status || "rejected"}`);
   return value;
+}
+
+function childEvidence(message, tabId) {
+  return {
+    schema_version: 1,
+    adapter_id: "chatgpt-temporary",
+    run_id: message.run_id,
+    temporary_mode: message.temporary_mode === true,
+    fresh_context: message.fresh_context === true,
+    personalization_disabled: message.personalization_disabled === true,
+    plugin_markers: Array.isArray(message.plugin_markers) ? message.plugin_markers.slice(0, 8) : ["invalid"],
+    session_id: `chrome-tab:${tabId}`,
+    conversation_id: typeof message.conversation_id === "string" && message.conversation_id ? message.conversation_id : null,
+    observation_ref: `chatgpt-temporary:tab:${tabId}:pre-send:${Number(message.observation_seq) || 0}`,
+  };
+}
+
+async function requestLocalSendAuthority(message, tabId) {
+  return await controllerPost(message, "/authorize-send", {
+    schema_version: 1,
+    run_id: message.run_id,
+    delegation_id: message.delegation_id,
+    delivery_id: message.delivery_id,
+    browser_claim_committed: true,
+    browser_claim_id: message.delivery_id,
+    child_evidence: childEvidence(message, tabId),
+  });
 }
 
 async function resumeIntent(sender) {
@@ -245,6 +281,7 @@ async function authorizeSend(message, sender) {
   } catch (error) {
     return { ok: false, send_authorized: false, reason: `browser-claim-failed:${error?.message || "Error"}` };
   }
+
   if (!browserClaim.granted) {
     let existing;
     try {
@@ -252,47 +289,56 @@ async function authorizeSend(message, sender) {
     } catch (error) {
       return { ok: false, send_authorized: false, monitor_only: false, reason: `existing-claim-read-failed:${error?.message || "Error"}` };
     }
-    if (!validClaimRecord(existing) || existing.tab_id !== tabId || existing.run_id !== message.run_id || existing.delegation_id !== message.delegation_id) {
+    if (!exactClaimMatches(existing, message, tabId)) {
       return { ok: true, send_authorized: false, monitor_only: false, reason: "claimed-by-other-tab" };
     }
+
+    let status;
     try {
-      const status = await controllerStatus(message);
-      const monitorOnly = ["claimed", "unknown", "delivered"].includes(status.delivery_state);
-      return {
-        ok: true,
-        send_authorized: false,
-        monitor_only: monitorOnly,
-        reason: browserClaim.reason,
-        delivery_state: status.delivery_state,
-        result_state: status.result_state,
-      };
+      status = await controllerStatus(message);
     } catch (error) {
       return { ok: false, send_authorized: false, monitor_only: false, reason: `claim-exists-status-unavailable:${error?.message || "Error"}` };
     }
+    if (status.delegation_id !== message.delegation_id || status.delivery_id !== message.delivery_id) {
+      return { ok: false, send_authorized: false, monitor_only: false, reason: "controller-status-correlation-mismatch" };
+    }
+
+    // The browser-side claim may commit just before the controller disappears.
+    // If no physical Send was yet possible, the exact same tab may finish the
+    // project-local claim after restart. This never creates a new browser claim
+    // and is permitted only while durable delivery state is still prepared.
+    if (
+      status.result_state === "open" &&
+      status.delivery_state === "prepared" &&
+      ["launch-attempted", "child-bound"].includes(status.launch_state)
+    ) {
+      try {
+        const recovered = await requestLocalSendAuthority(message, tabId);
+        return {
+          ok: true,
+          send_authorized: recovered.send_authorized === true,
+          monitor_only: false,
+          delivery_state: recovered.delivery_state,
+          reason: recovered.send_authorized === true ? "recovered-local-authority" : recovered.status,
+        };
+      } catch (error) {
+        return { ok: false, send_authorized: false, monitor_only: false, reason: `local-authority-recovery-failed:${error?.message || "Error"}` };
+      }
+    }
+
+    const monitorOnly = ["claimed", "unknown", "delivered"].includes(status.delivery_state) && status.result_state === "open";
+    return {
+      ok: true,
+      send_authorized: false,
+      monitor_only: monitorOnly,
+      reason: browserClaim.reason,
+      delivery_state: status.delivery_state,
+      result_state: status.result_state,
+    };
   }
 
-  const childEvidence = {
-    schema_version: 1,
-    adapter_id: "chatgpt-temporary",
-    run_id: message.run_id,
-    temporary_mode: message.temporary_mode === true,
-    fresh_context: message.fresh_context === true,
-    personalization_disabled: message.personalization_disabled === true,
-    plugin_markers: Array.isArray(message.plugin_markers) ? message.plugin_markers.slice(0, 8) : ["invalid"],
-    session_id: `chrome-tab:${tabId}`,
-    conversation_id: typeof message.conversation_id === "string" && message.conversation_id ? message.conversation_id : null,
-    observation_ref: `chatgpt-temporary:tab:${tabId}:pre-send:${Number(message.observation_seq) || 0}`,
-  };
   try {
-    const result = await controllerPost(message, "/authorize-send", {
-      schema_version: 1,
-      run_id: message.run_id,
-      delegation_id: message.delegation_id,
-      delivery_id: message.delivery_id,
-      browser_claim_committed: true,
-      browser_claim_id: message.delivery_id,
-      child_evidence: childEvidence,
-    });
+    const result = await requestLocalSendAuthority(message, tabId);
     return {
       ok: true,
       send_authorized: result.send_authorized === true,
