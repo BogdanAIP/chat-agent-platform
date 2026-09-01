@@ -36,7 +36,7 @@ function closedSchemaVariants(schema) {
     : Array.isArray(schema?.oneOf)
       ? schema.oneOf
       : [schema];
-  assert.equal(variants.length, 2, 'procedure_run must expose exactly two registered closed procedure schemas');
+  assert.equal(variants.length, 5, 'procedure_run must expose exactly five registered closed procedure schemas');
   return variants;
 }
 
@@ -100,16 +100,27 @@ try {
   const byProcedure = new Map(variants.map(variant => [procedureLiteral(variant), variant]));
   assert.deepEqual(
     [...byProcedure.keys()].sort(),
-    ['verified_workspace_artifact_v1', 'windows_case_update_v1'],
+    [
+      'launch_independent_review_v1',
+      'reconcile_independent_review_result_v1',
+      'submit_independent_review_result_v1',
+      'verified_workspace_artifact_v1',
+      'windows_case_update_v1'
+    ],
     'procedure_run registry literals drifted',
   );
 
   const workspaceProcedure = byProcedure.get('verified_workspace_artifact_v1');
   const windowsProcedure = byProcedure.get('windows_case_update_v1');
+  const reviewLaunchProcedure = byProcedure.get('launch_independent_review_v1');
+  const reviewSubmitProcedure = byProcedure.get('submit_independent_review_result_v1');
+  const reviewReconcileProcedure = byProcedure.get('reconcile_independent_review_result_v1');
   assert(workspaceProcedure, 'verified_workspace_artifact_v1 schema missing');
   assert(windowsProcedure, 'windows_case_update_v1 schema missing');
-  assert.equal(workspaceProcedure.additionalProperties, false);
-  assert.equal(windowsProcedure.additionalProperties, false);
+  assert(reviewLaunchProcedure, 'launch_independent_review_v1 schema missing');
+  assert(reviewSubmitProcedure, 'submit_independent_review_result_v1 schema missing');
+  assert(reviewReconcileProcedure, 'reconcile_independent_review_result_v1 schema missing');
+  for (const variant of variants) assert.equal(variant.additionalProperties, false);
   assert.deepEqual(
     Object.keys(workspaceProcedure.properties ?? {}).sort(),
     ['artifact_name', 'content', 'procedure', 'resume_task_id'],
@@ -118,9 +129,24 @@ try {
     Object.keys(windowsProcedure.properties ?? {}).sort(),
     ['case_id', 'note', 'procedure', 'status'],
   );
+  assert.deepEqual(
+    Object.keys(reviewLaunchProcedure.properties ?? {}).sort(),
+    ['base_sha', 'head_sha', 'pr_number', 'procedure', 'repository', 'review_skill', 'review_skill_version'],
+  );
+  assert.deepEqual(
+    Object.keys(reviewSubmitProcedure.properties ?? {}).sort(),
+    ['procedure', 'result', 'review_run_id'],
+  );
+  assert.deepEqual(
+    Object.keys(reviewReconcileProcedure.properties ?? {}).sort(),
+    ['base_sha', 'head_sha', 'manual_result', 'pr_number', 'procedure', 'repository', 'review_skill', 'review_skill_version'],
+  );
   for (const variant of variants) {
     const properties = variant.properties ?? {};
-    for (const forbidden of ['path', 'command', 'python', 'backend', 'tool', 'args', 'pid', 'hwnd', 'server']) {
+    for (const forbidden of [
+      'path', 'command', 'python', 'backend', 'tool', 'args', 'pid', 'hwnd', 'server',
+      'url', 'prompt', 'github_token', 'github_app', 'github_action'
+    ]) {
       assert.equal(
         Object.prototype.hasOwnProperty.call(properties, forbidden),
         false,
