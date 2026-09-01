@@ -5,6 +5,7 @@ const DB_VERSION = 1;
 const CLAIM_STORE = "send_claims";
 const CONTROLLER_ORIGIN = "http://127.0.0.1:3078";
 const HEX64_RE = /^[0-9a-f]{64}$/;
+const RUNTIME_ASSETS = ["manifest.json", "policy.js", "background.js", "content.js"];
 
 function initializeClaimDb() {
   return new Promise((resolve, reject) => {
@@ -42,6 +43,25 @@ function openExistingClaimDb() {
       resolve(db);
     };
   });
+}
+
+async function sha256Hex(buffer) {
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function runtimeAttestation() {
+  const assets = {};
+  for (const name of RUNTIME_ASSETS) {
+    const response = await fetch(chrome.runtime.getURL(name), { cache: "no-store" });
+    if (!response.ok) throw new Error(`runtime-asset-unavailable:${name}:${response.status}`);
+    assets[name] = await sha256Hex(await response.arrayBuffer());
+  }
+  return {
+    schema_version: 1,
+    adapter_id: "chatgpt-temporary",
+    assets,
+  };
 }
 
 async function claimBrowserSend(message, tabId) {
@@ -217,6 +237,7 @@ function childEvidence(message, tabId) {
 }
 
 async function requestLocalSendAuthority(message, tabId) {
+  const attestation = await runtimeAttestation();
   return await controllerPost(message, "/authorize-send", {
     schema_version: 1,
     run_id: message.run_id,
@@ -225,6 +246,7 @@ async function requestLocalSendAuthority(message, tabId) {
     browser_claim_committed: true,
     browser_claim_id: message.delivery_id,
     child_evidence: childEvidence(message, tabId),
+    runtime_attestation: attestation,
   });
 }
 
@@ -303,10 +325,6 @@ async function authorizeSend(message, sender) {
       return { ok: false, send_authorized: false, monitor_only: false, reason: "controller-status-correlation-mismatch" };
     }
 
-    // The browser-side claim may commit just before the controller disappears.
-    // If no physical Send was yet possible, the exact same tab may finish the
-    // project-local claim after restart. This never creates a new browser claim
-    // and is permitted only while durable delivery state is still prepared.
     if (
       status.result_state === "open" &&
       status.delivery_state === "prepared" &&
@@ -405,14 +423,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       evidence_ref: message.evidence_ref,
     };
   } else if (message.kind === "capture") {
-    path = "/capture";
-    body = {
-      schema_version: 1,
-      run_id: message.run_id,
-      delegation_id: message.delegation_id,
-      delivery_id: message.delivery_id,
-      result_text: message.result_text,
-    };
+    void runtimeAttestation()
+      .then((attestation) => controllerPost(message, "/capture", {
+        schema_version: 1,
+        run_id: message.run_id,
+        delegation_id: message.delegation_id,
+        delivery_id: message.delivery_id,
+        result_text: message.result_text,
+        runtime_attestation: attestation,
+      }))
+      .then((value) => sendResponse({ ok: true, ...value }))
+      .catch((error) => sendResponse({ ok: false, reason: error?.message || "capture-attestation-failed" }));
+    return true;
   } else if (message.kind === "status") {
     void controllerStatus(message).then((value) => sendResponse({ ok: true, ...value })).catch((error) => sendResponse({ ok: false, reason: error?.message || "status-failed" }));
     return true;
