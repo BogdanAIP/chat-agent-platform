@@ -13,8 +13,12 @@
   let lastAssistantChangedAt = 0;
   let sendAttemptedAt = 0;
   let temporaryEvidence = null;
+  let bundleInjected = !intent.bundleMode;
+  let bundleLoading = false;
+  let bundleFailure = null;
+  const webActivityEvidence = new Set();
 
-  function sendToCollector(kind, payload) {
+  function sendToCollector(kind, payload = {}) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(
         {
@@ -45,6 +49,13 @@
     return document.querySelector('button[data-testid="send-button"]');
   }
 
+  function findPromptEditor() {
+    return document.querySelector('#prompt-textarea') ||
+      document.querySelector('textarea[placeholder]') ||
+      document.querySelector('[contenteditable="true"][data-placeholder]') ||
+      document.querySelector('[contenteditable="true"]');
+  }
+
   function findComposer(button) {
     if (!button) return null;
     const form = button.closest("form");
@@ -66,6 +77,81 @@
 
   function normalizeFull(text) {
     return String(text || "").replace(/\u0000/g, "").trim();
+  }
+
+  function editorText(editor) {
+    if (!editor) return "";
+    if (typeof editor.value === "string") return editor.value;
+    return editor.innerText || editor.textContent || "";
+  }
+
+  async function sha256Hex(text) {
+    const bytes = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+  }
+
+  function appendTextToEditor(editor, appendix) {
+    if (!editor) return false;
+    const before = editorText(editor);
+    const addition = `\n\n${appendix}`;
+    editor.focus();
+
+    if (typeof editor.value === "string") {
+      const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(editor), "value");
+      if (descriptor?.set) descriptor.set.call(editor, before + addition);
+      else editor.value = before + addition;
+      editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: addition }));
+      editor.dispatchEvent(new Event("change", { bubbles: true }));
+    } else {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      const inserted = document.execCommand("insertText", false, addition);
+      if (!inserted) {
+        editor.textContent = before + addition;
+        editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: addition }));
+      }
+    }
+    return editorText(editor).includes(`bundle_nonce=${intent.bundleNonce}`) &&
+      editorText(editor).includes("REVIEW_EVIDENCE_BUNDLE_V1");
+  }
+
+  async function loadAndInjectBundle() {
+    if (!intent.bundleMode || bundleInjected || bundleLoading || bundleFailure) return;
+    bundleLoading = true;
+    try {
+      const response = await sendToCollector("bundle");
+      if (!response?.ok || typeof response.text !== "string") {
+        throw new Error(response?.reason || `bundle-fetch-status-${response?.status || "unknown"}`);
+      }
+      const digest = await sha256Hex(response.text);
+      if (digest !== intent.bundleSha256) {
+        throw new Error(`bundle-sha256-mismatch:${digest}`);
+      }
+      if (!response.text.includes(`bundle_nonce=${intent.bundleNonce}`) || !response.text.includes("REVIEW_EVIDENCE_BUNDLE_V1")) {
+        throw new Error("bundle-content-binding-mismatch");
+      }
+      event("bundle-fetched", { bytes: new TextEncoder().encode(response.text).length, sha256: digest });
+      const editor = findPromptEditor();
+      if (!editor) throw new Error("prompt-editor-not-found");
+      const appendix = [
+        "----- BEGIN PRIVATE READ-ONLY EVIDENCE BUNDLE -----",
+        response.text,
+        "----- END PRIVATE READ-ONLY EVIDENCE BUNDLE -----",
+      ].join("\n");
+      if (!appendTextToEditor(editor, appendix)) throw new Error("bundle-editor-verification-failed");
+      bundleInjected = true;
+      event("bundle-injected", { sha256: digest, bundle_nonce_bound: true });
+    } catch (error) {
+      bundleFailure = error?.message || "bundle-injection-failed";
+      event("bundle-injection-failed", { reason: bundleFailure });
+    } finally {
+      bundleLoading = false;
+    }
   }
 
   function observeTemporaryState(composer) {
@@ -92,6 +178,27 @@
       ui_evidence: candidates.slice(0, 8),
       visible_plugin_markers: pluginMarkers,
     };
+  }
+
+  function observeWebActivity() {
+    if (!intent.bundleMode || !sendAttemptedAt) return;
+    const patterns = [
+      /search(?:ed|ing)? the web/i,
+      /searched\s+\d+\s+sites?/i,
+      /search performed/i,
+      /поиск выполнен/i,
+      /поиск в интернете/i,
+      /выполнен поиск/i,
+    ];
+    const nodes = document.querySelectorAll('button,[role="button"],summary,[aria-label],[data-testid]');
+    for (const node of nodes) {
+      const joined = normalize([
+        node.getAttribute("aria-label"),
+        node.getAttribute("data-testid"),
+        node.textContent,
+      ].filter(Boolean).join(" | "));
+      if (joined && patterns.some((pattern) => pattern.test(joined))) webActivityEvidence.add(joined.slice(0, 300));
+    }
   }
 
   function stopButtonPresent() {
@@ -128,6 +235,11 @@
     if (!hasTerminalMarker(text)) return;
 
     const identity = policy.resultIdentitySummary(text, intent);
+    if (intent.bundleMode && webActivityEvidence.size > 0) {
+      identity.structured = false;
+      identity.visible_web_activity = [...webActivityEvidence];
+      identity.missing = [...(identity.missing || []), "visible_web_activity=none"];
+    }
     const captureKind = identity.structured ? "structured" : "unstructured";
     const response = await sendToCollector("capture", {
       temporary_state: temporaryEvidence || {},
@@ -135,6 +247,9 @@
       result_text: text.slice(0, 300000),
       diagnostics: {
         identity,
+        bundle_mode: intent.bundleMode,
+        bundle_injected: bundleInjected,
+        visible_web_activity: [...webActivityEvidence],
         href: location.href,
         send_attempted_at_ms: sendAttemptedAt,
         captured_at: new Date().toISOString(),
@@ -155,6 +270,8 @@
       const last = turns.at(-1) || "";
       event("timeout", {
         terminal_marker_seen: hasTerminalMarker(last),
+        bundle_injected: bundleInjected,
+        bundle_failure: bundleFailure,
         last_assistant_excerpt: last.slice(-8000),
       });
       stop("timeout");
@@ -172,10 +289,21 @@
         sendAttemptedAt = Date.now();
         return;
       }
+
+      if (intent.bundleMode && !bundleInjected) {
+        if (bundleFailure) {
+          stop("bundle-injection-failed", { reason: bundleFailure });
+          return;
+        }
+        void loadAndInjectBundle();
+        return;
+      }
+
       const button = findSendButton();
       if (!buttonReady(button)) return;
       const composer = findComposer(button);
       if (!composer || !policy.hasExpectedPrompt(composer.textContent || "", intent)) return;
+      if (intent.bundleMode && !composer.textContent.includes(`bundle_nonce=${intent.bundleNonce}`)) return;
 
       temporaryEvidence = observeTemporaryState(composer);
       if (!temporaryEvidence.positive_ui_evidence) {
@@ -188,11 +316,12 @@
         JSON.stringify({ state: "attempted", at: new Date().toISOString(), href: location.href }),
       );
       sendAttemptedAt = Date.now();
-      event("send-attempted", { temporary_state: temporaryEvidence });
+      event("send-attempted", { temporary_state: temporaryEvidence, bundle_mode: intent.bundleMode });
       button.click();
       return;
     }
 
+    observeWebActivity();
     if (stopButtonPresent()) return;
     const turns = assistantTurns();
     const last = turns.at(-1) || "";
@@ -208,7 +337,7 @@
     }
   }
 
-  event("probe-loaded", { href: location.href });
+  event("probe-loaded", { href: location.href, bundle_mode: intent.bundleMode });
   intervalId = setInterval(tick, 500);
   tick();
 })();
