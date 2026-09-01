@@ -25,9 +25,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: false, reason: "invalid-correlation" });
     return false;
   }
-  if (!new Set(["event", "capture"]).has(message.kind)) {
+  if (!new Set(["event", "capture", "bundle"]).has(message.kind)) {
     sendResponse({ ok: false, reason: "invalid-kind" });
     return false;
+  }
+
+  if (message.kind === "bundle") {
+    fetch(`${COLLECTOR_ORIGIN}/bundle`, {
+      method: "GET",
+      headers: { "X-CAP-Collector-Token": message.token },
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const text = await response.text();
+        sendResponse({ ok: response.ok, status: response.status, text });
+      })
+      .catch((error) => sendResponse({ ok: false, reason: `collector-unreachable:${error?.name || "Error"}` }));
+    return true;
   }
 
   const endpoint = `${COLLECTOR_ORIGIN}/${message.kind}`;
