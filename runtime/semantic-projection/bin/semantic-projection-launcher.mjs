@@ -128,22 +128,24 @@ export function assertPrivateWorkspaceIsolation(options = {}) {
     'CHAT_LOCAL_FILES_ROOT'
   );
 
-  // The reviewer genesis/state contains the private review_run_id.  Make the
-  // manager-owned tree a permanent non-workspace boundary, not merely a
-  // point-in-time procedure_run check.  Resolve physical paths before comparing
-  // so a symlink/junction alias cannot make manager state Chat-readable.
-  fs.mkdirSync(paths.platformRoot, { recursive: true });
-  const managerRoot = fs.realpathSync.native(paths.platformRoot);
+  // Reviewer genesis/checkpoints under manager state contain the private
+  // review_run_id. Make that state tree a lifetime non-workspace boundary, not
+  // merely a point-in-time procedure_run check. Resolve physical paths before
+  // comparing so a symlink/junction alias cannot make private state Chat-readable.
+  // Sibling manager-owned qualification worktrees remain valid workspaces.
+  const managerStatePath = path.join(paths.platformRoot, 'state');
+  fs.mkdirSync(managerStatePath, { recursive: true });
+  const managerStateRoot = fs.realpathSync.native(managerStatePath);
   if (
-    isInsideOrEqual(managerRoot, workspaceRoot) ||
-    isInsideOrEqual(workspaceRoot, managerRoot)
+    isInsideOrEqual(managerStateRoot, workspaceRoot) ||
+    isInsideOrEqual(workspaceRoot, managerStateRoot)
   ) {
     throw new Error(
-      `CHAT_LOCAL_FILES_ROOT must be path-disjoint from manager-owned state: ${managerRoot}`
+      `CHAT_LOCAL_FILES_ROOT must be path-disjoint from private manager state: ${managerStateRoot}`
     );
   }
 
-  return { ...paths, workspaceRoot, managerRoot };
+  return { ...paths, workspaceRoot, managerStateRoot };
 }
 
 export function prepareSemanticRuntimeEnvironment(options = {}) {
