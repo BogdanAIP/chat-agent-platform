@@ -16,9 +16,9 @@ Ownership:
 
 Stage 26.3B remains **ACCEPTED / CLOSED for its recorded representative scope**.
 
-Stage 26.3C is now also **ACCEPTED / CLOSED for its declared production/restart scope** through merged PR #126.
+Stage 26.3C remains **ACCEPTED / CLOSED for its declared production process-restart/local-Windows scope** through merged PR #126.
 
-Relevant accepted progression now includes:
+Relevant accepted progression includes:
 
 ```text
 Stage 26.3A canonical six-tool runtime             ACCEPTED / MERGED #92
@@ -31,24 +31,22 @@ web_interact postcondition verification           PHYSICAL ACCEPTED / MERGED #11
 Browser real-task L3                              PHYSICAL ACCEPTED / MERGED #113
 Windows DesktopState shared-kernel verification   PHYSICAL ACCEPTED / MERGED #114
 Windows/application real-task L3                  PHYSICAL ACCEPTED / MERGED #115
-Track M + ADR-037 future architecture             MERGED #116 / NO CURRENT AUTHORITY
+Track M future architecture                       MERGED #116 / DESIGN ONLY AT THAT POINT
 CAP-M0 Verification mutation assurance            ACCEPTED / MERGED #117
 Browser stronger source-provenance L3 repeat      PHYSICAL ACCEPTED / MERGED #118
-post-26.3B adversarial assurance direction        MERGED #119
 WorkingState + LoopGuard L1 foundation            ACCEPTED / MERGED #124
-stage-research mechanism-depth hardening          MERGED #127
 Stage 26.3C production WorkingState integration   PHYSICAL ACCEPTED / MERGED #126
+stage-research mechanism-depth hardening          MERGED #127
 automatic-review Stage Research / local-result v1 ACCEPTED NARROW / MERGED #140
 automatic-review local state foundation           ACCEPTED / MERGED #141
+automatic-review fixed procedure wiring           ACCEPTED / MERGED #142
 ```
 
-These remain scoped proofs. They do not imply universal Browser/Windows/application reliability or machine/power-loss transactional durability.
+These are scoped proofs. They do not imply universal Browser/Windows/application reliability, machine/power-loss transactional durability, or a generally accepted multi-agent runtime.
 
 ## Stage 26.3C accepted production scope
 
-PR #126 is merged and accepted. Exact commit, reviewed-head and physical-evidence locators belong in `EVIDENCE_INDEX.md` and PR history rather than this live-status document.
-
-The accepted first bounded production consumer is `verified_workspace_artifact_v1` on the supported local Windows workspace path.
+The first accepted consequence-bearing production consumer remains `verified_workspace_artifact_v1` on the supported local Windows workspace path.
 
 Accepted behavior includes:
 
@@ -60,16 +58,10 @@ fresh same-stream reconciliation before unsafe retry
 per-task cooperating-runner serialization
 generation-bound file identity for consequence-bearing resume
 Windows file/namespace pinning around path-based consequences
-three-action stage_create -> final_create -> staging_cleanup graph
 fail-closed corrupt/missing/inconsistent checkpoint handling
-public task correlation only when durable resumable state exists
 ```
 
-Historical weak schema-1 consequence-bearing checkpoints that cannot prove generation identity remain fail-closed rather than being upgraded from current filesystem state.
-
-The accepted guarantee is **process crash/restart within the declared local-Windows workspace scope**. It does not claim atomic machine/power-loss durability.
-
-Release evidence for #126 included exact-head hosted CI/security, all review-thread dispositions, mandatory fresh ordinary-ChatGPT independent semantic review with zero surviving findings, and target-Windows physical `procedure_run` qualification. Exact physical locators belong in `EVIDENCE_INDEX.md` / PR history.
+The accepted guarantee is process crash/restart within the declared local-Windows scope. It does not claim machine/power-loss atomicity.
 
 ## Current public route
 
@@ -90,160 +82,169 @@ Normal route:
 ordinary ChatGPT
  -> OpenAI Secure MCP Tunnel
  -> official tunnel-client
- -> direct stdio semantic launcher
  -> canonical six-tool semantic projection
  -> deterministic Control Plane + focused capabilities
 ```
 
-1MCP remains optional internal Extension Manager infrastructure.
+Ordinary ChatGPT remains the **only current general planner/intelligence**. The deterministic Control Plane owns bounded execution state/policy, authorization, ExpectedEffect verification, recovery/reconciliation budgets and independent completion checks for already-selected transitions. It is not a second planner.
 
-Ordinary ChatGPT is the **only current general planner/intelligence**. The deterministic Control Plane owns bounded execution state/policy, authorization, ExpectedEffect verification, recovery/reconciliation budgets and independent completion checks for already-selected transitions. It is not a second planner.
+WorkingState is capability-spanning structured operational state, never private chain-of-thought.
 
-WorkingState is capability-spanning structured operational state, not private reasoning, and must never persist chain-of-thought.
+## Current release-critical work — bounded Agent Session / Delegation
 
-## Current release-critical work — bounded automatic independent review
+Fresh Stage Research in PR #149 re-entered Track M and selected **NARROW** rather than continuing reviewer-specific launch/state mechanics as the product-level architecture.
 
-With 26.3C closed, the next immediate development priority is the **bounded automatic independent-review path** before the broad real-application coverage gate.
-
-The target lifecycle is now deliberately local-result-only:
+The selected first product mechanism is exactly:
 
 ```text
-PR reaches review-ready exact head
- -> freeze BASE_SHA + HEAD_SHA
- -> launch a genuinely fresh ordinary-ChatGPT context without routine user launch/paste work
- -> require a reviewer security context where GitHub mutation actions are unavailable
- -> run `.agents/skills/code-review/SKILL.md` with independent repository evidence
- -> submit REVIEW_RESULT_V1 through fixed local procedure
- -> reconcile automatic/manual result under the same local operation lock
- -> reject stale/malformed/pending/ambiguous state
- -> merge only after final live-identity + local-result reconciliation
+one ordinary-ChatGPT manager
+ -> one genuinely fresh read-only worker
+ -> one bounded delegation identity
+ -> one initial delivery
+ -> one correlated structured terminal result
+ -> durable local closure
 ```
 
-There is **no automated GitHub write in v1**. The earlier PR-comment publisher design was removed after review exposed two avoidable problems: a broad provider permission bucket and an ambiguous POST that could complete after a zero-result scan/manual fallback.
+This does **not** accept broad multi-agent orchestration. It deliberately excludes nested/fan-out workers, mutating children, project/worktree/environment creation, a scheduler/event bus, worker rotation, long-lived background workers and automatic same-task parent wake/resampling.
 
-This exists because fresh ordinary-ChatGPT semantic review is the required primary semantic review gate in `AGENTS.md`, while Codex Review remains useful optional evidence and may be quota-limited.
+PR #149 is the active implementation PR and remains **UNACCEPTED / DRAFT until its required review and physical evidence pass**.
 
-PR #138 is **experimental evidence**, not production acceptance. Its one-shot deep-link/autosend probes demonstrated that a fresh ChatGPT context can be launched without a routine user click. It does not authorize a production scheduler or general continuation runtime.
+Its implementation currently contains two layers:
 
-PR #140 is **merged and accepted**. `AUTOMATIC_REVIEWER_RESEARCH.md` therefore supplies the current `NARROW` implementation authority. Production work is now permitted only inside that selected lifecycle; materially broader persistence/recovery/retry/concurrency/identity/authority changes require Stage Research re-entry.
-
-PR #141 is **merged and accepted** as the first production implementation slice. It stops at the local operation/result-state foundation: stable exact-review identity, immutable private genesis, crash-safe mutable checkpoint, durable `dispatch-attempted`, automatic-result recording, same-lock manual fallback, manual-only missing-state recovery and fail-closed corrupt/mismatched state.
-
-The current wiring slice registers the accepted fixed `launch_independent_review_v1`, `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` contracts inside the existing `procedure_run` union while preserving exactly six public tools. It does not yet implement reviewer-authority qualification, browser launch, MV3 claiming or automatic Send. Until those separately accepted mechanisms exist, `launch_independent_review_v1` may create/reuse the exact durable review operation but must return structured `ABSTAIN` with `reviewer_authority_unqualified`, leave `dispatch_state=prepared`, perform zero browser launch/Send and never disclose `review_run_id` to the development caller. `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` are real local state-machine operations backed by the accepted #141 core.
-
-Merged #140 bounds the selected v1 implementation to:
+### L1 — generic delegation state
 
 ```text
-exact frozen REVIEW_REQUEST_V1
- -> registered launch_independent_review_v1 behind existing procedure_run
- -> accepted Stage 26.3C OS-backed single-writer operation lock
- -> immutable exclusive-created genesis with private review_run_id
- -> accepted-style crash-safe mutable operation/result checkpoint
- -> durable dispatch-attempted before one browser launch
- -> refined fresh-new-chat deep-link/autosend
- -> qualified ordinary-Chat reviewer environment where GitHub mutation actions are unavailable
- -> MV3 service-worker IndexedDB unique-key Send claim
- -> one automatic Send authority grant
- -> submit_independent_review_result_v1 stores validated result locally
- -> reconcile_independent_review_result_v1 returns automatic result or atomically records manual fallback
- -> final live PR identity + local result-state validation
+provider-independent deterministic delegation identity
+immutable private genesis + private run capability
+one delivery identity
+accepted OS-backed single-writer locking
+crash-safe mutable state replacement
+launch-attempt committed before physical launch authority
+child/session binding
+one delivery claim
+prepared | claimed | unknown | delivered delivery state
+unknown -> delivered reconciliation only from fresh evidence
+one correlated terminal WORKER_RESULT_V1
+bounded payload + adapter-computed SHA-256
+fail-closed corrupt/missing/foreign/temp-residue state
 ```
 
-The immutable genesis and mutable checkpoint are separate. `genesis exists + mutable state missing`, the inverse, identity/nonce mismatch, invalid state or ambiguous temp residue fail closed without manufacturing a replacement nonce. Hostile deletion of the whole private state root, storage rollback and machine/power-loss loss remain outside the declared v1 guarantee.
+A restart never manufactures a replacement run/delivery identity and never regains blind launch/Send authority.
 
-Reviewer authority is now an explicit environment qualification. Accepted automatic environments are those where GitHub mutation actions are **actually unavailable**: for example GitHub app disconnected/disabled, or supported workspace Action Control exposing only read actions. Per-message non-selection and approval prompts are not accepted as the security boundary. If this cannot be proved while preserving the required ordinary-Chat + bridge/read path, automatic launch fails closed and manual fresh review remains required.
+### L2 candidate — first `chatgpt-temporary` provider adapter
 
-Automatic result handoff is local. `submit_independent_review_result_v1` validates the private nonce/exact refs/policy/context/result and atomically records `automatic-result-recorded`. `reconcile_independent_review_result_v1`, under the same operation lock, either returns that result or can atomically record a valid manual fresh-review fallback, permanently closing later automatic submission. This removes the late external-comment race structurally.
+The first concrete adapter is intentionally provider-specific rather than a premature generic provider framework.
 
-Only a structurally complete `CURRENT PASS` or `CURRENT FINDINGS` is a completing review outcome for durable result authority. `ABSTAIN` and `STALE` are non-completing: they must not close the local result slot or make the deterministic exact-head operation uncloseable, and a fresh manual review must remain reachable through the same reconciliation path. A `FINDINGS` result must match `reported_findings` and contain every code-review v1.1 required finding field with non-empty content before any checkpoint write; persisted terminal state is revalidated under the same rule when loaded.
+Candidate path:
 
-Automatic wake/resampling of the unfinished development conversation after the reviewer finishes is **not** part of this slice. The development conversation still resumes when the user returns; result copy/paste is removed because the development side reads the local review operation state itself. General same-task continuation remains separate future Stage Research.
+```text
+generic delegation state
+ -> durable launch-attempt
+ -> ChatGPT Temporary Chat adapter
+ -> positive fresh/non-personalized/no-plugin child qualification
+ -> extension-origin IndexedDB unique delivery claim across tabs
+ -> project-local delivery claim
+ -> exactly one Send authority
+ -> visible delivery observation
+ -> delivered | unknown
+ -> same-delivery reconciliation after ambiguity
+ -> exact WORKER_RESULT_V1 capture
+ -> durable terminal result
+```
 
-The same research makes quality measurement part of the reviewer work:
+The MV3 extension has no `nativeMessaging`, GitHub, filesystem, cookies, downloads, management or generic network authority. Its only host permission is the pinned loopback controller at `127.0.0.1:3078`.
 
-- Harbor is an **evaluation harness only**, not production runtime/authority;
-- ReviewBench is the first small baseline;
-- SWE-Review-Bench provides a larger decision/revision control;
-- CR-Bench/CR-Evaluator provides false-positive / signal-to-noise control;
-- semantic reviewer quality and CAP lifecycle reliability remain separate planes;
-- development and holdout benchmark evidence remain separated;
-- a CAP Review Regression Set should retain real repository defect classes without encoding task-specific answers.
+The browser claim is bound to the original tab. A full reload of that same tab may recover only a monitor-only claim from IndexedDB + the live authenticated controller. A foreign duplicate tab cannot Send and cannot downgrade the original delivery to `unknown`.
 
-The first benchmark run establishes a baseline; it is not an invented fixed release threshold. Automatic review is not stable infrastructure if UI friction decreases while semantic review quality materially regresses versus the manual reviewer control.
+The private durable `run_id` is not present in the worker prompt and is not placed in the HTTP query. The launch bootstrap carries it in the URL fragment for the project extension, and the model-facing task receives only bounded delegation/delivery/task correlation.
 
-Reviewer automation must preserve:
+The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution, opens a browser only when durable `launch_now=true`, and rechecks source provenance after terminal result capture. This is qualification infrastructure, not a new public tool or scheduler.
 
-- genuinely fresh ordinary-ChatGPT context;
-- exact repository / PR / BASE_SHA / HEAD_SHA binding;
-- independent evidence reconstruction;
-- deterministic write-action unreachability in the qualified reviewer environment;
-- no reviewer-held GitHub write credential/action and no automated GitHub publisher/comment path;
-- local crash-safe automatic-result recording and same-lock manual fallback closure;
-- fail-closed missing/malformed/pending/stale/ambiguous result handling;
-- no blind automatic relaunch after ambiguous launch/claim/Send;
-- no false representation of unavailable Codex Review as completed;
-- no promotion into a second developer/planner context.
+## Automatic reviewer status
 
-Review runs should retain bounded non-secret operational evidence useful for qualification: run/correlation identity, trigger reason, exact refs, launch/delivery outcome, authority-qualification evidence, fresh-context evidence, result disposition, stale detection, duplicate/missed delivery, timeout/failure class and manual-intervention requirement. The private run capability must not be exposed to the development caller before automatic result closure.
+The accepted reviewer-specific local state and fixed `launch_independent_review_v1`, `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` procedures from #141/#142 remain intact.
+
+They are **not deleted or silently replaced by #149**. Reviewer methodology, exact PR/BASE/HEAD semantics, read-only GitHub authority qualification, `REVIEW_RESULT_V1`, Harbor/ReviewBench evaluation and manual-fallback rules remain specialist policy.
+
+The architecture direction is now:
+
+```text
+generic Agent Session / Delegation lifecycle
+ -> later reviewer consumer adapter
+ -> reviewer-specific task/result/authority policy above it
+```
+
+Migration occurs only after the generic worker path is physically accepted and can preserve all existing reviewer guarantees. Until then, the accepted reviewer procedures remain the release-assurance fallback.
+
+PR #138 and #145 remain experiment evidence only; they do not become production authority. Reusable fresh-chat/Send observations may be adapted, while reviewer-specific experiment code does not define generic Agent Sessions.
+
+## Acceptance required for PR #149
+
+Before #149 can merge, require:
+
+```text
+focused generic state-machine tests
+ -> deterministic first-adapter/controller/extension tests
+ -> duplicate-tab/process/restart/unknown-delivery adversarial tests
+ -> hosted CI/security and six-tool regressions
+ -> target-Windows/Plus non-reviewer read-only physical E2E
+ -> exact source/runtime provenance for the physical claim
+ -> durable result reload/revalidation
+ -> fresh ordinary-ChatGPT exact-BASE/exact-HEAD semantic review
+ -> disposition/fix every surviving finding
+ -> final exact-head CI + physical revalidation when material changes require it
+```
+
+The first physical E2E must be a **non-reviewer** task. A code-review run does not count as proof that the generic lifecycle is truly specialist-independent.
+
+A worker result is evidence/data. It does not grant a capability, self-authorize a consequence, or by itself make the manager's whole user task `DONE`.
 
 ## Architecture research rule now in force
 
-Merged #127 strengthened `stage-research` so materially new persistence/recovery/retry/concurrency/identity/authority mechanisms require direct solution-domain evidence, materially distinct alternatives and a complete failure/crash matrix before production code.
+Merged #127 requires Stage Research re-entry for materially new persistence/recovery/retry/concurrency/identity/security/authority mechanisms.
 
-PR #128 added the canonical architecture/reuse comparison baseline. When that process applies, research must explicitly compare affected prior roles and assign exactly one canonical lineage decision per existing role; new roles are `NEW_ARCHITECTURE` and use the Scope Expansion Gate.
-
-Merged PR #140 is the accepted automatic-review research authority. Its Brief records direct filesystem, IndexedDB/service-worker and ChatGPT action-control solution evidence, plus the local result-reconciliation design selected after review findings. Current implementation must remain inside that NARROW boundary.
+`AGENT_SESSION_DELEGATION_REENTRY.md` is the current NARROW implementation authority for #149. If implementation requires nested/fan-out workers, a new scheduler/event bus, mutating children, environment creation, broad provider authority, automatic parent wake or a materially different durability/concurrency mechanism, stop and re-enter Stage Research rather than widening #149 silently.
 
 ## Browser accepted scope and remaining hardening
 
-The accepted Browser L3 route is target-Windows headless Playwright/Chrome through the semantic Browser capability. It does not prove visible headed desktop-browser control.
+The previously accepted Browser L3 route is target-Windows headless Playwright/Chrome through the semantic Browser capability. The `chatgpt-temporary` adapter is a separate headed authenticated-browser qualification path and is not accepted merely because earlier Browser L3 passed.
 
-The stronger #118 qualification also proved that independent provenance/Finish Gate evidence outranks planner self-report. Invalid attempts exposed real harness/runtime defect classes and were rejected rather than waived.
-
-One small implementation debt remains relevant: Playwright runtime output ownership must be explicit so Browser runtime artifacts cannot escape into an arbitrary caller/source working directory. `TECH_DEBT.md` owns the close condition.
+One existing Browser implementation debt remains: Playwright runtime output ownership must be explicit so runtime artifacts cannot escape into arbitrary caller/source working directories. `TECH_DEBT.md` owns that close condition.
 
 ## Future/parallel boundaries
 
-Track M Agent Session / Delegation and ADR-037 CapabilityRegistry/Event/Policy Hooks remain future/parallel architecture only. They add no current public tool or runtime authority.
+ADR-037 CapabilityRegistry/Event/Policy Hooks remains future/parallel architecture only.
 
-OpenAdapt remains a selected source of procedure-local compiler/resume/effect-evidence mechanics where fresh Stage Research shows they fit. It does not replace project WorkingState, Verification Kernel, Control Plane authority or Finish Gate.
+General same-task wake/resume, a generic scheduler/event bus, worker pools, worker rotation and broad autonomous continuation remain unaccepted future mechanisms.
 
-UFO/UFO²-derived Windows/Office mechanics remain selective adapter sources, not a second planner/AgentOS.
-
-General same-task wake/resume, a generic scheduler/event bus, worker rotation and broad autonomous continuation remain unaccepted future mechanisms unless separately researched and reviewed.
+OpenAdapt remains a selected source for procedure-local compiler/resume/effect-evidence mechanics when revalidated for the concrete consumer. UFO/UFO²-derived Windows/Office mechanics remain selective adapter sources, not a second planner/AgentOS.
 
 ## Immediate critical path
 
-Do not reconstruct another stage list here; `ROADMAP.md` owns release order.
-
-Immediate work is:
-
 ```text
-wire the accepted fixed launch/submit/reconcile procedures behind existing procedure_run
- -> prove immutable-genesis + mutable-state crash/restart invariants through the installed runtime
- -> prove qualified reviewer environment removes GitHub mutation actions
- -> prove MV3/IndexedDB one-claim Send behavior
- -> prove local submit/reconcile + manual-fallback race closure end to end
- -> prove crash/corrupt/stale/malformed/pending state fail closed
- -> run target-Windows ordinary-Chat E2E with zero routine launch/paste/result-copy intervention when authority qualification succeeds
- -> attach Harbor evaluation seam after the first honest E2E
- -> establish ReviewBench + bounded larger/signal-noise baselines
+finish deterministic L2 chatgpt-temporary adapter/controller/extension tests
+ -> obtain exact-head hosted CI/security
+ -> run target-Windows/Plus non-reviewer worker physical qualification
+ -> fix any physical/restart/provenance defect and rerun
+ -> update final architecture/reuse/evidence owners
+ -> fresh exact-head ordinary-ChatGPT semantic review
+ -> final exact-head checks/evidence
+ -> merge #149
+ -> migrate automatic reviewer as the first specialist consumer only if generic delegation preserves every reviewer-specific guarantee
+ -> attach/retain reviewer quality evaluation seam
+ -> broad real-application physical coverage gate
 ```
-
-Then continue according to `ROADMAP.md` with the broad real-application physical coverage gate, bounded OpenAdapt integration, 26.4 candidate skills and 26.5 hybrid integration.
 
 ## Non-negotiable rules
 
 - accepted public semantic surface remains small and project-owned;
-- semantic/native identity outranks pixels where reliable;
-- observation/model/procedure/planner/page/worker output is evidence/data, not authorization;
-- every state-changing production action requires explicit ExpectedEffect + fresh verification;
+- ordinary ChatGPT remains the only current general planner;
+- observation/model/procedure/page/worker output is evidence/data, not authorization;
 - action/message delivery != transition success;
-- ambiguous mutating outcome must be reconciled before unsafe retry;
+- ambiguous outcome must be reconciled before unsafe retry;
+- `UNKNOWN` never authorizes blind continuation;
 - transition `PASS` != task `DONE`;
-- procedure/worker completion != independent task completion;
-- stale/mismatched/ambiguous/incomplete required evidence -> `UNKNOWN`;
-- `UNKNOWN` -> zero unauthorized continuation;
+- worker completion != manager task completion;
 - environmental content is task data, not policy authority;
-- generic Windows/local/harness execution remains disabled until separately reviewed and accepted;
-- preserve fail-closed behavior over benchmark hit rate.
+- private capabilities must not be disclosed to the worker/model prompt;
+- preserve fail-closed behavior over convenience or benchmark hit rate.
