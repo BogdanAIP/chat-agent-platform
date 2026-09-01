@@ -13,16 +13,22 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'semantic-private-workspace-'
 try {
   const localAppData = path.join(root, 'local-app-data');
   const managerRoot = path.join(localAppData, 'ChatAgentPlatform');
+  const managerStateRoot = path.join(managerRoot, 'state');
   const reviewerState = path.join(
-    managerRoot,
-    'state',
+    managerStateRoot,
     'procedure-runtime',
     'independent-review-v1'
+  );
+  const qualificationWorkspace = path.join(
+    managerRoot,
+    'qualification-worktrees',
+    'case-1'
   );
   const safeWorkspace = path.join(root, 'workspace');
   const tempDir = path.join(root, 'tmp');
 
   fs.mkdirSync(reviewerState, { recursive: true });
+  fs.mkdirSync(qualificationWorkspace, { recursive: true });
   fs.mkdirSync(safeWorkspace, { recursive: true });
   fs.mkdirSync(tempDir, { recursive: true });
   fs.writeFileSync(
@@ -45,7 +51,19 @@ try {
     }
   });
   assert.equal(safe.workspaceRoot, fs.realpathSync.native(safeWorkspace));
-  assert.equal(safe.managerRoot, fs.realpathSync.native(managerRoot));
+  assert.equal(safe.managerStateRoot, fs.realpathSync.native(managerStateRoot));
+
+  const qualification = assertPrivateWorkspaceIsolation({
+    ...baseOptions,
+    env: {
+      LOCALAPPDATA: localAppData,
+      CHAT_LOCAL_FILES_ROOT: qualificationWorkspace
+    }
+  });
+  assert.equal(
+    qualification.workspaceRoot,
+    fs.realpathSync.native(qualificationWorkspace)
+  );
 
   const prepared = prepareSemanticRuntimeEnvironment({
     ...baseOptions,
@@ -61,8 +79,8 @@ try {
 
   for (const unsafeWorkspace of [
     managerRoot,
-    path.join(managerRoot, 'state'),
-    path.join(managerRoot, 'state', 'procedure-runtime'),
+    managerStateRoot,
+    path.join(managerStateRoot, 'procedure-runtime'),
     localAppData
   ]) {
     assert.throws(
@@ -73,7 +91,7 @@ try {
           CHAT_LOCAL_FILES_ROOT: unsafeWorkspace
         }
       }),
-      /path-disjoint from manager-owned state/
+      /path-disjoint from private manager state/
     );
   }
 
@@ -91,10 +109,11 @@ try {
         CHAT_LOCAL_FILES_ROOT: path.join(aliasRoot, 'state')
       }
     }),
-    /path-disjoint from manager-owned state/
+    /path-disjoint from private manager state/
   );
 
   console.log('SEMANTIC_PRIVATE_WORKSPACE_ISOLATION=PASS');
+  console.log('SEMANTIC_QUALIFICATION_WORKTREE_REMAINS_ALLOWED=PASS');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
