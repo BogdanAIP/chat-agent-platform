@@ -10,7 +10,7 @@ It deliberately does **not** implement or authorize production `launch_independe
 
 ## Controls
 
-The launcher has two fixed controls. The control identity is selected locally; the review prompt itself does not reveal the known historical outcome.
+The launcher has three fixed controls. The control identity is selected locally; the review prompt itself does not reveal the known historical outcome.
 
 ### `pass142`
 
@@ -26,7 +26,7 @@ review_skill_version=1.1
 known accepted outcome=no surviving findings
 ```
 
-### `findings140`
+### `stale140`
 
 Historical intermediate head of PR #140:
 
@@ -37,14 +37,32 @@ base_sha=b10a5fa3122bb6c76c12d37d67911b88e5e1ce28
 head_sha=7077ecb8496ee89530cbe5efaa1b2112e7be330f
 review_skill=code-review
 review_skill_version=1.0
-known historical outcome=multiple confirmed findings existed on this head
+known expected protocol outcome=STALE because live PR #140 advanced materially
 ```
 
-The exact defects are intentionally not encoded into the reviewer prompt. This control asks whether the Temporary Chat reviewer can independently recover real negative signal rather than merely reproduce a PASS-shaped response.
+This control now exists to verify exact live-identity discipline, not defect detection.
 
-## First target-Windows observation
+### `findings146`
 
-The first `pass142` physical run on 2026-09-01 used run id:
+Live experiment-only PR #146 reproduces the exact historical `BASE..HEAD` range above under a new current PR identity:
+
+```text
+repository=BogdanAIP/chat-agent-platform
+pr_number=146
+base_sha=b10a5fa3122bb6c76c12d37d67911b88e5e1ce28
+head_sha=7077ecb8496ee89530cbe5efaa1b2112e7be330f
+review_skill=code-review
+review_skill_version=1.0
+known historical outcome=multiple confirmed findings existed in this exact diff
+```
+
+PR #146 is a Draft experiment control and is never to be merged. Its prompt does not disclose the historical defects or finding count. It exists because BASE v1.0 correctly forbids semantic review of the same superseded head under the original PR #140 identity.
+
+## Target-Windows observations
+
+### `pass142`
+
+The first physical run on 2026-09-01 used run id:
 
 ```text
 tmprev-dca1dbf983014bce8341623c8b8fb943
@@ -61,11 +79,28 @@ collector ready
  -> final reviewer response returned REVIEW_RESULT_V1 status=PASS
 ```
 
-The semantic outcome matched the known accepted PR #142 outcome. The experiment collector nevertheless recorded `UNSTRUCTURED` because the original capture heuristic treated eight seconds of unchanged assistant text between web-search phases as terminal and captured a progress response before the actual final result existed. That observation is **transport/capture evidence, not production acceptance**.
+The semantic outcome matched the known accepted PR #142 outcome. The original capture heuristic recorded `UNSTRUCTURED` because it treated an eight-second pause between web-search phases as terminal and captured a progress response before the actual final result existed.
 
-The probe now requires an explicit run-bound final marker `CAP_TEMP_REVIEW_COMPLETE=<run-id>` at the end of the reviewer's final response. Intermediate pauses cannot satisfy that condition. The marker is transport-only experiment framing; it is not part of `REVIEW_RESULT_V1` authority.
+### `stale140`
 
-A successful transport run is not automatically a quality PASS. Captured results must still be compared with known control evidence, and both positive and known-finding controls are required before Temporary Chat is selected for production review.
+The second physical run used run id:
+
+```text
+tmprev-0269cce47a08437c92084f43e60affa5
+```
+
+The reviewer independently discovered that the supplied `7077ecb...` head was no longer the live head of PR #140 and correctly returned:
+
+```text
+status=STALE
+review_validity=STALE_MATERIAL_CHANGE
+```
+
+It also appended the exact run-bound completion marker. This is positive evidence that a plugin-free Temporary Chat can reconstruct live GitHub identity and obey the governing BASE policy instead of blindly reviewing a stale requested head. It is not evidence about finding-recall quality because BASE v1.0 requires termination before semantic findings on that stale identity.
+
+The collector marked this completed response `unstructured` due to brittle rendered-text field matching. The experiment parser is now field-based and tolerates Markdown escaping/whitespace; unstructured captures also print exact identity diagnostics.
+
+These observations are **transport/protocol evidence, not production acceptance**.
 
 ## Automatic path
 
@@ -115,7 +150,8 @@ From repository root in PowerShell 7:
 
 ```powershell
 ./scripts/launch-temporary-reviewer-probe.ps1 -Control pass142
-./scripts/launch-temporary-reviewer-probe.ps1 -Control findings140
+./scripts/launch-temporary-reviewer-probe.ps1 -Control stale140
+./scripts/launch-temporary-reviewer-probe.ps1 -Control findings146
 ```
 
 Expected early markers:
@@ -140,7 +176,7 @@ TEMP_REVIEW_STATUS=PASS|FINDINGS|ABSTAIN|STALE|UNSTRUCTURED
 TEMP_REVIEW_RESULT_PATH=...
 ```
 
-The collector also writes `progress.json`, which distinguishes failures such as `temporary-ui-not-proven`, `send-attempted`, timeout, or capture upload failure.
+When a completed response fails structured identity parsing, the launcher also prints `TEMP_REVIEW_IDENTITY_DIAGNOSTICS=...` so parser/UI drift is observable rather than guessed.
 
 ## Fail-closed boundaries
 
@@ -167,7 +203,8 @@ It can provide physical evidence about:
 - whether the existing logged-in Plus browser session can be driven automatically;
 - whether a Temporary Chat can obtain enough public GitHub/web evidence for the repository's real review protocol;
 - whether it returns a structurally useful `REVIEW_RESULT_V1` without plugins;
-- whether review quality appears comparable on positive and known-finding controls;
+- whether it obeys exact live-identity/staleness rules;
+- whether review quality appears comparable on positive and live known-finding controls;
 - where UI/transport failures occur without asking the user to paste anything.
 
 It cannot by itself prove:
