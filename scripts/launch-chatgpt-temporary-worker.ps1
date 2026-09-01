@@ -247,6 +247,9 @@ try {
             if ([string]$result.delivery_id -cne [string]$launch.delivery_id) { throw 'Result delivery correlation mismatch.' }
             if ([string]$result.payload_sha256 -notmatch '^[0-9a-f]{64}$') { throw 'Result payload digest is invalid.' }
             if ([string]$result.status -notin @('COMPLETED', 'ABSTAIN', 'ERROR')) { throw 'Result worker status is invalid.' }
+            if ([string]$result.status -ne 'COMPLETED') {
+                throw "Physical qualification requires COMPLETED worker result; actual=$($result.status)"
+            }
 
             $null = Invoke-SourceGate -OutputPath $postProvenance -Expected $ExpectedHead
             Write-Host "CAP_AGENT_SESSION_RESULT_STATUS=$($result.status)" -ForegroundColor Green
