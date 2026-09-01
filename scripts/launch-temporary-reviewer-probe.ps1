@@ -1,6 +1,11 @@
 param(
-    [ValidateSet('pass142', 'stale140', 'findings146')]
+    [ValidateSet('pass142', 'stale140', 'findings146', 'exact')]
     [string]$Control = 'pass142',
+    [string]$TargetPrNumber = '',
+    [string]$TargetBaseSha = '',
+    [string]$TargetHeadSha = '',
+    [string]$TargetSkillVersion = '1.1',
+    [string]$TargetFocus = 'affected runtime, authority, persistence, recovery, concurrency, identity, security, acceptance, tests, hosted CI and relevant GitHub evidence',
     [ValidateRange(1024, 65535)]
     [int]$Port = 3077,
     [ValidateRange(60, 7200)]
@@ -48,7 +53,34 @@ $controls = @{
         Focus = 'affected Stage Research, reviewer authority, local-result publication/reconciliation, persistence, recovery, concurrency, identity, security and acceptance paths, focused tests, hosted CI and relevant GitHub evidence'
     }
 }
-$target = $controls[$Control]
+
+if ($Control -eq 'exact') {
+    if ($TargetPrNumber -notmatch '^\d+$') {
+        throw 'Control=exact requires -TargetPrNumber as decimal digits.'
+    }
+    if ($TargetBaseSha -notmatch '^[0-9a-f]{40}$') {
+        throw 'Control=exact requires -TargetBaseSha as exactly 40 lowercase hex characters.'
+    }
+    if ($TargetHeadSha -notmatch '^[0-9a-f]{40}$') {
+        throw 'Control=exact requires -TargetHeadSha as exactly 40 lowercase hex characters.'
+    }
+    if ($TargetSkillVersion -notin @('1.0', '1.1')) {
+        throw 'Control=exact requires -TargetSkillVersion 1.0 or 1.1.'
+    }
+    if ([string]::IsNullOrWhiteSpace($TargetFocus) -or $TargetFocus.Length -gt 2000) {
+        throw 'Control=exact requires a non-empty bounded -TargetFocus.'
+    }
+    $target = [ordered]@{
+        PrNumber = [int]$TargetPrNumber
+        BaseSha = $TargetBaseSha
+        HeadSha = $TargetHeadSha
+        SkillVersion = $TargetSkillVersion
+        Focus = $TargetFocus.Trim()
+    }
+}
+else {
+    $target = $controls[$Control]
+}
 
 $runId = 'tmprev-' + [Guid]::NewGuid().ToString('N')
 $tokenBytes = [byte[]]::new(32)
