@@ -44,7 +44,8 @@ function openExistingClaimDb() {
   });
 }
 
-async function claimBrowserSend(runId, deliveryId) {
+async function claimBrowserSend(message, tabId) {
+  if (!HEX64_RE.test(message.task_sha256 || "")) throw new Error("invalid-task-correlation");
   const db = await openExistingClaimDb();
   return await new Promise((resolve, reject) => {
     let constraint = false;
@@ -63,11 +64,14 @@ async function claimBrowserSend(runId, deliveryId) {
       const request = store.add(
         {
           schema_version: 1,
-          run_id: runId,
-          delivery_id: deliveryId,
+          run_id: message.run_id,
+          delegation_id: message.delegation_id,
+          delivery_id: message.delivery_id,
+          task_sha256: message.task_sha256,
+          tab_id: tabId,
           claimed_at: new Date().toISOString(),
         },
-        deliveryId,
+        message.delivery_id,
       );
       request.onerror = () => {
         if (request.error?.name === "ConstraintError") constraint = true;
@@ -87,12 +91,46 @@ async function claimBrowserSend(runId, deliveryId) {
   });
 }
 
+async function claimRecordsForTab(tabId) {
+  const db = await openExistingClaimDb();
+  return await new Promise((resolve, reject) => {
+    let transaction;
+    try {
+      transaction = db.transaction(CLAIM_STORE, "readonly");
+      const request = transaction.objectStore(CLAIM_STORE).getAll();
+      request.onerror = () => reject(request.error || new Error("claim-read-failed"));
+      request.onsuccess = () => {
+        const records = Array.isArray(request.result) ? request.result : [];
+        resolve(records.filter((record) => record?.tab_id === tabId));
+      };
+      transaction.oncomplete = () => db.close();
+      transaction.onabort = () => {
+        db.close();
+        reject(transaction.error || new Error("claim-read-aborted"));
+      };
+    } catch (error) {
+      db.close();
+      reject(error);
+    }
+  });
+}
+
 function validCommon(message) {
   return message &&
     message.schema_version === 1 &&
     HEX64_RE.test(message.run_id || "") &&
     HEX64_RE.test(message.delegation_id || "") &&
     HEX64_RE.test(message.delivery_id || "");
+}
+
+function validClaimRecord(record) {
+  return record &&
+    record.schema_version === 1 &&
+    HEX64_RE.test(record.run_id || "") &&
+    HEX64_RE.test(record.delegation_id || "") &&
+    HEX64_RE.test(record.delivery_id || "") &&
+    HEX64_RE.test(record.task_sha256 || "") &&
+    Number.isInteger(record.tab_id);
 }
 
 function senderTab(sender) {
@@ -133,13 +171,56 @@ async function controllerStatus(message) {
   return value;
 }
 
+async function resumeIntent(sender) {
+  const tabId = senderTab(sender);
+  if (tabId === null) return { ok: false, enabled: false, reason: "invalid-sender" };
+  let records;
+  try {
+    records = await claimRecordsForTab(tabId);
+  } catch (error) {
+    return { ok: false, enabled: false, reason: `claim-read-failed:${error?.message || "Error"}` };
+  }
+  const active = [];
+  for (const record of records.filter(validClaimRecord)) {
+    try {
+      const status = await controllerStatus(record);
+      if (status.delegation_id !== record.delegation_id || status.delivery_id !== record.delivery_id) continue;
+      if (!["claimed", "unknown", "delivered"].includes(status.delivery_state)) continue;
+      if (status.result_state !== "open") continue;
+      active.push({ record, status });
+    } catch {
+      // Stale records are inert. Only the exact live controller can authenticate
+      // a monitor-only recovery candidate.
+    }
+  }
+  if (active.length !== 1) {
+    return {
+      ok: true,
+      enabled: false,
+      reason: active.length > 1 ? "ambiguous-active-claim" : "no-active-claim",
+    };
+  }
+  const { record, status } = active[0];
+  return {
+    ok: true,
+    enabled: true,
+    monitor_only: true,
+    run_id: record.run_id,
+    delegation_id: record.delegation_id,
+    delivery_id: record.delivery_id,
+    task_sha256: record.task_sha256,
+    delivery_state: status.delivery_state,
+    result_state: status.result_state,
+  };
+}
+
 async function authorizeSend(message, sender) {
   const tabId = senderTab(sender);
   if (tabId === null) return { ok: false, send_authorized: false, reason: "invalid-sender" };
 
   let browserClaim;
   try {
-    browserClaim = await claimBrowserSend(message.run_id, message.delivery_id);
+    browserClaim = await claimBrowserSend(message, tabId);
   } catch (error) {
     return { ok: false, send_authorized: false, reason: `browser-claim-failed:${error?.message || "Error"}` };
   }
@@ -202,6 +283,13 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.schema_version === 1 && message.kind === "resume-intent") {
+    void resumeIntent(sender)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, enabled: false, reason: error?.message || "resume-failed" }));
+    return true;
+  }
+
   if (!validCommon(message)) {
     sendResponse({ ok: false, reason: "invalid-correlation" });
     return false;
