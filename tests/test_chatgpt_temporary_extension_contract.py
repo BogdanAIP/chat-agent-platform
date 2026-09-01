@@ -57,6 +57,25 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertNotIn("store.put(", claim_body)
         self.assertNotIn("delete(", claim_body)
 
+    def test_running_extension_bytes_are_attested_before_send_and_capture(self) -> None:
+        for phrase in (
+            'const RUNTIME_ASSETS = ["manifest.json", "policy.js", "background.js", "content.js"]',
+            'crypto.subtle.digest("SHA-256", buffer)',
+            "chrome.runtime.getURL(name)",
+            "async function runtimeAttestation()",
+        ):
+            self.assertIn(phrase, self.background)
+        helper = self.background[
+            self.background.index("async function requestLocalSendAuthority") : self.background.index("async function resumeIntent")
+        ]
+        self.assertIn("const attestation = await runtimeAttestation();", helper)
+        self.assertIn("runtime_attestation: attestation", helper)
+        capture = self.background[
+            self.background.index('} else if (message.kind === "capture")') : self.background.index('} else if (message.kind === "status")')
+        ]
+        self.assertIn("runtimeAttestation()", capture)
+        self.assertIn("runtime_attestation: attestation", capture)
+
     def test_browser_claim_commits_before_local_delivery_authority(self) -> None:
         authorize = self.background[
             self.background.index("async function authorizeSend") : self.background.index("chrome.runtime.onInstalled")
