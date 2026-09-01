@@ -15,9 +15,13 @@ RUN_ID_RE = re.compile(r"^tmprev-[0-9a-f]{32}$")
 TOKEN_RE = re.compile(r"^[0-9a-f]{64}$")
 MAX_BODY_BYTES = 400_000
 MAX_RESULT_CHARS = 300_000
+MAX_BUNDLE_BYTES = 900_000
 ALLOWED_EVENTS = {
     "probe-loaded",
     "temporary-ui-not-proven",
+    "bundle-fetched",
+    "bundle-injected",
+    "bundle-injection-failed",
     "send-attempted",
     "capture-upload-failed",
     "timeout",
@@ -86,16 +90,25 @@ def validate_capture(value: Any, expected_run_id: str) -> dict[str, Any]:
 
 
 class ProbeState:
-    def __init__(self, *, run_id: str, token: str, output_dir: Path) -> None:
+    def __init__(self, *, run_id: str, token: str, output_dir: Path, bundle_path: Path | None) -> None:
         self.run_id = run_id
         self.token = token
         self.output_dir = output_dir
+        self.bundle_path = bundle_path
         self.progress_path = output_dir / "progress.json"
         self.result_path = output_dir / "result.json"
         self.lock = threading.Lock()
         self.events: list[dict[str, Any]] = []
         self.capture_digest: str | None = None
         self.done = threading.Event()
+
+    def bundle_bytes(self) -> bytes:
+        if self.bundle_path is None:
+            raise FileNotFoundError("bundle unavailable")
+        payload = self.bundle_path.read_bytes()
+        if not payload or len(payload) > MAX_BUNDLE_BYTES:
+            raise ValueError("invalid bundle size")
+        return payload
 
     def record_event(self, event: dict[str, Any]) -> None:
         with self.lock:
@@ -139,7 +152,7 @@ def make_handler(state: ProbeState):
         def log_message(self, format: str, *args: Any) -> None:
             return
 
-        def _write(self, status: int, value: dict[str, Any]) -> None:
+        def _write_json(self, status: int, value: dict[str, Any]) -> None:
             body = json.dumps(value, sort_keys=True).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
@@ -150,24 +163,40 @@ def make_handler(state: ProbeState):
 
         def do_GET(self) -> None:
             if self.path == "/health":
-                self._write(200, {"schema_version": 1, "status": "ready", "run_id": state.run_id})
-            else:
-                self._write(404, {"status": "not_found"})
+                self._write_json(200, {"schema_version": 1, "status": "ready", "run_id": state.run_id})
+                return
+            if self.path != "/bundle":
+                self._write_json(404, {"status": "not_found"})
+                return
+            if self.headers.get("X-CAP-Collector-Token") != state.token:
+                self._write_json(403, {"status": "forbidden"})
+                return
+            try:
+                payload = state.bundle_bytes()
+            except (FileNotFoundError, OSError, ValueError) as exc:
+                self._write_json(404, {"status": "bundle_unavailable", "reason": str(exc)[:256]})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(payload)
 
         def do_POST(self) -> None:
             if self.path not in {"/event", "/capture"}:
-                self._write(404, {"status": "not_found"})
+                self._write_json(404, {"status": "not_found"})
                 return
             if self.headers.get("X-CAP-Collector-Token") != state.token:
-                self._write(403, {"status": "forbidden"})
+                self._write_json(403, {"status": "forbidden"})
                 return
             try:
                 length = int(self.headers.get("Content-Length", "0"))
             except ValueError:
-                self._write(400, {"status": "invalid_length"})
+                self._write_json(400, {"status": "invalid_length"})
                 return
             if length < 1 or length > MAX_BODY_BYTES:
-                self._write(413, {"status": "invalid_size"})
+                self._write_json(413, {"status": "invalid_size"})
                 return
             raw = self.rfile.read(length)
             try:
@@ -175,13 +204,13 @@ def make_handler(state: ProbeState):
                 if self.path == "/event":
                     event = validate_event(value, state.run_id)
                     state.record_event(event)
-                    self._write(200, {"status": "recorded"})
+                    self._write_json(200, {"status": "recorded"})
                 else:
                     capture = validate_capture(value, state.run_id)
                     created, digest = state.record_capture(capture)
-                    self._write(200, {"status": "recorded" if created else "already_recorded", "sha256": digest})
+                    self._write_json(200, {"status": "recorded" if created else "already_recorded", "sha256": digest})
             except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-                self._write(400, {"status": "invalid_payload", "reason": str(exc)[:256]})
+                self._write_json(400, {"status": "invalid_payload", "reason": str(exc)[:256]})
 
     return Handler
 
@@ -191,6 +220,7 @@ def main() -> int:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--token", required=True)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--bundle-path")
     parser.add_argument("--port", type=int, default=3077)
     parser.add_argument("--timeout-seconds", type=int, default=3000)
     args = parser.parse_args()
@@ -204,7 +234,17 @@ def main() -> int:
     if not 60 <= args.timeout_seconds <= 7200:
         raise SystemExit("invalid timeout")
 
-    state = ProbeState(run_id=args.run_id, token=args.token, output_dir=Path(args.output_dir).resolve())
+    bundle_path = Path(args.bundle_path).resolve() if args.bundle_path else None
+    if bundle_path is not None:
+        if not bundle_path.is_file() or bundle_path.stat().st_size < 1 or bundle_path.stat().st_size > MAX_BUNDLE_BYTES:
+            raise SystemExit("invalid bundle path or size")
+
+    state = ProbeState(
+        run_id=args.run_id,
+        token=args.token,
+        output_dir=Path(args.output_dir).resolve(),
+        bundle_path=bundle_path,
+    )
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(state))
     server.daemon_threads = True
     worker = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.25}, daemon=True)
