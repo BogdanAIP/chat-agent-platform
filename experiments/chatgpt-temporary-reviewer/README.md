@@ -10,7 +10,7 @@ It deliberately does **not** implement or authorize production `launch_independe
 
 ## Controls
 
-The launcher has three fixed controls. The control identity is selected locally; the review prompt itself does not reveal the known historical outcome.
+The launcher has three fixed controls plus one exact-target mode. Fixed control identity is selected locally; the review prompt itself does not reveal the known historical outcome.
 
 ### `pass142`
 
@@ -40,11 +40,11 @@ review_skill_version=1.0
 known expected protocol outcome=STALE because live PR #140 advanced materially
 ```
 
-This control now exists to verify exact live-identity discipline, not defect detection.
+This control verifies exact live-identity discipline, not defect detection.
 
 ### `findings146`
 
-Live experiment-only PR #146 reproduces the exact historical `BASE..HEAD` range above under a new current PR identity:
+Experiment-only PR #146 reproduces the exact historical `BASE..HEAD` range above under a current PR identity:
 
 ```text
 repository=BogdanAIP/chat-agent-platform
@@ -56,7 +56,21 @@ review_skill_version=1.0
 known historical outcome=multiple confirmed findings existed in this exact diff
 ```
 
-PR #146 is a Draft experiment control and is never to be merged. Its prompt does not disclose the historical defects or finding count. It exists because BASE v1.0 correctly forbids semantic review of the same superseded head under the original PR #140 identity.
+PR #146 is an experiment control and is never to be merged. Its prompt does not disclose the historical defects or finding count. It exists because BASE v1.0 correctly forbids semantic review of the same superseded head under the original PR #140 identity.
+
+### `exact`
+
+`exact` is an experiment-only target mode for a caller-supplied exact PR identity in `BogdanAIP/chat-agent-platform`. It exists so the final frozen head of this experiment PR can itself receive the same fully automatic fresh Temporary-Chat review without adding a self-referential hard-coded SHA.
+
+It requires:
+
+- decimal `TargetPrNumber`;
+- exact 40-lowercase-hex `TargetBaseSha`;
+- exact 40-lowercase-hex `TargetHeadSha`;
+- review skill version `1.0` or `1.1`;
+- a bounded review focus string.
+
+The repository remains hard-coded in the generated `REVIEW_REQUEST_V1`; this mode does not add arbitrary URL/repository/backend authority.
 
 ## Target-Windows observations
 
@@ -89,18 +103,48 @@ The second physical run used run id:
 tmprev-0269cce47a08437c92084f43e60affa5
 ```
 
-The reviewer independently discovered that the supplied `7077ecb...` head was no longer the live head of PR #140 and correctly returned:
+The reviewer independently discovered that supplied `7077ecb...` was no longer the live head of PR #140 and correctly returned:
 
 ```text
 status=STALE
 review_validity=STALE_MATERIAL_CHANGE
 ```
 
-It also appended the exact run-bound completion marker. This is positive evidence that a plugin-free Temporary Chat can reconstruct live GitHub identity and obey the governing BASE policy instead of blindly reviewing a stale requested head. It is not evidence about finding-recall quality because BASE v1.0 requires termination before semantic findings on that stale identity.
+It appended the exact run-bound completion marker. This is positive evidence that a plugin-free Temporary Chat can reconstruct live GitHub identity and obey governing BASE policy instead of blindly reviewing a stale requested head. It is not finding-recall evidence because BASE v1.0 requires termination before semantic findings on that stale identity.
 
-The collector marked this completed response `unstructured` due to brittle rendered-text field matching. The experiment parser is now field-based and tolerates Markdown escaping/whitespace; unstructured captures also print exact identity diagnostics.
+The collector marked that completed response `unstructured` due to brittle rendered-text field matching. The parser was then changed to field-based parsing tolerant of Markdown escaping/whitespace, with exact identity diagnostics for completed unstructured captures.
 
-These observations are **transport/protocol evidence, not production acceptance**.
+### `findings146`
+
+The live known-finding control on 2026-09-01 used run id:
+
+```text
+tmprev-52933398b0074575b1e0b2fb87ae1036
+```
+
+Observed automatically:
+
+```text
+collector ready
+ -> non-personalized Temporary Chat launched
+ -> exact PR #146 request delivered without clipboard/manual paste
+ -> Send occurred without user click
+ -> reviewer independently reconstructed BASE policy, exact diff and hosted evidence
+ -> run-bound terminal marker emitted
+ -> TEMP_REVIEW_CAPTURE=structured
+ -> TEMP_REVIEW_STATUS=FINDINGS
+```
+
+The returned result was `CURRENT`, reported exactly four P1 findings and rejected one candidate. The four surviving findings independently matched the four historical P1 categories later recorded as `CONFIRMED -> FIXED MATERIALLY` in merged PR #140:
+
+1. reviewer GitHub mutation authority was qualified by non-selection instead of actual write-action unreachability;
+2. ambiguous GitHub result-comment publication could race a manual fallback because no mutually exclusive local closure existed;
+3. direct POSIX/Python, W3C IndexedDB and Chrome service-worker engineering evidence was missing for selected release-critical primitives;
+4. the Stage Research lineage table used compound/non-canonical decisions instead of exactly one canonical lineage decision per existing role.
+
+The control prompt did not disclose those defects or their count. This is the first physical negative-control evidence that the fully automatic plugin-free Temporary Chat reviewer can recover known real semantic defects rather than merely produce a PASS-shaped response.
+
+These observations remain **experiment evidence, not production reviewer acceptance**.
 
 ## Automatic path
 
@@ -152,6 +196,13 @@ From repository root in PowerShell 7:
 ./scripts/launch-temporary-reviewer-probe.ps1 -Control pass142
 ./scripts/launch-temporary-reviewer-probe.ps1 -Control stale140
 ./scripts/launch-temporary-reviewer-probe.ps1 -Control findings146
+
+./scripts/launch-temporary-reviewer-probe.ps1 `
+    -Control exact `
+    -TargetPrNumber 145 `
+    -TargetBaseSha <EXACT_BASE> `
+    -TargetHeadSha <FROZEN_EXACT_HEAD> `
+    -TargetSkillVersion 1.1
 ```
 
 Expected early markers:
@@ -193,7 +244,7 @@ The extension does not Send unless all of these are true:
 
 The attempt marker is written before `button.click()`. There is no automatic same-run review-request retry after an ambiguous click.
 
-Result capture requires the exact run-bound completion marker at the end of the final assistant response. A completed response can still be recorded as `unstructured` when the protocol identity/status is invalid; browser capture is **not** production result authority.
+Result capture requires the exact run-bound completion marker at the end of the final assistant response. A completed response can still be recorded as `unstructured` when protocol identity/status is invalid; browser capture is **not** production result authority.
 
 ## What this experiment can prove
 
@@ -204,7 +255,7 @@ It can provide physical evidence about:
 - whether a Temporary Chat can obtain enough public GitHub/web evidence for the repository's real review protocol;
 - whether it returns a structurally useful `REVIEW_RESULT_V1` without plugins;
 - whether it obeys exact live-identity/staleness rules;
-- whether review quality appears comparable on positive and live known-finding controls;
+- whether review quality can recover both accepted PASS and known real semantic defects;
 - where UI/transport failures occur without asking the user to paste anything.
 
 It cannot by itself prove:
@@ -212,7 +263,7 @@ It cannot by itself prove:
 - that Temporary Chat is the final production reviewer security boundary;
 - that absence of plugins is safely inferable forever from one DOM marker;
 - that a Native Messaging handoff should be selected;
-- that the automatic reviewer meets quality targets across representative PRs;
+- that the automatic reviewer meets quality targets across a representative benchmark set;
 - any production launch, Send or result-authority acceptance.
 
 Those decisions require fresh Stage Research after physical evidence exists.
