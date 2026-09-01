@@ -64,6 +64,10 @@
     return String(text || "").replace(/\s+/g, " ").trim().slice(0, 300);
   }
 
+  function normalizeFull(text) {
+    return String(text || "").replace(/\u0000/g, "").trim();
+  }
+
   function observeTemporaryState(composer) {
     const patterns = [/temporary chat/i, /temporary/i, /временн(?:ый|ого|ом|ая|ую|ое)/i];
     const candidates = [];
@@ -78,9 +82,7 @@
         node.textContent,
       ].map(normalize).filter(Boolean);
       const joined = pieces.join(" | ");
-      if (patterns.some((pattern) => pattern.test(joined))) {
-        candidates.push(joined.slice(0, 500));
-      }
+      if (patterns.some((pattern) => pattern.test(joined))) candidates.push(joined.slice(0, 500));
     }
     const bodyText = document.body?.innerText || "";
     const pluginMarkers = ["GitHub", "Chat Local Bridge Test"].filter((marker) => bodyText.includes(marker));
@@ -114,8 +116,8 @@
       .filter(Boolean);
   }
 
-  function normalizeFull(text) {
-    return String(text || "").replace(/\u0000/g, "").trim();
+  function hasTerminalMarker(text) {
+    return normalizeFull(text).endsWith(intent.completionMarker);
   }
 
   async function captureFinal(text) {
@@ -123,7 +125,9 @@
       stop("capture-already-recorded");
       return;
     }
-    const identity = policy.resultIdentitySummary(text);
+    if (!hasTerminalMarker(text)) return;
+
+    const identity = policy.resultIdentitySummary(text, intent);
     const captureKind = identity.structured ? "structured" : "unstructured";
     const response = await sendToCollector("capture", {
       temporary_state: temporaryEvidence || {},
@@ -149,7 +153,10 @@
     if (Date.now() > deadline) {
       const turns = assistantTurns();
       const last = turns.at(-1) || "";
-      event("timeout", { last_assistant_excerpt: last.slice(0, 8000) });
+      event("timeout", {
+        terminal_marker_seen: hasTerminalMarker(last),
+        last_assistant_excerpt: last.slice(-8000),
+      });
       stop("timeout");
       return;
     }
@@ -195,6 +202,7 @@
       lastAssistantChangedAt = Date.now();
       return;
     }
+    if (!hasTerminalMarker(last)) return;
     if (lastAssistantChangedAt && Date.now() - lastAssistantChangedAt >= intent.stableMs) {
       void captureFinal(last);
     }
