@@ -162,6 +162,13 @@ class DelegationStateTests(unittest.TestCase):
             identity_dict(), run_id=prepared.run_id, state_root=self.state_root
         )
         self.assertEqual("launch-attempted", attempted.launch_state)
+        with self.assertRaisesRegex(
+            delegation_state.DelegationStateError, "already attempted"
+        ):
+            delegation_state.mark_launch_attempted(
+                identity_dict(), run_id=prepared.run_id, state_root=self.state_root
+            )
+
         bound = delegation_state.bind_worker_session(
             identity_dict(),
             run_id=prepared.run_id,
@@ -229,13 +236,13 @@ class DelegationStateTests(unittest.TestCase):
             thread.join(timeout=5)
         self.assertEqual(2, len(outcomes))
         self.assertEqual(1, sum(value is True for value in outcomes))
-        self.assertEqual(0, sum(value is False for value in outcomes if value is True))
+        self.assertTrue(all(value in {True, False, "busy"} for value in outcomes))
         snapshot = delegation_state.load_delegation(
             identity_dict(), state_root=self.state_root
         )
         self.assertEqual("claimed", snapshot.delivery_state)
 
-    def test_unknown_delivery_blocks_blind_reclaim_and_terminal_result(self) -> None:
+    def test_unknown_delivery_blocks_resend_but_can_reconcile_to_delivered(self) -> None:
         prepared = self.bind()
         delegation_state.claim_delivery(
             identity_dict(), run_id=prepared.run_id, state_root=self.state_root
@@ -262,6 +269,22 @@ class DelegationStateTests(unittest.TestCase):
                 result_value=result_value(prepared),
                 state_root=self.state_root,
             )
+
+        reconciled = delegation_state.record_delivery_outcome(
+            identity_dict(),
+            run_id=prepared.run_id,
+            outcome="delivered",
+            evidence_ref="agent-session:delivery:verified-after-reconcile:2",
+            state_root=self.state_root,
+        )
+        self.assertEqual("delivered", reconciled.delivery_state)
+        terminal = delegation_state.record_worker_result(
+            identity_dict(),
+            run_id=prepared.run_id,
+            result_value=result_value(prepared),
+            state_root=self.state_root,
+        )
+        self.assertEqual("recorded", terminal.result_state)
 
     def test_terminal_result_is_correlated_bounded_and_idempotent(self) -> None:
         prepared = self.deliver()
@@ -290,6 +313,18 @@ class DelegationStateTests(unittest.TestCase):
                 identity_dict(),
                 run_id=prepared.run_id,
                 result_value=result_value(prepared, payload=changed_payload),
+                state_root=self.state_root,
+            )
+
+    def test_generic_result_statuses_do_not_encode_reviewer_semantics(self) -> None:
+        prepared = self.deliver()
+        with self.assertRaisesRegex(
+            delegation_state.DelegationStateError, "status is invalid"
+        ):
+            delegation_state.record_worker_result(
+                identity_dict(),
+                run_id=prepared.run_id,
+                result_value=result_value(prepared, status="FINDINGS"),
                 state_root=self.state_root,
             )
 
@@ -344,7 +379,7 @@ class DelegationStateTests(unittest.TestCase):
         )
         self.assertEqual(prepared.run_id, genesis["run_id"])
 
-    def test_corrupt_state_and_temp_residue_fail_closed(self) -> None:
+    def test_corrupt_state_and_orphan_temp_residue_fail_closed(self) -> None:
         prepared = self.prepare()
         root = self._root()
         state_path = delegation_state._state_path(root, prepared.delegation_id)
@@ -363,6 +398,31 @@ class DelegationStateTests(unittest.TestCase):
         ):
             self.prepare()
 
+    def test_temp_residue_blocks_existing_operation_load_and_mutation(self) -> None:
+        prepared = self.prepare()
+        root = self._root()
+        residue = root / f".{prepared.delegation_id}.state.deadbeef.tmp"
+        residue.write_bytes(b"ambiguous prior write")
+
+        with self.assertRaisesRegex(
+            delegation_state.DelegationStateError, "ambiguous temporary state residue"
+        ):
+            delegation_state.load_delegation(
+                identity_dict(), state_root=self.state_root
+            )
+        with self.assertRaisesRegex(
+            delegation_state.DelegationStateError, "ambiguous temporary state residue"
+        ):
+            delegation_state.mark_launch_attempted(
+                identity_dict(), run_id=prepared.run_id, state_root=self.state_root
+            )
+
+        residue.unlink()
+        snapshot = delegation_state.load_delegation(
+            identity_dict(), state_root=self.state_root
+        )
+        self.assertEqual("prepared", snapshot.launch_state)
+
     def test_failed_state_replace_preserves_prior_valid_state_and_removes_temp(self) -> None:
         prepared = self.prepare()
         with mock.patch(
@@ -380,7 +440,10 @@ class DelegationStateTests(unittest.TestCase):
             identity_dict(), state_root=self.state_root
         )
         self.assertEqual("prepared", snapshot.launch_state)
-        self.assertEqual((), delegation_state._temp_paths(self._root(), prepared.delegation_id))
+        self.assertEqual(
+            (),
+            delegation_state._temp_paths(self._root(), prepared.delegation_id),
+        )
 
 
 if __name__ == "__main__":
