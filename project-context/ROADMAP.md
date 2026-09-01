@@ -2,9 +2,9 @@
 
 ## Goal
 
-Keep ordinary ChatGPT as the **only current general planning layer** while the local platform becomes a deterministic execution system with bounded capabilities, verified state, authorization, recovery, procedural memory and selective specialist perception.
+Keep ordinary ChatGPT as the **only current general planning layer** while the local platform becomes a deterministic execution system with bounded capabilities, verified state, authorization, recovery, procedural memory, selective specialist perception and narrowly bounded worker delegation.
 
-The deterministic Control Plane is not a second planner. It may advance already-selected known transitions under explicit authorization/verification and must escalate when a new strategy is required.
+The deterministic Control Plane is not a second planner. It may advance already-selected known transitions under explicit authorization/verification and must escalate when a new strategy is required. A delegated worker is likewise a bounded specialist, not a second project planner.
 
 `ROADMAP.md` owns **release order and stage-level completion conditions**, not active PR mechanics, exact accepted SHAs or machine evidence. Use `CURRENT_STATE.md` for the live boundary/active work and `EVIDENCE_INDEX.md` for accepted physical evidence.
 
@@ -33,7 +33,7 @@ L1 — primitive / contract proof
  -> L3 — ordinary user-task E2E with independent Finish Gate
 ```
 
-Release-critical physical acceptance also binds executed source/runtime provenance when that is part of the claim. One L3 pass is scoped evidence, not universal reliability.
+Release-critical physical acceptance also binds executed/installed source/runtime provenance when that is part of the claim. One L3 pass is scoped evidence, not universal reliability.
 
 ## Foundation already completed
 
@@ -49,6 +49,7 @@ Stage 26.3B Verification Kernel + Finish Gate              ACCEPTED / CLOSED FOR
 CAP-M0 Verification mutation pilot                         ACCEPTED
 Stage 26.3C WorkingState / reconciliation / LoopGuard L1   ACCEPTED FOUNDATION
 Stage 26.3C consequence-bearing production integration     ACCEPTED / CLOSED FOR DECLARED SCOPE
+automatic-review specialist state/procedure foundation     ACCEPTED / MERGED #140-#142
 ```
 
 Exact PR/physical evidence belongs in `CURRENT_STATE.md` / `EVIDENCE_INDEX.md`, not here.
@@ -56,7 +57,8 @@ Exact PR/physical evidence belongs in `CURRENT_STATE.md` / `EVIDENCE_INDEX.md`, 
 ## Current release-critical sequence
 
 ```text
-bounded automatic independent-review infrastructure
+bounded Agent Session / Delegation first slice
+ -> automatic reviewer migration as first specialist consumer + reviewer quality baseline
  -> broad real-application physical coverage gate
  -> bounded OpenAdapt integration spike
  -> 26.4 Human Demo -> verified candidate skill / skill lineage
@@ -65,11 +67,13 @@ bounded automatic independent-review infrastructure
  -> 28 Clean User E2E / stable release
 ```
 
-The automatic-review item is **developer/release assurance infrastructure**, not a new product capability family or a general autonomous-wake stage. It is placed immediately after accepted 26.3C because fresh ordinary-ChatGPT semantic review is already the required primary merge gate, while Codex Review is optional and quota-dependent. The bounded reviewer path should remove the current manual launch/result-handoff friction before the larger coverage/skill/hybrid work multiplies review cycles.
+The current Agent Session item is a **bounded product mechanism**, not broad multi-agent orchestration. Its first accepted scope is exactly one ordinary-ChatGPT manager -> one genuinely fresh read-only worker -> one bounded delegation/delivery -> one correlated durable result.
+
+Automatic review remains important developer/release-assurance infrastructure, but its reusable session/delivery lifecycle is no longer the generic product owner. The accepted reviewer-specific #140-#142 state/procedures remain fallback until a later consumer migration proves that reviewer freshness, exact PR/BASE/HEAD identity, least privilege, `REVIEW_RESULT_V1`, stale handling and manual fallback survive unchanged above the generic worker lifecycle.
 
 Broad real-app coverage is an acceptance objective, not a new architecture family.
 
-Parallel Track M Agent Session / Delegation remains future/non-release-critical. Track P local general planner remains optional future research. UFO³ Galaxy remains deferred until multi-device orchestration is an observed bottleneck.
+Nested/fan-out Agent Sessions, same-task automatic manager wake/resampling and Track P local general planner remain future. UFO³ Galaxy remains deferred until multi-device orchestration is an observed bottleneck.
 
 ---
 
@@ -146,61 +150,105 @@ Acceptance required focused deterministic/fault-injection and hard-crash tests, 
 
 The project now has an accepted consequence-bearing production consumer using WorkingState/reconciliation/LoopGuard without blind duplicate effects across its declared restart/failure scope, with enough evidence to reuse the same semantics in later capabilities.
 
-Do not reopen 26.3C merely to add another consumer or variant. Material new persistence/recovery/concurrency/identity/authority mechanisms still require fresh Stage Research, and Track M, a generic event bus, broad scheduler authority, a second planner or a new persistence framework remain outside this accepted scope.
+Do not reopen 26.3C merely to add another consumer or variant. Material new persistence/recovery/concurrency/identity/authority mechanisms still require fresh Stage Research. The current Agent Session mechanism was therefore re-entered separately in `AGENT_SESSION_DELEGATION_REENTRY.md`; its acceptance does not retroactively broaden the declared 26.3C scope.
 
 ---
 
-# Post-26.3C — bounded automatic independent-review infrastructure
+# Post-26.3C — bounded Agent Session / Delegation — CURRENT
 
-Productionize the smallest reliable path that automates the repository's already-required fresh ordinary-ChatGPT semantic review. PR #138's one-shot deep-link/autosend work is experimental evidence for this item, not automatic production acceptance.
+Fresh Stage Research in `AGENT_SESSION_DELEGATION_REENTRY.md` selected **NARROW**.
 
-Fresh Stage Research for this item is owned in `AUTOMATIC_REVIEWER_RESEARCH.md`. Its current decision is **NARROW**: implementation may proceed only for the bounded exact-head reviewer launch/local-result lifecycle defined there. A material new scheduler, generic result bus, automatic same-task developer wake, reviewer mutation authority or equivalent new mechanism requires research re-entry rather than silent scope expansion.
-
-Target lifecycle:
+First topology:
 
 ```text
-review-ready PR / intended exact head
- -> freeze BASE_SHA + HEAD_SHA
- -> bounded automatic launch operation + private run correlation
- -> qualified fresh ordinary-ChatGPT context with GitHub mutation actions unavailable
- -> repository code-review skill + independent public/read-only repository evidence
- -> REVIEW_RESULT_V1
- -> fixed local submit_independent_review_result_v1
- -> project-owned crash-safe result state
- -> fixed reconcile_independent_review_result_v1 in development chat
- -> live-identity + result-state revalidation
- -> merge or fail closed
+one ordinary-ChatGPT manager
+ -> one genuinely fresh read-only worker
+ -> one bounded delegation identity
+ -> one initial delivery
+ -> one correlated generic terminal result
+ -> durable local closure
 ```
 
-There is **no automated GitHub write in v1**. Earlier research considered a backend GitHub App / one-comment publisher, but review exposed an avoidable ambiguous external POST race and extra credential/permission surface. The selected v1 keeps the result entirely inside the existing local Control Plane persistence/reconciliation boundary.
+Generic lifecycle must provide:
 
-The implementation must preserve the existing review contract. At minimum preserve:
+```text
+provider-independent deterministic delegation identity
+private durable run capability
+immutable genesis + crash-safe mutable state
+one-shot launch-attempt before physical child launch
+stable child/session binding
+one provider/browser delivery claim
+one project-local delivery claim
+prepared | claimed | unknown | delivered
+no blind second Send
+unknown -> delivered only for the same delivery from fresh evidence
+one WORKER_RESULT_V1
+COMPLETED | ABSTAIN | ERROR
+bounded payload + adapter-computed SHA-256
+foreign/corrupt/missing/temp-residue state fails closed
+```
 
-- a genuinely fresh ordinary-ChatGPT review context;
+The first provider adapter is intentionally concrete: `chatgpt-temporary`. Do not build a large provider framework before a second real consumer/provider proves a shared abstraction is needed.
+
+First-provider constraints:
+
+- positively prove fresh/non-personalized/no-plugin Temporary Chat before Send;
+- keep private run capability out of the model prompt/query;
+- extension/browser delivery ownership is separate from project-local durable delivery ownership;
+- duplicate tabs cannot get a second Send;
+- a controller restart may finish the same already-committed pre-Send browser claim only while project delivery is still `prepared`;
+- `claimed | unknown | delivered` never regain Send authority;
+- running extension bytes must match exact expected source before Send and be revalidated before terminal browser-result capture;
+- provider adapter has no project/GitHub/filesystem mutation authority;
+- accepted six-tool public surface remains unchanged.
+
+First physical L3 is deliberately **non-reviewer**. It must prove generic delegation rather than code-review semantics:
+
+```text
+clean exact source HEAD
+ -> exactly one fresh Temporary Chat child
+ -> exact running-extension provenance
+ -> exactly one task delivery
+ -> bounded non-reviewer read-only task
+ -> correlated WORKER_RESULT_V1
+ -> durable result closure/readback
+ -> no unintended second child/message
+ -> post-action source/runtime revalidation
+```
+
+Completion condition for this first Agent Session slice: the deterministic L1/L2 contract and target-Windows ordinary-Plus L3 pass on the same reviewed final design, canonical lineage/owners are synchronized, and the required fresh exact-head semantic review reports no unresolved acceptance finding.
+
+This completion does **not** authorize nested/fan-out workers, mutation, worker-created environments, general scheduling, long-lived worker pools or same-task manager wake/resampling.
+
+---
+
+# Automatic reviewer — first specialist consumer after generic Agent Session acceptance
+
+The accepted reviewer-specific local state and fixed `launch_independent_review_v1`, `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` procedures from #141/#142 remain valid fallback until migration is separately proven.
+
+Fresh reviewer policy remains owned by `AUTOMATIC_REVIEWER_RESEARCH.md` and `.agents/skills/code-review/SKILL.md`.
+
+A migration over the generic Agent Session lifecycle must preserve at minimum:
+
+- genuinely fresh ordinary-ChatGPT review context;
 - exact repository / PR / BASE_SHA / HEAD_SHA binding;
-- independent reconstruction of evidence from the repository;
-- deterministic reviewer least privilege: GitHub mutation actions must be unavailable, not merely unselected or approval-gated;
-- fail-closed handling of missing, malformed, pending, stale, corrupt or ambiguous local result state;
-- no blind automatic relaunch after ambiguous dispatch/Send;
+- independent reconstruction of repository evidence;
+- deterministic reviewer least privilege: GitHub mutation actions unavailable, not merely unselected;
+- exact `REVIEW_RESULT_V1` parsing/content rules;
+- fail-closed missing/malformed/pending/stale/corrupt/ambiguous result handling;
+- atomic manual-fallback closure against late automatic result;
+- no blind launch/Send retry;
 - no representation of unavailable Codex Review as completed.
 
-Accepted authority qualification is either a reviewer account/workspace where the GitHub app is disconnected/disabled/unavailable, or a supported workspace Action Control that exposes only read actions. If the target environment cannot prove that condition while retaining the required ordinary-Chat + bridge/read path, automatic review is unavailable and the manual fresh-review route remains mandatory.
+Generic `WORKER_RESULT_V1` is lifecycle transport. Reviewer `PASS/FINDINGS/ABSTAIN/STALE`, findings structure, governing BASE policy and review authority remain specialist semantics above it.
 
-Automatic result delivery uses the same local operation lock/state machine as fallback closure. `submit_independent_review_result_v1` records a validated automatic result. `reconcile_independent_review_result_v1` either returns that result or atomically records a valid manual fresh-review fallback if the automatic slot is still open. Whichever result state commits first is authoritative for that operation; a late automatic submit after manual closure is rejected. This prevents a late unresolved result from appearing after fallback acceptance.
+There is **no automated GitHub write in reviewer v1**. The selected reviewer result remains project-local; external POST publication is not introduced merely because a generic worker session exists.
 
-Codex Review remains useful optional independent evidence when quota is available. It is not the primary required reviewer and quota exhaustion must not stop release when the required ChatGPT review and other gates pass.
+After a physically working reviewer consumer exists over the accepted generic lifecycle, run the **Harbor evaluation seam** before treating it as stable replacement infrastructure. Harbor remains evaluation-only. Use ReviewBench as the first small baseline, then bounded SWE-Review-Bench and CR-Bench/CR-Evaluator controls as defined in `AUTOMATIC_REVIEWER_RESEARCH.md`. Keep reviewer semantic-quality metrics separate from CAP lifecycle-reliability metrics, with development/holdout separation.
 
-Keep the first production consumer narrow: automatic code review. Do not silently generalize the mechanism into recurring arbitrary task execution, worker rotation, a generic scheduler/event bus or broad same-task autonomous continuation.
+Functional reviewer completion condition: the required fresh ordinary-ChatGPT review can be launched through the accepted bounded worker lifecycle and its exact-head reviewer result returned/validated without routine user launch/paste/result-copy, while unqualified authority environments and stale/failed/ambiguous runs remain fail-closed and manual fallback remains available.
 
-Instrument review launches so development accumulates a bounded acceptance corpus for later continuation research. Useful non-secret evidence includes correlation identity, trigger reason, exact refs, authority-qualification result, launch/Send result, fresh-context proof, result source/disposition, stale detection, timeout/failure class and manual-intervention requirement. Do not expose the private run capability to the development caller before automatic-result closure.
-
-After the first physically working automatic-review E2E, add the **Harbor evaluation seam** before treating the automatic reviewer as stable replacement infrastructure. Harbor remains evaluation-only, not production runtime/authority. Use ReviewBench as the first small baseline, then bounded SWE-Review-Bench and CR-Bench/CR-Evaluator controls as defined in `AUTOMATIC_REVIEWER_RESEARCH.md`. Keep reviewer semantic quality metrics separate from CAP lifecycle reliability metrics, and preserve development/holdout separation.
-
-The first benchmark run establishes a baseline rather than an invented fixed threshold. Removing UI friction is not sufficient if semantic review quality materially regresses.
-
-Functional E2E completion condition: the required fresh ordinary-ChatGPT review can be launched and its exact-head `REVIEW_RESULT_V1` can be returned/validated from project-owned local result state without routine user launch/paste/result-copy, while unqualified authority environments and stale/failed/ambiguous runs remain fail-closed.
-
-Stable-infrastructure completion condition: the functional E2E condition is met **and** the Harbor-backed baseline/quality comparison has been recorded with semantic-quality and lifecycle-reliability evidence kept separate, with no material semantic-quality regression accepted merely for automation convenience.
+Stable reviewer-infrastructure completion condition: functional E2E plus recorded Harbor baseline/quality comparison with no material semantic-quality regression accepted merely for automation convenience.
 
 ---
 
@@ -298,11 +346,15 @@ Before 26.5 acceptance, rerun a representative regression subset of the earlier 
 
 # Future research seam — same-task continuation / wake
 
-This is **not a new roadmap stage, not current architecture acceptance and not part of 26.3C implementation**.
+This is **not a new roadmap stage and is not authorized by the first bounded Agent Session slice**.
 
-The bounded automatic reviewer is an intentional first real consumer of some adjacent launch/correlation mechanics and should accumulate evidence useful here, but reviewer automation does **not** by itself authorize general continuation of unfinished user tasks.
+A child result becoming durable is not proof that the product can autonomously obtain another manager model turn. First accepted behavior remains:
 
-Now that consequence-bearing 26.3C restart/reconciliation behavior is accepted for its declared scope, wait until enough bounded reviewer evidence exists to sharpen the question, then run separate Stage Research before adding any mechanism that can automatically continue the **same unfinished task** without a new user message.
+```text
+child completes
+ -> durable result recorded
+ -> later manager/user turn reads/reconciles result
+```
 
 Keep the semantic distinction explicit:
 
@@ -334,13 +386,11 @@ Do **not** preselect `TypedEventBus`, `ScheduledTask`, a new scheduler service o
 
 At minimum, research must cover wait/sleep/wake semantics, duplicate wake, cancellation/replacement, missed wake, crash during wake, concurrent resume, grant expiry/authority after sleep, backoff/timed checks and what happens when the ordinary-ChatGPT harness cannot actually resample the planner without a new user turn.
 
-A local runtime being able to mark a task `READY` is not proof that the product can autonomously obtain another planner turn. Treat planner resampling/proactive delivery as a separate harness/product capability boundary.
-
 ---
 
 # Future research seam — Physical Device / IoT Capability Family
 
-This is **not a new release-critical stage, not an accepted production backend and not part of Stage 26.3C**. It does not change the current release-critical sequence.
+This is **not a new release-critical stage, not an accepted production backend and not part of Stage 26.3C or the bounded Agent Session slice**. It does not change the current release-critical sequence.
 
 A future Physical Device / IoT family may reuse the existing project consequence model across smart-home, generic IoT and later laboratory/device adapters:
 
@@ -384,7 +434,7 @@ Successful traces are evidence, not automatic self-modification. Promotion requi
 
 # Local Execution Kernel — adjacent future consequence class
 
-Arbitrary Python/program execution may be useful later, but it is not Browser authority and must not be hidden in `web_interact` or generic `procedure_run` dispatch.
+Arbitrary Python/program execution may be useful later, but it is not Browser or Agent Session authority and must not be hidden in `web_interact` or generic `procedure_run` dispatch.
 
 It requires a separate grant/security/public-contract/physical-acceptance decision.
 
@@ -426,35 +476,34 @@ Stable release requires accepted core behavior, clean install evidence, current 
 
 ---
 
-# Parallel Track M — Agent Sessions / Delegation
+# Track M expansion beyond the first bounded slice — FUTURE
 
-Track M is a future work-distribution capability below the ordinary-ChatGPT manager and deterministic Control Plane boundary. It must not displace release-critical Stage 26 prerequisites.
+The first Track M slice is now the current bounded Agent Session / Delegation mechanism above. Broader orchestration remains future and must be re-researched rather than inferred from first-slice acceptance.
 
 Keep separate:
 
 ```text
 HarnessSession
 Conversation / Chat
-DelegationTask
+DelegationIdentity / DelegationTask
 MessageDelivery
+WorkerResult
 ExecutionEnvironment
 ```
 
-Canonical progression remains:
+Potential future progression, subject to Stage Research at each material boundary:
 
 ```text
-M0 object model + fixture contracts
- -> M1 read-only Session Observer
- -> M2 Manager -> one EXISTING Worker with verified delivery/correlation
- -> M3 WorkingState/HandoffPack + recovery/event monitoring
- -> M4 bounded session lifecycle + operation idempotency/reconciliation
- -> M5 manager-created Worker + ownership/WorkerLease/cleanup
- -> M6 multiple workers + bounded fan-out, default max_spawn_depth=1
- -> M7 separate Project / ExecutionEnvironment lifecycle
- -> M8 broader cross-harness/provider adoption
+accepted one-manager -> one fresh read-only worker
+ -> richer read-only specialist consumers
+ -> bounded session lifecycle/cleanup after demonstrated need
+ -> manager-created mutable/isolation-aware workers only after separate authority research
+ -> multiple workers / bounded fan-out only after concurrency/resource/aggregation research
+ -> separate Project / ExecutionEnvironment lifecycle only after isolation research
+ -> broader cross-harness/provider adoption only after at least one additional provider proves the abstraction
 ```
 
-Track M may reuse accepted WorkingState/logical-operation/reconciliation/LoopGuard semantics later; it does not justify broadening 26.3C solely for future orchestration.
+Do not pre-authorize `max_spawn_depth`, worker pools, destructive cleanup, environment creation or generic task fan-out merely because the object model can represent them.
 
 ---
 
