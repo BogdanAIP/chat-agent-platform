@@ -1,0 +1,283 @@
+(() => {
+  "use strict";
+
+  const policy = globalThis.CAPChatGPTTemporaryPolicy;
+  if (!policy) return;
+  const intent = policy.parseIntent(location.href);
+  if (!intent.enabled) return;
+
+  let stopped = false;
+  let intervalId = null;
+  let authorityRequested = false;
+  let sendAuthorized = false;
+  let monitorOnly = false;
+  let sendClickedAt = 0;
+  let deliveryState = "prepared";
+  let deliveryOutcomeAt = 0;
+  let captureStarted = false;
+  let lastAssistantText = "";
+  let lastAssistantChangedAt = 0;
+  let observationSeq = 0;
+  const deadline = Date.now() + intent.maxWaitMs;
+
+  function normalize(text) {
+    return String(text || "").replace(/\s+/g, " ").trim().slice(0, 500);
+  }
+
+  function normalizeFull(text) {
+    return String(text || "").replace(/\u0000/g, "").trim();
+  }
+
+  function visible(node) {
+    if (!node?.isConnected) return false;
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  }
+
+  function candidateText(node) {
+    if (!node) return "";
+    return normalize([
+      node.getAttribute?.("aria-label"),
+      node.getAttribute?.("title"),
+      node.getAttribute?.("data-testid"),
+      node.textContent,
+    ].filter(Boolean).join(" | "));
+  }
+
+  function sendMessage(kind, payload = {}) {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        {
+          schema_version: 1,
+          kind,
+          run_id: intent.runId,
+          delegation_id: intent.delegationId,
+          delivery_id: intent.deliveryId,
+          ...payload,
+        },
+        (response) => resolve(response || { ok: false, reason: chrome.runtime.lastError?.message || "no-response" }),
+      );
+    });
+  }
+
+  function event(name, details = {}) {
+    void sendMessage("event", { event: name, details });
+  }
+
+  function stop(reason, details = {}) {
+    if (stopped) return;
+    stopped = true;
+    if (intervalId !== null) clearInterval(intervalId);
+    event("stopped", { reason, ...details });
+    console.info(`[CAP Agent Session] stopped: ${reason}`, details);
+  }
+
+  function findSendButton() {
+    return document.querySelector('button[data-testid="send-button"]');
+  }
+
+  function buttonReady(button) {
+    return Boolean(button?.isConnected) && !button.disabled && button.getAttribute("aria-disabled") !== "true";
+  }
+
+  function findComposer(button) {
+    if (!button) return null;
+    return button.closest("form") || button.parentElement;
+  }
+
+  function conversationTurns(role) {
+    return [...document.querySelectorAll(`[data-message-author-role="${role}"]`)]
+      .map((node) => normalizeFull(node.innerText || node.textContent || ""))
+      .filter(Boolean);
+  }
+
+  function allConversationTurnCount() {
+    return document.querySelectorAll('[data-message-author-role="user"],[data-message-author-role="assistant"]').length;
+  }
+
+  function observeTemporaryState(composer) {
+    const temporaryPatterns = [/temporary chat/i, /temporary/i, /временн(?:ый|ого|ом|ая|ую|ое)/i];
+    const candidates = [];
+    const pluginMarkers = new Set();
+    const nodes = document.querySelectorAll('button,[role="button"],[aria-label],[title],[data-testid]');
+    for (const node of nodes) {
+      if (!visible(node)) continue;
+      if (composer && (composer === node || composer.contains(node) || node.contains(composer))) continue;
+      const text = candidateText(node);
+      if (!text) continue;
+      if (temporaryPatterns.some((pattern) => pattern.test(text))) candidates.push(text);
+      for (const marker of ["GitHub", "Chat Local Bridge Test", "Google Drive", "Gmail", "Canva"]) {
+        if (text.includes(marker)) pluginMarkers.add(marker);
+      }
+    }
+    const temporaryMode = new URL(intent ? "https://chatgpt.com/?temporary-chat=true" : location.href).searchParams.get("temporary-chat") === "true" && candidates.length > 0;
+    return {
+      temporary_mode: temporaryMode,
+      positive_ui_evidence: candidates.length > 0,
+      ui_evidence: candidates.slice(0, 8),
+      fresh_context: allConversationTurnCount() === 0,
+      personalization_disabled: temporaryMode,
+      plugin_markers: [...pluginMarkers],
+    };
+  }
+
+  function userDeliveryVisible() {
+    const required = [
+      `delegation_id=${intent.delegationId}`,
+      `delivery_id=${intent.deliveryId}`,
+      `task_sha256=${intent.taskSha256}`,
+    ];
+    return conversationTurns("user").some((text) => required.every((marker) => text.includes(marker)));
+  }
+
+  function stopButtonPresent() {
+    return Boolean(
+      document.querySelector('button[data-testid="stop-button"]') ||
+      [...document.querySelectorAll("button")].some((button) => /^(stop|останов)/i.test(normalize(button.getAttribute("aria-label") || button.textContent))),
+    );
+  }
+
+  async function requestAuthority(composer) {
+    if (authorityRequested) return;
+    authorityRequested = true;
+    const temporary = observeTemporaryState(composer);
+    if (!temporary.temporary_mode || !temporary.fresh_context || temporary.plugin_markers.length > 0) {
+      event("temporary-ui-not-proven", temporary);
+      stop("child-qualification-failed", temporary);
+      return;
+    }
+    observationSeq += 1;
+    const response = await sendMessage("authorize-send", {
+      temporary_mode: temporary.temporary_mode,
+      fresh_context: temporary.fresh_context,
+      personalization_disabled: temporary.personalization_disabled,
+      plugin_markers: temporary.plugin_markers,
+      conversation_id: policy.conversationId(location.href),
+      observation_seq: observationSeq,
+    });
+    if (!response?.ok) {
+      event("browser-claim-failed", { reason: response?.reason || "authority-unavailable" });
+      stop("send-authority-unavailable", { reason: response?.reason || "authority-unavailable" });
+      return;
+    }
+    if (response.send_authorized === true) {
+      sendAuthorized = true;
+      deliveryState = response.delivery_state || "claimed";
+      event("browser-claim-committed", { delivery_state: deliveryState });
+      return;
+    }
+    if (response.monitor_only === true) {
+      monitorOnly = true;
+      deliveryState = response.delivery_state || "unknown";
+      sendClickedAt = Date.now();
+      event("browser-claim-committed", { delivery_state: deliveryState, monitor_only: true });
+      return;
+    }
+    event("local-send-authority-denied", { reason: response.reason || "denied", delivery_state: response.delivery_state || null });
+    stop("local-send-authority-denied");
+  }
+
+  async function postDelivery(outcome, evidenceRef) {
+    const response = await sendMessage("delivery", {
+      task_sha256: intent.taskSha256,
+      outcome,
+      evidence_ref: evidenceRef,
+    });
+    if (!response?.ok) return false;
+    deliveryState = response.delivery_state || outcome;
+    deliveryOutcomeAt = Date.now();
+    event(outcome === "delivered" ? "delivery-visible" : "delivery-ambiguous", {
+      delivery_state: deliveryState,
+      evidence_ref: evidenceRef,
+    });
+    return true;
+  }
+
+  async function captureResult(text) {
+    if (captureStarted || deliveryState !== "delivered") return;
+    captureStarted = true;
+    const response = await sendMessage("capture", { result_text: text });
+    if (response?.ok) {
+      stop("result-recorded", { worker_status: response.worker_status || null });
+      return;
+    }
+    captureStarted = false;
+    event("result-capture-failed", { reason: response?.reason || "capture-failed" });
+    stop("result-capture-failed", { reason: response?.reason || "capture-failed" });
+  }
+
+  function tick() {
+    if (stopped) return;
+    if (Date.now() > deadline) {
+      event("timeout", { delivery_state: deliveryState, send_clicked: sendClickedAt > 0, monitor_only: monitorOnly });
+      stop("timeout", { delivery_state: deliveryState });
+      return;
+    }
+    if (location.origin !== "https://chatgpt.com") {
+      stop("origin-changed");
+      return;
+    }
+
+    if (!sendAuthorized && !monitorOnly && !authorityRequested) {
+      const button = findSendButton();
+      if (!buttonReady(button)) return;
+      const composer = findComposer(button);
+      if (!composer || !policy.hasExpectedPrompt(composer.textContent || "", intent)) return;
+      void requestAuthority(composer);
+      return;
+    }
+
+    if (sendAuthorized && !sendClickedAt) {
+      const button = findSendButton();
+      if (!buttonReady(button)) return;
+      const composer = findComposer(button);
+      if (!composer || !policy.hasExpectedPrompt(composer.textContent || "", intent)) {
+        stop("prompt-binding-changed-before-send");
+        return;
+      }
+      sendClickedAt = Date.now();
+      event("send-clicked", { at_ms: sendClickedAt });
+      button.click();
+      return;
+    }
+
+    if (!sendClickedAt) return;
+
+    const visibleDelivery = userDeliveryVisible();
+    if (visibleDelivery && deliveryState !== "delivered") {
+      observationSeq += 1;
+      void postDelivery(
+        "delivered",
+        `chatgpt-temporary:delivery:${intent.deliveryId}:visible:${observationSeq}`,
+      );
+      return;
+    }
+    if (!visibleDelivery && deliveryState === "claimed" && Date.now() - sendClickedAt >= intent.deliveryObserveMs && !deliveryOutcomeAt) {
+      observationSeq += 1;
+      void postDelivery(
+        "unknown",
+        `chatgpt-temporary:delivery:${intent.deliveryId}:ambiguous:${observationSeq}`,
+      );
+      return;
+    }
+
+    if (deliveryState !== "delivered" || stopButtonPresent()) return;
+    const turns = conversationTurns("assistant");
+    const last = turns.at(-1) || "";
+    if (!last) return;
+    if (last !== lastAssistantText) {
+      lastAssistantText = last;
+      lastAssistantChangedAt = Date.now();
+      return;
+    }
+    if (!policy.hasSingleResultBlock(last)) return;
+    if (lastAssistantChangedAt && Date.now() - lastAssistantChangedAt >= intent.stableMs) {
+      void captureResult(last);
+    }
+  }
+
+  event("adapter-loaded", { href: location.href.slice(0, 2048) });
+  intervalId = setInterval(tick, 500);
+  tick();
+})();
