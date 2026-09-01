@@ -67,7 +67,9 @@ class ComputerUseArchitectureContractTests(unittest.TestCase):
 
         self.assertIn("future research seam — same-task continuation / wake", folded)
         self.assertIn("not a new roadmap stage", folded)
-        self.assertIn("not part of 26.3c implementation", folded)
+        self.assertIn("not authorized by the first bounded agent session slice", folded)
+        self.assertIn("child result becoming durable is not proof", folded)
+        self.assertIn("later manager/user turn reads/reconciles result", folded)
         self.assertIn("scheduledtask", folded)
         self.assertIn("same-task continuation", folded)
         self.assertIn("existing task remains unfinished", folded)
@@ -76,7 +78,6 @@ class ComputerUseArchitectureContractTests(unittest.TestCase):
         self.assertIn("concurrent resume", folded)
         self.assertIn("grant expiry/authority after sleep", folded)
         self.assertIn("cannot actually resample the planner without a new user turn", folded)
-        self.assertIn("separate harness/product capability boundary", folded)
 
     def test_environmental_content_is_untrusted_and_safety_is_separate(self) -> None:
         decisions = (CONTEXT / "DECISIONS.md").read_text(encoding="utf-8")
