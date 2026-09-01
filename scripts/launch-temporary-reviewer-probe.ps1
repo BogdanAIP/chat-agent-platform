@@ -5,7 +5,6 @@ param(
     [string]$TargetBaseSha = '',
     [string]$TargetHeadSha = '',
     [string]$TargetSkillVersion = '1.1',
-    [string]$TargetFocus = 'affected runtime, authority, persistence, recovery, concurrency, identity, security, acceptance, tests, hosted CI and relevant GitHub evidence',
     [ValidateRange(1024, 65535)]
     [int]$Port = 3077,
     [ValidateRange(60, 7200)]
@@ -67,15 +66,12 @@ if ($Control -eq 'exact') {
     if ($TargetSkillVersion -notin @('1.0', '1.1')) {
         throw 'Control=exact requires -TargetSkillVersion 1.0 or 1.1.'
     }
-    if ([string]::IsNullOrWhiteSpace($TargetFocus) -or $TargetFocus.Length -gt 2000) {
-        throw 'Control=exact requires a non-empty bounded -TargetFocus.'
-    }
     $target = [ordered]@{
         PrNumber = [int]$TargetPrNumber
         BaseSha = $TargetBaseSha
         HeadSha = $TargetHeadSha
         SkillVersion = $TargetSkillVersion
-        Focus = $TargetFocus.Trim()
+        Focus = 'affected experiment-only browser delivery, Temporary Chat qualification evidence, result capture, local collector boundaries, exact identity, failure handling, tests, hosted CI and relevant GitHub evidence'
     }
 }
 else {
@@ -200,7 +196,7 @@ try {
             $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
             $normalized = Normalize-ReviewText ([string]$result.result_text)
             $statusMatch = [regex]::Match($normalized, '(?m)^\s*status\s*=\s*(PASS|FINDINGS|ABSTAIN|STALE)\s*$')
-            $reviewStatus = if ($statusMatch.Success) { $statusMatch.Groups[1].Value } else { 'UNSTRUCTURED' }
+            $reviewStatus = if ([string]$result.capture_kind -eq 'structured' -and $statusMatch.Success) { $statusMatch.Groups[1].Value } else { 'UNSTRUCTURED' }
             Write-Host "TEMP_REVIEW_CAPTURE=$($result.capture_kind)" -ForegroundColor Green
             Write-Host "TEMP_REVIEW_STATUS=$reviewStatus" -ForegroundColor Green
             if ([string]$result.capture_kind -ne 'structured' -and $null -ne $result.diagnostics.identity) {
