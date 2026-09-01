@@ -7,9 +7,17 @@
   const MAX_WAIT_MS = 45 * 60 * 1000;
   const STABLE_MS = 3000;
 
+  function normalizeReviewText(text) {
+    return String(text || "")
+      .replace(/\u0000/g, "")
+      .replace(/\\_/g, "_")
+      .replace(/\u00a0/g, " ")
+      .replace(/\r\n?/g, "\n");
+  }
+
   function requestField(prompt, name) {
     const prefix = `${name}=`;
-    for (const line of String(prompt || "").replace(/\r\n?/g, "\n").split("\n")) {
+    for (const line of normalizeReviewText(prompt).split("\n")) {
       if (line.startsWith(prefix)) return line.slice(prefix.length).trim();
     }
     return "";
@@ -75,26 +83,42 @@
     return typeof text === "string" && text.includes(intent.sentinel) && text.includes("REVIEW_REQUEST_V1");
   }
 
+  function parseResultFields(text) {
+    const normalized = normalizeReviewText(text);
+    const fields = new Map();
+    for (const rawLine of normalized.split("\n")) {
+      const line = rawLine.trim();
+      const match = line.match(/^([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (match && !fields.has(match[1])) fields.set(match[1], match[2]);
+    }
+    return { normalized, fields };
+  }
+
   function resultIdentitySummary(text, intent) {
     if (typeof text !== "string" || !intent || !intent.expected) return { structured: false };
-    const normalized = String(text).replace(/\\_/g, "_").replace(/\r\n?/g, "\n");
-    const required = [
-      "REVIEW_RESULT_V1",
-      `repository=${intent.expected.repository}`,
-      `pr_number=${intent.expected.prNumber}`,
-      `base_sha=${intent.expected.baseSha}`,
-      `head_sha=${intent.expected.headSha}`,
-      `review_skill=${intent.expected.reviewSkill}`,
-      `review_skill_version=${intent.expected.reviewSkillVersion}`,
-      `review_context=${intent.expected.reviewContext}`,
-    ];
-    const missing = required.filter((marker) => !normalized.includes(marker));
-    const statusMatch = normalized.match(/^status=(PASS|FINDINGS|ABSTAIN|STALE)$/m);
+    const { normalized, fields } = parseResultFields(text);
+    const expectedFields = new Map([
+      ["repository", intent.expected.repository],
+      ["pr_number", intent.expected.prNumber],
+      ["base_sha", intent.expected.baseSha],
+      ["head_sha", intent.expected.headSha],
+      ["review_skill", intent.expected.reviewSkill],
+      ["review_skill_version", intent.expected.reviewSkillVersion],
+      ["review_context", intent.expected.reviewContext],
+    ]);
+    const missing = [];
+    for (const [name, expected] of expectedFields) {
+      if (fields.get(name) !== expected) missing.push(`${name}=${expected}`);
+    }
+    const status = fields.get("status") || null;
+    const statusValid = new Set(["PASS", "FINDINGS", "ABSTAIN", "STALE"]).has(status);
+    const headerPresent = /(^|\n)\s*REVIEW_RESULT_V1\s*(\n|$)/.test(normalized);
     const completionMarkerAtEnd = normalized.trimEnd().endsWith(intent.completionMarker);
     return {
-      structured: missing.length === 0 && Boolean(statusMatch) && completionMarkerAtEnd,
+      structured: headerPresent && missing.length === 0 && statusValid && completionMarkerAtEnd,
       missing,
-      status: statusMatch ? statusMatch[1] : null,
+      status,
+      header_present: headerPresent,
       completion_marker_at_end: completionMarkerAtEnd,
     };
   }
@@ -105,6 +129,7 @@
     SHA_RE,
     MAX_WAIT_MS,
     STABLE_MS,
+    normalizeReviewText,
     parseIntent,
     attemptKey,
     captureKey,
