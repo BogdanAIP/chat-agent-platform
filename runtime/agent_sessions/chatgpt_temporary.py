@@ -206,19 +206,22 @@ def prepare_temporary_session(
         {
             "temporary-chat": "true",
             "cap_agent_delegate": "1",
-            "cap_run_id": prepared.run_id,
             "cap_delegation_id": prepared.delegation_id,
             "cap_delivery_id": prepared.delivery_id,
             "cap_task_sha256": identity.task_sha256,
             "prompt": prompt,
         }
     )
+    # Keep the private durable run capability out of the HTTP request/query. The
+    # extension reads it from the fragment before claiming Send authority; the
+    # worker prompt never contains it.
+    fragment = urlencode({"cap_run_id": prepared.run_id})
     return TemporaryLaunchIntent(
         identity=identity,
         delegation_id=prepared.delegation_id,
         delivery_id=prepared.delivery_id,
         run_id=prepared.run_id,
-        launch_url=f"https://chatgpt.com/?{query}",
+        launch_url=f"https://chatgpt.com/?{query}#{fragment}",
         prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         launch_now=launch_now,
         launch_state=launch_state,
