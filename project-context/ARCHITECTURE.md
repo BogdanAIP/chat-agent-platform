@@ -24,7 +24,7 @@ ordinary ChatGPT
   + strategy
   + procedure/capability selection
   + novel-state adaptation / escalation
-  + future bounded delegation proposals
+  + bounded delegation selection
 
 local platform
   = scoped capabilities
@@ -36,18 +36,19 @@ local platform
   + capability-spanning WorkingState
   + reconciliation / typed recovery / LoopGuard / budgets
   + checkpoints / procedure state
+  + bounded Agent Session / Delegation lifecycle
   + independent Finish Gate
   + safety/policy gate
   + verified procedural memory / future skill lineage
 ```
 
-Ordinary ChatGPT is the **only current general planner**. A future local general planner is optional Track P research and remains above the same deterministic authority/verification boundaries.
+Ordinary ChatGPT is the **only current general planner**. A delegated worker is a bounded specialist whose output is data returned to the manager, not another project planner or local authority layer. A future local general planner is optional Track P research and remains above the same deterministic authority/verification boundaries.
 
 ## General planner vs deterministic Control Plane
 
 **General planner** = open-ended semantic strategy: understand user goal, select materially different approaches, adapt to novel state.
 
-**Deterministic Control Plane** = execution-state/policy machinery for an already-selected bounded goal/procedure/effect.
+**Deterministic Control Plane** = execution-state/policy machinery for an already-selected bounded goal/procedure/effect/delegation.
 
 The Control Plane may advance a predeclared transition only when current evidence uniquely matches it and authorization + verification gates pass. It must ABSTAIN/escalate instead of inventing a new strategy.
 
@@ -78,6 +79,8 @@ procedure_run
 There is no accepted five/six runtime mode. Historical five-tool projection is implementation/qualification history only.
 
 Six is the current accepted contract, not an eternal maximum. A genuinely new consequence class requires a truthful public schema/security/ordinary-Chat acceptance decision. Never preserve the count by hiding desktop/session/project/local-code authority behind misleading semantics or generic dispatch.
+
+The first bounded Agent Session / Delegation mechanism remains internal/registered behind existing bounded procedure/runtime authority while under acceptance; it does not add a seventh generic public dispatcher.
 
 ## Transport / extension boundary
 
@@ -163,7 +166,7 @@ Keep rich native state authoritative for its scope:
 - Browser: page/DOM/accessibility/document/session evidence;
 - Windows: DesktopState/UIA/native window/process/frame evidence;
 - future app adapters: their own system-of-record evidence;
-- future Agent Sessions: harness/session/chat/delegation/message/environment evidence.
+- Agent Sessions: harness/session/chat/delegation/delivery/result/environment evidence.
 
 A small cross-capability envelope may reference native observations, but must not flatten them into one lossy screenshot/text blob.
 
@@ -202,6 +205,8 @@ observe current state
 
 Transition `PASS` is not whole-task `DONE`; independent Finish Gate evidence remains separate.
 
+For delegated workers, `message delivered` is likewise not `worker completed`. Delivery and terminal worker result are separate correlated states.
+
 ## WorkingState / long-horizon recovery
 
 WorkingState is **project-owned capability-spanning structured operational state**, never private chain-of-thought.
@@ -220,12 +225,14 @@ stable logical operation / attempt / reconciliation state
 recovery history
 task / procedure / strategy budgets
 active capability/grant/procedure refs
-optional planner-neutral actor/delegation/environment refs
+planner-neutral actor/delegation/environment refs
 ```
 
 Vendor procedure/session state may be referenced below it, but does not replace it.
 
 Ambiguous mutating outcomes are reconciled from fresh authoritative state before unsafe retry. LoopGuard bounds repeat/no-effect/oscillation and produces diagnostic StagnationReport data for planner escalation rather than inventing strategy locally.
+
+Agent Session / Delegation durable state is a narrow lifecycle state below capability-spanning WorkingState. It owns exact delegation/run/delivery/result correlation for its bounded worker operation; it does not become a second capability-spanning state framework.
 
 ## Files / Browser / Windows
 
@@ -238,6 +245,8 @@ Filesystem capability remains rooted/scoped, with exact object/content/identity 
 Accepted Browser execution uses project semantic operations backed by Playwright and state-first DOM/accessibility evidence with bounded visual fallback.
 
 The representative accepted Browser L3 backend is headless Playwright/Chrome on target Windows. This does not imply visible attached-desktop Chrome control.
+
+The first Agent Session provider adapter may use an authenticated visible ChatGPT browser context only for the narrowly researched worker-launch/delivery/result role. That adapter does not expand the general Browser capability or grant arbitrary page/network authority.
 
 Future broader trusted-site JS/CDP/network authority is a separate consequence/security layer under ADR-036 and `BROWSER_HARNESS_ARCHITECTURE.md`.
 
@@ -267,35 +276,86 @@ Do not adopt HostAgent/AppAgent/Galaxy as the current planner/AgentOS or complet
 
 `ARCHITECTURE_REUSE_BASELINE.md` is the canonical prior-lineage comparison point for these roles.
 
-## Future Agent Sessions / Delegation — Track M
+## Agent Sessions / Delegation — bounded Track M selected
 
-Agent Sessions are a future capability family beside Files/Browser/Windows/Procedures, not a Browser child and not a second planner.
+Fresh Stage Research in `AGENT_SESSION_DELEGATION_REENTRY.md` promoted Track M from future-only design into a **bounded current product mechanism** while explicitly rejecting broad multi-agent orchestration as the first scope.
 
 Keep distinct:
 
 ```text
-HarnessSession
+Manager task
+HarnessSession / provider session
 Conversation / Chat
-DelegationTask
+DelegationIdentity
+WorkerSession
 MessageDelivery
+WorkerResult
 ExecutionEnvironment
 ```
 
-Session discoverability != mutation authority != lifecycle ownership.
-
-Preferred future adapter routing:
+The selected first topology is exactly:
 
 ```text
-reviewed official/project-owned harness API or host protocol
- -> validated provider/session native route
- -> Browser Companion / GenericChatAdapter DOM/accessibility
- -> reviewed GUI/visual fallback
+one ordinary-ChatGPT manager
+ -> one fresh read-only worker
+ -> one bounded delegation identity
+ -> one initial delivery
+ -> one correlated generic terminal result
+ -> durable local closure
+```
+
+Provider session/message ids are observations bound after launch, not deterministic delegation identity.
+
+Generic lifecycle rules:
+
+```text
+deterministic provider-independent delegation identity
+private durable run capability
+immutable genesis + crash-safe mutable state
+launch-attempt committed before physical launch
+one child binding
+one delivery claim
+prepared | claimed | unknown | delivered
+no blind second Send
+unknown -> delivered only for the same delivery from fresh evidence
+one WORKER_RESULT_V1
+COMPLETED | ABSTAIN | ERROR
+exact delegation/delivery/worker/contract correlation
+bounded payload + adapter-computed hash
+```
+
+Worker output remains environmental/task data. It cannot grant capability authority, mutate the manager's constraints, declare project Finish Gate success or widen its own task.
+
+### First provider adapter
+
+The first concrete provider adapter is `chatgpt-temporary`, deliberately provider-specific rather than a premature large generic provider framework.
+
+Preferred adapter routing remains:
+
+```text
+reviewed official/project-owned harness API or host protocol when available
+ -> validated provider/session-native route
+ -> bounded Browser Companion/provider DOM/accessibility adapter
+ -> reviewed GUI/visual fallback only if separately justified
  -> ABSTAIN
 ```
 
-Delivery acknowledgement != delegation completion. Stable operation identity/reconciliation precede retry. Worker output remains environmental data and cannot grant authority.
+For the first Temporary Chat path:
 
-Canonical future detail: `CONVERSATION_BRIDGE_ARCHITECTURE.md` / ADR-035.
+- fresh/non-personalized/no-plugin state must be positively established before Send;
+- browser-side one-Send ownership and project-local delivery ownership are separate claims;
+- ambiguous Send becomes `unknown` and never grants a re-Send;
+- running provider-extension bytes must match exact expected source before Send and be revalidated before terminal browser-result capture;
+- the private run capability must not be exposed to the worker prompt;
+- adapter authority remains loopback/provider-scoped and cannot mutate project/GitHub/filesystem state.
+
+Automatic same-task manager wake/resampling is outside the selected scope. First behavior is durable child result -> later manager/user turn reads/reconciles it deterministically.
+
+Nested/fan-out workers, mutating children, worker pools/rotation, project/worktree/environment creation, general scheduler/event bus and a second general planner require separate Stage Research.
+
+Reviewer automation may later become the first specialist consumer, but reviewer freshness/exact-PR/result/authority policy remains above the generic lifecycle and must be separately preserved during migration.
+
+Canonical current detail: `AGENT_SESSION_DELEGATION_REENTRY.md`. Earlier broader/future bridge ideas remain in `CONVERSATION_BRIDGE_ARCHITECTURE.md` and do not override the selected NARROW mechanism.
 
 ## Future Capability Registry / Event / Hooks — ADR-037
 
@@ -310,8 +370,6 @@ PolicyHooks         != planner / arbitrary shell-Python
 ```
 
 This remains future architecture until current consumers and fresh Stage Research justify concrete implementation.
-
-Canonical detail: `CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md`.
 
 ## Future broader Browser / Local Execution — ADR-036
 
@@ -347,4 +405,5 @@ The architecture does not imply:
 - a generic shell/Python/backend dispatcher;
 - vendor completion verdicts as project truth;
 - local hidden chain-of-thought persistence;
-- Agent Sessions/CapabilityRegistry/Local Execution as current authority merely because their future boundaries are documented.
+- broad multi-agent/nested-worker/scheduler authority merely because bounded Agent Session / Delegation exists;
+- CapabilityRegistry/Local Execution as current authority merely because their future boundaries are documented.
