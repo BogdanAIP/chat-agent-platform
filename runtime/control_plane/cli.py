@@ -13,6 +13,18 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from runtime.control_plane import verified_workspace_artifact as workspace_artifact  # noqa: E402
+from runtime.control_plane.independent_review_procedures import (  # noqa: E402
+    LAUNCH_PROCEDURE_ID as REVIEW_LAUNCH_PROCEDURE_ID,
+    RECONCILE_PROCEDURE_ID as REVIEW_RECONCILE_PROCEDURE_ID,
+    SUBMIT_PROCEDURE_ID as REVIEW_SUBMIT_PROCEDURE_ID,
+    run_launch_independent_review,
+    run_reconcile_independent_review_result,
+    run_submit_independent_review_result,
+)
+from runtime.control_plane.independent_review_state import (  # noqa: E402
+    MAX_RESULT_BYTES,
+    STATE_DIRECTORY as REVIEW_STATE_DIRECTORY,
+)
 from runtime.control_plane.windows_case_update import (  # noqa: E402
     PROCEDURE_ID as WINDOWS_CASE_PROCEDURE_ID,
     run_windows_case_update,
@@ -20,9 +32,26 @@ from runtime.control_plane.windows_case_update import (  # noqa: E402
 
 
 WORKSPACE_ARTIFACT_PROCEDURE_ID = workspace_artifact.PROCEDURE_ID
-MAX_REQUEST_BYTES = 32_768
+# A valid decoded review result may expand by up to six times when represented
+# as JSON because ASCII control bytes become \u00XX escapes. Keep the stdin
+# transport bound coherent with the accepted result/state bound while remaining
+# finite before json.loads allocates an unbounded request.
+MAX_REQUEST_BYTES = MAX_RESULT_BYTES * 6 + 65_536
 _ASSIGNED_TASK_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 _MIN_WORKSPACE_PYTHON = (3, 12)
+_REVIEW_PROCEDURE_IDS = {
+    REVIEW_LAUNCH_PROCEDURE_ID,
+    REVIEW_SUBMIT_PROCEDURE_ID,
+    REVIEW_RECONCILE_PROCEDURE_ID,
+}
+_SUCCESS_STATUSES = {
+    "completed",
+    "abstained",
+    "recorded",
+    "already_recorded",
+    "pending",
+    "manual_recovery_required",
+}
 
 
 def _error(reason: str) -> dict[str, Any]:
@@ -40,6 +69,28 @@ def _require_workspace_python() -> None:
     # interpreter before the procedure can create durable state or a file effect.
     if sys.version_info < _MIN_WORKSPACE_PYTHON:
         raise RuntimeError("workspace procedure requires Python 3.12 or newer")
+
+
+def _require_private_review_state_root(
+    procedure: Any,
+    *,
+    workspace_root: Path,
+    state_root: Path,
+) -> None:
+    """Keep the private review capability path-disjoint from the readable workspace."""
+
+    if procedure not in _REVIEW_PROCEDURE_IDS:
+        return
+    resolved_workspace = workspace_root.resolve()
+    resolved_review_root = (state_root.resolve() / REVIEW_STATE_DIRECTORY).resolve()
+    if (
+        resolved_review_root == resolved_workspace
+        or resolved_review_root.is_relative_to(resolved_workspace)
+        or resolved_workspace.is_relative_to(resolved_review_root)
+    ):
+        raise ValueError(
+            "independent-review state directory must be path-disjoint from the readable workspace"
+        )
 
 
 class _AssignedTaskIdSecrets:
@@ -141,6 +192,11 @@ def _dispatch_registered_procedure(
     candidate_admission: str | None,
 ) -> dict[str, Any]:
     procedure = request.get("procedure")
+    _require_private_review_state_root(
+        procedure,
+        workspace_root=workspace_root,
+        state_root=state_root,
+    )
     if procedure == WORKSPACE_ARTIFACT_PROCEDURE_ID:
         return _run_workspace_artifact(
             request,
@@ -155,6 +211,12 @@ def _dispatch_registered_procedure(
             state_root=state_root,
             candidate_admission=candidate_admission,
         )
+    if procedure == REVIEW_LAUNCH_PROCEDURE_ID:
+        return run_launch_independent_review(request, state_root=state_root)
+    if procedure == REVIEW_SUBMIT_PROCEDURE_ID:
+        return run_submit_independent_review_result(request, state_root=state_root)
+    if procedure == REVIEW_RECONCILE_PROCEDURE_ID:
+        return run_reconcile_independent_review_result(request, state_root=state_root)
     raise ValueError("unknown or unregistered procedure")
 
 
@@ -194,7 +256,7 @@ def main() -> int:
         result = _error(f"runtime_unavailable:{type(exc).__name__}")
 
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
-    return 0 if result.get("status") in {"completed", "abstained"} else 2
+    return 0 if result.get("status") in _SUCCESS_STATUSES else 2
 
 
 if __name__ == "__main__":

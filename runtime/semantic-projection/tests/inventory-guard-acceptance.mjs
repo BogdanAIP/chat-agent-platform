@@ -34,7 +34,7 @@ function childEnvironment() {
 }
 
 function ownershipOptions(pid, extraEnv = {}) {
-  const env = { ...extraEnv };
+  const env = { CHAT_LOCAL_FILES_ROOT: workspace, ...extraEnv };
   if (process.platform === 'win32') {
     env.LOCALAPPDATA = runtimeRoot;
     return { env, platform: 'win32', pid };
