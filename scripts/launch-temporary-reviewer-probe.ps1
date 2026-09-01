@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('pass142', 'findings140')]
+    [ValidateSet('pass142', 'stale140', 'findings146')]
     [string]$Control = 'pass142',
     [ValidateRange(1024, 65535)]
     [int]$Port = 3077,
@@ -33,8 +33,15 @@ $controls = @{
         SkillVersion = '1.1'
         Focus = 'affected automatic-review fixed-procedure/state/privacy/provenance paths, focused tests, hosted CI and relevant GitHub evidence'
     }
-    findings140 = [ordered]@{
+    stale140 = [ordered]@{
         PrNumber = 140
+        BaseSha = 'b10a5fa3122bb6c76c12d37d67911b88e5e1ce28'
+        HeadSha = '7077ecb8496ee89530cbe5efaa1b2112e7be330f'
+        SkillVersion = '1.0'
+        Focus = 'affected Stage Research, reviewer authority, local-result publication/reconciliation, persistence, recovery, concurrency, identity, security and acceptance paths, focused tests, hosted CI and relevant GitHub evidence'
+    }
+    findings146 = [ordered]@{
+        PrNumber = 146
         BaseSha = 'b10a5fa3122bb6c76c12d37d67911b88e5e1ce28'
         HeadSha = '7077ecb8496ee89530cbe5efaa1b2112e7be330f'
         SkillVersion = '1.0'
@@ -83,6 +90,11 @@ $prompt = $prompt.Trim()
 
 function Encode-QueryValue([string]$Value) {
     return [Uri]::EscapeDataString($Value)
+}
+
+function Normalize-ReviewText([string]$Value) {
+    if ($null -eq $Value) { return '' }
+    return (($Value -replace '\\_', '_') -replace "`r`n?", "`n")
 }
 
 $url = 'https://chatgpt.com/?temporary-chat=true' +
@@ -154,10 +166,14 @@ try {
     while ((Get-Date) -lt $deadline) {
         if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
             $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
-            $statusMatch = [regex]::Match([string]$result.result_text, '(?m)^status=(PASS|FINDINGS|ABSTAIN|STALE)$')
+            $normalized = Normalize-ReviewText ([string]$result.result_text)
+            $statusMatch = [regex]::Match($normalized, '(?m)^\s*status\s*=\s*(PASS|FINDINGS|ABSTAIN|STALE)\s*$')
             $reviewStatus = if ($statusMatch.Success) { $statusMatch.Groups[1].Value } else { 'UNSTRUCTURED' }
             Write-Host "TEMP_REVIEW_CAPTURE=$($result.capture_kind)" -ForegroundColor Green
             Write-Host "TEMP_REVIEW_STATUS=$reviewStatus" -ForegroundColor Green
+            if ([string]$result.capture_kind -ne 'structured' -and $null -ne $result.diagnostics.identity) {
+                Write-Host "TEMP_REVIEW_IDENTITY_DIAGNOSTICS=$($result.diagnostics.identity | ConvertTo-Json -Compress -Depth 8)" -ForegroundColor Yellow
+            }
             Write-Host "TEMP_REVIEW_RESULT_PATH=$resultPath" -ForegroundColor Green
             return
         }
