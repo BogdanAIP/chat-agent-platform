@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from runtime.control_plane import cli as control_plane_cli
 from runtime.control_plane import independent_review_state as review_state
 from runtime.control_plane.independent_review_procedures import (
     LAUNCH_PROCEDURE_ID,
@@ -185,6 +186,37 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     identity_request("wrong"),
                     state_root=state_root,
                 )
+
+    def test_cli_rejects_reviewer_state_inside_readable_workspace_before_genesis(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            workspace_root = Path(workspace_dir)
+            for state_root in (
+                workspace_root,
+                workspace_root / ".chat-agent-platform" / "procedure-state",
+            ):
+                with self.subTest(state_root=state_root), self.assertRaisesRegex(
+                    ValueError,
+                    r"independent-review state root must be outside the readable workspace",
+                ):
+                    control_plane_cli._dispatch_registered_procedure(
+                        identity_request(LAUNCH_PROCEDURE_ID),
+                        workspace_root=workspace_root,
+                        state_root=state_root,
+                        candidate_admission=None,
+                    )
+                self.assertFalse(
+                    (state_root / review_state.STATE_DIRECTORY).exists(),
+                    "privacy rejection must happen before review genesis/state creation",
+                )
+
+    def test_cli_privacy_guard_does_not_change_non_review_procedure_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            workspace_root = Path(workspace_dir)
+            control_plane_cli._require_private_review_state_root(
+                control_plane_cli.WORKSPACE_ARTIFACT_PROCEDURE_ID,
+                workspace_root=workspace_root,
+                state_root=workspace_root / ".chat-agent-platform" / "procedure-state",
+            )
 
 
 if __name__ == "__main__":
