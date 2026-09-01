@@ -22,6 +22,7 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertGreaterEqual(self.text.count("Invoke-SourceGate"), 3)  # definition + before + after
         for asset in (
             "runtime/control_plane/delegation_state.py",
+            "runtime/agent_sessions/source_attestation.py",
             "runtime/agent_sessions/chatgpt_temporary.py",
             "runtime/agent_sessions/chatgpt_temporary_controller.py",
             "runtime/agent_sessions/chatgpt_temporary_extension/manifest.json",
@@ -30,6 +31,17 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
             "runtime/agent_sessions/chatgpt_temporary_extension/content.js",
         ):
             self.assertIn(asset, self.text)
+
+    def test_launcher_builds_exact_expected_installed_extension_attestation(self) -> None:
+        self.assertIn("expected-runtime-attestation.json", self.text)
+        self.assertIn("expected_head = $ExpectedHead", self.text)
+        self.assertIn("adapter_id = 'chatgpt-temporary'", self.text)
+        for asset in ("manifest.json", "policy.js", "background.js", "content.js"):
+            self.assertIn(f"'{asset}' = Get-Sha256", self.text)
+        self.assertIn("--runtime-attestation-json", self.text)
+        self.assertIn("$runtimeAttestationPath", self.text)
+        self.assertIn("CAP_AGENT_SESSION_EXPECTED_EXTENSION_ATTESTATION", self.text)
+        self.assertIn("Controller runtime-attestation head mismatch", self.text)
 
     def test_launcher_keeps_state_and_evidence_outside_repository(self) -> None:
         self.assertIn("$env:LOCALAPPDATA", self.text)
@@ -57,6 +69,7 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertLess(marker, controller)
         validate_block = self.text[marker:controller]
         self.assertIn("CAP_AGENT_SESSION_VALIDATE_ONLY=PASS", validate_block)
+        self.assertIn("expected-runtime-attestation.json", self.text[:marker])
         self.assertIn("return", validate_block)
 
     def test_powershell_syntax_when_available(self) -> None:
