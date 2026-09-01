@@ -86,6 +86,30 @@ function canonicalExistingDirectory(input, label) {
   return fs.realpathSync.native(resolved);
 }
 
+function canonicalPotentialDirectory(input, label) {
+  if (typeof input !== 'string' || input.trim().length === 0) {
+    throw new Error(`${label} must be configured`);
+  }
+
+  const resolved = path.resolve(input);
+  let probe = resolved;
+  const missingSegments = [];
+  while (!fs.existsSync(probe)) {
+    const parent = path.dirname(probe);
+    if (parent === probe) {
+      throw new Error(`${label} has no resolvable existing ancestor: ${resolved}`);
+    }
+    missingSegments.unshift(path.basename(probe));
+    probe = parent;
+  }
+
+  const stat = fs.statSync(probe, { throwIfNoEntry: false });
+  if (!stat?.isDirectory()) {
+    throw new Error(`${label} existing ancestor must be a directory: ${probe}`);
+  }
+  return path.join(fs.realpathSync.native(probe), ...missingSegments);
+}
+
 export function resolveSemanticRuntimePaths({
   env = process.env,
   platform = process.platform,
@@ -128,24 +152,55 @@ export function assertPrivateWorkspaceIsolation(options = {}) {
     'CHAT_LOCAL_FILES_ROOT'
   );
 
-  // Reviewer genesis/checkpoints under manager state contain the private
-  // review_run_id. Make that state tree a lifetime non-workspace boundary, not
-  // merely a point-in-time procedure_run check. Resolve physical paths before
-  // comparing so a symlink/junction alias cannot make private state Chat-readable.
+  // Reviewer genesis/checkpoints contain the private review_run_id. Make every
+  // supported reviewer-state location a lifetime non-workspace boundary, not
+  // merely a point-in-time procedure_run check. Resolve physical paths (or the
+  // nearest physical ancestor for not-yet-created state) before comparing so a
+  // symlink/junction alias cannot make private state Chat-readable.
   // Sibling manager-owned qualification worktrees remain valid workspaces.
   const managerStatePath = path.join(paths.platformRoot, 'state');
   fs.mkdirSync(managerStatePath, { recursive: true });
   const managerStateRoot = fs.realpathSync.native(managerStatePath);
-  if (
-    isInsideOrEqual(managerStateRoot, workspaceRoot) ||
-    isInsideOrEqual(workspaceRoot, managerStateRoot)
-  ) {
-    throw new Error(
-      `CHAT_LOCAL_FILES_ROOT must be path-disjoint from private manager state: ${managerStateRoot}`
+  const protectedRoots = [
+    { label: 'private manager state', root: managerStateRoot }
+  ];
+
+  const configuredStateValue = typeof env.CHAT_PROCEDURE_STATE_ROOT === 'string'
+    ? env.CHAT_PROCEDURE_STATE_ROOT.trim()
+    : '';
+  let configuredReviewRoot = null;
+  if (configuredStateValue) {
+    const configuredStateRoot = canonicalPotentialDirectory(
+      configuredStateValue,
+      'CHAT_PROCEDURE_STATE_ROOT'
     );
+    configuredReviewRoot = canonicalPotentialDirectory(
+      path.join(configuredStateRoot, 'independent-review-v1'),
+      'configured independent-review state directory'
+    );
+    protectedRoots.push({
+      label: 'configured independent-review state',
+      root: configuredReviewRoot
+    });
   }
 
-  return { ...paths, workspaceRoot, managerStateRoot };
+  for (const protectedRoot of protectedRoots) {
+    if (
+      isInsideOrEqual(protectedRoot.root, workspaceRoot) ||
+      isInsideOrEqual(workspaceRoot, protectedRoot.root)
+    ) {
+      throw new Error(
+        `CHAT_LOCAL_FILES_ROOT must be path-disjoint from ${protectedRoot.label}: ${protectedRoot.root}`
+      );
+    }
+  }
+
+  return {
+    ...paths,
+    workspaceRoot,
+    managerStateRoot,
+    configuredReviewRoot
+  };
 }
 
 export function prepareSemanticRuntimeEnvironment(options = {}) {
