@@ -148,6 +148,23 @@ function Resolve-PhysicalDirectoryPath {
     return [System.IO.Path]::GetFullPath($physical).TrimEnd('\', '/')
 }
 
+function Resolve-PotentialPhysicalDirectoryPath {
+    param([Parameter(Mandatory)] [string]$Path)
+
+    $nodeName = if ($IsWindows) { 'node.exe' } else { 'node' }
+    $node = (Get-Command $nodeName -ErrorAction Stop).Source
+    $realPathScript = "const fs=require('node:fs'),p=require('node:path');let x=p.resolve(process.argv[1]),m=[];while(!fs.existsSync(x)){const q=p.dirname(x);if(q===x)process.exit(2);m.unshift(p.basename(x));x=q;}if(!fs.statSync(x).isDirectory())process.exit(3);process.stdout.write(p.join(fs.realpathSync.native(x),...m));"
+    $output = @(& $node -e $realPathScript $Path 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not resolve potential private state path '$Path': $($output -join ' ')"
+    }
+    $physical = ($output -join "`n").Trim()
+    if ([string]::IsNullOrWhiteSpace($physical)) {
+        throw "Could not resolve potential private state path '$Path'."
+    }
+    return [System.IO.Path]::GetFullPath($physical).TrimEnd('\', '/')
+}
+
 function Test-PathsOverlap {
     param(
         [Parameter(Mandatory)] [string]$Left,
@@ -212,6 +229,14 @@ function Resolve-SafeFilesRoot {
         }
         if (Test-PathsOverlap -Left $physicalFull -Right $physicalManagerStateRoot) {
             throw "Refusing FilesRoot '$physicalFull' because Chat workspaces must be path-disjoint from private manager state '$physicalManagerStateRoot'."
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:CHAT_PROCEDURE_STATE_ROOT)) {
+        $configuredReviewRoot = Join-Path $env:CHAT_PROCEDURE_STATE_ROOT 'independent-review-v1'
+        $physicalConfiguredReviewRoot = Resolve-PotentialPhysicalDirectoryPath -Path $configuredReviewRoot
+        if (Test-PathsOverlap -Left $physicalFull -Right $physicalConfiguredReviewRoot) {
+            throw "Refusing FilesRoot '$physicalFull' because Chat workspaces must be path-disjoint from configured independent-review state '$physicalConfiguredReviewRoot'."
         }
     }
 
