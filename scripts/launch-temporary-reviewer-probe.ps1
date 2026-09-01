@@ -20,9 +20,9 @@ $ExperimentRoot = Join-Path $RepoRoot 'experiments\chatgpt-temporary-reviewer'
 $CollectorPath = Join-Path $ExperimentRoot 'collector.py'
 $BundleBuilderPath = Join-Path $ExperimentRoot 'build_private_bundle.py'
 $ManifestPath = Join-Path $ExperimentRoot 'manifest.json'
-foreach ($requiredPath in @($CollectorPath, $BundleBuilderPath, $ManifestPath)) {
-    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
-        throw "Temporary reviewer experiment file is missing: $requiredPath"
+foreach ($path in @($CollectorPath, $BundleBuilderPath, $ManifestPath)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Temporary reviewer experiment file is missing: $path"
     }
 }
 if ($Port -ne 3077) {
@@ -68,18 +68,10 @@ $controls = @{
 }
 
 if ($Control -eq 'exact') {
-    if ($TargetPrNumber -notmatch '^\d+$') {
-        throw 'Control=exact requires -TargetPrNumber as decimal digits.'
-    }
-    if ($TargetBaseSha -notmatch '^[0-9a-f]{40}$') {
-        throw 'Control=exact requires -TargetBaseSha as exactly 40 lowercase hex characters.'
-    }
-    if ($TargetHeadSha -notmatch '^[0-9a-f]{40}$') {
-        throw 'Control=exact requires -TargetHeadSha as exactly 40 lowercase hex characters.'
-    }
-    if ($TargetSkillVersion -notin @('1.0', '1.1')) {
-        throw 'Control=exact requires -TargetSkillVersion 1.0 or 1.1.'
-    }
+    if ($TargetPrNumber -notmatch '^\d+$') { throw 'Control=exact requires -TargetPrNumber as decimal digits.' }
+    if ($TargetBaseSha -notmatch '^[0-9a-f]{40}$') { throw 'Control=exact requires -TargetBaseSha as exactly 40 lowercase hex characters.' }
+    if ($TargetHeadSha -notmatch '^[0-9a-f]{40}$') { throw 'Control=exact requires -TargetHeadSha as exactly 40 lowercase hex characters.' }
+    if ($TargetSkillVersion -notin @('1.0', '1.1')) { throw 'Control=exact requires -TargetSkillVersion 1.0 or 1.1.' }
     $target = [ordered]@{
         PrNumber = [int]$TargetPrNumber
         BaseSha = $TargetBaseSha
@@ -96,15 +88,22 @@ $bundleMode = $Control -eq 'privatebundle140'
 $libraryMode = $Control -eq 'libraryfile140'
 $localEvidenceMode = $bundleMode -or $libraryMode
 $runId = 'tmprev-' + [Guid]::NewGuid().ToString('N')
-$tokenBytes = [byte[]]::new(32)
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($tokenBytes)
-$collectorToken = -join ($tokenBytes | ForEach-Object { $_.ToString('x2') })
-$bundleNonceBytes = [byte[]]::new(32)
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($bundleNonceBytes)
-$bundleNonce = -join ($bundleNonceBytes | ForEach-Object { $_.ToString('x2') })
+
+function New-HexToken([int]$Bytes) {
+    $buffer = [byte[]]::new($Bytes)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($buffer)
+    return -join ($buffer | ForEach-Object { $_.ToString('x2') })
+}
+function Encode-QueryValue([string]$Value) { return [Uri]::EscapeDataString($Value) }
+function Normalize-ReviewText([string]$Value) {
+    if ($null -eq $Value) { return '' }
+    return (($Value -replace '\\_', '_') -replace "`r`n?", "`n")
+}
+
+$collectorToken = New-HexToken 32
+$bundleNonce = New-HexToken 32
 $completionMarker = "CAP_TEMP_REVIEW_COMPLETE=$runId"
 $libraryFilename = "cap-private-review-$runId.txt"
-
 $OutputRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform\experiments\temporary-reviewer\$runId"
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 $resultPath = Join-Path $OutputRoot 'result.json'
@@ -113,23 +112,14 @@ $stdoutPath = Join-Path $OutputRoot 'collector.stdout.log'
 $stderrPath = Join-Path $OutputRoot 'collector.stderr.log'
 $bundlePath = Join-Path $OutputRoot $libraryFilename
 
-$python = (Get-Command 'python.exe' -ErrorAction SilentlyContinue)
-if ($null -eq $python) {
-    $python = (Get-Command 'python' -ErrorAction Stop)
-}
+$python = Get-Command 'python.exe' -ErrorAction SilentlyContinue
+if ($null -eq $python) { $python = Get-Command 'python' -ErrorAction Stop }
 
 $bundleSha256 = ''
 $bundleBytes = 0
 if ($localEvidenceMode) {
-    & $python.Source $BundleBuilderPath `
-        --repo-root $RepoRoot `
-        --base-sha $target.BaseSha `
-        --head-sha $target.HeadSha `
-        --bundle-nonce $bundleNonce `
-        --output $bundlePath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Private review bundle builder failed with exit code $LASTEXITCODE."
-    }
+    & $python.Source $BundleBuilderPath --repo-root $RepoRoot --base-sha $target.BaseSha --head-sha $target.HeadSha --bundle-nonce $bundleNonce --output $bundlePath
+    if ($LASTEXITCODE -ne 0) { throw "Private review bundle builder failed with exit code $LASTEXITCODE." }
     $bundleSha256 = (Get-FileHash -LiteralPath $bundlePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $bundleBytes = (Get-Item -LiteralPath $bundlePath).Length
 }
@@ -140,12 +130,11 @@ CAP_TEMP_REVIEW_RUN_ID=$runId
 
 PRIVATE_BUNDLE_CONTROL_V1
 
-This is a non-authoritative physical quality experiment that models a PRIVATE repository.
-A read-only evidence bundle will be injected into this same message automatically before Send.
+This is a non-authoritative physical quality experiment that models a PRIVATE repository. A read-only evidence bundle will be injected into this same message automatically before Send.
 
-Use ONLY that injected REVIEW_EVIDENCE_BUNDLE_V1. Do not use built-in web search, GitHub, apps/plugins, APIs, or any external repository/source. Do not ask the user for more evidence. The bundle was generated from local immutable Git objects and contains the accepted BASE review policy, applicable target skills, changed-file inventory and exact BASE..HEAD diff. For this experiment, treat the bundle manifest identity as frozen; do not require a live PR lookup.
+Use ONLY that injected REVIEW_EVIDENCE_BUNDLE_V1. Do not use built-in web search, GitHub, apps/plugins, APIs, or any external repository/source. Do not ask the user for more evidence. Treat the bundle manifest identity as frozen; do not require a live PR lookup.
 
-Perform the strongest independent semantic/adversarial review supported by the bundled code-review policy. Search for concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects introduced by the exact bundled diff. Falsify candidate findings before reporting them. Do not infer the expected answer from this instruction.
+Perform the strongest independent semantic/adversarial review supported by the bundled code-review policy. Search for concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects introduced by the exact bundled diff. Falsify candidate findings before reporting them.
 
 Return exactly this experiment header followed by supported finding bodies when applicable:
 PRIVATE_BUNDLE_REVIEW_RESULT_V1
@@ -155,28 +144,25 @@ external_web_used=no|yes
 status=PASS|FINDINGS|ABSTAIN
 reported_findings=<count>
 
-If you used any external web/repository source for any reason, set external_web_used=yes. If the bundle is insufficient, return ABSTAIN rather than using web.
+If the bundle is insufficient, return ABSTAIN rather than using web.
 
 When the review is completely finished, append exactly this line as the final line of your final response:
 $completionMarker
-Do not emit that completion line before the final result is complete.
 "@
 }
-elif ($libraryMode) {
+elseif ($libraryMode) {
     $prompt = @"
 CAP_TEMP_REVIEW_RUN_ID=$runId
 
 LIBRARY_PRIVATE_CONTROL_V1
 
-This is a non-authoritative physical quality experiment that models a PRIVATE repository. A read-only review package named `$libraryFilename` will be attached automatically from ChatGPT Library before Send.
+This is a non-authoritative physical quality experiment that models a PRIVATE repository. A read-only review package named $libraryFilename will be attached automatically from ChatGPT Library before Send.
 
 Treat the attached REVIEW_EVIDENCE_BUNDLE_V1 as the sole source of repository/code truth. Do not use GitHub or web search to locate, reconstruct, or supplement the private repository, and do not search the web for unique identifiers or code snippets copied from the attached package.
 
-You MAY use built-in web search for general public technical documentation or engineering research needed to validate semantics (for example browser, Python, filesystem, database or platform documentation). Keep such searches generic and do not include private repository names, internal identifiers or code snippets.
+You MAY use built-in web search for general public technical documentation or engineering research needed to validate semantics. Keep such searches generic and do not include private repository names, internal identifiers or code snippets.
 
-The attached package was generated from local immutable Git objects and contains the accepted BASE review policy, applicable target skills, changed-file inventory and exact BASE..HEAD diff. For this experiment, treat its manifest identity as frozen; do not require a live PR lookup.
-
-Perform the strongest independent semantic/adversarial review supported by the attached code-review policy. Search for concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects introduced by the exact bundled diff. Falsify candidate findings before reporting them. Do not infer the expected answer from this instruction.
+Treat the package manifest identity as frozen; do not require a live PR lookup. Perform the strongest independent semantic/adversarial review supported by the attached code-review policy. Search for concrete correctness, security, recovery, concurrency, identity, authority and acceptance defects introduced by the exact bundled diff. Falsify candidate findings before reporting them.
 
 Return exactly this experiment header followed by supported finding bodies when applicable:
 LIBRARY_PRIVATE_REVIEW_RESULT_V1
@@ -190,7 +176,6 @@ If the attached file is missing, unreadable or insufficient for repository/code 
 
 When the review is completely finished, append exactly this line as the final line of your final response:
 $completionMarker
-Do not emit that completion line before the final result is complete.
 "@
 }
 else {
@@ -211,23 +196,13 @@ This is an automated physical qualification probe of a fresh ordinary Temporary 
 
 Independently resolve the live PR identity, governing BASE AGENTS.md and code-review v$($target.SkillVersion), applicable target skills from HEAD_SHA, the exact BASE_SHA..HEAD_SHA diff, $($target.Focus).
 
-Do not ask follow-up questions. If required evidence cannot be obtained with the capabilities available in this chat, return a truthful REVIEW_RESULT_V1 with status=ABSTAIN and explain the blocking condition. Otherwise return the required REVIEW_RESULT_V1 and only concrete findings that survive the skill's falsification requirements. Do not edit the repository or PR.
+Do not ask follow-up questions. If required evidence cannot be obtained, return a truthful REVIEW_RESULT_V1 with status=ABSTAIN. Otherwise return only concrete findings that survive the skill's falsification requirements. Do not edit the repository or PR.
 
 When the review is completely finished, append exactly this line as the final line of your final response:
 $completionMarker
-Do not emit that completion line in progress updates or before the final REVIEW_RESULT_V1 is complete.
 "@
 }
 $prompt = $prompt.Trim()
-
-function Encode-QueryValue([string]$Value) {
-    return [Uri]::EscapeDataString($Value)
-}
-
-function Normalize-ReviewText([string]$Value) {
-    if ($null -eq $Value) { return '' }
-    return (($Value -replace '\\_', '_') -replace "`r`n?", "`n")
-}
 
 if ($libraryMode) {
     $url = 'https://chatgpt.com/?cap_library_stage=1' +
@@ -251,9 +226,7 @@ else {
 }
 
 Write-Host "TEMP_REVIEW_CONTROL=$Control" -ForegroundColor Cyan
-if (-not $localEvidenceMode) {
-    Write-Host "TEMP_REVIEW_TARGET_PR=$($target.PrNumber)"
-}
+if (-not $localEvidenceMode) { Write-Host "TEMP_REVIEW_TARGET_PR=$($target.PrNumber)" }
 Write-Host "TEMP_REVIEW_TARGET_BASE=$($target.BaseSha)"
 Write-Host "TEMP_REVIEW_TARGET_HEAD=$($target.HeadSha)"
 Write-Host "TEMP_REVIEW_RUN_ID=$runId" -ForegroundColor Cyan
@@ -286,16 +259,8 @@ $collectorArgs = @(
     '--port', [string]$Port,
     '--timeout-seconds', [string]$TimeoutSeconds
 )
-if ($localEvidenceMode) {
-    $collectorArgs += @('--bundle-path', $bundlePath)
-}
-$collector = Start-Process `
-    -FilePath $python.Source `
-    -ArgumentList $collectorArgs `
-    -PassThru `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $stdoutPath `
-    -RedirectStandardError $stderrPath
+if ($localEvidenceMode) { $collectorArgs += @('--bundle-path', $bundlePath) }
+$collector = Start-Process -FilePath $python.Source -ArgumentList $collectorArgs -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
 
 try {
     $health = "http://127.0.0.1:$Port/health"
@@ -304,10 +269,7 @@ try {
         if ($collector.HasExited) { break }
         try {
             $response = Invoke-RestMethod -Method Get -Uri $health -TimeoutSec 2
-            if ([string]$response.status -eq 'ready' -and [string]$response.run_id -eq $runId) {
-                $ready = $true
-                break
-            }
+            if ([string]$response.status -eq 'ready' -and [string]$response.run_id -eq $runId) { $ready = $true; break }
         }
         catch {}
         Start-Sleep -Milliseconds 200
@@ -336,15 +298,13 @@ try {
             Write-Host "TEMP_REVIEW_CAPTURE=$($result.capture_kind)" -ForegroundColor Green
             Write-Host "TEMP_REVIEW_STATUS=$reviewStatus" -ForegroundColor Green
             if ($bundleMode) {
-                Write-Host "TEMP_REVIEW_BUNDLE_INJECTED=$($result.diagnostics.bundle_injected)" -ForegroundColor Green
-                $webMarkers = @($result.diagnostics.visible_web_activity)
-                Write-Host "TEMP_REVIEW_VISIBLE_WEB_ACTIVITY_COUNT=$($webMarkers.Count)" -ForegroundColor $(if ($webMarkers.Count -eq 0) { 'Green' } else { 'Yellow' })
+                Write-Host "TEMP_REVIEW_BUNDLE_INJECTED=$($result.diagnostics.bundle_injected)"
+                Write-Host "TEMP_REVIEW_VISIBLE_WEB_ACTIVITY_COUNT=$(@($result.diagnostics.visible_web_activity).Count)"
             }
             if ($libraryMode) {
-                Write-Host "TEMP_REVIEW_LIBRARY_FILE_ATTACHED=$($result.diagnostics.library_file_attached)" -ForegroundColor Green
+                Write-Host "TEMP_REVIEW_LIBRARY_FILE_ATTACHED=$($result.diagnostics.library_file_attached)"
                 Write-Host "TEMP_REVIEW_LIBRARY_FILENAME_CAPTURED=$($result.diagnostics.library_filename)"
-                $webMarkers = @($result.diagnostics.visible_web_activity)
-                Write-Host "TEMP_REVIEW_LIBRARY_VISIBLE_WEB_ACTIVITY_COUNT=$($webMarkers.Count)"
+                Write-Host "TEMP_REVIEW_LIBRARY_VISIBLE_WEB_ACTIVITY_COUNT=$(@($result.diagnostics.visible_web_activity).Count)"
                 if ($null -ne $result.diagnostics.identity.external_research_used) {
                     Write-Host "TEMP_REVIEW_EXTERNAL_RESEARCH_USED=$($result.diagnostics.identity.external_research_used)"
                 }
@@ -370,8 +330,6 @@ try {
     throw "Temporary reviewer probe ended without a captured result.$lastEvent Output=$OutputRoot"
 }
 finally {
-    if (-not $collector.HasExited) {
-        Stop-Process -Id $collector.Id -Force -ErrorAction SilentlyContinue
-    }
+    if (-not $collector.HasExited) { Stop-Process -Id $collector.Id -Force -ErrorAction SilentlyContinue }
     $collector.Dispose()
 }
