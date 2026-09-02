@@ -290,7 +290,7 @@ function Save-ManualStatusForAction {
     $expectedDesiredState = if ($running) { "running" } else { "stopped" }
     $desired = Read-JsonFile -Path $DesiredStateFile
     $currentDesiredState = [string](
-        Get-PropertyValue -Object $desired -Name "desired_state" -DefaultValue "unknown")
+        Get-PropertyValue -Object $desired -Name "desired_state" -DefaultValue "unknown"
     )
 
     # A lifecycle process can finish after another explicit action has already
@@ -598,6 +598,7 @@ $automaticModeItem.Text = "Автоматический — проверка р�
 [void]$modeMenu.DropDownItems.Add($automaticModeItem)
 
 $powerItem = New-Object System.Windows.Forms.ToolStripMenuItem
+
 $moreMenu = New-Object System.Windows.Forms.ToolStripMenuItem
 $moreMenu.Text = "Дополнительно"
 $detailsItem = New-Object System.Windows.Forms.ToolStripMenuItem
