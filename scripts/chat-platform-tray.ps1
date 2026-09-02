@@ -64,6 +64,7 @@ $DirectStateFile = Join-Path $StateDir "semantic-direct.json"
 $DirectHealthUrlFile = Join-Path $StateDir "semantic-direct-health.url"
 $TunnelExe = Join-Path $LocalRoot "bin\tunnel-client.exe"
 $ControllerLog = Join-Path $LocalRoot "logs\controller.log"
+$TrayUpdateModule = Join-Path $PSScriptRoot "chat-platform-tray-update.ps1"
 $SupervisorTaskName = "Chat Agent Platform Transport Supervisor"
 $AutomaticSnapshotFreshnessSeconds = 2100
 $ManualConfirmationFreshnessSeconds = 120
@@ -289,7 +290,7 @@ function Save-ManualStatusForAction {
     $expectedDesiredState = if ($running) { "running" } else { "stopped" }
     $desired = Read-JsonFile -Path $DesiredStateFile
     $currentDesiredState = [string](
-        Get-PropertyValue -Object $desired -Name "desired_state" -DefaultValue "unknown"
+        Get-PropertyValue -Object $desired -Name "desired_state" -DefaultValue "unknown")
     )
 
     # A lifecycle process can finish after another explicit action has already
@@ -597,7 +598,6 @@ $automaticModeItem.Text = "Автоматический — проверка р�
 [void]$modeMenu.DropDownItems.Add($automaticModeItem)
 
 $powerItem = New-Object System.Windows.Forms.ToolStripMenuItem
-
 $moreMenu = New-Object System.Windows.Forms.ToolStripMenuItem
 $moreMenu.Text = "Дополнительно"
 $detailsItem = New-Object System.Windows.Forms.ToolStripMenuItem
@@ -623,6 +623,15 @@ $exitItem.Text = "Закрыть индикатор"
 [void]$menu.Items.Add($moreMenu)
 [void]$menu.Items.Add($exitItem)
 $notify.ContextMenuStrip = $menu
+
+if (-not (Test-Path -LiteralPath $TrayUpdateModule -PathType Leaf)) {
+    throw "Tray update module is missing: $TrayUpdateModule"
+}
+. $TrayUpdateModule
+Register-CapUpdateTrayMenu `
+    -MoreMenu $moreMenu `
+    -NotifyIcon $notify `
+    -BusyPredicate { Test-OperationRunning }
 
 # Legacy top-level controls intentionally removed from the visible UI:
 # "Переключить ВКЛ / ВЫКЛ", simultaneous "Включить" and "Выключить" entries.
@@ -1257,6 +1266,11 @@ $watcher.add_Renamed($stateRenamedHandler)
 $watcher.EnableRaisingEvents = $true
 
 $exitItem.add_Click({
+    if (Test-CapUpdateTrayBusy) {
+        Show-CapUpdateTrayBalloon -Text 'Дождитесь завершения обновления перед закрытием индикатора.'
+        return
+    }
+
     $notify.Visible = $false
     $watcher.EnableRaisingEvents = $false
     $watcher.Dispose()
@@ -1264,6 +1278,7 @@ $exitItem.add_Click({
     $operationTimer.Dispose()
     Stop-ManualRemoteProbe
     $manualProbeTimer.Dispose()
+    Stop-CapUpdateTrayMenu
 
     if (Test-OperationRunning) {
         try { $script:OperationProcess.Kill($true) } catch {}
