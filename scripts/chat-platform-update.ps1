@@ -17,6 +17,7 @@ if (-not (Test-Path -LiteralPath $CorePath -PathType Leaf)) {
 $LocalRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'
 $StateDir = Join-Path $LocalRoot 'state'
 $StatePath = Join-Path $StateDir 'platform-update.json'
+$ResultPath = Join-Path $StateDir 'platform-update-result.json'
 $CacheRoot = Join-Path $LocalRoot 'update-cache'
 $CacheRepo = Join-Path $CacheRoot 'repo.git'
 $WorktreeRoot = Join-Path $CacheRoot 'worktrees'
@@ -49,7 +50,7 @@ function Write-CapUpdateResult {
         [bool]$Restarted = $false
     )
 
-    [ordered]@{
+    $result = [ordered]@{
         schema_version = 1
         action = $Action.ToLowerInvariant()
         status = $Status
@@ -59,9 +60,12 @@ function Write-CapUpdateResult {
         target_commit_sha = if ([string]::IsNullOrWhiteSpace($TargetCommitSha)) { $null } else { $TargetCommitSha }
         restarted = $Restarted
         reason = if ([string]::IsNullOrWhiteSpace($Reason)) { $null } else { $Reason }
+        completed_at = [datetimeoffset]::UtcNow.ToString('o')
         state_path = $StatePath
         log_path = $LogPath
-    } | ConvertTo-Json -Compress -Depth 5
+    }
+    Write-CapUpdateAtomicJson -Path $ResultPath -Value $result
+    $result | ConvertTo-Json -Compress -Depth 5
 }
 
 function Get-CapDesiredRunning {
@@ -82,7 +86,8 @@ function Invoke-CapPwshProcess {
         [Parameter(Mandatory)] [string]$ScriptPath,
         [string[]]$Arguments = @(),
         [Parameter(Mandatory)] [string]$Label,
-        [int]$TimeoutMilliseconds = $ProcessTimeoutMilliseconds
+        [int]$TimeoutMilliseconds = $ProcessTimeoutMilliseconds,
+        [bool]$CaptureOutput = $true
     )
 
     $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
@@ -90,8 +95,8 @@ function Invoke-CapPwshProcess {
     $startInfo.FileName = $pwsh
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
+    $startInfo.RedirectStandardOutput = $CaptureOutput
+    $startInfo.RedirectStandardError = $CaptureOutput
     foreach ($argument in @(
         '-NoLogo',
         '-NoProfile',
@@ -106,25 +111,36 @@ function Invoke-CapPwshProcess {
 
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
+    $stdoutTask = $null
+    $stderrTask = $null
     try {
         if (-not $process.Start()) {
             throw "Could not start $Label."
         }
-        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-        $stderrTask = $process.StandardError.ReadToEndAsync()
+        if ($CaptureOutput) {
+            $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+            $stderrTask = $process.StandardError.ReadToEndAsync()
+        }
         if (-not $process.WaitForExit($TimeoutMilliseconds)) {
             try { $process.Kill($true) } catch {}
             try { $process.WaitForExit(5000) | Out-Null } catch {}
             throw "$Label exceeded the update process timeout."
         }
-        $stdout = $stdoutTask.GetAwaiter().GetResult()
-        $stderr = $stderrTask.GetAwaiter().GetResult()
-        if (-not [string]::IsNullOrWhiteSpace($stdout)) {
-            Write-CapUpdateLog "$Label stdout:`n$stdout"
+
+        if ($CaptureOutput) {
+            $stdout = $stdoutTask.GetAwaiter().GetResult()
+            $stderr = $stderrTask.GetAwaiter().GetResult()
+            if (-not [string]::IsNullOrWhiteSpace($stdout)) {
+                Write-CapUpdateLog "$Label stdout:`n$stdout"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($stderr)) {
+                Write-CapUpdateLog "$Label stderr:`n$stderr"
+            }
         }
-        if (-not [string]::IsNullOrWhiteSpace($stderr)) {
-            Write-CapUpdateLog "$Label stderr:`n$stderr"
+        else {
+            Write-CapUpdateLog "$Label exited code=$($process.ExitCode) without pipe capture"
         }
+
         if ($process.ExitCode -ne 0) {
             throw "$Label failed with exit code $($process.ExitCode)."
         }
@@ -173,6 +189,7 @@ try {
         throw 'Another Chat Agent Platform update operation is still running.'
     }
 
+    Remove-Item -LiteralPath $ResultPath -Force -ErrorAction SilentlyContinue
     Write-CapUpdateLog "action=$Action begin"
     $current = Read-CapUpdateState -Path $StatePath
     $decision = Get-CapUpdateDecision `
@@ -254,7 +271,8 @@ try {
                 -ScriptPath $InstalledManagerPath `
                 -Arguments @('-Action', 'Start', '-NoNotify') `
                 -Label 'updated-platform-start' `
-                -TimeoutMilliseconds 120000
+                -TimeoutMilliseconds 120000 `
+                -CaptureOutput:$false
             $restarted = $true
         }
 
