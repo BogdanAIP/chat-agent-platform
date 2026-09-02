@@ -165,6 +165,15 @@ Install-ChatManagerBundle `
     -DirectControllerPath $DirectControllerPath `
     -TrayPath $TrayPath
 
+Write-Step 'Установка bounded main updater'
+foreach ($name in @('chat-platform-update-core.ps1', 'chat-platform-update.ps1')) {
+    Copy-ChatVerifiedFile `
+        -Source (Join-Path $RepoRoot "scripts\$name") `
+        -Destination (Join-Path $AppScriptsDir $name)
+}
+Write-Host 'MAIN_UPDATE_SOURCE=official-main-only'
+Write-Host 'MAIN_UPDATER_INSTALLED=True'
+
 Write-Step 'Установка bounded Windows procedure runtime'
 Install-ChatWindowsProcedureBundle `
     -RepoRoot $RepoRoot `
