@@ -186,6 +186,13 @@ function Start-CapUpdateTrayOperation {
         return
     }
 
+    # A manual-mode remote health probe is observational only and should not
+    # overlap the updater while canonical bootstrap stops/replaces the runtime.
+    # It will be re-established by Refresh-VisualState if still needed later.
+    if ($null -ne (Get-Command 'Stop-ManualRemoteProbe' -ErrorAction SilentlyContinue)) {
+        Stop-ManualRemoteProbe
+    }
+
     $pwsh = (Get-Command 'pwsh.exe' -ErrorAction Stop).Source
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $pwsh
