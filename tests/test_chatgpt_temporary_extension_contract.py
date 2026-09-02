@@ -154,6 +154,28 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn("if (response.send_authorized === true)", self.content[:gate])
         self.assertIn("monitorOnly = recovered", self.content)
 
+    def test_temporary_mode_never_implies_non_personalized_state(self) -> None:
+        observe = self.content[
+            self.content.index("function observeTemporaryState") : self.content.index("function userDeliveryVisible")
+        ]
+        request = self.content[
+            self.content.index("async function requestAuthority") : self.content.index("async function postDelivery")
+        ]
+        self.assertIn("policy.personalizationModeFromText(text)", observe)
+        self.assertIn('personalizationState === "non-personalized"', observe)
+        self.assertNotIn("personalization_disabled: temporaryMode", observe)
+        self.assertIn("temporary.personalization_disabled !== true", request)
+        self.assertLess(
+            request.index("temporary.personalization_disabled !== true"),
+            request.index('sendMessage("authorize-send"'),
+        )
+        for label in (
+            "Non-personalized",
+            "Без персонализации",
+            "Nicht personalisiert",
+        ):
+            self.assertIn(label if label == "Non-personalized" else label.split()[0], self.policy)
+
     def test_delivery_ambiguity_never_triggers_resend(self) -> None:
         self.assertIn('postDelivery(\n          "unknown"', self.content)
         self.assertIn('postDelivery(\n          "delivered"', self.content)
