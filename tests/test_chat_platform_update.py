@@ -11,7 +11,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "scripts" / "chat-platform-update-core.ps1"
 UPDATER = ROOT / "scripts" / "chat-platform-update.ps1"
-UPDATE_UI = ROOT / "scripts" / "chat-platform-update-ui.ps1"
+TRAY = ROOT / "scripts" / "chat-platform-tray.ps1"
+TRAY_UPDATE = ROOT / "scripts" / "chat-platform-tray-update.ps1"
 BOOTSTRAP = ROOT / "scripts" / "bootstrap-chat-platform.ps1"
 
 
@@ -41,7 +42,8 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.core = CORE.read_text(encoding="utf-8")
         cls.updater = UPDATER.read_text(encoding="utf-8")
-        cls.ui = UPDATE_UI.read_text(encoding="utf-8")
+        cls.tray = TRAY.read_text(encoding="utf-8")
+        cls.tray_update = TRAY_UPDATE.read_text(encoding="utf-8")
         cls.bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
 
     def test_public_updater_is_fixed_to_official_main(self) -> None:
@@ -80,31 +82,55 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, publish)
 
-    def test_bootstrap_ships_ui_and_records_version_after_smoke(self) -> None:
+    def test_bootstrap_ships_tray_updater_and_records_version_after_smoke(self) -> None:
         for marker in (
+            "chat-platform-tray-update.ps1",
             "chat-platform-update-core.ps1",
             "chat-platform-update.ps1",
-            "chat-platform-update-ui.ps1",
-            "Install-CapUpdateDesktopShortcut",
-            "Обновить Chat Agent Platform.lnk",
+            "MAIN_UPDATE_UI=tray-more-menu",
             "Publish-CapInstalledVersionFromSource",
             "INSTALLED_VERSION_RECORDED=",
         ):
             self.assertIn(marker, self.bootstrap)
+        self.assertNotIn("chat-platform-update-ui.ps1", self.bootstrap)
+        self.assertNotIn("Install-CapUpdateDesktopShortcut", self.bootstrap)
+        self.assertNotIn("Обновить Chat Agent Platform.lnk", self.bootstrap)
         self.assertLess(
             self.bootstrap.index("Invoke-ChatBootstrapSmokeTest"),
             self.bootstrap.index("Publish-CapInstalledVersionFromSource"),
         )
 
-    def test_update_ui_has_explicit_check_and_confirmed_apply(self) -> None:
+    def test_tray_more_menu_has_one_click_update_only(self) -> None:
         for marker in (
-            "Проверить обновление",
-            "Обновить до $target",
-            "MessageBoxButtons]::YesNo",
-            "Start-UpdateOperation -Action Check",
-            "Start-UpdateOperation -Action Update",
+            'chat-platform-tray-update.ps1',
+            'Register-CapUpdateTrayMenu',
+            '-MoreMenu $moreMenu',
+            '-NotifyIcon $notify',
+            'Test-CapUpdateTrayBusy',
+            'Stop-CapUpdateTrayMenu',
         ):
-            self.assertIn(marker, self.ui)
+            self.assertIn(marker, self.tray)
+
+        for marker in (
+            "$script:CapTrayUpdateItem.Text = 'Обновить'",
+            "'-Action', 'Update'",
+            "Обновление не требуется. Установлена последняя версия.",
+            "Установлена версия $version.",
+            "Обновление уже выполняется.",
+            "Дождитесь завершения текущей операции платформы.",
+        ):
+            self.assertIn(marker, self.tray_update)
+
+        self.assertNotIn("Проверить обновление", self.tray_update)
+        self.assertNotIn("MessageBox", self.tray_update)
+        self.assertNotIn("-Action', 'Check'", self.tray_update)
+
+    def test_tray_does_not_kill_an_active_update_on_exit(self) -> None:
+        exit_handler = self.tray.split("$exitItem.add_Click({", 1)[1]
+        exit_handler = exit_handler.split("Refresh-VisualState", 1)[0]
+        self.assertIn("if (Test-CapUpdateTrayBusy)", exit_handler)
+        self.assertIn("return", exit_handler)
+        self.assertIn("Never kill an updater", self.tray_update)
 
 
 @unittest.skipUnless(shutil.which("pwsh") and shutil.which("git"), "pwsh and git are required")
