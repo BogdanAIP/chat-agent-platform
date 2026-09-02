@@ -221,6 +221,17 @@ function Publish-CapInstalledVersionFromSource {
                 'rev-parse', 'HEAD'
             )).text `
             -Label 'source HEAD'
+        $originMainResult = Invoke-CapUpdateGit -WorkingDirectory $RepoRoot -Arguments @(
+            'rev-parse', 'refs/remotes/origin/main^{commit}'
+        ) -AllowFailure
+        if ($originMainResult.exit_code -ne 0) {
+            return $false
+        }
+        $originMain = Assert-CapUpdateSha -Value $originMainResult.text -Label 'source origin/main'
+        if ($head -cne $originMain) {
+            return $false
+        }
+
         $dirty = (Invoke-CapUpdateGit -WorkingDirectory $RepoRoot -Arguments @(
             'status', '--porcelain'
         )).text
