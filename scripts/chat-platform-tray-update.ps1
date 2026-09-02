@@ -24,8 +24,19 @@ function Test-CapUpdateTrayBusy {
 }
 
 function Clear-CapUpdateTrayProcess {
-    if ($null -ne $script:CapTrayUpdateProcess) {
-        try { $script:CapTrayUpdateProcess.Dispose() } catch {}
+    $updateProcess = $script:CapTrayUpdateProcess
+    if (
+        $null -ne $updateProcess -and
+        $null -ne $script:OperationProcess -and
+        [object]::ReferenceEquals($script:OperationProcess, $updateProcess)
+    ) {
+        $script:OperationProcess = $null
+        $script:OperationAction = $null
+        $script:OperationStartedAt = $null
+    }
+
+    if ($null -ne $updateProcess) {
+        try { $updateProcess.Dispose() } catch {}
     }
     $script:CapTrayUpdateProcess = $null
     $script:CapTrayUpdateStdoutTask = $null
@@ -98,6 +109,9 @@ function Complete-CapUpdateTrayOperation {
     if ($null -ne $script:CapTrayUpdateItem) {
         $script:CapTrayUpdateItem.Text = 'Обновить'
         $script:CapTrayUpdateItem.Enabled = $true
+    }
+    if ($null -ne (Get-Command 'Refresh-VisualState' -ErrorAction SilentlyContinue)) {
+        Refresh-VisualState
     }
 
     if ($null -ne $result -and [string]$result.status -eq 'current' -and $exitCode -eq 0) {
@@ -198,10 +212,22 @@ function Start-CapUpdateTrayOperation {
     $script:CapTrayUpdateStdoutTask = $process.StandardOutput.ReadToEndAsync()
     $script:CapTrayUpdateStderrTask = $process.StandardError.ReadToEndAsync()
     $script:CapTrayUpdateStartedAt = [datetimeoffset]::UtcNow
+
+    # Reuse the existing tray lifecycle-busy projection while the updater owns
+    # installation. This blocks power-toggle/double-click and mode changes from
+    # racing the canonical bootstrap without teaching those handlers updater
+    # internals or adding a second visible busy-state mechanism.
+    $script:OperationProcess = $process
+    $script:OperationAction = 'Update'
+    $script:OperationStartedAt = $script:CapTrayUpdateStartedAt
+
     $script:CapTrayUpdateItem.Text = 'Обновление...'
     $script:CapTrayUpdateItem.Enabled = $false
     Show-CapUpdateTrayBalloon -Text 'Проверяю и при необходимости устанавливаю последнюю версию main.'
     $script:CapTrayUpdateTimer.Start()
+    if ($null -ne (Get-Command 'Refresh-VisualState' -ErrorAction SilentlyContinue)) {
+        Refresh-VisualState
+    }
 }
 
 function Register-CapUpdateTrayMenu {
