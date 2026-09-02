@@ -23,6 +23,16 @@ function Test-CapUpdateTrayBusy {
     }
 }
 
+function Test-CapTrayLifecycleTimerBusy {
+    try {
+        $timer = Get-Variable -Name 'operationTimer' -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+        return ($null -ne $timer -and [bool]$timer.Enabled)
+    }
+    catch {
+        return $false
+    }
+}
+
 function Clear-CapUpdateTrayProcess {
     $updateProcess = $script:CapTrayUpdateProcess
     if (
@@ -158,6 +168,11 @@ function Complete-CapUpdateTrayOperation {
 function Start-CapUpdateTrayOperation {
     if (Test-CapUpdateTrayBusy) {
         Show-CapUpdateTrayBalloon -Text 'Обновление уже выполняется.'
+        return
+    }
+
+    if (Test-CapTrayLifecycleTimerBusy) {
+        Show-CapUpdateTrayBalloon -Text 'Дождитесь завершения текущей операции платформы.'
         return
     }
 
