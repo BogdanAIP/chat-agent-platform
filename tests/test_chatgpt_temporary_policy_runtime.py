@@ -142,6 +142,34 @@ process.stdout.write(JSON.stringify(value));
         self.assertFalse(value["enabled"])
         self.assertEqual("private-run-id-leaked-to-prompt", value["reason"])
 
+    def test_personalization_labels_are_classified_fail_closed(self) -> None:
+        labels = {
+            "english_non": "Non-personalized",
+            "english_yes": "Personalized",
+            "russian_non": "Без персонализации",
+            "russian_yes": "Персонализированный",
+            "german_non": "Nicht personalisiert",
+            "german_yes": "Personalisiert",
+            "temporary_only": "Temporary Chat",
+        }
+        expression = "({" + ",".join(
+            f"{key}: CAPChatGPTTemporaryPolicy.personalizationModeFromText({json.dumps(value)})"
+            for key, value in labels.items()
+        ) + "})"
+        value = self.run_policy(expression)
+        self.assertEqual(
+            {
+                "english_non": "non-personalized",
+                "english_yes": "personalized",
+                "russian_non": "non-personalized",
+                "russian_yes": "personalized",
+                "german_non": "non-personalized",
+                "german_yes": "personalized",
+                "temporary_only": "unknown",
+            },
+            value,
+        )
+
     def test_result_block_must_be_single_and_unwrapped(self) -> None:
         good = "CAP_WORKER_RESULT_V1_BEGIN\n{}\nCAP_WORKER_RESULT_V1_END"
         duplicate = good + "\n" + good
