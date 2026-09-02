@@ -35,6 +35,14 @@ function Write-JsonUtf8NoBom {
     [System.IO.File]::WriteAllText($Path, $json + "`n", [System.Text.UTF8Encoding]::new($false))
 }
 
+function Get-LogText {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return '' }
+    $raw = Get-Content -LiteralPath $Path -Raw -Encoding utf8
+    if ($null -eq $raw) { return '' }
+    return ([string]$raw).Trim()
+}
+
 function Invoke-SourceGate {
     param(
         [Parameter(Mandatory = $true)][string]$OutputPath,
@@ -177,7 +185,10 @@ if ($ValidateOnly) {
     return
 }
 
-Remove-Item -LiteralPath $controllerStdout, $controllerStderr -Force -ErrorAction SilentlyContinue
+# launch.json/result.json are controller projections, not durable authority.
+# Remove stale projections before each controller start so a fast terminal
+# restart can only be accepted from files freshly recreated by this process.
+Remove-Item -LiteralPath $controllerStdout, $controllerStderr, $launchPath, $resultPath -Force -ErrorAction SilentlyContinue
 $controllerArgs = @(
     '-m', 'runtime.agent_sessions.chatgpt_temporary_controller',
     '--identity-json', $identityPath,
@@ -215,10 +226,23 @@ try {
         catch {}
         Start-Sleep -Milliseconds 200
     }
-    if (-not $ready) {
-        $stderr = if (Test-Path -LiteralPath $controllerStderr) { (Get-Content -LiteralPath $controllerStderr -Raw -Encoding utf8).Trim() } else { '' }
+
+    $terminalSnapshotReady = $false
+    if (-not $ready -and $controller.HasExited) {
+        $terminalSnapshotReady = (
+            $controller.ExitCode -eq 0 -and
+            (Test-Path -LiteralPath $launchPath -PathType Leaf) -and
+            (Test-Path -LiteralPath $resultPath -PathType Leaf)
+        )
+    }
+    if (-not $ready -and -not $terminalSnapshotReady) {
+        $stderr = Get-LogText -Path $controllerStderr
         throw "Temporary worker controller did not become ready. $stderr"
     }
+    if ($terminalSnapshotReady) {
+        Write-Host 'CAP_AGENT_SESSION_CONTROLLER=terminal-readback' -ForegroundColor Cyan
+    }
+
     if (-not (Test-Path -LiteralPath $launchPath -PathType Leaf)) { throw 'Controller did not write launch.json.' }
     $launch = Get-Content -LiteralPath $launchPath -Raw -Encoding utf8 | ConvertFrom-Json
     if ([string]$launch.adapter_id -ne 'chatgpt-temporary') { throw 'Unexpected adapter in launch evidence.' }
@@ -264,7 +288,7 @@ try {
         Start-Sleep -Seconds 1
     }
 
-    $stderr = if (Test-Path -LiteralPath $controllerStderr) { (Get-Content -LiteralPath $controllerStderr -Raw -Encoding utf8).Trim() } else { '' }
+    $stderr = Get-LogText -Path $controllerStderr
     throw "Temporary worker qualification ended without durable terminal result. Output=$outputRoot $stderr"
 }
 finally {
