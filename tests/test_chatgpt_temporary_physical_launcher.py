@@ -66,6 +66,33 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertLess(completion_gate, pass_marker)
         self.assertIn("CAP_AGENT_SESSION_RESULT_SHA256", self.text)
 
+    def test_terminal_restart_uses_only_fresh_controller_projections(self) -> None:
+        controller_start = self.text.index("$controller = Start-Process")
+        cleanup = self.text[:controller_start]
+        self.assertIn(
+            "$controllerStdout, $controllerStderr, $launchPath, $resultPath",
+            cleanup,
+        )
+        terminal_gate = self.text.index("$terminalSnapshotReady = $false")
+        launch_parse = self.text.index(
+            "if (-not (Test-Path -LiteralPath $launchPath -PathType Leaf))",
+            terminal_gate,
+        )
+        terminal_block = self.text[terminal_gate:launch_parse]
+        self.assertIn("$controller.HasExited", terminal_block)
+        self.assertIn("$controller.ExitCode -eq 0", terminal_block)
+        self.assertIn("Test-Path -LiteralPath $launchPath -PathType Leaf", terminal_block)
+        self.assertIn("Test-Path -LiteralPath $resultPath -PathType Leaf", terminal_block)
+        self.assertIn("CAP_AGENT_SESSION_CONTROLLER=terminal-readback", terminal_block)
+
+    def test_empty_controller_stderr_cannot_mask_the_real_launcher_error(self) -> None:
+        self.assertIn("function Get-LogText", self.text)
+        self.assertIn("if ($null -eq $raw) { return '' }", self.text)
+        self.assertNotIn(
+            "(Get-Content -LiteralPath $controllerStderr -Raw -Encoding utf8).Trim()",
+            self.text,
+        )
+
     def test_validate_only_runs_provenance_without_starting_controller(self) -> None:
         marker = self.text.index("if ($ValidateOnly)")
         controller = self.text.index("$controller = Start-Process", marker)
