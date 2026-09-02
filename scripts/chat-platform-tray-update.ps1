@@ -9,7 +9,6 @@ $script:CapTrayUpdateItem = $null
 $script:CapTrayUpdateNotifyIcon = $null
 $script:CapTrayUpdateBusyPredicate = $null
 $script:CapTrayUpdateScript = Join-Path $PSScriptRoot 'chat-platform-update.ps1'
-$script:CapTrayUpdateTimeoutSeconds = 900
 
 function Test-CapUpdateTrayBusy {
     if ($null -eq $script:CapTrayUpdateProcess) {
@@ -95,15 +94,11 @@ function Complete-CapUpdateTrayOperation {
         return
     }
 
+    # The tray is not an installation authority and must never terminate an
+    # updater that may be inside canonical bootstrap. The updater process owns
+    # its own timeout/error semantics; the tray only observes its terminal exit.
     if (-not $script:CapTrayUpdateProcess.HasExited) {
-        if (
-            $null -ne $script:CapTrayUpdateStartedAt -and
-            ([datetimeoffset]::UtcNow - $script:CapTrayUpdateStartedAt).TotalSeconds -lt $script:CapTrayUpdateTimeoutSeconds
-        ) {
-            return
-        }
-        try { $script:CapTrayUpdateProcess.Kill($true) } catch {}
-        try { $script:CapTrayUpdateProcess.WaitForExit(5000) | Out-Null } catch {}
+        return
     }
 
     if ($null -ne $script:CapTrayUpdateTimer) {
