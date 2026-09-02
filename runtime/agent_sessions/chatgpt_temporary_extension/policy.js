@@ -60,6 +60,35 @@
       value.includes(`task_sha256=${intent.taskSha256}`);
   }
 
+  function personalizationModeFromText(text) {
+    const value = String(text || "").replace(/\s+/g, " ").trim();
+    if (!value) return "unknown";
+
+    // Temporary Chat gained an explicit personalization choice in August 2026.
+    // These are provider UI labels, not a guess from Temporary mode itself.
+    // Unknown/ambiguous locales intentionally fail closed in content.js.
+    const nonPersonalizedPatterns = [
+      /\bnon[-\s]?personalized\b/i,
+      /\bnot personalized\b/i,
+      /без персонализац/i,
+      /неперсонализ/i,
+      /nicht personalisiert/i,
+    ];
+    if (nonPersonalizedPatterns.some((pattern) => pattern.test(value))) {
+      return "non-personalized";
+    }
+
+    const personalizedPatterns = [
+      /\bpersonalized\b/i,
+      /персонализ/i,
+      /\bpersonalisiert\b/i,
+    ];
+    if (personalizedPatterns.some((pattern) => pattern.test(value))) {
+      return "personalized";
+    }
+    return "unknown";
+  }
+
   function hasSingleResultBlock(text) {
     const value = String(text || "").trim();
     const beginCount = value.split(RESULT_BEGIN).length - 1;
@@ -87,6 +116,7 @@
     RESULT_END,
     parseIntent,
     hasExpectedPrompt,
+    personalizationModeFromText,
     hasSingleResultBlock,
     conversationId,
   };
