@@ -125,12 +125,14 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
         self.assertNotIn("MessageBox", self.tray_update)
         self.assertNotIn("-Action', 'Check'", self.tray_update)
 
-    def test_tray_does_not_kill_an_active_update_on_exit(self) -> None:
+    def test_tray_does_not_kill_an_active_update(self) -> None:
         exit_handler = self.tray.split("$exitItem.add_Click({", 1)[1]
         exit_handler = exit_handler.split("Refresh-VisualState", 1)[0]
         self.assertIn("if (Test-CapUpdateTrayBusy)", exit_handler)
         self.assertIn("return", exit_handler)
         self.assertIn("Never kill an updater", self.tray_update)
+        self.assertIn("tray only observes its terminal exit", self.tray_update)
+        self.assertNotIn(".Kill(", self.tray_update)
 
 
 @unittest.skipUnless(shutil.which("pwsh") and shutil.which("git"), "pwsh and git are required")
