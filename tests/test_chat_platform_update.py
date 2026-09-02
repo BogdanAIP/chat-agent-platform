@@ -125,6 +125,21 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
         self.assertNotIn("MessageBox", self.tray_update)
         self.assertNotIn("-Action', 'Check'", self.tray_update)
 
+    def test_tray_update_completion_does_not_depend_on_inherited_pipes(self) -> None:
+        self.assertIn("platform-update-result.json", self.updater)
+        self.assertIn("Write-CapUpdateAtomicJson -Path $ResultPath -Value $result", self.updater)
+        self.assertIn("-CaptureOutput:$false", self.updater)
+        self.assertIn("$startInfo.RedirectStandardOutput = $CaptureOutput", self.updater)
+        self.assertIn("$startInfo.RedirectStandardError = $CaptureOutput", self.updater)
+
+        self.assertIn("platform-update-result.json", self.tray_update)
+        self.assertIn("Read-CapUpdateTrayResult", self.tray_update)
+        self.assertIn("$startInfo.RedirectStandardOutput = $false", self.tray_update)
+        self.assertIn("$startInfo.RedirectStandardError = $false", self.tray_update)
+        self.assertNotIn("ReadToEndAsync", self.tray_update)
+        self.assertNotIn("CapTrayUpdateStdoutTask", self.tray_update)
+        self.assertNotIn("CapTrayUpdateStderrTask", self.tray_update)
+
     def test_tray_does_not_kill_an_active_update(self) -> None:
         exit_handler = self.tray.split("$exitItem.add_Click({", 1)[1]
         exit_handler = exit_handler.split("Refresh-VisualState", 1)[0]
