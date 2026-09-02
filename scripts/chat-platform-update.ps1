@@ -229,6 +229,13 @@ try {
         Write-CapUpdateLog "install target=$($decision.target_commit_sha) source=$worktree"
         Invoke-CapPwshProcess -ScriptPath $bootstrap -Label 'bootstrap-chat-platform'
 
+        $receiptRecorded = Publish-CapInstalledVersionFromSource `
+            -RepoRoot $worktree `
+            -StatePath $StatePath
+        if (-not $receiptRecorded) {
+            throw 'Could not reconcile the installed version from the exact target worktree.'
+        }
+
         $installed = Read-CapUpdateState -Path $StatePath
         if (
             $null -eq $installed -or
