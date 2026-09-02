@@ -140,8 +140,8 @@ function Save-CapDecisionState {
         [string]$ErrorText
     )
 
-    $current = Read-CapUpdateState -Path $StatePath
-    $installedAt = if ($null -eq $current) { $null } else { [string]$current.installed_at }
+    $currentState = Read-CapUpdateState -Path $StatePath
+    $installedAt = if ($null -eq $currentState) { $null } else { [string]$currentState.installed_at }
     $status = [string]$Decision.status
     $lastError = $ErrorText
     if ($status -eq 'blocked' -and [string]::IsNullOrWhiteSpace($lastError)) {
@@ -189,19 +189,16 @@ try {
             -TargetCommitSha ([string]$decision.target_commit_sha) `
             -Reason $(if ([string]$decision.status -eq 'blocked') { 'remote_main_not_fast_forward' } else { $null })
         $exitCode = if ([string]$decision.status -eq 'blocked') { 3 } else { 0 }
-        return
     }
-
-    if ([string]$decision.status -eq 'current') {
+    elseif ([string]$decision.status -eq 'current') {
         Write-CapUpdateLog 'update skipped because the installed commit is current'
         Write-CapUpdateResult `
             -Status 'current' `
             -InstalledCommitSha ([string]$decision.installed_commit_sha) `
             -TargetCommitSha ([string]$decision.target_commit_sha)
         $exitCode = 0
-        return
     }
-    if ([string]$decision.status -eq 'blocked') {
+    elseif ([string]$decision.status -eq 'blocked') {
         Write-CapUpdateLog 'update blocked because remote main is not a fast-forward from the installed commit'
         Write-CapUpdateResult `
             -Status 'blocked' `
@@ -209,59 +206,59 @@ try {
             -TargetCommitSha ([string]$decision.target_commit_sha) `
             -Reason 'remote_main_not_fast_forward'
         $exitCode = 3
-        return
     }
+    else {
+        $wasRunning = Get-CapDesiredRunning
+        $installing = New-CapUpdateState `
+            -InstalledCommitSha ([string]$decision.installed_commit_sha) `
+            -InstalledAt $(if ($null -eq $current) { $null } else { [string]$current.installed_at }) `
+            -Status 'installing' `
+            -TargetCommitSha ([string]$decision.target_commit_sha) `
+            -LastCheckedAt ([datetimeoffset]::UtcNow.ToString('o'))
+        Write-CapUpdateAtomicJson -Path $StatePath -Value $installing
 
-    $wasRunning = Get-CapDesiredRunning
-    $installing = New-CapUpdateState `
-        -InstalledCommitSha ([string]$decision.installed_commit_sha) `
-        -InstalledAt $(if ($null -eq $current) { $null } else { [string]$current.installed_at }) `
-        -Status 'installing' `
-        -TargetCommitSha ([string]$decision.target_commit_sha) `
-        -LastCheckedAt ([datetimeoffset]::UtcNow.ToString('o'))
-    Write-CapUpdateAtomicJson -Path $StatePath -Value $installing
-
-    $worktree = New-CapUpdateWorktree `
-        -CacheRepo $CacheRepo `
-        -WorktreeRoot $WorktreeRoot `
-        -TargetCommitSha ([string]$decision.target_commit_sha)
-    $bootstrap = Join-Path $worktree 'scripts\bootstrap-chat-platform.ps1'
-    if (-not (Test-Path -LiteralPath $bootstrap -PathType Leaf)) {
-        throw 'The exact main worktree does not contain the accepted bootstrap script.'
-    }
-
-    Write-CapUpdateLog "install target=$($decision.target_commit_sha) source=$worktree"
-    Invoke-CapPwshProcess -ScriptPath $bootstrap -Label 'bootstrap-chat-platform'
-
-    $installed = Read-CapUpdateState -Path $StatePath
-    if (
-        $null -eq $installed -or
-        [string]$installed.status -ne 'current' -or
-        [string]$installed.installed_commit_sha -cne [string]$decision.target_commit_sha
-    ) {
-        throw 'Bootstrap completed without a matching exact installed-version receipt.'
-    }
-
-    $restarted = $false
-    if ($wasRunning) {
-        if (-not (Test-Path -LiteralPath $InstalledManagerPath -PathType Leaf)) {
-            throw 'Updated manager command is missing after installation.'
+        $worktree = New-CapUpdateWorktree `
+            -CacheRepo $CacheRepo `
+            -WorktreeRoot $WorktreeRoot `
+            -TargetCommitSha ([string]$decision.target_commit_sha)
+        $bootstrap = Join-Path $worktree 'scripts\bootstrap-chat-platform.ps1'
+        if (-not (Test-Path -LiteralPath $bootstrap -PathType Leaf)) {
+            throw 'The exact main worktree does not contain the accepted bootstrap script.'
         }
-        Invoke-CapPwshProcess `
-            -ScriptPath $InstalledManagerPath `
-            -Arguments @('-Action', 'Start', '-NoNotify') `
-            -Label 'updated-platform-start' `
-            -TimeoutMilliseconds 120000
-        $restarted = $true
-    }
 
-    Write-CapUpdateLog "update success target=$($decision.target_commit_sha) restarted=$restarted"
-    Write-CapUpdateResult `
-        -Status 'updated' `
-        -InstalledCommitSha ([string]$decision.target_commit_sha) `
-        -TargetCommitSha ([string]$decision.target_commit_sha) `
-        -Restarted:$restarted
-    $exitCode = 0
+        Write-CapUpdateLog "install target=$($decision.target_commit_sha) source=$worktree"
+        Invoke-CapPwshProcess -ScriptPath $bootstrap -Label 'bootstrap-chat-platform'
+
+        $installed = Read-CapUpdateState -Path $StatePath
+        if (
+            $null -eq $installed -or
+            [string]$installed.status -ne 'current' -or
+            [string]$installed.installed_commit_sha -cne [string]$decision.target_commit_sha
+        ) {
+            throw 'Bootstrap completed without a matching exact installed-version receipt.'
+        }
+
+        $restarted = $false
+        if ($wasRunning) {
+            if (-not (Test-Path -LiteralPath $InstalledManagerPath -PathType Leaf)) {
+                throw 'Updated manager command is missing after installation.'
+            }
+            Invoke-CapPwshProcess `
+                -ScriptPath $InstalledManagerPath `
+                -Arguments @('-Action', 'Start', '-NoNotify') `
+                -Label 'updated-platform-start' `
+                -TimeoutMilliseconds 120000
+            $restarted = $true
+        }
+
+        Write-CapUpdateLog "update success target=$($decision.target_commit_sha) restarted=$restarted"
+        Write-CapUpdateResult `
+            -Status 'updated' `
+            -InstalledCommitSha ([string]$decision.target_commit_sha) `
+            -TargetCommitSha ([string]$decision.target_commit_sha) `
+            -Restarted:$restarted
+        $exitCode = 0
+    }
 }
 catch {
     $message = $_.Exception.Message
