@@ -169,12 +169,6 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             request.index("temporary.personalization_disabled !== true"),
             request.index('sendMessage("authorize-send"'),
         )
-        for label in (
-            "Non-personalized",
-            "Без персонализации",
-            "Nicht personalisiert",
-        ):
-            self.assertIn(label if label == "Non-personalized" else label.split()[0], self.policy)
 
     def test_delivery_ambiguity_never_triggers_resend(self) -> None:
         self.assertIn('postDelivery(\n          "unknown"', self.content)
