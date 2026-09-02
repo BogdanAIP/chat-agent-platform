@@ -1,14 +1,13 @@
 Set-StrictMode -Version Latest
 
 $script:CapTrayUpdateProcess = $null
-$script:CapTrayUpdateStdoutTask = $null
-$script:CapTrayUpdateStderrTask = $null
 $script:CapTrayUpdateStartedAt = $null
 $script:CapTrayUpdateTimer = $null
 $script:CapTrayUpdateItem = $null
 $script:CapTrayUpdateNotifyIcon = $null
 $script:CapTrayUpdateBusyPredicate = $null
 $script:CapTrayUpdateScript = Join-Path $PSScriptRoot 'chat-platform-update.ps1'
+$script:CapTrayUpdateResultPath = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\state\platform-update-result.json'
 
 function Test-CapUpdateTrayBusy {
     if ($null -eq $script:CapTrayUpdateProcess) {
@@ -48,8 +47,6 @@ function Clear-CapUpdateTrayProcess {
         try { $updateProcess.Dispose() } catch {}
     }
     $script:CapTrayUpdateProcess = $null
-    $script:CapTrayUpdateStdoutTask = $null
-    $script:CapTrayUpdateStderrTask = $null
     $script:CapTrayUpdateStartedAt = $null
 }
 
@@ -72,14 +69,15 @@ function Show-CapUpdateTrayBalloon {
     $script:CapTrayUpdateNotifyIcon.ShowBalloonTip($Milliseconds)
 }
 
-function Get-CapUpdateTrayResult {
-    param([string]$Stdout)
-
-    if ([string]::IsNullOrWhiteSpace($Stdout)) {
+function Read-CapUpdateTrayResult {
+    if (-not (Test-Path -LiteralPath $script:CapTrayUpdateResultPath -PathType Leaf)) {
         return $null
     }
     try {
-        return ($Stdout.Trim() | ConvertFrom-Json -ErrorAction Stop)
+        return (
+            Get-Content -LiteralPath $script:CapTrayUpdateResultPath -Raw -Encoding utf8 |
+                ConvertFrom-Json -ErrorAction Stop
+        )
     }
     catch {
         return $null
@@ -106,9 +104,7 @@ function Complete-CapUpdateTrayOperation {
     }
 
     $exitCode = try { [int]$script:CapTrayUpdateProcess.ExitCode } catch { -1 }
-    $stdout = try { $script:CapTrayUpdateStdoutTask.GetAwaiter().GetResult().Trim() } catch { '' }
-    $stderr = try { $script:CapTrayUpdateStderrTask.GetAwaiter().GetResult().Trim() } catch { '' }
-    $result = Get-CapUpdateTrayResult -Stdout $stdout
+    $result = Read-CapUpdateTrayResult
 
     Clear-CapUpdateTrayProcess
     if ($null -ne $script:CapTrayUpdateItem) {
@@ -148,8 +144,8 @@ function Complete-CapUpdateTrayOperation {
     ) {
         [string]$result.reason
     }
-    elseif (-not [string]::IsNullOrWhiteSpace($stderr)) {
-        $stderr
+    elseif ($null -eq $result) {
+        'Updater завершился без корректного terminal result.'
     }
     else {
         "Операция обновления завершилась с кодом $exitCode."
@@ -198,8 +194,14 @@ function Start-CapUpdateTrayOperation {
     $startInfo.FileName = $pwsh
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
+
+    # Do not pipe updater stdout/stderr through the long-lived tray. The updater
+    # may restart a runtime whose descendants inherit standard handles. A pipe
+    # would then stay open after the updater itself exits. Terminal status is
+    # instead transferred through platform-update-result.json.
+    $startInfo.RedirectStandardOutput = $false
+    $startInfo.RedirectStandardError = $false
+
     foreach ($argument in @(
         '-NoLogo',
         '-NoProfile',
@@ -226,8 +228,6 @@ function Start-CapUpdateTrayOperation {
     }
 
     $script:CapTrayUpdateProcess = $process
-    $script:CapTrayUpdateStdoutTask = $process.StandardOutput.ReadToEndAsync()
-    $script:CapTrayUpdateStderrTask = $process.StandardError.ReadToEndAsync()
     $script:CapTrayUpdateStartedAt = [datetimeoffset]::UtcNow
 
     # Reuse the existing tray lifecycle-busy projection while the updater owns
