@@ -120,8 +120,10 @@
     }
 
     function observeTemporaryState(composer) {
-      const temporaryPatterns = [/temporary chat/i, /temporary/i, /временн(?:ый|ого|ом|ая|ую|ое)/i];
+      const temporaryPatterns = [/temporary chat/i, /temporary/i, /временн(?:ый|ого|ом|ая|ую|ое)/i, /tempor[aä]r/i];
       const candidates = [];
+      const personalizationEvidence = [];
+      const personalizationModes = new Set();
       const pluginMarkers = new Set();
       const nodes = document.querySelectorAll('button,[role="button"],[aria-label],[title],[data-testid]');
       for (const node of nodes) {
@@ -130,17 +132,25 @@
         const text = candidateText(node);
         if (!text) continue;
         if (temporaryPatterns.some((pattern) => pattern.test(text))) candidates.push(text);
+        const personalizationMode = policy.personalizationModeFromText(text);
+        if (personalizationMode !== "unknown") {
+          personalizationModes.add(personalizationMode);
+          personalizationEvidence.push(text);
+        }
         for (const marker of ["GitHub", "Chat Local Bridge Test", "Google Drive", "Gmail", "Canva"]) {
           if (text.includes(marker)) pluginMarkers.add(marker);
         }
       }
       const temporaryMode = candidates.length > 0;
+      const personalizationState = personalizationModes.size === 1 ? [...personalizationModes][0] : "unknown";
       return {
         temporary_mode: temporaryMode,
         positive_ui_evidence: temporaryMode,
         ui_evidence: candidates.slice(0, 8),
         fresh_context: allConversationTurnCount() === 0,
-        personalization_disabled: temporaryMode,
+        personalization_disabled: personalizationState === "non-personalized",
+        personalization_state: personalizationState,
+        personalization_ui_evidence: personalizationEvidence.slice(0, 8),
         plugin_markers: [...pluginMarkers],
       };
     }
@@ -165,7 +175,12 @@
       if (authorityRequested) return;
       authorityRequested = true;
       const temporary = observeTemporaryState(composer);
-      if (!temporary.temporary_mode || !temporary.fresh_context || temporary.plugin_markers.length > 0) {
+      if (
+        !temporary.temporary_mode ||
+        !temporary.fresh_context ||
+        temporary.personalization_disabled !== true ||
+        temporary.plugin_markers.length > 0
+      ) {
         event("temporary-ui-not-proven", temporary);
         stop("child-qualification-failed", temporary);
         return;
