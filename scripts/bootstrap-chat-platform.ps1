@@ -48,7 +48,6 @@ $CommandPath = Join-Path $AppScriptsDir 'chat-platform.ps1'
 $ControllerPath = Join-Path $AppScriptsDir 'chat-platform-controller.ps1'
 $DirectControllerPath = Join-Path $AppScriptsDir 'semantic-direct-controller.ps1'
 $TrayPath = Join-Path $AppScriptsDir 'chat-platform-tray.ps1'
-$UpdateUiPath = Join-Path $AppScriptsDir 'chat-platform-update-ui.ps1'
 
 $AcceptedTunnelClientVersion = 'v0.0.11'
 $OfficialReleaseApi = "https://api.github.com/repos/openai/tunnel-client/releases/tags/$AcceptedTunnelClientVersion"
@@ -67,34 +66,6 @@ function Require-Command {
     $command = Get-Command $Name -ErrorAction SilentlyContinue
     if ($null -eq $command) { throw "Required command is missing: $Name" }
     return $command.Source
-}
-
-function Install-CapUpdateDesktopShortcut {
-    param(
-        [Parameter(Mandatory)] [string]$AppRoot,
-        [Parameter(Mandatory)] [string]$UpdateUiPath
-    )
-
-    if (-not (Test-Path -LiteralPath $UpdateUiPath -PathType Leaf)) {
-        throw "Installed update UI is missing: $UpdateUiPath"
-    }
-    $desktop = [Environment]::GetFolderPath('Desktop')
-    if ([string]::IsNullOrWhiteSpace($desktop)) {
-        Write-Host 'UPDATE_DESKTOP_SHORTCUT=unavailable'
-        return
-    }
-
-    $pwsh = Require-Command 'pwsh.exe'
-    $shortcutPath = Join-Path $desktop 'Обновить Chat Agent Platform.lnk'
-    $shell = New-Object -ComObject WScript.Shell
-    $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $pwsh
-    $shortcut.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $UpdateUiPath
-    $shortcut.WorkingDirectory = $AppRoot
-    $shortcut.IconLocation = "${env:SystemRoot}\System32\shell32.dll,238"
-    $shortcut.Description = 'Проверить и установить последнюю принятую версию Chat Agent Platform из main'
-    $shortcut.Save()
-    Write-Host "UPDATE_DESKTOP_SHORTCUT=$shortcutPath"
 }
 
 function Assert-ChatBootstrapEnvironment {
@@ -123,9 +94,9 @@ function Assert-ChatBootstrapEnvironment {
         (Join-Path $PSScriptRoot 'semantic-direct-controller.ps1'),
         (Join-Path $PSScriptRoot 'chat-platform.ps1'),
         (Join-Path $PSScriptRoot 'chat-platform-tray.ps1'),
+        (Join-Path $PSScriptRoot 'chat-platform-tray-update.ps1'),
         (Join-Path $PSScriptRoot 'chat-platform-update-core.ps1'),
         (Join-Path $PSScriptRoot 'chat-platform-update.ps1'),
-        (Join-Path $PSScriptRoot 'chat-platform-update-ui.ps1'),
         (Join-Path $PSScriptRoot 'bootstrap-windows-procedure-runtime.ps1'),
         (Join-Path $RepoRoot 'runtime\semantic-projection\bin\semantic-control-plane-projection.mjs'),
         (Join-Path $RepoRoot 'runtime\semantic-projection\lib\browser-verification-bridge.mjs'),
@@ -197,16 +168,16 @@ Install-ChatManagerBundle `
 
 Write-Step 'Установка bounded main updater'
 foreach ($name in @(
+    'chat-platform-tray-update.ps1',
     'chat-platform-update-core.ps1',
-    'chat-platform-update.ps1',
-    'chat-platform-update-ui.ps1'
+    'chat-platform-update.ps1'
 )) {
     Copy-ChatVerifiedFile `
         -Source (Join-Path $RepoRoot "scripts\$name") `
         -Destination (Join-Path $AppScriptsDir $name)
 }
-Install-CapUpdateDesktopShortcut -AppRoot $AppRoot -UpdateUiPath $UpdateUiPath
 Write-Host 'MAIN_UPDATE_SOURCE=official-main-only'
+Write-Host 'MAIN_UPDATE_UI=tray-more-menu'
 Write-Host 'MAIN_UPDATER_INSTALLED=True'
 
 Write-Step 'Установка bounded Windows procedure runtime'
@@ -252,4 +223,4 @@ Write-Host 'WINDOWS_PROCEDURE_ID=windows_case_update_v1'
 Write-Host 'EXTENSION_MANAGER=optional-1mcp'
 Write-Host 'LEGACY_1MCP_INSTALL_PATH_USED=False'
 Write-Host 'PLATFORM_STATE=stopped'
-Write-Host 'NEXT=Use the desktop shortcuts or the installed chat-platform.ps1 command facade.'
+Write-Host 'NEXT=Use the desktop shortcut or the installed chat-platform.ps1 command facade.'
