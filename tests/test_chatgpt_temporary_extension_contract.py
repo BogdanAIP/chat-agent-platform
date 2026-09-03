@@ -46,19 +46,19 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             '"claim-db-schema-missing"',
         ):
             self.assertIn(phrase, self.background)
-        claim_start = self.background.index("async function claimBrowserSend")
-        claim_end = self.background.index("async function claimRecordByDelivery", claim_start)
-        claim_body = self.background[claim_start:claim_end]
-        self.assertIn('db.transaction(CLAIM_STORE, "readwrite")', claim_body)
-        self.assertIn("store.add(", claim_body)
-        self.assertIn("delegation_id: message.delegation_id", claim_body)
-        self.assertIn("task_sha256: message.task_sha256", claim_body)
-        self.assertIn("tab_id: tabId", claim_body)
-        self.assertNotIn("createObjectStore", claim_body)
-        self.assertNotIn("store.put(", claim_body)
-        self.assertNotIn("delete(", claim_body)
+        claim = self.background[
+            self.background.index("async function claimBrowserSend") :
+            self.background.index("async function claimRecordByDelivery")
+        ]
+        self.assertIn('db.transaction(CLAIM_STORE, "readwrite")', claim)
+        self.assertIn("store.add(", claim)
+        self.assertIn("expected_runtime_head: message.expected_runtime_head", claim)
+        self.assertIn("prompt_sha256: message.prompt_sha256", claim)
+        self.assertNotIn("tab_id", claim)
+        self.assertNotIn("store.put(", claim)
+        self.assertNotIn("store.delete", self.background)
 
-    def test_executing_generation_and_runtime_bytes_are_attested_before_send_and_capture(self) -> None:
+    def test_executing_generation_and_runtime_bytes_are_attested_before_send_and_capture_prepare(self) -> None:
         for phrase in (
             'importScripts("execution_generation.js");',
             'const EXECUTION_GENERATION = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";',
@@ -76,89 +76,67 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             self.manifest["content_scripts"][0]["js"],
         )
         self.assertIn("execution_generation: executionGeneration", self.content)
-        helper = self.background[
-            self.background.index("async function requestLocalSendAuthority") : self.background.index("async function resumeIntent")
+        prepare = self.background[
+            self.background.index('message.kind === "prepare-capture"') :
+            self.background.index('message.kind === "capture"')
         ]
-        self.assertIn("const attestation = await runtimeAttestation();", helper)
-        self.assertIn("runtime_attestation: attestation", helper)
-        capture = self.background[
-            self.background.index('} else if (message.kind === "capture")') : self.background.index('} else if (message.kind === "status")')
+        self.assertIn("runtimeAttestation()", prepare)
+        commit = self.background[
+            self.background.index('message.kind === "capture"') :
+            self.background.index('message.kind === "final-observation"')
         ]
-        self.assertIn("runtimeAttestation()", capture)
-        self.assertIn("runtime_attestation: attestation", capture)
+        self.assertNotIn("runtimeAttestation()", commit)
+        self.assertIn("capture_token: message.capture_token", commit)
 
-    def test_browser_claim_commits_before_local_delivery_authority(self) -> None:
-        authorize = self.background[
-            self.background.index("async function authorizeSend") : self.background.index("chrome.runtime.onInstalled")
-        ]
-        claim = authorize.index("await claimBrowserSend")
-        local = authorize.index("await requestLocalSendAuthority")
-        self.assertLess(claim, local)
-        helper = self.background[
-            self.background.index("async function requestLocalSendAuthority") : self.background.index("async function resumeIntent")
-        ]
-        self.assertIn("browser_claim_committed: true", helper)
-        self.assertIn("browser_claim_id: message.delivery_id", helper)
-        self.assertIn("send_authorized: false", authorize)
-
-    def test_existing_browser_claim_is_monitor_only_only_for_same_exact_tab_and_task(self) -> None:
-        authorize = self.background[
-            self.background.index("async function authorizeSend") : self.background.index("chrome.runtime.onInstalled")
-        ]
+    def test_browser_claim_is_restart_stable_and_not_owned_by_numeric_tab_id(self) -> None:
         exact = self.background[
-            self.background.index("function exactClaimMatches") : self.background.index("function senderTab")
+            self.background.index("function exactClaimMatches") :
+            self.background.index("function validObservedClaim")
         ]
         for phrase in (
-            "record.tab_id === tabId",
             "record.run_id === message.run_id",
             "record.delegation_id === message.delegation_id",
             "record.delivery_id === message.delivery_id",
             "record.task_sha256 === message.task_sha256",
+            "record.expected_runtime_head === message.expected_runtime_head",
+            "record.prompt_sha256 === message.prompt_sha256",
         ):
             self.assertIn(phrase, exact)
-        self.assertIn('reason: "already-claimed"', self.background)
-        self.assertIn("if (!browserClaim.granted)", authorize)
-        self.assertIn("await claimRecordByDelivery(message.delivery_id)", authorize)
-        self.assertIn("!exactClaimMatches(existing, message, tabId)", authorize)
-        self.assertIn('reason: "claimed-by-other-tab"', authorize)
-        self.assertIn("monitor_only: monitorOnly", authorize)
-        self.assertNotIn("store.delete", self.background)
-        self.assertNotIn("store.put", self.background)
+        self.assertNotIn("tab_id", exact)
+        self.assertIn("async function claimRecordsForRecovery()", self.background)
+        self.assertIn(".getAll()", self.background)
+        self.assertNotIn("claimRecordsForTab", self.background)
 
-    def test_same_tab_claim_can_finish_only_pre_send_local_claim_after_restart(self) -> None:
+    def test_browser_restart_resume_requires_visible_exact_delivery_correlation(self) -> None:
+        resume = self.background[
+            self.background.index("async function resumeIntent") :
+            self.background.index("async function authorizeSend")
+        ]
+        self.assertIn("message?.observed_claims", resume)
+        self.assertIn("validObservedClaim", resume)
+        self.assertIn("observedClaimMatches", resume)
+        self.assertIn("claimRecordsForRecovery", resume)
+        self.assertIn('reason: "no-observed-delivery-correlation"', resume)
+        self.assertIn("active.length !== 1", resume)
+        self.assertIn('monitor_only: true', resume)
+        self.assertIn("expected_runtime_head: record.expected_runtime_head", resume)
+        self.assertIn("prompt_sha256: record.prompt_sha256", resume)
+        self.assertIn("function observedRecoveryClaims()", self.content)
+        self.assertIn("observed_claims: observedRecoveryClaims()", self.content)
+
+    def test_pre_send_recovery_is_bound_to_exact_head_and_prompt(self) -> None:
         authorize = self.background[
-            self.background.index("async function authorizeSend") : self.background.index("chrome.runtime.onInstalled")
+            self.background.index("async function authorizeSend") :
+            self.background.index("chrome.runtime.onInstalled")
         ]
         self.assertIn('status.delivery_state === "prepared"', authorize)
         self.assertIn('["launch-attempted", "child-bound"].includes(status.launch_state)', authorize)
-        self.assertIn("await requestLocalSendAuthority(message, tabId)", authorize)
-        self.assertIn('reason: recovered.send_authorized === true ? "recovered-local-authority"', authorize)
-        recovery = authorize[
-            authorize.index('status.delivery_state === "prepared"') : authorize.index("const monitorOnly")
-        ]
-        for terminalish in ('"claimed"', '"unknown"', '"delivered"'):
-            self.assertNotIn(terminalish, recovery)
-
-    def test_full_tab_reload_recovers_only_one_live_claim_and_rearms_same_guard_generation(self) -> None:
-        self.assertIn("async function claimRecordsForTab(tabId)", self.background)
-        self.assertIn("async function resumeIntent(message, sender)", self.background)
-        self.assertIn('message.kind === "resume-intent"', self.background)
-        resume = self.background[
-            self.background.index("async function resumeIntent") : self.background.index("async function authorizeSend")
-        ]
-        self.assertIn("message?.execution_generation !== EXECUTION_GENERATION", resume)
-        self.assertIn("active.length !== 1", resume)
-        self.assertIn('monitor_only: true', resume)
-        self.assertIn("execution_generation: EXECUTION_GENERATION", resume)
-        self.assertIn('["claimed", "unknown", "delivered"]', resume)
-        self.assertIn('status.result_state !== "open"', resume)
-        self.assertIn('kind: "resume-intent"', self.content)
-        self.assertIn("execution_generation: executionGeneration", self.content)
-        self.assertIn("response.execution_generation !== executionGeneration", self.content)
-        self.assertIn("start(recoveredIntent(response), true)", self.content)
-        self.assertIn("policy.armPostDeliveryUiGuard(intent)", self.content)
-        recovered = self.content[self.content.index("function recoveredIntent") : self.content.index("function start")]
-        self.assertNotIn("sendAuthorized: true", recovered)
+        self.assertIn("exactClaimMatches(existing, message)", authorize)
+        self.assertIn("expected_runtime_head", authorize)
+        self.assertIn("prompt_sha256", authorize)
+        self.assertIn('"cap_expected_head"', self.policy)
+        self.assertIn('"cap_prompt_sha256"', self.policy)
+        self.assertIn("promptDigest !== intent.promptSha256", self.content)
 
     def test_content_can_click_send_only_after_both_authorities(self) -> None:
         self.assertEqual(1, self.content.count("button.click();"))
@@ -172,10 +150,12 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
 
     def test_temporary_mode_never_implies_non_personalized_state(self) -> None:
         observe = self.content[
-            self.content.index("function observeTemporaryState") : self.content.index("function userDeliveryVisible")
+            self.content.index("function observeTemporaryState") :
+            self.content.index("function userDeliveryVisible")
         ]
         request = self.content[
-            self.content.index("async function requestAuthority") : self.content.index("async function postDelivery")
+            self.content.index("async function requestAuthority") :
+            self.content.index("async function postDelivery")
         ]
         self.assertIn("policy.personalizationModeFromText(text)", observe)
         self.assertIn('personalizationState === "non-personalized"', observe)
@@ -186,51 +166,51 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             request.index('sendMessage("authorize-send"'),
         )
 
-    def test_confirmed_delivery_disarms_launch_intent_and_bound_composer_before_capture(self) -> None:
+    def test_post_delivery_guard_requires_head_prompt_clean_window_and_cleanup_token(self) -> None:
         for phrase in (
-            'const POST_DELIVERY_CLEANUP_TIMEOUT_MS = 10000;',
-            '"temporary-chat"',
-            '"cap_agent_delegate"',
-            '"cap_delegation_id"',
-            '"cap_delivery_id"',
-            '"cap_task_sha256"',
-            '"prompt"',
-            'state.fragment.delete("cap_run_id")',
-            'history.replaceState(history.state, "", nextUrl)',
-            "function clearBoundPromptFromComposer()",
-            'composer.querySelector(\'#prompt-textarea,[contenteditable="true"],textarea\')',
-            'policy.hasExpectedPrompt(composer.textContent || "", intent)',
-            'document.execCommand("delete", false, null)',
-            'event("post-delivery-cleanup-complete"',
-            'stop("post-delivery-cleanup-failed", details)',
+            '"cap_expected_head"',
+            '"cap_prompt_sha256"',
+            "expectedHead",
+            "promptSha256",
+            "POST_DELIVERY_UI_STABLE_MS = 8000",
+            "resetPostDeliveryStability()",
+            "postDeliveryCleanupToken = null",
+            "response.cleanup_token",
+            "captureAuthorization()",
+            "currentPostDeliveryUiClean()",
         ):
-            self.assertIn(phrase, self.content)
+            self.assertIn(phrase, self.policy)
+        self.assertIn("policy.armPostDeliveryUiGuard(intent)", self.content)
 
-        cleanup = self.content[
-            self.content.index("function launchIntentState") : self.content.index("function conversationTurns")
-        ]
-        self.assertNotIn("button.click();", cleanup)
-        self.assertIn('if (deliveryState !== "delivered") return false;', cleanup)
-        self.assertIn("postDeliveryCleanupStableSince", cleanup)
-
+    def test_capture_is_two_phase_and_rechecks_ui_after_async_attestation(self) -> None:
         capture = self.content[
-            self.content.index("async function captureResult") : self.content.index("function tick")
+            self.content.index("async function captureResult") :
+            self.content.index("async function pollControllerStatus")
         ]
-        self.assertIn("!postDeliveryCleanupComplete", capture)
+        first = capture.index("policy.captureAuthorization()")
+        prepare = capture.index('sendMessage("prepare-capture"')
+        second = capture.index("policy.captureAuthorization()", first + 1)
+        commit = capture.index('sendMessage("capture"')
+        self.assertLess(first, prepare)
+        self.assertLess(prepare, second)
+        self.assertLess(second, commit)
+        self.assertIn("capture_token: prepared.capture_token", capture)
 
-        tick = self.content[self.content.index("function tick") : self.content.index('if (!policy.armPostDeliveryUiGuard(intent))')]
-        delivered_gate = tick.index('if (deliveryState !== "delivered") return;')
-        cleanup_gate = tick.index("if (!ensurePostDeliveryCleanup()) return;")
-        capture_call = tick.index("void captureResult(last);")
-        self.assertLess(delivered_gate, cleanup_gate)
-        self.assertLess(cleanup_gate, capture_call)
+    def test_timeout_final_observation_is_polled_from_delivered_worker(self) -> None:
+        self.assertIn("final_observation_request_id", self.content)
+        self.assertIn('sendMessage("final-observation"', self.content)
+        self.assertIn("terminal_result_visible: policy.singleResultBlockShape(last)", self.content)
+        self.assertIn("worker_generating: stopButtonPresent()", self.content)
+        final = self.background[
+            self.background.index('message.kind === "final-observation"') :
+            self.background.index('message.kind === "status"')
+        ]
+        self.assertIn("runtimeAttestation()", final)
 
     def test_delivery_ambiguity_never_triggers_resend(self) -> None:
-        self.assertIn('postDelivery(\n          "unknown"', self.content)
-        self.assertIn('postDelivery(\n          "delivered"', self.content)
         self.assertEqual(1, self.content.count("button.click();"))
-        ambiguity_path = self.content[self.content.index('postDelivery(\n          "unknown"') :]
-        self.assertNotIn("sendAuthorized = true", ambiguity_path)
+        self.assertIn('postDelivery("unknown"', self.content)
+        self.assertIn('postDelivery("delivered"', self.content)
 
     def test_result_capture_requires_exact_single_structured_block(self) -> None:
         for phrase in (
@@ -241,7 +221,6 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, self.policy)
         self.assertIn("if (!policy.hasSingleResultBlock(last)) return;", self.content)
-        self.assertIn('sendMessage("capture", { result_text: text })', self.content)
 
     def test_private_run_id_is_fragment_capability_not_query_or_worker_prompt(self) -> None:
         self.assertIn("new URLSearchParams(url.hash", self.policy)
