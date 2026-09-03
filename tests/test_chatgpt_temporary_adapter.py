@@ -13,6 +13,7 @@ from runtime.control_plane import delegation_state
 
 TASK = "Compare two bounded public facts and return a concise read-only summary."
 TASK_SHA = hashlib.sha256(TASK.encode("utf-8")).hexdigest()
+TEST_RUNTIME_DIGEST = "a" * 64
 
 
 def identity_dict(**overrides: str) -> dict[str, str]:
@@ -54,7 +55,7 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
             "plugin_markers": [],
             "session_id": "chrome-tab:41",
             "conversation_id": None,
-            "observation_ref": "chatgpt-temporary:tab:41:pre-send:1",
+            "observation_ref": f"chatgpt-temporary:tab:41:pre-send:1:runtime:{TEST_RUNTIME_DIGEST}",
         }
         value.update(overrides)
         return value
@@ -177,6 +178,7 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
         )
         self.assertEqual("child-bound", bound.launch_state)
         self.assertEqual(chatgpt_temporary.ADAPTER_ID, bound.worker_session_ref.adapter_id)
+        self.assertEqual(f"chatgpt-delivery:{launch.delivery_id}", bound.worker_session_ref.session_id)
 
     def test_local_delivery_authority_is_one_shot(self) -> None:
         launch = self.launch()
