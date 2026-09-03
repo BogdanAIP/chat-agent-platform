@@ -5,10 +5,12 @@ import json
 import os
 import secrets
 import threading
+from dataclasses import replace
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from runtime.agent_sessions import chatgpt_temporary, source_attestation
 from runtime.control_plane.delegation_state import (
@@ -23,6 +25,7 @@ MAX_BODY_BYTES = 400_000
 MAX_EVENT_DETAILS_BYTES = 32_000
 MAX_EVENTS = 200
 DEFAULT_TIMEOUT_SECONDS = 1800
+FINAL_OBSERVATION_GRACE_SECONDS = 20
 ALLOWED_EVENTS = {
     "adapter-loaded",
     "temporary-ui-not-proven",
@@ -32,6 +35,8 @@ ALLOWED_EVENTS = {
     "send-clicked",
     "delivery-visible",
     "delivery-ambiguous",
+    "post-delivery-cleanup-complete",
+    "post-delivery-cleanup-failed",
     "result-capture-failed",
     "timeout",
     "stopped",
@@ -74,6 +79,29 @@ def _exact(value: Mapping[str, Any], expected: set[str], label: str) -> None:
         )
 
 
+def _bind_launch_provenance(
+    launch: chatgpt_temporary.TemporaryLaunchIntent,
+    *,
+    expected_head: str,
+) -> chatgpt_temporary.TemporaryLaunchIntent:
+    parts = urlsplit(launch.launch_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["cap_expected_head"] = expected_head
+    query["cap_prompt_sha256"] = launch.prompt_sha256
+    return replace(
+        launch,
+        launch_url=urlunsplit(
+            (
+                parts.scheme,
+                parts.netloc,
+                parts.path,
+                urlencode(query),
+                parts.fragment,
+            )
+        ),
+    )
+
+
 class TemporaryControllerState:
     def __init__(
         self,
@@ -101,14 +129,15 @@ class TemporaryControllerState:
         self.state_root = state_root.resolve()
         self.output_dir = output_dir.resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.launch = chatgpt_temporary.prepare_temporary_session(
+        prepared_launch = chatgpt_temporary.prepare_temporary_session(
             self.identity_value,
             task=task,
             state_root=self.state_root,
         )
-        # The durable private delegation run capability also authenticates the
-        # adapter-local loopback. No second ephemeral secret is introduced, so
-        # a restarted controller can reconnect to the already-open child.
+        self.launch = _bind_launch_provenance(
+            prepared_launch,
+            expected_head=self.expected_runtime_attestation.expected_head,
+        )
         self.token = self.launch.run_id
         self.progress_path = self.output_dir / "progress.json"
         self.result_path = self.output_dir / "result.json"
@@ -116,6 +145,9 @@ class TemporaryControllerState:
         self.lock = threading.Lock()
         self.done = threading.Event()
         self.events: list[dict[str, Any]] = []
+        self.cleanup_token: str | None = None
+        self.capture_token: str | None = None
+        self.final_observation_request_id: str | None = None
 
         durable_snapshot = load_delegation(
             self.identity_value,
@@ -158,6 +190,12 @@ class TemporaryControllerState:
             raise DelegationStateError(f"{label} delivery correlation mismatch")
         return self.launch.run_id
 
+    def _require_launch_provenance(self, value: Mapping[str, Any], label: str) -> None:
+        if value.get("expected_runtime_head") != self.expected_runtime_attestation.expected_head:
+            raise DelegationStateError(f"{label} expected runtime HEAD mismatch")
+        if value.get("prompt_sha256") != self.launch.prompt_sha256:
+            raise DelegationStateError(f"{label} launch prompt digest mismatch")
+
     def _validate_runtime_attestation(self, value: Any) -> str:
         report = _plain(value, "runtime attestation")
         return source_attestation.validate_runtime_attestation(
@@ -175,6 +213,8 @@ class TemporaryControllerState:
 
     def status(self) -> dict[str, Any]:
         snapshot = load_delegation(self.identity_value, state_root=self.state_root)
+        with self.lock:
+            final_request_id = self.final_observation_request_id
         return {
             "schema_version": 1,
             "status": "ready",
@@ -185,9 +225,10 @@ class TemporaryControllerState:
             "delivery_state": snapshot.delivery_state,
             "result_state": snapshot.result_state,
             "result_status": snapshot.result_status,
+            "final_observation_request_id": final_request_id,
         }
 
-    def record_event(self, value: Mapping[str, Any]) -> None:
+    def record_event(self, value: Mapping[str, Any]) -> dict[str, Any]:
         event = _plain(value, "adapter event")
         _exact(
             event,
@@ -201,7 +242,24 @@ class TemporaryControllerState:
             raise DelegationStateError("adapter event details must be an object")
         if len(json.dumps(event["details"], ensure_ascii=False).encode("utf-8")) > MAX_EVENT_DETAILS_BYTES:
             raise DelegationStateError("adapter event details exceed accepted bound")
+
+        cleanup_token = None
+        details = event["details"]
+        if (
+            event["event"] == "delivery-visible"
+            and details.get("post_delivery_ui_disarmed") is True
+            and details.get("launch_url_clean") is True
+            and details.get("composer_clean") is True
+        ):
+            snapshot = load_delegation(self.identity_value, state_root=self.state_root)
+            if snapshot.delivery_state != "delivered" or snapshot.result_state != "open":
+                raise DelegationStateError("cleanup acknowledgement requires delivered open delegation")
+            self._require_bound_runtime_provenance(snapshot)
+            cleanup_token = secrets.token_hex(32)
+
         with self.lock:
+            if cleanup_token is not None:
+                self.cleanup_token = cleanup_token
             self.events.append({**event, "received_at": _utc_now()})
             self.events = self.events[-MAX_EVENTS:]
             _atomic_json_write(
@@ -215,6 +273,10 @@ class TemporaryControllerState:
                     "updated_at": _utc_now(),
                 },
             )
+        result: dict[str, Any] = {"schema_version": 1, "status": "recorded"}
+        if cleanup_token is not None:
+            result["cleanup_token"] = cleanup_token
+        return result
 
     def authorize_send(self, value: Mapping[str, Any]) -> dict[str, Any]:
         request = _plain(value, "send authority request")
@@ -225,6 +287,8 @@ class TemporaryControllerState:
                 "run_id",
                 "delegation_id",
                 "delivery_id",
+                "expected_runtime_head",
+                "prompt_sha256",
                 "browser_claim_committed",
                 "browser_claim_id",
                 "child_evidence",
@@ -233,6 +297,7 @@ class TemporaryControllerState:
             "send authority request",
         )
         run_id = self._require_correlation(request, "send authority request")
+        self._require_launch_provenance(request, "send authority request")
         if request["browser_claim_committed"] is not True:
             raise DelegationStateError("browser send claim is not committed")
         if request["browser_claim_id"] != self.launch.delivery_id:
@@ -325,6 +390,40 @@ class TemporaryControllerState:
             self.done.set()
         return snapshot
 
+    def prepare_capture(self, value: Mapping[str, Any]) -> dict[str, Any]:
+        request = _plain(value, "worker capture preparation")
+        _exact(
+            request,
+            {
+                "schema_version",
+                "run_id",
+                "delegation_id",
+                "delivery_id",
+                "cleanup_token",
+                "runtime_attestation",
+            },
+            "worker capture preparation",
+        )
+        self._require_correlation(request, "worker capture preparation")
+        cleanup_token = request["cleanup_token"]
+        if type(cleanup_token) is not str or len(cleanup_token) != 64:
+            raise DelegationStateError("worker capture cleanup token is invalid")
+        with self.lock:
+            if cleanup_token != self.cleanup_token:
+                raise DelegationStateError("worker capture cleanup token is stale or missing")
+        durable_snapshot = load_delegation(self.identity_value, state_root=self.state_root)
+        self._require_bound_runtime_provenance(durable_snapshot)
+        runtime_digest = self._validate_runtime_attestation(request["runtime_attestation"])
+        capture_token = secrets.token_hex(32)
+        with self.lock:
+            self.capture_token = capture_token
+        return {
+            "schema_version": 1,
+            "status": "capture-prepared",
+            "capture_token": capture_token,
+            "runtime_attestation_sha256": runtime_digest,
+        }
+
     def record_capture(self, value: Mapping[str, Any]) -> dict[str, Any]:
         request = _plain(value, "worker capture request")
         _exact(
@@ -334,15 +433,27 @@ class TemporaryControllerState:
                 "run_id",
                 "delegation_id",
                 "delivery_id",
+                "cleanup_token",
+                "capture_token",
                 "result_text",
-                "runtime_attestation",
             },
             "worker capture request",
         )
         run_id = self._require_correlation(request, "worker capture request")
+        cleanup_token = request["cleanup_token"]
+        capture_token = request["capture_token"]
+        if type(cleanup_token) is not str or len(cleanup_token) != 64:
+            raise DelegationStateError("worker capture cleanup token is invalid")
+        if type(capture_token) is not str or len(capture_token) != 64:
+            raise DelegationStateError("worker capture token is invalid")
+        with self.lock:
+            if cleanup_token != self.cleanup_token:
+                raise DelegationStateError("worker capture cleanup token is stale or missing")
+            if capture_token != self.capture_token:
+                raise DelegationStateError("worker capture preparation token is stale or missing")
+            self.capture_token = None
         durable_snapshot = load_delegation(self.identity_value, state_root=self.state_root)
         self._require_bound_runtime_provenance(durable_snapshot)
-        runtime_digest = self._validate_runtime_attestation(request["runtime_attestation"])
         snapshot = self._record_result_text(
             run_id=run_id,
             result_text=request["result_text"],
@@ -352,14 +463,54 @@ class TemporaryControllerState:
             "status": "recorded",
             "result_state": snapshot.result_state,
             "worker_status": snapshot.result_status,
-            "runtime_attestation_sha256": runtime_digest,
         }
 
-    def record_timeout_if_delivered(self) -> bool:
+    def request_final_observation_if_delivered(self) -> str | None:
         snapshot = load_delegation(self.identity_value, state_root=self.state_root)
         if snapshot.delivery_state != "delivered" or snapshot.result_state != "open":
-            return False
+            return None
         self._require_bound_runtime_provenance(snapshot)
+        with self.lock:
+            if self.final_observation_request_id is None:
+                self.final_observation_request_id = secrets.token_hex(32)
+            return self.final_observation_request_id
+
+    def record_final_observation(self, value: Mapping[str, Any]) -> dict[str, Any]:
+        request = _plain(value, "final worker observation")
+        _exact(
+            request,
+            {
+                "schema_version",
+                "run_id",
+                "delegation_id",
+                "delivery_id",
+                "request_id",
+                "terminal_result_visible",
+                "worker_generating",
+                "runtime_attestation",
+            },
+            "final worker observation",
+        )
+        run_id = self._require_correlation(request, "final worker observation")
+        with self.lock:
+            expected_request_id = self.final_observation_request_id
+        if expected_request_id is None or request["request_id"] != expected_request_id:
+            raise DelegationStateError("final worker observation request correlation mismatch")
+        if type(request["terminal_result_visible"]) is not bool or type(request["worker_generating"]) is not bool:
+            raise DelegationStateError("final worker observation flags must be booleans")
+        snapshot = load_delegation(self.identity_value, state_root=self.state_root)
+        if snapshot.delivery_state != "delivered" or snapshot.result_state != "open":
+            raise DelegationStateError("final worker observation requires delivered open delegation")
+        self._require_bound_runtime_provenance(snapshot)
+        runtime_digest = self._validate_runtime_attestation(request["runtime_attestation"])
+        if request["terminal_result_visible"] is True:
+            return {
+                "schema_version": 1,
+                "status": "terminal-visible-awaiting-capture",
+                "runtime_attestation_sha256": runtime_digest,
+            }
+
+        reason = "generating" if request["worker_generating"] is True else "no-terminal-result"
         raw = {
             "schema_version": 1,
             "delegation_id": self.launch.delegation_id,
@@ -367,7 +518,7 @@ class TemporaryControllerState:
             "worker_kind": self.identity.worker_kind,
             "result_contract_id": self.identity.result_contract_id,
             "status": "ERROR",
-            "payload": "chatgpt_temporary_timeout_without_terminal_worker_result",
+            "payload": f"chatgpt_temporary_timeout_after_final_observation:{reason}",
         }
         text = (
             chatgpt_temporary.RAW_RESULT_BEGIN
@@ -376,8 +527,14 @@ class TemporaryControllerState:
             + "\n"
             + chatgpt_temporary.RAW_RESULT_END
         )
-        self._record_result_text(run_id=self.launch.run_id, result_text=text)
-        return True
+        terminal = self._record_result_text(run_id=run_id, result_text=text)
+        return {
+            "schema_version": 1,
+            "status": "recorded-timeout",
+            "result_state": terminal.result_state,
+            "worker_status": terminal.result_status,
+            "runtime_attestation_sha256": runtime_digest,
+        }
 
 
 def make_handler(state: TemporaryControllerState):
@@ -425,7 +582,9 @@ def make_handler(state: TemporaryControllerState):
                 "/event": state.record_event,
                 "/authorize-send": state.authorize_send,
                 "/delivery": state.record_delivery,
+                "/prepare-capture": state.prepare_capture,
                 "/capture": state.record_capture,
+                "/final-observation": state.record_final_observation,
             }
             operation = handlers.get(self.path)
             if operation is None:
@@ -525,9 +684,11 @@ def main() -> int:
     completed = state.done.wait(args.timeout_seconds)
     if not completed:
         try:
-            completed = state.record_timeout_if_delivered()
+            request_id = state.request_final_observation_if_delivered()
         except (DelegationStateError, OSError):
-            completed = False
+            request_id = None
+        if request_id is not None:
+            completed = state.done.wait(FINAL_OBSERVATION_GRACE_SECONDS)
     server.shutdown()
     server.server_close()
     worker.join(timeout=5)
