@@ -13,8 +13,10 @@ from runtime.control_plane import delegation_state
 
 TASK = "Return a bounded read-only answer."
 TASK_SHA = hashlib.sha256(TASK.encode("utf-8")).hexdigest()
+EXECUTION_GENERATION = "9" * 64
 ASSETS = {
     "manifest.json": "1" * 64,
+    "execution_generation.js": "5" * 64,
     "policy.js": "2" * 64,
     "background.js": "3" * 64,
     "content.js": "4" * 64,
@@ -37,6 +39,7 @@ def expected(head: str) -> dict[str, object]:
         "schema_version": 1,
         "adapter_id": source_attestation.ADAPTER_ID,
         "expected_head": head,
+        "execution_generation": EXECUTION_GENERATION,
         "assets": dict(ASSETS),
     }
 
@@ -45,6 +48,7 @@ def report() -> dict[str, object]:
     return {
         "schema_version": 1,
         "adapter_id": source_attestation.ADAPTER_ID,
+        "execution_generation": EXECUTION_GENERATION,
         "assets": dict(ASSETS),
     }
 
@@ -115,7 +119,7 @@ class TerminalHeadProvenanceTests(unittest.TestCase):
             output_dir=self.output_root / suffix,
         )
 
-    def record_terminal_result(self, state: TemporaryControllerState) -> None:
+    def deliver_without_result(self, state: TemporaryControllerState) -> None:
         state.authorize_send(authority_request(state))
         state.record_delivery(
             {
@@ -128,6 +132,9 @@ class TerminalHeadProvenanceTests(unittest.TestCase):
                 "evidence_ref": "chatgpt-temporary:delivery:visible:1",
             }
         )
+
+    def record_terminal_result(self, state: TemporaryControllerState) -> None:
+        self.deliver_without_result(state)
         state.record_capture(
             {
                 "schema_version": 1,
@@ -153,10 +160,29 @@ class TerminalHeadProvenanceTests(unittest.TestCase):
         self.record_terminal_result(first)
         with self.assertRaisesRegex(
             delegation_state.DelegationStateError,
-            "terminal result runtime provenance",
+            "bound worker runtime provenance",
         ):
             self.controller("b" * 40, "different-head")
         self.assertFalse((self.output_root / "different-head" / "result.json").exists())
+
+    def test_different_head_rejects_delivered_open_worker_before_capture_or_timeout(self) -> None:
+        first = self.controller("a" * 40, "first")
+        self.deliver_without_result(first)
+        before = delegation_state.load_delegation(identity(), state_root=self.state_root)
+        self.assertEqual("delivered", before.delivery_state)
+        self.assertEqual("open", before.result_state)
+
+        with self.assertRaisesRegex(
+            delegation_state.DelegationStateError,
+            "bound worker runtime provenance",
+        ):
+            self.controller("b" * 40, "different-head-open")
+
+        after = delegation_state.load_delegation(identity(), state_root=self.state_root)
+        self.assertEqual("delivered", after.delivery_state)
+        self.assertEqual("open", after.result_state)
+        self.assertIsNone(after.result_status)
+        self.assertFalse((self.output_root / "different-head-open" / "result.json").exists())
 
 
 if __name__ == "__main__":
