@@ -129,11 +129,21 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             self.background.index("async function authorizeSend") :
             self.background.index("chrome.runtime.onInstalled")
         ]
+        exact = self.background[
+            self.background.index("function exactClaimMatches") :
+            self.background.index("function validObservedClaim")
+        ]
+        local = self.background[
+            self.background.index("async function requestLocalSendAuthority") :
+            self.background.index("async function resumeIntent")
+        ]
         self.assertIn('status.delivery_state === "prepared"', authorize)
         self.assertIn('["launch-attempted", "child-bound"].includes(status.launch_state)', authorize)
         self.assertIn("exactClaimMatches(existing, message)", authorize)
-        self.assertIn("expected_runtime_head", authorize)
-        self.assertIn("prompt_sha256", authorize)
+        self.assertIn("record.expected_runtime_head === message.expected_runtime_head", exact)
+        self.assertIn("record.prompt_sha256 === message.prompt_sha256", exact)
+        self.assertIn("expected_runtime_head: message.expected_runtime_head", local)
+        self.assertIn("prompt_sha256: message.prompt_sha256", local)
         self.assertIn('"cap_expected_head"', self.policy)
         self.assertIn('"cap_prompt_sha256"', self.policy)
         self.assertIn("promptDigest !== intent.promptSha256", self.content)
