@@ -74,6 +74,8 @@ def authority_request(state: TemporaryControllerState) -> dict[str, object]:
         "run_id": state.launch.run_id,
         "delegation_id": state.launch.delegation_id,
         "delivery_id": state.launch.delivery_id,
+        "expected_runtime_head": state.expected_runtime_attestation.expected_head,
+        "prompt_sha256": state.launch.prompt_sha256,
         "browser_claim_committed": True,
         "browser_claim_id": state.launch.delivery_id,
         "child_evidence": child_evidence(state),
@@ -133,16 +135,48 @@ class TerminalHeadProvenanceTests(unittest.TestCase):
             }
         )
 
+    def cleanup_token(self, state: TemporaryControllerState) -> str:
+        response = state.record_event(
+            {
+                "schema_version": 1,
+                "run_id": state.launch.run_id,
+                "delegation_id": state.launch.delegation_id,
+                "delivery_id": state.launch.delivery_id,
+                "event": "delivery-visible",
+                "details": {
+                    "post_delivery_ui_disarmed": True,
+                    "launch_url_clean": True,
+                    "composer_clean": True,
+                },
+            }
+        )
+        token = response.get("cleanup_token")
+        self.assertIsInstance(token, str)
+        return str(token)
+
     def record_terminal_result(self, state: TemporaryControllerState) -> None:
         self.deliver_without_result(state)
+        cleanup = self.cleanup_token(state)
+        prepared = state.prepare_capture(
+            {
+                "schema_version": 1,
+                "run_id": state.launch.run_id,
+                "delegation_id": state.launch.delegation_id,
+                "delivery_id": state.launch.delivery_id,
+                "cleanup_token": cleanup,
+                "runtime_attestation": report(),
+            }
+        )
+        capture_token = prepared["capture_token"]
         state.record_capture(
             {
                 "schema_version": 1,
                 "run_id": state.launch.run_id,
                 "delegation_id": state.launch.delegation_id,
                 "delivery_id": state.launch.delivery_id,
+                "cleanup_token": cleanup,
+                "capture_token": capture_token,
                 "result_text": result_text(state),
-                "runtime_attestation": report(),
             }
         )
 
