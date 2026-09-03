@@ -26,6 +26,9 @@ const runId = "a".repeat(64);
 const delegationId = "b".repeat(64);
 const deliveryId = "c".repeat(64);
 const taskSha = "d".repeat(64);
+const expectedHead = "e".repeat(40);
+const promptSha = "f".repeat(64);
+const cleanupToken = "1".repeat(64);
 const result = "CAP_WORKER_RESULT_V1_BEGIN\\n{{}}\\nCAP_WORKER_RESULT_V1_END";
 let href = "https://chatgpt.com/c/recovered-session-1234";
 let now = 1000;
@@ -42,8 +45,8 @@ global.document = {{
   querySelector(selector) {{ return selector === "#prompt-textarea" ? editor : null; }},
   querySelectorAll(selector) {{ return selector.includes('data-message-author-role="user"') ? [userTurn] : []; }},
 }};
-global.CAPChatGPTTemporaryExecutionGeneration = "e".repeat(64);
-global.chrome = {{ runtime: {{ sendMessage(_message, callback) {{ callback({{ ok: true }}); }} }} }};
+global.CAPChatGPTTemporaryExecutionGeneration = "2".repeat(64);
+global.chrome = {{ runtime: {{ sendMessage(_message, callback) {{ callback({{ ok: true, cleanup_token: cleanupToken }}); }} }} }};
 global.setInterval = (fn, _ms) => {{ intervalFn = fn; return 1; }};
 global.clearInterval = (_id) => {{}};
 Date.now = () => now;
@@ -53,7 +56,14 @@ vm.runInThisContext(fs.readFileSync({json.dumps(str(POLICY))}, "utf8"), {{ filen
 // A cleaned URL contains no launch intent, so browser capture must fail closed
 // until content.js supplies its authenticated resume-intent to the same guard.
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(10);
-const recovered = {{ runId, delegationId, deliveryId, taskSha256: taskSha }};
+const recovered = {{
+  runId,
+  delegationId,
+  deliveryId,
+  taskSha256: taskSha,
+  expectedHead,
+  promptSha256: promptSha,
+}};
 if (!CAPChatGPTTemporaryPolicy.armPostDeliveryUiGuard(recovered)) process.exit(11);
 if (typeof intervalFn !== "function") process.exit(12);
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(13);
