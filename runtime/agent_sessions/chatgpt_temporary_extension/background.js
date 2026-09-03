@@ -70,10 +70,11 @@ async function runtimeAttestation() {
   };
 }
 
-async function claimBrowserSend(message) {
+async function claimBrowserSend(message, tabId) {
   if (!HEX64_RE.test(message.task_sha256 || "")) throw new Error("invalid-task-correlation");
   if (!HEAD40_RE.test(message.expected_runtime_head || "")) throw new Error("invalid-head-correlation");
   if (!HEX64_RE.test(message.prompt_sha256 || "")) throw new Error("invalid-prompt-correlation");
+  if (!Number.isInteger(tabId) || tabId < 0) throw new Error("invalid-tab-correlation");
   const db = await openExistingClaimDb();
   return await new Promise((resolve, reject) => {
     let constraint = false;
@@ -98,6 +99,7 @@ async function claimBrowserSend(message) {
           task_sha256: message.task_sha256,
           expected_runtime_head: message.expected_runtime_head,
           prompt_sha256: message.prompt_sha256,
+          claim_tab_id: tabId,
           conversation_id: null,
           claimed_at: new Date().toISOString(),
         },
@@ -188,6 +190,7 @@ function validClaimRecord(record) {
     HEX64_RE.test(record.task_sha256 || "") &&
     HEAD40_RE.test(record.expected_runtime_head || "") &&
     HEX64_RE.test(record.prompt_sha256 || "") &&
+    (record.claim_tab_id == null || (Number.isInteger(record.claim_tab_id) && record.claim_tab_id >= 0)) &&
     (record.conversation_id == null || validConversationId(record.conversation_id));
 }
 
@@ -247,7 +250,7 @@ function senderConversationId(sender) {
   return tabConversation || senderConversation;
 }
 
-async function bindClaimConversationRecord(message, conversationId) {
+async function bindClaimConversationRecord(message, conversationId, tabId) {
   const db = await openExistingClaimDb();
   return await new Promise((resolve, reject) => {
     let finished = false;
@@ -269,6 +272,14 @@ async function bindClaimConversationRecord(message, conversationId) {
         const record = request.result || null;
         if (!exactClaimMatches(record, message)) {
           outcome = { bound: false, reason: "claim-correlation-mismatch" };
+          return;
+        }
+        if (!Number.isInteger(record.claim_tab_id) || record.claim_tab_id < 0) {
+          outcome = { bound: false, reason: "claim-tab-unbound" };
+          return;
+        }
+        if (record.claim_tab_id !== tabId) {
+          outcome = { bound: false, reason: "claim-tab-mismatch" };
           return;
         }
         if (record.conversation_id != null && !validConversationId(record.conversation_id)) {
@@ -360,6 +371,8 @@ async function bindRecoveryConversation(message, sender) {
   if (!HEX64_RE.test(message.task_sha256 || "")) {
     return { ok: false, bound: false, reason: "invalid-task-correlation" };
   }
+  const tabId = senderTab(sender);
+  if (tabId === null) return { ok: false, bound: false, reason: "invalid-sender" };
   const conversationId = senderConversationId(sender);
   if (!validConversationId(conversationId)) {
     return { ok: true, bound: false, reason: "provider-conversation-unavailable" };
@@ -381,7 +394,7 @@ async function bindRecoveryConversation(message, sender) {
     return { ok: true, bound: false, reason: "conversation-bind-state-ineligible" };
   }
   try {
-    const result = await bindClaimConversationRecord(message, conversationId);
+    const result = await bindClaimConversationRecord(message, conversationId, tabId);
     return { ok: true, ...result };
   } catch (error) {
     return { ok: false, bound: false, reason: `conversation-binding-failed:${error?.message || "Error"}` };
@@ -455,7 +468,7 @@ async function authorizeSend(message, sender) {
 
   let browserClaim;
   try {
-    browserClaim = await claimBrowserSend(message);
+    browserClaim = await claimBrowserSend(message, tabId);
   } catch (error) {
     return { ok: false, send_authorized: false, reason: `browser-claim-failed:${error?.message || "Error"}` };
   }
