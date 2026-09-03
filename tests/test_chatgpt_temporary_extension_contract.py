@@ -17,6 +17,7 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.background = (EXTENSION / "background.js").read_text(encoding="utf-8")
         self.content = (EXTENSION / "content.js").read_text(encoding="utf-8")
         self.policy = (EXTENSION / "policy.js").read_text(encoding="utf-8")
+        self.generation = (EXTENSION / "execution_generation.js").read_text(encoding="utf-8")
 
     def test_extension_authority_is_narrow_and_loopback_only(self) -> None:
         self.assertEqual(3, self.manifest["manifest_version"])
@@ -57,14 +58,24 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertNotIn("store.put(", claim_body)
         self.assertNotIn("delete(", claim_body)
 
-    def test_running_extension_bytes_are_attested_before_send_and_capture(self) -> None:
+    def test_executing_generation_and_runtime_bytes_are_attested_before_send_and_capture(self) -> None:
         for phrase in (
-            'const RUNTIME_ASSETS = ["manifest.json", "policy.js", "background.js", "content.js"]',
+            'importScripts("execution_generation.js");',
+            'const EXECUTION_GENERATION = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";',
+            'const RUNTIME_ASSETS = ["manifest.json", "execution_generation.js", "policy.js", "background.js", "content.js"]',
             'crypto.subtle.digest("SHA-256", buffer)',
             "chrome.runtime.getURL(name)",
             "async function runtimeAttestation()",
+            "execution_generation: EXECUTION_GENERATION",
+            "message.execution_generation === EXECUTION_GENERATION",
         ):
             self.assertIn(phrase, self.background)
+        self.assertIn("CAPChatGPTTemporaryExecutionGeneration", self.generation)
+        self.assertEqual(
+            ["execution_generation.js", "policy.js", "content.js"],
+            self.manifest["content_scripts"][0]["js"],
+        )
+        self.assertIn("execution_generation: executionGeneration", self.content)
         helper = self.background[
             self.background.index("async function requestLocalSendAuthority") : self.background.index("async function resumeIntent")
         ]
@@ -128,19 +139,24 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         for terminalish in ('"claimed"', '"unknown"', '"delivered"'):
             self.assertNotIn(terminalish, recovery)
 
-    def test_full_tab_reload_recovers_only_one_live_claim_as_monitor_only(self) -> None:
+    def test_full_tab_reload_recovers_only_one_live_claim_and_rearms_same_guard_generation(self) -> None:
         self.assertIn("async function claimRecordsForTab(tabId)", self.background)
-        self.assertIn("async function resumeIntent(sender)", self.background)
+        self.assertIn("async function resumeIntent(message, sender)", self.background)
         self.assertIn('message.kind === "resume-intent"', self.background)
         resume = self.background[
             self.background.index("async function resumeIntent") : self.background.index("async function authorizeSend")
         ]
+        self.assertIn("message?.execution_generation !== EXECUTION_GENERATION", resume)
         self.assertIn("active.length !== 1", resume)
         self.assertIn('monitor_only: true', resume)
+        self.assertIn("execution_generation: EXECUTION_GENERATION", resume)
         self.assertIn('["claimed", "unknown", "delivered"]', resume)
         self.assertIn('status.result_state !== "open"', resume)
         self.assertIn('kind: "resume-intent"', self.content)
+        self.assertIn("execution_generation: executionGeneration", self.content)
+        self.assertIn("response.execution_generation !== executionGeneration", self.content)
         self.assertIn("start(recoveredIntent(response), true)", self.content)
+        self.assertIn("policy.armPostDeliveryUiGuard(intent)", self.content)
         recovered = self.content[self.content.index("function recoveredIntent") : self.content.index("function start")]
         self.assertNotIn("sendAuthorized: true", recovered)
 
@@ -202,7 +218,7 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         ]
         self.assertIn("!postDeliveryCleanupComplete", capture)
 
-        tick = self.content[self.content.index("function tick") : self.content.index('event("adapter-loaded"')]
+        tick = self.content[self.content.index("function tick") : self.content.index('if (!policy.armPostDeliveryUiGuard(intent))')]
         delivered_gate = tick.index('if (deliveryState !== "delivered") return;')
         cleanup_gate = tick.index("if (!ensurePostDeliveryCleanup()) return;")
         capture_call = tick.index("void captureResult(last);")
@@ -240,7 +256,12 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         node = shutil.which("node")
         if node is None:
             self.skipTest("node is unavailable")
-        for path in (EXTENSION / "policy.js", EXTENSION / "background.js", EXTENSION / "content.js"):
+        for path in (
+            EXTENSION / "execution_generation.js",
+            EXTENSION / "policy.js",
+            EXTENSION / "background.js",
+            EXTENSION / "content.js",
+        ):
             completed = subprocess.run(
                 [node, "--check", str(path)],
                 text=True,
