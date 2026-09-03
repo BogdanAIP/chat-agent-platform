@@ -262,25 +262,45 @@ def bind_temporary_child(
     markers = evidence["plugin_markers"]
     if type(markers) is not list or markers:
         raise DelegationStateError("fresh read-only child must expose no plugin/app markers")
-    session_id = _bounded_text(evidence["session_id"], "session_id", 1024)
+    _bounded_text(evidence["session_id"], "session_id", 1024)
     conversation_id = _bounded_text(
         evidence["conversation_id"], "conversation_id", 1024, nullable=True
     )
     observation_ref = _bounded_text(
         evidence["observation_ref"], "observation_ref", MAX_EVIDENCE_REF_CHARS
     )
-    assert isinstance(session_id, str)
     assert isinstance(observation_ref, str)
+
+    runtime_marker = ":runtime:"
+    if runtime_marker not in observation_ref:
+        raise DelegationStateError("temporary child runtime provenance is missing")
+    runtime_digest = _hex64(
+        observation_ref.rsplit(runtime_marker, 1)[1],
+        "temporary child runtime provenance digest",
+    )
+    prepared = prepare_delegation(identity.as_dict(), state_root=state_root)
+    if prepared.run_id != run_id:
+        raise DelegationStateError("temporary child run capability mismatch")
+
+    # Chrome numeric tab ids are browser-session scoped and therefore cannot be
+    # durable worker identity. The delivery id is manager-owned, immutable for
+    # this delegation, and survives a complete browser restart. Keep provider
+    # tab ids only as transient evidence at the adapter boundary; persist the
+    # exact delivery + runtime digest as the stable child identity instead.
+    stable_session_id = f"chatgpt-delivery:{prepared.delivery_id}"
+    stable_observation_ref = (
+        f"chatgpt-temporary:delivery:{prepared.delivery_id}:runtime:{runtime_digest}"
+    )
 
     return bind_worker_session(
         identity.as_dict(),
         run_id=run_id,
         session_ref_value={
             "adapter_id": ADAPTER_ID,
-            "session_id": session_id,
+            "session_id": stable_session_id,
             "conversation_id": conversation_id,
             "ownership": "manager_owned",
-            "observation_ref": observation_ref,
+            "observation_ref": stable_observation_ref,
         },
         state_root=state_root,
     )
