@@ -4,6 +4,16 @@
   const policy = globalThis.CAPChatGPTTemporaryPolicy;
   if (!policy) return;
 
+  const POST_DELIVERY_CLEANUP_TIMEOUT_MS = 10000;
+  const LAUNCH_QUERY_KEYS = [
+    "temporary-chat",
+    "cap_agent_delegate",
+    "cap_delegation_id",
+    "cap_delivery_id",
+    "cap_task_sha256",
+    "prompt",
+  ];
+
   function requestResumeIntent() {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(
@@ -41,6 +51,9 @@
     let lastAssistantText = "";
     let lastAssistantChangedAt = 0;
     let observationSeq = 0;
+    let postDeliveryCleanupStartedAt = 0;
+    let postDeliveryCleanupStableSince = 0;
+    let postDeliveryCleanupComplete = false;
     const deadline = Date.now() + intent.maxWaitMs;
 
     function normalize(text) {
@@ -107,6 +120,139 @@
     function findComposer(button) {
       if (!button) return null;
       return button.closest("form") || button.parentElement;
+    }
+
+    function launchIntentState() {
+      try {
+        const url = new URL(location.href);
+        const fragment = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+        return {
+          url,
+          fragment,
+          query_present: LAUNCH_QUERY_KEYS.some((key) => url.searchParams.has(key)),
+          private_fragment_present: fragment.has("cap_run_id"),
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    function sanitizeLaunchUrl() {
+      const state = launchIntentState();
+      if (!state) return { clean: false, changed: false };
+      if (!state.query_present && !state.private_fragment_present) {
+        return { clean: true, changed: false };
+      }
+
+      try {
+        for (const key of LAUNCH_QUERY_KEYS) state.url.searchParams.delete(key);
+        state.fragment.delete("cap_run_id");
+        const fragmentText = state.fragment.toString();
+        const nextUrl = `${state.url.pathname}${state.url.search}${fragmentText ? `#${fragmentText}` : ""}`;
+        history.replaceState(history.state, "", nextUrl);
+      } catch {
+        return { clean: false, changed: false };
+      }
+
+      const after = launchIntentState();
+      return {
+        clean: Boolean(after && !after.query_present && !after.private_fragment_present),
+        changed: true,
+      };
+    }
+
+    function clearBoundPromptFromComposer() {
+      const button = findSendButton();
+      const composer = findComposer(button);
+      if (!composer) return { clean: true, changed: false };
+      if (!policy.hasExpectedPrompt(composer.textContent || "", intent)) {
+        return { clean: true, changed: false };
+      }
+
+      const editor = composer.querySelector('#prompt-textarea,[contenteditable="true"],textarea');
+      if (!editor) return { clean: false, changed: false };
+
+      let changed = false;
+      try {
+        if (editor instanceof HTMLTextAreaElement) {
+          const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+          if (setter) setter.call(editor, "");
+          else editor.value = "";
+          editor.dispatchEvent(new Event("input", { bubbles: true }));
+          changed = true;
+        } else if (editor.getAttribute("contenteditable") === "true" || editor.isContentEditable) {
+          editor.focus({ preventScroll: true });
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(editor);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          let deleted = false;
+          try {
+            deleted = typeof document.execCommand === "function" && document.execCommand("delete", false, null) === true;
+          } finally {
+            selection?.removeAllRanges();
+          }
+          if (!deleted && policy.hasExpectedPrompt(editor.textContent || "", intent)) {
+            editor.replaceChildren();
+            editor.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              inputType: "deleteContentBackward",
+              data: null,
+            }));
+          }
+          changed = true;
+        }
+      } catch {
+        return { clean: false, changed };
+      }
+
+      return {
+        clean: !policy.hasExpectedPrompt(composer.textContent || "", intent),
+        changed,
+      };
+    }
+
+    function ensurePostDeliveryCleanup() {
+      if (deliveryState !== "delivered") return false;
+      if (postDeliveryCleanupComplete) return true;
+
+      const now = Date.now();
+      if (!postDeliveryCleanupStartedAt) postDeliveryCleanupStartedAt = now;
+
+      const launch = sanitizeLaunchUrl();
+      const composer = clearBoundPromptFromComposer();
+      const clean = launch.clean && composer.clean;
+
+      if (!clean) {
+        postDeliveryCleanupStableSince = 0;
+        if (now - postDeliveryCleanupStartedAt >= POST_DELIVERY_CLEANUP_TIMEOUT_MS) {
+          const details = {
+            launch_url_clean: launch.clean,
+            composer_clean: composer.clean,
+          };
+          event("post-delivery-cleanup-failed", details);
+          stop("post-delivery-cleanup-failed", details);
+        }
+        return false;
+      }
+
+      if (launch.changed || composer.changed) {
+        postDeliveryCleanupStableSince = now;
+        return false;
+      }
+      if (!postDeliveryCleanupStableSince) {
+        postDeliveryCleanupStableSince = now;
+        return false;
+      }
+      if (now - postDeliveryCleanupStableSince < intent.stableMs) return false;
+
+      postDeliveryCleanupComplete = true;
+      event("post-delivery-cleanup-complete", {
+        launch_url_clean: true,
+        composer_clean: true,
+      });
+      return true;
     }
 
     function conversationTurns(role) {
@@ -235,7 +381,7 @@
     }
 
     async function captureResult(text) {
-      if (captureStarted || deliveryState !== "delivered") return;
+      if (captureStarted || deliveryState !== "delivered" || !postDeliveryCleanupComplete) return;
       captureStarted = true;
       const response = await sendMessage("capture", { result_text: text });
       if (response?.ok) {
@@ -302,7 +448,9 @@
         return;
       }
 
-      if (deliveryState !== "delivered" || stopButtonPresent()) return;
+      if (deliveryState !== "delivered") return;
+      if (!ensurePostDeliveryCleanup()) return;
+      if (stopButtonPresent()) return;
       const turns = conversationTurns("assistant");
       const last = turns.at(-1) || "";
       if (!last) return;
