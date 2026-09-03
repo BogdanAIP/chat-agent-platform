@@ -89,6 +89,14 @@ class TemporaryControllerState:
         self.expected_runtime_attestation = source_attestation.parse_expected_runtime_attestation(
             expected_runtime_attestation_value
         )
+        self.expected_runtime_digest = source_attestation.validate_runtime_attestation(
+            {
+                "schema_version": 1,
+                "adapter_id": source_attestation.ADAPTER_ID,
+                "assets": dict(self.expected_runtime_attestation.assets),
+            },
+            expected=self.expected_runtime_attestation,
+        )
         self.state_root = state_root.resolve()
         self.output_dir = output_dir.resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -107,6 +115,15 @@ class TemporaryControllerState:
         self.lock = threading.Lock()
         self.done = threading.Event()
         self.events: list[dict[str, Any]] = []
+
+        terminal_snapshot = None
+        if self.launch.result_state == "recorded":
+            terminal_snapshot = load_delegation(
+                self.identity_value,
+                state_root=self.state_root,
+            )
+            self._require_terminal_runtime_provenance(terminal_snapshot)
+
         _atomic_json_write(
             self.launch_path,
             {
@@ -124,10 +141,8 @@ class TemporaryControllerState:
                 "created_at": _utc_now(),
             },
         )
-        if self.launch.result_state == "recorded":
-            self._write_snapshot_result(
-                load_delegation(self.identity_value, state_root=self.state_root)
-            )
+        if terminal_snapshot is not None:
+            self._write_snapshot_result(terminal_snapshot)
             self.done.set()
 
     def _require_correlation(self, value: Mapping[str, Any], label: str) -> str:
@@ -147,6 +162,14 @@ class TemporaryControllerState:
             report,
             expected=self.expected_runtime_attestation,
         )
+
+    def _require_terminal_runtime_provenance(self, snapshot: DelegationSnapshot) -> None:
+        session = snapshot.worker_session_ref
+        expected_suffix = f":runtime:{self.expected_runtime_digest}"
+        if session is None or not session.observation_ref.endswith(expected_suffix):
+            raise DelegationStateError(
+                "terminal result runtime provenance does not match expected runtime attestation"
+            )
 
     def status(self) -> dict[str, Any]:
         snapshot = load_delegation(self.identity_value, state_root=self.state_root)
