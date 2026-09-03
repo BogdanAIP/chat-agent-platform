@@ -243,7 +243,7 @@ class TemporaryControllerState:
         if len(json.dumps(event["details"], ensure_ascii=False).encode("utf-8")) > MAX_EVENT_DETAILS_BYTES:
             raise DelegationStateError("adapter event details exceed accepted bound")
 
-        cleanup_token = None
+        cleanup_ack = False
         details = event["details"]
         if (
             event["event"] == "delivery-visible"
@@ -255,11 +255,14 @@ class TemporaryControllerState:
             if snapshot.delivery_state != "delivered" or snapshot.result_state != "open":
                 raise DelegationStateError("cleanup acknowledgement requires delivered open delegation")
             self._require_bound_runtime_provenance(snapshot)
-            cleanup_token = secrets.token_hex(32)
+            cleanup_ack = True
 
+        cleanup_token = None
         with self.lock:
-            if cleanup_token is not None:
-                self.cleanup_token = cleanup_token
+            if cleanup_ack:
+                if self.cleanup_token is None:
+                    self.cleanup_token = secrets.token_hex(32)
+                cleanup_token = self.cleanup_token
             self.events.append({**event, "received_at": _utc_now()})
             self.events = self.events[-MAX_EVENTS:]
             _atomic_json_write(
@@ -386,6 +389,8 @@ class TemporaryControllerState:
             state_root=self.state_root,
         )
         with self.lock:
+            self.cleanup_token = None
+            self.capture_token = None
             self._write_snapshot_result(snapshot)
             self.done.set()
         return snapshot
@@ -412,11 +417,16 @@ class TemporaryControllerState:
             if cleanup_token != self.cleanup_token:
                 raise DelegationStateError("worker capture cleanup token is stale or missing")
         durable_snapshot = load_delegation(self.identity_value, state_root=self.state_root)
+        if durable_snapshot.delivery_state != "delivered" or durable_snapshot.result_state != "open":
+            raise DelegationStateError("worker capture preparation requires delivered open delegation")
         self._require_bound_runtime_provenance(durable_snapshot)
         runtime_digest = self._validate_runtime_attestation(request["runtime_attestation"])
-        capture_token = secrets.token_hex(32)
         with self.lock:
-            self.capture_token = capture_token
+            if cleanup_token != self.cleanup_token:
+                raise DelegationStateError("worker capture cleanup token is stale or missing")
+            if self.capture_token is None:
+                self.capture_token = secrets.token_hex(32)
+            capture_token = self.capture_token
         return {
             "schema_version": 1,
             "status": "capture-prepared",
