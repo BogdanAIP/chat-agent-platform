@@ -20,6 +20,7 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
         for phrase in (
             "const POST_DELIVERY_UI_STABLE_MS = 8000;",
             "let postDeliveryUiDisarmed = false;",
+            "let browserGuardRequired = false;",
             "function guardDeliveryVisible(intent)",
             "function guardSanitizeLaunchUrl()",
             "function guardClearBoundComposer(intent)",
@@ -27,6 +28,7 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
             'launch_url_clean: true',
             'composer_clean: true',
             "(response) => callback(Boolean(response?.ok))",
+            "browserGuardRequired = true;",
             "return postDeliveryUiDisarmed === true;",
             "startPostDeliveryUiGuard();",
         ):
@@ -37,7 +39,9 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
             self.policy.index("function guardEditorText")
         ]
         self.assertIn("singleResultBlockShape", gate)
+        self.assertIn("browserGuardRequired", gate)
         self.assertIn("postDeliveryUiDisarmed", gate)
+        self.assertNotIn("parseIntent(location.href)", gate)
 
         guard = self.policy[
             self.policy.index("function startPostDeliveryUiGuard") :
@@ -66,6 +70,7 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
             self.assertIn(key, self.policy)
         self.assertIn('fragment.delete("cap_run_id")', self.policy)
         self.assertIn('history.replaceState(history.state, "", nextUrl)', self.policy)
+        self.assertIn('document.querySelector("#prompt-textarea")', self.policy)
         self.assertIn("clean: text.trim().length === 0", self.policy)
         self.assertIn("if (!state.bound) return false;", self.policy)
 
