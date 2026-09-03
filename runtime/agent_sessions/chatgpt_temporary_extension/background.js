@@ -1,3 +1,4 @@
+importScripts("execution_generation.js");
 "use strict";
 
 const DB_NAME = "cap-agent-delegation-v1";
@@ -5,7 +6,8 @@ const DB_VERSION = 1;
 const CLAIM_STORE = "send_claims";
 const CONTROLLER_ORIGIN = "http://127.0.0.1:3078";
 const HEX64_RE = /^[0-9a-f]{64}$/;
-const RUNTIME_ASSETS = ["manifest.json", "policy.js", "background.js", "content.js"];
+const EXECUTION_GENERATION = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";
+const RUNTIME_ASSETS = ["manifest.json", "execution_generation.js", "policy.js", "background.js", "content.js"];
 
 function initializeClaimDb() {
   return new Promise((resolve, reject) => {
@@ -51,6 +53,7 @@ async function sha256Hex(buffer) {
 }
 
 async function runtimeAttestation() {
+  if (!HEX64_RE.test(EXECUTION_GENERATION)) throw new Error("execution-generation-invalid");
   const assets = {};
   for (const name of RUNTIME_ASSETS) {
     const response = await fetch(chrome.runtime.getURL(name), { cache: "no-store" });
@@ -60,6 +63,7 @@ async function runtimeAttestation() {
   return {
     schema_version: 1,
     adapter_id: "chatgpt-temporary",
+    execution_generation: EXECUTION_GENERATION,
     assets,
   };
 }
@@ -159,6 +163,8 @@ async function claimRecordsForTab(tabId) {
 function validCommon(message) {
   return message &&
     message.schema_version === 1 &&
+    message.execution_generation === EXECUTION_GENERATION &&
+    HEX64_RE.test(EXECUTION_GENERATION) &&
     HEX64_RE.test(message.run_id || "") &&
     HEX64_RE.test(message.delegation_id || "") &&
     HEX64_RE.test(message.delivery_id || "");
@@ -250,7 +256,10 @@ async function requestLocalSendAuthority(message, tabId) {
   });
 }
 
-async function resumeIntent(sender) {
+async function resumeIntent(message, sender) {
+  if (message?.execution_generation !== EXECUTION_GENERATION || !HEX64_RE.test(EXECUTION_GENERATION)) {
+    return { ok: false, enabled: false, reason: "execution-generation-mismatch" };
+  }
   const tabId = senderTab(sender);
   if (tabId === null) return { ok: false, enabled: false, reason: "invalid-sender" };
   let records;
@@ -284,6 +293,7 @@ async function resumeIntent(sender) {
     ok: true,
     enabled: true,
     monitor_only: true,
+    execution_generation: EXECUTION_GENERATION,
     run_id: record.run_id,
     delegation_id: record.delegation_id,
     delivery_id: record.delivery_id,
@@ -378,14 +388,14 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.schema_version === 1 && message.kind === "resume-intent") {
-    void resumeIntent(sender)
+    void resumeIntent(message, sender)
       .then(sendResponse)
       .catch((error) => sendResponse({ ok: false, enabled: false, reason: error?.message || "resume-failed" }));
     return true;
   }
 
   if (!validCommon(message)) {
-    sendResponse({ ok: false, reason: "invalid-correlation" });
+    sendResponse({ ok: false, reason: "invalid-correlation-or-generation" });
     return false;
   }
 
