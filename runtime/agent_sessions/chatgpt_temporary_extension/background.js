@@ -6,6 +6,7 @@ const DB_VERSION = 1;
 const CLAIM_STORE = "send_claims";
 const CONTROLLER_ORIGIN = "http://127.0.0.1:3078";
 const HEX64_RE = /^[0-9a-f]{64}$/;
+const HEAD40_RE = /^[0-9a-f]{40}$/;
 const EXECUTION_GENERATION = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";
 const RUNTIME_ASSETS = ["manifest.json", "execution_generation.js", "policy.js", "background.js", "content.js"];
 
@@ -68,8 +69,10 @@ async function runtimeAttestation() {
   };
 }
 
-async function claimBrowserSend(message, tabId) {
+async function claimBrowserSend(message) {
   if (!HEX64_RE.test(message.task_sha256 || "")) throw new Error("invalid-task-correlation");
+  if (!HEAD40_RE.test(message.expected_runtime_head || "")) throw new Error("invalid-head-correlation");
+  if (!HEX64_RE.test(message.prompt_sha256 || "")) throw new Error("invalid-prompt-correlation");
   const db = await openExistingClaimDb();
   return await new Promise((resolve, reject) => {
     let constraint = false;
@@ -92,7 +95,8 @@ async function claimBrowserSend(message, tabId) {
           delegation_id: message.delegation_id,
           delivery_id: message.delivery_id,
           task_sha256: message.task_sha256,
-          tab_id: tabId,
+          expected_runtime_head: message.expected_runtime_head,
+          prompt_sha256: message.prompt_sha256,
           claimed_at: new Date().toISOString(),
         },
         message.delivery_id,
@@ -136,7 +140,7 @@ async function claimRecordByDelivery(deliveryId) {
   });
 }
 
-async function claimRecordsForTab(tabId) {
+async function claimRecordsForRecovery() {
   const db = await openExistingClaimDb();
   return await new Promise((resolve, reject) => {
     let transaction;
@@ -144,10 +148,7 @@ async function claimRecordsForTab(tabId) {
       transaction = db.transaction(CLAIM_STORE, "readonly");
       const request = transaction.objectStore(CLAIM_STORE).getAll();
       request.onerror = () => reject(request.error || new Error("claim-read-failed"));
-      request.onsuccess = () => {
-        const records = Array.isArray(request.result) ? request.result : [];
-        resolve(records.filter((record) => record?.tab_id === tabId));
-      };
+      request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
       transaction.oncomplete = () => db.close();
       transaction.onabort = () => {
         db.close();
@@ -167,7 +168,9 @@ function validCommon(message) {
     HEX64_RE.test(EXECUTION_GENERATION) &&
     HEX64_RE.test(message.run_id || "") &&
     HEX64_RE.test(message.delegation_id || "") &&
-    HEX64_RE.test(message.delivery_id || "");
+    HEX64_RE.test(message.delivery_id || "") &&
+    HEAD40_RE.test(message.expected_runtime_head || "") &&
+    HEX64_RE.test(message.prompt_sha256 || "");
 }
 
 function validClaimRecord(record) {
@@ -177,16 +180,32 @@ function validClaimRecord(record) {
     HEX64_RE.test(record.delegation_id || "") &&
     HEX64_RE.test(record.delivery_id || "") &&
     HEX64_RE.test(record.task_sha256 || "") &&
-    Number.isInteger(record.tab_id);
+    HEAD40_RE.test(record.expected_runtime_head || "") &&
+    HEX64_RE.test(record.prompt_sha256 || "");
 }
 
-function exactClaimMatches(record, message, tabId) {
+function exactClaimMatches(record, message) {
   return validClaimRecord(record) &&
-    record.tab_id === tabId &&
     record.run_id === message.run_id &&
     record.delegation_id === message.delegation_id &&
     record.delivery_id === message.delivery_id &&
-    record.task_sha256 === message.task_sha256;
+    record.task_sha256 === message.task_sha256 &&
+    record.expected_runtime_head === message.expected_runtime_head &&
+    record.prompt_sha256 === message.prompt_sha256;
+}
+
+function validObservedClaim(value) {
+  return value &&
+    HEX64_RE.test(value.delegation_id || "") &&
+    HEX64_RE.test(value.delivery_id || "") &&
+    HEX64_RE.test(value.task_sha256 || "");
+}
+
+function observedClaimMatches(record, observed) {
+  return validClaimRecord(record) && validObservedClaim(observed) &&
+    record.delegation_id === observed.delegation_id &&
+    record.delivery_id === observed.delivery_id &&
+    record.task_sha256 === observed.task_sha256;
 }
 
 function senderTab(sender) {
@@ -249,6 +268,8 @@ async function requestLocalSendAuthority(message, tabId) {
     run_id: message.run_id,
     delegation_id: message.delegation_id,
     delivery_id: message.delivery_id,
+    expected_runtime_head: message.expected_runtime_head,
+    prompt_sha256: message.prompt_sha256,
     browser_claim_committed: true,
     browser_claim_id: message.delivery_id,
     child_evidence: childEvidence(message, tabId),
@@ -260,16 +281,22 @@ async function resumeIntent(message, sender) {
   if (message?.execution_generation !== EXECUTION_GENERATION || !HEX64_RE.test(EXECUTION_GENERATION)) {
     return { ok: false, enabled: false, reason: "execution-generation-mismatch" };
   }
-  const tabId = senderTab(sender);
-  if (tabId === null) return { ok: false, enabled: false, reason: "invalid-sender" };
+  if (senderTab(sender) === null) return { ok: false, enabled: false, reason: "invalid-sender" };
+  const observed = Array.isArray(message?.observed_claims) ? message.observed_claims.slice(0, 8) : [];
+  if (!observed.length || observed.some((value) => !validObservedClaim(value))) {
+    return { ok: true, enabled: false, reason: "no-observed-delivery-correlation" };
+  }
   let records;
   try {
-    records = await claimRecordsForTab(tabId);
+    records = await claimRecordsForRecovery();
   } catch (error) {
     return { ok: false, enabled: false, reason: `claim-read-failed:${error?.message || "Error"}` };
   }
+  const candidates = records.filter((record) =>
+    validClaimRecord(record) && observed.some((value) => observedClaimMatches(record, value))
+  );
   const active = [];
-  for (const record of records.filter(validClaimRecord)) {
+  for (const record of candidates) {
     try {
       const status = await controllerStatus(record);
       if (status.delegation_id !== record.delegation_id || status.delivery_id !== record.delivery_id) continue;
@@ -298,6 +325,8 @@ async function resumeIntent(message, sender) {
     delegation_id: record.delegation_id,
     delivery_id: record.delivery_id,
     task_sha256: record.task_sha256,
+    expected_runtime_head: record.expected_runtime_head,
+    prompt_sha256: record.prompt_sha256,
     delivery_state: status.delivery_state,
     result_state: status.result_state,
   };
@@ -309,7 +338,7 @@ async function authorizeSend(message, sender) {
 
   let browserClaim;
   try {
-    browserClaim = await claimBrowserSend(message, tabId);
+    browserClaim = await claimBrowserSend(message);
   } catch (error) {
     return { ok: false, send_authorized: false, reason: `browser-claim-failed:${error?.message || "Error"}` };
   }
@@ -321,8 +350,8 @@ async function authorizeSend(message, sender) {
     } catch (error) {
       return { ok: false, send_authorized: false, monitor_only: false, reason: `existing-claim-read-failed:${error?.message || "Error"}` };
     }
-    if (!exactClaimMatches(existing, message, tabId)) {
-      return { ok: true, send_authorized: false, monitor_only: false, reason: "claimed-by-other-tab" };
+    if (!exactClaimMatches(existing, message)) {
+      return { ok: true, send_authorized: false, monitor_only: false, reason: "claim-correlation-mismatch" };
     }
 
     let status;
@@ -432,18 +461,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       outcome: message.outcome,
       evidence_ref: message.evidence_ref,
     };
-  } else if (message.kind === "capture") {
+  } else if (message.kind === "prepare-capture") {
     void runtimeAttestation()
-      .then((attestation) => controllerPost(message, "/capture", {
+      .then((attestation) => controllerPost(message, "/prepare-capture", {
         schema_version: 1,
         run_id: message.run_id,
         delegation_id: message.delegation_id,
         delivery_id: message.delivery_id,
-        result_text: message.result_text,
+        cleanup_token: message.cleanup_token,
         runtime_attestation: attestation,
       }))
       .then((value) => sendResponse({ ok: true, ...value }))
-      .catch((error) => sendResponse({ ok: false, reason: error?.message || "capture-attestation-failed" }));
+      .catch((error) => sendResponse({ ok: false, reason: error?.message || "capture-preparation-failed" }));
+    return true;
+  } else if (message.kind === "capture") {
+    void controllerPost(message, "/capture", {
+      schema_version: 1,
+      run_id: message.run_id,
+      delegation_id: message.delegation_id,
+      delivery_id: message.delivery_id,
+      cleanup_token: message.cleanup_token,
+      capture_token: message.capture_token,
+      result_text: message.result_text,
+    })
+      .then((value) => sendResponse({ ok: true, ...value }))
+      .catch((error) => sendResponse({ ok: false, reason: error?.message || "capture-failed" }));
+    return true;
+  } else if (message.kind === "final-observation") {
+    void runtimeAttestation()
+      .then((attestation) => controllerPost(message, "/final-observation", {
+        schema_version: 1,
+        run_id: message.run_id,
+        delegation_id: message.delegation_id,
+        delivery_id: message.delivery_id,
+        request_id: message.request_id,
+        terminal_result_visible: message.terminal_result_visible === true,
+        worker_generating: message.worker_generating === true,
+        runtime_attestation: attestation,
+      }))
+      .then((value) => sendResponse({ ok: true, ...value }))
+      .catch((error) => sendResponse({ ok: false, reason: error?.message || "final-observation-failed" }));
     return true;
   } else if (message.kind === "status") {
     void controllerStatus(message).then((value) => sendResponse({ ok: true, ...value })).catch((error) => sendResponse({ ok: false, reason: error?.message || "status-failed" }));
