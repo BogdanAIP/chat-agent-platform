@@ -54,7 +54,8 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn("store.add(", claim)
         self.assertIn("expected_runtime_head: message.expected_runtime_head", claim)
         self.assertIn("prompt_sha256: message.prompt_sha256", claim)
-        self.assertNotIn("tab_id", claim)
+        self.assertIn("claim_tab_id: tabId", claim)
+        self.assertIn("conversation_id: null", claim)
         self.assertNotIn("store.put(", claim)
         self.assertNotIn("store.delete", self.background)
 
@@ -107,7 +108,7 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn(".getAll()", self.background)
         self.assertNotIn("claimRecordsForTab", self.background)
 
-    def test_browser_restart_resume_requires_visible_exact_delivery_correlation(self) -> None:
+    def test_browser_restart_resume_requires_bound_provider_conversation_and_visible_correlation(self) -> None:
         resume = self.background[
             self.background.index("async function resumeIntent") :
             self.background.index("async function authorizeSend")
@@ -116,13 +117,32 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn("validObservedClaim", resume)
         self.assertIn("observedClaimMatches", resume)
         self.assertIn("claimRecordsForRecovery", resume)
+        self.assertIn('reason: "provider-conversation-unavailable"', resume)
         self.assertIn('reason: "no-observed-delivery-correlation"', resume)
+        self.assertIn("const conversationId = senderConversationId(sender)", resume)
+        self.assertIn("observedClaimMatches(record, value, conversationId)", resume)
+        self.assertIn('status.launch_state !== "child-bound"', resume)
         self.assertIn("active.length !== 1", resume)
         self.assertIn('monitor_only: true', resume)
         self.assertIn("expected_runtime_head: record.expected_runtime_head", resume)
         self.assertIn("prompt_sha256: record.prompt_sha256", resume)
+        self.assertIn("conversation_id: record.conversation_id", resume)
         self.assertIn("function observedRecoveryClaims()", self.content)
         self.assertIn("observed_claims: observedRecoveryClaims()", self.content)
+        self.assertIn("response.conversation_id !== currentConversationId", self.content)
+
+    def test_provider_conversation_binding_is_monotonic_and_fenced_to_send_owner_tab(self) -> None:
+        bind = self.background[
+            self.background.index("async function bindClaimConversationRecord") :
+            self.background.index("async function controllerPost")
+        ]
+        self.assertIn("exactClaimMatches(record, message)", bind)
+        self.assertIn("record.claim_tab_id !== tabId", bind)
+        self.assertIn("record.conversation_id === conversationId", bind)
+        self.assertIn("store.put({ ...record, conversation_id: conversationId }", bind)
+        self.assertIn('message.kind === "bind-recovery-conversation"', self.background)
+        self.assertIn('sendMessage("bind-recovery-conversation"', self.content)
+        self.assertIn("!sendAuthorized || !sendClickedAt", self.content)
 
     def test_pre_send_recovery_is_bound_to_exact_head_and_prompt(self) -> None:
         authorize = self.background[
@@ -135,7 +155,7 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         ]
         local = self.background[
             self.background.index("async function requestLocalSendAuthority") :
-            self.background.index("async function resumeIntent")
+            self.background.index("async function bindRecoveryConversation")
         ]
         self.assertIn('status.delivery_state === "prepared"', authorize)
         self.assertIn('["launch-attempted", "child-bound"].includes(status.launch_state)', authorize)
@@ -165,7 +185,7 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         ]
         request = self.content[
             self.content.index("async function requestAuthority") :
-            self.content.index("async function postDelivery")
+            self.content.index("async function bindRecoveryConversation")
         ]
         self.assertIn("policy.personalizationModeFromText(text)", observe)
         self.assertIn('personalizationState === "non-personalized"', observe)
@@ -188,9 +208,11 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             "response.cleanup_token",
             "captureAuthorization()",
             "currentPostDeliveryUiClean()",
+            "invalidatePostDeliveryAuthorization()",
         ):
             self.assertIn(phrase, self.policy)
         self.assertIn("policy.armPostDeliveryUiGuard(intent)", self.content)
+        self.assertIn("policy.invalidatePostDeliveryAuthorization()", self.content)
 
     def test_capture_is_two_phase_and_rechecks_ui_after_async_attestation(self) -> None:
         capture = self.content[
