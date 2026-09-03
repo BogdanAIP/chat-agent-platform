@@ -130,6 +130,12 @@
     postDeliveryGuardEpoch += 1;
   }
 
+  function invalidatePostDeliveryAuthorization() {
+    if (!browserGuardRequired || !postDeliveryGuardIntent) return false;
+    resetPostDeliveryStability();
+    return true;
+  }
+
   function currentPostDeliveryUiClean() {
     if (!browserGuardRequired || !postDeliveryGuardIntent) return false;
     return guardLaunchUrlClean() && guardComposerState(postDeliveryGuardIntent).clean;
@@ -388,6 +394,7 @@
     singleResultBlockShape,
     hasSingleResultBlock,
     captureAuthorization,
+    invalidatePostDeliveryAuthorization,
     armPostDeliveryUiGuard,
     conversationId,
   };
