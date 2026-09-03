@@ -42,6 +42,8 @@ process.stdout.write(JSON.stringify(value));
         delivery_id: str,
         task_sha: str,
         prompt: str,
+        expected_head: str = "e" * 40,
+        prompt_sha256: str = "f" * 64,
         run_in_query: bool = False,
     ) -> str:
         run_query_line = (
@@ -57,6 +59,8 @@ process.stdout.write(JSON.stringify(value));
   u.searchParams.set("cap_delegation_id", {json.dumps(delegation_id)});
   u.searchParams.set("cap_delivery_id", {json.dumps(delivery_id)});
   u.searchParams.set("cap_task_sha256", {json.dumps(task_sha)});
+  u.searchParams.set("cap_expected_head", {json.dumps(expected_head)});
+  u.searchParams.set("cap_prompt_sha256", {json.dumps(prompt_sha256)});
   u.searchParams.set("prompt", {json.dumps(prompt)});
   u.hash = "cap_run_id={run_id}";
   return CAPChatGPTTemporaryPolicy.parseIntent(u.toString());
@@ -96,6 +100,8 @@ process.stdout.write(JSON.stringify(value));
         self.assertEqual(delegation_id, value["delegationId"])
         self.assertEqual(delivery_id, value["deliveryId"])
         self.assertEqual(task_sha, value["taskSha256"])
+        self.assertEqual("e" * 40, value["expectedHead"])
+        self.assertEqual("f" * 64, value["promptSha256"])
 
     def test_private_run_capability_in_query_is_rejected(self) -> None:
         run_id = "a" * 64
