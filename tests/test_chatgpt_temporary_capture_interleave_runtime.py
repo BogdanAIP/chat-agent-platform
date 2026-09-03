@@ -17,7 +17,7 @@ class CaptureInterleaveRuntimeTests(unittest.TestCase):
         if self.node is None:
             self.skipTest("node is unavailable")
 
-    def test_draft_restoration_between_polls_closes_result_gate_immediately(self) -> None:
+    def test_draft_restoration_seen_by_capture_requires_new_uninterrupted_clean_interval(self) -> None:
         script = f"""
 const fs = require("fs");
 const vm = require("vm");
@@ -69,30 +69,46 @@ global.document = {{
     return [];
   }},
 }};
+global.CAPChatGPTTemporaryExecutionGeneration = "e".repeat(64);
 global.chrome = {{ runtime: {{ sendMessage(_message, callback) {{ callback({{ ok: true }}); }} }} }};
 global.setInterval = (fn, _ms) => {{ intervalFn = fn; return 1; }};
 global.clearInterval = (_id) => {{}};
 Date.now = () => now;
 
 vm.runInThisContext(fs.readFileSync({json.dumps(str(POLICY))}, "utf8"), {{ filename: "policy.js" }});
-if (typeof intervalFn !== "function") process.exit(10);
+const intent = CAPChatGPTTemporaryPolicy.parseIntent(launch.toString());
+if (!intent.enabled) process.exit(9);
+if (!CAPChatGPTTemporaryPolicy.armPostDeliveryUiGuard(intent)) process.exit(10);
+if (typeof intervalFn !== "function") process.exit(11);
 
-// First observation sanitizes the launch URL and begins the stable-clean interval.
+// Begin and complete the first uninterrupted clean interval.
 intervalFn();
 now = 9501;
-// More than 8 seconds later, the controller ACK is simulated synchronously.
 intervalFn();
-if (!CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(11);
+if (!CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(12);
 
 // Restore the exact bound draft without giving the 500 ms poll another turn.
+// The synchronous capture path sees it and must invalidate the old ACK/timer.
 editor.textContent = prompt;
 editor.innerText = prompt;
-if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(12);
+if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(13);
 
-// Cleaning the composer again permits the gate only because current DOM is clean.
+// Clearing immediately is not enough: the old ACK is no longer authoritative.
 editor.textContent = "";
 editor.innerText = "";
-if (!CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(13);
+if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(14);
+
+// A new clean interval begins only when the guard observes clean state again.
+now = 9600;
+intervalFn();
+now = 17599;
+intervalFn();
+if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(15);
+
+// Only after a fresh >8-second uninterrupted interval and ACK may capture reopen.
+now = 17601;
+intervalFn();
+if (!CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(16);
 """
         completed = subprocess.run(
             [self.node, "-e", script],
