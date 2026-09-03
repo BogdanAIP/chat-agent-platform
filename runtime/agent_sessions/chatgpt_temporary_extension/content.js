@@ -3,6 +3,8 @@
 
   const policy = globalThis.CAPChatGPTTemporaryPolicy;
   if (!policy) return;
+  const executionGeneration = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";
+  if (!policy.HEX64_RE.test(executionGeneration)) return;
 
   const POST_DELIVERY_CLEANUP_TIMEOUT_MS = 10000;
   const LAUNCH_QUERY_KEYS = [
@@ -17,7 +19,11 @@
   function requestResumeIntent() {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(
-        { schema_version: 1, kind: "resume-intent" },
+        {
+          schema_version: 1,
+          kind: "resume-intent",
+          execution_generation: executionGeneration,
+        },
         (response) => resolve(response || { ok: false, enabled: false, reason: chrome.runtime.lastError?.message || "no-response" }),
       );
     });
@@ -90,6 +96,7 @@
             run_id: intent.runId,
             delegation_id: intent.delegationId,
             delivery_id: intent.deliveryId,
+            execution_generation: executionGeneration,
             ...payload,
           },
           (response) => resolve(response || { ok: false, reason: chrome.runtime.lastError?.message || "no-response" }),
@@ -465,7 +472,11 @@
       }
     }
 
-    event("adapter-loaded", { href: location.href.slice(0, 2048), recovered });
+    if (!policy.armPostDeliveryUiGuard(intent)) {
+      stop("post-delivery-guard-unavailable");
+      return;
+    }
+    event("adapter-loaded", { href: location.href.slice(0, 2048), recovered, execution_generation: executionGeneration });
     intervalId = setInterval(tick, 500);
     tick();
   }
@@ -478,6 +489,7 @@
 
   void requestResumeIntent().then((response) => {
     if (!response?.ok || response.enabled !== true || response.monitor_only !== true) return;
+    if (response.execution_generation !== executionGeneration) return;
     if (![response.run_id, response.delegation_id, response.delivery_id, response.task_sha256].every((value) => policy.HEX64_RE.test(value || ""))) return;
     start(recoveredIntent(response), true);
   });
