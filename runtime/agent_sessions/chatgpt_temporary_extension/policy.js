@@ -2,6 +2,7 @@
   "use strict";
 
   const HEX64_RE = /^[0-9a-f]{64}$/;
+  const HEAD40_RE = /^[0-9a-f]{40}$/;
   const RESULT_BEGIN = "CAP_WORKER_RESULT_V1_BEGIN";
   const RESULT_END = "CAP_WORKER_RESULT_V1_END";
   const POST_DELIVERY_UI_STABLE_MS = 8000;
@@ -12,9 +13,12 @@
     "cap_delegation_id",
     "cap_delivery_id",
     "cap_task_sha256",
+    "cap_expected_head",
+    "cap_prompt_sha256",
     "prompt",
   ];
   let postDeliveryUiDisarmed = false;
+  let postDeliveryCleanupToken = null;
   let browserGuardRequired = false;
   let postDeliveryGuardIntent = null;
   let postDeliveryGuardInterval = null;
@@ -38,10 +42,13 @@
     const delegationId = url.searchParams.get("cap_delegation_id") || "";
     const deliveryId = url.searchParams.get("cap_delivery_id") || "";
     const taskSha256 = url.searchParams.get("cap_task_sha256") || "";
+    const expectedHead = url.searchParams.get("cap_expected_head") || "";
+    const promptSha256 = url.searchParams.get("cap_prompt_sha256") || "";
     const prompt = url.searchParams.get("prompt") || "";
-    if (![runId, delegationId, deliveryId, taskSha256].every((value) => HEX64_RE.test(value))) {
+    if (![runId, delegationId, deliveryId, taskSha256, promptSha256].every((value) => HEX64_RE.test(value))) {
       return { enabled: false, reason: "invalid-correlation" };
     }
+    if (!HEAD40_RE.test(expectedHead)) return { enabled: false, reason: "invalid-expected-head" };
     if (url.searchParams.has("cap_run_id")) return { enabled: false, reason: "private-run-id-in-query" };
     if (!prompt || prompt.length > 120000) return { enabled: false, reason: "invalid-prompt" };
     for (const marker of [
@@ -62,6 +69,8 @@
       delegationId,
       deliveryId,
       taskSha256,
+      expectedHead,
+      promptSha256,
       prompt,
       maxWaitMs: 30 * 60 * 1000,
       deliveryObserveMs: 20000,
@@ -81,9 +90,6 @@
     const value = String(text || "").replace(/\s+/g, " ").trim();
     if (!value) return "unknown";
 
-    // Temporary Chat gained an explicit personalization choice in August 2026.
-    // These are provider UI labels, not a guess from Temporary mode itself.
-    // Unknown/ambiguous locales intentionally fail closed in content.js.
     const nonPersonalizedPatterns = [
       /\bnon[-\s]?personalized\b/i,
       /\bnot personalized\b/i,
@@ -119,19 +125,33 @@
 
   function resetPostDeliveryStability() {
     postDeliveryUiDisarmed = false;
+    postDeliveryCleanupToken = null;
     postDeliveryStableSince = 0;
     postDeliveryGuardEpoch += 1;
+  }
+
+  function currentPostDeliveryUiClean() {
+    if (!browserGuardRequired || !postDeliveryGuardIntent) return false;
+    return guardLaunchUrlClean() && guardComposerState(postDeliveryGuardIntent).clean;
+  }
+
+  function captureAuthorization() {
+    if (!browserGuardRequired || !postDeliveryGuardIntent || !postDeliveryUiDisarmed) return null;
+    if (!HEX64_RE.test(postDeliveryCleanupToken || "")) return null;
+    if (!currentPostDeliveryUiClean()) {
+      resetPostDeliveryStability();
+      return null;
+    }
+    return {
+      cleanupToken: postDeliveryCleanupToken,
+      guardEpoch: postDeliveryGuardEpoch,
+    };
   }
 
   function hasSingleResultBlock(text) {
     if (!singleResultBlockShape(text)) return false;
     if (typeof document === "undefined" || typeof location === "undefined") return true;
-    if (!browserGuardRequired || !postDeliveryGuardIntent || !postDeliveryUiDisarmed) return false;
-    if (!currentPostDeliveryUiClean()) {
-      resetPostDeliveryStability();
-      return false;
-    }
-    return true;
+    return captureAuthorization() !== null;
   }
 
   function guardEditorText(editor) {
@@ -155,11 +175,6 @@
       editor,
       bound: hasExpectedPrompt(text, intent),
     };
-  }
-
-  function currentPostDeliveryUiClean() {
-    if (!browserGuardRequired || !postDeliveryGuardIntent) return false;
-    return guardLaunchUrlClean() && guardComposerState(postDeliveryGuardIntent).clean;
   }
 
   function guardLaunchUrlClean() {
@@ -251,6 +266,8 @@
         delegation_id: intent.delegationId,
         delivery_id: intent.deliveryId,
         execution_generation: globalThis.CAPChatGPTTemporaryExecutionGeneration || "",
+        expected_runtime_head: intent.expectedHead,
+        prompt_sha256: intent.promptSha256,
         event: "delivery-visible",
         details: {
           post_delivery_ui_disarmed: true,
@@ -258,7 +275,7 @@
           composer_clean: true,
         },
       },
-      (response) => callback(Boolean(response?.ok)),
+      (response) => callback(response || { ok: false }),
     );
   }
 
@@ -267,13 +284,16 @@
       left.runId === right.runId &&
       left.delegationId === right.delegationId &&
       left.deliveryId === right.deliveryId &&
-      left.taskSha256 === right.taskSha256;
+      left.taskSha256 === right.taskSha256 &&
+      left.expectedHead === right.expectedHead &&
+      left.promptSha256 === right.promptSha256;
   }
 
   function validGuardIntent(intent) {
     return Boolean(intent) &&
-      [intent.runId, intent.delegationId, intent.deliveryId, intent.taskSha256]
-        .every((value) => HEX64_RE.test(value || ""));
+      [intent.runId, intent.delegationId, intent.deliveryId, intent.taskSha256, intent.promptSha256]
+        .every((value) => HEX64_RE.test(value || "")) &&
+      HEAD40_RE.test(intent.expectedHead || "");
   }
 
   function armPostDeliveryUiGuard(intent) {
@@ -294,6 +314,8 @@
       delegationId: intent.delegationId,
       deliveryId: intent.deliveryId,
       taskSha256: intent.taskSha256,
+      expectedHead: intent.expectedHead,
+      promptSha256: intent.promptSha256,
     };
     resetPostDeliveryStability();
 
@@ -323,16 +345,21 @@
 
       postDeliveryAckPending = true;
       const ackEpoch = postDeliveryGuardEpoch;
-      guardRecordCleanup(postDeliveryGuardIntent, (ok) => {
+      guardRecordCleanup(postDeliveryGuardIntent, (response) => {
         postDeliveryAckPending = false;
-        if (!ok || ackEpoch !== postDeliveryGuardEpoch) {
-          if (!ok) resetPostDeliveryStability();
+        if (!response?.ok || ackEpoch !== postDeliveryGuardEpoch) {
+          if (!response?.ok) resetPostDeliveryStability();
+          return;
+        }
+        if (!HEX64_RE.test(response.cleanup_token || "")) {
+          resetPostDeliveryStability();
           return;
         }
         if (!currentPostDeliveryUiClean()) {
           resetPostDeliveryStability();
           return;
         }
+        postDeliveryCleanupToken = response.cleanup_token;
         postDeliveryUiDisarmed = true;
       });
     }, POST_DELIVERY_UI_POLL_MS);
@@ -352,6 +379,7 @@
 
   globalThis.CAPChatGPTTemporaryPolicy = {
     HEX64_RE,
+    HEAD40_RE,
     RESULT_BEGIN,
     RESULT_END,
     parseIntent,
@@ -359,6 +387,7 @@
     personalizationModeFromText,
     singleResultBlockShape,
     hasSingleResultBlock,
+    captureAuthorization,
     armPostDeliveryUiGuard,
     conversationId,
   };
