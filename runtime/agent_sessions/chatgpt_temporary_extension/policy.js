@@ -17,6 +17,10 @@
   let postDeliveryUiDisarmed = false;
   let browserGuardRequired = false;
   let postDeliveryGuardIntent = null;
+  let postDeliveryGuardInterval = null;
+  let postDeliveryStableSince = 0;
+  let postDeliveryAckPending = false;
+  let postDeliveryGuardEpoch = 0;
 
   function parseIntent(urlString) {
     let url;
@@ -113,11 +117,21 @@
     return !before && !after;
   }
 
+  function resetPostDeliveryStability() {
+    postDeliveryUiDisarmed = false;
+    postDeliveryStableSince = 0;
+    postDeliveryGuardEpoch += 1;
+  }
+
   function hasSingleResultBlock(text) {
     if (!singleResultBlockShape(text)) return false;
     if (typeof document === "undefined" || typeof location === "undefined") return true;
-    if (!browserGuardRequired) return true;
-    return postDeliveryUiDisarmed === true && currentPostDeliveryUiClean();
+    if (!browserGuardRequired || !postDeliveryGuardIntent || !postDeliveryUiDisarmed) return false;
+    if (!currentPostDeliveryUiClean()) {
+      resetPostDeliveryStability();
+      return false;
+    }
+    return true;
   }
 
   function guardEditorText(editor) {
@@ -236,6 +250,7 @@
         run_id: intent.runId,
         delegation_id: intent.delegationId,
         delivery_id: intent.deliveryId,
+        execution_generation: globalThis.CAPChatGPTTemporaryExecutionGeneration || "",
         event: "delivery-visible",
         details: {
           post_delivery_ui_disarmed: true,
@@ -247,61 +262,82 @@
     );
   }
 
-  function startPostDeliveryUiGuard() {
-    if (typeof document === "undefined" || typeof location === "undefined" || !globalThis.chrome?.runtime?.sendMessage) return;
-    const intent = parseIntent(location.href);
-    if (!intent.enabled) return;
-    browserGuardRequired = true;
-    postDeliveryGuardIntent = intent;
-    let stableSince = 0;
-    let ackPending = false;
-    let ackedAt = 0;
+  function sameGuardIntent(left, right) {
+    return Boolean(left && right) &&
+      left.runId === right.runId &&
+      left.delegationId === right.delegationId &&
+      left.deliveryId === right.deliveryId &&
+      left.taskSha256 === right.taskSha256;
+  }
 
-    const interval = setInterval(() => {
-      if (!guardDeliveryVisible(intent)) return;
+  function validGuardIntent(intent) {
+    return Boolean(intent) &&
+      [intent.runId, intent.delegationId, intent.deliveryId, intent.taskSha256]
+        .every((value) => HEX64_RE.test(value || ""));
+  }
+
+  function armPostDeliveryUiGuard(intent) {
+    if (
+      typeof document === "undefined" ||
+      typeof location === "undefined" ||
+      !globalThis.chrome?.runtime?.sendMessage ||
+      !validGuardIntent(intent)
+    ) return false;
+
+    if (postDeliveryGuardIntent !== null) {
+      return sameGuardIntent(postDeliveryGuardIntent, intent);
+    }
+
+    browserGuardRequired = true;
+    postDeliveryGuardIntent = {
+      runId: intent.runId,
+      delegationId: intent.delegationId,
+      deliveryId: intent.deliveryId,
+      taskSha256: intent.taskSha256,
+    };
+    resetPostDeliveryStability();
+
+    postDeliveryGuardInterval = setInterval(() => {
+      if (!guardDeliveryVisible(postDeliveryGuardIntent)) return;
       const urlClean = guardSanitizeLaunchUrl();
-      const composer = guardClearBoundComposer(intent);
+      const composer = guardClearBoundComposer(postDeliveryGuardIntent);
       const clean = urlClean && composer.clean;
       const now = Date.now();
 
       if (!clean || composer.changed) {
-        stableSince = 0;
-        postDeliveryUiDisarmed = false;
-        return;
-      }
-      if (!stableSince) {
-        stableSince = now;
-        return;
-      }
-      if (now - stableSince < POST_DELIVERY_UI_STABLE_MS) return;
-
-      if (!postDeliveryUiDisarmed && !ackPending) {
-        ackPending = true;
-        guardRecordCleanup(intent, (ok) => {
-          ackPending = false;
-          if (!ok) {
-            stableSince = 0;
-            return;
-          }
-          if (!guardLaunchUrlClean() || !guardComposerState(intent).clean) {
-            stableSince = 0;
-            return;
-          }
-          postDeliveryUiDisarmed = true;
-          ackedAt = Date.now();
-        });
+        resetPostDeliveryStability();
         return;
       }
 
       if (postDeliveryUiDisarmed) {
-        if (!guardLaunchUrlClean() || !guardComposerState(intent).clean) {
-          postDeliveryUiDisarmed = false;
-          stableSince = 0;
+        if (!currentPostDeliveryUiClean()) resetPostDeliveryStability();
+        return;
+      }
+
+      if (!postDeliveryStableSince) {
+        postDeliveryStableSince = now;
+        return;
+      }
+      if (now - postDeliveryStableSince < POST_DELIVERY_UI_STABLE_MS) return;
+      if (postDeliveryAckPending) return;
+
+      postDeliveryAckPending = true;
+      const ackEpoch = postDeliveryGuardEpoch;
+      guardRecordCleanup(postDeliveryGuardIntent, (ok) => {
+        postDeliveryAckPending = false;
+        if (!ok || ackEpoch !== postDeliveryGuardEpoch) {
+          if (!ok) resetPostDeliveryStability();
           return;
         }
-        if (ackedAt && now - ackedAt >= 30000) clearInterval(interval);
-      }
+        if (!currentPostDeliveryUiClean()) {
+          resetPostDeliveryStability();
+          return;
+        }
+        postDeliveryUiDisarmed = true;
+      });
     }, POST_DELIVERY_UI_POLL_MS);
+
+    return postDeliveryGuardInterval !== null;
   }
 
   function conversationId(urlString) {
@@ -323,8 +359,7 @@
     personalizationModeFromText,
     singleResultBlockShape,
     hasSingleResultBlock,
+    armPostDeliveryUiGuard,
     conversationId,
   };
-
-  startPostDeliveryUiGuard();
 })();
