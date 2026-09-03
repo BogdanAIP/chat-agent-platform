@@ -7,14 +7,44 @@
   if (!policy.HEX64_RE.test(executionGeneration)) return;
 
   const POST_DELIVERY_CLEANUP_TIMEOUT_MS = 10000;
+  const STATUS_POLL_MS = 1000;
+  const MAX_RECOVERY_CLAIMS = 8;
   const LAUNCH_QUERY_KEYS = [
     "temporary-chat",
     "cap_agent_delegate",
     "cap_delegation_id",
     "cap_delivery_id",
     "cap_task_sha256",
+    "cap_expected_head",
+    "cap_prompt_sha256",
     "prompt",
   ];
+
+  function normalizeFull(text) {
+    return String(text || "").replace(/\u0000/g, "").trim();
+  }
+
+  function observedRecoveryClaims() {
+    const claims = [];
+    const seen = new Set();
+    for (const node of document.querySelectorAll('[data-message-author-role="user"]')) {
+      const text = normalizeFull(node.innerText || node.textContent || "");
+      const delegation = text.match(/(?:^|\n)delegation_id=([0-9a-f]{64})(?:\n|$)/);
+      const delivery = text.match(/(?:^|\n)delivery_id=([0-9a-f]{64})(?:\n|$)/);
+      const task = text.match(/(?:^|\n)task_sha256=([0-9a-f]{64})(?:\n|$)/);
+      if (!delegation || !delivery || !task) continue;
+      const key = `${delegation[1]}:${delivery[1]}:${task[1]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      claims.push({
+        delegation_id: delegation[1],
+        delivery_id: delivery[1],
+        task_sha256: task[1],
+      });
+      if (claims.length >= MAX_RECOVERY_CLAIMS) break;
+    }
+    return claims;
+  }
 
   function requestResumeIntent() {
     return new Promise((resolve) => {
@@ -23,8 +53,13 @@
           schema_version: 1,
           kind: "resume-intent",
           execution_generation: executionGeneration,
+          observed_claims: observedRecoveryClaims(),
         },
-        (response) => resolve(response || { ok: false, enabled: false, reason: chrome.runtime.lastError?.message || "no-response" }),
+        (response) => resolve(response || {
+          ok: false,
+          enabled: false,
+          reason: chrome.runtime.lastError?.message || "no-response",
+        }),
       );
     });
   }
@@ -36,6 +71,8 @@
       delegationId: response.delegation_id,
       deliveryId: response.delivery_id,
       taskSha256: response.task_sha256,
+      expectedHead: response.expected_runtime_head,
+      promptSha256: response.prompt_sha256,
       prompt: "",
       maxWaitMs: 30 * 60 * 1000,
       deliveryObserveMs: 20000,
@@ -44,7 +81,17 @@
     };
   }
 
+  async function sha256Text(text) {
+    const bytes = new TextEncoder().encode(String(text || ""));
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(digest)]
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
   function start(intent, recovered) {
+    if (!policy.HEAD40_RE.test(intent.expectedHead || "") || !policy.HEX64_RE.test(intent.promptSha256 || "")) return;
+
     let stopped = false;
     let intervalId = null;
     let authorityRequested = recovered;
@@ -60,14 +107,13 @@
     let postDeliveryCleanupStartedAt = 0;
     let postDeliveryCleanupStableSince = 0;
     let postDeliveryCleanupComplete = false;
+    let statusPollPending = false;
+    let lastStatusPollAt = 0;
+    let finalObservationSentFor = "";
     const deadline = Date.now() + intent.maxWaitMs;
 
     function normalize(text) {
       return String(text || "").replace(/\s+/g, " ").trim().slice(0, 500);
-    }
-
-    function normalizeFull(text) {
-      return String(text || "").replace(/\u0000/g, "").trim();
     }
 
     function visible(node) {
@@ -96,6 +142,8 @@
             run_id: intent.runId,
             delegation_id: intent.delegationId,
             delivery_id: intent.deliveryId,
+            expected_runtime_head: intent.expectedHead,
+            prompt_sha256: intent.promptSha256,
             execution_generation: executionGeneration,
             ...payload,
           },
@@ -147,10 +195,7 @@
     function sanitizeLaunchUrl() {
       const state = launchIntentState();
       if (!state) return { clean: false, changed: false };
-      if (!state.query_present && !state.private_fragment_present) {
-        return { clean: true, changed: false };
-      }
-
+      if (!state.query_present && !state.private_fragment_present) return { clean: true, changed: false };
       try {
         for (const key of LAUNCH_QUERY_KEYS) state.url.searchParams.delete(key);
         state.fragment.delete("cap_run_id");
@@ -160,7 +205,6 @@
       } catch {
         return { clean: false, changed: false };
       }
-
       const after = launchIntentState();
       return {
         clean: Boolean(after && !after.query_present && !after.private_fragment_present),
@@ -172,13 +216,9 @@
       const button = findSendButton();
       const composer = findComposer(button);
       if (!composer) return { clean: true, changed: false };
-      if (!policy.hasExpectedPrompt(composer.textContent || "", intent)) {
-        return { clean: true, changed: false };
-      }
-
+      if (!policy.hasExpectedPrompt(composer.textContent || "", intent)) return { clean: true, changed: false };
       const editor = composer.querySelector('#prompt-textarea,[contenteditable="true"],textarea');
       if (!editor) return { clean: false, changed: false };
-
       let changed = false;
       try {
         if (editor instanceof HTMLTextAreaElement) {
@@ -202,48 +242,33 @@
           }
           if (!deleted && policy.hasExpectedPrompt(editor.textContent || "", intent)) {
             editor.replaceChildren();
-            editor.dispatchEvent(new InputEvent("input", {
-              bubbles: true,
-              inputType: "deleteContentBackward",
-              data: null,
-            }));
+            editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward", data: null }));
           }
           changed = true;
         }
       } catch {
         return { clean: false, changed };
       }
-
-      return {
-        clean: !policy.hasExpectedPrompt(composer.textContent || "", intent),
-        changed,
-      };
+      return { clean: !policy.hasExpectedPrompt(composer.textContent || "", intent), changed };
     }
 
     function ensurePostDeliveryCleanup() {
       if (deliveryState !== "delivered") return false;
       if (postDeliveryCleanupComplete) return true;
-
       const now = Date.now();
       if (!postDeliveryCleanupStartedAt) postDeliveryCleanupStartedAt = now;
-
       const launch = sanitizeLaunchUrl();
       const composer = clearBoundPromptFromComposer();
       const clean = launch.clean && composer.clean;
-
       if (!clean) {
         postDeliveryCleanupStableSince = 0;
         if (now - postDeliveryCleanupStartedAt >= POST_DELIVERY_CLEANUP_TIMEOUT_MS) {
-          const details = {
-            launch_url_clean: launch.clean,
-            composer_clean: composer.clean,
-          };
+          const details = { launch_url_clean: launch.clean, composer_clean: composer.clean };
           event("post-delivery-cleanup-failed", details);
           stop("post-delivery-cleanup-failed", details);
         }
         return false;
       }
-
       if (launch.changed || composer.changed) {
         postDeliveryCleanupStableSince = now;
         return false;
@@ -253,12 +278,8 @@
         return false;
       }
       if (now - postDeliveryCleanupStableSince < intent.stableMs) return false;
-
       postDeliveryCleanupComplete = true;
-      event("post-delivery-cleanup-complete", {
-        launch_url_clean: true,
-        composer_clean: true,
-      });
+      event("post-delivery-cleanup-complete", { launch_url_clean: true, composer_clean: true });
       return true;
     }
 
@@ -278,8 +299,7 @@
       const personalizationEvidence = [];
       const personalizationModes = new Set();
       const pluginMarkers = new Set();
-      const nodes = document.querySelectorAll('button,[role="button"],[aria-label],[title],[data-testid]');
-      for (const node of nodes) {
+      for (const node of document.querySelectorAll('button,[role="button"],[aria-label],[title],[data-testid]')) {
         if (!visible(node)) continue;
         if (composer && (composer === node || composer.contains(node) || node.contains(composer))) continue;
         const text = candidateText(node);
@@ -327,13 +347,15 @@
     async function requestAuthority(composer) {
       if (authorityRequested) return;
       authorityRequested = true;
+      if (!recovered) {
+        const promptDigest = await sha256Text(intent.prompt);
+        if (promptDigest !== intent.promptSha256) {
+          stop("launch-prompt-digest-mismatch");
+          return;
+        }
+      }
       const temporary = observeTemporaryState(composer);
-      if (
-        !temporary.temporary_mode ||
-        !temporary.fresh_context ||
-        temporary.personalization_disabled !== true ||
-        temporary.plugin_markers.length > 0
-      ) {
+      if (!temporary.temporary_mode || !temporary.fresh_context || temporary.personalization_disabled !== true || temporary.plugin_markers.length > 0) {
         event("temporary-ui-not-proven", temporary);
         stop("child-qualification-failed", temporary);
         return;
@@ -389,8 +411,31 @@
 
     async function captureResult(text) {
       if (captureStarted || deliveryState !== "delivered" || !postDeliveryCleanupComplete) return;
+      const authorization = policy.captureAuthorization();
+      if (!authorization) {
+        postDeliveryCleanupComplete = false;
+        return;
+      }
       captureStarted = true;
-      const response = await sendMessage("capture", { result_text: text });
+      const prepared = await sendMessage("prepare-capture", {
+        cleanup_token: authorization.cleanupToken,
+      });
+      if (!prepared?.ok || !policy.HEX64_RE.test(prepared.capture_token || "")) {
+        captureStarted = false;
+        event("result-capture-failed", { reason: prepared?.reason || "capture-preparation-failed" });
+        return;
+      }
+      const current = policy.captureAuthorization();
+      if (!current || current.cleanupToken !== authorization.cleanupToken) {
+        captureStarted = false;
+        postDeliveryCleanupComplete = false;
+        return;
+      }
+      const response = await sendMessage("capture", {
+        cleanup_token: current.cleanupToken,
+        capture_token: prepared.capture_token,
+        result_text: text,
+      });
       if (response?.ok) {
         stop("result-recorded", { worker_status: response.worker_status || null });
         return;
@@ -398,6 +443,30 @@
       captureStarted = false;
       event("result-capture-failed", { reason: response?.reason || "capture-failed" });
       stop("result-capture-failed", { reason: response?.reason || "capture-failed" });
+    }
+
+    async function pollControllerStatus() {
+      if (statusPollPending || deliveryState !== "delivered") return;
+      const now = Date.now();
+      if (now - lastStatusPollAt < STATUS_POLL_MS) return;
+      lastStatusPollAt = now;
+      statusPollPending = true;
+      try {
+        const status = await sendMessage("status");
+        if (!status?.ok) return;
+        const requestId = status.final_observation_request_id;
+        if (!policy.HEX64_RE.test(requestId || "") || requestId === finalObservationSentFor) return;
+        const turns = conversationTurns("assistant");
+        const last = turns.at(-1) || "";
+        const response = await sendMessage("final-observation", {
+          request_id: requestId,
+          terminal_result_visible: policy.singleResultBlockShape(last),
+          worker_generating: stopButtonPresent(),
+        });
+        if (response?.ok) finalObservationSentFor = requestId;
+      } finally {
+        statusPollPending = false;
+      }
     }
 
     function tick() {
@@ -436,26 +505,20 @@
       }
 
       if (!sendClickedAt) return;
-
       const visibleDelivery = userDeliveryVisible();
       if (visibleDelivery && deliveryState !== "delivered") {
         observationSeq += 1;
-        void postDelivery(
-          "delivered",
-          `chatgpt-temporary:delivery:${intent.deliveryId}:visible:${observationSeq}`,
-        );
+        void postDelivery("delivered", `chatgpt-temporary:delivery:${intent.deliveryId}:visible:${observationSeq}`);
         return;
       }
       if (!visibleDelivery && deliveryState === "claimed" && Date.now() - sendClickedAt >= intent.deliveryObserveMs && !deliveryOutcomeAt) {
         observationSeq += 1;
-        void postDelivery(
-          "unknown",
-          `chatgpt-temporary:delivery:${intent.deliveryId}:ambiguous:${observationSeq}`,
-        );
+        void postDelivery("unknown", `chatgpt-temporary:delivery:${intent.deliveryId}:ambiguous:${observationSeq}`);
         return;
       }
 
       if (deliveryState !== "delivered") return;
+      void pollControllerStatus();
       if (!ensurePostDeliveryCleanup()) return;
       if (stopButtonPresent()) return;
       const turns = conversationTurns("assistant");
@@ -467,9 +530,7 @@
         return;
       }
       if (!policy.hasSingleResultBlock(last)) return;
-      if (lastAssistantChangedAt && Date.now() - lastAssistantChangedAt >= intent.stableMs) {
-        void captureResult(last);
-      }
+      if (lastAssistantChangedAt && Date.now() - lastAssistantChangedAt >= intent.stableMs) void captureResult(last);
     }
 
     if (!policy.armPostDeliveryUiGuard(intent)) {
@@ -490,7 +551,8 @@
   void requestResumeIntent().then((response) => {
     if (!response?.ok || response.enabled !== true || response.monitor_only !== true) return;
     if (response.execution_generation !== executionGeneration) return;
-    if (![response.run_id, response.delegation_id, response.delivery_id, response.task_sha256].every((value) => policy.HEX64_RE.test(value || ""))) return;
+    if (![response.run_id, response.delegation_id, response.delivery_id, response.task_sha256, response.prompt_sha256].every((value) => policy.HEX64_RE.test(value || ""))) return;
+    if (!policy.HEAD40_RE.test(response.expected_runtime_head || "")) return;
     start(recoveredIntent(response), true);
   });
 })();
