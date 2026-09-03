@@ -35,11 +35,11 @@ def identity_dict() -> dict[str, str]:
     }
 
 
-def expected_runtime_attestation() -> dict[str, object]:
+def expected_runtime_attestation(head: str = "a" * 40) -> dict[str, object]:
     return {
         "schema_version": 1,
         "adapter_id": source_attestation.ADAPTER_ID,
-        "expected_head": "a" * 40,
+        "expected_head": head,
         "execution_generation": EXECUTION_GENERATION,
         "assets": dict(RUNTIME_ASSETS),
     }
@@ -76,12 +76,16 @@ def authority_request(
     *,
     evidence: dict[str, object] | None = None,
     attestation: dict[str, object] | None = None,
+    expected_head: str | None = None,
+    prompt_sha256: str | None = None,
 ) -> dict[str, object]:
     return {
         "schema_version": 1,
         "run_id": state.launch.run_id,
         "delegation_id": state.launch.delegation_id,
         "delivery_id": state.launch.delivery_id,
+        "expected_runtime_head": expected_head or state.expected_runtime_attestation.expected_head,
+        "prompt_sha256": prompt_sha256 or state.launch.prompt_sha256,
         "browser_claim_committed": True,
         "browser_claim_id": state.launch.delivery_id,
         "child_evidence": evidence or child_evidence(state),
@@ -120,11 +124,11 @@ class TemporaryControllerTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def controller(self, suffix: str = "first") -> TemporaryControllerState:
+    def controller(self, suffix: str = "first", *, head: str = "a" * 40) -> TemporaryControllerState:
         return TemporaryControllerState(
             identity_value=identity_dict(),
             task=TASK,
-            expected_runtime_attestation_value=expected_runtime_attestation(),
+            expected_runtime_attestation_value=expected_runtime_attestation(head),
             state_root=self.state_root,
             output_dir=self.output_root / suffix,
         )
@@ -143,6 +147,42 @@ class TemporaryControllerTests(unittest.TestCase):
             }
         )
 
+    def cleanup_token(self, state: TemporaryControllerState) -> str:
+        response = state.record_event(
+            {
+                "schema_version": 1,
+                "run_id": state.launch.run_id,
+                "delegation_id": state.launch.delegation_id,
+                "delivery_id": state.launch.delivery_id,
+                "event": "delivery-visible",
+                "details": {
+                    "post_delivery_ui_disarmed": True,
+                    "launch_url_clean": True,
+                    "composer_clean": True,
+                },
+            }
+        )
+        token = response.get("cleanup_token")
+        self.assertIsInstance(token, str)
+        self.assertEqual(64, len(token))
+        return token
+
+    def prepare_capture(self, state: TemporaryControllerState, cleanup_token: str) -> str:
+        response = state.prepare_capture(
+            {
+                "schema_version": 1,
+                "run_id": state.launch.run_id,
+                "delegation_id": state.launch.delegation_id,
+                "delivery_id": state.launch.delivery_id,
+                "cleanup_token": cleanup_token,
+                "runtime_attestation": runtime_report(),
+            }
+        )
+        token = response.get("capture_token")
+        self.assertIsInstance(token, str)
+        self.assertEqual(64, len(token))
+        return token
+
     def test_controller_restart_recovers_same_private_capability_without_relaunch(self) -> None:
         first = self.controller("first")
         second = self.controller("second")
@@ -156,6 +196,8 @@ class TemporaryControllerTests(unittest.TestCase):
         self.assertEqual("launch-attempted", launch["launch_state"])
         self.assertEqual("a" * 40, launch["expected_runtime_head"])
         self.assertEqual(EXECUTION_GENERATION, launch["execution_generation"])
+        self.assertIn("cap_expected_head=" + "a" * 40, launch["launch_url"])
+        self.assertIn("cap_prompt_sha256=", launch["launch_url"])
 
     def test_browser_claim_must_be_committed_before_local_send_authority(self) -> None:
         state = self.controller()
@@ -165,6 +207,35 @@ class TemporaryControllerTests(unittest.TestCase):
             state.authorize_send(request)
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
         self.assertEqual("launch-attempted", snapshot.launch_state)
+        self.assertEqual("prepared", snapshot.delivery_state)
+
+    def test_prebind_cross_head_old_launch_provenance_is_rejected_before_worker_binding(self) -> None:
+        first = self.controller("head-a", head="a" * 40)
+        first_prompt = first.launch.prompt_sha256
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("launch-attempted", snapshot.launch_state)
+        self.assertIsNone(snapshot.worker_session_ref)
+
+        second = self.controller("head-b", head="b" * 40)
+        with self.assertRaisesRegex(delegation_state.DelegationStateError, "expected runtime HEAD mismatch"):
+            second.authorize_send(
+                authority_request(
+                    second,
+                    expected_head="a" * 40,
+                    prompt_sha256=first_prompt,
+                )
+            )
+        after = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("launch-attempted", after.launch_state)
+        self.assertEqual("prepared", after.delivery_state)
+        self.assertIsNone(after.worker_session_ref)
+
+    def test_wrong_prompt_digest_is_rejected_before_worker_binding(self) -> None:
+        state = self.controller()
+        with self.assertRaisesRegex(delegation_state.DelegationStateError, "launch prompt digest mismatch"):
+            state.authorize_send(authority_request(state, prompt_sha256="f" * 64))
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertIsNone(snapshot.worker_session_ref)
         self.assertEqual("prepared", snapshot.delivery_state)
 
     def test_runtime_attestation_mismatch_blocks_child_bind_and_send_claim(self) -> None:
@@ -267,19 +338,63 @@ class TemporaryControllerTests(unittest.TestCase):
         )
         self.assertEqual("delivered", delivered["delivery_state"])
 
-    def test_capture_attestation_mismatch_cannot_record_terminal_result(self) -> None:
+    def test_capture_requires_cleanup_ack_runtime_prepare_and_one_time_commit_token(self) -> None:
         state = self.controller()
         self.deliver(state)
         payload = "A bounded read-only research answer."
-        wrong = runtime_report(**{"content.js": "f" * 64})
-        with self.assertRaisesRegex(delegation_state.DelegationStateError, "runtime attestation mismatch"):
+
+        with self.assertRaisesRegex(delegation_state.DelegationStateError, "cleanup token"):
+            state.prepare_capture(
+                {
+                    "schema_version": 1,
+                    "run_id": state.launch.run_id,
+                    "delegation_id": state.launch.delegation_id,
+                    "delivery_id": state.launch.delivery_id,
+                    "cleanup_token": "0" * 64,
+                    "runtime_attestation": runtime_report(),
+                }
+            )
+
+        cleanup = self.cleanup_token(state)
+        capture = self.prepare_capture(state, cleanup)
+        recorded = state.record_capture(
+            {
+                "schema_version": 1,
+                "run_id": state.launch.run_id,
+                "delegation_id": state.launch.delegation_id,
+                "delivery_id": state.launch.delivery_id,
+                "cleanup_token": cleanup,
+                "capture_token": capture,
+                "result_text": result_text(state, payload),
+            }
+        )
+        self.assertEqual("recorded", recorded["result_state"])
+        with self.assertRaisesRegex(delegation_state.DelegationStateError, "preparation token"):
             state.record_capture(
                 {
                     "schema_version": 1,
                     "run_id": state.launch.run_id,
                     "delegation_id": state.launch.delegation_id,
                     "delivery_id": state.launch.delivery_id,
+                    "cleanup_token": cleanup,
+                    "capture_token": capture,
                     "result_text": result_text(state, payload),
+                }
+            )
+
+    def test_capture_attestation_mismatch_fails_during_prepare_before_terminal_record(self) -> None:
+        state = self.controller()
+        self.deliver(state)
+        cleanup = self.cleanup_token(state)
+        wrong = runtime_report(**{"content.js": "f" * 64})
+        with self.assertRaisesRegex(delegation_state.DelegationStateError, "runtime attestation mismatch"):
+            state.prepare_capture(
+                {
+                    "schema_version": 1,
+                    "run_id": state.launch.run_id,
+                    "delegation_id": state.launch.delegation_id,
+                    "delivery_id": state.launch.delivery_id,
+                    "cleanup_token": cleanup,
                     "runtime_attestation": wrong,
                 }
             )
@@ -287,22 +402,23 @@ class TemporaryControllerTests(unittest.TestCase):
         self.assertEqual("delivered", snapshot.delivery_state)
         self.assertEqual("open", snapshot.result_state)
 
-    def test_capture_records_normalized_generic_result_and_restart_reads_terminal_state(self) -> None:
+    def test_capture_records_result_and_restart_reads_terminal_state(self) -> None:
         state = self.controller("first")
         self.deliver(state)
+        cleanup = self.cleanup_token(state)
+        capture = self.prepare_capture(state, cleanup)
         payload = "A bounded read-only research answer."
-        recorded = state.record_capture(
+        state.record_capture(
             {
                 "schema_version": 1,
                 "run_id": state.launch.run_id,
                 "delegation_id": state.launch.delegation_id,
                 "delivery_id": state.launch.delivery_id,
+                "cleanup_token": cleanup,
+                "capture_token": capture,
                 "result_text": result_text(state, payload),
-                "runtime_attestation": runtime_report(),
             }
         )
-        self.assertEqual("recorded", recorded["result_state"])
-        self.assertRegex(recorded["runtime_attestation_sha256"], r"^[0-9a-f]{64}$")
         result = json.loads((self.output_root / "first" / "result.json").read_text(encoding="utf-8"))
         self.assertEqual("COMPLETED", result["status"])
         self.assertEqual(hashlib.sha256(payload.encode()).hexdigest(), result["payload_sha256"])
@@ -314,10 +430,54 @@ class TemporaryControllerTests(unittest.TestCase):
         self.assertEqual(result["delegation_id"], recovered["delegation_id"])
         self.assertEqual(result["payload_sha256"], recovered["payload_sha256"])
 
-    def test_timeout_after_proven_delivery_closes_as_error_without_second_send(self) -> None:
+    def test_timeout_request_does_not_close_delivered_open_without_final_observation(self) -> None:
         state = self.controller()
         self.deliver(state)
-        self.assertTrue(state.record_timeout_if_delivered())
+        request_id = state.request_final_observation_if_delivered()
+        self.assertRegex(request_id or "", r"^[0-9a-f]{64}$")
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("delivered", snapshot.delivery_state)
+        self.assertEqual("open", snapshot.result_state)
+        self.assertFalse(state.done.is_set())
+
+    def test_final_observation_with_visible_terminal_result_leaves_slot_open_for_capture(self) -> None:
+        state = self.controller()
+        self.deliver(state)
+        request_id = state.request_final_observation_if_delivered()
+        response = state.record_final_observation(
+            {
+                "schema_version": 1,
+                "run_id": state.launch.run_id,
+                "delegation_id": state.launch.delegation_id,
+                "delivery_id": state.launch.delivery_id,
+                "request_id": request_id,
+                "terminal_result_visible": True,
+                "worker_generating": False,
+                "runtime_attestation": runtime_report(),
+            }
+        )
+        self.assertEqual("terminal-visible-awaiting-capture", response["status"])
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("open", snapshot.result_state)
+        self.assertFalse(state.done.is_set())
+
+    def test_final_observation_without_terminal_result_can_close_timeout_as_error(self) -> None:
+        state = self.controller()
+        self.deliver(state)
+        request_id = state.request_final_observation_if_delivered()
+        response = state.record_final_observation(
+            {
+                "schema_version": 1,
+                "run_id": state.launch.run_id,
+                "delegation_id": state.launch.delegation_id,
+                "delivery_id": state.launch.delivery_id,
+                "request_id": request_id,
+                "terminal_result_visible": False,
+                "worker_generating": True,
+                "runtime_attestation": runtime_report(),
+            }
+        )
+        self.assertEqual("recorded-timeout", response["status"])
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
         self.assertEqual("recorded", snapshot.result_state)
         self.assertEqual("ERROR", snapshot.result_status)
