@@ -109,6 +109,7 @@ $CriticalAssets = @(
     'runtime/agent_sessions/chatgpt_temporary.py',
     'runtime/agent_sessions/chatgpt_temporary_controller.py',
     'runtime/agent_sessions/chatgpt_temporary_extension/manifest.json',
+    'runtime/agent_sessions/chatgpt_temporary_extension/execution_generation.js',
     'runtime/agent_sessions/chatgpt_temporary_extension/policy.js',
     'runtime/agent_sessions/chatgpt_temporary_extension/background.js',
     'runtime/agent_sessions/chatgpt_temporary_extension/content.js',
@@ -158,8 +159,20 @@ Write-JsonUtf8NoBom -Path $identityPath -Value $identity
 if ((Get-Sha256 -Path $taskCopyPath) -cne $taskSha256) { throw 'Task copy digest changed.' }
 
 $extensionPath = Join-Path $RepoRoot 'runtime\agent_sessions\chatgpt_temporary_extension'
+$executionGenerationPath = Join-Path $extensionPath 'execution_generation.js'
+$executionGenerationText = [System.IO.File]::ReadAllText($executionGenerationPath, [System.Text.UTF8Encoding]::new($false))
+$executionGenerationMatch = [regex]::Match(
+    $executionGenerationText,
+    'CAPChatGPTTemporaryExecutionGeneration\s*=\s*"([0-9a-f]{64})"'
+)
+if (-not $executionGenerationMatch.Success) {
+    throw 'Extension execution generation marker is missing or invalid.'
+}
+$executionGeneration = $executionGenerationMatch.Groups[1].Value
+
 $runtimeAssets = [ordered]@{
     'manifest.json' = Get-Sha256 -Path (Join-Path $extensionPath 'manifest.json')
+    'execution_generation.js' = Get-Sha256 -Path $executionGenerationPath
     'policy.js' = Get-Sha256 -Path (Join-Path $extensionPath 'policy.js')
     'background.js' = Get-Sha256 -Path (Join-Path $extensionPath 'background.js')
     'content.js' = Get-Sha256 -Path (Join-Path $extensionPath 'content.js')
@@ -168,6 +181,7 @@ $expectedRuntimeAttestation = [ordered]@{
     schema_version = 1
     adapter_id = 'chatgpt-temporary'
     expected_head = $ExpectedHead
+    execution_generation = $executionGeneration
     assets = $runtimeAssets
 }
 Write-JsonUtf8NoBom -Path $runtimeAttestationPath -Value $expectedRuntimeAttestation
@@ -175,6 +189,7 @@ Write-JsonUtf8NoBom -Path $runtimeAttestationPath -Value $expectedRuntimeAttesta
 Write-Host "CAP_AGENT_SESSION_EXACT_HEAD=$ExpectedHead" -ForegroundColor Cyan
 Write-Host "CAP_AGENT_SESSION_TASK_SHA256=$taskSha256"
 Write-Host "CAP_AGENT_SESSION_EXTENSION_PATH=$extensionPath" -ForegroundColor Cyan
+Write-Host "CAP_AGENT_SESSION_EXECUTION_GENERATION=$executionGeneration" -ForegroundColor Cyan
 Write-Host "CAP_AGENT_SESSION_EXPECTED_EXTENSION_ATTESTATION=$runtimeAttestationPath"
 Write-Host "CAP_AGENT_SESSION_OUTPUT_DIR=$outputRoot"
 Write-Host "CAP_AGENT_SESSION_STATE_ROOT=$stateRoot"
@@ -247,6 +262,7 @@ try {
     $launch = Get-Content -LiteralPath $launchPath -Raw -Encoding utf8 | ConvertFrom-Json
     if ([string]$launch.adapter_id -ne 'chatgpt-temporary') { throw 'Unexpected adapter in launch evidence.' }
     if ([string]$launch.expected_runtime_head -cne $ExpectedHead) { throw 'Controller runtime-attestation head mismatch.' }
+    if ([string]$launch.execution_generation -cne $executionGeneration) { throw 'Controller execution-generation mismatch.' }
     if ([string]$launch.prompt_sha256 -notmatch '^[0-9a-f]{64}$') { throw 'Launch prompt digest is invalid.' }
     if ([string]$launch.delegation_id -notmatch '^[0-9a-f]{64}$' -or [string]$launch.delivery_id -notmatch '^[0-9a-f]{64}$') {
         throw 'Launch correlation ids are invalid.'
