@@ -21,15 +21,16 @@ class ChatGPTTemporaryPostDeliveryUninterruptedTests(unittest.TestCase):
         self.assertIn("return { clean: guardComposerState(intent).clean, changed: true };", cleanup)
 
         guard = policy[
-            policy.index("function startPostDeliveryUiGuard") :
+            policy.index("function armPostDeliveryUiGuard") :
             policy.index("function conversationId")
         ]
-        self.assertIn("const composer = guardClearBoundComposer(intent);", guard)
+        self.assertIn("const composer = guardClearBoundComposer(postDeliveryGuardIntent);", guard)
         self.assertIn("const clean = urlClean && composer.clean;", guard)
         self.assertIn("if (!clean || composer.changed)", guard)
+        self.assertIn("resetPostDeliveryStability();", guard)
         self.assertLess(
             guard.index("if (!clean || composer.changed)"),
-            guard.index("now - stableSince < POST_DELIVERY_UI_STABLE_MS"),
+            guard.index("now - postDeliveryStableSince < POST_DELIVERY_UI_STABLE_MS"),
         )
 
 
