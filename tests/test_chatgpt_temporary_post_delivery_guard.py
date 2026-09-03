@@ -14,15 +14,18 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
         self.policy = POLICY.read_text(encoding="utf-8")
         self.content = CONTENT.read_text(encoding="utf-8")
 
-    def test_result_capture_requires_acked_ui_disarm(self) -> None:
+    def test_result_capture_requires_acked_ui_disarm_and_current_clean_state(self) -> None:
         for phrase in (
             "const POST_DELIVERY_UI_STABLE_MS = 8000;",
             "let postDeliveryUiDisarmed = false;",
             "let browserGuardRequired = false;",
+            "let postDeliveryGuardIntent = null;",
             "function guardDeliveryVisible(intent)",
             "function guardRecordCleanup(intent, callback)",
+            "function currentPostDeliveryUiClean()",
             "browserGuardRequired = true;",
-            "return postDeliveryUiDisarmed === true;",
+            "postDeliveryGuardIntent = intent;",
+            "return postDeliveryUiDisarmed === true && currentPostDeliveryUiClean();",
             "startPostDeliveryUiGuard();",
         ):
             self.assertIn(phrase, self.policy)
@@ -34,6 +37,14 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
         self.assertIn("singleResultBlockShape", gate)
         self.assertIn("browserGuardRequired", gate)
         self.assertIn("postDeliveryUiDisarmed", gate)
+        self.assertIn("currentPostDeliveryUiClean()", gate)
+
+        current = self.policy[
+            self.policy.index("function currentPostDeliveryUiClean") :
+            self.policy.index("function guardLaunchUrlClean")
+        ]
+        self.assertIn("guardLaunchUrlClean()", current)
+        self.assertIn("guardComposerState(postDeliveryGuardIntent).clean", current)
 
         guard = self.policy[
             self.policy.index("function startPostDeliveryUiGuard") :
