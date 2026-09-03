@@ -169,9 +169,9 @@
 
   function guardClearBoundComposer(intent) {
     const state = guardComposerState(intent);
-    if (!state.editor) return false;
-    if (state.clean) return true;
-    if (!state.bound) return false;
+    if (!state.editor) return { clean: false, changed: false };
+    if (state.clean) return { clean: true, changed: false };
+    if (!state.bound) return { clean: false, changed: false };
     const editor = state.editor;
     try {
       if (typeof HTMLTextAreaElement !== "undefined" && editor instanceof HTMLTextAreaElement) {
@@ -205,9 +205,9 @@
         }
       }
     } catch {
-      return false;
+      return { clean: false, changed: true };
     }
-    return guardComposerState(intent).clean;
+    return { clean: guardComposerState(intent).clean, changed: true };
   }
 
   function guardDeliveryVisible(intent) {
@@ -253,11 +253,11 @@
     const interval = setInterval(() => {
       if (!guardDeliveryVisible(intent)) return;
       const urlClean = guardSanitizeLaunchUrl();
-      const composerClean = guardClearBoundComposer(intent);
-      const clean = urlClean && composerClean;
+      const composer = guardClearBoundComposer(intent);
+      const clean = urlClean && composer.clean;
       const now = Date.now();
 
-      if (!clean) {
+      if (!clean || composer.changed) {
         stableSince = 0;
         postDeliveryUiDisarmed = false;
         return;
