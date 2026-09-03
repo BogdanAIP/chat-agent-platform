@@ -26,6 +26,9 @@ const runId = "a".repeat(64);
 const delegationId = "b".repeat(64);
 const deliveryId = "c".repeat(64);
 const taskSha = "d".repeat(64);
+const expectedHead = "e".repeat(40);
+const promptSha = "f".repeat(64);
+const cleanupToken = "1".repeat(64);
 const prompt = [
   "WORKER_TASK_V1",
   `delegation_id=${{delegationId}}`,
@@ -42,6 +45,8 @@ launch.searchParams.set("cap_agent_delegate", "1");
 launch.searchParams.set("cap_delegation_id", delegationId);
 launch.searchParams.set("cap_delivery_id", deliveryId);
 launch.searchParams.set("cap_task_sha256", taskSha);
+launch.searchParams.set("cap_expected_head", expectedHead);
+launch.searchParams.set("cap_prompt_sha256", promptSha);
 launch.searchParams.set("prompt", prompt);
 launch.hash = `cap_run_id=${{runId}}`;
 let href = launch.toString();
@@ -69,8 +74,8 @@ global.document = {{
     return [];
   }},
 }};
-global.CAPChatGPTTemporaryExecutionGeneration = "e".repeat(64);
-global.chrome = {{ runtime: {{ sendMessage(_message, callback) {{ callback({{ ok: true }}); }} }} }};
+global.CAPChatGPTTemporaryExecutionGeneration = "2".repeat(64);
+global.chrome = {{ runtime: {{ sendMessage(_message, callback) {{ callback({{ ok: true, cleanup_token: cleanupToken }}); }} }} }};
 global.setInterval = (fn, _ms) => {{ intervalFn = fn; return 1; }};
 global.clearInterval = (_id) => {{}};
 Date.now = () => now;
@@ -88,12 +93,12 @@ intervalFn();
 if (!CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(12);
 
 // Restore the exact bound draft without giving the 500 ms poll another turn.
-// The synchronous capture path sees it and must invalidate the old ACK/timer.
+// The synchronous capture path sees it and must invalidate the old ACK/token.
 editor.textContent = prompt;
 editor.innerText = prompt;
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(13);
 
-// Clearing immediately is not enough: the old ACK is no longer authoritative.
+// Clearing immediately is not enough: the old ACK/token is no longer authoritative.
 editor.textContent = "";
 editor.innerText = "";
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(14);
