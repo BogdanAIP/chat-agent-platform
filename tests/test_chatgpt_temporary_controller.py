@@ -263,6 +263,7 @@ class TemporaryControllerTests(unittest.TestCase):
         self.assertTrue(result["send_authorized"])
         self.assertRegex(result["runtime_attestation_sha256"], r"^[0-9a-f]{64}$")
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual(f"chatgpt-delivery:{state.launch.delivery_id}", snapshot.worker_session_ref.session_id)
         self.assertIn(
             f":runtime:{result['runtime_attestation_sha256']}",
             snapshot.worker_session_ref.observation_ref,
@@ -296,16 +297,16 @@ class TemporaryControllerTests(unittest.TestCase):
         self.assertEqual("child-bound", snapshot.launch_state)
         self.assertEqual("claimed", snapshot.delivery_state)
 
-    def test_foreign_second_tab_cannot_replace_bound_child(self) -> None:
+    def test_changed_numeric_tab_id_rebinds_same_delivery_child_without_second_send(self) -> None:
         state = self.controller()
         first = state.authorize_send(authority_request(state))
         self.assertTrue(first["send_authorized"])
-        with self.assertRaisesRegex(delegation_state.DelegationStateError, "different worker"):
-            state.authorize_send(
-                authority_request(state, evidence=child_evidence(state, session_id="chrome-tab:9"))
-            )
+        second = state.authorize_send(
+            authority_request(state, evidence=child_evidence(state, session_id="chrome-tab:9"))
+        )
+        self.assertFalse(second["send_authorized"])
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
-        self.assertEqual("chrome-tab:5", snapshot.worker_session_ref.session_id)
+        self.assertEqual(f"chatgpt-delivery:{state.launch.delivery_id}", snapshot.worker_session_ref.session_id)
         self.assertEqual("claimed", snapshot.delivery_state)
 
     def test_delivery_unknown_then_visible_reconciles_without_new_authority(self) -> None:
