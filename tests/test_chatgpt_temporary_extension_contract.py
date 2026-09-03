@@ -170,6 +170,45 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             request.index('sendMessage("authorize-send"'),
         )
 
+    def test_confirmed_delivery_disarms_launch_intent_and_bound_composer_before_capture(self) -> None:
+        for phrase in (
+            'const POST_DELIVERY_CLEANUP_TIMEOUT_MS = 10000;',
+            '"temporary-chat"',
+            '"cap_agent_delegate"',
+            '"cap_delegation_id"',
+            '"cap_delivery_id"',
+            '"cap_task_sha256"',
+            '"prompt"',
+            'state.fragment.delete("cap_run_id")',
+            'history.replaceState(history.state, "", nextUrl)',
+            "function clearBoundPromptFromComposer()",
+            'composer.querySelector(\'#prompt-textarea,[contenteditable="true"],textarea\')',
+            'policy.hasExpectedPrompt(composer.textContent || "", intent)',
+            'document.execCommand("delete", false, null)',
+            'event("post-delivery-cleanup-complete"',
+            'stop("post-delivery-cleanup-failed", details)',
+        ):
+            self.assertIn(phrase, self.content)
+
+        cleanup = self.content[
+            self.content.index("function launchIntentState") : self.content.index("function conversationTurns")
+        ]
+        self.assertNotIn("button.click();", cleanup)
+        self.assertIn('if (deliveryState !== "delivered") return false;', cleanup)
+        self.assertIn("postDeliveryCleanupStableSince", cleanup)
+
+        capture = self.content[
+            self.content.index("async function captureResult") : self.content.index("function tick")
+        ]
+        self.assertIn("!postDeliveryCleanupComplete", capture)
+
+        tick = self.content[self.content.index("function tick") : self.content.index('event("adapter-loaded"')]
+        delivered_gate = tick.index('if (deliveryState !== "delivered") return;')
+        cleanup_gate = tick.index("if (!ensurePostDeliveryCleanup()) return;")
+        capture_call = tick.index("void captureResult(last);")
+        self.assertLess(delivered_gate, cleanup_gate)
+        self.assertLess(cleanup_gate, capture_call)
+
     def test_delivery_ambiguity_never_triggers_resend(self) -> None:
         self.assertIn('postDelivery(\n          "unknown"', self.content)
         self.assertIn('postDelivery(\n          "delivered"', self.content)
