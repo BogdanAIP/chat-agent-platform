@@ -16,6 +16,7 @@
   ];
   let postDeliveryUiDisarmed = false;
   let browserGuardRequired = false;
+  let postDeliveryGuardIntent = null;
 
   function parseIntent(urlString) {
     let url;
@@ -116,7 +117,7 @@
     if (!singleResultBlockShape(text)) return false;
     if (typeof document === "undefined" || typeof location === "undefined") return true;
     if (!browserGuardRequired) return true;
-    return postDeliveryUiDisarmed === true;
+    return postDeliveryUiDisarmed === true && currentPostDeliveryUiClean();
   }
 
   function guardEditorText(editor) {
@@ -140,6 +141,11 @@
       editor,
       bound: hasExpectedPrompt(text, intent),
     };
+  }
+
+  function currentPostDeliveryUiClean() {
+    if (!browserGuardRequired || !postDeliveryGuardIntent) return false;
+    return guardLaunchUrlClean() && guardComposerState(postDeliveryGuardIntent).clean;
   }
 
   function guardLaunchUrlClean() {
@@ -246,6 +252,7 @@
     const intent = parseIntent(location.href);
     if (!intent.enabled) return;
     browserGuardRequired = true;
+    postDeliveryGuardIntent = intent;
     let stableSince = 0;
     let ackPending = false;
     let ackedAt = 0;
