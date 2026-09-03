@@ -14,8 +14,10 @@ from runtime.control_plane import delegation_state
 
 TASK = "Read the supplied bounded question and return a short research summary without changing external state."
 TASK_SHA = hashlib.sha256(TASK.encode("utf-8")).hexdigest()
+EXECUTION_GENERATION = "9" * 64
 RUNTIME_ASSETS = {
     "manifest.json": "1" * 64,
+    "execution_generation.js": "5" * 64,
     "policy.js": "2" * 64,
     "background.js": "3" * 64,
     "content.js": "4" * 64,
@@ -38,16 +40,18 @@ def expected_runtime_attestation() -> dict[str, object]:
         "schema_version": 1,
         "adapter_id": source_attestation.ADAPTER_ID,
         "expected_head": "a" * 40,
+        "execution_generation": EXECUTION_GENERATION,
         "assets": dict(RUNTIME_ASSETS),
     }
 
 
-def runtime_report(**overrides: str) -> dict[str, object]:
+def runtime_report(*, execution_generation: str = EXECUTION_GENERATION, **overrides: str) -> dict[str, object]:
     assets = dict(RUNTIME_ASSETS)
     assets.update(overrides)
     return {
         "schema_version": 1,
         "adapter_id": source_attestation.ADAPTER_ID,
+        "execution_generation": execution_generation,
         "assets": assets,
     }
 
@@ -151,6 +155,7 @@ class TemporaryControllerTests(unittest.TestCase):
         self.assertFalse(launch["launch_now"])
         self.assertEqual("launch-attempted", launch["launch_state"])
         self.assertEqual("a" * 40, launch["expected_runtime_head"])
+        self.assertEqual(EXECUTION_GENERATION, launch["execution_generation"])
 
     def test_browser_claim_must_be_committed_before_local_send_authority(self) -> None:
         state = self.controller()
@@ -169,6 +174,15 @@ class TemporaryControllerTests(unittest.TestCase):
             state.authorize_send(authority_request(state, attestation=wrong))
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
         self.assertEqual("launch-attempted", snapshot.launch_state)
+        self.assertEqual("prepared", snapshot.delivery_state)
+        self.assertIsNone(snapshot.worker_session_ref)
+
+    def test_stale_execution_generation_blocks_child_bind_even_when_resource_hashes_match(self) -> None:
+        state = self.controller()
+        wrong = runtime_report(execution_generation="8" * 64)
+        with self.assertRaisesRegex(delegation_state.DelegationStateError, "execution generation mismatch"):
+            state.authorize_send(authority_request(state, attestation=wrong))
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
         self.assertEqual("prepared", snapshot.delivery_state)
         self.assertIsNone(snapshot.worker_session_ref)
 
