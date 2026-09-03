@@ -26,6 +26,7 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
             "runtime/agent_sessions/chatgpt_temporary.py",
             "runtime/agent_sessions/chatgpt_temporary_controller.py",
             "runtime/agent_sessions/chatgpt_temporary_extension/manifest.json",
+            "runtime/agent_sessions/chatgpt_temporary_extension/execution_generation.js",
             "runtime/agent_sessions/chatgpt_temporary_extension/policy.js",
             "runtime/agent_sessions/chatgpt_temporary_extension/background.js",
             "runtime/agent_sessions/chatgpt_temporary_extension/content.js",
@@ -35,13 +36,23 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
     def test_launcher_builds_exact_expected_installed_extension_attestation(self) -> None:
         self.assertIn("expected-runtime-attestation.json", self.text)
         self.assertIn("expected_head = $ExpectedHead", self.text)
+        self.assertIn("execution_generation = $executionGeneration", self.text)
         self.assertIn("adapter_id = 'chatgpt-temporary'", self.text)
-        for asset in ("manifest.json", "policy.js", "background.js", "content.js"):
+        self.assertIn("CAPChatGPTTemporaryExecutionGeneration", self.text)
+        for asset in (
+            "manifest.json",
+            "execution_generation.js",
+            "policy.js",
+            "background.js",
+            "content.js",
+        ):
             self.assertIn(f"'{asset}' = Get-Sha256", self.text)
         self.assertIn("--runtime-attestation-json", self.text)
         self.assertIn("$runtimeAttestationPath", self.text)
         self.assertIn("CAP_AGENT_SESSION_EXPECTED_EXTENSION_ATTESTATION", self.text)
+        self.assertIn("CAP_AGENT_SESSION_EXECUTION_GENERATION", self.text)
         self.assertIn("Controller runtime-attestation head mismatch", self.text)
+        self.assertIn("Controller execution-generation mismatch", self.text)
 
     def test_launcher_keeps_state_and_evidence_outside_repository(self) -> None:
         self.assertIn("$env:LOCALAPPDATA", self.text)
