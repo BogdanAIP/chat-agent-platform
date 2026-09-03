@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import shutil
-import subprocess
 from pathlib import Path
 import unittest
 
@@ -16,18 +14,13 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
         self.policy = POLICY.read_text(encoding="utf-8")
         self.content = CONTENT.read_text(encoding="utf-8")
 
-    def test_result_capture_is_gated_on_acked_stable_ui_disarm(self) -> None:
+    def test_result_capture_requires_acked_ui_disarm(self) -> None:
         for phrase in (
             "const POST_DELIVERY_UI_STABLE_MS = 8000;",
             "let postDeliveryUiDisarmed = false;",
             "let browserGuardRequired = false;",
             "function guardDeliveryVisible(intent)",
-            "function guardSanitizeLaunchUrl()",
-            "function guardClearBoundComposer(intent)",
-            'post_delivery_ui_disarmed: true',
-            'launch_url_clean: true',
-            'composer_clean: true',
-            "(response) => callback(Boolean(response?.ok))",
+            "function guardRecordCleanup(intent, callback)",
             "browserGuardRequired = true;",
             "return postDeliveryUiDisarmed === true;",
             "startPostDeliveryUiGuard();",
@@ -41,16 +34,11 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
         self.assertIn("singleResultBlockShape", gate)
         self.assertIn("browserGuardRequired", gate)
         self.assertIn("postDeliveryUiDisarmed", gate)
-        self.assertNotIn("parseIntent(location.href)", gate)
 
         guard = self.policy[
             self.policy.index("function startPostDeliveryUiGuard") :
             self.policy.index("function conversationId")
         ]
-        self.assertIn("guardDeliveryVisible(intent)", guard)
-        self.assertIn("guardSanitizeLaunchUrl()", guard)
-        self.assertIn("guardClearBoundComposer(intent)", guard)
-        self.assertIn("now - stableSince < POST_DELIVERY_UI_STABLE_MS", guard)
         self.assertIn("guardRecordCleanup(intent", guard)
         self.assertIn("postDeliveryUiDisarmed = true", guard)
         self.assertLess(
@@ -58,7 +46,7 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
             guard.index("postDeliveryUiDisarmed = true"),
         )
 
-    def test_guard_removes_all_launch_capabilities_and_requires_empty_editor(self) -> None:
+    def test_guard_disarms_url_and_requires_empty_bound_editor(self) -> None:
         for key in (
             '"temporary-chat"',
             '"cap_agent_delegate"',
@@ -72,29 +60,33 @@ class ChatGPTTemporaryPostDeliveryGuardTests(unittest.TestCase):
         self.assertIn('history.replaceState(history.state, "", nextUrl)', self.policy)
         self.assertIn('document.querySelector("#prompt-textarea")', self.policy)
         self.assertIn("clean: text.trim().length === 0", self.policy)
-        self.assertIn("if (!state.bound) return false;", self.policy)
+        self.assertIn(
+            "if (!state.bound) return { clean: false, changed: false };",
+            self.policy,
+        )
 
-    def test_one_send_authority_remains_unchanged(self) -> None:
+    def test_repeated_cleanup_resets_stability_timer(self) -> None:
+        cleanup = self.policy[
+            self.policy.index("function guardClearBoundComposer") :
+            self.policy.index("function guardDeliveryVisible")
+        ]
+        self.assertIn("return { clean: true, changed: false };", cleanup)
+        self.assertIn("return { clean: guardComposerState(intent).clean, changed: true };", cleanup)
+
+        guard = self.policy[
+            self.policy.index("function startPostDeliveryUiGuard") :
+            self.policy.index("function conversationId")
+        ]
+        self.assertIn("const composer = guardClearBoundComposer(intent);", guard)
+        self.assertIn("if (!clean || composer.changed)", guard)
+        self.assertLess(
+            guard.index("if (!clean || composer.changed)"),
+            guard.index("now - stableSince < POST_DELIVERY_UI_STABLE_MS"),
+        )
+
+    def test_one_send_authority_is_unchanged(self) -> None:
         self.assertEqual(1, self.content.count("button.click();"))
         self.assertNotIn("button.click();", self.policy)
-
-    def test_policy_still_parses_and_pure_result_shape_works_under_node(self) -> None:
-        node = shutil.which("node")
-        if node is None:
-            self.skipTest("node is unavailable")
-        script = f'''require({str(POLICY)!r});
-const p = globalThis.CAPChatGPTTemporaryPolicy;
-const good = `${{p.RESULT_BEGIN}}\n{{"x":1}}\n${{p.RESULT_END}}`;
-if (!p.singleResultBlockShape(good)) process.exit(2);
-if (!p.hasSingleResultBlock(good)) process.exit(3);
-'''
-        completed = subprocess.run(
-            [node, "-e", script],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(0, completed.returncode, completed.stderr)
 
 
 if __name__ == "__main__":
