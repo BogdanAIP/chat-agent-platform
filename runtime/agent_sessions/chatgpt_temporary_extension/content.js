@@ -110,6 +110,9 @@
     let statusPollPending = false;
     let lastStatusPollAt = 0;
     let finalObservationSentFor = "";
+    let recoveryConversationBound = recovered;
+    let recoveryConversationBindPending = false;
+    let lastRecoveryConversationBindAt = 0;
     const deadline = Date.now() + intent.maxWaitMs;
 
     function normalize(text) {
@@ -344,6 +347,19 @@
       );
     }
 
+    function resetCaptureAuthority() {
+      captureStarted = false;
+      postDeliveryCleanupComplete = false;
+      postDeliveryCleanupStableSince = 0;
+      policy.invalidatePostDeliveryAuthorization();
+    }
+
+    function staleCaptureAuthority(reason) {
+      const value = String(reason || "");
+      return value.includes("worker capture cleanup token is stale or missing") ||
+        value.includes("worker capture preparation token is stale or missing");
+    }
+
     async function requestAuthority(composer) {
       if (authorityRequested) return;
       authorityRequested = true;
@@ -393,6 +409,31 @@
       stop("local-send-authority-denied");
     }
 
+    async function bindRecoveryConversation() {
+      if (recovered || recoveryConversationBound || recoveryConversationBindPending || !sendAuthorized || !sendClickedAt) return;
+      const conversationId = policy.conversationId(location.href);
+      if (!conversationId) return;
+      const now = Date.now();
+      if (now - lastRecoveryConversationBindAt < 500) return;
+      lastRecoveryConversationBindAt = now;
+      recoveryConversationBindPending = true;
+      try {
+        const response = await sendMessage("bind-recovery-conversation", {
+          task_sha256: intent.taskSha256,
+        });
+        if (response?.ok && response.bound === true && response.conversation_id === conversationId) {
+          recoveryConversationBound = true;
+          return;
+        }
+        const reason = response?.reason || "conversation-binding-unavailable";
+        if (["claim-correlation-mismatch", "claim-tab-mismatch", "conversation-binding-mismatch", "conversation-binding-invalid"].includes(reason)) {
+          stop("recovery-conversation-binding-rejected", { reason });
+        }
+      } finally {
+        recoveryConversationBindPending = false;
+      }
+    }
+
     async function postDelivery(outcome, evidenceRef) {
       const response = await sendMessage("delivery", {
         task_sha256: intent.taskSha256,
@@ -421,14 +462,15 @@
         cleanup_token: authorization.cleanupToken,
       });
       if (!prepared?.ok || !policy.HEX64_RE.test(prepared.capture_token || "")) {
-        captureStarted = false;
-        event("result-capture-failed", { reason: prepared?.reason || "capture-preparation-failed" });
+        const reason = prepared?.reason || "capture-preparation-failed";
+        if (staleCaptureAuthority(reason)) resetCaptureAuthority();
+        else captureStarted = false;
+        event("result-capture-failed", { reason });
         return;
       }
       const current = policy.captureAuthorization();
       if (!current || current.cleanupToken !== authorization.cleanupToken) {
-        captureStarted = false;
-        postDeliveryCleanupComplete = false;
+        resetCaptureAuthority();
         return;
       }
       const response = await sendMessage("capture", {
@@ -440,9 +482,14 @@
         stop("result-recorded", { worker_status: response.worker_status || null });
         return;
       }
+      const reason = response?.reason || "capture-failed";
+      event("result-capture-failed", { reason });
+      if (staleCaptureAuthority(reason)) {
+        resetCaptureAuthority();
+        return;
+      }
       captureStarted = false;
-      event("result-capture-failed", { reason: response?.reason || "capture-failed" });
-      stop("result-capture-failed", { reason: response?.reason || "capture-failed" });
+      stop("result-capture-failed", { reason });
     }
 
     async function pollControllerStatus() {
@@ -505,6 +552,7 @@
       }
 
       if (!sendClickedAt) return;
+      if (!recoveryConversationBound) void bindRecoveryConversation();
       const visibleDelivery = userDeliveryVisible();
       if (visibleDelivery && deliveryState !== "delivered") {
         observationSeq += 1;
@@ -553,6 +601,8 @@
     if (response.execution_generation !== executionGeneration) return;
     if (![response.run_id, response.delegation_id, response.delivery_id, response.task_sha256, response.prompt_sha256].every((value) => policy.HEX64_RE.test(value || ""))) return;
     if (!policy.HEAD40_RE.test(response.expected_runtime_head || "")) return;
+    const currentConversationId = policy.conversationId(location.href);
+    if (!currentConversationId || response.conversation_id !== currentConversationId) return;
     start(recoveredIntent(response), true);
   });
 })();
