@@ -13,6 +13,7 @@ from runtime.control_plane.delegation_state import DelegationStateError
 ADAPTER_ID = "chatgpt-temporary"
 RUNTIME_ASSETS = (
     "manifest.json",
+    "execution_generation.js",
     "policy.js",
     "background.js",
     "content.js",
@@ -20,13 +21,20 @@ RUNTIME_ASSETS = (
 
 _HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
-_EXPECTED_KEYS = {"schema_version", "adapter_id", "expected_head", "assets"}
-_REPORT_KEYS = {"schema_version", "adapter_id", "assets"}
+_EXPECTED_KEYS = {
+    "schema_version",
+    "adapter_id",
+    "expected_head",
+    "execution_generation",
+    "assets",
+}
+_REPORT_KEYS = {"schema_version", "adapter_id", "execution_generation", "assets"}
 
 
 @dataclass(frozen=True)
 class ExpectedRuntimeAttestation:
     expected_head: str
+    execution_generation: str
     assets: dict[str, str]
 
 
@@ -45,16 +53,19 @@ def _exact(value: Mapping[str, Any], expected: set[str], label: str) -> None:
         )
 
 
+def _parse_digest(value: Any, label: str) -> str:
+    if type(value) is not str or _HEX64_RE.fullmatch(value) is None:
+        raise DelegationStateError(f"{label} is invalid")
+    return value
+
+
 def _parse_assets(value: Any, label: str) -> dict[str, str]:
     assets = _plain(value, f"{label} assets")
     expected_names = set(RUNTIME_ASSETS)
     _exact(assets, expected_names, f"{label} assets")
     parsed: dict[str, str] = {}
     for name in RUNTIME_ASSETS:
-        digest = assets[name]
-        if type(digest) is not str or _HEX64_RE.fullmatch(digest) is None:
-            raise DelegationStateError(f"{label} asset digest is invalid: {name}")
-        parsed[name] = digest
+        parsed[name] = _parse_digest(assets[name], f"{label} asset digest: {name}")
     return parsed
 
 
@@ -68,6 +79,10 @@ def parse_expected_runtime_attestation(value: Mapping[str, Any]) -> ExpectedRunt
         raise DelegationStateError("expected runtime attestation head is invalid")
     return ExpectedRuntimeAttestation(
         expected_head=head,
+        execution_generation=_parse_digest(
+            expected["execution_generation"],
+            "expected runtime execution generation",
+        ),
         assets=_parse_assets(expected["assets"], "expected runtime attestation"),
     )
 
@@ -81,6 +96,12 @@ def validate_runtime_attestation(
     _exact(report, _REPORT_KEYS, "runtime attestation")
     if report["schema_version"] != 1 or report["adapter_id"] != ADAPTER_ID:
         raise DelegationStateError("runtime attestation schema or adapter mismatch")
+    execution_generation = _parse_digest(
+        report["execution_generation"],
+        "runtime execution generation",
+    )
+    if not hmac.compare_digest(execution_generation, expected.execution_generation):
+        raise DelegationStateError("runtime execution generation mismatch")
     assets = _parse_assets(report["assets"], "runtime attestation")
     for name in RUNTIME_ASSETS:
         if not hmac.compare_digest(assets[name], expected.assets[name]):
@@ -90,6 +111,7 @@ def validate_runtime_attestation(
             "schema_version": 1,
             "adapter_id": ADAPTER_ID,
             "expected_head": expected.expected_head,
+            "execution_generation": execution_generation,
             "assets": assets,
         },
         sort_keys=True,
