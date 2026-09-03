@@ -15,6 +15,7 @@
     "prompt",
   ];
   let postDeliveryUiDisarmed = false;
+  let browserGuardRequired = false;
 
   function parseIntent(urlString) {
     let url;
@@ -114,8 +115,7 @@
   function hasSingleResultBlock(text) {
     if (!singleResultBlockShape(text)) return false;
     if (typeof document === "undefined" || typeof location === "undefined") return true;
-    const intent = parseIntent(location.href);
-    if (!intent.enabled) return true;
+    if (!browserGuardRequired) return true;
     return postDeliveryUiDisarmed === true;
   }
 
@@ -131,10 +131,8 @@
   }
 
   function guardComposerState(intent) {
-    const sendButton = document.querySelector('button[data-testid="send-button"]');
-    const composer = sendButton?.closest("form") || sendButton?.parentElement || document.querySelector("form");
-    if (!composer) return { clean: false, editor: null, bound: false };
-    const editor = composer.querySelector('#prompt-textarea,[contenteditable="true"],textarea');
+    const editor = document.querySelector("#prompt-textarea") ||
+      document.querySelector('form [contenteditable="true"],form textarea');
     if (!editor) return { clean: false, editor: null, bound: false };
     const text = guardEditorText(editor);
     return {
@@ -247,6 +245,7 @@
     if (typeof document === "undefined" || typeof location === "undefined" || !globalThis.chrome?.runtime?.sendMessage) return;
     const intent = parseIntent(location.href);
     if (!intent.enabled) return;
+    browserGuardRequired = true;
     let stableSince = 0;
     let ackPending = false;
     let ackedAt = 0;
