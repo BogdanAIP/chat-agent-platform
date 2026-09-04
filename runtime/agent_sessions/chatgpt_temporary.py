@@ -233,8 +233,10 @@ def prepare_temporary_session(
 
     ``launch_now`` is true only for the call that durably moves ``prepared`` to
     ``launch-attempted``. The private durable ``run_id`` is deliberately absent
-    from the task URL; only the already-armed live extension service-worker can
-    resolve ``launch_handle`` back to that capability.
+    from the task URL. For compatibility with the existing content policy, the
+    fragment key remains ``cap_run_id`` but its value is now only the opaque
+    ephemeral ``launch_handle``; the live MV3 service worker must resolve that
+    handle back to the private capability before any controller access.
     """
 
     launch_handle = _hex64(launch_handle, "launch_handle")
@@ -275,10 +277,10 @@ def prepare_temporary_session(
             "prompt": prompt,
         }
     )
-    # Browser session history may survive a complete Chrome restart. The task
-    # URL therefore carries only an opaque launch handle; ``run_id`` exists only
-    # in durable local state and the current MV3 service-worker's live handoff.
-    fragment = urlencode({"cap_launch_handle": launch_handle})
+    # Browser session history may survive a complete Chrome restart. The value
+    # placed in this legacy-named fragment is therefore NOT ``run_id``. It is an
+    # opaque handle meaningful only to the current live MV3 service worker.
+    fragment = urlencode({"cap_run_id": launch_handle})
     return TemporaryLaunchIntent(
         identity=identity,
         delegation_id=prepared.delegation_id,
@@ -353,11 +355,6 @@ def bind_temporary_child(
     if prepared.run_id != run_id:
         raise DelegationStateError("temporary child run capability mismatch")
 
-    # Chrome numeric tab ids are browser-session scoped and therefore cannot be
-    # durable worker identity. The delivery id is manager-owned, immutable for
-    # this delegation, and survives a complete browser restart. Keep provider
-    # tab ids only as transient evidence at the adapter boundary; persist the
-    # exact delivery + runtime digest as the stable child identity instead.
     stable_session_id = f"chatgpt-delivery:{prepared.delivery_id}"
     stable_observation_ref = (
         f"chatgpt-temporary:delivery:{prepared.delivery_id}:runtime:{runtime_digest}"
