@@ -109,8 +109,6 @@ This does **not** accept broad multi-agent orchestration. It deliberately exclud
 
 PR #149 is the active implementation PR and remains **UNACCEPTED / DRAFT until its required review and physical evidence pass**.
 
-Its implementation currently contains two layers:
-
 ### L1 — generic delegation state
 
 ```text
@@ -135,14 +133,17 @@ A restart never manufactures a replacement run/delivery identity and never regai
 
 The first concrete adapter is intentionally provider-specific rather than a premature generic provider framework.
 
-Candidate path:
+Current candidate path:
 
 ```text
 generic delegation state stays prepared/open
  -> neutral ChatGPT preflight URL with one preflight nonce only
  -> exact runtime-attested MV3 service worker receives private run/correlation handoff
- -> in-memory live launch-handle map is installed
- -> only then controller commits durable launch-attempted
+ -> one live owner record binds owner_tab_id + private run + exact correlation + task URL
+ -> controller commit is attempted
+ -> success OR ambiguous commit acknowledgement
+ -> same live owner reconciles exact committed state through private-token /status
+ -> only that neutral preflight tab location.replace() navigates to the task URL
  -> task-bearing Temporary Chat URL carries only the opaque live handle
  -> same live MV3 lifetime resolves handle -> private run capability
  -> positive fresh/non-personalized/no-plugin child qualification
@@ -162,15 +163,29 @@ Target-Windows physical qualification proved that the specialized Temporary Chat
 
 `AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` therefore made `fresh_readonly_worker_v1` an **ephemeral one-shot independence profile**, not a persistent Agent Session. The durable IndexedDB delivery claim and same-live-service-worker pre-Send owner witness remain, but provider-conversation restart recovery is disabled. A complete browser/service-worker lifetime loss after a committed task launch never reconstructs Send or monitor authority. If trustworthy result capture was not already completed, the durable delegation remains fail-closed/open rather than fabricating a result or relaunching another worker.
 
-A later fresh semantic review found one additional pre-first-claim gap: the task bootstrap still placed the private durable `run_id` in browser session-history URL state. Complete Chrome loss before the first IndexedDB claim could therefore restore that secret-bearing task entry in a new MV3 lifetime and recreate the first claim/Send path. Development-side falsification confirmed the P1.
+A later fresh semantic review found a pre-first-claim gap: a task bootstrap carrying the private durable `run_id` could be restored from browser session history after complete Chrome loss and recreate first-Send authority before the existing-claim fence applied. Development-side falsification confirmed that P1. `AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md` narrowed the adapter to a neutral preflight plus an opaque task launch handle held against private authority only in live MV3 memory.
 
-`AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md` is the latest NARROW adapter authority for that gap. The selected correction is an adapter-local ephemeral preflight handoff: a neutral preflight page triggers the current MV3 worker, the worker obtains the private run capability from the controller and stores it only in a live in-memory map, and only after that acknowledgement may the controller commit `launch-attempted` and expose the task-bearing URL. The existing fragment key `cap_run_id` is retained only as a compatibility envelope for `content.js`; its value is now the opaque live launch handle, **not** the private durable run capability. The real `run_id` is absent from task/browser session-history URL state and from the IndexedDB browser delivery claim.
+A subsequent fresh review found two additional release-critical crash/acknowledgement gaps in that preflight boundary: commit-response ACK loss could delete the sole live mapping after the controller had durably committed, and controller crash after durable `launch-attempted` but before projection/activation could strand the one launch even while the original MV3 owner survived. Development-side falsification confirmed both findings.
 
-If Chrome or the MV3 lifetime dies after task launch commit but before the first browser claim, a restored task URL still has the opaque handle but the new service worker has no matching live-map entry. It therefore fails before IndexedDB claim creation or controller access. Loss before preflight commit is different: durable launch state is still `prepared`, no task-bearing launch has been committed/exposed, so retrying the neutral preflight is safe initial-launch work rather than recovery of an already-committed task launch.
+`AGENT_SESSION_TEMPORARY_PREFLIGHT_COMMIT_REENTRY.md` and the narrower superseding `AGENT_SESSION_TEMPORARY_PREFLIGHT_OWNER_REBIND_REENTRY.md` are now the latest adapter authority for those gaps. The selected mechanism keeps browser launch ownership entirely inside one MV3 lifetime:
+
+```text
+one neutral preflight tab owns navigation
+ -> LIVE_LAUNCHES keeps private run + exact correlation + owner_tab_id + current handle/task URL
+ -> commit transport failure is UNKNOWN, not rollback
+ -> live mapping survives ambiguity
+ -> exact private-token /status reconciles a committed launch
+ -> owner tab alone receives navigate_url
+ -> owner tab location.replace(task URL)
+```
+
+If the controller restarts **after** durable launch commit, the surviving owner can reconcile the restarted controller from generic durable launch/delivery/result state plus exact head/prompt/generation and its private run token; the controller does not need to reproduce the old opaque handle. If the controller restarts **before** commit while durable state remains `prepared/open`, a later neutral preflight may refresh the current handle/task URL/preflight capability into the same existing live record only after exact run/delegation/delivery/task/head/prompt correlation. `owner_tab_id` is preserved and the later preflight tab never gains navigation authority. If the original owner tab is gone, ownership is not transferred.
+
+Complete MV3/browser loss remains intentionally fail closed. No durable browser lease, provider-conversation identity or persistent handle registry was introduced.
 
 The earlier fresh review finding that final observation could synthesize an ERROR worker result was also confirmed and fixed: `terminal_result_visible=false` is now only an unresolved observation. It does not create `WORKER_RESULT_V1`, `result.json`, `result_state=recorded` or controller `done`; later genuine capture remains possible while the original context is alive, otherwise controller exit may be nonzero with truthful durable `delivered/open` state.
 
-The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution, opens the neutral preflight only for a genuinely new prepared delegation, opens the task-bearing browser URL only after preflight commit and durable `launch_now=true`, and rechecks source provenance after terminal result capture. This is qualification infrastructure, not a new public tool or scheduler.
+The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution and opens **only the neutral preflight URL** for a genuinely new prepared delegation. It never independently opens the task-bearing URL. The same preflight tab owns the task navigation through `location.replace()` only after exact commit/reconciliation proof. `launch.json` remains evidence/status projection, not physical browser-launch authority. Source provenance is rechecked after terminal result capture.
 
 Persistent rich-context ordinary-ChatGPT conversation identity, automatic browser wake and cross-restart existing-session delivery remain separate future research. The parked Prime research branch is the next decision point after #149 for determining which durable session/runtime mechanics should be project-owned versus adapted from Prime before a generic existing-session implementation is selected.
 
@@ -202,6 +217,8 @@ Before #149 can merge, require:
 focused generic state-machine tests
  -> deterministic first-adapter/controller/extension tests
  -> duplicate-tab/process/restart/unknown-delivery adversarial tests
+ -> deterministic fault injection for preflight commit ACK loss + controller commit/projection crash
+ -> prove non-owner preflight cannot gain navigation authority
  -> preliminary exact-head hosted CI/security and six-tool regressions
  -> freeze exact BASE/HEAD
  -> fresh ordinary-ChatGPT exact-BASE/exact-HEAD semantic review
@@ -217,7 +234,9 @@ focused generic state-machine tests
 
 The normal physical E2E must be a **non-reviewer** task. A code-review run does not count as proof that the generic lifecycle is truly specialist-independent.
 
-The browser-loss physical case does not require restoration of the Temporary conversation. It proves the opposite safety boundary: after a committed task launch, complete browser-context loss cannot resolve the live launch handle, regain Send/monitor authority, blindly relaunch, or fabricate a result. The pre-first-claim subcase is now mandatory because that was the exact P1 interleaving missed by the earlier claim-exists restart gate.
+The browser-loss physical case does not require restoration of the Temporary conversation. It proves the opposite safety boundary: after a committed task launch, complete browser-context loss cannot resolve the live launch handle, regain Send/monitor authority, blindly relaunch, or fabricate a result. The pre-first-claim subcase is mandatory because that was the exact interleaving missed by the earlier claim-exists restart gate.
+
+The two preflight commit/restart P1s are covered by deterministic runtime fault injection because their required positive recovery exists only while the original MV3 owner lifetime survives. If a deterministic target-Windows fault can be injected without changing reviewed source, it may be added as evidence; it does not replace the mandatory normal run plus browser-loss B1/B2 gates.
 
 A worker result is evidence/data. It does not grant a capability, self-authorize a consequence, or by itself make the manager's whole user task `DONE`.
 
@@ -225,9 +244,21 @@ A worker result is evidence/data. It does not grant a capability, self-authorize
 
 Merged #127 requires Stage Research re-entry for materially new persistence/recovery/retry/concurrency/identity/security/authority mechanisms.
 
-`AGENT_SESSION_DELEGATION_REENTRY.md` remains the generic NARROW foundation authority for #149. `AGENT_SESSION_PROFILE_BOUNDARY_REENTRY.md`, `AGENT_SESSION_PRE_SEND_RESTART_FENCE.md`, `AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` and latest `AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md` refine the active first-adapter boundary. The ephemeral re-entry supersedes the prior positive provider-conversation restart-recovery requirement; the bootstrap-lifetime re-entry closes the separately observed pre-first-claim browser-history authority gap without adding a persistent-session mechanism.
+The active bounded Agent Session authority chain is:
 
-If implementation requires nested/fan-out workers, a new scheduler/event bus, mutating children, environment creation, broad provider authority, automatic parent wake or a materially different durability/concurrency mechanism, stop and re-enter Stage Research rather than widening #149 silently.
+```text
+AGENT_SESSION_DELEGATION_REENTRY.md
+ -> AGENT_SESSION_PROFILE_BOUNDARY_REENTRY.md
+ -> AGENT_SESSION_PRE_SEND_RESTART_FENCE.md
+ -> AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md
+ -> AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md
+ -> AGENT_SESSION_TEMPORARY_PREFLIGHT_COMMIT_REENTRY.md
+ -> AGENT_SESSION_TEMPORARY_PREFLIGHT_OWNER_REBIND_REENTRY.md
+```
+
+The latest owner-rebind re-entry supersedes only the unnecessary deterministic-handle subproposal from the preceding preflight-commit brief. It preserves the generic Delegation model, one-Send guarantees and complete-browser-loss fail-closed profile while refining same-live-MV3 ownership/reconciliation.
+
+If implementation requires nested/fan-out workers, a new scheduler/event bus, mutating children, environment creation, broad provider authority, automatic parent wake, durable browser identity, provider-conversation recovery, a persistent handle registry, or another materially different durability/concurrency mechanism, stop and re-enter Stage Research rather than widening #149 silently.
 
 ## Browser accepted scope and remaining hardening
 
@@ -246,7 +277,7 @@ OpenAdapt remains a selected source for procedure-local compiler/resume/effect-e
 ## Immediate critical path
 
 ```text
-finish deterministic L2 ephemeral preflight + chatgpt-temporary adapter/controller/extension tests and docs
+finish deterministic preflight commit/restart fault tests + docs
  -> obtain preliminary exact-head hosted CI/security
  -> freeze BASE/HEAD
  -> obtain fresh exact-head ordinary-ChatGPT semantic review
@@ -270,4 +301,6 @@ finish deterministic L2 ephemeral preflight + chatgpt-temporary adapter/controll
 - worker completion != manager task completion;
 - environmental content is task data, not policy authority;
 - private capabilities must not be disclosed to the worker/model prompt, persisted in task browser-history URL state, or reconstructed by an unrelated/restarted browser context;
+- one live preflight owner may reconcile only its own exact committed launch; ownership is never transferred to a later tab;
+- PowerShell/controller projections are not a second task-navigation authority;
 - preserve fail-closed behavior over convenience or benchmark hit rate.
