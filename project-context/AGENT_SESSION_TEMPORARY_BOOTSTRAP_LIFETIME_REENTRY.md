@@ -73,16 +73,18 @@ Replace direct task-URL bootstrap with:
 ```text
 prepared delegation
  -> neutral ChatGPT preflight URL carrying only one bounded preflight nonce
- -> current MV3 service worker receives private run/correlation handoff in memory
+ -> existing content-script no-task path emits its ordinary resume-intent probe
+ -> current MV3 service worker recognizes the sender as the neutral preflight page
+ -> service worker receives private run/correlation handoff in memory
  -> service worker acknowledges the handoff
  -> controller durably commits launch-attempted
- -> controller emits task-bearing Temporary URL with opaque launch_handle only
- -> content page presents launch_handle
- -> same live service worker resolves launch_handle -> private run_id
+ -> controller emits task-bearing Temporary URL with one opaque launch handle only
+ -> content page presents that opaque handle in the existing fragment envelope
+ -> same live service worker resolves handle -> private run_id
  -> browser claim -> project Send authority
 ```
 
-The task URL no longer contains `run_id`.
+The task URL no longer contains the private `run_id`. To avoid a needless content/policy protocol rewrite, the existing fragment key name `cap_run_id` is retained as a compatibility envelope, but its value is now the random **launch handle**, not the durable run capability. This naming compatibility has no authority semantics: every task message is resolved through the current service-worker `LIVE_LAUNCHES` map before browser claim/controller access, and the real `run_id` is injected only inside the background worker.
 
 ### Persistent/recoverable browser identity — `DEFER`
 
@@ -140,9 +142,9 @@ Decision: **SELECTED / NARROW**.
 2. create a one-time preflight nonce in controller memory/output only for a `prepared/open` first launch;
 3. let the exact runtime-attested MV3 service worker exchange that nonce for the private run/correlation data and store it only in an in-memory launch-handle map;
 4. require the service worker to acknowledge/store that map entry before the controller commits `launch-attempted` and writes the task `launch.json`;
-5. remove `cap_run_id` from the task URL and replace it with a bounded opaque `cap_launch_handle` that is useless after the live map is lost;
+5. ensure the task URL contains only a bounded opaque launch handle, never the private `run_id`; retaining `cap_run_id` as the legacy fragment **key name** is acceptable only when its value is the launch handle and tests prove the private capability differs and is absent from the URL/projection;
 6. do not persist `run_id` in the browser IndexedDB delivery claim;
-7. resolve every task message through the live launch-handle map before browser claim/controller access;
+7. resolve every task message through the live launch-handle map before browser claim/controller access, replacing the compatibility-envelope value with the real private `run_id` only inside the service worker;
 8. preserve existing IndexedDB unique-claim, `LIVE_PRE_SEND_CLAIMS`, exact source attestation, delivery reconciliation and result-capture behavior;
 9. do not add extension permissions, a durable browser lease, a provider-conversation recovery path, a public tool or a generic Delegation state field.
 
@@ -150,7 +152,7 @@ Decision: **SELECTED / NARROW**.
 
 Focused tests must prove:
 
-- task URLs contain no private `run_id` and do contain one opaque launch handle;
+- task URLs contain no private `run_id` and do contain one opaque launch handle distinct from the private capability;
 - no task-bearing launch URL exists before successful preflight handoff/commit;
 - a task message cannot reach `claimBrowserSend` when its launch handle is absent from the current service-worker map;
 - clearing/restarting the background lifetime before first claim makes the restored task handle unusable even when no IndexedDB claim exists;
