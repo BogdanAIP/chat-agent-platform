@@ -31,7 +31,7 @@ task_sha256
 
 from visible user turns. `background.js::observedClaimMatches()` matches only those same three visible values against extension-origin IndexedDB. When one active claim matches, `resumeIntent()` returns the claim's private `run_id`, `expected_runtime_head` and `prompt_sha256` to the requesting ChatGPT page.
 
-Chrome's `sender.tab.id` cannot supply durable recovery identity because Chrome documents tab IDs as unique only within a browser session. The current code intentionally stopped persisting numeric tab IDs, but replaced them only with delivery correlation. A different ChatGPT conversation containing copied visible markers can therefore acquire the private controller capability and participate in result/final-observation authority.
+Chrome's `sender.tab.id` cannot supply durable recovery identity because Chrome documents tab IDs as unique only within one browser session. The current code intentionally stopped persisting numeric tab IDs, but replaced them only with delivery correlation. A different ChatGPT conversation containing copied visible markers can therefore acquire the private controller capability and participate in result/final-observation authority.
 
 ### P2 — cleanup acknowledgement token has last-writer-wins ABA/liveness behavior
 
@@ -274,3 +274,17 @@ A negative foreign-conversation replay fixture should also prove copied visible 
 This is a refinement of the already-selected first-provider browser ownership boundary, not a new generic Agent Session primitive. The generic delegation identity/state model, six-tool public surface, Control Plane authority, Verification Kernel and Finish Gate remain unchanged.
 
 Re-enter Stage Research again if stable provider conversation identity cannot be positively observed before useful restart recovery, if ChatGPT Temporary Chat does not preserve a stable conversation route across full browser restart, or if physical evidence shows that duplicate same-conversation monitors require an actual lease/election mechanism.
+
+## 11. Fresh-review follow-up — exact HEAD `3e0ecd2438d96e48bc404bf041d5ba17f26c891e`
+
+A later fresh ordinary-ChatGPT review on 2026-09-04 reported three additional concrete defects. Development-side falsification confirmed all three and they remain inside this brief's already-selected browser ownership/recovery boundary:
+
+1. **Original claim-owner pre-Send fence.** A tab that lost the IndexedDB `store.add()` race could enter the existing-claim `prepared` recovery branch and request project-local Send authority before tab ownership was checked. The selected browser-claim ownership model requires that only the exact `claim_tab_id` owner may recover pre-Send authority within the same browser session; a losing tab is never an alternate Send owner.
+2. **Delivered commit / acknowledgement loss.** A durable `claimed -> delivered` write could succeed while its HTTP acknowledgement was lost. Browser retries used a new observation-derived `evidence_ref`, conflicting with the already-durable evidence and wedging local state. The selected idempotency/recovery model requires one stable evidence reference for retries of the same observed outcome plus reconciliation from authenticated controller status.
+3. **Final capture transport interruption.** A controller/network interruption after successful capture preparation could stop the content loop on a generic transport error before re-arm. The selected controller-restart behavior requires transport loss to invalidate local capture authority, require a new clean interval after recovery, and reconcile terminal durable state from authenticated controller status if the capture commit actually succeeded before the acknowledgement was lost.
+
+These findings do **not** require a new architecture owner, scheduler, lease, provider identity field, or generic delegation state. They tighten the already-selected one-Send ownership, idempotency and restart-recovery semantics. Focused adversarial regressions must therefore prove:
+
+- a losing duplicate tab cannot reach local Send authority while the original browser claim owner can recover it;
+- delivery outcome retry after acknowledgement loss reuses the same evidence identity and can reconcile a durable delivered state;
+- capture transport loss does not terminate the content recovery loop, and authenticated terminal status closes an already-recorded result without duplicate capture authority.
