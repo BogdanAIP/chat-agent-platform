@@ -298,11 +298,11 @@ implement narrow change
  -> mark ready and merge
 ```
 
-## 12. Fresh-review follow-up — timeout observation authority
+## 12. Fresh-review follow-up — exact HEAD `94f14890f8ad89dc3022e940c82c240021fbdb52`
 
-The fresh ordinary-ChatGPT review of exact HEAD `94f14890f8ad89dc3022e940c82c240021fbdb52` reported one P1 finding: `record_final_observation()` converted a live browser observation of `terminal_result_visible=false` into a synthetic `WORKER_RESULT_V1 status=ERROR`, irreversibly closing the delegation. Development-side falsification confirmed the finding against this brief's explicit prohibition on timeout-closure/fabricated worker results.
+The fresh ordinary-ChatGPT review reported one P1 finding: `record_final_observation()` converted a live browser observation of `terminal_result_visible=false` into a synthetic `WORKER_RESULT_V1 status=ERROR`, irreversibly closing the delegation. Development-side falsification confirmed the finding against this brief's explicit prohibition on timeout closure and fabricated worker results.
 
-The accepted correction stays inside this brief's existing NARROW authority: final observation may report whether a terminal result is currently visible and whether generation appears active, but **observation is not worker-result authority**. When no exact terminal result is visible, the controller returns a non-terminal unresolved observation, leaves `result_state=open`, writes no `result.json`, does not set `done`, and therefore returns nonzero after the bounded grace window unless a genuine worker result is captured in time. No new result status, timeout closure or reconciliation primitive is introduced.
+Disposition: **CONFIRMED / FIXED IN LATER HEAD**. The correction does not add a new architecture primitive: final observation remains observation only. When no exact terminal result is visible, the controller returns a non-terminal unresolved observation, leaves `result_state=open`, writes no `result.json`, does not set `done`, and returns nonzero after the bounded grace window unless a genuine worker result is captured in time. The review on `94f14890...` is stale after that material fix and a fresh exact-head review is required before physical acceptance.
 
 ## 13. Decision
 
