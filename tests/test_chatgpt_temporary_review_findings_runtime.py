@@ -102,6 +102,7 @@ vm.runInContext(`
     authorityCalls.push(tabId);
     return {{ send_authorized: true, delivery_state: "claimed", status: "authorized" }};
   }};
+  LIVE_PRE_SEND_CLAIMS.add(message.delivery_id);
 `, context);
 
 (async () => {{
@@ -114,6 +115,92 @@ vm.runInContext(`
   if (owner.send_authorized !== true || owner.reason !== "recovered-local-authority") process.exit(13);
   if (context.authorityCalls.length !== 1 || context.authorityCalls[0] !== ownerTab) process.exit(14);
 }})().catch((error) => {{ console.error(error); process.exit(20); }});
+"""
+        self.run_node(script)
+
+    def test_reused_owner_tab_id_after_background_restart_cannot_recover_pre_send_authority(self) -> None:
+        script = f"""
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync({json.dumps(str(BACKGROUND))}, "utf8");
+const generation = "9".repeat(64);
+const runId = "a".repeat(64);
+const delegationId = "b".repeat(64);
+const deliveryId = "c".repeat(64);
+const taskSha = "d".repeat(64);
+const head = "e".repeat(40);
+const promptSha = "f".repeat(64);
+const reusedOwnerTab = 17;
+
+const context = {{
+  console,
+  URL,
+  importScripts() {{}},
+  CAPChatGPTTemporaryExecutionGeneration: generation,
+  chrome: {{
+    runtime: {{
+      onInstalled: {{ addListener() {{}} }},
+      onStartup: {{ addListener() {{}} }},
+      onMessage: {{ addListener() {{}} }},
+    }},
+  }},
+}};
+context.globalThis = context;
+vm.createContext(context);
+vm.runInContext(source, context, {{ filename: "background.js" }});
+
+context.message = {{
+  schema_version: 1,
+  kind: "authorize-send",
+  execution_generation: generation,
+  run_id: runId,
+  delegation_id: delegationId,
+  delivery_id: deliveryId,
+  task_sha256: taskSha,
+  expected_runtime_head: head,
+  prompt_sha256: promptSha,
+}};
+context.record = {{
+  schema_version: 1,
+  run_id: runId,
+  delegation_id: delegationId,
+  delivery_id: deliveryId,
+  task_sha256: taskSha,
+  expected_runtime_head: head,
+  prompt_sha256: promptSha,
+  claim_tab_id: reusedOwnerTab,
+  conversation_id: null,
+  claimed_at: new Date().toISOString(),
+}};
+context.reusedSender = {{ url: "https://chatgpt.com/", tab: {{ id: reusedOwnerTab, url: "https://chatgpt.com/" }} }};
+context.authorityCalls = [];
+context.delegationId = delegationId;
+context.deliveryId = deliveryId;
+
+vm.runInContext(`
+  claimBrowserSend = async () => ({{ granted: false, reason: "already-claimed" }});
+  claimRecordByDelivery = async () => record;
+  controllerStatus = async () => ({{
+    delegation_id: delegationId,
+    delivery_id: deliveryId,
+    launch_state: "launch-attempted",
+    delivery_state: "prepared",
+    result_state: "open",
+  }});
+  requestLocalSendAuthority = async (_message, tabId) => {{
+    authorityCalls.push(tabId);
+    return {{ send_authorized: true, delivery_state: "claimed", status: "authorized" }};
+  }};
+`, context);
+
+(async () => {{
+  // A fresh service-worker context intentionally has no LIVE_PRE_SEND_CLAIMS
+  // entry even if Chromium reuses the old numeric tab id after restart.
+  const reused = await vm.runInContext("authorizeSend(message, reusedSender)", context);
+  if (reused.send_authorized !== false || reused.monitor_only !== false) process.exit(21);
+  if (reused.reason !== "browser-claim-owner-context-expired") process.exit(22);
+  if (context.authorityCalls.length !== 0) process.exit(23);
+}})().catch((error) => {{ console.error(error); process.exit(30); }});
 """
         self.run_node(script)
 
