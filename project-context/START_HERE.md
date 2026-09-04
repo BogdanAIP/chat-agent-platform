@@ -80,11 +80,11 @@ current repo/runtime/evidence
 
 A material new primitive or materially changed persistence/recovery/retry/concurrency/identity/authority design after the Brief invalidates implementation authority and requires research re-entry.
 
-For the current Agent Session / Delegation work, `AGENT_SESSION_DELEGATION_REENTRY.md` is the generic **NARROW** foundation authority. `AGENT_SESSION_PROFILE_BOUNDARY_REENTRY.md`, `AGENT_SESSION_PRE_SEND_RESTART_FENCE.md` and the latest `AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` refine the first `chatgpt-temporary` adapter. The latest re-entry supersedes the earlier requirement for positive same-Temporary-conversation recovery across complete Chrome restart after target-Windows evidence failed to expose a stable provider conversation identity.
+For the current Agent Session / Delegation work, `AGENT_SESSION_DELEGATION_REENTRY.md` is the generic **NARROW** foundation authority. `AGENT_SESSION_PROFILE_BOUNDARY_REENTRY.md`, `AGENT_SESSION_PRE_SEND_RESTART_FENCE.md`, `AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` and latest `AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md` refine the first `chatgpt-temporary` adapter. The ephemeral re-entry supersedes the earlier requirement for positive same-Temporary-conversation recovery after target-Windows evidence failed to expose a stable provider conversation identity. The bootstrap-lifetime re-entry separately closes the pre-first-claim browser-history gap found by fresh review on `27bc84c8...`.
 
 The authorized first scope remains one manager, one fresh read-only worker, one bounded delegation/delivery and one generic terminal result when trustworthy result capture succeeds. Nested/fan-out workers, mutating children, project/worktree/environment creation, a generic scheduler/event bus, long-lived worker pools, persistent existing-session delivery and automatic same-task parent wake/resampling remain outside that authority.
 
-`fresh_readonly_worker_v1` is an **ephemeral one-shot independence profile**. Its durable browser claim preserves one-Send exclusion and same-live-worker pre-Send ownership, but complete browser/service-worker lifetime loss never reconstructs Send or monitor authority. If result capture was interrupted, the durable delegation remains fail-closed/open rather than fabricating a result or silently launching another worker.
+`fresh_readonly_worker_v1` is an **ephemeral one-shot independence profile**. Its first task-bearing launch is now preceded by a neutral preflight: the current runtime-attested MV3 service-worker lifetime receives the private run capability into an in-memory live-handle map before the controller commits `launch-attempted`. The task URL carries only that opaque handle (in the existing `cap_run_id` fragment envelope for compatibility), never the private durable `run_id`. Complete browser/service-worker lifetime loss after task launch therefore destroys handle resolution before any browser claim/controller access. If result capture is interrupted, the durable delegation remains fail-closed/open rather than fabricating a result or silently launching another worker.
 
 `AUTOMATIC_REVIEWER_RESEARCH.md` / merged #140 remains the reviewer-specific NARROW authority for reviewer semantics and fallback procedures. It does not replace the generic Agent Session Brief, and the generic Brief does not erase reviewer-specific exact-PR/result/authority requirements.
 
@@ -106,7 +106,10 @@ The current PR #149 must therefore keep `ARCHITECTURE_REUSE_BASELINE.md` synchro
 manager selects one bounded subgoal
  -> deterministic provider-independent delegation identity
  -> private durable run capability
- -> durable launch-attempt before physical child creation
+ -> neutral provider preflight with no task/private run material in browser history
+ -> live MV3 handoff installed
+ -> durable launch-attempt before physical task-bearing child creation
+ -> task URL carries only opaque live handle
  -> positively qualified fresh read-only child
  -> one browser/provider delivery claim
  -> one project-local delivery claim
@@ -118,7 +121,7 @@ manager selects one bounded subgoal
  -> durable terminal closure only from that correlated result
 ```
 
-For the first `chatgpt-temporary` adapter, installed/runtime extension bytes must match the exact expected source set before Send and be revalidated before terminal browser-result capture. A provider UI or extension does not grant itself project authority. Complete browser-context loss is a fail-closed interruption for this profile, not a persistent-session recovery promise.
+For the first `chatgpt-temporary` adapter, installed/runtime extension bytes must match the exact expected source set before preflight/Send and be revalidated before terminal browser-result capture. A provider UI or extension does not grant itself project authority. Complete browser-context loss after a committed task launch is a fail-closed interruption for this profile, not a persistent-session recovery promise. Loss before preflight commit leaves durable launch state `prepared` and may safely repeat only the neutral initial preflight.
 
 Persistent rich-context ordinary-ChatGPT conversation identity, browser wake and cross-restart existing-session delivery remain future research. After #149, the parked Prime research branch is refreshed and exact-source Stage Research decides the CAP/Prime ownership boundary before implementing a generic persistent-session remainder.
 
