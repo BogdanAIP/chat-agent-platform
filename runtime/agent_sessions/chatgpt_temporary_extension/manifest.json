@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CAP ChatGPT Temporary Worker Adapter",
   "version": "0.1.0",
-  "description": "Bounded one-worker Temporary Chat adapter for Chat Agent Platform delegation.",
+  "description": "Ephemeral bounded one-worker Temporary Chat adapter for Chat Agent Platform delegation.",
   "background": {
     "service_worker": "background.js"
   },
