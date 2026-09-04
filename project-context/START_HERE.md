@@ -84,7 +84,9 @@ For the current Agent Session / Delegation work, `AGENT_SESSION_DELEGATION_REENT
 
 The authorized first scope remains one manager, one fresh read-only worker, one bounded delegation/delivery and one generic terminal result when trustworthy result capture succeeds. Nested/fan-out workers, mutating children, project/worktree/environment creation, a generic scheduler/event bus, long-lived worker pools, persistent existing-session delivery and automatic same-task parent wake/resampling remain outside that authority.
 
-`fresh_readonly_worker_v1` is an **ephemeral one-shot independence profile**. Its durable browser claim preserves one-Send exclusion and same-live-worker pre-Send ownership, but complete browser/service-worker lifetime loss never reconstructs Send or monitor authority. If result capture was interrupted, the durable delegation remains fail-closed/open rather than fabricating a result or silently launching another worker.
+`fresh_readonly_worker_v1` is an **ephemeral one-shot independence profile**. Its durable browser claim preserves one-Send exclusion and same-live-worker pre-Send ownership, but complete browser/service-worker lifetime loss never reconstructs Send or monitor authority. If result capture was interrupted, the durable delegation remains fail-closed/open rather than fabricate a result or silently launch another worker.
+
+A final-observation timeout does not create worker-result authority either. If the live page reports no conforming terminal result, even while still generating, the controller may record/return only a non-terminal observation. `result_state` stays `open`, no synthetic `WORKER_RESULT_V1` or `result.json` is created, and the bounded controller/launcher exits nonzero unless a genuine correlated worker result is captured during the remaining grace window.
 
 `AUTOMATIC_REVIEWER_RESEARCH.md` / merged #140 remains the reviewer-specific NARROW authority for reviewer semantics and fallback procedures. It does not replace the generic Agent Session Brief, and the generic Brief does not erase reviewer-specific exact-PR/result/authority requirements.
 
@@ -149,7 +151,7 @@ stage-research when applicable
  -> preliminary required hosted CI on intended head
  -> freeze exact BASE_SHA + HEAD_SHA
  -> required fresh ordinary-ChatGPT semantic review via code-review skill
- -> optional Codex Review when quota is available
+ -> optional Codex Review when available
  -> validate/fix findings
  -> material fixes invalidate the prior review
  -> fresh exact-head ChatGPT review
