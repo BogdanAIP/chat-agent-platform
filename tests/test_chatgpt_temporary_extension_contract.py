@@ -72,7 +72,7 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             "function liveLaunchForDelegation",
             "function reconcileLiveLaunch",
             "owner_tab_id: tabId",
-            "commit_state: \"ambiguous\"",
+            'live.commit_state = "ambiguous"',
             "function resolveLiveMessage(message)",
             "const live = LIVE_LAUNCHES.get(launchHandle)",
             "run_id: live.run_id",
