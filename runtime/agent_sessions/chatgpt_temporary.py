@@ -68,6 +68,18 @@ _DELIVERY_EVIDENCE_KEYS = {
 
 
 @dataclass(frozen=True)
+class TemporaryPreflightIntent:
+    identity: DelegationIdentity
+    delegation_id: str
+    delivery_id: str
+    prompt_sha256: str
+    launch_state: str
+    delivery_state: str
+    result_state: str
+    run_id: str = field(repr=False)
+
+
+@dataclass(frozen=True)
 class TemporaryLaunchIntent:
     identity: DelegationIdentity
     delegation_id: str
@@ -78,6 +90,7 @@ class TemporaryLaunchIntent:
     launch_state: str
     delivery_state: str
     result_state: str
+    launch_handle: str = field(repr=False)
     run_id: str = field(repr=False)
 
 
@@ -172,18 +185,17 @@ The adapter computes payload_sha256 after capture. Do not invent or calculate a 
 """.strip()
 
 
-def prepare_temporary_session(
+def prepare_temporary_preflight(
     identity_value: Mapping[str, Any],
     *,
     task: str,
     state_root: Path,
-) -> TemporaryLaunchIntent:
-    """Prepare a new child once or resume monitoring an already-attempted child.
+) -> TemporaryPreflightIntent:
+    """Prepare immutable delegation genesis without committing a browser launch.
 
-    ``launch_now`` is true only for the call that durably moves ``prepared`` to
-    ``launch-attempted``. A restarted controller can recover the same private
-    ``run_id`` and reconnect to an existing browser tab, but it can never gain a
-    second physical launch authority from this function.
+    The private ``run_id`` may be handed to one live extension service-worker
+    lifetime during adapter preflight. No task-bearing browser URL is emitted by
+    this function and the durable launch state remains ``prepared``.
     """
 
     identity = parse_delegation_identity(identity_value)
@@ -192,6 +204,50 @@ def prepare_temporary_session(
         raise DelegationStateError("worker task digest does not match delegation identity")
 
     prepared = prepare_delegation(identity.as_dict(), state_root=state_root)
+    prompt = build_worker_prompt(
+        identity,
+        delegation_id=prepared.delegation_id,
+        delivery_id=prepared.delivery_id,
+        task=task,
+    )
+    return TemporaryPreflightIntent(
+        identity=identity,
+        delegation_id=prepared.delegation_id,
+        delivery_id=prepared.delivery_id,
+        run_id=prepared.run_id,
+        prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        launch_state=prepared.launch_state,
+        delivery_state=prepared.delivery_state,
+        result_state=prepared.result_state,
+    )
+
+
+def prepare_temporary_session(
+    identity_value: Mapping[str, Any],
+    *,
+    task: str,
+    launch_handle: str,
+    state_root: Path,
+) -> TemporaryLaunchIntent:
+    """Commit at most one task-bearing launch bound to a live launch handle.
+
+    ``launch_now`` is true only for the call that durably moves ``prepared`` to
+    ``launch-attempted``. The private durable ``run_id`` is deliberately absent
+    from the task URL; only the already-armed live extension service-worker can
+    resolve ``launch_handle`` back to that capability.
+    """
+
+    launch_handle = _hex64(launch_handle, "launch_handle")
+    preflight = prepare_temporary_preflight(
+        identity_value,
+        task=task,
+        state_root=state_root,
+    )
+    identity = preflight.identity
+    prepared = prepare_delegation(identity.as_dict(), state_root=state_root)
+    if prepared.run_id != preflight.run_id:
+        raise DelegationStateError("temporary preflight run capability changed")
+
     launch_now = False
     launch_state = prepared.launch_state
     if prepared.result_state == "open" and prepared.launch_state == "prepared":
@@ -219,15 +275,16 @@ def prepare_temporary_session(
             "prompt": prompt,
         }
     )
-    # Keep the private durable run capability out of the HTTP request/query. The
-    # extension reads it from the fragment before claiming Send authority; the
-    # worker prompt never contains it.
-    fragment = urlencode({"cap_run_id": prepared.run_id})
+    # Browser session history may survive a complete Chrome restart. The task
+    # URL therefore carries only an opaque launch handle; ``run_id`` exists only
+    # in durable local state and the current MV3 service-worker's live handoff.
+    fragment = urlencode({"cap_launch_handle": launch_handle})
     return TemporaryLaunchIntent(
         identity=identity,
         delegation_id=prepared.delegation_id,
         delivery_id=prepared.delivery_id,
         run_id=prepared.run_id,
+        launch_handle=launch_handle,
         launch_url=f"https://chatgpt.com/?{query}#{fragment}",
         prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         launch_now=launch_now,
@@ -241,11 +298,17 @@ def prepare_temporary_launch(
     identity_value: Mapping[str, Any],
     *,
     task: str,
+    launch_handle: str,
     state_root: Path,
 ) -> TemporaryLaunchIntent:
     """Compatibility name for the bounded new-or-resume session preparation."""
 
-    return prepare_temporary_session(identity_value, task=task, state_root=state_root)
+    return prepare_temporary_session(
+        identity_value,
+        task=task,
+        launch_handle=launch_handle,
+        state_root=state_root,
+    )
 
 
 def bind_temporary_child(
