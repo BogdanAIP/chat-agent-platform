@@ -370,7 +370,8 @@ class TemporaryControllerTests(unittest.TestCase):
             }
         )
         self.assertEqual("recorded", recorded["result_state"])
-        with self.assertRaisesRegex(delegation_state.DelegationStateError, "preparation token"):
+        self.assertIsNone(state.capture_token)
+        with self.assertRaisesRegex(delegation_state.DelegationStateError, "stale or missing"):
             state.record_capture(
                 {
                     "schema_version": 1,
