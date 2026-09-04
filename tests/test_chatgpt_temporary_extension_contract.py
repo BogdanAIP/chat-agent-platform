@@ -55,7 +55,7 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn("expected_runtime_head: message.expected_runtime_head", claim)
         self.assertIn("prompt_sha256: message.prompt_sha256", claim)
         self.assertIn("claim_tab_id: tabId", claim)
-        self.assertIn("conversation_id: null", claim)
+        self.assertNotIn("conversation_id", claim)
         self.assertNotIn("store.put(", claim)
         self.assertNotIn("store.delete", self.background)
 
@@ -89,10 +89,10 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertNotIn("runtimeAttestation()", commit)
         self.assertIn("capture_token: message.capture_token", commit)
 
-    def test_browser_claim_is_restart_stable_and_not_owned_by_numeric_tab_id(self) -> None:
+    def test_browser_claim_keeps_exact_delivery_identity_and_live_owner_fence(self) -> None:
         exact = self.background[
             self.background.index("function exactClaimMatches") :
-            self.background.index("function validObservedClaim")
+            self.background.index("function senderTab")
         ]
         for phrase in (
             "record.run_id === message.run_id",
@@ -103,63 +103,56 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             "record.prompt_sha256 === message.prompt_sha256",
         ):
             self.assertIn(phrase, exact)
-        self.assertNotIn("tab_id", exact)
-        self.assertIn("async function claimRecordsForRecovery()", self.background)
-        self.assertIn(".getAll()", self.background)
-        self.assertNotIn("claimRecordsForTab", self.background)
+        self.assertIn("const LIVE_PRE_SEND_CLAIMS = new Set();", self.background)
+        self.assertIn("LIVE_PRE_SEND_CLAIMS.add(message.delivery_id)", self.background)
+        self.assertIn("LIVE_PRE_SEND_CLAIMS.has(message.delivery_id)", self.background)
+        self.assertIn("existing.claim_tab_id !== tabId", self.background)
+        self.assertNotIn("claimRecordsForRecovery", self.background)
 
-    def test_browser_restart_resume_requires_bound_provider_conversation_and_visible_correlation(self) -> None:
-        resume = self.background[
-            self.background.index("async function resumeIntent") :
-            self.background.index("async function authorizeSend")
-        ]
-        self.assertIn("message?.observed_claims", resume)
-        self.assertIn("validObservedClaim", resume)
-        self.assertIn("observedClaimMatches", resume)
-        self.assertIn("claimRecordsForRecovery", resume)
-        self.assertIn('reason: "provider-conversation-unavailable"', resume)
-        self.assertIn('reason: "no-observed-delivery-correlation"', resume)
-        self.assertIn("const conversationId = senderConversationId(sender)", resume)
-        self.assertIn("observedClaimMatches(record, value, conversationId)", resume)
-        self.assertIn('status.launch_state !== "child-bound"', resume)
-        self.assertIn("active.length !== 1", resume)
-        self.assertIn('monitor_only: true', resume)
-        self.assertIn("expected_runtime_head: record.expected_runtime_head", resume)
-        self.assertIn("prompt_sha256: record.prompt_sha256", resume)
-        self.assertIn("conversation_id: record.conversation_id", resume)
-        self.assertIn("function observedRecoveryClaims()", self.content)
-        self.assertIn("observed_claims: observedRecoveryClaims()", self.content)
-        self.assertIn("response.conversation_id !== currentConversationId", self.content)
-
-    def test_provider_conversation_binding_is_monotonic_and_fenced_to_send_owner_tab(self) -> None:
-        bind = self.background[
-            self.background.index("async function bindClaimConversationRecord") :
-            self.background.index("async function controllerPost")
-        ]
-        self.assertIn("exactClaimMatches(record, message)", bind)
-        self.assertIn("record.claim_tab_id !== tabId", bind)
-        self.assertIn("record.conversation_id === conversationId", bind)
-        self.assertIn("store.put({ ...record, conversation_id: conversationId }", bind)
+    def test_complete_browser_restart_recovery_is_permanently_disabled_for_temporary_profile(self) -> None:
+        self.assertNotIn("async function resumeIntent", self.background)
+        self.assertNotIn("async function bindRecoveryConversation", self.background)
+        self.assertNotIn("async function bindClaimConversationRecord", self.background)
+        self.assertNotIn("senderConversationId", self.background)
+        self.assertNotIn("observedClaimMatches", self.background)
+        self.assertIn('message.kind === "resume-intent"', self.background)
         self.assertIn('message.kind === "bind-recovery-conversation"', self.background)
-        self.assertIn('sendMessage("bind-recovery-conversation"', self.content)
-        self.assertIn("!sendAuthorized || !sendClickedAt", self.content)
+        self.assertGreaterEqual(self.background.count('reason: "temporary-profile-ephemeral"'), 3)
+        resume_handler = self.background[
+            self.background.index('message?.schema_version === 1 && message.kind === "resume-intent"') :
+            self.background.index("if (!validCommon(message))")
+        ]
+        self.assertIn("enabled: false", resume_handler)
+        self.assertNotIn("run_id", resume_handler)
 
-    def test_pre_send_recovery_is_bound_to_exact_head_and_prompt(self) -> None:
+    def test_post_send_existing_claim_never_grants_monitor_or_second_send(self) -> None:
+        authorize = self.background[
+            self.background.index("async function authorizeSend") :
+            self.background.index("chrome.runtime.onInstalled")
+        ]
+        self.assertIn('reason: "temporary-profile-ephemeral"', authorize)
+        self.assertIn("monitor_only: false", authorize)
+        self.assertNotIn("const monitorOnly =", authorize)
+        self.assertNotIn("monitor_only: true", authorize)
+
+    def test_pre_send_recovery_is_bound_to_exact_head_prompt_live_owner_and_tab(self) -> None:
         authorize = self.background[
             self.background.index("async function authorizeSend") :
             self.background.index("chrome.runtime.onInstalled")
         ]
         exact = self.background[
             self.background.index("function exactClaimMatches") :
-            self.background.index("function validObservedClaim")
+            self.background.index("function senderTab")
         ]
         local = self.background[
             self.background.index("async function requestLocalSendAuthority") :
-            self.background.index("async function bindRecoveryConversation")
+            self.background.index("async function authorizeSend")
         ]
         self.assertIn('status.delivery_state === "prepared"', authorize)
         self.assertIn('["launch-attempted", "child-bound"].includes(status.launch_state)', authorize)
         self.assertIn("exactClaimMatches(existing, message)", authorize)
+        self.assertIn("LIVE_PRE_SEND_CLAIMS.has(message.delivery_id)", authorize)
+        self.assertIn("existing.claim_tab_id !== tabId", authorize)
         self.assertIn("record.expected_runtime_head === message.expected_runtime_head", exact)
         self.assertIn("record.prompt_sha256 === message.prompt_sha256", exact)
         self.assertIn("expected_runtime_head: message.expected_runtime_head", local)
@@ -176,7 +169,6 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         request = self.content.index('sendMessage("authorize-send"')
         self.assertLess(request, gate)
         self.assertIn("if (response.send_authorized === true)", self.content[:gate])
-        self.assertIn("monitorOnly = recovered", self.content)
 
     def test_temporary_mode_never_implies_non_personalized_state(self) -> None:
         observe = self.content[
