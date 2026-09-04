@@ -121,47 +121,23 @@ const head = "7".repeat(40);
 const promptSha = "8".repeat(64);
 const taskUrl = `https://chatgpt.com/?temporary-chat=true&cap_agent_delegate=1#cap_run_id=${{launchHandle}}`;
 const sender = {{ url: `https://chatgpt.com/?cap_agent_preflight=1#cap_preflight_id=${{preflightId}}`, tab: {{ id: 17 }} }};
-
 const context = {{
-  console,
-  URL,
-  importScripts() {{}},
-  CAPChatGPTTemporaryExecutionGeneration: generation,
-  preflightId,
-  launchHandle,
-  runId,
-  delegationId,
-  deliveryId,
-  taskSha,
-  head,
-  promptSha,
-  taskUrl,
-  sender,
-  commitApplied: false,
-  commitCalls: 0,
-  statusCalls: 0,
-  chrome: {{ runtime: {{
-    onInstalled: {{ addListener() {{}} }},
-    onStartup: {{ addListener() {{}} }},
-    onMessage: {{ addListener() {{}} }},
-  }} }},
+  console, URL, generation, preflightId, launchHandle, runId, delegationId, deliveryId,
+  taskSha, head, promptSha, taskUrl, sender,
+  importScripts() {{}}, CAPChatGPTTemporaryExecutionGeneration: generation,
+  commitApplied: false, commitCalls: 0, statusCalls: 0,
+  chrome: {{ runtime: {{ onInstalled: {{ addListener() {{}} }}, onStartup: {{ addListener() {{}} }}, onMessage: {{ addListener() {{}} }} }} }},
 }};
 context.globalThis = context;
 vm.createContext(context);
 vm.runInContext(source, context, {{ filename: "background.js" }});
 vm.runInContext(`
   runtimeAttestation = async () => ({{ schema_version: 1, adapter_id: "chatgpt-temporary", execution_generation: generation, assets: {{}} }});
-  preflightPost = async (id, path, body) => {{
+  preflightPost = async (_id, path, _body) => {{
     if (path === "/preflight") return {{
-      schema_version: 1,
-      status: "handoff-prepared",
-      launch_handle: launchHandle,
-      run_id: runId,
-      delegation_id: delegationId,
-      delivery_id: deliveryId,
-      task_sha256: taskSha,
-      expected_runtime_head: head,
-      prompt_sha256: promptSha,
+      schema_version: 1, status: "handoff-prepared", launch_handle: launchHandle,
+      run_id: runId, delegation_id: delegationId, delivery_id: deliveryId,
+      task_sha256: taskSha, expected_runtime_head: head, prompt_sha256: promptSha,
       launch_url: taskUrl,
     }};
     if (path === "/preflight-commit") {{
@@ -175,20 +151,12 @@ vm.runInContext(`
     statusCalls += 1;
     if (!commitApplied) throw new Error("not-committed");
     return {{
-      schema_version: 1,
-      status: "ready",
-      delegation_id: delegationId,
-      delivery_id: deliveryId,
-      launch_state: "launch-attempted",
-      delivery_state: "prepared",
-      result_state: "open",
-      expected_runtime_head: head,
-      execution_generation: generation,
-      prompt_sha256: promptSha,
+      schema_version: 1, status: "ready", delegation_id: delegationId, delivery_id: deliveryId,
+      launch_state: "launch-attempted", delivery_state: "prepared", result_state: "open",
+      expected_runtime_head: head, execution_generation: generation, prompt_sha256: promptSha,
     }};
   }};
 `, context);
-
 (async () => {{
   const response = await vm.runInContext("prepareLiveLaunch(preflightId, sender)", context);
   if (response.ok !== true || response.status !== "preflight-navigation-ready") process.exit(10);
@@ -218,9 +186,9 @@ const promptSha = "8".repeat(64);
 const taskUrl = `https://chatgpt.com/?temporary-chat=true&cap_agent_delegate=1#cap_run_id=${{launchHandle}}`;
 const sender = {{ url: `https://chatgpt.com/?cap_agent_preflight=1#cap_preflight_id=${{preflightId}}`, tab: {{ id: 17 }} }};
 const context = {{
-  console, URL, importScripts() {{}}, CAPChatGPTTemporaryExecutionGeneration: generation,
-  preflightId, launchHandle, runId, delegationId, deliveryId, taskSha, head, promptSha, taskUrl, sender,
-  commitCalls: 0,
+  console, URL, generation, preflightId, launchHandle, runId, delegationId, deliveryId,
+  taskSha, head, promptSha, taskUrl, sender,
+  importScripts() {{}}, CAPChatGPTTemporaryExecutionGeneration: generation, commitCalls: 0,
   chrome: {{ runtime: {{ onInstalled: {{ addListener() {{}} }}, onStartup: {{ addListener() {{}} }}, onMessage: {{ addListener() {{}} }} }} }},
 }};
 context.globalThis = context;
@@ -228,28 +196,14 @@ vm.createContext(context);
 vm.runInContext(source, context, {{ filename: "background.js" }});
 vm.runInContext(`
   LIVE_LAUNCHES.set(launchHandle, {{
-    run_id: runId,
-    delegation_id: delegationId,
-    delivery_id: deliveryId,
-    task_sha256: taskSha,
-    expected_runtime_head: head,
-    prompt_sha256: promptSha,
-    launch_url: taskUrl,
-    owner_tab_id: 17,
-    preflight_id: preflightId,
-    commit_state: "ambiguous",
+    run_id: runId, delegation_id: delegationId, delivery_id: deliveryId,
+    task_sha256: taskSha, expected_runtime_head: head, prompt_sha256: promptSha,
+    launch_url: taskUrl, owner_tab_id: 17, preflight_id: preflightId, commit_state: "ambiguous",
   }});
   controllerStatusWithRun = async (_live) => ({{
-    schema_version: 1,
-    status: "ready",
-    delegation_id: delegationId,
-    delivery_id: deliveryId,
-    launch_state: "launch-attempted",
-    delivery_state: "prepared",
-    result_state: "open",
-    expected_runtime_head: head,
-    execution_generation: generation,
-    prompt_sha256: promptSha,
+    schema_version: 1, status: "ready", delegation_id: delegationId, delivery_id: deliveryId,
+    launch_state: "launch-attempted", delivery_state: "prepared", result_state: "open",
+    expected_runtime_head: head, execution_generation: generation, prompt_sha256: promptSha,
   }});
   preflightPost = async () => {{ commitCalls += 1; throw new Error("recommit-forbidden"); }};
 `, context);
@@ -284,10 +238,9 @@ const newUrl = `https://chatgpt.com/?temporary-chat=true&cap_agent_delegate=1#ca
 const oldOwner = {{ url: `https://chatgpt.com/?cap_agent_preflight=1#cap_preflight_id=${{oldPreflight}}`, tab: {{ id: 17 }} }};
 const newTab = {{ url: `https://chatgpt.com/?cap_agent_preflight=1#cap_preflight_id=${{newPreflight}}`, tab: {{ id: 18 }} }};
 const context = {{
-  console, URL, importScripts() {{}}, CAPChatGPTTemporaryExecutionGeneration: generation,
-  oldPreflight, newPreflight, oldHandle, newHandle, runId, delegationId, deliveryId, taskSha, head, promptSha,
-  oldUrl, newUrl, oldOwner, newTab,
-  commitCalls: [],
+  console, URL, generation, oldPreflight, newPreflight, oldHandle, newHandle, runId,
+  delegationId, deliveryId, taskSha, head, promptSha, oldUrl, newUrl, oldOwner, newTab,
+  importScripts() {{}}, CAPChatGPTTemporaryExecutionGeneration: generation, commitCalls: [],
   chrome: {{ runtime: {{ onInstalled: {{ addListener() {{}} }}, onStartup: {{ addListener() {{}} }}, onMessage: {{ addListener() {{}} }} }} }},
 }};
 context.globalThis = context;
@@ -295,40 +248,22 @@ vm.createContext(context);
 vm.runInContext(source, context, {{ filename: "background.js" }});
 vm.runInContext(`
   LIVE_LAUNCHES.set(oldHandle, {{
-    run_id: runId,
-    delegation_id: delegationId,
-    delivery_id: deliveryId,
-    task_sha256: taskSha,
-    expected_runtime_head: head,
-    prompt_sha256: promptSha,
-    launch_url: oldUrl,
-    owner_tab_id: 17,
-    preflight_id: oldPreflight,
-    commit_state: "prepared",
+    run_id: runId, delegation_id: delegationId, delivery_id: deliveryId,
+    task_sha256: taskSha, expected_runtime_head: head, prompt_sha256: promptSha,
+    launch_url: oldUrl, owner_tab_id: 17, preflight_id: oldPreflight, commit_state: "prepared",
   }});
   runtimeAttestation = async () => ({{ schema_version: 1, adapter_id: "chatgpt-temporary", execution_generation: generation, assets: {{}} }});
   preflightPost = async (id, path, body) => {{
     if (path === "/preflight") return {{
-      schema_version: 1,
-      status: "handoff-prepared",
-      launch_handle: newHandle,
-      run_id: runId,
-      delegation_id: delegationId,
-      delivery_id: deliveryId,
-      task_sha256: taskSha,
-      expected_runtime_head: head,
-      prompt_sha256: promptSha,
+      schema_version: 1, status: "handoff-prepared", launch_handle: newHandle,
+      run_id: runId, delegation_id: delegationId, delivery_id: deliveryId,
+      task_sha256: taskSha, expected_runtime_head: head, prompt_sha256: promptSha,
       launch_url: newUrl,
     }};
     if (path === "/preflight-commit") {{
       commitCalls.push({{ id, launch_handle: body.launch_handle }});
-      return {{
-        schema_version: 1,
-        status: "launch-committed",
-        delegation_id: delegationId,
-        delivery_id: deliveryId,
-        launch_state: "launch-attempted",
-      }};
+      return {{ schema_version: 1, status: "launch-committed", delegation_id: delegationId,
+        delivery_id: deliveryId, launch_state: "launch-attempted" }};
     }}
     throw new Error("unexpected-path:" + path);
   }};
@@ -365,16 +300,11 @@ const target = `https://chatgpt.com/?temporary-chat=true&cap_agent_delegate=1#ca
 let intervalFn = null;
 let calls = 0;
 const replacements = [];
-
 const policy = {{
   HEX64_RE: /^[0-9a-f]{{64}}$/,
   HEAD40_RE: /^[0-9a-f]{{40}}$/,
-  parseIntent(url) {{
-    if (url === target) return {{ enabled: true, delegationId, deliveryId }};
-    return {{ enabled: false }};
-  }},
+  parseIntent(url) {{ return url === target ? {{ enabled: true, delegationId, deliveryId }} : {{ enabled: false }}; }},
 }};
-
 global.CAPChatGPTTemporaryPolicy = policy;
 global.CAPChatGPTTemporaryExecutionGeneration = generation;
 global.location = {{
@@ -388,34 +318,21 @@ global.chrome = {{ runtime: {{
   sendMessage(message, callback) {{
     if (message.kind !== "resume-intent") throw new Error("unexpected-message:" + message.kind);
     calls += 1;
-    if (calls === 1) {{
-      callback({{ ok: false, status: "preflight-commit-unresolved", execution_generation: generation }});
-      return;
-    }}
-    callback({{
-      ok: true,
-      status: "preflight-navigation-ready",
-      execution_generation: generation,
-      navigate_url: target,
-      delegation_id: delegationId,
-      delivery_id: deliveryId,
-    }});
+    if (calls === 1) return callback({{ ok: false, status: "preflight-commit-unresolved", execution_generation: generation }});
+    callback({{ ok: true, status: "preflight-navigation-ready", execution_generation: generation,
+      navigate_url: target, delegation_id: delegationId, delivery_id: deliveryId }});
   }},
 }} }};
 global.setInterval = (fn, _ms) => {{ intervalFn = fn; return 1; }};
 global.clearInterval = (_id) => {{}};
-
 function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
-
 (async () => {{
   vm.runInThisContext(source, {{ filename: "content.js" }});
-  await flush();
-  await flush();
+  await flush(); await flush();
   if (replacements.length !== 0) process.exit(70);
   if (typeof intervalFn !== "function") process.exit(71);
   intervalFn();
-  await flush();
-  await flush();
+  await flush(); await flush();
   if (replacements.length !== 1 || replacements[0] !== target) process.exit(72);
 }})().catch((error) => {{ console.error(error); process.exit(80); }});
 """
