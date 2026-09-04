@@ -116,6 +116,13 @@ def _bounded_text(value: Any, label: str, maximum: int, *, nullable: bool = Fals
     return value
 
 
+def _require_supported_profile(identity: DelegationIdentity) -> None:
+    if identity.worker_profile != WORKER_PROFILE:
+        raise DelegationStateError(
+            f"chatgpt-temporary supports only worker_profile={WORKER_PROFILE}"
+        )
+
+
 def task_sha256(task: str) -> str:
     if type(task) is not str or not task.strip():
         raise DelegationStateError("worker task must be non-empty text")
@@ -135,8 +142,7 @@ def build_worker_prompt(
     digest = task_sha256(task)
     if digest != identity.task_sha256:
         raise DelegationStateError("worker task digest does not match delegation identity")
-    if identity.worker_profile != WORKER_PROFILE:
-        raise DelegationStateError("unsupported worker profile")
+    _require_supported_profile(identity)
 
     return f"""WORKER_TASK_V1
 
@@ -181,6 +187,7 @@ def prepare_temporary_session(
     """
 
     identity = parse_delegation_identity(identity_value)
+    _require_supported_profile(identity)
     if task_sha256(task) != identity.task_sha256:
         raise DelegationStateError("worker task digest does not match delegation identity")
 
@@ -248,6 +255,7 @@ def bind_temporary_child(
     state_root: Path,
 ) -> DelegationSnapshot:
     identity = parse_delegation_identity(identity_value)
+    _require_supported_profile(identity)
     evidence = _plain_object(evidence_value, "temporary child evidence")
     _exact_keys(evidence, _CHILD_EVIDENCE_KEYS, "temporary child evidence")
     if evidence["schema_version"] != 1 or evidence["adapter_id"] != ADAPTER_ID:
@@ -313,6 +321,7 @@ def claim_temporary_delivery(
     state_root: Path,
 ) -> DeliveryClaim:
     identity = parse_delegation_identity(identity_value)
+    _require_supported_profile(identity)
     return claim_delivery(identity.as_dict(), run_id=run_id, state_root=state_root)
 
 
@@ -323,6 +332,7 @@ def record_temporary_delivery(
     state_root: Path,
 ) -> DelegationSnapshot:
     identity = parse_delegation_identity(identity_value)
+    _require_supported_profile(identity)
     evidence = _plain_object(evidence_value, "temporary delivery evidence")
     _exact_keys(evidence, _DELIVERY_EVIDENCE_KEYS, "temporary delivery evidence")
     if evidence["schema_version"] != 1:
@@ -362,6 +372,7 @@ def normalize_worker_result_text(
     delegation_id: str,
     delivery_id: str,
 ) -> NormalizedWorkerResult:
+    _require_supported_profile(identity)
     if type(text) is not str or not text.strip():
         raise DelegationStateError("worker result text must be non-empty")
     encoded = text.encode("utf-8")
@@ -403,6 +414,7 @@ def record_temporary_worker_result(
     state_root: Path,
 ) -> DelegationSnapshot:
     identity = parse_delegation_identity(identity_value)
+    _require_supported_profile(identity)
     prepared = prepare_delegation(identity.as_dict(), state_root=state_root)
     _hex64(run_id, "run_id")
     if prepared.run_id != run_id:
