@@ -218,7 +218,27 @@ verified skill/memory promotion
 
 The preferred outcome remains `ADAPT`: Prime is the engine/runtime substrate, ordinary ChatGPT is the reasoning source, CAP is the trusted control and verification layer.
 
-## 10. Completion rule for the preserved research plan
+## 10. Anthropic Commerce Agents as a boundary reference
+
+The later exact-source Prime Stage Research must include `anthropics/commerce-agents` as a **mechanism reference** for the boundary between persistent Prime/ChatGPT reasoning context and CAP-owned authority/effects. This note does not pre-accept any Anthropic mechanism and does not treat the commerce-agent harness as a session/runtime replacement for Prime.
+
+All material claims used in the Stage Research Brief must be re-traced under `.agents/skills/source-code-research/SKILL.md` to an exact upstream commit/tag, concrete files/symbols, tests where available and relevant failure history. README/blog descriptions alone are insufficient implementation evidence.
+
+The mechanism questions to answer are:
+
+1. **Object / observation provenance.** Does CAP need a first-class, bounded provenance reference for object IDs, messages, listings, page-derived values or worker observations crossing from persistent Prime/ChatGPT context into a consequence-bearing CAP effect? The required invariant is not a particular type name; it is that stale, invented or foreign objects cannot become effect authority merely because they survived in model context.
+2. **Untrusted-context fencing.** How should persistent reasoning distinguish project authority/instructions and authoritative CAP state from untrusted third-party page/message/tool/worker content? Long-lived context makes this more important because hostile or stale content can survive for many turns.
+3. **Consequence staging.** For which consequence classes is the existing CAP `authorize -> act -> re-observe -> verify` contract sufficient, and for which, if any, does evidence support an explicit `propose/stage -> approve -> revalidate -> apply` boundary? Do not introduce a generic staging framework unless a concrete CAP consequence class requires it.
+4. **Outcome-oriented evaluation.** Can snapshot/outcome regression cases with long, messy, contradictory or partially stale histories provide a cheap deterministic regression layer above unit tests and below physical CAP qualification? This should complement, not replace, exact physical/security/provenance gates.
+5. **Provenance through compaction.** If Prime or ChatGPT compacts/summarizes persistent context, how are source identity, freshness and authority preserved for facts or objects later reused in decisions? LLM-generated summaries must never manufacture or upgrade CAP authority.
+
+Names such as `GroundedReference` or `UntrustedObservation` are **not** treated as Anthropic terminology or preselected CAP primitives. If Stage Research later proposes such concepts, it must derive the minimum project-owned mechanism from exact source evidence, current CAP invariants and observed failure modes.
+
+Anthropic Commerce Agents is therefore a reference for provenance/fencing/staged-consequence/evaluation mechanics, not evidence for Prime daemon/supervisor, attach/detach, persistent AgentSession or retained-worker recovery. Those runtime questions remain owned by Prime exact-source research plus the required independent runtime/harness comparison cohort.
+
+The first core Prime proof should continue to exercise the thing Prime is being considered for: a persistent rich-context session with multiple model/tool turns, detach/restart/reattach continuation and retained Task A -> Task B isolation. The fresh Temporary reviewer is a later product consumer and must not substitute for that persistent-runtime proof.
+
+## 11. Completion rule for the preserved research plan
 
 Before anyone starts broad Prime integration, the combined roadmap + this addendum must still answer all of these explicitly:
 
@@ -234,6 +254,10 @@ What happens when browser/plugin/ChatGPT is unavailable?
 How is zero Codex/API physically demonstrated?
 How is Prime prevented from bypassing CAP authority?
 How are Prime versions/upgrades pinned and requalified?
+How are object/observation provenance and untrusted-context boundaries preserved?
+How does provenance survive compaction/context projection?
+When, if ever, is explicit stage/approve/revalidate/apply required beyond current CAP consequence semantics?
+How do outcome/snapshot regressions complement physical CAP gates?
 How do we decide quantitatively whether Prime actually reduces total project work?
 ```
 
