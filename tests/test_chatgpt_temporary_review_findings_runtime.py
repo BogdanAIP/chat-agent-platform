@@ -85,6 +85,8 @@ context.record = {{
 context.ownerSender = {{ url: "https://chatgpt.com/", tab: {{ id: ownerTab, url: "https://chatgpt.com/" }} }};
 context.loserSender = {{ url: "https://chatgpt.com/", tab: {{ id: loserTab, url: "https://chatgpt.com/" }} }};
 context.authorityCalls = [];
+context.delegationId = delegationId;
+context.deliveryId = deliveryId;
 
 vm.runInContext(`
   claimBrowserSend = async () => ({{ granted: false, reason: "already-claimed" }});
