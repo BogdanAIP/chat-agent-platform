@@ -138,9 +138,13 @@ The first concrete adapter is intentionally provider-specific rather than a prem
 Candidate path:
 
 ```text
-generic delegation state
- -> durable launch-attempt
- -> ChatGPT Temporary Chat adapter
+generic delegation state stays prepared/open
+ -> neutral ChatGPT preflight URL with one preflight nonce only
+ -> exact runtime-attested MV3 service worker receives private run/correlation handoff
+ -> in-memory live launch-handle map is installed
+ -> only then controller commits durable launch-attempted
+ -> task-bearing Temporary Chat URL carries only the opaque live handle
+ -> same live MV3 lifetime resolves handle -> private run capability
  -> positive fresh/non-personalized/no-plugin child qualification
  -> extension-origin IndexedDB unique delivery claim across tabs
  -> project-local delivery claim
@@ -156,11 +160,17 @@ The MV3 extension has no `nativeMessaging`, GitHub, filesystem, cookies, downloa
 
 Target-Windows physical qualification proved that the specialized Temporary Chat path can produce one fresh qualified worker, exactly one Send, visible delivery and a valid terminal worker result, but did **not** positively expose a stable provider conversation identity suitable for complete-Chrome restart recovery. The earlier browser-recovery research explicitly required re-entry in that case.
 
-`AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` is therefore the current adapter-specific NARROW authority. `fresh_readonly_worker_v1` is now explicitly an **ephemeral one-shot independence profile**, not a persistent Agent Session. The durable IndexedDB delivery claim and same-live-service-worker pre-Send owner witness remain, but provider-conversation restart recovery is disabled. A complete browser/service-worker lifetime loss never reconstructs Send or monitor authority. If trustworthy result capture was not already completed, the durable delegation remains fail-closed/open rather than fabricating a result or relaunching another worker.
+`AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` therefore made `fresh_readonly_worker_v1` an **ephemeral one-shot independence profile**, not a persistent Agent Session. The durable IndexedDB delivery claim and same-live-service-worker pre-Send owner witness remain, but provider-conversation restart recovery is disabled. A complete browser/service-worker lifetime loss after a committed task launch never reconstructs Send or monitor authority. If trustworthy result capture was not already completed, the durable delegation remains fail-closed/open rather than fabricating a result or relaunching another worker.
 
-The private durable `run_id` is not present in the worker prompt and is not placed in the HTTP query. The launch bootstrap carries it in the URL fragment for the initial project extension context, and the model-facing task receives only bounded delegation/delivery/task correlation. A later ordinary ChatGPT page cannot recover that private capability through `resume-intent`.
+A later fresh semantic review on exact HEAD `27bc84c8ce672291519d0ea0b655bca2bb4440c8` found one additional pre-first-claim gap: the task bootstrap still placed the private durable `run_id` in browser session-history URL state. Complete Chrome loss before the first IndexedDB claim could therefore restore that secret-bearing task entry in a new MV3 lifetime and recreate the first claim/Send path. Development-side falsification confirmed the P1.
 
-The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution, opens a browser only when durable `launch_now=true`, and rechecks source provenance after terminal result capture. This is qualification infrastructure, not a new public tool or scheduler.
+`AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md` is the latest NARROW adapter authority for that gap. The selected correction is an adapter-local ephemeral preflight handoff: a neutral preflight page triggers the current MV3 worker, the worker obtains the private run capability from the controller and stores it only in a live in-memory map, and only after that acknowledgement may the controller commit `launch-attempted` and expose the task-bearing URL. The existing fragment key `cap_run_id` is retained only as a compatibility envelope for `content.js`; its value is now the opaque live launch handle, **not** the private durable run capability. The real `run_id` is absent from task/browser session-history URL state and from the IndexedDB browser delivery claim.
+
+If Chrome or the MV3 lifetime dies after task launch commit but before the first browser claim, a restored task URL still has the opaque handle but the new service worker has no matching live-map entry. It therefore fails before IndexedDB claim creation or controller access. Loss before preflight commit is different: durable launch state is still `prepared`, no task-bearing launch has been committed/exposed, so retrying the neutral preflight is safe initial-launch work rather than recovery of an already-committed task launch.
+
+The earlier fresh review finding that final observation could synthesize an ERROR worker result was also confirmed and fixed: `terminal_result_visible=false` is now only an unresolved observation. It does not create `WORKER_RESULT_V1`, `result.json`, `result_state=recorded` or controller `done`; later genuine capture remains possible while the original context is alive, otherwise controller exit may be nonzero with truthful durable `delivered/open` state.
+
+The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution, opens the neutral preflight only for a genuinely new prepared delegation, opens the task-bearing browser URL only after preflight commit and durable `launch_now=true`, and rechecks source provenance after terminal result capture. This is qualification infrastructure, not a new public tool or scheduler.
 
 Persistent rich-context ordinary-ChatGPT conversation identity, automatic browser wake and cross-restart existing-session delivery remain separate future research. The parked Prime research branch is the next decision point after #149 for determining which durable session/runtime mechanics should be project-owned versus adapted from Prime before a generic existing-session implementation is selected.
 
@@ -199,14 +209,15 @@ focused generic state-machine tests
  -> target-Windows/Plus physical qualification on the reviewed exact HEAD
  -> exact source/runtime provenance for the physical claim
  -> normal uninterrupted fresh-worker result capture
- -> complete-Chrome browser-loss fail-closed proof with zero second Send/recovery authority
+ -> complete-Chrome browser-loss fail-closed proof at both pre-first-claim and post-claim boundaries
+ -> zero second Send/recovery authority
  -> final exact-head hosted CI
  -> re-resolve BASE/HEAD unchanged before merge
 ```
 
 The normal physical E2E must be a **non-reviewer** task. A code-review run does not count as proof that the generic lifecycle is truly specialist-independent.
 
-The browser-loss physical case does not require restoration of the Temporary conversation. It proves the opposite safety boundary: after complete browser-context loss the ephemeral profile cannot regain Send/monitor authority, cannot blindly relaunch, and preserves truthful durable state unless a result was already recorded.
+The browser-loss physical case does not require restoration of the Temporary conversation. It proves the opposite safety boundary: after a committed task launch, complete browser-context loss cannot resolve the live launch handle, regain Send/monitor authority, blindly relaunch, or fabricate a result. The pre-first-claim subcase is now mandatory because that was the exact P1 interleaving missed by the earlier claim-exists restart gate.
 
 A worker result is evidence/data. It does not grant a capability, self-authorize a consequence, or by itself make the manager's whole user task `DONE`.
 
@@ -214,7 +225,7 @@ A worker result is evidence/data. It does not grant a capability, self-authorize
 
 Merged #127 requires Stage Research re-entry for materially new persistence/recovery/retry/concurrency/identity/security/authority mechanisms.
 
-`AGENT_SESSION_DELEGATION_REENTRY.md` remains the generic NARROW foundation authority for #149. `AGENT_SESSION_PROFILE_BOUNDARY_REENTRY.md`, `AGENT_SESSION_PRE_SEND_RESTART_FENCE.md` and `AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` refine the active first-adapter boundary. The latest ephemeral re-entry supersedes the prior positive provider-conversation restart-recovery requirement for `fresh_readonly_worker_v1` while preserving the earlier one-Send and fail-closed ownership findings.
+`AGENT_SESSION_DELEGATION_REENTRY.md` remains the generic NARROW foundation authority for #149. `AGENT_SESSION_PROFILE_BOUNDARY_REENTRY.md`, `AGENT_SESSION_PRE_SEND_RESTART_FENCE.md`, `AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` and latest `AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md` refine the active first-adapter boundary. The ephemeral re-entry supersedes the prior positive provider-conversation restart-recovery requirement; the bootstrap-lifetime re-entry closes the separately observed pre-first-claim browser-history authority gap without adding a persistent-session mechanism.
 
 If implementation requires nested/fan-out workers, a new scheduler/event bus, mutating children, environment creation, broad provider authority, automatic parent wake or a materially different durability/concurrency mechanism, stop and re-enter Stage Research rather than widening #149 silently.
 
@@ -235,12 +246,12 @@ OpenAdapt remains a selected source for procedure-local compiler/resume/effect-e
 ## Immediate critical path
 
 ```text
-finish deterministic L2 ephemeral chatgpt-temporary adapter/controller/extension tests and docs
+finish deterministic L2 ephemeral preflight + chatgpt-temporary adapter/controller/extension tests and docs
  -> obtain preliminary exact-head hosted CI/security
  -> freeze BASE/HEAD
  -> obtain fresh exact-head ordinary-ChatGPT semantic review
  -> fix/falsify findings and repeat fresh review after any HEAD movement
- -> run final target-Windows/Plus normal + browser-loss physical qualification
+ -> run final target-Windows/Plus normal + pre-first-claim/post-claim browser-loss physical qualification
  -> run final exact-head hosted checks
  -> re-resolve exact BASE/HEAD and merge #149
  -> refresh parked Prime research from accepted main
@@ -258,5 +269,5 @@ finish deterministic L2 ephemeral chatgpt-temporary adapter/controller/extension
 - transition `PASS` != task `DONE`;
 - worker completion != manager task completion;
 - environmental content is task data, not policy authority;
-- private capabilities must not be disclosed to the worker/model prompt or reconstructed by an unrelated browser context;
+- private capabilities must not be disclosed to the worker/model prompt, persisted in task browser-history URL state, or reconstructed by an unrelated/restarted browser context;
 - preserve fail-closed behavior over convenience or benchmark hit rate.
