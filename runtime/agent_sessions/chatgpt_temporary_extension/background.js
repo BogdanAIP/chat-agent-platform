@@ -114,45 +114,106 @@ async function preflightPost(preflightId, path, body) {
   return value;
 }
 
-async function prepareLiveLaunch(preflightId, sender) {
-  if (senderTab(sender) === null) return { ok: false, reason: "invalid-sender" };
-  if (!HEX64_RE.test(preflightId || "")) return { ok: false, reason: "invalid-preflight-capability" };
+function liveLaunchForOwnerTab(tabId) {
+  for (const [launchHandle, live] of LIVE_LAUNCHES.entries()) {
+    if (live.owner_tab_id === tabId) return { launchHandle, live };
+  }
+  return null;
+}
 
-  const attestation = await runtimeAttestation();
-  const prepared = await preflightPost(preflightId, "/preflight", {
-    schema_version: 1,
-    preflight_id: preflightId,
-    execution_generation: EXECUTION_GENERATION,
-    runtime_attestation: attestation,
-  });
+function validPreparedLaunch(prepared) {
   if (
-    prepared.status !== "handoff-prepared" ||
+    prepared?.status !== "handoff-prepared" ||
     !HEX64_RE.test(prepared.launch_handle || "") ||
     !HEX64_RE.test(prepared.run_id || "") ||
     !HEX64_RE.test(prepared.delegation_id || "") ||
     !HEX64_RE.test(prepared.delivery_id || "") ||
     !HEX64_RE.test(prepared.task_sha256 || "") ||
     !HEAD40_RE.test(prepared.expected_runtime_head || "") ||
-    !HEX64_RE.test(prepared.prompt_sha256 || "")
+    !HEX64_RE.test(prepared.prompt_sha256 || "") ||
+    typeof prepared.launch_url !== "string" ||
+    !prepared.launch_url
   ) {
-    throw new Error("invalid-preflight-handoff");
+    return false;
   }
-
-  const live = {
-    run_id: prepared.run_id,
-    delegation_id: prepared.delegation_id,
-    delivery_id: prepared.delivery_id,
-    task_sha256: prepared.task_sha256,
-    expected_runtime_head: prepared.expected_runtime_head,
-    prompt_sha256: prepared.prompt_sha256,
-  };
-  LIVE_LAUNCHES.set(prepared.launch_handle, live);
-
+  let url;
   try {
-    const committed = await preflightPost(preflightId, "/preflight-commit", {
+    url = new URL(prepared.launch_url);
+  } catch {
+    return false;
+  }
+  if (url.origin !== "https://chatgpt.com" || url.searchParams.get("cap_agent_delegate") !== "1") return false;
+  const fragment = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+  if (fragment.get("cap_run_id") !== prepared.launch_handle) return false;
+  if (prepared.launch_url.includes(prepared.run_id)) return false;
+  return true;
+}
+
+function exactLivePreparedMatch(live, prepared) {
+  return live &&
+    live.run_id === prepared.run_id &&
+    live.delegation_id === prepared.delegation_id &&
+    live.delivery_id === prepared.delivery_id &&
+    live.task_sha256 === prepared.task_sha256 &&
+    live.expected_runtime_head === prepared.expected_runtime_head &&
+    live.prompt_sha256 === prepared.prompt_sha256 &&
+    live.launch_url === prepared.launch_url;
+}
+
+function exactCommittedStatus(live, launchHandle, status) {
+  return status &&
+    status.status === "ready" &&
+    status.delegation_id === live.delegation_id &&
+    status.delivery_id === live.delivery_id &&
+    status.launch_handle === launchHandle &&
+    status.expected_runtime_head === live.expected_runtime_head &&
+    status.execution_generation === EXECUTION_GENERATION &&
+    status.prompt_sha256 === live.prompt_sha256 &&
+    ["launch-attempted", "child-bound"].includes(status.launch_state) &&
+    status.delivery_state === "prepared" &&
+    status.result_state === "open";
+}
+
+async function controllerStatusWithRun(live) {
+  const response = await fetch(`${CONTROLLER_ORIGIN}/status`, {
+    method: "GET",
+    headers: { "X-CAP-Agent-Token": live.run_id },
+    cache: "no-store",
+  });
+  const value = await response.json().catch(() => ({ status: "invalid-controller-response" }));
+  if (!response.ok) throw new Error(`controller-${response.status}:${value.reason || value.status || "rejected"}`);
+  return value;
+}
+
+async function reconcileLiveLaunch(launchHandle, live) {
+  try {
+    const status = await controllerStatusWithRun(live);
+    if (exactCommittedStatus(live, launchHandle, status)) {
+      live.commit_state = "committed";
+      return {
+        ok: true,
+        status: "preflight-navigation-ready",
+        navigate_url: live.launch_url,
+        delegation_id: live.delegation_id,
+        delivery_id: live.delivery_id,
+      };
+    }
+    return { ok: false, status: "preflight-commit-unresolved", reason: "controller-status-not-committed" };
+  } catch (error) {
+    return {
+      ok: false,
+      status: "preflight-commit-unresolved",
+      reason: `controller-status-unavailable:${error?.message || "Error"}`,
+    };
+  }
+}
+
+async function commitLiveLaunch(launchHandle, live) {
+  try {
+    const committed = await preflightPost(live.preflight_id, "/preflight-commit", {
       schema_version: 1,
-      preflight_id: preflightId,
-      launch_handle: prepared.launch_handle,
+      preflight_id: live.preflight_id,
+      launch_handle: launchHandle,
       execution_generation: EXECUTION_GENERATION,
       runtime_attestation: await runtimeAttestation(),
     });
@@ -164,17 +225,85 @@ async function prepareLiveLaunch(preflightId, sender) {
     ) {
       throw new Error("invalid-preflight-commit");
     }
+    live.commit_state = "committed";
+    return {
+      ok: true,
+      status: "preflight-navigation-ready",
+      navigate_url: live.launch_url,
+      delegation_id: live.delegation_id,
+      delivery_id: live.delivery_id,
+    };
   } catch (error) {
-    LIVE_LAUNCHES.delete(prepared.launch_handle);
-    throw error;
+    // A transport exception does not mean the state-changing commit failed.
+    // Keep the only live private mapping and reconcile from token-authenticated
+    // durable controller state. Deleting the mapping here would strand a
+    // successfully committed launch when the HTTP acknowledgement was lost.
+    live.commit_state = "ambiguous";
+    const reconciled = await reconcileLiveLaunch(launchHandle, live);
+    if (reconciled.ok) return reconciled;
+    return {
+      ok: false,
+      status: "preflight-commit-unresolved",
+      reason: `commit-ambiguous:${error?.message || "Error"};${reconciled.reason || "unresolved"}`,
+    };
+  }
+}
+
+async function prepareLiveLaunch(preflightId, sender) {
+  const tabId = senderTab(sender);
+  if (tabId === null) return { ok: false, reason: "invalid-sender" };
+  if (!HEX64_RE.test(preflightId || "")) return { ok: false, reason: "invalid-preflight-capability" };
+
+  const owned = liveLaunchForOwnerTab(tabId);
+  if (owned) {
+    if (owned.live.commit_state === "committed" || owned.live.commit_state === "ambiguous") {
+      const reconciled = await reconcileLiveLaunch(owned.launchHandle, owned.live);
+      if (reconciled.ok) return reconciled;
+    }
+    return await commitLiveLaunch(owned.launchHandle, owned.live);
   }
 
-  return {
-    ok: true,
-    status: "launch-armed",
-    delegation_id: live.delegation_id,
-    delivery_id: live.delivery_id,
+  const attestation = await runtimeAttestation();
+  const prepared = await preflightPost(preflightId, "/preflight", {
+    schema_version: 1,
+    preflight_id: preflightId,
+    execution_generation: EXECUTION_GENERATION,
+    runtime_attestation: attestation,
+  });
+  if (!validPreparedLaunch(prepared)) throw new Error("invalid-preflight-handoff");
+
+  const existing = LIVE_LAUNCHES.get(prepared.launch_handle);
+  if (existing) {
+    if (!exactLivePreparedMatch(existing, prepared)) throw new Error("preflight-live-correlation-mismatch");
+    // A later neutral preflight for the same stable handle may refresh the
+    // controller's ephemeral preflight capability after controller restart,
+    // but navigation ownership never transfers away from the original tab.
+    existing.preflight_id = preflightId;
+    if (existing.owner_tab_id !== tabId) {
+      return {
+        ok: true,
+        status: "preflight-owned-by-other-tab",
+        delegation_id: existing.delegation_id,
+        delivery_id: existing.delivery_id,
+      };
+    }
+    return await commitLiveLaunch(prepared.launch_handle, existing);
+  }
+
+  const live = {
+    run_id: prepared.run_id,
+    delegation_id: prepared.delegation_id,
+    delivery_id: prepared.delivery_id,
+    task_sha256: prepared.task_sha256,
+    expected_runtime_head: prepared.expected_runtime_head,
+    prompt_sha256: prepared.prompt_sha256,
+    launch_url: prepared.launch_url,
+    owner_tab_id: tabId,
+    preflight_id: preflightId,
+    commit_state: "prepared",
   };
+  LIVE_LAUNCHES.set(prepared.launch_handle, live);
+  return await commitLiveLaunch(prepared.launch_handle, live);
 }
 
 function resolveLiveMessage(message) {
@@ -472,7 +601,12 @@ chrome.runtime.onMessage.addListener((incoming, sender, sendResponse) => {
         .then((value) => sendResponse({
           ok: value.ok === true,
           enabled: false,
-          reason: value.ok === true ? "preflight-armed" : value.reason || "preflight-failed",
+          status: value.status || null,
+          reason: value.reason || (value.ok === true ? value.status : "preflight-failed"),
+          navigate_url: value.navigate_url || null,
+          delegation_id: value.delegation_id || null,
+          delivery_id: value.delivery_id || null,
+          execution_generation: EXECUTION_GENERATION,
         }))
         .catch((error) => sendResponse({ ok: false, enabled: false, reason: error?.message || "preflight-failed" }));
       return true;
