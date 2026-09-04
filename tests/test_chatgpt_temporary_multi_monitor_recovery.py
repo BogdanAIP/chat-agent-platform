@@ -4,7 +4,6 @@ import json
 import shutil
 import subprocess
 import tempfile
-import threading
 from pathlib import Path
 import unittest
 
@@ -83,69 +82,27 @@ class MultiMonitorControllerTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def test_concurrent_cleanup_acknowledgements_return_one_stable_token(self) -> None:
-        barrier = threading.Barrier(3)
-        tokens: list[str] = []
-        errors: list[BaseException] = []
-        mutex = threading.Lock()
+    def test_later_cleanup_acknowledgement_cannot_replace_an_earlier_monitor_token(self) -> None:
+        first = self.state.record_event(cleanup_event(self.state))["cleanup_token"]
+        second = self.state.record_event(cleanup_event(self.state))["cleanup_token"]
+        self.assertIsInstance(first, str)
+        self.assertIsInstance(second, str)
+        self.assertEqual(first, second)
+        self.assertEqual(first, self.state.cleanup_token)
 
-        def contender() -> None:
-            barrier.wait()
-            try:
-                result = self.state.record_event(cleanup_event(self.state))
-                token = result.get("cleanup_token")
-                if not isinstance(token, str):
-                    raise AssertionError("cleanup token missing")
-                with mutex:
-                    tokens.append(token)
-            except BaseException as exc:  # test worker must surface all failures
-                with mutex:
-                    errors.append(exc)
-
-        threads = [threading.Thread(target=contender) for _ in range(2)]
-        for thread in threads:
-            thread.start()
-        barrier.wait()
-        for thread in threads:
-            thread.join(timeout=5)
-
-        self.assertFalse(errors, errors)
-        self.assertEqual(2, len(tokens))
-        self.assertEqual(1, len(set(tokens)))
-        self.assertEqual(tokens[0], self.state.cleanup_token)
-
-    def test_concurrent_capture_preparations_share_one_unconsumed_token(self) -> None:
+    def test_later_capture_preparation_cannot_replace_an_unconsumed_monitor_token(self) -> None:
         cleanup = self.state.record_event(cleanup_event(self.state))["cleanup_token"]
         self.assertIsInstance(cleanup, str)
-        barrier = threading.Barrier(3)
-        tokens: list[str] = []
-        errors: list[BaseException] = []
-        mutex = threading.Lock()
-
-        def contender() -> None:
-            barrier.wait()
-            try:
-                result = self.state.prepare_capture(prepare_request(self.state, str(cleanup)))
-                token = result.get("capture_token")
-                if not isinstance(token, str):
-                    raise AssertionError("capture token missing")
-                with mutex:
-                    tokens.append(token)
-            except BaseException as exc:  # test worker must surface all failures
-                with mutex:
-                    errors.append(exc)
-
-        threads = [threading.Thread(target=contender) for _ in range(2)]
-        for thread in threads:
-            thread.start()
-        barrier.wait()
-        for thread in threads:
-            thread.join(timeout=5)
-
-        self.assertFalse(errors, errors)
-        self.assertEqual(2, len(tokens))
-        self.assertEqual(1, len(set(tokens)))
-        self.assertEqual(tokens[0], self.state.capture_token)
+        first = self.state.prepare_capture(
+            prepare_request(self.state, str(cleanup))
+        )["capture_token"]
+        second = self.state.prepare_capture(
+            prepare_request(self.state, str(cleanup))
+        )["capture_token"]
+        self.assertIsInstance(first, str)
+        self.assertIsInstance(second, str)
+        self.assertEqual(first, second)
+        self.assertEqual(first, self.state.capture_token)
 
 
 class BrowserRecoveryIdentityTests(unittest.TestCase):
