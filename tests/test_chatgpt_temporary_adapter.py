@@ -142,6 +142,25 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
         prepared = delegation_state.prepare_delegation(wrong, state_root=self.state_root)
         self.assertEqual("prepared", prepared.launch_state)
 
+    def test_adapter_rejects_other_bounded_profile_before_durable_launch_authority(self) -> None:
+        unsupported = identity_dict(worker_profile="context_rich_readonly_worker_v1")
+        identity = delegation_state.parse_delegation_identity(unsupported)
+        delegation_id = delegation_state.delegation_operation_key(identity)
+        root = delegation_state._root(self.state_root)
+
+        with self.assertRaisesRegex(
+            delegation_state.DelegationStateError,
+            "chatgpt-temporary supports only worker_profile",
+        ):
+            chatgpt_temporary.prepare_temporary_launch(
+                unsupported,
+                task=TASK,
+                state_root=self.state_root,
+            )
+
+        self.assertFalse(delegation_state._genesis_path(root, delegation_id).exists())
+        self.assertFalse(delegation_state._state_path(root, delegation_id).exists())
+
     def test_restart_recovers_same_private_run_but_never_reauthorizes_browser_launch(self) -> None:
         first = self.launch()
         second = self.launch()
