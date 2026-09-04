@@ -14,6 +14,7 @@ from runtime.control_plane import delegation_state
 TASK = "Return a bounded read-only answer."
 TASK_SHA = hashlib.sha256(TASK.encode("utf-8")).hexdigest()
 EXECUTION_GENERATION = "9" * 64
+LAUNCH_HANDLE = "7" * 64
 ASSETS = {
     "manifest.json": "1" * 64,
     "execution_generation.js": "5" * 64,
@@ -116,6 +117,7 @@ class TerminalHeadProvenanceTests(unittest.TestCase):
         return TemporaryControllerState(
             identity_value=identity(),
             task=TASK,
+            launch_handle=LAUNCH_HANDLE,
             expected_runtime_attestation_value=expected(head),
             state_root=self.state_root,
             output_dir=self.output_root / suffix,
