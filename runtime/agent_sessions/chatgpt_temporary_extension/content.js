@@ -104,6 +104,8 @@
     let lastAssistantText = "";
     let lastAssistantChangedAt = 0;
     let observationSeq = 0;
+    let deliveryPostPending = false;
+    const deliveryEvidenceRefs = { delivered: "", unknown: "" };
     let postDeliveryCleanupStartedAt = 0;
     let postDeliveryCleanupStableSince = 0;
     let postDeliveryCleanupComplete = false;
@@ -360,6 +362,27 @@
         value.includes("worker capture preparation token is stale or missing");
     }
 
+    function retryableCaptureTransportFailure(reason) {
+      const value = String(reason || "").toLowerCase();
+      return value === "no-response" ||
+        value.includes("failed to fetch") ||
+        value.includes("networkerror") ||
+        value.includes("network error") ||
+        value.includes("load failed") ||
+        value.includes("fetch failed") ||
+        value.includes("message port closed") ||
+        value.includes("receiving end does not exist");
+    }
+
+    function deliveryEvidenceRef(outcome, kind) {
+      if (!["delivered", "unknown"].includes(outcome)) return "";
+      if (!deliveryEvidenceRefs[outcome]) {
+        observationSeq += 1;
+        deliveryEvidenceRefs[outcome] = `chatgpt-temporary:delivery:${intent.deliveryId}:${kind}:${observationSeq}`;
+      }
+      return deliveryEvidenceRefs[outcome];
+    }
+
     async function requestAuthority(composer) {
       if (authorityRequested) return;
       authorityRequested = true;
@@ -435,19 +458,25 @@
     }
 
     async function postDelivery(outcome, evidenceRef) {
-      const response = await sendMessage("delivery", {
-        task_sha256: intent.taskSha256,
-        outcome,
-        evidence_ref: evidenceRef,
-      });
-      if (!response?.ok) return false;
-      deliveryState = response.delivery_state || outcome;
-      deliveryOutcomeAt = Date.now();
-      event(outcome === "delivered" ? "delivery-visible" : "delivery-ambiguous", {
-        delivery_state: deliveryState,
-        evidence_ref: evidenceRef,
-      });
-      return true;
+      if (deliveryPostPending) return false;
+      deliveryPostPending = true;
+      try {
+        const response = await sendMessage("delivery", {
+          task_sha256: intent.taskSha256,
+          outcome,
+          evidence_ref: evidenceRef,
+        });
+        if (!response?.ok) return false;
+        deliveryState = response.delivery_state || outcome;
+        deliveryOutcomeAt = Date.now();
+        event(outcome === "delivered" ? "delivery-visible" : "delivery-ambiguous", {
+          delivery_state: deliveryState,
+          evidence_ref: evidenceRef,
+        });
+        return true;
+      } finally {
+        deliveryPostPending = false;
+      }
     }
 
     async function captureResult(text) {
@@ -484,7 +513,7 @@
       }
       const reason = response?.reason || "capture-failed";
       event("result-capture-failed", { reason });
-      if (staleCaptureAuthority(reason)) {
+      if (staleCaptureAuthority(reason) || retryableCaptureTransportFailure(reason)) {
         resetCaptureAuthority();
         return;
       }
@@ -493,7 +522,7 @@
     }
 
     async function pollControllerStatus() {
-      if (statusPollPending || deliveryState !== "delivered") return;
+      if (statusPollPending || !sendClickedAt) return;
       const now = Date.now();
       if (now - lastStatusPollAt < STATUS_POLL_MS) return;
       lastStatusPollAt = now;
@@ -501,6 +530,26 @@
       try {
         const status = await sendMessage("status");
         if (!status?.ok) return;
+        if (status.delegation_id !== intent.delegationId || status.delivery_id !== intent.deliveryId) {
+          stop("controller-status-correlation-mismatch");
+          return;
+        }
+        if (status.result_state === "recorded") {
+          stop("result-recorded", {
+            worker_status: status.result_status || null,
+            recovered_from_status: true,
+          });
+          return;
+        }
+        if (status.result_state !== "open") return;
+        if (status.delivery_state === "delivered" && deliveryState !== "delivered") {
+          deliveryState = "delivered";
+          deliveryOutcomeAt = Date.now();
+        } else if (status.delivery_state === "unknown" && deliveryState === "claimed") {
+          deliveryState = "unknown";
+          deliveryOutcomeAt = Date.now();
+        }
+        if (deliveryState !== "delivered") return;
         const requestId = status.final_observation_request_id;
         if (!policy.HEX64_RE.test(requestId || "") || requestId === finalObservationSentFor) return;
         const turns = conversationTurns("assistant");
@@ -552,21 +601,19 @@
       }
 
       if (!sendClickedAt) return;
+      void pollControllerStatus();
       if (!recoveryConversationBound) void bindRecoveryConversation();
       const visibleDelivery = userDeliveryVisible();
       if (visibleDelivery && deliveryState !== "delivered") {
-        observationSeq += 1;
-        void postDelivery("delivered", `chatgpt-temporary:delivery:${intent.deliveryId}:visible:${observationSeq}`);
+        void postDelivery("delivered", deliveryEvidenceRef("delivered", "visible"));
         return;
       }
       if (!visibleDelivery && deliveryState === "claimed" && Date.now() - sendClickedAt >= intent.deliveryObserveMs && !deliveryOutcomeAt) {
-        observationSeq += 1;
-        void postDelivery("unknown", `chatgpt-temporary:delivery:${intent.deliveryId}:ambiguous:${observationSeq}`);
+        void postDelivery("unknown", deliveryEvidenceRef("unknown", "ambiguous"));
         return;
       }
 
       if (deliveryState !== "delivered") return;
-      void pollControllerStatus();
       if (!ensurePostDeliveryCleanup()) return;
       if (stopButtonPresent()) return;
       const turns = conversationTurns("assistant");
