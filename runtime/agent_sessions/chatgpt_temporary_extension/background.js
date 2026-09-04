@@ -71,6 +71,34 @@ async function runtimeAttestation() {
   };
 }
 
+function senderUrl(sender) {
+  return sender?.url || sender?.tab?.url || "";
+}
+
+function senderTab(sender) {
+  let origin;
+  try {
+    origin = new URL(senderUrl(sender)).origin;
+  } catch {
+    return null;
+  }
+  if (origin !== "https://chatgpt.com" || !Number.isInteger(sender?.tab?.id)) return null;
+  return sender.tab.id;
+}
+
+function preflightIdFromSender(sender) {
+  let url;
+  try {
+    url = new URL(senderUrl(sender));
+  } catch {
+    return null;
+  }
+  if (url.origin !== "https://chatgpt.com" || url.searchParams.get("cap_agent_preflight") !== "1") return null;
+  const fragment = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+  const value = fragment.get("cap_preflight_id") || "";
+  return HEX64_RE.test(value) ? value : null;
+}
+
 async function preflightPost(preflightId, path, body) {
   const response = await fetch(`${CONTROLLER_ORIGIN}${path}`, {
     method: "POST",
@@ -86,17 +114,14 @@ async function preflightPost(preflightId, path, body) {
   return value;
 }
 
-async function prepareLiveLaunch(message, sender) {
+async function prepareLiveLaunch(preflightId, sender) {
   if (senderTab(sender) === null) return { ok: false, reason: "invalid-sender" };
-  if (message?.schema_version !== 1 || message.execution_generation !== EXECUTION_GENERATION) {
-    return { ok: false, reason: "invalid-preflight-generation" };
-  }
-  if (!HEX64_RE.test(message.preflight_id || "")) return { ok: false, reason: "invalid-preflight-capability" };
+  if (!HEX64_RE.test(preflightId || "")) return { ok: false, reason: "invalid-preflight-capability" };
 
   const attestation = await runtimeAttestation();
-  const prepared = await preflightPost(message.preflight_id, "/preflight", {
+  const prepared = await preflightPost(preflightId, "/preflight", {
     schema_version: 1,
-    preflight_id: message.preflight_id,
+    preflight_id: preflightId,
     execution_generation: EXECUTION_GENERATION,
     runtime_attestation: attestation,
   });
@@ -124,9 +149,9 @@ async function prepareLiveLaunch(message, sender) {
   LIVE_LAUNCHES.set(prepared.launch_handle, live);
 
   try {
-    const committed = await preflightPost(message.preflight_id, "/preflight-commit", {
+    const committed = await preflightPost(preflightId, "/preflight-commit", {
       schema_version: 1,
-      preflight_id: message.preflight_id,
+      preflight_id: preflightId,
       launch_handle: prepared.launch_handle,
       execution_generation: EXECUTION_GENERATION,
       runtime_attestation: await runtimeAttestation(),
@@ -154,19 +179,22 @@ async function prepareLiveLaunch(message, sender) {
 
 function resolveLiveMessage(message) {
   if (!message || message.schema_version !== 1 || message.execution_generation !== EXECUTION_GENERATION) return null;
-  if (!HEX64_RE.test(message.launch_handle || "")) return null;
-  const live = LIVE_LAUNCHES.get(message.launch_handle);
+  // content.js retains the legacy field name ``run_id``. Its value is now the
+  // opaque launch handle from the task URL, never the private controller token.
+  const launchHandle = message.run_id || "";
+  if (!HEX64_RE.test(launchHandle)) return null;
+  const live = LIVE_LAUNCHES.get(launchHandle);
   if (!live) return null;
   if (
     message.delegation_id !== live.delegation_id ||
     message.delivery_id !== live.delivery_id ||
-    message.task_sha256 !== live.task_sha256 ||
     message.expected_runtime_head !== live.expected_runtime_head ||
     message.prompt_sha256 !== live.prompt_sha256
   ) {
     return null;
   }
-  return { ...message, run_id: live.run_id };
+  if (message.task_sha256 !== undefined && message.task_sha256 !== live.task_sha256) return null;
+  return { ...message, launch_handle: launchHandle, run_id: live.run_id, task_sha256: live.task_sha256 };
 }
 
 async function claimBrowserSend(message, tabId) {
@@ -275,18 +303,6 @@ function exactClaimMatches(record, message) {
     record.task_sha256 === message.task_sha256 &&
     record.expected_runtime_head === message.expected_runtime_head &&
     record.prompt_sha256 === message.prompt_sha256;
-}
-
-function senderTab(sender) {
-  const senderUrl = sender?.url || sender?.tab?.url || "";
-  let origin;
-  try {
-    origin = new URL(senderUrl).origin;
-  } catch {
-    return null;
-  }
-  if (origin !== "https://chatgpt.com" || !Number.isInteger(sender?.tab?.id)) return null;
-  return sender.tab.id;
 }
 
 async function controllerPost(message, path, body) {
@@ -449,14 +465,18 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((incoming, sender, sendResponse) => {
-  if (incoming?.schema_version === 1 && incoming.kind === "preflight") {
-    void prepareLiveLaunch(incoming, sender)
-      .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, reason: error?.message || "preflight-failed" }));
-    return true;
-  }
-
   if (incoming?.schema_version === 1 && incoming.kind === "resume-intent") {
+    const preflightId = preflightIdFromSender(sender);
+    if (preflightId !== null) {
+      void prepareLiveLaunch(preflightId, sender)
+        .then((value) => sendResponse({
+          ok: value.ok === true,
+          enabled: false,
+          reason: value.ok === true ? "preflight-armed" : value.reason || "preflight-failed",
+        }))
+        .catch((error) => sendResponse({ ok: false, enabled: false, reason: error?.message || "preflight-failed" }));
+      return true;
+    }
     sendResponse({ ok: true, enabled: false, reason: "temporary-profile-ephemeral" });
     return false;
   }
