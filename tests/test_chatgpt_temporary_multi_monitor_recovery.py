@@ -9,6 +9,7 @@ import unittest
 
 from runtime.agent_sessions.chatgpt_temporary_controller import TemporaryControllerState
 from tests.test_chatgpt_temporary_controller import (
+    LAUNCH_HANDLE,
     TASK,
     TASK_SHA,
     authority_request,
@@ -71,6 +72,7 @@ class MultiMonitorControllerTests(unittest.TestCase):
         self.state = TemporaryControllerState(
             identity_value=identity_dict(),
             task=TASK,
+            launch_handle=LAUNCH_HANDLE,
             expected_runtime_attestation_value=expected_runtime_attestation(),
             state_root=self.state_root,
             output_dir=self.output_root,
@@ -131,6 +133,7 @@ let onMessageHandler = null;
 const context = {{
   console,
   URL,
+  URLSearchParams,
   importScripts() {{}},
   CAPChatGPTTemporaryExecutionGeneration: generation,
   chrome: {{
@@ -158,6 +161,57 @@ if (Object.prototype.hasOwnProperty.call(response, "run_id")) process.exit(14);
 """
         self.run_node(script)
 
+    def test_restored_task_url_cannot_create_first_claim_after_live_launch_map_is_lost(self) -> None:
+        script = f"""
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync({json.dumps(str(BACKGROUND))}, "utf8");
+const generation = "9".repeat(64);
+let onMessageHandler = null;
+let response = null;
+let unexpectedEffect = false;
+
+const context = {{
+  console,
+  URL,
+  URLSearchParams,
+  importScripts() {{}},
+  fetch() {{ unexpectedEffect = true; throw new Error("unexpected-fetch"); }},
+  indexedDB: {{ open() {{ unexpectedEffect = true; throw new Error("unexpected-indexeddb"); }} }},
+  CAPChatGPTTemporaryExecutionGeneration: generation,
+  chrome: {{
+    runtime: {{
+      onInstalled: {{ addListener() {{}} }},
+      onStartup: {{ addListener() {{}} }},
+      onMessage: {{ addListener(fn) {{ onMessageHandler = fn; }} }},
+    }},
+  }},
+}};
+context.globalThis = context;
+vm.createContext(context);
+vm.runInContext(source, context, {{ filename: "background.js" }});
+if (typeof onMessageHandler !== "function") process.exit(20);
+
+const returned = onMessageHandler(
+  {{
+    schema_version: 1,
+    kind: "authorize-send",
+    execution_generation: generation,
+    run_id: "7".repeat(64),
+    delegation_id: "b".repeat(64),
+    delivery_id: "c".repeat(64),
+    expected_runtime_head: "e".repeat(40),
+    prompt_sha256: "f".repeat(64),
+  }},
+  {{ url: "https://chatgpt.com/?temporary-chat=true", tab: {{ id: 91, url: "https://chatgpt.com/?temporary-chat=true" }} }},
+  (value) => {{ response = value; }},
+);
+if (returned !== false) process.exit(21);
+if (!response || response.reason !== "live-launch-context-expired-or-invalid") process.exit(22);
+if (unexpectedEffect) process.exit(23);
+"""
+        self.run_node(script)
+
     def test_post_send_existing_claim_never_becomes_monitor_only(self) -> None:
         script = f"""
 const fs = require("fs");
@@ -175,6 +229,7 @@ const ownerTab = 17;
 const context = {{
   console,
   URL,
+  URLSearchParams,
   importScripts() {{}},
   CAPChatGPTTemporaryExecutionGeneration: generation,
   chrome: {{
@@ -202,7 +257,6 @@ context.message = {{
 }};
 context.record = {{
   schema_version: 1,
-  run_id: runId,
   delegation_id: delegationId,
   delivery_id: deliveryId,
   task_sha256: taskSha,
@@ -229,10 +283,10 @@ vm.runInContext(`
 
 (async () => {{
   const response = await vm.runInContext("authorizeSend(message, sender)", context);
-  if (response.send_authorized !== false) process.exit(20);
-  if (response.monitor_only !== false) process.exit(21);
-  if (response.reason !== "temporary-profile-ephemeral") process.exit(22);
-}})().catch((error) => {{ console.error(error); process.exit(30); }});
+  if (response.send_authorized !== false) process.exit(30);
+  if (response.monitor_only !== false) process.exit(31);
+  if (response.reason !== "temporary-profile-ephemeral") process.exit(32);
+}})().catch((error) => {{ console.error(error); process.exit(40); }});
 """
         self.run_node(script)
 
@@ -242,7 +296,7 @@ vm.runInContext(`
         self.assertNotIn("async function bindRecoveryConversation", background)
         self.assertNotIn("async function bindClaimConversationRecord", background)
         self.assertNotIn("conversation_id: null", background)
-        self.assertIn('kind === "resume-intent"', background)
+        self.assertIn('incoming.kind === "resume-intent"', background)
         self.assertIn('reason: "temporary-profile-ephemeral"', background)
 
 
@@ -286,21 +340,21 @@ Date.now = () => now;
 
 vm.runInThisContext(fs.readFileSync({json.dumps(str(POLICY))}, "utf8"), {{ filename: "policy.js" }});
 const intent = {{ runId, delegationId, deliveryId, taskSha256: taskSha, expectedHead, promptSha256: promptSha }};
-if (!CAPChatGPTTemporaryPolicy.armPostDeliveryUiGuard(intent)) process.exit(30);
+if (!CAPChatGPTTemporaryPolicy.armPostDeliveryUiGuard(intent)) process.exit(50);
 intervalFn();
 now = 9001;
 intervalFn();
 const first = CAPChatGPTTemporaryPolicy.captureAuthorization();
-if (!first || first.cleanupToken !== "1".repeat(64)) process.exit(31);
-if (!CAPChatGPTTemporaryPolicy.invalidatePostDeliveryAuthorization()) process.exit(32);
-if (CAPChatGPTTemporaryPolicy.captureAuthorization() !== null) process.exit(33);
+if (!first || first.cleanupToken !== "1".repeat(64)) process.exit(51);
+if (!CAPChatGPTTemporaryPolicy.invalidatePostDeliveryAuthorization()) process.exit(52);
+if (CAPChatGPTTemporaryPolicy.captureAuthorization() !== null) process.exit(53);
 now = 9500;
 intervalFn();
-if (CAPChatGPTTemporaryPolicy.captureAuthorization() !== null) process.exit(34);
+if (CAPChatGPTTemporaryPolicy.captureAuthorization() !== null) process.exit(54);
 now = 17501;
 intervalFn();
 const second = CAPChatGPTTemporaryPolicy.captureAuthorization();
-if (!second || second.cleanupToken !== "2".repeat(64)) process.exit(35);
+if (!second || second.cleanupToken !== "2".repeat(64)) process.exit(55);
 """
         completed = subprocess.run(
             [self.node, "-e", script],
