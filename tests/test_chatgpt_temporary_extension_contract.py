@@ -60,20 +60,30 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertNotIn("store.put(", claim)
         self.assertNotIn("store.delete", self.background)
 
-    def test_live_preflight_handoff_exists_before_task_authority(self) -> None:
-        self.assertIn("const LIVE_LAUNCHES = new Map();", self.background)
-        self.assertIn("function preflightIdFromSender", self.background)
-        self.assertIn('url.searchParams.get("cap_agent_preflight") !== "1"', self.background)
-        self.assertIn('fragment.get("cap_preflight_id")', self.background)
-        self.assertIn('preflightPost(preflightId, "/preflight"', self.background)
-        self.assertIn("LIVE_LAUNCHES.set(prepared.launch_handle, live)", self.background)
-        self.assertIn('preflightPost(preflightId, "/preflight-commit"', self.background)
-        self.assertIn("function resolveLiveMessage(message)", self.background)
-        self.assertIn("const live = LIVE_LAUNCHES.get(launchHandle)", self.background)
-        self.assertIn("run_id: live.run_id", self.background)
-        self.assertIn('reason: "live-launch-context-expired-or-invalid"', self.background)
+    def test_live_preflight_handoff_is_single_owner_and_reconcilable_before_task_authority(self) -> None:
+        for phrase in (
+            "const LIVE_LAUNCHES = new Map();",
+            "function preflightIdFromSender",
+            'url.searchParams.get("cap_agent_preflight") !== "1"',
+            'fragment.get("cap_preflight_id")',
+            'preflightPost(preflightId, "/preflight"',
+            'preflightPost(live.preflight_id, "/preflight-commit"',
+            "function liveLaunchForOwnerTab",
+            "function liveLaunchForDelegation",
+            "function reconcileLiveLaunch",
+            "owner_tab_id: tabId",
+            "commit_state: \"ambiguous\"",
+            "function resolveLiveMessage(message)",
+            "const live = LIVE_LAUNCHES.get(launchHandle)",
+            "run_id: live.run_id",
+            'reason: "live-launch-context-expired-or-invalid"',
+        ):
+            self.assertIn(phrase, self.background)
+        self.assertIn("location.replace(target)", self.content)
+        self.assertIn('response.status !== "preflight-navigation-ready"', self.content)
+        self.assertIn("policy.parseIntent(response.navigate_url)", self.content)
 
-    def test_executing_generation_and_runtime_bytes_are_attested_before_preflight_send_and_capture_prepare(self) -> None:
+    def test_executing_generation_and_runtime_bytes_are_attested_before_preflight_commit_send_and_capture_prepare(self) -> None:
         for phrase in (
             'importScripts("execution_generation.js");',
             'const EXECUTION_GENERATION = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";',
@@ -90,11 +100,16 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             self.manifest["content_scripts"][0]["js"],
         )
         self.assertIn("execution_generation: executionGeneration", self.content)
-        preflight = self.background[
+        prepare_live = self.background[
             self.background.index("async function prepareLiveLaunch") :
             self.background.index("function resolveLiveMessage")
         ]
-        self.assertGreaterEqual(preflight.count("runtimeAttestation()"), 2)
+        commit_live = self.background[
+            self.background.index("async function commitLiveLaunch") :
+            self.background.index("async function prepareLiveLaunch")
+        ]
+        self.assertIn("runtimeAttestation()", prepare_live)
+        self.assertIn("runtimeAttestation()", commit_live)
         prepare = self.background[
             self.background.index('message.kind === "prepare-capture"') :
             self.background.index('message.kind === "capture"')
