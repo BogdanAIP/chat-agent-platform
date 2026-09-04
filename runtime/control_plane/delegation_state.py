@@ -219,9 +219,7 @@ def parse_delegation_identity(value: Mapping[str, Any]) -> DelegationIdentity:
     parent_task_id = _bounded_identifier(value["parent_task_id"], "parent_task_id")
     subgoal_id = _bounded_identifier(value["subgoal_id"], "subgoal_id")
     worker_kind = _bounded_kind(value["worker_kind"], "worker_kind")
-    worker_profile = value["worker_profile"]
-    if worker_profile != WORKER_PROFILE:
-        raise DelegationStateError(f"worker_profile must be {WORKER_PROFILE}")
+    worker_profile = _bounded_identifier(value["worker_profile"], "worker_profile")
     task_sha256 = _hex64(value["task_sha256"], "task_sha256")
     result_contract_id = _bounded_kind(value["result_contract_id"], "result_contract_id")
     return DelegationIdentity(
