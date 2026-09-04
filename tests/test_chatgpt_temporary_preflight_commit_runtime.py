@@ -97,6 +97,12 @@ class PreflightCommitBrowserRuntimeTests(unittest.TestCase):
             self.skipTest("node is unavailable")
 
     def run_node(self, script: str) -> None:
+        # Node's vm sandbox does not inherit URLSearchParams by default. Inject
+        # the web primitive explicitly so the runtime harness matches Chrome.
+        script = script.replace(
+            "context.globalThis = context;",
+            "context.URLSearchParams = URLSearchParams;\ncontext.globalThis = context;",
+        )
         completed = subprocess.run(
             [self.node, "-e", script],
             text=True,
