@@ -327,12 +327,16 @@ try {
     Write-Host "CAP_AGENT_SESSION_DELIVERY_ID=$($launch.delivery_id)"
     Write-Host "CAP_AGENT_SESSION_LAUNCH_NOW=$([bool]$launch.launch_now)"
     if ([bool]$launch.launch_now) {
-        Write-Host 'CAP_AGENT_SESSION_LAUNCHING=fresh-temporary-chat' -ForegroundColor Cyan
-        Start-Process $taskLaunchUrl
+        Write-Host 'CAP_AGENT_SESSION_TASK_NAVIGATION_OWNER=preflight-tab' -ForegroundColor Cyan
     }
     else {
-        Write-Host 'CAP_AGENT_SESSION_LAUNCHING=blocked-existing-delegation-monitor-only' -ForegroundColor Yellow
+        Write-Host 'CAP_AGENT_SESSION_TASK_NAVIGATION=blocked-existing-delegation' -ForegroundColor Yellow
     }
+
+    # The launcher never opens the task-bearing URL. The same neutral preflight
+    # tab that owns the live MV3 handoff performs location.replace(task_url)
+    # only after commit acknowledgement/reconciliation. launch.json remains
+    # qualification evidence, not a second physical browser-launch authority.
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
