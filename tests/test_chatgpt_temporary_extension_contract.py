@@ -55,11 +55,25 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn("expected_runtime_head: message.expected_runtime_head", claim)
         self.assertIn("prompt_sha256: message.prompt_sha256", claim)
         self.assertIn("claim_tab_id: tabId", claim)
+        self.assertNotIn("run_id:", claim)
         self.assertNotIn("conversation_id", claim)
         self.assertNotIn("store.put(", claim)
         self.assertNotIn("store.delete", self.background)
 
-    def test_executing_generation_and_runtime_bytes_are_attested_before_send_and_capture_prepare(self) -> None:
+    def test_live_preflight_handoff_exists_before_task_authority(self) -> None:
+        self.assertIn("const LIVE_LAUNCHES = new Map();", self.background)
+        self.assertIn("function preflightIdFromSender", self.background)
+        self.assertIn('url.searchParams.get("cap_agent_preflight") !== "1"', self.background)
+        self.assertIn('fragment.get("cap_preflight_id")', self.background)
+        self.assertIn('preflightPost(preflightId, "/preflight"', self.background)
+        self.assertIn("LIVE_LAUNCHES.set(prepared.launch_handle, live)", self.background)
+        self.assertIn('preflightPost(preflightId, "/preflight-commit"', self.background)
+        self.assertIn("function resolveLiveMessage(message)", self.background)
+        self.assertIn("const live = LIVE_LAUNCHES.get(launchHandle)", self.background)
+        self.assertIn("run_id: live.run_id", self.background)
+        self.assertIn('reason: "live-launch-context-expired-or-invalid"', self.background)
+
+    def test_executing_generation_and_runtime_bytes_are_attested_before_preflight_send_and_capture_prepare(self) -> None:
         for phrase in (
             'importScripts("execution_generation.js");',
             'const EXECUTION_GENERATION = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";',
@@ -68,7 +82,6 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             "chrome.runtime.getURL(name)",
             "async function runtimeAttestation()",
             "execution_generation: EXECUTION_GENERATION",
-            "message.execution_generation === EXECUTION_GENERATION",
         ):
             self.assertIn(phrase, self.background)
         self.assertIn("CAPChatGPTTemporaryExecutionGeneration", self.generation)
@@ -77,6 +90,11 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             self.manifest["content_scripts"][0]["js"],
         )
         self.assertIn("execution_generation: executionGeneration", self.content)
+        preflight = self.background[
+            self.background.index("async function prepareLiveLaunch") :
+            self.background.index("function resolveLiveMessage")
+        ]
+        self.assertGreaterEqual(preflight.count("runtimeAttestation()"), 2)
         prepare = self.background[
             self.background.index('message.kind === "prepare-capture"') :
             self.background.index('message.kind === "capture"')
@@ -92,10 +110,9 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
     def test_browser_claim_keeps_exact_delivery_identity_and_live_owner_fence(self) -> None:
         exact = self.background[
             self.background.index("function exactClaimMatches") :
-            self.background.index("function senderTab")
+            self.background.index("async function controllerPost")
         ]
         for phrase in (
-            "record.run_id === message.run_id",
             "record.delegation_id === message.delegation_id",
             "record.delivery_id === message.delivery_id",
             "record.task_sha256 === message.task_sha256",
@@ -103,27 +120,24 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             "record.prompt_sha256 === message.prompt_sha256",
         ):
             self.assertIn(phrase, exact)
+        self.assertNotIn("record.run_id", exact)
         self.assertIn("const LIVE_PRE_SEND_CLAIMS = new Set();", self.background)
         self.assertIn("LIVE_PRE_SEND_CLAIMS.add(message.delivery_id)", self.background)
         self.assertIn("LIVE_PRE_SEND_CLAIMS.has(message.delivery_id)", self.background)
         self.assertIn("existing.claim_tab_id !== tabId", self.background)
         self.assertNotIn("claimRecordsForRecovery", self.background)
 
-    def test_complete_browser_restart_recovery_is_permanently_disabled_for_temporary_profile(self) -> None:
+    def test_complete_browser_restart_recovery_is_disabled_but_neutral_preflight_can_arm_initial_launch(self) -> None:
         self.assertNotIn("async function resumeIntent", self.background)
         self.assertNotIn("async function bindRecoveryConversation", self.background)
         self.assertNotIn("async function bindClaimConversationRecord", self.background)
         self.assertNotIn("senderConversationId", self.background)
         self.assertNotIn("observedClaimMatches", self.background)
-        self.assertIn('message.kind === "resume-intent"', self.background)
-        self.assertIn('message.kind === "bind-recovery-conversation"', self.background)
-        self.assertGreaterEqual(self.background.count('reason: "temporary-profile-ephemeral"'), 3)
-        resume_handler = self.background[
-            self.background.index('message?.schema_version === 1 && message.kind === "resume-intent"') :
-            self.background.index("if (!validCommon(message))")
-        ]
-        self.assertIn("enabled: false", resume_handler)
-        self.assertNotIn("run_id", resume_handler)
+        self.assertIn('incoming.kind === "resume-intent"', self.background)
+        self.assertIn("const preflightId = preflightIdFromSender(sender)", self.background)
+        self.assertIn('reason: "temporary-profile-ephemeral"', self.background)
+        self.assertIn("enabled: false", self.background)
+        self.assertNotIn("run_id: value", self.background)
 
     def test_post_send_existing_claim_never_grants_monitor_or_second_send(self) -> None:
         authorize = self.background[
@@ -142,7 +156,7 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         ]
         exact = self.background[
             self.background.index("function exactClaimMatches") :
-            self.background.index("function senderTab")
+            self.background.index("async function controllerPost")
         ]
         local = self.background[
             self.background.index("async function requestLocalSendAuthority") :
@@ -246,13 +260,19 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
             self.assertIn(phrase, self.policy)
         self.assertIn("if (!policy.hasSingleResultBlock(last)) return;", self.content)
 
-    def test_private_run_id_is_fragment_capability_not_query_or_worker_prompt(self) -> None:
+    def test_legacy_fragment_value_is_only_live_handle_and_private_run_id_is_not_persisted_in_browser_claim(self) -> None:
         self.assertIn("new URLSearchParams(url.hash", self.policy)
         self.assertIn('fragmentParams.get("cap_run_id")', self.policy)
         self.assertIn('url.searchParams.has("cap_run_id")', self.policy)
         self.assertIn('reason: "private-run-id-in-query"', self.policy)
-        self.assertIn('prompt.includes(runId)', self.policy)
-        self.assertIn('reason: "private-run-id-leaked-to-prompt"', self.policy)
+        self.assertIn("const launchHandle = message.run_id", self.background)
+        self.assertIn("const live = LIVE_LAUNCHES.get(launchHandle)", self.background)
+        self.assertIn("run_id: live.run_id", self.background)
+        claim = self.background[
+            self.background.index("async function claimBrowserSend") :
+            self.background.index("async function claimRecordByDelivery")
+        ]
+        self.assertNotIn("run_id:", claim)
         self.assertIn('"X-CAP-Agent-Token": message.run_id', self.background)
 
     def test_javascript_syntax_when_node_is_available(self) -> None:
