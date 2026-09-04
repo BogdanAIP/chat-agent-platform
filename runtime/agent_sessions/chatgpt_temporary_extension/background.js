@@ -121,6 +121,15 @@ function liveLaunchForOwnerTab(tabId) {
   return null;
 }
 
+function liveLaunchForDelegation(delegationId, deliveryId) {
+  for (const [launchHandle, live] of LIVE_LAUNCHES.entries()) {
+    if (live.delegation_id === delegationId && live.delivery_id === deliveryId) {
+      return { launchHandle, live };
+    }
+  }
+  return null;
+}
+
 function validPreparedLaunch(prepared) {
   if (
     prepared?.status !== "handoff-prepared" ||
@@ -149,23 +158,21 @@ function validPreparedLaunch(prepared) {
   return true;
 }
 
-function exactLivePreparedMatch(live, prepared) {
+function exactLiveCorrelation(live, prepared) {
   return live &&
     live.run_id === prepared.run_id &&
     live.delegation_id === prepared.delegation_id &&
     live.delivery_id === prepared.delivery_id &&
     live.task_sha256 === prepared.task_sha256 &&
     live.expected_runtime_head === prepared.expected_runtime_head &&
-    live.prompt_sha256 === prepared.prompt_sha256 &&
-    live.launch_url === prepared.launch_url;
+    live.prompt_sha256 === prepared.prompt_sha256;
 }
 
-function exactCommittedStatus(live, launchHandle, status) {
+function exactCommittedStatus(live, status) {
   return status &&
     status.status === "ready" &&
     status.delegation_id === live.delegation_id &&
     status.delivery_id === live.delivery_id &&
-    status.launch_handle === launchHandle &&
     status.expected_runtime_head === live.expected_runtime_head &&
     status.execution_generation === EXECUTION_GENERATION &&
     status.prompt_sha256 === live.prompt_sha256 &&
@@ -185,10 +192,10 @@ async function controllerStatusWithRun(live) {
   return value;
 }
 
-async function reconcileLiveLaunch(launchHandle, live) {
+async function reconcileLiveLaunch(live) {
   try {
     const status = await controllerStatusWithRun(live);
-    if (exactCommittedStatus(live, launchHandle, status)) {
+    if (exactCommittedStatus(live, status)) {
       live.commit_state = "committed";
       return {
         ok: true,
@@ -234,12 +241,11 @@ async function commitLiveLaunch(launchHandle, live) {
       delivery_id: live.delivery_id,
     };
   } catch (error) {
-    // A transport exception does not mean the state-changing commit failed.
-    // Keep the only live private mapping and reconcile from token-authenticated
-    // durable controller state. Deleting the mapping here would strand a
-    // successfully committed launch when the HTTP acknowledgement was lost.
+    // Commit acknowledgement loss is ambiguous. The live mapping is the only
+    // same-browser capability bridge, so preserve it and reconcile from the
+    // private-token controller status instead of assuming rollback.
     live.commit_state = "ambiguous";
-    const reconciled = await reconcileLiveLaunch(launchHandle, live);
+    const reconciled = await reconcileLiveLaunch(live);
     if (reconciled.ok) return reconciled;
     return {
       ok: false,
@@ -257,7 +263,7 @@ async function prepareLiveLaunch(preflightId, sender) {
   const owned = liveLaunchForOwnerTab(tabId);
   if (owned) {
     if (owned.live.commit_state === "committed" || owned.live.commit_state === "ambiguous") {
-      const reconciled = await reconcileLiveLaunch(owned.launchHandle, owned.live);
+      const reconciled = await reconcileLiveLaunch(owned.live);
       if (reconciled.ok) return reconciled;
     }
     return await commitLiveLaunch(owned.launchHandle, owned.live);
@@ -272,13 +278,26 @@ async function prepareLiveLaunch(preflightId, sender) {
   });
   if (!validPreparedLaunch(prepared)) throw new Error("invalid-preflight-handoff");
 
-  const existing = LIVE_LAUNCHES.get(prepared.launch_handle);
-  if (existing) {
-    if (!exactLivePreparedMatch(existing, prepared)) throw new Error("preflight-live-correlation-mismatch");
-    // A later neutral preflight for the same stable handle may refresh the
-    // controller's ephemeral preflight capability after controller restart,
-    // but navigation ownership never transfers away from the original tab.
-    existing.preflight_id = preflightId;
+  const sameDelegation = liveLaunchForDelegation(prepared.delegation_id, prepared.delivery_id);
+  if (sameDelegation) {
+    const existing = sameDelegation.live;
+    if (!exactLiveCorrelation(existing, prepared)) throw new Error("preflight-live-correlation-mismatch");
+
+    // Controller restart before commit may legitimately issue a new opaque
+    // handle and preflight capability. Rebind that *same* live owner record,
+    // preserving owner_tab_id. The new neutral tab is never promoted to task
+    // navigation authority.
+    if (sameDelegation.launchHandle !== prepared.launch_handle) {
+      LIVE_LAUNCHES.delete(sameDelegation.launchHandle);
+      existing.launch_url = prepared.launch_url;
+      existing.preflight_id = preflightId;
+      existing.commit_state = "prepared";
+      LIVE_LAUNCHES.set(prepared.launch_handle, existing);
+    } else {
+      existing.launch_url = prepared.launch_url;
+      existing.preflight_id = preflightId;
+    }
+
     if (existing.owner_tab_id !== tabId) {
       return {
         ok: true,
