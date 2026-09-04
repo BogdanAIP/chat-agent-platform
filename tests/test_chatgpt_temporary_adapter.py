@@ -14,6 +14,7 @@ from runtime.control_plane import delegation_state
 TASK = "Compare two bounded public facts and return a concise read-only summary."
 TASK_SHA = hashlib.sha256(TASK.encode("utf-8")).hexdigest()
 TEST_RUNTIME_DIGEST = "a" * 64
+LAUNCH_HANDLE = "7" * 64
 
 
 def identity_dict(**overrides: str) -> dict[str, str]:
@@ -37,10 +38,11 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def launch(self) -> chatgpt_temporary.TemporaryLaunchIntent:
+    def launch(self, handle: str = LAUNCH_HANDLE) -> chatgpt_temporary.TemporaryLaunchIntent:
         return chatgpt_temporary.prepare_temporary_launch(
             identity_dict(),
             task=TASK,
+            launch_handle=handle,
             state_root=self.state_root,
         )
 
@@ -107,7 +109,20 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
             + chatgpt_temporary.RAW_RESULT_END
         )
 
-    def test_prepare_commits_launch_attempt_before_returning_browser_intent(self) -> None:
+    def test_preflight_prepares_genesis_without_committing_launch(self) -> None:
+        preflight = chatgpt_temporary.prepare_temporary_preflight(
+            identity_dict(), task=TASK, state_root=self.state_root
+        )
+        self.assertEqual("prepared", preflight.launch_state)
+        self.assertEqual("prepared", preflight.delivery_state)
+        self.assertEqual("open", preflight.result_state)
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("prepared", snapshot.launch_state)
+
+    def test_launch_commits_after_live_handle_and_url_contains_no_private_run_capability(self) -> None:
+        preflight = chatgpt_temporary.prepare_temporary_preflight(
+            identity_dict(), task=TASK, state_root=self.state_root
+        )
         launch = self.launch()
         self.assertTrue(launch.launch_now)
         self.assertEqual("launch-attempted", launch.launch_state)
@@ -122,7 +137,9 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
         self.assertEqual(["true"], query["temporary-chat"])
         self.assertEqual(["1"], query["cap_agent_delegate"])
         self.assertNotIn("cap_run_id", query)
-        self.assertEqual([launch.run_id], fragment["cap_run_id"])
+        self.assertEqual([LAUNCH_HANDLE], fragment["cap_run_id"])
+        self.assertNotEqual(preflight.run_id, LAUNCH_HANDLE)
+        self.assertNotIn(preflight.run_id, launch.launch_url)
         self.assertEqual([launch.delegation_id], query["cap_delegation_id"])
         self.assertEqual([launch.delivery_id], query["cap_delivery_id"])
         self.assertEqual([TASK_SHA], query["cap_task_sha256"])
@@ -137,7 +154,7 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
         wrong = identity_dict(task_sha256="b" * 64)
         with self.assertRaisesRegex(delegation_state.DelegationStateError, "task digest"):
             chatgpt_temporary.prepare_temporary_launch(
-                wrong, task=TASK, state_root=self.state_root
+                wrong, task=TASK, launch_handle=LAUNCH_HANDLE, state_root=self.state_root
             )
         prepared = delegation_state.prepare_delegation(wrong, state_root=self.state_root)
         self.assertEqual("prepared", prepared.launch_state)
@@ -155,6 +172,7 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
             chatgpt_temporary.prepare_temporary_launch(
                 unsupported,
                 task=TASK,
+                launch_handle=LAUNCH_HANDLE,
                 state_root=self.state_root,
             )
 
@@ -163,13 +181,12 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
 
     def test_restart_recovers_same_private_run_but_never_reauthorizes_browser_launch(self) -> None:
         first = self.launch()
-        second = self.launch()
+        second = self.launch("8" * 64)
         self.assertTrue(first.launch_now)
         self.assertFalse(second.launch_now)
         self.assertEqual(first.run_id, second.run_id)
         self.assertEqual(first.delegation_id, second.delegation_id)
         self.assertEqual(first.delivery_id, second.delivery_id)
-        self.assertEqual(first.launch_url, second.launch_url)
         snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
         self.assertEqual("launch-attempted", snapshot.launch_state)
 
@@ -219,7 +236,7 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
     def test_restart_after_delivery_is_monitor_only_and_preserves_same_delivery(self) -> None:
         launch = self.launch()
         self.delivered(launch)
-        resumed = self.launch()
+        resumed = self.launch("8" * 64)
         self.assertFalse(resumed.launch_now)
         self.assertEqual(launch.run_id, resumed.run_id)
         self.assertEqual(launch.delivery_id, resumed.delivery_id)
