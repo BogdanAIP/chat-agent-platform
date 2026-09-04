@@ -141,6 +141,7 @@ $runtimeAttestationPath = Join-Path $outputRoot 'expected-runtime-attestation.js
 $taskCopyPath = Join-Path $outputRoot 'task.txt'
 $controllerStdout = Join-Path $outputRoot 'controller.stdout.log'
 $controllerStderr = Join-Path $outputRoot 'controller.stderr.log'
+$preflightPath = Join-Path $outputRoot 'preflight.json'
 $launchPath = Join-Path $outputRoot 'launch.json'
 $resultPath = Join-Path $outputRoot 'result.json'
 
@@ -200,10 +201,9 @@ if ($ValidateOnly) {
     return
 }
 
-# launch.json/result.json are controller projections, not durable authority.
-# Remove stale projections before each controller start so a fast terminal
-# restart can only be accepted from files freshly recreated by this process.
-Remove-Item -LiteralPath $controllerStdout, $controllerStderr, $launchPath, $resultPath -Force -ErrorAction SilentlyContinue
+# Controller projection files are not durable authority. Remove every stale
+# projection so neither preflight nor terminal-readback can inherit old bytes.
+Remove-Item -LiteralPath $controllerStdout, $controllerStderr, $preflightPath, $launchPath, $resultPath -Force -ErrorAction SilentlyContinue
 $controllerArgs = @(
     '-m', 'runtime.agent_sessions.chatgpt_temporary_controller',
     '--identity-json', $identityPath,
@@ -224,17 +224,17 @@ $controller = Start-Process `
     -RedirectStandardError $controllerStderr
 
 try {
-    $ready = $false
     $healthUri = 'http://127.0.0.1:3078/health'
+    $phase = ''
     for ($attempt = 0; $attempt -lt 75; $attempt++) {
         if ($controller.HasExited) { break }
         try {
             $health = Invoke-RestMethod -Method Get -Uri $healthUri -TimeoutSec 2
             if (
-                [string]$health.status -eq 'ready' -and
-                [string]$health.adapter_id -eq 'chatgpt-temporary'
+                [string]$health.adapter_id -eq 'chatgpt-temporary' -and
+                [string]$health.status -in @('preflight', 'ready')
             ) {
-                $ready = $true
+                $phase = [string]$health.status
                 break
             }
         }
@@ -243,17 +243,65 @@ try {
     }
 
     $terminalSnapshotReady = $false
-    if (-not $ready -and $controller.HasExited) {
+    if (-not $phase -and $controller.HasExited) {
         $terminalSnapshotReady = (
             $controller.ExitCode -eq 0 -and
             (Test-Path -LiteralPath $launchPath -PathType Leaf) -and
             (Test-Path -LiteralPath $resultPath -PathType Leaf)
         )
     }
-    if (-not $ready -and -not $terminalSnapshotReady) {
+    if (-not $phase -and -not $terminalSnapshotReady) {
         $stderr = Get-LogText -Path $controllerStderr
         throw "Temporary worker controller did not become ready. $stderr"
     }
+
+    if ($phase -eq 'preflight') {
+        if (-not (Test-Path -LiteralPath $preflightPath -PathType Leaf)) {
+            throw 'Controller entered preflight without fresh preflight.json.'
+        }
+        $preflight = Get-Content -LiteralPath $preflightPath -Raw -Encoding utf8 | ConvertFrom-Json
+        if ([string]$preflight.adapter_id -ne 'chatgpt-temporary') { throw 'Unexpected adapter in preflight evidence.' }
+        if ([string]$preflight.expected_runtime_head -cne $ExpectedHead) { throw 'Preflight runtime HEAD mismatch.' }
+        if ([string]$preflight.execution_generation -cne $executionGeneration) { throw 'Preflight execution-generation mismatch.' }
+        if ([string]$preflight.delegation_id -notmatch '^[0-9a-f]{64}$' -or [string]$preflight.delivery_id -notmatch '^[0-9a-f]{64}$') {
+            throw 'Preflight correlation ids are invalid.'
+        }
+        $preflightUrl = [string]$preflight.preflight_url
+        if ($preflightUrl -notmatch '^https://chatgpt\.com/\?cap_agent_preflight=1#cap_preflight_id=[0-9a-f]{64}$') {
+            throw 'Preflight URL is not the bounded neutral bootstrap shape.'
+        }
+        if ($preflightUrl -match 'cap_run_id|cap_delegation_id|cap_delivery_id|prompt=|temporary-chat') {
+            throw 'Preflight URL contains task/private launch material.'
+        }
+        Write-Host 'CAP_AGENT_SESSION_PREFLIGHT=opening-neutral-bootstrap' -ForegroundColor Cyan
+        Write-Host "CAP_AGENT_SESSION_PREFLIGHT_PATH=$preflightPath"
+        Start-Process $preflightUrl
+
+        $ready = $false
+        for ($attempt = 0; $attempt -lt 150; $attempt++) {
+            if ($controller.HasExited) { break }
+            try {
+                $health = Invoke-RestMethod -Method Get -Uri $healthUri -TimeoutSec 2
+                if (
+                    [string]$health.status -eq 'ready' -and
+                    [string]$health.adapter_id -eq 'chatgpt-temporary' -and
+                    (Test-Path -LiteralPath $launchPath -PathType Leaf)
+                ) {
+                    $ready = $true
+                    break
+                }
+            }
+            catch {}
+            Start-Sleep -Milliseconds 200
+        }
+        if (-not $ready) {
+            $stderr = Get-LogText -Path $controllerStderr
+            throw "Temporary worker preflight did not commit the task launch. $stderr"
+        }
+        $phase = 'ready'
+        Write-Host 'CAP_AGENT_SESSION_PREFLIGHT=PASS' -ForegroundColor Green
+    }
+
     if ($terminalSnapshotReady) {
         Write-Host 'CAP_AGENT_SESSION_CONTROLLER=terminal-readback' -ForegroundColor Cyan
     }
@@ -267,13 +315,20 @@ try {
     if ([string]$launch.delegation_id -notmatch '^[0-9a-f]{64}$' -or [string]$launch.delivery_id -notmatch '^[0-9a-f]{64}$') {
         throw 'Launch correlation ids are invalid.'
     }
+    $taskLaunchUrl = [string]$launch.launch_url
+    if ($taskLaunchUrl -match 'cap_run_id=[^&#]*' -and $taskLaunchUrl -match [regex]::Escape([string]$launch.delegation_id)) {
+        # The legacy fragment key carries only an opaque live handle. The private
+        # controller run capability is never emitted in launch.json or the URL.
+        $launchJsonText = Get-Content -LiteralPath $launchPath -Raw -Encoding utf8
+        if ($launchJsonText -match '"run_id"') { throw 'Launch projection leaked private run_id.' }
+    }
 
     Write-Host "CAP_AGENT_SESSION_DELEGATION_ID=$($launch.delegation_id)" -ForegroundColor Cyan
     Write-Host "CAP_AGENT_SESSION_DELIVERY_ID=$($launch.delivery_id)"
     Write-Host "CAP_AGENT_SESSION_LAUNCH_NOW=$([bool]$launch.launch_now)"
     if ([bool]$launch.launch_now) {
         Write-Host 'CAP_AGENT_SESSION_LAUNCHING=fresh-temporary-chat' -ForegroundColor Cyan
-        Start-Process ([string]$launch.launch_url)
+        Start-Process $taskLaunchUrl
     }
     else {
         Write-Host 'CAP_AGENT_SESSION_LAUNCHING=blocked-existing-delegation-monitor-only' -ForegroundColor Yellow
