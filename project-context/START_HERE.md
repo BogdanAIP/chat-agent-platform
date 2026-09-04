@@ -21,7 +21,7 @@ Read `EVIDENCE_INDEX.md`, `TECH_DEBT.md`, security/acceptance docs, future ADRs 
 
 Stage 26.3B is accepted/closed for its recorded representative scope, and Stage 26.3C is accepted/closed for its declared production process-restart/local-Windows scope through merged PR #126.
 
-The next immediate development priority is the bounded **Agent Session / Delegation** mechanism selected by fresh Stage Research in PR #149: one ordinary-ChatGPT manager -> one genuinely fresh read-only worker -> one bounded delivery -> one correlated durable result. PR #149 remains Draft/unaccepted until its target-Windows ordinary-Plus non-reviewer physical L3, canonical-owner synchronization and required exact-head semantic review pass.
+The next immediate development priority is the bounded **Agent Session / Delegation** mechanism selected by fresh Stage Research in PR #149: one ordinary-ChatGPT manager -> one genuinely fresh read-only worker -> one bounded delivery -> one correlated result when captured. PR #149 remains Draft/unaccepted until its required exact-head semantic review, target-Windows ordinary-Plus physical qualification and final hosted gates pass.
 
 The accepted reviewer-specific state/procedures from #140-#142 remain intact as specialist release-assurance fallback. They are no longer the product-level generic session/runtime owner and must not be silently generalized into arbitrary worker lifecycle semantics.
 
@@ -80,7 +80,11 @@ current repo/runtime/evidence
 
 A material new primitive or materially changed persistence/recovery/retry/concurrency/identity/authority design after the Brief invalidates implementation authority and requires research re-entry.
 
-For the current Agent Session / Delegation work, `AGENT_SESSION_DELEGATION_REENTRY.md` in PR #149 is the active **NARROW** implementation authority. The authorized first scope is exactly one manager, one fresh read-only worker, one bounded delegation/delivery and one generic terminal result with durable local closure. Nested/fan-out workers, mutating children, project/worktree/environment creation, a generic scheduler/event bus, long-lived worker pools and automatic same-task parent wake/resampling remain outside that authority.
+For the current Agent Session / Delegation work, `AGENT_SESSION_DELEGATION_REENTRY.md` is the generic **NARROW** foundation authority. `AGENT_SESSION_PROFILE_BOUNDARY_REENTRY.md`, `AGENT_SESSION_PRE_SEND_RESTART_FENCE.md` and the latest `AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` refine the first `chatgpt-temporary` adapter. The latest re-entry supersedes the earlier requirement for positive same-Temporary-conversation recovery across complete Chrome restart after target-Windows evidence failed to expose a stable provider conversation identity.
+
+The authorized first scope remains one manager, one fresh read-only worker, one bounded delegation/delivery and one generic terminal result when trustworthy result capture succeeds. Nested/fan-out workers, mutating children, project/worktree/environment creation, a generic scheduler/event bus, long-lived worker pools, persistent existing-session delivery and automatic same-task parent wake/resampling remain outside that authority.
+
+`fresh_readonly_worker_v1` is an **ephemeral one-shot independence profile**. Its durable browser claim preserves one-Send exclusion and same-live-worker pre-Send ownership, but complete browser/service-worker lifetime loss never reconstructs Send or monitor authority. If result capture was interrupted, the durable delegation remains fail-closed/open rather than fabricating a result or silently launching another worker.
 
 `AUTOMATIC_REVIEWER_RESEARCH.md` / merged #140 remains the reviewer-specific NARROW authority for reviewer semantics and fallback procedures. It does not replace the generic Agent Session Brief, and the generic Brief does not erase reviewer-specific exact-PR/result/authority requirements.
 
@@ -110,11 +114,13 @@ manager selects one bounded subgoal
  -> delivered | unknown observation
  -> no blind re-Send
  -> same-delivery reconciliation only from fresh evidence
- -> exact generic WORKER_RESULT_V1 correlation
- -> durable local closure
+ -> exact generic WORKER_RESULT_V1 correlation when captured
+ -> durable terminal closure only from that correlated result
 ```
 
-For the first `chatgpt-temporary` adapter, installed/runtime extension bytes must match the exact expected source set before Send and be revalidated before terminal browser-result capture. A provider UI or extension does not grant itself project authority.
+For the first `chatgpt-temporary` adapter, installed/runtime extension bytes must match the exact expected source set before Send and be revalidated before terminal browser-result capture. A provider UI or extension does not grant itself project authority. Complete browser-context loss is a fail-closed interruption for this profile, not a persistent-session recovery promise.
+
+Persistent rich-context ordinary-ChatGPT conversation identity, browser wake and cross-restart existing-session delivery remain future research. After #149, the parked Prime research branch is refreshed and exact-source Stage Research decides the CAP/Prime ownership boundary before implementing a generic persistent-session remainder.
 
 ## Computer-use invariant
 
@@ -143,7 +149,7 @@ stage-research when applicable
  -> preliminary required hosted CI on intended head
  -> freeze exact BASE_SHA + HEAD_SHA
  -> required fresh ordinary-ChatGPT semantic review via code-review skill
- -> optional Codex Review when available
+ -> optional Codex Review when quota is available
  -> validate/fix findings
  -> material fixes invalidate the prior review
  -> fresh exact-head ChatGPT review
@@ -154,7 +160,7 @@ stage-research when applicable
 
 The fresh ordinary-ChatGPT review is the primary required semantic review. Codex Review is additional evidence when available and quota exhaustion does not substitute for or block the primary review.
 
-The existing automatic-review procedures may later become the first specialist consumer of an accepted generic Agent Session path, but only after a separate migration proves that reviewer freshness, exact repository/PR/BASE/HEAD binding, least privilege, `REVIEW_RESULT_V1`, stale handling and manual fallback remain intact.
+The existing automatic-review procedures may later become a specialist consumer of an accepted generic bounded Agent Session path, but only after a separate migration proves that reviewer freshness, exact repository/PR/BASE/HEAD binding, least privilege, `REVIEW_RESULT_V1`, stale handling and manual fallback remain intact. MimiSeek may likewise consume the fresh-worker capability without moving review-job semantics into CAP; returning to an existing project conversation is a separate persistent-session capability.
 
 Documentation/process-only changes do not require a physical gate unless they change acceptance/runtime authority. Material changes to merge/review semantics remain review-significant under `AGENTS.md`.
 
