@@ -11,13 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "runtime" / "agent_sessions" / "chatgpt_temporary_extension" / "policy.js"
 
 
-class RecoveredGuardRuntimeTests(unittest.TestCase):
+class PostDeliveryGuardRuntimeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.node = shutil.which("node")
         if self.node is None:
             self.skipTest("node is unavailable")
 
-    def test_cleaned_url_reload_requires_explicit_rearm_before_capture(self) -> None:
+    def test_cleaned_url_requires_explicit_original_context_rearm_before_capture(self) -> None:
         script = f"""
 const fs = require("fs");
 const vm = require("vm");
@@ -30,7 +30,7 @@ const expectedHead = "e".repeat(40);
 const promptSha = "f".repeat(64);
 const cleanupToken = "1".repeat(64);
 const result = "CAP_WORKER_RESULT_V1_BEGIN\\n{{}}\\nCAP_WORKER_RESULT_V1_END";
-let href = "https://chatgpt.com/c/recovered-session-1234";
+let href = "https://chatgpt.com/c/guard-session-1234";
 let now = 1000;
 let intervalFn = null;
 const editor = {{ textContent: "", innerText: "" }};
@@ -53,10 +53,11 @@ Date.now = () => now;
 
 vm.runInThisContext(fs.readFileSync({json.dumps(str(POLICY))}, "utf8"), {{ filename: "policy.js" }});
 
-// A cleaned URL contains no launch intent, so browser capture must fail closed
-// until content.js supplies its authenticated resume-intent to the same guard.
+// A cleaned URL alone carries no capture authority. The exact live content
+// context must explicitly arm the post-delivery guard with its private run
+// correlation before the policy can accept a terminal result block.
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(10);
-const recovered = {{
+const originalContext = {{
   runId,
   delegationId,
   deliveryId,
@@ -64,7 +65,7 @@ const recovered = {{
   expectedHead,
   promptSha256: promptSha,
 }};
-if (!CAPChatGPTTemporaryPolicy.armPostDeliveryUiGuard(recovered)) process.exit(11);
+if (!CAPChatGPTTemporaryPolicy.armPostDeliveryUiGuard(originalContext)) process.exit(11);
 if (typeof intervalFn !== "function") process.exit(12);
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(13);
 
