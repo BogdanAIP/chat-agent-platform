@@ -260,6 +260,7 @@ Focused/adversarial tests must prove:
 - stable cleanup acknowledgement remains idempotent;
 - uninterrupted Temporary Chat launch -> one Send -> delivered -> exact structured result still succeeds;
 - complete browser loss after delivery leaves truthful unresolved local state and never performs another physical effect;
+- a still-live final observation that reports `worker_generating=true` or no conforming terminal result remains non-terminal, leaves `result_state=open`, writes no synthetic worker result and lets the controller/launcher fail nonzero if no genuine capture arrives during the grace window;
 - cross-HEAD/runtime provenance protections remain intact.
 
 Final target-Windows physical evidence for the eventual frozen HEAD is narrowed to the actual profile guarantee:
@@ -298,7 +299,13 @@ implement narrow change
  -> mark ready and merge
 ```
 
-## 12. Decision
+## 12. Fresh-review follow-up — timeout observation authority
+
+The fresh ordinary-ChatGPT review of exact HEAD `94f14890f8ad89dc3022e940c82c240021fbdb52` reported one P1 finding: `record_final_observation()` converted a live browser observation of `terminal_result_visible=false` into a synthetic `WORKER_RESULT_V1 status=ERROR`, irreversibly closing the delegation. Development-side falsification confirmed the finding against this brief's explicit prohibition on timeout-closure/fabricated worker results.
+
+The accepted correction stays inside this brief's existing NARROW authority: final observation may report whether a terminal result is currently visible and whether generation appears active, but **observation is not worker-result authority**. When no exact terminal result is visible, the controller returns a non-terminal unresolved observation, leaves `result_state=open`, writes no `result.json`, does not set `done`, and therefore returns nonzero after the bounded grace window unless a genuine worker result is captured in time. No new result status, timeout closure or reconciliation primitive is introduced.
+
+## 13. Decision
 
 **NARROW**.
 
