@@ -19,7 +19,7 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertIn("EXACT_HEAD_MISMATCH", self.text)
         self.assertIn("source-provenance-before.json", self.text)
         self.assertIn("source-provenance-after.json", self.text)
-        self.assertGreaterEqual(self.text.count("Invoke-SourceGate"), 3)  # definition + before + after
+        self.assertGreaterEqual(self.text.count("Invoke-SourceGate"), 3)
         for asset in (
             "runtime/control_plane/delegation_state.py",
             "runtime/agent_sessions/source_attestation.py",
@@ -60,13 +60,24 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertIn("ChatAgentPlatform\\agent-sessions\\qualification", self.text)
         self.assertNotIn("Set-Content -Path $RepoRoot", self.text)
 
-    def test_browser_launch_requires_durable_launch_now_and_has_no_retry_loop(self) -> None:
-        launch_gate = self.text.index("if ([bool]$launch.launch_now)")
-        start = self.text.index("Start-Process ([string]$launch.launch_url)", launch_gate)
-        self.assertGreater(start, launch_gate)
-        post_gate = self.text[launch_gate:]
-        self.assertEqual(1, post_gate.count("Start-Process ([string]$launch.launch_url)"))
-        self.assertIn("blocked-existing-delegation-monitor-only", post_gate)
+    def test_neutral_preflight_is_opened_before_one_task_launch_and_contains_no_task_material(self) -> None:
+        preflight_gate = self.text.index("if ($phase -eq 'preflight')")
+        preflight_start = self.text.index("Start-Process $preflightUrl", preflight_gate)
+        launch_gate = self.text.index("if ([bool]$launch.launch_now)", preflight_start)
+        task_start = self.text.index("Start-Process $taskLaunchUrl", launch_gate)
+        self.assertLess(preflight_start, task_start)
+        self.assertIn("cap_agent_preflight=1#cap_preflight_id=", self.text)
+        self.assertIn("Preflight URL contains task/private launch material", self.text)
+        self.assertEqual(1, self.text[launch_gate:].count("Start-Process $taskLaunchUrl"))
+        self.assertIn("blocked-existing-delegation-monitor-only", self.text[launch_gate:])
+
+    def test_stale_preflight_projection_is_removed_before_controller_start(self) -> None:
+        controller_start = self.text.index("$controller = Start-Process")
+        cleanup = self.text[:controller_start]
+        self.assertIn(
+            "$controllerStdout, $controllerStderr, $preflightPath, $launchPath, $resultPath",
+            cleanup,
+        )
 
     def test_result_must_match_exact_delegation_delivery_and_success_status(self) -> None:
         self.assertIn("Result delegation correlation mismatch", self.text)
@@ -78,12 +89,6 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertIn("CAP_AGENT_SESSION_RESULT_SHA256", self.text)
 
     def test_terminal_restart_uses_only_fresh_controller_projections(self) -> None:
-        controller_start = self.text.index("$controller = Start-Process")
-        cleanup = self.text[:controller_start]
-        self.assertIn(
-            "$controllerStdout, $controllerStderr, $launchPath, $resultPath",
-            cleanup,
-        )
         terminal_gate = self.text.index("$terminalSnapshotReady = $false")
         launch_parse = self.text.index(
             "if (-not (Test-Path -LiteralPath $launchPath -PathType Leaf))",
