@@ -288,3 +288,5 @@ These findings do **not** require a new architecture owner, scheduler, lease, pr
 - a losing duplicate tab cannot reach local Send authority while the original browser claim owner can recover it;
 - delivery outcome retry after acknowledgement loss reuses the same evidence identity and can reconcile a durable delivered state;
 - capture transport loss does not terminate the content recovery loop, and authenticated terminal status closes an already-recorded result without duplicate capture authority.
+
+Any implementation or documentation commit made in response to this follow-up supersedes the `3e0ecd...` review for merge acceptance. The next semantic gate must therefore be a genuinely fresh ordinary-ChatGPT review against the final exact HEAD after hosted checks are green; only a PASS on that exact HEAD may be followed by the final target-Windows physical qualification and final exact-head CI.
