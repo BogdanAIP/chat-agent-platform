@@ -7,7 +7,6 @@ const CLAIM_STORE = "send_claims";
 const CONTROLLER_ORIGIN = "http://127.0.0.1:3078";
 const HEX64_RE = /^[0-9a-f]{64}$/;
 const HEAD40_RE = /^[0-9a-f]{40}$/;
-const CONVERSATION_PATH_RE = /^\/c\/([A-Za-z0-9_-]{8,128})(?:\/|$)/;
 const EXECUTION_GENERATION = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";
 const RUNTIME_ASSETS = ["manifest.json", "execution_generation.js", "policy.js", "background.js", "content.js"];
 const LIVE_PRE_SEND_CLAIMS = new Set();
@@ -101,7 +100,6 @@ async function claimBrowserSend(message, tabId) {
           expected_runtime_head: message.expected_runtime_head,
           prompt_sha256: message.prompt_sha256,
           claim_tab_id: tabId,
-          conversation_id: null,
           claimed_at: new Date().toISOString(),
         },
         message.delivery_id,
@@ -148,27 +146,6 @@ async function claimRecordByDelivery(deliveryId) {
   });
 }
 
-async function claimRecordsForRecovery() {
-  const db = await openExistingClaimDb();
-  return await new Promise((resolve, reject) => {
-    let transaction;
-    try {
-      transaction = db.transaction(CLAIM_STORE, "readonly");
-      const request = transaction.objectStore(CLAIM_STORE).getAll();
-      request.onerror = () => reject(request.error || new Error("claim-read-failed"));
-      request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
-      transaction.oncomplete = () => db.close();
-      transaction.onabort = () => {
-        db.close();
-        reject(transaction.error || new Error("claim-read-aborted"));
-      };
-    } catch (error) {
-      db.close();
-      reject(error);
-    }
-  });
-}
-
 function validCommon(message) {
   return message &&
     message.schema_version === 1 &&
@@ -181,10 +158,6 @@ function validCommon(message) {
     HEX64_RE.test(message.prompt_sha256 || "");
 }
 
-function validConversationId(value) {
-  return typeof value === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(value);
-}
-
 function validClaimRecord(record) {
   return record &&
     record.schema_version === 1 &&
@@ -194,8 +167,7 @@ function validClaimRecord(record) {
     HEX64_RE.test(record.task_sha256 || "") &&
     HEAD40_RE.test(record.expected_runtime_head || "") &&
     HEX64_RE.test(record.prompt_sha256 || "") &&
-    (record.claim_tab_id == null || (Number.isInteger(record.claim_tab_id) && record.claim_tab_id >= 0)) &&
-    (record.conversation_id == null || validConversationId(record.conversation_id));
+    Number.isInteger(record.claim_tab_id) && record.claim_tab_id >= 0;
 }
 
 function exactClaimMatches(record, message) {
@@ -208,21 +180,6 @@ function exactClaimMatches(record, message) {
     record.prompt_sha256 === message.prompt_sha256;
 }
 
-function validObservedClaim(value) {
-  return value &&
-    HEX64_RE.test(value.delegation_id || "") &&
-    HEX64_RE.test(value.delivery_id || "") &&
-    HEX64_RE.test(value.task_sha256 || "");
-}
-
-function observedClaimMatches(record, observed, conversationId) {
-  return validClaimRecord(record) && validObservedClaim(observed) && validConversationId(conversationId) &&
-    record.conversation_id === conversationId &&
-    record.delegation_id === observed.delegation_id &&
-    record.delivery_id === observed.delivery_id &&
-    record.task_sha256 === observed.task_sha256;
-}
-
 function senderTab(sender) {
   const senderUrl = sender?.url || sender?.tab?.url || "";
   let origin;
@@ -233,85 +190,6 @@ function senderTab(sender) {
   }
   if (origin !== "https://chatgpt.com" || !Number.isInteger(sender?.tab?.id)) return null;
   return sender.tab.id;
-}
-
-function conversationIdFromUrl(urlString) {
-  try {
-    const url = new URL(urlString || "");
-    if (url.origin !== "https://chatgpt.com") return null;
-    const match = url.pathname.match(CONVERSATION_PATH_RE);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
-}
-
-function senderConversationId(sender) {
-  if (senderTab(sender) === null) return null;
-  const tabConversation = conversationIdFromUrl(sender?.tab?.url || "");
-  const senderConversation = conversationIdFromUrl(sender?.url || "");
-  if (tabConversation && senderConversation && tabConversation !== senderConversation) return null;
-  return tabConversation || senderConversation;
-}
-
-async function bindClaimConversationRecord(message, conversationId, tabId) {
-  const db = await openExistingClaimDb();
-  return await new Promise((resolve, reject) => {
-    let finished = false;
-    let outcome = null;
-    const finish = (value, error) => {
-      if (finished) return;
-      finished = true;
-      db.close();
-      if (error) reject(error);
-      else resolve(value);
-    };
-    let transaction;
-    try {
-      transaction = db.transaction(CLAIM_STORE, "readwrite");
-      const store = transaction.objectStore(CLAIM_STORE);
-      const request = store.get(message.delivery_id);
-      request.onerror = () => finish(null, request.error || new Error("claim-read-failed"));
-      request.onsuccess = () => {
-        const record = request.result || null;
-        if (!exactClaimMatches(record, message)) {
-          outcome = { bound: false, reason: "claim-correlation-mismatch" };
-          return;
-        }
-        if (!Number.isInteger(record.claim_tab_id) || record.claim_tab_id < 0) {
-          outcome = { bound: false, reason: "claim-tab-unbound" };
-          return;
-        }
-        if (record.claim_tab_id !== tabId) {
-          outcome = { bound: false, reason: "claim-tab-mismatch" };
-          return;
-        }
-        if (record.conversation_id != null && !validConversationId(record.conversation_id)) {
-          outcome = { bound: false, reason: "conversation-binding-invalid" };
-          return;
-        }
-        if (validConversationId(record.conversation_id)) {
-          outcome = record.conversation_id === conversationId
-            ? { bound: true, reason: "already-bound", conversation_id: conversationId }
-            : { bound: false, reason: "conversation-binding-mismatch" };
-          return;
-        }
-        const update = store.put({ ...record, conversation_id: conversationId }, message.delivery_id);
-        update.onerror = () => finish(null, update.error || new Error("conversation-binding-write-failed"));
-        update.onsuccess = () => {
-          outcome = { bound: true, reason: "bound", conversation_id: conversationId };
-        };
-      };
-    } catch (error) {
-      finish(null, error);
-      return;
-    }
-    transaction.oncomplete = () => finish(outcome || { bound: false, reason: "conversation-binding-incomplete" }, null);
-    transaction.onabort = () => finish(null, transaction.error || new Error("conversation-binding-transaction-aborted"));
-    transaction.onerror = () => {
-      if (!finished) finish(null, transaction.error || new Error("conversation-binding-transaction-failed"));
-    };
-  });
 }
 
 async function controllerPost(message, path, body) {
@@ -371,101 +249,6 @@ async function requestLocalSendAuthority(message, tabId) {
   });
 }
 
-async function bindRecoveryConversation(message, sender) {
-  if (!HEX64_RE.test(message.task_sha256 || "")) {
-    return { ok: false, bound: false, reason: "invalid-task-correlation" };
-  }
-  const tabId = senderTab(sender);
-  if (tabId === null) return { ok: false, bound: false, reason: "invalid-sender" };
-  const conversationId = senderConversationId(sender);
-  if (!validConversationId(conversationId)) {
-    return { ok: true, bound: false, reason: "provider-conversation-unavailable" };
-  }
-  let status;
-  try {
-    status = await controllerStatus(message);
-  } catch (error) {
-    return { ok: false, bound: false, reason: `conversation-bind-status-unavailable:${error?.message || "Error"}` };
-  }
-  if (status.delegation_id !== message.delegation_id || status.delivery_id !== message.delivery_id) {
-    return { ok: false, bound: false, reason: "controller-status-correlation-mismatch" };
-  }
-  if (
-    status.launch_state !== "child-bound" ||
-    !["claimed", "unknown", "delivered"].includes(status.delivery_state) ||
-    status.result_state !== "open"
-  ) {
-    return { ok: true, bound: false, reason: "conversation-bind-state-ineligible" };
-  }
-  try {
-    const result = await bindClaimConversationRecord(message, conversationId, tabId);
-    return { ok: true, ...result };
-  } catch (error) {
-    return { ok: false, bound: false, reason: `conversation-binding-failed:${error?.message || "Error"}` };
-  }
-}
-
-async function resumeIntent(message, sender) {
-  if (message?.execution_generation !== EXECUTION_GENERATION || !HEX64_RE.test(EXECUTION_GENERATION)) {
-    return { ok: false, enabled: false, reason: "execution-generation-mismatch" };
-  }
-  if (senderTab(sender) === null) return { ok: false, enabled: false, reason: "invalid-sender" };
-  const conversationId = senderConversationId(sender);
-  if (!validConversationId(conversationId)) {
-    return { ok: true, enabled: false, reason: "provider-conversation-unavailable" };
-  }
-  const observed = Array.isArray(message?.observed_claims) ? message.observed_claims.slice(0, 8) : [];
-  if (!observed.length || observed.some((value) => !validObservedClaim(value))) {
-    return { ok: true, enabled: false, reason: "no-observed-delivery-correlation" };
-  }
-  let records;
-  try {
-    records = await claimRecordsForRecovery();
-  } catch (error) {
-    return { ok: false, enabled: false, reason: `claim-read-failed:${error?.message || "Error"}` };
-  }
-  const candidates = records.filter((record) =>
-    validClaimRecord(record) && observed.some((value) => observedClaimMatches(record, value, conversationId))
-  );
-  const active = [];
-  for (const record of candidates) {
-    try {
-      const status = await controllerStatus(record);
-      if (status.delegation_id !== record.delegation_id || status.delivery_id !== record.delivery_id) continue;
-      if (status.launch_state !== "child-bound") continue;
-      if (!["claimed", "unknown", "delivered"].includes(status.delivery_state)) continue;
-      if (status.result_state !== "open") continue;
-      active.push({ record, status });
-    } catch {
-      // Stale records are inert. Only the exact live controller can authenticate
-      // a monitor-only recovery candidate.
-    }
-  }
-  if (active.length !== 1) {
-    return {
-      ok: true,
-      enabled: false,
-      reason: active.length > 1 ? "ambiguous-active-claim" : "no-active-claim",
-    };
-  }
-  const { record, status } = active[0];
-  return {
-    ok: true,
-    enabled: true,
-    monitor_only: true,
-    execution_generation: EXECUTION_GENERATION,
-    run_id: record.run_id,
-    delegation_id: record.delegation_id,
-    delivery_id: record.delivery_id,
-    task_sha256: record.task_sha256,
-    expected_runtime_head: record.expected_runtime_head,
-    prompt_sha256: record.prompt_sha256,
-    conversation_id: record.conversation_id,
-    delivery_state: status.delivery_state,
-    result_state: status.result_state,
-  };
-}
-
 async function authorizeSend(message, sender) {
   const tabId = senderTab(sender);
   if (tabId === null) return { ok: false, send_authorized: false, reason: "invalid-sender" };
@@ -513,7 +296,7 @@ async function authorizeSend(message, sender) {
           reason: "browser-claim-owner-context-expired",
         };
       }
-      if (!Number.isInteger(existing.claim_tab_id) || existing.claim_tab_id !== tabId) {
+      if (existing.claim_tab_id !== tabId) {
         return {
           ok: true,
           send_authorized: false,
@@ -537,12 +320,11 @@ async function authorizeSend(message, sender) {
       }
     }
 
-    const monitorOnly = ["claimed", "unknown", "delivered"].includes(status.delivery_state) && status.result_state === "open";
     return {
       ok: true,
       send_authorized: false,
-      monitor_only: monitorOnly,
-      reason: browserClaim.reason,
+      monitor_only: false,
+      reason: "temporary-profile-ephemeral",
       delivery_state: status.delivery_state,
       result_state: status.result_state,
     };
@@ -553,7 +335,7 @@ async function authorizeSend(message, sender) {
     return {
       ok: true,
       send_authorized: result.send_authorized === true,
-      monitor_only: result.send_authorized !== true && ["claimed", "unknown", "delivered"].includes(result.delivery_state),
+      monitor_only: false,
       delivery_state: result.delivery_state,
       reason: result.status,
     };
@@ -571,10 +353,8 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.schema_version === 1 && message.kind === "resume-intent") {
-    void resumeIntent(message, sender)
-      .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, enabled: false, reason: error?.message || "resume-failed" }));
-    return true;
+    sendResponse({ ok: true, enabled: false, reason: "temporary-profile-ephemeral" });
+    return false;
   }
 
   if (!validCommon(message)) {
@@ -588,10 +368,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.kind === "bind-recovery-conversation") {
-    void bindRecoveryConversation(message, sender)
-      .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, bound: false, reason: error?.message || "conversation-binding-failed" }));
-    return true;
+    sendResponse({ ok: true, bound: false, reason: "temporary-profile-ephemeral" });
+    return false;
   }
 
   if (senderTab(sender) === null) {
