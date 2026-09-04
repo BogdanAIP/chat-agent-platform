@@ -132,13 +132,24 @@ class DelegationStateTests(unittest.TestCase):
         self.assertEqual("prepared", snapshot.delivery_state)
         self.assertEqual("open", snapshot.result_state)
 
-    def test_first_profile_is_read_only_and_worker_session_must_be_manager_owned(self) -> None:
-        with self.assertRaisesRegex(
-            delegation_state.DelegationStateError, "worker_profile must"
-        ):
-            delegation_state.parse_delegation_identity(
-                identity_dict(worker_profile="mutating-worker-v1")
-            )
+    def test_worker_profile_is_bounded_identity_and_session_must_be_manager_owned(self) -> None:
+        current = delegation_state.parse_delegation_identity(identity_dict())
+        alternate = delegation_state.parse_delegation_identity(
+            identity_dict(worker_profile="context_rich_readonly_worker_v1")
+        )
+        self.assertEqual("context_rich_readonly_worker_v1", alternate.worker_profile)
+        self.assertNotEqual(
+            delegation_state.delegation_operation_key(current),
+            delegation_state.delegation_operation_key(alternate),
+        )
+        for invalid in ("", "bad profile", "x" * 129):
+            with self.subTest(worker_profile=invalid):
+                with self.assertRaisesRegex(
+                    delegation_state.DelegationStateError, "bounded identifier"
+                ):
+                    delegation_state.parse_delegation_identity(
+                        identity_dict(worker_profile=invalid)
+                    )
         with self.assertRaisesRegex(
             delegation_state.DelegationStateError, "manager_owned"
         ):
