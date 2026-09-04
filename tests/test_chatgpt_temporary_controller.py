@@ -8,13 +8,17 @@ from pathlib import Path
 import unittest
 
 from runtime.agent_sessions import chatgpt_temporary, source_attestation
-from runtime.agent_sessions.chatgpt_temporary_controller import TemporaryControllerState
+from runtime.agent_sessions.chatgpt_temporary_controller import (
+    TemporaryControllerRuntime,
+    TemporaryControllerState,
+)
 from runtime.control_plane import delegation_state
 
 
 TASK = "Read the supplied bounded question and return a short research summary without changing external state."
 TASK_SHA = hashlib.sha256(TASK.encode("utf-8")).hexdigest()
 EXECUTION_GENERATION = "9" * 64
+LAUNCH_HANDLE = "7" * 64
 RUNTIME_ASSETS = {
     "manifest.json": "1" * 64,
     "execution_generation.js": "5" * 64,
@@ -128,6 +132,7 @@ class TemporaryControllerTests(unittest.TestCase):
         return TemporaryControllerState(
             identity_value=identity_dict(),
             task=TASK,
+            launch_handle=LAUNCH_HANDLE,
             expected_runtime_attestation_value=expected_runtime_attestation(head),
             state_root=self.state_root,
             output_dir=self.output_root / suffix,
@@ -198,6 +203,7 @@ class TemporaryControllerTests(unittest.TestCase):
         self.assertEqual(EXECUTION_GENERATION, launch["execution_generation"])
         self.assertIn("cap_expected_head=" + "a" * 40, launch["launch_url"])
         self.assertIn("cap_prompt_sha256=", launch["launch_url"])
+        self.assertNotIn(first.launch.run_id, launch["launch_url"])
 
     def test_browser_claim_must_be_committed_before_local_send_authority(self) -> None:
         state = self.controller()
@@ -490,6 +496,69 @@ class TemporaryControllerTests(unittest.TestCase):
             self.assertFalse((self.output_root / "first" / "result.json").exists())
         denied = state.authorize_send(authority_request(state))
         self.assertFalse(denied["send_authorized"])
+
+
+class TemporaryControllerPreflightTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.state_root = root / "private-state"
+        self.output_root = root / "output"
+        self.runtime = TemporaryControllerRuntime(
+            identity_value=identity_dict(),
+            task=TASK,
+            expected_runtime_attestation_value=expected_runtime_attestation(),
+            state_root=self.state_root,
+            output_dir=self.output_root,
+        )
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def preflight_request(self) -> dict[str, object]:
+        assert self.runtime.preflight_id is not None
+        return {
+            "schema_version": 1,
+            "preflight_id": self.runtime.preflight_id,
+            "execution_generation": EXECUTION_GENERATION,
+            "runtime_attestation": runtime_report(),
+        }
+
+    def test_initial_runtime_exposes_only_neutral_preflight_while_durable_launch_stays_prepared(self) -> None:
+        self.assertEqual("preflight", self.runtime.health()["status"])
+        self.assertIsNone(self.runtime.state)
+        self.assertFalse((self.output_root / "launch.json").exists())
+        preflight = json.loads((self.output_root / "preflight.json").read_text(encoding="utf-8"))
+        self.assertRegex(preflight["preflight_url"], r"^https://chatgpt\.com/\?cap_agent_preflight=1#cap_preflight_id=[0-9a-f]{64}$")
+        self.assertNotIn("cap_run_id", preflight["preflight_url"])
+        self.assertNotIn("prompt=", preflight["preflight_url"])
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("prepared", snapshot.launch_state)
+
+    def test_prepare_handoff_still_leaves_durable_launch_prepared(self) -> None:
+        prepared = self.runtime.prepare_live_handoff(self.preflight_request())
+        self.assertEqual("handoff-prepared", prepared["status"])
+        self.assertRegex(prepared["launch_handle"], r"^[0-9a-f]{64}$")
+        self.assertRegex(prepared["run_id"], r"^[0-9a-f]{64}$")
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("prepared", snapshot.launch_state)
+        self.assertFalse((self.output_root / "launch.json").exists())
+
+    def test_commit_after_live_handoff_creates_one_task_launch_without_private_run_in_projection(self) -> None:
+        prepared = self.runtime.prepare_live_handoff(self.preflight_request())
+        commit = self.preflight_request()
+        commit["launch_handle"] = prepared["launch_handle"]
+        committed = self.runtime.commit_live_handoff(commit)
+        self.assertEqual("launch-committed", committed["status"])
+        self.assertEqual("launch-attempted", committed["launch_state"])
+        state = self.runtime.require_state()
+        self.assertTrue(state.launch.launch_now)
+        launch = json.loads((self.output_root / "launch.json").read_text(encoding="utf-8"))
+        self.assertNotIn("run_id", launch)
+        self.assertNotIn(prepared["run_id"], launch["launch_url"])
+        self.assertIn(str(prepared["launch_handle"]), launch["launch_url"])
+        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+        self.assertEqual("launch-attempted", snapshot.launch_state)
 
 
 if __name__ == "__main__":
