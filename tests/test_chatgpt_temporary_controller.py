@@ -463,26 +463,31 @@ class TemporaryControllerTests(unittest.TestCase):
         self.assertEqual("open", snapshot.result_state)
         self.assertFalse(state.done.is_set())
 
-    def test_final_observation_without_terminal_result_can_close_timeout_as_error(self) -> None:
+    def test_final_observation_without_terminal_result_preserves_unresolved_state(self) -> None:
         state = self.controller()
         self.deliver(state)
         request_id = state.request_final_observation_if_delivered()
-        response = state.record_final_observation(
-            {
-                "schema_version": 1,
-                "run_id": state.launch.run_id,
-                "delegation_id": state.launch.delegation_id,
-                "delivery_id": state.launch.delivery_id,
-                "request_id": request_id,
-                "terminal_result_visible": False,
-                "worker_generating": True,
-                "runtime_attestation": runtime_report(),
-            }
-        )
-        self.assertEqual("recorded-timeout", response["status"])
-        snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
-        self.assertEqual("recorded", snapshot.result_state)
-        self.assertEqual("ERROR", snapshot.result_status)
+        for generating in (True, False):
+            response = state.record_final_observation(
+                {
+                    "schema_version": 1,
+                    "run_id": state.launch.run_id,
+                    "delegation_id": state.launch.delegation_id,
+                    "delivery_id": state.launch.delivery_id,
+                    "request_id": request_id,
+                    "terminal_result_visible": False,
+                    "worker_generating": generating,
+                    "runtime_attestation": runtime_report(),
+                }
+            )
+            self.assertEqual("unresolved-awaiting-worker-result", response["status"])
+            self.assertEqual("generating" if generating else "no-terminal-result", response["observation"])
+            snapshot = delegation_state.load_delegation(identity_dict(), state_root=self.state_root)
+            self.assertEqual("delivered", snapshot.delivery_state)
+            self.assertEqual("open", snapshot.result_state)
+            self.assertIsNone(snapshot.result_status)
+            self.assertFalse(state.done.is_set())
+            self.assertFalse((self.output_root / "first" / "result.json").exists())
         denied = state.authorize_send(authority_request(state))
         self.assertFalse(denied["send_authorized"])
 
