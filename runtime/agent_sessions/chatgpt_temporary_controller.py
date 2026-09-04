@@ -109,6 +109,39 @@ def _bind_launch_provenance(
     )
 
 
+def _task_launch_url_from_preflight(
+    snapshot: chatgpt_temporary.TemporaryPreflightIntent,
+    *,
+    task: str,
+    launch_handle: str,
+    expected_head: str,
+) -> str:
+    launch_handle = _hex64(launch_handle, "launch_handle")
+    prompt = chatgpt_temporary.build_worker_prompt(
+        snapshot.identity,
+        delegation_id=snapshot.delegation_id,
+        delivery_id=snapshot.delivery_id,
+        task=task,
+    )
+    query = urlencode(
+        {
+            "temporary-chat": "true",
+            "cap_agent_delegate": "1",
+            "cap_delegation_id": snapshot.delegation_id,
+            "cap_delivery_id": snapshot.delivery_id,
+            "cap_task_sha256": snapshot.identity.task_sha256,
+            "cap_expected_head": expected_head,
+            "cap_prompt_sha256": snapshot.prompt_sha256,
+            "prompt": prompt,
+        }
+    )
+    fragment = urlencode({"cap_run_id": launch_handle})
+    value = f"https://chatgpt.com/?{query}#{fragment}"
+    if snapshot.run_id in value:
+        raise DelegationStateError("task launch URL leaked private run capability")
+    return value
+
+
 class TemporaryControllerState:
     def __init__(
         self,
@@ -235,6 +268,9 @@ class TemporaryControllerState:
             "result_state": snapshot.result_state,
             "result_status": snapshot.result_status,
             "final_observation_request_id": final_request_id,
+            "expected_runtime_head": self.expected_runtime_attestation.expected_head,
+            "execution_generation": self.expected_runtime_attestation.execution_generation,
+            "prompt_sha256": self.launch.prompt_sha256,
         }
 
     def record_event(self, value: Mapping[str, Any]) -> dict[str, Any]:
@@ -658,6 +694,12 @@ class TemporaryControllerRuntime:
                 self.pending_launch_handle = secrets.token_hex(32)
             launch_handle = self.pending_launch_handle
 
+        launch_url = _task_launch_url_from_preflight(
+            snapshot,
+            task=self.task,
+            launch_handle=launch_handle,
+            expected_head=self.expected_runtime_attestation.expected_head,
+        )
         return {
             "schema_version": 1,
             "status": "handoff-prepared",
@@ -668,6 +710,7 @@ class TemporaryControllerRuntime:
             "task_sha256": snapshot.identity.task_sha256,
             "expected_runtime_head": self.expected_runtime_attestation.expected_head,
             "prompt_sha256": snapshot.prompt_sha256,
+            "launch_url": launch_url,
             "runtime_attestation_sha256": runtime_digest,
         }
 
