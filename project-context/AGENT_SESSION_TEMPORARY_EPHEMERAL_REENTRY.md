@@ -6,7 +6,7 @@ Research date: **2026-09-04**
 
 Triggering PR: **#149**
 
-Triggering HEAD: `339f2c44805994e6acff3be29da458b14ad0e1bb`
+Triggering HEAD before this brief: `339f2c44805994e6acff3be29da458b14ad0e1bb`
 
 Accepted BASE: `90a8e16e6a1badecd3315968339ca691634b7ee4`
 
@@ -63,7 +63,7 @@ The selected answer must preserve:
 - exact worker/result correlation;
 - exact runtime/source provenance;
 - fresh/non-personalized/no-plugin profile qualification;
-- bounded durable local terminal closure when the task was definitely delivered but browser result capture is lost;
+- fail-closed unresolved state when browser loss prevents trustworthy result capture;
 - the provider-neutral generic core and exactly-six public Chat-facing tools.
 
 Out of scope:
@@ -73,13 +73,14 @@ Out of scope:
 - Prime integration;
 - saving/converting Temporary Chat into a regular conversation;
 - browser-session leases, recovery secrets or another provider-specific durable identity service;
-- relaunching a second worker after an ambiguous or completed Send.
+- relaunching a second worker after an ambiguous or completed Send;
+- inventing a synthetic terminal worker result when no trustworthy worker result was captured.
 
 ## 4. Architecture lineage
 
 ### Bounded Agent Session / Delegation lifecycle — `KEEP`
 
-Keep generic deterministic delegation identity, private run capability, launch/delivery/result states, crash-safe persistence, one terminal result contract and exact correlation.
+Keep generic deterministic delegation identity, private run capability, launch/delivery/result states, crash-safe persistence, terminal result contract and exact correlation.
 
 ### First-provider browser delivery ownership — `KEEP`
 
@@ -104,7 +105,7 @@ The prior provider `conversation_id` recovery mechanism is not justified for `fr
 
 ### Stable cleanup/capture token semantics — `KEEP`
 
-Idempotent cleanup acknowledgement and two-phase capture remain useful in the uninterrupted/same-context path and for controller/network acknowledgement loss. They do not require cross-Chrome multi-monitor recovery.
+Idempotent cleanup acknowledgement and two-phase capture remain useful in the uninterrupted/original-context path and for controller/network acknowledgement loss. They do not require cross-Chrome multi-monitor recovery.
 
 ### Capability authorization / Verification Kernel / Finish Gate — `KEEP`
 
@@ -129,19 +130,21 @@ Lesson classification: **REJECT_MECHANIC for the current Temporary profile**, no
 
 ## 6. Architecture primitives and adjacent domains
 
-This re-entry removes a provider-specific recovery primitive rather than adding a replacement identity system.
+This re-entry removes a provider-specific recovery primitive rather than adding a replacement identity or timeout-closure mechanism.
 
-One bounded behavior is tightened: **delivered-timeout terminalization**. If CAP has durable proof that the task was delivered, the result is still open, and the browser context can no longer provide terminal observation/capture by the configured timeout/grace boundary, the controller may record one correlated `ERROR` result through the existing result state machine. This is a local workflow timeout outcome, not evidence that the worker failed semantically and not permission to Send again.
+The durable failure behavior intentionally remains:
 
-Domain: durable workflow timeout/cancellation and terminal-state closure.
+```text
+delivery_state = claimed | unknown | delivered
+result_state = open
+browser context lost
+ -> no re-Send
+ -> no cross-browser result monitor recovery
+ -> no fabricated worker result
+ -> controller/launcher may terminate nonzero while durable state remains unresolved
+```
 
-Required guarantees:
-
-- terminalization is allowed only from `delivery_state=delivered` and `result_state=open`;
-- it uses the existing exact delegation/delivery/run/result contract;
-- it performs zero additional browser/worker effects;
-- later duplicate/foreign results cannot replace the recorded terminal result;
-- `claimed`/`unknown` delivery remains unresolved and cannot be falsely closed as a worker result because delivery itself is not proven.
+That unresolved state is fail-closed evidence of an interrupted delegated run, not a reusable launch capability. A later separately governed reconciliation mechanism may inspect it, but #149 does not invent one.
 
 No new queue, lease, journal, scheduler, registry or persistence framework is introduced.
 
@@ -157,7 +160,7 @@ The same physical run proved that the actual intended reviewer-style value still
 
 The durable IndexedDB claim already provides the safety property that matters after browser loss: the same logical delivery cannot regain blind Send authority. `LIVE_PRE_SEND_CLAIMS` deliberately loses liveness across browser/service-worker lifetime loss, which is the correct fail-closed behavior for pre-Send ambiguity.
 
-The generic state machine already separates delivery from result and permits a terminal result only after `delivered`; therefore a controller-generated timeout `ERROR` can close a definitely delivered/open delegation without inventing a second physical action. No new state model is needed.
+The generic state machine already distinguishes an open/unresolved delegation from a trustworthy recorded worker result. Preserving `result_state=open` after browser-loss interruption is therefore more truthful than manufacturing `ERROR` as if it had been a captured worker response.
 
 Current OpenAI Temporary Chat behavior supports treating the unsaved non-personalized chat as an independence mechanism rather than a durable history/session primitive.
 
@@ -190,8 +193,7 @@ one fresh Temporary Chat
  -> durable claim before Send
  -> one Send
  -> uninterrupted capture when available
- -> if complete browser context is lost: no recovery/no re-Send
- -> if delivery was proven and result cannot be captured before timeout: durable ERROR closure
+ -> if complete browser context is lost: no recovery/no re-Send/no fabricated result
 ```
 
 Strengths:
@@ -224,7 +226,7 @@ Decision: **REJECT**.
 | Delivery unknown | unknown | message may exist | preserve unknown; no terminal worker result and no re-Send | none |
 | Delivery proven, browser alive | delivered/open | worker running/result may appear | normal cleanup/capture path | none |
 | Delivery proven, controller restarts while original browser context remains alive | delivered/open | original content context still carries exact run correlation | reconnect to controller/status/capture only; no new browser launch/Send | none |
-| Delivery proven, complete Chrome/browser-context loss before capture | delivered/open | worker result may or may not have existed | no cross-browser recovery; after timeout/grace record one local correlated ERROR if still delivered/open | none |
+| Delivery proven, complete Chrome/browser-context loss before capture | delivered/open | worker result may or may not have existed | preserve unresolved state; no cross-browser recovery and no fabricated result | none |
 | Complete Chrome restart opens same/foreign ChatGPT page | durable delivery claim persists | no trusted original content context | page has no recovery capability; extension must not disclose run_id or create monitor/send authority | none |
 | Result already recorded | delivered/recorded | browser may disappear | terminal readback only | none |
 | Runtime/HEAD changes | old durable state/claim | new extension/controller bytes | existing provenance/generation gates fail closed | none |
@@ -236,11 +238,11 @@ No release-critical cell requires restoration of a Temporary Chat conversation a
 Production changes are limited to:
 
 1. remove provider-conversation binding/recovery as an accepted behavior of `chatgpt-temporary`;
-2. remove `resume-intent` / post-restart provider-conversation recovery capability disclosure from the MV3 adapter;
-3. stop persisting `conversation_id` in the browser Send claim for this profile; provider conversation data may remain an optional observation in generic child evidence but is not recovery authority;
+2. remove or permanently disable `resume-intent` / post-restart provider-conversation recovery capability disclosure from the MV3 adapter;
+3. stop treating `conversation_id` as browser-claim recovery state for this profile; provider conversation data may remain an optional observation in generic child evidence but is not recovery authority;
 4. preserve the durable unique delivery claim and same-live-worker pre-Send owner fence so complete browser/service-worker restart can never recreate Send authority;
 5. preserve delivery ACK-loss reconciliation, controller status reconciliation, stable cleanup acknowledgement and two-phase result capture for the uninterrupted/original-context path;
-6. add deterministic delivered/open timeout terminalization to one `ERROR` result through the existing result state machine when browser final observation/capture cannot close the run;
+6. preserve fail-closed unresolved durable state after browser-loss interruption rather than fabricate a worker result;
 7. update adapter comments/docs/tests so `chatgpt-temporary` is explicitly ephemeral and future persistent/existing-session recovery is not implied;
 8. do not add Prime, an existing-session adapter, a provider identity framework, a lease, another public tool or a new generic state field in PR #149.
 
@@ -257,8 +259,7 @@ Focused/adversarial tests must prove:
 - controller transport interruption during capture still re-arms the original live context safely;
 - stable cleanup acknowledgement remains idempotent;
 - uninterrupted Temporary Chat launch -> one Send -> delivered -> exact structured result still succeeds;
-- delivered/open timeout without final browser observation records one correlated `ERROR` and never performs another physical effect;
-- unknown/undelivered timeout does not fabricate a worker result;
+- complete browser loss after delivery leaves truthful unresolved local state and never performs another physical effect;
 - cross-HEAD/runtime provenance protections remain intact.
 
 Final target-Windows physical evidence for the eventual frozen HEAD is narrowed to the actual profile guarantee:
@@ -273,11 +274,11 @@ fresh non-personalized Temporary Chat
 
 B. browser-loss fail-closed run
 fresh qualified Temporary Chat
- -> exactly one Send / delivery proven
+ -> exactly one Send (delivery may be claimed/unknown/delivered)
  -> complete Chrome close
  -> restart cannot obtain Send or monitor/recovery authority
  -> zero second Send
- -> local delivered-timeout ERROR closure or already-recorded terminal result
+ -> durable state remains exact and fail-closed unless result was already recorded
 ```
 
 The earlier complete-Chrome pre-Send negative evidence remains relevant to the one-Send fence. The previous **positive conversation-bound restart recovery gate is superseded and removed** for this profile.
