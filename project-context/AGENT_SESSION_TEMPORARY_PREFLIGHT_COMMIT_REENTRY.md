@@ -87,11 +87,23 @@ Primary/strong sources:
 - https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods
 - https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/
 
+### Deterministic opaque commit-correlation handle
+
+Domain: capability/correlation security and idempotency-key design.
+
+The launch handle must identify the **same logical commit attempt** across controller process restart without becoming a bearer capability. The selected construction is one domain-separated HMAC-SHA-256 value keyed by the already-random private `run_id`. Only the controller can derive it because only the controller has the key; the handle may appear in the task URL but is never accepted by the controller as authentication and cannot reconstruct `run_id`.
+
+This is not a durable browser identity. It is a deterministic correlation value for one already-existing durable delegation/run. Losing the MV3 map still destroys browser authority even though the public opaque handle remains reproducible by the controller.
+
+Reference:
+
+- RFC 2104 HMAC: https://www.rfc-editor.org/rfc/rfc2104.html
+
 ### Reconciliation from authoritative durable state
 
 Domain: crash recovery / state-machine reconciliation.
 
-Guarantee here: a failed `/preflight-commit` response is treated as ambiguous. While the original live MV3 mapping survives, the adapter may query the token-authenticated controller status and continue only if exact delegation/delivery/head/prompt/generation state proves that the commit happened and the delivery is still `prepared/open`.
+Guarantee here: a failed `/preflight-commit` response is treated as ambiguous. While the original live MV3 mapping survives, the adapter may query the token-authenticated controller status and continue only if exact launch-handle/delegation/delivery/head/prompt/generation state proves that the same commit happened and the delivery is still `prepared/open`.
 
 The durable generic Delegation state remains authority; `launch.json` is not promoted into recovery authority.
 
@@ -125,14 +137,17 @@ Reference:
 - The current background catch path deletes the live mapping on any commit exception.
 - The current PowerShell launcher independently opens the task URL once controller-side projection is visible.
 - The controller can crash after durable `launch-attempted` but before completing its in-memory activation/projection path.
+- If a prepared-but-uncommitted controller restarts and emits a different random handle, a stale live preflight record and a new preflight record cannot be distinguished by durable status alone once one of them later commits.
 
-These facts create the two confirmed P1 windows.
+These facts create the two confirmed P1 windows plus an ABA-style correlation risk unless same-run retries use one stable opaque handle.
 
 ### Solution evidence
 
-RFC 9110 and AWS both distinguish communication failure from operation failure and support replay/reconciliation only when application semantics are idempotent. The existing controller already has the essential same-handle idempotent branch for a committed live handoff; the missing pieces are retaining the live mapping across acknowledgement ambiguity and reconciling against durable state rather than assuming an exception means rollback.
+RFC 9110 and AWS both distinguish communication failure from operation failure and support replay/reconciliation only when application semantics are idempotent. The controller's preflight commit can be made idempotent when all retries of one run use one stable commit-correlation handle and mismatched parameters fail closed.
 
-Chrome's documented MV3 lifecycle supports keeping the mapping intentionally non-durable: controller restart may be recoverable while the original service-worker lifetime survives, whereas service-worker/browser restart remains fail closed.
+HMAC provides a standard keyed one-way construction for deriving that stable opaque handle from the private random run capability without persisting another browser secret. The controller may reproduce the same handle after its own restart, while a new MV3 lifetime that only sees the public handle still cannot derive or recover `run_id`.
+
+Chrome's documented MV3 lifecycle supports keeping the actual authority mapping intentionally non-durable: controller restart may be recoverable while the original service-worker lifetime survives, whereas service-worker/browser restart remains fail closed.
 
 Using the original preflight tab as the single browser navigation owner removes the current split authority where the extension owns the private live mapping but PowerShell independently owns task-tab creation.
 
@@ -164,9 +179,9 @@ Strength: no new durable state.
 
 Failure: controller restart after the original task tab may already have opened can create a second physical child tab. IndexedDB still limits Send, but the generic one-launch contract is weakened and the launcher remains a second browser-launch owner.
 
-Decision: **REJECT**.
+Decision: **REJECT as a launch strategy**. The deterministic opaque handle itself is retained only as commit correlation inside selected approach D; PowerShell reopening remains rejected.
 
-### D — same-live-MV3 reconciliation + preflight self-navigation
+### D — same-live-MV3 reconciliation + stable commit handle + preflight self-navigation
 
 Owner: durable Delegation state proves commit; the original live MV3/preflight tab owns the one browser navigation.
 
@@ -174,16 +189,17 @@ Mechanism:
 
 ```text
 neutral preflight tab
- -> /preflight returns one handle + private correlation + task URL to MV3 only
+ -> controller derives one opaque HMAC launch_handle from private run_id
+ -> /preflight returns that handle + private correlation + task URL to MV3 only
  -> MV3 stores all of it in one live record bound to that preflight tab
- -> /preflight-commit
+ -> /preflight-commit with same handle
  -> success OR ambiguous response
  -> keep live record
- -> prove commit by exact token-authenticated /status when needed
+ -> prove same commit by exact token-authenticated /status when needed
  -> same preflight tab location.replace(task URL)
 ```
 
-Controller crash after durable commit is recoverable because the surviving MV3 record still has the exact task URL/private token and can reconcile against the restarted controller's durable status. Browser/MV3 loss remains fail closed because the record disappears.
+If the controller restarts before commit, a later valid preflight for the same run derives the same handle; the still-live original MV3 owner remains the navigation owner rather than being confused with a second logical commit. If the controller restarts after durable commit, its status exposes the same derived handle and the surviving MV3 record can reconcile. Browser/MV3 loss remains fail closed because the private map disappears.
 
 Decision: **SELECTED / NARROW**.
 
@@ -193,12 +209,12 @@ Decision: **SELECTED / NARROW**.
 |---|---|---|---|---|
 | Before `/preflight` | prepared/open | neutral tab only | retry neutral preflight | 0 task / 0 Send |
 | `/preflight` response before live-map install | prepared/open | no owned live record | fail/retry same neutral bootstrap | 0 / 0 |
-| Live map installed before commit request | prepared/open | exact preflight tab owns handle/run/task URL | commit may be retried with same identity | 0 / 0 |
-| Commit not applied, response fails | prepared/open | live map survives | retry same commit while same controller/preflight capability is valid; otherwise remain prepared and require a new neutral preflight | 0 / 0 |
+| Live map installed before commit request | prepared/open | exact preflight tab owns stable handle/run/task URL | commit may be retried with same identity | 0 / 0 |
+| Commit not applied, response fails | prepared/open | live map survives | retry same commit while same controller/preflight capability is valid; after controller restart a later preflight derives the same handle and must not create a second live owner | 0 / 0 |
 | Commit applied, response arrives | launch-attempted/prepared/open | live map survives | same preflight tab navigates once | 1 task / at most 1 Send |
-| Commit applied, response lost | launch-attempted/prepared/open | live map survives | do **not** delete map; reconcile `/status`; navigate only after exact committed status | 1 / at most 1 |
-| Controller crashes after durable commit before HTTP response/projection | launch-attempted/prepared/open | original MV3/preflight survives | restarted controller reconstructs durable status; old live record authenticates with private run token; same tab then navigates | 1 / at most 1 |
-| Controller restarts before commit applied | prepared/open | stale old live record may survive | old commit/preflight capability is not assumed current; no task navigation without committed status; new launcher may open a new neutral preflight | 0 until one new valid preflight |
+| Commit applied, response lost | launch-attempted/prepared/open | live map survives | do **not** delete map; reconcile `/status`; navigate only after exact same-handle committed status | 1 / at most 1 |
+| Controller crashes after durable commit before HTTP response/projection | launch-attempted/prepared/open | original MV3/preflight survives | restarted controller derives/exposes same handle in status; old live record authenticates with private run token; same tab then navigates | 1 / at most 1 |
+| Controller restarts before commit applied | prepared/open | original live owner may survive | new preflight derives the same handle; background must preserve the original owner and may refresh commit transport correlation without giving navigation ownership to another tab | 0 until one valid commit |
 | MV3/browser dies after durable commit before navigation | launch-attempted/prepared/open | live map gone | fail closed; restored opaque task/preflight data cannot recover private token | 0 additional |
 | Preflight self-navigation committed, MV3 dies before first IndexedDB claim | launch-attempted/prepared/open | task URL may restore, live map gone | restored task fails before claim/controller access | 0 additional |
 | First browser claim committed | launch-attempted/child-bound as applicable | existing one-Send fences apply | no second Send; browser-loss path remains fail closed | 0 additional Sends |
@@ -210,16 +226,18 @@ No release-critical matrix cell requires a durable browser lease or permits a se
 
 Must have now:
 
-1. `/preflight` computes the exact task URL but returns it only to the extension service worker; it does not publish/open it in browser history;
-2. `LIVE_LAUNCHES` stores the task URL, exact correlation and the owning preflight `tab.id` together with the private run token;
-3. once a live record is installed, a commit transport exception does **not** delete it;
-4. same-live-tab retries reuse the same record/handle and the same commit identity;
-5. ambiguous commit is reconciled through token-authenticated `/status` and exact delegation/delivery/head/prompt/generation checks;
-6. controller status exposes enough non-secret provenance fields for that exact reconciliation;
-7. the neutral preflight content context retries/reconciles while it remains alive and calls `location.replace(task_url)` only after commit proof;
-8. PowerShell opens only the neutral preflight; it never independently `Start-Process`es the task URL;
-9. a second preflight tab cannot replace/steal the live record already owned by another tab;
-10. preserve existing IndexedDB unique claim, `LIVE_PRE_SEND_CLAIMS`, source attestation, delivery ambiguity and result capture semantics.
+1. derive one domain-separated HMAC-SHA-256 `launch_handle` from the private durable run capability; same run => same handle, different run => different handle;
+2. the handle is correlation only and is never accepted by controller endpoints as authentication;
+3. `/preflight` computes the exact task URL but returns it only to the extension service worker; it does not publish/open it in browser history;
+4. `LIVE_LAUNCHES` stores the task URL, exact correlation and the owning preflight `tab.id` together with the private run token;
+5. once a live record is installed, a commit transport exception does **not** delete it;
+6. same-live-tab retries reuse the same record/handle and the same commit identity;
+7. if a later neutral preflight for the same deterministic handle arrives in the same MV3 lifetime, it may refresh the current controller preflight capability but must not transfer navigation ownership away from the original owner tab;
+8. ambiguous commit is reconciled through token-authenticated `/status` and exact launch-handle/delegation/delivery/head/prompt/generation checks;
+9. controller status exposes enough non-secret provenance fields for that exact reconciliation, including the derived handle;
+10. the neutral preflight content context retries/reconciles while it remains alive and calls `location.replace(task_url)` only after commit proof;
+11. PowerShell opens only the neutral preflight; it never independently `Start-Process`es the task URL;
+12. preserve existing IndexedDB unique claim, `LIVE_PRE_SEND_CLAIMS`, source attestation, delivery ambiguity and result capture semantics.
 
 Explicitly not added:
 
@@ -233,9 +251,11 @@ Explicitly not added:
 
 Behavioral/fault-injection tests must prove:
 
-- server-side commit followed by simulated response loss leaves the live mapping intact and status reconciliation returns the one task navigation;
+- same durable run derives the same opaque launch handle across controller instances and no task URL contains private `run_id`;
+- server-side commit followed by simulated response loss leaves the live mapping intact and same-handle status reconciliation returns the one task navigation;
 - commit request failure before application leaves durable state prepared and produces no task navigation;
 - controller restart after durable commit but before the original commit acknowledgement can be followed by the same surviving live MV3/preflight identity and yields exactly one navigation path;
+- controller restart before commit followed by a new neutral preflight cannot create a second navigation owner for the same deterministic handle;
 - preflight content uses `location.replace()` only after a background response that proves `launch-attempted/prepared/open` with exact correlation/provenance;
 - launcher contains only one browser `Start-Process`, for the neutral preflight URL, and never opens `launch.launch_url`;
 - duplicate preflight tabs cannot both own/navigation-arm the same live launch;
@@ -246,7 +266,7 @@ Final target-Windows acceptance must add an **ambiguous preflight-commit/restart
 
 ## 10. Architecture decision
 
-**NARROW — implementation may proceed** with same-live-MV3 commit reconciliation and preflight self-navigation only.
+**NARROW — implementation may proceed** with deterministic opaque commit correlation, same-live-MV3 reconciliation and preflight self-navigation only.
 
 This refines adapter-local launch ownership. It does not create the future persistent Agent Session mechanism and does not weaken complete-browser-loss fail-closed behavior.
 
