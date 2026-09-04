@@ -105,13 +105,62 @@ class MultiMonitorControllerTests(unittest.TestCase):
         self.assertEqual(first, self.state.capture_token)
 
 
-class BrowserRecoveryIdentityTests(unittest.TestCase):
+class BrowserEphemeralRecoveryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.node = shutil.which("node")
         if self.node is None:
             self.skipTest("node is unavailable")
 
-    def test_resume_discloses_run_capability_only_to_bound_provider_conversation(self) -> None:
+    def run_node(self, script: str) -> None:
+        completed = subprocess.run(
+            [self.node, "-e", script],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
+
+    def test_resume_intent_never_discloses_private_run_capability(self) -> None:
+        script = f"""
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync({json.dumps(str(BACKGROUND))}, "utf8");
+const generation = "9".repeat(64);
+let onMessageHandler = null;
+
+const context = {{
+  console,
+  URL,
+  importScripts() {{}},
+  CAPChatGPTTemporaryExecutionGeneration: generation,
+  chrome: {{
+    runtime: {{
+      onInstalled: {{ addListener() {{}} }},
+      onStartup: {{ addListener() {{}} }},
+      onMessage: {{ addListener(fn) {{ onMessageHandler = fn; }} }},
+    }},
+  }},
+}};
+context.globalThis = context;
+vm.createContext(context);
+vm.runInContext(source, context, {{ filename: "background.js" }});
+if (typeof onMessageHandler !== "function") process.exit(10);
+
+const response = await new Promise((resolve) => {{
+  const returned = onMessageHandler(
+    {{ schema_version: 1, kind: "resume-intent", execution_generation: generation }},
+    {{ url: "https://chatgpt.com/c/foreign-session-1234", tab: {{ id: 91, url: "https://chatgpt.com/c/foreign-session-1234" }} }},
+    resolve,
+  );
+  if (returned !== false) process.exit(11);
+}});
+if (response.enabled !== false) process.exit(12);
+if (response.reason !== "temporary-profile-ephemeral") process.exit(13);
+if (Object.prototype.hasOwnProperty.call(response, "run_id")) process.exit(14);
+"""
+        self.run_node(script)
+
+    def test_post_send_existing_claim_never_becomes_monitor_only(self) -> None:
         script = f"""
 const fs = require("fs");
 const vm = require("vm");
@@ -123,7 +172,7 @@ const deliveryId = "c".repeat(64);
 const taskSha = "d".repeat(64);
 const head = "e".repeat(40);
 const promptSha = "f".repeat(64);
-const conversationId = "original-session-1234";
+const ownerTab = 17;
 
 const context = {{
   console,
@@ -142,6 +191,17 @@ context.globalThis = context;
 vm.createContext(context);
 vm.runInContext(source, context, {{ filename: "background.js" }});
 
+context.message = {{
+  schema_version: 1,
+  kind: "authorize-send",
+  execution_generation: generation,
+  run_id: runId,
+  delegation_id: delegationId,
+  delivery_id: deliveryId,
+  task_sha256: taskSha,
+  expected_runtime_head: head,
+  prompt_sha256: promptSha,
+}};
 context.record = {{
   schema_version: 1,
   run_id: runId,
@@ -150,67 +210,40 @@ context.record = {{
   task_sha256: taskSha,
   expected_runtime_head: head,
   prompt_sha256: promptSha,
-  claim_tab_id: 7,
-  conversation_id: conversationId,
+  claim_tab_id: ownerTab,
   claimed_at: new Date().toISOString(),
 }};
-context.message = {{
-  schema_version: 1,
-  kind: "resume-intent",
-  execution_generation: generation,
-  observed_claims: [{{ delegation_id: delegationId, delivery_id: deliveryId, task_sha256: taskSha }}],
-}};
-context.originalSender = {{
-  url: `https://chatgpt.com/c/${{conversationId}}`,
-  tab: {{ id: 91, url: `https://chatgpt.com/c/${{conversationId}}` }},
-}};
-context.foreignSender = {{
-  url: "https://chatgpt.com/c/foreign-session-9999",
-  tab: {{ id: 92, url: "https://chatgpt.com/c/foreign-session-9999" }},
-}};
+context.sender = {{ url: "https://chatgpt.com/", tab: {{ id: ownerTab, url: "https://chatgpt.com/" }} }};
+context.delegationId = delegationId;
+context.deliveryId = deliveryId;
 
 vm.runInContext(`
-  claimRecordsForRecovery = async () => [record];
+  claimBrowserSend = async () => ({{ granted: false, reason: "already-claimed" }});
+  claimRecordByDelivery = async () => record;
   controllerStatus = async () => ({{
-    delegation_id: record.delegation_id,
-    delivery_id: record.delivery_id,
+    delegation_id: delegationId,
+    delivery_id: deliveryId,
     launch_state: "child-bound",
     delivery_state: "delivered",
     result_state: "open",
   }});
 `, context);
 
-(async () => {{
-  const original = await vm.runInContext("resumeIntent(message, originalSender)", context);
-  if (original.enabled !== true || original.run_id !== runId || original.conversation_id !== conversationId) process.exit(10);
-
-  const foreign = await vm.runInContext("resumeIntent(message, foreignSender)", context);
-  if (foreign.enabled !== false || Object.prototype.hasOwnProperty.call(foreign, "run_id")) process.exit(11);
-
-  context.record.conversation_id = null;
-  const unbound = await vm.runInContext("resumeIntent(message, originalSender)", context);
-  if (unbound.enabled !== false || Object.prototype.hasOwnProperty.call(unbound, "run_id")) process.exit(12);
-}})().catch((error) => {{ console.error(error); process.exit(20); }});
+const response = await vm.runInContext("authorizeSend(message, sender)", context);
+if (response.send_authorized !== false) process.exit(20);
+if (response.monitor_only !== false) process.exit(21);
+if (response.reason !== "temporary-profile-ephemeral") process.exit(22);
 """
-        completed = subprocess.run(
-            [self.node, "-e", script],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
+        self.run_node(script)
 
-    def test_binding_is_fenced_to_original_send_claim_tab_and_content_rechecks_conversation(self) -> None:
+    def test_provider_conversation_recovery_implementation_is_absent(self) -> None:
         background = BACKGROUND.read_text(encoding="utf-8")
-        content = CONTENT.read_text(encoding="utf-8")
-        self.assertIn("claim_tab_id: tabId", background)
-        self.assertIn("record.claim_tab_id !== tabId", background)
-        self.assertIn("record.conversation_id === conversationId", background)
-        self.assertIn('status.launch_state !== "child-bound"', background)
-        self.assertIn('message.kind === "bind-recovery-conversation"', background)
-        self.assertIn('sendMessage("bind-recovery-conversation"', content)
-        self.assertIn("!sendAuthorized || !sendClickedAt", content)
-        self.assertIn("response.conversation_id !== currentConversationId", content)
+        self.assertNotIn("async function resumeIntent", background)
+        self.assertNotIn("async function bindRecoveryConversation", background)
+        self.assertNotIn("async function bindClaimConversationRecord", background)
+        self.assertNotIn("conversation_id: null", background)
+        self.assertIn('kind === "resume-intent"', background)
+        self.assertIn('reason: "temporary-profile-ephemeral"', background)
 
 
 class CleanupAuthorizationRearmTests(unittest.TestCase):
