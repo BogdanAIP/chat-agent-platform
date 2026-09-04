@@ -260,7 +260,6 @@ Focused/adversarial tests must prove:
 - stable cleanup acknowledgement remains idempotent;
 - uninterrupted Temporary Chat launch -> one Send -> delivered -> exact structured result still succeeds;
 - complete browser loss after delivery leaves truthful unresolved local state and never performs another physical effect;
-- a still-live final observation that reports `worker_generating=true` or no conforming terminal result remains non-terminal, leaves `result_state=open`, writes no synthetic worker result and lets the controller/launcher fail nonzero if no genuine capture arrives during the grace window;
 - cross-HEAD/runtime provenance protections remain intact.
 
 Final target-Windows physical evidence for the eventual frozen HEAD is narrowed to the actual profile guarantee:
