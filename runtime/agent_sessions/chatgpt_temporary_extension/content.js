@@ -8,6 +8,8 @@
 
   const POST_DELIVERY_CLEANUP_TIMEOUT_MS = 10000;
   const STATUS_POLL_MS = 1000;
+  const PREFLIGHT_RETRY_MS = 750;
+  const PREFLIGHT_MAX_MS = 5 * 60 * 1000;
   const MAX_RECOVERY_CLAIMS = 8;
   const LAUNCH_QUERY_KEYS = [
     "temporary-chat",
@@ -62,6 +64,64 @@
         }),
       );
     });
+  }
+
+  function currentPreflightId() {
+    let url;
+    try {
+      url = new URL(location.href);
+    } catch {
+      return null;
+    }
+    if (url.origin !== "https://chatgpt.com" || url.searchParams.get("cap_agent_preflight") !== "1") return null;
+    const fragment = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+    const value = fragment.get("cap_preflight_id") || "";
+    return policy.HEX64_RE.test(value) ? value : null;
+  }
+
+  function validatedPreflightNavigation(response) {
+    if (!response?.ok || response.status !== "preflight-navigation-ready") return null;
+    if (response.execution_generation !== executionGeneration || typeof response.navigate_url !== "string") return null;
+    const parsed = policy.parseIntent(response.navigate_url);
+    if (!parsed.enabled) return null;
+    if (parsed.delegationId !== response.delegation_id || parsed.deliveryId !== response.delivery_id) return null;
+    return response.navigate_url;
+  }
+
+  function runPreflightUntilNavigation() {
+    const startedAt = Date.now();
+    let pending = false;
+    let timer = null;
+
+    const tick = async () => {
+      if (pending) return;
+      if (Date.now() - startedAt > PREFLIGHT_MAX_MS) {
+        if (timer !== null) clearInterval(timer);
+        console.info("[CAP Agent Session] preflight timed out without committed navigation proof");
+        return;
+      }
+      if (currentPreflightId() === null) {
+        if (timer !== null) clearInterval(timer);
+        return;
+      }
+      pending = true;
+      try {
+        const response = await requestResumeIntent();
+        const target = validatedPreflightNavigation(response);
+        if (!target) return;
+        if (timer !== null) clearInterval(timer);
+        // The neutral preflight tab is the sole task-navigation owner. replace()
+        // avoids creating a second task tab and removes the preflight entry from
+        // this tab's forward/back history; restart safety still depends on the
+        // ephemeral MV3 live mapping, not on browser-history cleanup.
+        location.replace(target);
+      } finally {
+        pending = false;
+      }
+    };
+
+    timer = setInterval(() => { void tick(); }, PREFLIGHT_RETRY_MS);
+    void tick();
   }
 
   function recoveredIntent(response) {
@@ -640,6 +700,11 @@
   const initial = policy.parseIntent(location.href);
   if (initial.enabled) {
     start(initial, false);
+    return;
+  }
+
+  if (currentPreflightId() !== null) {
+    runPreflightUntilNavigation();
     return;
   }
 
