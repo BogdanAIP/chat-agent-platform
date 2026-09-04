@@ -158,8 +158,6 @@ Target-Windows physical qualification proved that the specialized Temporary Chat
 
 `AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` is therefore the current adapter-specific NARROW authority. `fresh_readonly_worker_v1` is now explicitly an **ephemeral one-shot independence profile**, not a persistent Agent Session. The durable IndexedDB delivery claim and same-live-service-worker pre-Send owner witness remain, but provider-conversation restart recovery is disabled. A complete browser/service-worker lifetime loss never reconstructs Send or monitor authority. If trustworthy result capture was not already completed, the durable delegation remains fail-closed/open rather than fabricating a result or relaunching another worker.
 
-The fresh semantic review of exact HEAD `94f14890f8ad89dc3022e940c82c240021fbdb52` reported one P1: the controller's final-observation timeout path violated that same rule by synthesizing `WORKER_RESULT_V1 status=ERROR` from a live observation that no terminal block was visible. The finding was **CONFIRMED**. The current implementation now treats final observation as observation only: `terminal_result_visible=false` returns a non-terminal unresolved status, leaves `result_state=open`, writes no `result.json`, does not set `done`, and lets the controller/launcher fail nonzero after the bounded grace period unless a genuine worker result is captured. The prior review is therefore stale and another fresh exact-head review is required after current CI passes.
-
 The private durable `run_id` is not present in the worker prompt and is not placed in the HTTP query. The launch bootstrap carries it in the URL fragment for the initial project extension context, and the model-facing task receives only bounded delegation/delivery/task correlation. A later ordinary ChatGPT page cannot recover that private capability through `resume-intent`.
 
 The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution, opens a browser only when durable `launch_now=true`, and rechecks source provenance after terminal result capture. This is qualification infrastructure, not a new public tool or scheduler.
@@ -237,9 +235,10 @@ OpenAdapt remains a selected source for procedure-local compiler/resume/effect-e
 ## Immediate critical path
 
 ```text
-finish current exact-head hosted CI after the confirmed timeout-observation fix
+finish deterministic L2 ephemeral chatgpt-temporary adapter/controller/extension tests and docs
+ -> obtain preliminary exact-head hosted CI/security
  -> freeze BASE/HEAD
- -> obtain a new fresh exact-head ordinary-ChatGPT semantic review
+ -> obtain fresh exact-head ordinary-ChatGPT semantic review
  -> fix/falsify findings and repeat fresh review after any HEAD movement
  -> run final target-Windows/Plus normal + browser-loss physical qualification
  -> run final exact-head hosted checks
