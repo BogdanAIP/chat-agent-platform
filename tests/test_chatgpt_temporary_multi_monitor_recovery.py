@@ -145,16 +145,14 @@ context.globalThis = context;
 vm.createContext(context);
 vm.runInContext(source, context, {{ filename: "background.js" }});
 if (typeof onMessageHandler !== "function") process.exit(10);
-
-const response = await new Promise((resolve) => {{
-  const returned = onMessageHandler(
-    {{ schema_version: 1, kind: "resume-intent", execution_generation: generation }},
-    {{ url: "https://chatgpt.com/c/foreign-session-1234", tab: {{ id: 91, url: "https://chatgpt.com/c/foreign-session-1234" }} }},
-    resolve,
-  );
-  if (returned !== false) process.exit(11);
-}});
-if (response.enabled !== false) process.exit(12);
+let response = null;
+const returned = onMessageHandler(
+  {{ schema_version: 1, kind: "resume-intent", execution_generation: generation }},
+  {{ url: "https://chatgpt.com/c/foreign-session-1234", tab: {{ id: 91, url: "https://chatgpt.com/c/foreign-session-1234" }} }},
+  (value) => {{ response = value; }},
+);
+if (returned !== false) process.exit(11);
+if (!response || response.enabled !== false) process.exit(12);
 if (response.reason !== "temporary-profile-ephemeral") process.exit(13);
 if (Object.prototype.hasOwnProperty.call(response, "run_id")) process.exit(14);
 """
@@ -229,10 +227,12 @@ vm.runInContext(`
   }});
 `, context);
 
-const response = await vm.runInContext("authorizeSend(message, sender)", context);
-if (response.send_authorized !== false) process.exit(20);
-if (response.monitor_only !== false) process.exit(21);
-if (response.reason !== "temporary-profile-ephemeral") process.exit(22);
+(async () => {{
+  const response = await vm.runInContext("authorizeSend(message, sender)", context);
+  if (response.send_authorized !== false) process.exit(20);
+  if (response.monitor_only !== false) process.exit(21);
+  if (response.reason !== "temporary-profile-ephemeral") process.exit(22);
+}})().catch((error) => {{ console.error(error); process.exit(30); }});
 """
         self.run_node(script)
 
