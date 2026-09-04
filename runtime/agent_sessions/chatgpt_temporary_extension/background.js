@@ -10,6 +10,7 @@ const HEAD40_RE = /^[0-9a-f]{40}$/;
 const CONVERSATION_PATH_RE = /^\/c\/([A-Za-z0-9_-]{8,128})(?:\/|$)/;
 const EXECUTION_GENERATION = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";
 const RUNTIME_ASSETS = ["manifest.json", "execution_generation.js", "policy.js", "background.js", "content.js"];
+const LIVE_PRE_SEND_CLAIMS = new Set();
 
 function initializeClaimDb() {
   return new Promise((resolve, reject) => {
@@ -112,7 +113,10 @@ async function claimBrowserSend(message, tabId) {
       finish(null, error);
       return;
     }
-    transaction.oncomplete = () => finish({ granted: true, reason: "committed" }, null);
+    transaction.oncomplete = () => {
+      LIVE_PRE_SEND_CLAIMS.add(message.delivery_id);
+      finish({ granted: true, reason: "committed" }, null);
+    };
     transaction.onabort = () => {
       if (constraint) finish({ granted: false, reason: "already-claimed" }, null);
       else finish(null, transaction.error || new Error("claim-transaction-aborted"));
@@ -499,6 +503,16 @@ async function authorizeSend(message, sender) {
       status.delivery_state === "prepared" &&
       ["launch-attempted", "child-bound"].includes(status.launch_state)
     ) {
+      if (!LIVE_PRE_SEND_CLAIMS.has(message.delivery_id)) {
+        return {
+          ok: true,
+          send_authorized: false,
+          monitor_only: false,
+          delivery_state: status.delivery_state,
+          result_state: status.result_state,
+          reason: "browser-claim-owner-context-expired",
+        };
+      }
       if (!Number.isInteger(existing.claim_tab_id) || existing.claim_tab_id !== tabId) {
         return {
           ok: true,
