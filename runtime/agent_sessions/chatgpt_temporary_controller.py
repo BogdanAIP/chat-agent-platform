@@ -501,7 +501,7 @@ class TemporaryControllerState:
             },
             "final worker observation",
         )
-        run_id = self._require_correlation(request, "final worker observation")
+        self._require_correlation(request, "final worker observation")
         with self.lock:
             expected_request_id = self.final_observation_request_id
         if expected_request_id is None or request["request_id"] != expected_request_id:
@@ -521,28 +521,11 @@ class TemporaryControllerState:
             }
 
         reason = "generating" if request["worker_generating"] is True else "no-terminal-result"
-        raw = {
-            "schema_version": 1,
-            "delegation_id": self.launch.delegation_id,
-            "delivery_id": self.launch.delivery_id,
-            "worker_kind": self.identity.worker_kind,
-            "result_contract_id": self.identity.result_contract_id,
-            "status": "ERROR",
-            "payload": f"chatgpt_temporary_timeout_after_final_observation:{reason}",
-        }
-        text = (
-            chatgpt_temporary.RAW_RESULT_BEGIN
-            + "\n"
-            + json.dumps(raw, ensure_ascii=False, separators=(",", ":"))
-            + "\n"
-            + chatgpt_temporary.RAW_RESULT_END
-        )
-        terminal = self._record_result_text(run_id=run_id, result_text=text)
         return {
             "schema_version": 1,
-            "status": "recorded-timeout",
-            "result_state": terminal.result_state,
-            "worker_status": terminal.result_status,
+            "status": "unresolved-awaiting-worker-result",
+            "observation": reason,
+            "result_state": snapshot.result_state,
             "runtime_attestation_sha256": runtime_digest,
         }
 
