@@ -499,6 +499,16 @@ async function authorizeSend(message, sender) {
       status.delivery_state === "prepared" &&
       ["launch-attempted", "child-bound"].includes(status.launch_state)
     ) {
+      if (!Number.isInteger(existing.claim_tab_id) || existing.claim_tab_id !== tabId) {
+        return {
+          ok: true,
+          send_authorized: false,
+          monitor_only: false,
+          delivery_state: status.delivery_state,
+          result_state: status.result_state,
+          reason: "browser-claim-owned-by-other-tab",
+        };
+      }
       try {
         const recovered = await requestLocalSendAuthority(message, tabId);
         return {
