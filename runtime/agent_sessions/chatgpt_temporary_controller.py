@@ -5,6 +5,7 @@ import json
 import os
 import secrets
 import threading
+import time
 from dataclasses import replace
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -79,6 +80,12 @@ def _exact(value: Mapping[str, Any], expected: set[str], label: str) -> None:
         )
 
 
+def _hex64(value: Any, label: str) -> str:
+    if type(value) is not str or len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value):
+        raise DelegationStateError(f"{label} must be 64 lowercase hex characters")
+    return value
+
+
 def _bind_launch_provenance(
     launch: chatgpt_temporary.TemporaryLaunchIntent,
     *,
@@ -108,6 +115,7 @@ class TemporaryControllerState:
         *,
         identity_value: Mapping[str, Any],
         task: str,
+        launch_handle: str,
         expected_runtime_attestation_value: Mapping[str, Any],
         state_root: Path,
         output_dir: Path,
@@ -132,6 +140,7 @@ class TemporaryControllerState:
         prepared_launch = chatgpt_temporary.prepare_temporary_session(
             self.identity_value,
             task=task,
+            launch_handle=launch_handle,
             state_root=self.state_root,
         )
         self.launch = _bind_launch_provenance(
@@ -530,7 +539,202 @@ class TemporaryControllerState:
         }
 
 
-def make_handler(state: TemporaryControllerState):
+class TemporaryControllerRuntime:
+    def __init__(
+        self,
+        *,
+        identity_value: Mapping[str, Any],
+        task: str,
+        expected_runtime_attestation_value: Mapping[str, Any],
+        state_root: Path,
+        output_dir: Path,
+    ) -> None:
+        self.identity_value = parse_delegation_identity(identity_value).as_dict()
+        self.task = task
+        self.expected_runtime_attestation_value = dict(expected_runtime_attestation_value)
+        self.expected_runtime_attestation = source_attestation.parse_expected_runtime_attestation(
+            expected_runtime_attestation_value
+        )
+        self.state_root = state_root.resolve()
+        self.output_dir = output_dir.resolve()
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.preflight_path = self.output_dir / "preflight.json"
+        self.lock = threading.Lock()
+        self.activated = threading.Event()
+        self.state: TemporaryControllerState | None = None
+        self.pending_launch_handle: str | None = None
+        self.preflight_id: str | None = None
+
+        preflight = chatgpt_temporary.prepare_temporary_preflight(
+            self.identity_value,
+            task=self.task,
+            state_root=self.state_root,
+        )
+        self.preflight = preflight
+
+        if preflight.launch_state == "prepared" and preflight.result_state == "open":
+            self.preflight_id = secrets.token_hex(32)
+            preflight_url = (
+                "https://chatgpt.com/?cap_agent_preflight=1#"
+                + urlencode({"cap_preflight_id": self.preflight_id})
+            )
+            _atomic_json_write(
+                self.preflight_path,
+                {
+                    "schema_version": 1,
+                    "adapter_id": chatgpt_temporary.ADAPTER_ID,
+                    "delegation_id": preflight.delegation_id,
+                    "delivery_id": preflight.delivery_id,
+                    "preflight_url": preflight_url,
+                    "expected_runtime_head": self.expected_runtime_attestation.expected_head,
+                    "execution_generation": self.expected_runtime_attestation.execution_generation,
+                    "created_at": _utc_now(),
+                },
+            )
+        else:
+            self.state = TemporaryControllerState(
+                identity_value=self.identity_value,
+                task=self.task,
+                launch_handle=secrets.token_hex(32),
+                expected_runtime_attestation_value=self.expected_runtime_attestation_value,
+                state_root=self.state_root,
+                output_dir=self.output_dir,
+            )
+            self.activated.set()
+            self.preflight_path.unlink(missing_ok=True)
+
+    def health(self) -> dict[str, Any]:
+        with self.lock:
+            state = self.state
+        if state is None:
+            return {
+                "schema_version": 1,
+                "status": "preflight",
+                "adapter_id": chatgpt_temporary.ADAPTER_ID,
+                "delegation_id": self.preflight.delegation_id,
+                "delivery_id": self.preflight.delivery_id,
+            }
+        return {
+            "schema_version": 1,
+            "status": "ready",
+            "adapter_id": chatgpt_temporary.ADAPTER_ID,
+            "delegation_id": state.launch.delegation_id,
+            "delivery_id": state.launch.delivery_id,
+        }
+
+    def _validate_preflight_attestation(self, value: Any) -> str:
+        return source_attestation.validate_runtime_attestation(
+            _plain(value, "preflight runtime attestation"),
+            expected=self.expected_runtime_attestation,
+        )
+
+    def prepare_live_handoff(self, value: Mapping[str, Any]) -> dict[str, Any]:
+        request = _plain(value, "browser preflight preparation")
+        _exact(
+            request,
+            {"schema_version", "preflight_id", "execution_generation", "runtime_attestation"},
+            "browser preflight preparation",
+        )
+        if request["schema_version"] != 1:
+            raise DelegationStateError("browser preflight schema mismatch")
+        if request["preflight_id"] != self.preflight_id or self.preflight_id is None:
+            raise DelegationStateError("browser preflight capability mismatch")
+        if request["execution_generation"] != self.expected_runtime_attestation.execution_generation:
+            raise DelegationStateError("browser preflight execution generation mismatch")
+        runtime_digest = self._validate_preflight_attestation(request["runtime_attestation"])
+
+        snapshot = chatgpt_temporary.prepare_temporary_preflight(
+            self.identity_value,
+            task=self.task,
+            state_root=self.state_root,
+        )
+        if snapshot.launch_state != "prepared" or snapshot.result_state != "open":
+            raise DelegationStateError("browser preflight requires prepared open delegation")
+
+        with self.lock:
+            if self.state is not None:
+                raise DelegationStateError("browser preflight is already committed")
+            if self.pending_launch_handle is None:
+                self.pending_launch_handle = secrets.token_hex(32)
+            launch_handle = self.pending_launch_handle
+
+        return {
+            "schema_version": 1,
+            "status": "handoff-prepared",
+            "launch_handle": launch_handle,
+            "run_id": snapshot.run_id,
+            "delegation_id": snapshot.delegation_id,
+            "delivery_id": snapshot.delivery_id,
+            "task_sha256": snapshot.identity.task_sha256,
+            "expected_runtime_head": self.expected_runtime_attestation.expected_head,
+            "prompt_sha256": snapshot.prompt_sha256,
+            "runtime_attestation_sha256": runtime_digest,
+        }
+
+    def commit_live_handoff(self, value: Mapping[str, Any]) -> dict[str, Any]:
+        request = _plain(value, "browser preflight commit")
+        _exact(
+            request,
+            {"schema_version", "preflight_id", "launch_handle", "execution_generation", "runtime_attestation"},
+            "browser preflight commit",
+        )
+        if request["schema_version"] != 1:
+            raise DelegationStateError("browser preflight commit schema mismatch")
+        if request["preflight_id"] != self.preflight_id or self.preflight_id is None:
+            raise DelegationStateError("browser preflight commit capability mismatch")
+        launch_handle = _hex64(request["launch_handle"], "launch_handle")
+        if request["execution_generation"] != self.expected_runtime_attestation.execution_generation:
+            raise DelegationStateError("browser preflight commit generation mismatch")
+        runtime_digest = self._validate_preflight_attestation(request["runtime_attestation"])
+
+        with self.lock:
+            if self.state is not None:
+                state = self.state
+                if state.launch.launch_handle != launch_handle:
+                    raise DelegationStateError("browser preflight commit launch handle mismatch")
+                return {
+                    "schema_version": 1,
+                    "status": "launch-committed",
+                    "delegation_id": state.launch.delegation_id,
+                    "delivery_id": state.launch.delivery_id,
+                    "launch_state": state.launch.launch_state,
+                    "runtime_attestation_sha256": runtime_digest,
+                }
+            if self.pending_launch_handle != launch_handle:
+                raise DelegationStateError("browser preflight commit launch handle mismatch")
+
+            state = TemporaryControllerState(
+                identity_value=self.identity_value,
+                task=self.task,
+                launch_handle=launch_handle,
+                expected_runtime_attestation_value=self.expected_runtime_attestation_value,
+                state_root=self.state_root,
+                output_dir=self.output_dir,
+            )
+            if state.launch.launch_now is not True:
+                raise DelegationStateError("browser preflight did not obtain the initial launch authority")
+            self.state = state
+            self.activated.set()
+            self.preflight_path.unlink(missing_ok=True)
+
+        return {
+            "schema_version": 1,
+            "status": "launch-committed",
+            "delegation_id": state.launch.delegation_id,
+            "delivery_id": state.launch.delivery_id,
+            "launch_state": state.launch.launch_state,
+            "runtime_attestation_sha256": runtime_digest,
+        }
+
+    def require_state(self) -> TemporaryControllerState:
+        with self.lock:
+            state = self.state
+        if state is None:
+            raise DelegationStateError("browser preflight has not committed task launch")
+        return state
+
+
+def make_handler(runtime: TemporaryControllerRuntime):
     class Handler(BaseHTTPRequestHandler):
         server_version = "CAPChatGPTTemporaryAdapter/1"
 
@@ -546,20 +750,36 @@ def make_handler(state: TemporaryControllerState):
             self.end_headers()
             self.wfile.write(body)
 
+        def _read_json(self) -> dict[str, Any] | None:
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                self._write_json(400, {"status": "invalid_length"})
+                return None
+            if length < 1 or length > MAX_BODY_BYTES:
+                self._write_json(413, {"status": "invalid_size"})
+                return None
+            raw = self.rfile.read(length)
+            try:
+                value = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                self._write_json(409, {"status": "rejected", "reason": "invalid JSON"})
+                return None
+            if type(value) is not dict:
+                self._write_json(409, {"status": "rejected", "reason": "request must be an object"})
+                return None
+            return value
+
         def do_GET(self) -> None:
             if self.path == "/health":
-                self._write_json(
-                    200,
-                    {
-                        "schema_version": 1,
-                        "status": "ready",
-                        "adapter_id": chatgpt_temporary.ADAPTER_ID,
-                        "delegation_id": state.launch.delegation_id,
-                        "delivery_id": state.launch.delivery_id,
-                    },
-                )
+                self._write_json(200, runtime.health())
                 return
             if self.path == "/status":
+                try:
+                    state = runtime.require_state()
+                except DelegationStateError as exc:
+                    self._write_json(409, {"status": "rejected", "reason": str(exc)})
+                    return
                 if self.headers.get("X-CAP-Agent-Token") != state.token:
                     self._write_json(403, {"status": "forbidden"})
                     return
@@ -571,6 +791,25 @@ def make_handler(state: TemporaryControllerState):
             self._write_json(404, {"status": "not_found"})
 
         def do_POST(self) -> None:
+            if self.path in {"/preflight", "/preflight-commit"}:
+                if runtime.preflight_id is None or self.headers.get("X-CAP-Agent-Preflight") != runtime.preflight_id:
+                    self._write_json(403, {"status": "forbidden"})
+                    return
+                value = self._read_json()
+                if value is None:
+                    return
+                try:
+                    operation = runtime.prepare_live_handoff if self.path == "/preflight" else runtime.commit_live_handoff
+                    self._write_json(200, operation(value))
+                except (DelegationStateError, ValueError, OSError) as exc:
+                    self._write_json(409, {"status": "rejected", "reason": str(exc)[:512]})
+                return
+
+            try:
+                state = runtime.require_state()
+            except DelegationStateError as exc:
+                self._write_json(409, {"status": "rejected", "reason": str(exc)})
+                return
             handlers = {
                 "/event": state.record_event,
                 "/authorize-send": state.authorize_send,
@@ -586,20 +825,13 @@ def make_handler(state: TemporaryControllerState):
             if self.headers.get("X-CAP-Agent-Token") != state.token:
                 self._write_json(403, {"status": "forbidden"})
                 return
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-            except ValueError:
-                self._write_json(400, {"status": "invalid_length"})
+            value = self._read_json()
+            if value is None:
                 return
-            if length < 1 or length > MAX_BODY_BYTES:
-                self._write_json(413, {"status": "invalid_size"})
-                return
-            raw = self.rfile.read(length)
             try:
-                value = json.loads(raw.decode("utf-8"))
                 result = operation(value)
                 self._write_json(200, result or {"schema_version": 1, "status": "recorded"})
-            except (UnicodeDecodeError, json.JSONDecodeError, DelegationStateError, ValueError) as exc:
+            except (DelegationStateError, ValueError, OSError) as exc:
                 self._write_json(409, {"status": "rejected", "reason": str(exc)[:512]})
 
     return Handler
@@ -651,7 +883,7 @@ def main() -> int:
         raise SystemExit("task must be UTF-8") from exc
 
     try:
-        state = TemporaryControllerState(
+        runtime = TemporaryControllerRuntime(
             identity_value=identity_value,
             task=task,
             expected_runtime_attestation_value=expected_runtime_attestation_value,
@@ -661,7 +893,7 @@ def main() -> int:
     except (DelegationStateError, OSError) as exc:
         raise SystemExit(f"adapter preparation failed: {exc}") from exc
 
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(state))
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(runtime))
     server.daemon_threads = True
     worker = threading.Thread(
         target=server.serve_forever,
@@ -669,19 +901,30 @@ def main() -> int:
         daemon=True,
     )
     worker.start()
+    phase = runtime.health()["status"]
     print(
-        f"CAP_AGENT_SESSION_ADAPTER=ready adapter={chatgpt_temporary.ADAPTER_ID} "
-        f"delegation_id={state.launch.delegation_id} launch_now={str(state.launch.launch_now).lower()}",
+        f"CAP_AGENT_SESSION_ADAPTER={phase} adapter={chatgpt_temporary.ADAPTER_ID} "
+        f"delegation_id={runtime.preflight.delegation_id}",
         flush=True,
     )
-    completed = state.done.wait(args.timeout_seconds)
-    if not completed:
-        try:
-            request_id = state.request_final_observation_if_delivered()
-        except (DelegationStateError, OSError):
-            request_id = None
-        if request_id is not None:
-            completed = state.done.wait(FINAL_OBSERVATION_GRACE_SECONDS)
+
+    started = time.monotonic()
+    if runtime.state is None:
+        runtime.activated.wait(args.timeout_seconds)
+    state = runtime.state
+    if state is None:
+        completed = False
+    else:
+        remaining = max(0.0, args.timeout_seconds - (time.monotonic() - started))
+        completed = state.done.wait(remaining)
+        if not completed:
+            try:
+                request_id = state.request_final_observation_if_delivered()
+            except (DelegationStateError, OSError):
+                request_id = None
+            if request_id is not None:
+                completed = state.done.wait(FINAL_OBSERVATION_GRACE_SECONDS)
+
     server.shutdown()
     server.server_close()
     worker.join(timeout=5)
