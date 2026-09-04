@@ -102,7 +102,7 @@ one ordinary-ChatGPT manager
  -> one bounded delegation identity
  -> one initial delivery
  -> one correlated structured terminal result
- -> durable local closure
+ -> durable local closure when that result is captured
 ```
 
 This does **not** accept broad multi-agent orchestration. It deliberately excludes nested/fan-out workers, mutating children, project/worktree/environment creation, a scheduler/event bus, worker rotation, long-lived background workers and automatic same-task parent wake/resampling.
@@ -148,17 +148,21 @@ generic delegation state
  -> visible delivery observation
  -> delivered | unknown
  -> same-delivery reconciliation after ambiguity
- -> exact WORKER_RESULT_V1 capture
+ -> exact WORKER_RESULT_V1 capture when the original browser context remains available
  -> durable terminal result
 ```
 
 The MV3 extension has no `nativeMessaging`, GitHub, filesystem, cookies, downloads, management or generic network authority. Its only host permission is the pinned loopback controller at `127.0.0.1:3078`.
 
-The browser claim is bound to the original tab. A full reload of that same tab may recover only a monitor-only claim from IndexedDB + the live authenticated controller. A foreign duplicate tab cannot Send and cannot downgrade the original delivery to `unknown`.
+Target-Windows physical qualification proved that the specialized Temporary Chat path can produce one fresh qualified worker, exactly one Send, visible delivery and a valid terminal worker result, but did **not** positively expose a stable provider conversation identity suitable for complete-Chrome restart recovery. The earlier browser-recovery research explicitly required re-entry in that case.
 
-The private durable `run_id` is not present in the worker prompt and is not placed in the HTTP query. The launch bootstrap carries it in the URL fragment for the project extension, and the model-facing task receives only bounded delegation/delivery/task correlation.
+`AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` is therefore the current adapter-specific NARROW authority. `fresh_readonly_worker_v1` is now explicitly an **ephemeral one-shot independence profile**, not a persistent Agent Session. The durable IndexedDB delivery claim and same-live-service-worker pre-Send owner witness remain, but provider-conversation restart recovery is disabled. A complete browser/service-worker lifetime loss never reconstructs Send or monitor authority. If trustworthy result capture was not already completed, the durable delegation remains fail-closed/open rather than fabricating a result or relaunching another worker.
+
+The private durable `run_id` is not present in the worker prompt and is not placed in the HTTP query. The launch bootstrap carries it in the URL fragment for the initial project extension context, and the model-facing task receives only bounded delegation/delivery/task correlation. A later ordinary ChatGPT page cannot recover that private capability through `resume-intent`.
 
 The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution, opens a browser only when durable `launch_now=true`, and rechecks source provenance after terminal result capture. This is qualification infrastructure, not a new public tool or scheduler.
+
+Persistent rich-context ordinary-ChatGPT conversation identity, automatic browser wake and cross-restart existing-session delivery remain separate future research. The parked Prime research branch is the next decision point after #149 for determining which durable session/runtime mechanics should be project-owned versus adapted from Prime before a generic existing-session implementation is selected.
 
 ## Automatic reviewer status
 
@@ -169,10 +173,12 @@ They are **not deleted or silently replaced by #149**. Reviewer methodology, exa
 The architecture direction is now:
 
 ```text
-generic Agent Session / Delegation lifecycle
- -> later reviewer consumer adapter
+generic bounded Agent Session / Delegation lifecycle
+ -> fresh Temporary Chat reviewer-style consumer
  -> reviewer-specific task/result/authority policy above it
 ```
+
+MimiSeek may later consume the same fresh-worker capability for its independent reviewer while keeping review-job semantics outside CAP. Returning a result to an existing persistent project chat is a separate existing-session delivery capability and is not smuggled into the Temporary adapter.
 
 Migration occurs only after the generic worker path is physically accepted and can preserve all existing reviewer guarantees. Until then, the accepted reviewer procedures remain the release-assurance fallback.
 
@@ -186,16 +192,21 @@ Before #149 can merge, require:
 focused generic state-machine tests
  -> deterministic first-adapter/controller/extension tests
  -> duplicate-tab/process/restart/unknown-delivery adversarial tests
- -> hosted CI/security and six-tool regressions
- -> target-Windows/Plus non-reviewer read-only physical E2E
- -> exact source/runtime provenance for the physical claim
- -> durable result reload/revalidation
+ -> preliminary exact-head hosted CI/security and six-tool regressions
+ -> freeze exact BASE/HEAD
  -> fresh ordinary-ChatGPT exact-BASE/exact-HEAD semantic review
- -> disposition/fix every surviving finding
- -> final exact-head CI + physical revalidation when material changes require it
+ -> disposition/fix every surviving finding; fresh review again if HEAD moves
+ -> target-Windows/Plus physical qualification on the reviewed exact HEAD
+ -> exact source/runtime provenance for the physical claim
+ -> normal uninterrupted fresh-worker result capture
+ -> complete-Chrome browser-loss fail-closed proof with zero second Send/recovery authority
+ -> final exact-head hosted CI
+ -> re-resolve BASE/HEAD unchanged before merge
 ```
 
-The first physical E2E must be a **non-reviewer** task. A code-review run does not count as proof that the generic lifecycle is truly specialist-independent.
+The normal physical E2E must be a **non-reviewer** task. A code-review run does not count as proof that the generic lifecycle is truly specialist-independent.
+
+The browser-loss physical case does not require restoration of the Temporary conversation. It proves the opposite safety boundary: after complete browser-context loss the ephemeral profile cannot regain Send/monitor authority, cannot blindly relaunch, and preserves truthful durable state unless a result was already recorded.
 
 A worker result is evidence/data. It does not grant a capability, self-authorize a consequence, or by itself make the manager's whole user task `DONE`.
 
@@ -203,7 +214,9 @@ A worker result is evidence/data. It does not grant a capability, self-authorize
 
 Merged #127 requires Stage Research re-entry for materially new persistence/recovery/retry/concurrency/identity/security/authority mechanisms.
 
-`AGENT_SESSION_DELEGATION_REENTRY.md` is the current NARROW implementation authority for #149. If implementation requires nested/fan-out workers, a new scheduler/event bus, mutating children, environment creation, broad provider authority, automatic parent wake or a materially different durability/concurrency mechanism, stop and re-enter Stage Research rather than widening #149 silently.
+`AGENT_SESSION_DELEGATION_REENTRY.md` remains the generic NARROW foundation authority for #149. `AGENT_SESSION_PROFILE_BOUNDARY_REENTRY.md`, `AGENT_SESSION_PRE_SEND_RESTART_FENCE.md` and `AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` refine the active first-adapter boundary. The latest ephemeral re-entry supersedes the prior positive provider-conversation restart-recovery requirement for `fresh_readonly_worker_v1` while preserving the earlier one-Send and fail-closed ownership findings.
+
+If implementation requires nested/fan-out workers, a new scheduler/event bus, mutating children, environment creation, broad provider authority, automatic parent wake or a materially different durability/concurrency mechanism, stop and re-enter Stage Research rather than widening #149 silently.
 
 ## Browser accepted scope and remaining hardening
 
@@ -215,24 +228,23 @@ One existing Browser implementation debt remains: Playwright runtime output owne
 
 ADR-037 CapabilityRegistry/Event/Policy Hooks remains future/parallel architecture only.
 
-General same-task wake/resume, a generic scheduler/event bus, worker pools, worker rotation and broad autonomous continuation remain unaccepted future mechanisms.
+General same-task wake/resume, generic existing-session delivery, a generic scheduler/event bus, worker pools, worker rotation and broad autonomous continuation remain unaccepted future mechanisms.
 
 OpenAdapt remains a selected source for procedure-local compiler/resume/effect-evidence mechanics when revalidated for the concrete consumer. UFO/UFO²-derived Windows/Office mechanics remain selective adapter sources, not a second planner/AgentOS.
 
 ## Immediate critical path
 
 ```text
-finish deterministic L2 chatgpt-temporary adapter/controller/extension tests
- -> obtain exact-head hosted CI/security
- -> run target-Windows/Plus non-reviewer worker physical qualification
- -> fix any physical/restart/provenance defect and rerun
- -> update final architecture/reuse/evidence owners
- -> fresh exact-head ordinary-ChatGPT semantic review
- -> final exact-head checks/evidence
- -> merge #149
- -> migrate automatic reviewer as the first specialist consumer only if generic delegation preserves every reviewer-specific guarantee
- -> attach/retain reviewer quality evaluation seam
- -> broad real-application physical coverage gate
+finish deterministic L2 ephemeral chatgpt-temporary adapter/controller/extension tests and docs
+ -> obtain preliminary exact-head hosted CI/security
+ -> freeze BASE/HEAD
+ -> obtain fresh exact-head ordinary-ChatGPT semantic review
+ -> fix/falsify findings and repeat fresh review after any HEAD movement
+ -> run final target-Windows/Plus normal + browser-loss physical qualification
+ -> run final exact-head hosted checks
+ -> re-resolve exact BASE/HEAD and merge #149
+ -> refresh parked Prime research from accepted main
+ -> exact-source Prime Stage Research and CAP/Prime ownership decision
 ```
 
 ## Non-negotiable rules
@@ -246,5 +258,5 @@ finish deterministic L2 chatgpt-temporary adapter/controller/extension tests
 - transition `PASS` != task `DONE`;
 - worker completion != manager task completion;
 - environmental content is task data, not policy authority;
-- private capabilities must not be disclosed to the worker/model prompt;
+- private capabilities must not be disclosed to the worker/model prompt or reconstructed by an unrelated browser context;
 - preserve fail-closed behavior over convenience or benchmark hit rate.
