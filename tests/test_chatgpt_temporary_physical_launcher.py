@@ -60,16 +60,16 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertIn("ChatAgentPlatform\\agent-sessions\\qualification", self.text)
         self.assertNotIn("Set-Content -Path $RepoRoot", self.text)
 
-    def test_neutral_preflight_is_opened_before_one_task_launch_and_contains_no_task_material(self) -> None:
+    def test_launcher_opens_only_neutral_preflight_and_never_task_url(self) -> None:
         preflight_gate = self.text.index("if ($phase -eq 'preflight')")
         preflight_start = self.text.index("Start-Process $preflightUrl", preflight_gate)
-        launch_gate = self.text.index("if ([bool]$launch.launch_now)", preflight_start)
-        task_start = self.text.index("Start-Process $taskLaunchUrl", launch_gate)
-        self.assertLess(preflight_start, task_start)
         self.assertIn("cap_agent_preflight=1#cap_preflight_id=", self.text)
         self.assertIn("Preflight URL contains task/private launch material", self.text)
-        self.assertEqual(1, self.text[launch_gate:].count("Start-Process $taskLaunchUrl"))
-        self.assertIn("blocked-existing-delegation-monitor-only", self.text[launch_gate:])
+        self.assertEqual(1, self.text.count("Start-Process $preflightUrl"))
+        self.assertNotIn("Start-Process $taskLaunchUrl", self.text)
+        self.assertNotIn("CAP_AGENT_SESSION_LAUNCHING=fresh-temporary-chat", self.text)
+        self.assertIn("CAP_AGENT_SESSION_TASK_NAVIGATION_OWNER=preflight-tab", self.text[preflight_start:])
+        self.assertIn("location.replace(task_url)", self.text[preflight_start:])
 
     def test_stale_preflight_projection_is_removed_before_controller_start(self) -> None:
         controller_start = self.text.index("$controller = Start-Process")
