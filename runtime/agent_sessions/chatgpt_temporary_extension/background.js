@@ -9,6 +9,7 @@ const HEX64_RE = /^[0-9a-f]{64}$/;
 const HEAD40_RE = /^[0-9a-f]{40}$/;
 const EXECUTION_GENERATION = globalThis.CAPChatGPTTemporaryExecutionGeneration || "";
 const RUNTIME_ASSETS = ["manifest.json", "execution_generation.js", "policy.js", "background.js", "content.js"];
+const LIVE_LAUNCHES = new Map();
 const LIVE_PRE_SEND_CLAIMS = new Set();
 
 function initializeClaimDb() {
@@ -70,6 +71,104 @@ async function runtimeAttestation() {
   };
 }
 
+async function preflightPost(preflightId, path, body) {
+  const response = await fetch(`${CONTROLLER_ORIGIN}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CAP-Agent-Preflight": preflightId,
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  const value = await response.json().catch(() => ({ status: "invalid-controller-response" }));
+  if (!response.ok) throw new Error(`controller-${response.status}:${value.reason || value.status || "rejected"}`);
+  return value;
+}
+
+async function prepareLiveLaunch(message, sender) {
+  if (senderTab(sender) === null) return { ok: false, reason: "invalid-sender" };
+  if (message?.schema_version !== 1 || message.execution_generation !== EXECUTION_GENERATION) {
+    return { ok: false, reason: "invalid-preflight-generation" };
+  }
+  if (!HEX64_RE.test(message.preflight_id || "")) return { ok: false, reason: "invalid-preflight-capability" };
+
+  const attestation = await runtimeAttestation();
+  const prepared = await preflightPost(message.preflight_id, "/preflight", {
+    schema_version: 1,
+    preflight_id: message.preflight_id,
+    execution_generation: EXECUTION_GENERATION,
+    runtime_attestation: attestation,
+  });
+  if (
+    prepared.status !== "handoff-prepared" ||
+    !HEX64_RE.test(prepared.launch_handle || "") ||
+    !HEX64_RE.test(prepared.run_id || "") ||
+    !HEX64_RE.test(prepared.delegation_id || "") ||
+    !HEX64_RE.test(prepared.delivery_id || "") ||
+    !HEX64_RE.test(prepared.task_sha256 || "") ||
+    !HEAD40_RE.test(prepared.expected_runtime_head || "") ||
+    !HEX64_RE.test(prepared.prompt_sha256 || "")
+  ) {
+    throw new Error("invalid-preflight-handoff");
+  }
+
+  const live = {
+    run_id: prepared.run_id,
+    delegation_id: prepared.delegation_id,
+    delivery_id: prepared.delivery_id,
+    task_sha256: prepared.task_sha256,
+    expected_runtime_head: prepared.expected_runtime_head,
+    prompt_sha256: prepared.prompt_sha256,
+  };
+  LIVE_LAUNCHES.set(prepared.launch_handle, live);
+
+  try {
+    const committed = await preflightPost(message.preflight_id, "/preflight-commit", {
+      schema_version: 1,
+      preflight_id: message.preflight_id,
+      launch_handle: prepared.launch_handle,
+      execution_generation: EXECUTION_GENERATION,
+      runtime_attestation: await runtimeAttestation(),
+    });
+    if (
+      committed.status !== "launch-committed" ||
+      committed.delegation_id !== live.delegation_id ||
+      committed.delivery_id !== live.delivery_id ||
+      committed.launch_state !== "launch-attempted"
+    ) {
+      throw new Error("invalid-preflight-commit");
+    }
+  } catch (error) {
+    LIVE_LAUNCHES.delete(prepared.launch_handle);
+    throw error;
+  }
+
+  return {
+    ok: true,
+    status: "launch-armed",
+    delegation_id: live.delegation_id,
+    delivery_id: live.delivery_id,
+  };
+}
+
+function resolveLiveMessage(message) {
+  if (!message || message.schema_version !== 1 || message.execution_generation !== EXECUTION_GENERATION) return null;
+  if (!HEX64_RE.test(message.launch_handle || "")) return null;
+  const live = LIVE_LAUNCHES.get(message.launch_handle);
+  if (!live) return null;
+  if (
+    message.delegation_id !== live.delegation_id ||
+    message.delivery_id !== live.delivery_id ||
+    message.task_sha256 !== live.task_sha256 ||
+    message.expected_runtime_head !== live.expected_runtime_head ||
+    message.prompt_sha256 !== live.prompt_sha256
+  ) {
+    return null;
+  }
+  return { ...message, run_id: live.run_id };
+}
+
 async function claimBrowserSend(message, tabId) {
   if (!HEX64_RE.test(message.task_sha256 || "")) throw new Error("invalid-task-correlation");
   if (!HEAD40_RE.test(message.expected_runtime_head || "")) throw new Error("invalid-head-correlation");
@@ -93,7 +192,6 @@ async function claimBrowserSend(message, tabId) {
       const request = store.add(
         {
           schema_version: 1,
-          run_id: message.run_id,
           delegation_id: message.delegation_id,
           delivery_id: message.delivery_id,
           task_sha256: message.task_sha256,
@@ -154,6 +252,7 @@ function validCommon(message) {
     HEX64_RE.test(message.run_id || "") &&
     HEX64_RE.test(message.delegation_id || "") &&
     HEX64_RE.test(message.delivery_id || "") &&
+    HEX64_RE.test(message.task_sha256 || "") &&
     HEAD40_RE.test(message.expected_runtime_head || "") &&
     HEX64_RE.test(message.prompt_sha256 || "");
 }
@@ -161,7 +260,6 @@ function validCommon(message) {
 function validClaimRecord(record) {
   return record &&
     record.schema_version === 1 &&
-    HEX64_RE.test(record.run_id || "") &&
     HEX64_RE.test(record.delegation_id || "") &&
     HEX64_RE.test(record.delivery_id || "") &&
     HEX64_RE.test(record.task_sha256 || "") &&
@@ -172,7 +270,6 @@ function validClaimRecord(record) {
 
 function exactClaimMatches(record, message) {
   return validClaimRecord(record) &&
-    record.run_id === message.run_id &&
     record.delegation_id === message.delegation_id &&
     record.delivery_id === message.delivery_id &&
     record.task_sha256 === message.task_sha256 &&
@@ -351,19 +448,29 @@ chrome.runtime.onStartup.addListener(() => {
   void initializeClaimDb().catch((error) => console.error("[CAP Agent Session] claim DB startup validation failed", error));
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.schema_version === 1 && message.kind === "resume-intent") {
+chrome.runtime.onMessage.addListener((incoming, sender, sendResponse) => {
+  if (incoming?.schema_version === 1 && incoming.kind === "preflight") {
+    void prepareLiveLaunch(incoming, sender)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, reason: error?.message || "preflight-failed" }));
+    return true;
+  }
+
+  if (incoming?.schema_version === 1 && incoming.kind === "resume-intent") {
     sendResponse({ ok: true, enabled: false, reason: "temporary-profile-ephemeral" });
     return false;
   }
 
-  if (!validCommon(message)) {
-    sendResponse({ ok: false, reason: "invalid-correlation-or-generation" });
+  const message = resolveLiveMessage(incoming);
+  if (!message || !validCommon(message)) {
+    sendResponse({ ok: false, reason: "live-launch-context-expired-or-invalid" });
     return false;
   }
 
   if (message.kind === "authorize-send") {
-    void authorizeSend(message, sender).then(sendResponse).catch((error) => sendResponse({ ok: false, send_authorized: false, reason: error?.message || "authorize-failed" }));
+    void authorizeSend(message, sender)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, send_authorized: false, reason: error?.message || "authorize-failed" }));
     return true;
   }
 
@@ -423,7 +530,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       capture_token: message.capture_token,
       result_text: message.result_text,
     })
-      .then((value) => sendResponse({ ok: true, ...value }))
+      .then((value) => {
+        if (value.result_state === "recorded") LIVE_LAUNCHES.delete(message.launch_handle);
+        sendResponse({ ok: true, ...value });
+      })
       .catch((error) => sendResponse({ ok: false, reason: error?.message || "capture-failed" }));
     return true;
   } else if (message.kind === "final-observation") {
@@ -442,7 +552,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch((error) => sendResponse({ ok: false, reason: error?.message || "final-observation-failed" }));
     return true;
   } else if (message.kind === "status") {
-    void controllerStatus(message).then((value) => sendResponse({ ok: true, ...value })).catch((error) => sendResponse({ ok: false, reason: error?.message || "status-failed" }));
+    void controllerStatus(message)
+      .then((value) => sendResponse({ ok: true, ...value }))
+      .catch((error) => sendResponse({ ok: false, reason: error?.message || "status-failed" }));
     return true;
   } else {
     sendResponse({ ok: false, reason: "unsupported-kind" });
