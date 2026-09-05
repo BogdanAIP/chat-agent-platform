@@ -101,15 +101,18 @@ const button = {{
   click() {{ clicks += 1; }},
 }};
 
-global.crypto = {{
-  subtle: {{
-    digest(_algorithm, data) {{
-      const observed = Buffer.from(data).toString("utf8");
-      if (observed !== expectedPrompt) return Promise.resolve(new Uint8Array(32).buffer);
-      return Promise.resolve(expectedPromptDigestBytes.buffer.slice(0));
+Object.defineProperty(globalThis, "crypto", {{
+  configurable: true,
+  value: {{
+    subtle: {{
+      digest(_algorithm, data) {{
+        const observed = Buffer.from(data).toString("utf8");
+        if (observed !== expectedPrompt) return Promise.resolve(new Uint8Array(32).buffer);
+        return Promise.resolve(expectedPromptDigestBytes.buffer.slice(0));
+      }},
     }},
   }},
-}};
+}});
 console.info = () => {{}};
 global.location = {{ href: "https://chatgpt.com/", origin: "https://chatgpt.com" }};
 global.history = {{ state: null, replaceState() {{}} }};
