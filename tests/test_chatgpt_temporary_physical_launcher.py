@@ -33,11 +33,14 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         ):
             self.assertIn(asset, self.text)
 
-    def test_launcher_builds_exact_expected_installed_extension_attestation(self) -> None:
+    def test_launcher_builds_expected_extension_attestation_from_exact_git_archive(self) -> None:
         self.assertIn("expected-runtime-attestation.json", self.text)
         self.assertIn("expected_head = $ExpectedHead", self.text)
         self.assertIn("execution_generation = $executionGeneration", self.text)
         self.assertIn("adapter_id = 'chatgpt-temporary'", self.text)
+        self.assertIn("git-archive-exact-head", self.text)
+        self.assertIn("Get-ZipEntrySha256", self.text)
+        self.assertIn("$runtimeAssets[$assetName] = Get-ZipEntrySha256", self.text)
         self.assertIn("CAPChatGPTTemporaryExecutionGeneration", self.text)
         for asset in (
             "manifest.json",
@@ -46,13 +49,28 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
             "background.js",
             "content.js",
         ):
-            self.assertIn(f"'{asset}' = Get-Sha256", self.text)
+            self.assertIn(f"'{asset}'", self.text)
         self.assertIn("--runtime-attestation-json", self.text)
         self.assertIn("$runtimeAttestationPath", self.text)
         self.assertIn("CAP_AGENT_SESSION_EXPECTED_EXTENSION_ATTESTATION", self.text)
         self.assertIn("CAP_AGENT_SESSION_EXECUTION_GENERATION", self.text)
         self.assertIn("Controller runtime-attestation head mismatch", self.text)
         self.assertIn("Controller execution-generation mismatch", self.text)
+
+    def test_launcher_executes_controller_from_locked_isolated_archive(self) -> None:
+        self.assertIn("[System.IO.FileShare]::Read", self.text)
+        self.assertIn("runtime_archive_sha256 = $runtimeArchiveSha256", self.text)
+        self.assertIn("python_mode = 'isolated-zipimport'", self.text)
+        self.assertIn("'-I'", self.text)
+        self.assertIn("'-B'", self.text)
+        self.assertIn("'-S'", self.text)
+        self.assertIn(
+            'runpy.run_module(\\"runtime.agent_sessions.chatgpt_temporary_controller\\",run_name=\\"__main__\\")',
+            self.text,
+        )
+        self.assertIn("-WorkingDirectory $outputRoot", self.text)
+        self.assertNotIn("'-m', 'runtime.agent_sessions.chatgpt_temporary_controller'", self.text)
+        self.assertNotIn("-WorkingDirectory $RepoRoot", self.text)
 
     def test_launcher_keeps_state_and_evidence_outside_repository(self) -> None:
         self.assertIn("$env:LOCALAPPDATA", self.text)
@@ -116,6 +134,8 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         validate_block = self.text[marker:controller]
         self.assertIn("CAP_AGENT_SESSION_VALIDATE_ONLY=PASS", validate_block)
         self.assertIn("expected-runtime-attestation.json", self.text[:marker])
+        self.assertIn("CAP_AGENT_SESSION_EXTENSION_PATH", self.text[:marker])
+        self.assertIn("source-execution-snapshot.json", self.text[:marker])
         self.assertIn("return", validate_block)
 
     def test_powershell_syntax_when_available(self) -> None:
