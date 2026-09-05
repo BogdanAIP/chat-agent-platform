@@ -10,6 +10,8 @@ import tempfile
 import time
 import unittest
 
+from tests.agent_session_test_paths import short_agent_session_localappdata
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "launch-chatgpt-temporary-worker.ps1"
@@ -220,11 +222,7 @@ finally {{
             root = Path(temp_dir)
             task = root / "task.txt"
             task.write_text("Return the bounded fixture fact without changing state.\n", encoding="utf-8")
-            # Keep the exact-head qualification tree below classic
-            # Windows MAX_PATH. TemporaryDirectory already provides an
-            # isolated LOCALAPPDATA root, so another "localappdata" level
-            # is unnecessary test-harness depth.
-            local_app_data = root
+            local_app_data = short_agent_session_localappdata(root)
             ready = root / "launcher-locks-ready.json"
             release = root / "launcher-locks-release.txt"
             instrumented = root / "instrumented-launcher.ps1"

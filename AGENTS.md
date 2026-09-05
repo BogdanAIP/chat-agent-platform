@@ -84,6 +84,42 @@ Do not skip stage research merely because a future architecture document already
 
 Narrow bug fixes, dependency bumps, isolated regressions and documentation-only corrections do not require the full skill unless they materially alter architecture, authority or a release-critical guarantee.
 
+### 2A. Close confirmed failures by class
+
+For every confirmed material bug, regression, CI/physical failure or review
+finding that causes a code, test or process change, use this bounded closure
+cycle:
+
+```text
+Finding -> Root Cause -> Failure Class -> Repository-wide Search -> Guard
+```
+
+1. **Finding** — preserve the exact observable failure and evidence that makes
+   it real.
+2. **Root Cause** — identify the mechanism that produced the failure, including
+   whether it is in runtime code, a fixture, environment, acceptance harness
+   or development process.
+3. **Failure Class** — describe the repeatable mechanism rather than treating
+   the first observed instance as unique.
+4. **Repository-wide Search** — before declaring the finding closed, search
+   current code, tests, scripts, fixtures and adjacent consumers for copied or
+   semantically equivalent instances of that mechanism.
+5. **Guard** — install the strongest practical prevention using existing
+   project mechanisms: remove the unsafe state where practical, otherwise
+   prefer a shared safe abstraction/invariant, structural/static check and
+   behavioral or adversarial regression coverage as appropriate.
+
+A point fix is not sufficient when the same failure mechanism can exist
+elsewhere in the repository. Documentation may explain a failure class, but
+it does not replace an executable guard when a practical guard exists.
+
+Do not create a new failure registry, framework or runtime authority merely
+to implement this method. Prefer the existing test, CI, type/schema,
+verification and assurance mechanisms.
+
+If no practical executable guard exists, record why and the bounded residual
+risk in an existing owner such as `TECH_DEBT.md` or `PROJECT_RISKS.md`.
+
 ### 3. Add independent external evaluation when a capability is honestly ready
 
 External benchmark evaluation is a cross-cutting quality rule, not a substitute for project acceptance and not a requirement to run every full benchmark after every PR.

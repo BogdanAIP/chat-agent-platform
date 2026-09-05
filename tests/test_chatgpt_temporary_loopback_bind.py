@@ -12,6 +12,7 @@ import tempfile
 import time
 import unittest
 
+from tests.agent_session_test_paths import short_agent_session_localappdata
 from tests.test_chatgpt_temporary_controller import (
     TASK,
     expected_runtime_attestation,
@@ -107,11 +108,7 @@ class ChatGPTTemporaryLoopbackBindTests(unittest.TestCase):
                 "Return the bounded fixture fact without changing state.\n",
                 encoding="utf-8",
             )
-            # Keep the exact-head qualification tree below classic
-            # Windows MAX_PATH. TemporaryDirectory already provides an
-            # isolated LOCALAPPDATA root, so another "localappdata" level
-            # is unnecessary test-harness depth.
-            local_app_data = root
+            local_app_data = short_agent_session_localappdata(root)
             env = dict(os.environ)
             env["LOCALAPPDATA"] = str(local_app_data)
             task_sha = hashlib.sha256(task.read_bytes()).hexdigest()

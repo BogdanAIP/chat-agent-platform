@@ -11,6 +11,8 @@ import unittest
 import urllib.request
 from pathlib import Path
 
+from tests.agent_session_test_paths import short_agent_session_localappdata
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "launch-chatgpt-temporary-worker.ps1"
@@ -54,11 +56,7 @@ class ChatGPTTemporaryLiveSourceLockTests(unittest.TestCase):
                 "Return the bounded fixture fact without changing state.\n",
                 encoding="utf-8",
             )
-            # Keep the exact-head qualification tree below classic
-            # Windows MAX_PATH. TemporaryDirectory already provides an
-            # isolated LOCALAPPDATA root, so another "localappdata" level
-            # is unnecessary test-harness depth.
-            local_app_data = root
+            local_app_data = short_agent_session_localappdata(root)
             ready = root / "launcher-locks-ready.json"
             release = root / "launcher-locks-release.txt"
             instrumented = root / "instrumented-launcher.ps1"

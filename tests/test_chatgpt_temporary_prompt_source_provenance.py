@@ -11,6 +11,8 @@ import textwrap
 import unittest
 import zipfile
 
+from tests.agent_session_test_paths import short_agent_session_localappdata
+
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "runtime" / "agent_sessions" / "chatgpt_temporary_extension"
@@ -407,11 +409,7 @@ process.stdout.write(JSON.stringify({{
             temp = Path(temp_dir)
             task = temp / "task.txt"
             task.write_text("Return the bounded fixture fact without changing state.\n", encoding="utf-8")
-            # Keep the Windows qualification path below classic MAX_PATH.
-            # TemporaryDirectory already provides an isolated LOCALAPPDATA root;
-            # adding another "localappdata" level can push the exact-head
-            # extension snapshot past 260 characters on Windows.
-            local_app_data = temp
+            local_app_data = short_agent_session_localappdata(temp)
             env = dict(os.environ)
             env["LOCALAPPDATA"] = str(local_app_data)
             completed = subprocess.run(
