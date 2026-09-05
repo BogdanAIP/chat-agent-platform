@@ -65,7 +65,7 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertIn("'-B'", self.text)
         self.assertIn("'-S'", self.text)
         self.assertIn(
-            'runpy.run_module(\\"runtime.agent_sessions.chatgpt_temporary_controller\\",run_name=\\"__main__\\")',
+            'runpy.run_module("runtime.agent_sessions.chatgpt_temporary_controller",run_name="__main__")',
             self.text,
         )
         self.assertIn("-WorkingDirectory $outputRoot", self.text)

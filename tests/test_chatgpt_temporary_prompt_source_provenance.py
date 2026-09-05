@@ -9,6 +9,7 @@ from pathlib import Path
 import tempfile
 import textwrap
 import unittest
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +23,13 @@ class ChatGPTTemporaryPromptSourceProvenanceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.node = shutil.which("node")
 
-    def _run_content_prompt_case(self, *, actual_prompt: str, expected_prompt: str) -> tuple[int, int]:
+    def _run_content_prompt_case(
+        self,
+        *,
+        actual_prompt: str,
+        expected_prompt: str,
+        mutate_after_authorize: str | None = None,
+    ) -> tuple[int, int]:
         if self.node is None:
             self.skipTest("node is unavailable")
 
@@ -41,6 +48,7 @@ const policySource = fs.readFileSync({json.dumps(str(POLICY))}, "utf8");
 const contentSource = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8");
 const expectedPrompt = {json.dumps(expected_prompt)};
 const actualPrompt = {json.dumps(actual_prompt)};
+const mutateAfterAuthorize = {json.dumps(mutate_after_authorize)};
 const intent = {{
   enabled: true,
   runId: {json.dumps(run_id)},
@@ -113,6 +121,11 @@ global.chrome = {{ runtime: {{
   sendMessage(message, callback) {{
     if (message.kind === "authorize-send") {{
       authorizeCalls += 1;
+      if (mutateAfterAuthorize !== null) {{
+        editor.innerText = mutateAfterAuthorize;
+        editor.textContent = mutateAfterAuthorize;
+        composer.textContent = mutateAfterAuthorize;
+      }}
       callback({{ ok: true, send_authorized: true, delivery_state: "claimed" }});
       return;
     }}
@@ -133,11 +146,11 @@ CAPChatGPTTemporaryPolicy.conversationId = () => null;
 function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
 (async () => {{
   vm.runInThisContext(contentSource, {{ filename: "content.js" }});
-  await flush();
-  await flush();
-  if (typeof intervalFn === "function") intervalFn();
-  await flush();
-  await flush();
+  for (let attempt = 0; attempt < 40; attempt += 1) {{
+    await flush();
+    if (typeof intervalFn === "function") intervalFn();
+    await flush();
+  }}
   process.stdout.write(JSON.stringify({{ authorizeCalls, clicks }}));
 }})().catch((error) => {{ console.error(error); process.exit(20); }});
 """
@@ -205,6 +218,16 @@ function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
         )
         self.assertEqual((1, 1), (authorize, clicks))
 
+    def test_prompt_changed_after_authority_is_blocked_before_click(self) -> None:
+        expected = self._prompt("Read alpha and summarize it.")
+        changed = expected.replace("Read alpha and summarize it.", "Changed after local authority was claimed.")
+        authorize, clicks = self._run_content_prompt_case(
+            actual_prompt=expected,
+            expected_prompt=expected,
+            mutate_after_authorize=changed,
+        )
+        self.assertEqual((1, 0), (authorize, clicks))
+
     def test_policy_exact_prompt_equivalence_allows_only_newline_canonicalization(self) -> None:
         if self.node is None:
             self.skipTest("node is unavailable")
@@ -246,7 +269,7 @@ process.stdout.write(JSON.stringify({{
             "'-I'",
             "'-B'",
             "'-S'",
-            'runpy.run_module(\\"runtime.agent_sessions.chatgpt_temporary_controller\\"',
+            'runpy.run_module("runtime.agent_sessions.chatgpt_temporary_controller"',
             "-WorkingDirectory $outputRoot",
             "CAP_AGENT_SESSION_SOURCE_EXECUTION_SNAPSHOT",
         ):
@@ -307,17 +330,16 @@ process.stdout.write(JSON.stringify({{
             self.assertEqual("git-archive-exact-head", source_execution["runtime_source"])
             self.assertEqual("isolated-zipimport", source_execution["python_mode"])
 
-            for name in ("manifest.json", "execution_generation.js", "policy.js", "background.js", "content.js"):
-                committed = subprocess.check_output(
-                    [
-                        git,
-                        "-C",
-                        str(ROOT),
-                        "show",
-                        f"{head}:runtime/agent_sessions/chatgpt_temporary_extension/{name}",
-                    ]
-                )
-                self.assertEqual(committed, (extension_path / name).read_bytes(), name)
+            runtime_archive_path = Path(source_execution["runtime_archive_path"])
+            self.assertTrue(runtime_archive_path.is_file())
+            self.assertEqual(
+                source_execution["runtime_archive_sha256"],
+                hashlib.sha256(runtime_archive_path.read_bytes()).hexdigest(),
+            )
+            with zipfile.ZipFile(runtime_archive_path, "r") as archive:
+                for name in ("manifest.json", "execution_generation.js", "policy.js", "background.js", "content.js"):
+                    archived = archive.read(f"runtime/agent_sessions/chatgpt_temporary_extension/{name}")
+                    self.assertEqual(archived, (extension_path / name).read_bytes(), name)
 
 
 if __name__ == "__main__":

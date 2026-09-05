@@ -208,6 +208,7 @@ vm.runInContext(`
         script = f"""
 const fs = require("fs");
 const vm = require("vm");
+const nodeCrypto = require("crypto");
 const source = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8");
 const generation = "9".repeat(64);
 const runId = "a".repeat(64);
@@ -215,60 +216,92 @@ const delegationId = "b".repeat(64);
 const deliveryId = "c".repeat(64);
 const taskSha = "d".repeat(64);
 const head = "e".repeat(40);
-const promptSha = "f".repeat(64);
-const conversationId = "delivery-retry-session-1234";
+const prompt = `WORKER_TASK_V1\n\ndelegation_id=${{delegationId}}\ndelivery_id=${{deliveryId}}\ntask_sha256=${{taskSha}}\n\nRead the bounded fixture and return one result.`;
+const promptSha = nodeCrypto.createHash("sha256").update(prompt, "utf8").digest("hex");
 let now = 1000;
 let intervalFn = null;
+let clicked = false;
 const evidenceRefs = [];
-const userTurn = {{
-  innerText: `delegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
-  textContent: "",
-}};
+const userTurn = {{ innerText: prompt, textContent: prompt }};
 
+function uiNode(text) {{
+  return {{
+    isConnected: true,
+    innerText: text,
+    textContent: text,
+    getBoundingClientRect() {{ return {{ width: 20, height: 20 }}; }},
+    getAttribute() {{ return null; }},
+    contains() {{ return false; }},
+  }};
+}}
+const editor = {{ tagName: "DIV", innerText: prompt, textContent: prompt }};
+const composer = {{
+  textContent: prompt,
+  querySelector() {{ return editor; }},
+  contains() {{ return false; }},
+}};
+const button = {{
+  isConnected: true,
+  disabled: false,
+  getAttribute(name) {{ return name === "aria-disabled" ? "false" : null; }},
+  closest() {{ return composer; }},
+  parentElement: composer,
+  click() {{ clicked = true; }},
+}};
+const intent = {{
+  enabled: true,
+  runId,
+  delegationId,
+  deliveryId,
+  taskSha256: taskSha,
+  expectedHead: head,
+  promptSha256: promptSha,
+  prompt,
+  maxWaitMs: 300000,
+  deliveryObserveMs: 20000,
+  stableMs: 3000,
+}};
 const policy = {{
   HEX64_RE: /^[0-9a-f]{{64}}$/,
   HEAD40_RE: /^[0-9a-f]{{40}}$/,
-  parseIntent() {{ return {{ enabled: false }}; }},
-  conversationId() {{ return conversationId; }},
+  parseIntent() {{ return intent; }},
+  exactPromptMatches(observed, expected) {{ return String(observed).replace(/\\r\\n?/g, "\\n") === String(expected).replace(/\\r\\n?/g, "\\n"); }},
+  conversationId() {{ return null; }},
   armPostDeliveryUiGuard() {{ return true; }},
   invalidatePostDeliveryAuthorization() {{}},
-  hasExpectedPrompt() {{ return false; }},
-  personalizationModeFromText() {{ return "unknown"; }},
+  hasExpectedPrompt() {{ return true; }},
+  personalizationModeFromText(text) {{ return /non-personalized/i.test(String(text)) ? "non-personalized" : "unknown"; }},
   captureAuthorization() {{ return null; }},
   singleResultBlockShape() {{ return false; }},
   hasSingleResultBlock() {{ return false; }},
 }};
 
+global.crypto = nodeCrypto.webcrypto;
 global.CAPChatGPTTemporaryPolicy = policy;
 global.CAPChatGPTTemporaryExecutionGeneration = generation;
-global.location = {{ href: `https://chatgpt.com/c/${{conversationId}}`, origin: "https://chatgpt.com" }};
+global.location = {{ href: "https://chatgpt.com/", origin: "https://chatgpt.com" }};
 global.history = {{ state: null, replaceState() {{}} }};
+global.getComputedStyle = () => ({{ visibility: "visible", display: "block" }});
 global.document = {{
-  querySelector() {{ return null; }},
+  querySelector(selector) {{
+    if (selector === 'button[data-testid="send-button"]') return button;
+    return null;
+  }},
   querySelectorAll(selector) {{
-    if (selector.includes('data-message-author-role="user"')) return [userTurn];
+    if (selector === 'button,[role="button"],[aria-label],[title],[data-testid]') {{
+      return [uiNode("Temporary Chat"), uiNode("Non-personalized")];
+    }}
+    if (selector.includes('data-message-author-role="user"')) return clicked ? [userTurn] : [];
+    if (selector.includes('data-message-author-role="assistant"')) return [];
+    if (selector === "button") return [];
     return [];
   }},
 }};
 global.chrome = {{ runtime: {{
   lastError: null,
   sendMessage(message, callback) {{
-    if (message.kind === "resume-intent") {{
-      callback({{
-        ok: true,
-        enabled: true,
-        monitor_only: true,
-        execution_generation: generation,
-        run_id: runId,
-        delegation_id: delegationId,
-        delivery_id: deliveryId,
-        task_sha256: taskSha,
-        expected_runtime_head: head,
-        prompt_sha256: promptSha,
-        conversation_id: conversationId,
-        delivery_state: "claimed",
-        result_state: "open",
-      }});
+    if (message.kind === "authorize-send") {{
+      callback({{ ok: true, send_authorized: true, delivery_state: "claimed" }});
       return;
     }}
     if (message.kind === "status") {{
@@ -300,15 +333,19 @@ function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
 
 (async () => {{
   vm.runInThisContext(source, {{ filename: "content.js" }});
-  await flush();
-  await flush();
+  for (let attempt = 0; attempt < 60 && evidenceRefs.length < 1; attempt += 1) {{
+    await flush();
+    if (typeof intervalFn === "function") intervalFn();
+    await flush();
+  }}
   if (typeof intervalFn !== "function") process.exit(30);
   if (evidenceRefs.length !== 1) process.exit(31);
 
-  now = 1600;
-  intervalFn();
-  await flush();
-  await flush();
+  for (let attempt = 0; attempt < 20 && evidenceRefs.length < 2; attempt += 1) {{
+    intervalFn();
+    await flush();
+    await flush();
+  }}
   if (evidenceRefs.length !== 2) process.exit(32);
   if (evidenceRefs[0] !== evidenceRefs[1]) process.exit(33);
 
