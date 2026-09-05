@@ -234,10 +234,26 @@ function uiNode(text) {{
     contains() {{ return false; }},
   }};
 }}
-const editor = {{ tagName: "DIV", innerText: prompt, textContent: prompt }};
+const editor = {{
+  tagName: "DIV",
+  innerText: prompt,
+  textContent: prompt,
+  isConnected: true,
+  getBoundingClientRect() {{ return {{ width: 20, height: 20 }}; }},
+  getAttribute(name) {{
+    return name === "contenteditable" ? "true" : null;
+  }},
+  isContentEditable: true,
+}};
 const composer = {{
   textContent: prompt,
   querySelector() {{ return editor; }},
+  querySelectorAll(selector) {{
+    if (selector === '#prompt-textarea,[contenteditable="true"],textarea') {{
+      return [editor];
+    }}
+    return [];
+  }},
   contains() {{ return false; }},
 }};
 const button = {{

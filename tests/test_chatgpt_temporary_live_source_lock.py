@@ -54,8 +54,11 @@ class ChatGPTTemporaryLiveSourceLockTests(unittest.TestCase):
                 "Return the bounded fixture fact without changing state.\n",
                 encoding="utf-8",
             )
-            local_app_data = root / "localappdata"
-            local_app_data.mkdir()
+            # Keep the exact-head qualification tree below classic
+            # Windows MAX_PATH. TemporaryDirectory already provides an
+            # isolated LOCALAPPDATA root, so another "localappdata" level
+            # is unnecessary test-harness depth.
+            local_app_data = root
             ready = root / "launcher-locks-ready.json"
             release = root / "launcher-locks-release.txt"
             instrumented = root / "instrumented-launcher.ps1"
