@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "runtime" / "agent_sessions" / "chatgpt_temporary_extension"
 GENERATION_INPUTS = (
     "manifest.json",
+    "execution_generation.js",
     "policy.js",
     "background.js",
     "content.js",
@@ -21,7 +22,15 @@ GENERATION_RE = re.compile(
 
 
 def normalized_repo_bytes(path: Path) -> bytes:
-    return path.read_bytes().replace(b"\r\n", b"\n")
+    data = path.read_bytes().replace(b"\r\n", b"\n")
+    if path.name == "execution_generation.js":
+        text = data.decode("utf-8")
+        match = GENERATION_RE.search(text)
+        if match is None:
+            raise AssertionError("execution generation marker is missing")
+        text = text[: match.start(1)] + ("0" * 64) + text[match.end(1) :]
+        data = text.encode("utf-8")
+    return data
 
 
 def git_blob_sha(path: Path) -> str:
@@ -42,6 +51,17 @@ class ChatGPTTemporaryExecutionGenerationTests(unittest.TestCase):
         match = GENERATION_RE.search(source)
         self.assertIsNotNone(match)
         self.assertEqual(expected_generation(), match.group(1))
+
+    def test_generation_binds_authenticated_bootstrap_while_normalizing_only_marker(self) -> None:
+        source = (EXTENSION / "execution_generation.js").read_text(encoding="utf-8")
+        self.assertIn("CAP_AGENT_LOOPBACK_AUTH_V1", source)
+        self.assertIn("authenticatedControllerFetch", source)
+        self.assertIn("controller-auth-response-mac-invalid", source)
+        self.assertIn("delete value.preflight_id", source)
+        self.assertIn("delete value.run_id", source)
+        normalized = normalized_repo_bytes(EXTENSION / "execution_generation.js").decode("utf-8")
+        self.assertIn('"' + ("0" * 64) + '"', normalized)
+        self.assertIn("CAP_AGENT_LOOPBACK_AUTH_V1", normalized)
 
     def test_generation_executes_before_policy_content_and_background_logic(self) -> None:
         manifest = json.loads((EXTENSION / "manifest.json").read_text(encoding="utf-8"))
