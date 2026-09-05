@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
+import socket
 import subprocess
 from pathlib import Path
 import tempfile
@@ -188,6 +190,142 @@ finally {{
             extension_asset.unlink()
             self.assertFalse(runtime_archive.exists())
             self.assertFalse(extension_asset.exists())
+
+    def test_actual_launcher_holds_source_locks_while_controller_runs_on_windows(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows FileShare semantics are required")
+        pwsh = shutil.which("pwsh")
+        git = shutil.which("git")
+        if pwsh is None or git is None:
+            self.skipTest("pwsh/git are unavailable")
+
+        def ps_literal(value: str | Path) -> str:
+            return "'" + str(value).replace("'", "''") + "'"
+
+        repo_root_assignment = "$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path"
+        controller_boundary = "        -RedirectStandardError $controllerStderr\n\n    $healthUri = 'http://127.0.0.1:3078/health'"
+        self.assertEqual(1, self.text.count(repo_root_assignment))
+        self.assertEqual(1, self.text.count(controller_boundary))
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reserve:
+            reserve.bind(("127.0.0.1", 0))
+            test_port = int(reserve.getsockname()[1])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task = root / "task.txt"
+            task.write_text("Return the bounded fixture fact without changing state.\n", encoding="utf-8")
+            local_app_data = root / "localappdata"
+            local_app_data.mkdir()
+            ready = root / "launcher-locks-ready.json"
+            release = root / "launcher-locks-release.txt"
+            instrumented = root / "instrumented-launcher.ps1"
+
+            probe = f"""        -RedirectStandardError $controllerStderr
+
+    $probeReady = [string]$env:CAP_AGENT_SESSION_TEST_LOCK_READY
+    $probeRelease = [string]$env:CAP_AGENT_SESSION_TEST_LOCK_RELEASE
+    Write-JsonUtf8NoBom -Path $probeReady -Value ([ordered]@{{
+        runtime_archive_path = $runtimeArchivePath
+        extension_path = $extensionPath
+        controller_id = $controller.Id
+    }})
+    $probeDeadline = (Get-Date).AddSeconds(30)
+    while (-not (Test-Path -LiteralPath $probeRelease -PathType Leaf)) {{
+        if ((Get-Date) -gt $probeDeadline) {{ throw 'CAP_AGENT_SESSION_TEST_LOCK_RELEASE_TIMEOUT' }}
+        Start-Sleep -Milliseconds 50
+    }}
+    throw 'CAP_AGENT_SESSION_TEST_STOP_AFTER_CONTROLLER_START'
+
+    $healthUri = 'http://127.0.0.1:3078/health'"""
+            instrumented_text = self.text.replace(
+                repo_root_assignment,
+                f"$RepoRoot = {ps_literal(ROOT)}",
+                1,
+            ).replace(
+                "'--port', '3078',",
+                f"'--port', '{test_port}',",
+                1,
+            ).replace(
+                controller_boundary,
+                probe,
+                1,
+            )
+            instrumented.write_text(instrumented_text, encoding="utf-8")
+
+            head = subprocess.check_output(
+                [git, "-C", str(ROOT), "rev-parse", "HEAD"],
+                text=True,
+            ).strip().lower()
+            env = dict(os.environ)
+            env["LOCALAPPDATA"] = str(local_app_data)
+            env["CAP_AGENT_SESSION_TEST_LOCK_READY"] = str(ready)
+            env["CAP_AGENT_SESSION_TEST_LOCK_RELEASE"] = str(release)
+
+            process = subprocess.Popen(
+                [
+                    pwsh,
+                    "-NoProfile",
+                    "-File",
+                    str(instrumented),
+                    "-TaskFile",
+                    str(task),
+                    "-ExpectedHead",
+                    head,
+                    "-TimeoutSeconds",
+                    "60",
+                ],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            stdout = ""
+            stderr = ""
+            locked_paths: list[Path] = []
+            try:
+                deadline = time.monotonic() + 35
+                while not ready.is_file():
+                    if process.poll() is not None:
+                        stdout, stderr = process.communicate()
+                        self.fail(f"instrumented launcher exited before lock probe: {stdout}{stderr}")
+                    if time.monotonic() >= deadline:
+                        self.fail("timed out waiting for actual launcher source-lock probe")
+                    time.sleep(0.05)
+
+                probe_state = json.loads(ready.read_text(encoding="utf-8"))
+                runtime_archive = Path(probe_state["runtime_archive_path"])
+                extension_asset = Path(probe_state["extension_path"]) / "content.js"
+                locked_paths = [runtime_archive, extension_asset]
+                self.assertTrue(runtime_archive.is_file())
+                self.assertTrue(extension_asset.is_file())
+                self.assertGreater(int(probe_state["controller_id"]), 0)
+
+                originals = {path: path.read_bytes() for path in locked_paths}
+                for target in locked_paths:
+                    with self.assertRaises(OSError, msg=f"actual launcher allowed write to {target.name}"):
+                        with target.open("r+b") as handle:
+                            handle.write(b"mutated")
+                    with self.assertRaises(OSError, msg=f"actual launcher allowed delete of {target.name}"):
+                        target.unlink()
+                    self.assertEqual(originals[target], target.read_bytes())
+            finally:
+                release.write_text("release", encoding="utf-8")
+                try:
+                    stdout, stderr = process.communicate(timeout=20)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    stdout, stderr = process.communicate()
+                    self.fail(f"instrumented launcher did not terminate: {stdout}{stderr}")
+
+            self.assertNotEqual(0, process.returncode)
+            self.assertIn("CAP_AGENT_SESSION_TEST_STOP_AFTER_CONTROLLER_START", stdout + stderr)
+            for target in locked_paths:
+                target.write_bytes(b"changed-after-launcher-finally")
+                self.assertEqual(b"changed-after-launcher-finally", target.read_bytes())
+                target.unlink()
+                self.assertFalse(target.exists())
 
     def test_launcher_keeps_state_and_evidence_outside_repository(self) -> None:
         self.assertIn("$env:LOCALAPPDATA", self.text)
