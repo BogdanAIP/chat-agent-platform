@@ -32,7 +32,7 @@ The preferred post-#149 architecture is:
     Sessions                 Desktop                   IoT
        |                       |                        |
  CCCC / #149               WinApp CLI            Home Assistant
- Prime optional            native app APIs        Matter/MQTT via HA
+ Prime optional            UFO/UFO²              Matter/MQTT via HA
                            OpenAdapt
                            Vision fallback
 
@@ -41,6 +41,8 @@ Playwright/project Browser boundary unless fresh evidence justifies change.
 ```
 
 This is a **composition architecture**, not a plan to collapse all providers into one universal runtime.
+
+Installed Windows applications should normally be treated as applications behind the generic Desktop capability, not as new CAP capability families requiring one adapter per product. Application-native APIs/COM/object models may be used internally by a qualified reusable Windows/application executor when they improve mechanics, but they are **not** the default CAP expansion strategy.
 
 ---
 
@@ -102,6 +104,7 @@ generic Windows UIA engine
 generic Windows selector engine
 generic mouse/keyboard backend
 generic screenshot/window manager
+per-application CAP adapters by default
 
 own demonstration recorder
 own general workflow compiler/replay engine
@@ -118,7 +121,7 @@ A custom implementation of one of these requires a **measured gap**: a concrete 
 
 ## 4. Provider families — narrow contracts, not one universal state machine
 
-Do not invent a universal `ExecutionProvider` state machine that flattens ChatGPT conversations, Excel cells, browser pages and physical devices.
+Do not invent a universal `ExecutionProvider` state machine that flattens ChatGPT conversations, Windows application state, browser pages and physical devices.
 
 Prefer separate narrow provider families with shared CAP invariants above them:
 
@@ -232,16 +235,22 @@ The existing Prime roadmap/addendum remain useful **candidate-specific research 
 
 ---
 
-## 6. Desktop / Windows — WinApp CLI first, native semantics where stronger
+## 6. Desktop / Windows — generic Windows automation first
 
-Do not continue toward a broad custom Windows automation engine by default.
+Do not continue toward a broad custom Windows automation engine and do not create one CAP adapter per installed application by default.
+
+An installed Windows program — CAD, Office, Electron, Win32/WPF/WinForms or another desktop application — should normally enter through the same Desktop capability. CAP should first rely on reusable Windows/application automation substrates; app-specific mechanics belong inside those substrates where possible.
 
 Preferred routing hypothesis for fresh Stage Research:
 
 ```text
-1. application-native semantic API
+installed Windows application
+        |
+        v
+1. WinApp CLI / UI Automation semantic automation
         | unavailable / insufficient
-2. WinApp CLI / UI Automation semantic patterns
+2. UFO/UFO² or another qualified reusable
+   application-aware Windows automation layer
         | unavailable / insufficient
 3. structured GUI + synthetic input
         | insufficient
@@ -251,6 +260,8 @@ Preferred routing hypothesis for fresh Stage Research:
 ### Generic Windows substrate candidate
 
 Microsoft WinApp CLI is the first candidate for generic Windows UI mechanics such as inspection, semantic targeting, UIA pattern actions, waiting, screenshots and input fallback.
+
+The desired user experience is that installing or opening another ordinary Windows application does **not** imply new CAP development. The generic Desktop path should attempt to observe, target, act and verify through the reusable Windows substrate first.
 
 CAP must still own:
 
@@ -266,19 +277,37 @@ Finish Gate
 
 A successful WinApp/UIA invocation is action evidence, not proof of the desired effect.
 
-### Office / richer applications
+### Application-aware mechanics and UFO/UFO²
 
-When a native object model provides stronger identity and semantics than UIA, prefer a narrow native adapter.
+If generic WinApp/UIA semantics are insufficient for a complex application, the next preferred move is a qualified reusable application-aware Windows layer such as UFO/UFO², **not** a new CAP-native adapter for that product.
 
-Example:
+UFO/UFO² may internally use richer UIA/Win32/WinCOM/application-specific/native mechanics where useful. Those mechanics remain implementation details of the reusable executor unless fresh Stage Research proves a concrete capability gap that cannot be solved there.
+
+Do not adopt UFO HostAgent/AppAgent planner hierarchy as the CAP planner. Ordinary ChatGPT remains the general planner; CAP keeps authority/effect/verification semantics.
+
+Example principle:
 
 ```text
-Excel workbook / worksheet / Range("D17") / Formula
+CAP
+  -> DesktopProvider
+      -> WinApp CLI first
+      -> UFO/UFO² when application-aware mechanics are needed
+          -> may internally use COM/native APIs if that executor supports them
 ```
 
-is preferable to coordinate-based editing when the native model is available and qualified.
+Avoid the default pattern:
 
-UFO/UFO² remain candidate sources of application-specific UIA/Win32/WinCOM mechanics for measured gaps. Do not adopt their planner hierarchy as the CAP planner.
+```text
+CAP
+  -> AutoCADProvider
+  -> SolidWorksProvider
+  -> ExcelProvider
+  -> WordProvider
+  -> PhotoshopProvider
+  -> ...
+```
+
+A direct app-specific CAP adapter is an exception requiring a measured gap and fresh Stage Research, not the normal expansion path.
 
 Universal App Bridge or similar routing projects may be compared as reuse candidates, but are not preselected as the CAP foundation.
 
@@ -372,8 +401,9 @@ Composition Stage Research
         |      -> crash / ambiguous / wrong-target conformance
         |
         +--> Desktop: WinApp CLI first candidate
-        |      -> narrow CAP adapter proof
-        |      -> 3-4 representative app L3 matrix
+        |      -> generic DesktopProvider proof
+        |      -> UFO/UFO² only for measured application-aware gaps
+        |      -> 3-4 representative app L3 matrix without per-app CAP adapters
         |
         +--> Procedures: revalidate OpenAdapt selected roles
         |      -> bounded demo/compile/replay spike
@@ -407,13 +437,15 @@ IoT remains off the immediate release-critical path unless the roadmap is separa
 4. Can CAP retain canonical request/session identity while treating CCCC delivery state as provider evidence?
 5. Does the adapter survive wrong conversation, stale generation, replayed result and duplicate delivery tests?
 
-### Desktop / WinApp CLI
+### Desktop / WinApp CLI + UFO/UFO²
 
-1. Does it provide strong enough structured identity/targeting for representative Win32/WPF/WinForms/Electron apps?
+1. Does WinApp CLI provide strong enough structured identity/targeting for representative Win32/WPF/WinForms/Electron and complex installed applications?
 2. How stable are selectors/slugs across restart, moved windows and similar controls?
-3. Can native semantic APIs outrank generic UIA where they provide stronger object identity?
-4. Does post-action CAP re-observation prove effects independently of WinApp command success?
-5. Which measured gaps, if any, justify UFO/native/specialized adapters?
+3. Can a newly installed application be controlled through the generic Desktop path without adding a new CAP adapter?
+4. When WinApp/UIA is insufficient, can UFO/UFO² or another reusable application-aware layer supply the missing mechanics while CAP remains the planner/authority/verification owner?
+5. Do native/COM/application-specific mechanics, when useful, remain internal to the reusable executor instead of becoming a default CAP integration surface?
+6. Does post-action CAP re-observation prove effects independently of executor command success?
+7. Which measured gaps, if any, truly justify a direct specialized CAP adapter?
 
 ### Procedures / OpenAdapt
 
