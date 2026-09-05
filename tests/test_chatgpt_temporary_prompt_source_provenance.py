@@ -29,6 +29,8 @@ class ChatGPTTemporaryPromptSourceProvenanceTests(unittest.TestCase):
         actual_prompt: str,
         expected_prompt: str,
         mutate_after_authorize: str | None = None,
+        stale_prompt_editor: str | None = None,
+        stale_prompt_editor_visible: bool = False,
     ) -> tuple[int, int]:
         if self.node is None:
             self.skipTest("node is unavailable")
@@ -48,6 +50,8 @@ const contentSource = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8");
 const expectedPrompt = {json.dumps(expected_prompt)};
 const actualPrompt = {json.dumps(actual_prompt)};
 const mutateAfterAuthorize = {json.dumps(mutate_after_authorize)};
+const stalePromptEditorText = {json.dumps(stale_prompt_editor)};
+const stalePromptEditorVisible = {json.dumps(stale_prompt_editor_visible)};
 const expectedPromptDigestHex = {json.dumps(prompt_sha)};
 const expectedPromptDigestBytes = Uint8Array.from(
   expectedPromptDigestHex.match(/../g).map((value) => Number.parseInt(value, 16)),
@@ -70,6 +74,7 @@ let authorizeCalls = 0;
 let clicks = 0;
 
 function rect() {{ return {{ width: 20, height: 20 }}; }}
+function hiddenRect() {{ return {{ width: 0, height: 0 }}; }}
 function uiNode(text) {{
   return {{
     isConnected: true,
@@ -84,7 +89,13 @@ const editor = {{
   tagName: "DIV",
   innerText: actualPrompt,
   textContent: actualPrompt,
-  getAttribute(name) {{ return name === "contenteditable" ? "true" : null; }},
+  isConnected: true,
+  _capVisible: true,
+  getBoundingClientRect: rect,
+  getAttribute(name) {{
+    if (name === "contenteditable") return "true";
+    return null;
+  }},
   isContentEditable: true,
 }};
 
@@ -96,23 +107,61 @@ const decoyTextarea = {{
   value: "",
   innerText: "",
   textContent: "",
-  getAttribute() {{ return null; }},
+  isConnected: true,
+  _capVisible: false,
+  disabled: false,
+  getBoundingClientRect: hiddenRect,
+  getAttribute(name) {{
+    if (name === "aria-hidden") return "true";
+    return null;
+  }},
   isContentEditable: false,
+}};
+
+const stalePromptEditor = stalePromptEditorText === null ? null : {{
+  tagName: "DIV",
+  innerText: stalePromptEditorText,
+  textContent: stalePromptEditorText,
+  isConnected: true,
+  _capVisible: stalePromptEditorVisible,
+  getBoundingClientRect() {{
+    return stalePromptEditorVisible ? rect() : hiddenRect();
+  }},
+  getAttribute(name) {{
+    if (name === "contenteditable") return "true";
+    if (name === "aria-hidden" && !stalePromptEditorVisible) return "true";
+    return null;
+  }},
+  isContentEditable: true,
 }};
 
 const composer = {{
   textContent: actualPrompt,
+
   querySelector(selector) {{
-    if (selector === "#prompt-textarea") return editor;
+    if (selector === "#prompt-textarea") return stalePromptEditor || editor;
     if (selector === '[contenteditable="true"]') return editor;
     if (selector === "textarea") return decoyTextarea;
 
-    // Reproduce the September 2026 physical DOM failure for the old code.
+    // Preserve the superseded selector-list behavior in the fixture so the
+    // original physical failure remains represented.
     if (selector === '#prompt-textarea,[contenteditable="true"],textarea') {{
       return decoyTextarea;
     }}
     return null;
   }},
+
+  querySelectorAll(selector) {{
+    if (selector !== '#prompt-textarea,[contenteditable="true"],textarea') {{
+      return [];
+    }}
+    return [
+      decoyTextarea,
+      ...(stalePromptEditor ? [stalePromptEditor] : []),
+      editor,
+    ];
+  }},
+
   contains() {{ return false; }},
 }};
 const button = {{
@@ -139,7 +188,11 @@ Object.defineProperty(globalThis, "crypto", {{
 console.info = () => {{}};
 global.location = {{ href: "https://chatgpt.com/", origin: "https://chatgpt.com" }};
 global.history = {{ state: null, replaceState() {{}} }};
-global.getComputedStyle = () => ({{ visibility: "visible", display: "block" }});
+global.getComputedStyle = (node) => (
+  node?._capVisible === false
+    ? {{ visibility: "hidden", display: "none" }}
+    : {{ visibility: "visible", display: "block" }}
+);
 global.document = {{
   querySelector(selector) {{
     if (selector === 'button[data-testid="send-button"]') return button;
@@ -255,6 +308,34 @@ function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
             expected_prompt=expected,
         )
         self.assertEqual((1, 1), (authorize, clicks))
+
+    def test_hidden_stale_exact_editor_cannot_authorize_different_visible_editor(self) -> None:
+        expected = self._prompt("Read alpha and summarize it.")
+        changed = expected.replace(
+            "Read alpha and summarize it.",
+            "Changed in the live visible editor.",
+        )
+        authorize, clicks = self._run_content_prompt_case(
+            actual_prompt=changed,
+            expected_prompt=expected,
+            stale_prompt_editor=expected,
+            stale_prompt_editor_visible=False,
+        )
+        self.assertEqual((0, 0), (authorize, clicks))
+
+    def test_multiple_visible_editors_fail_closed_before_authority(self) -> None:
+        expected = self._prompt("Read alpha and summarize it.")
+        changed = expected.replace(
+            "Read alpha and summarize it.",
+            "Foreign text in a different live editor.",
+        )
+        authorize, clicks = self._run_content_prompt_case(
+            actual_prompt=changed,
+            expected_prompt=expected,
+            stale_prompt_editor=expected,
+            stale_prompt_editor_visible=True,
+        )
+        self.assertEqual((0, 0), (authorize, clicks))
 
     def test_prompt_changed_after_authority_is_blocked_before_click(self) -> None:
         expected = self._prompt("Read alpha and summarize it.")
