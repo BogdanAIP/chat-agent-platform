@@ -44,6 +44,8 @@ This is a **composition architecture**, not a plan to collapse all providers int
 
 Installed Windows applications should normally be treated as applications behind the generic Desktop capability, not as new CAP capability families requiring one adapter per product. Application-native APIs/COM/object models may be used internally by a qualified reusable Windows/application executor when they improve mechanics, but they are **not** the default CAP expansion strategy.
 
+The same rule applies to web applications. A new web service should normally enter through the generic Browser capability and the accepted Playwright/project browser path. It should **not** imply a new CAP-native site/provider integration merely because the product is Figma, Google Sheets, Notion, Canva, a CRM/ERP or another browser application. Site-aware or site-specific mechanics are fallback implementation details justified only by a measured gap.
+
 ---
 
 ## 2. What CAP should remain responsible for
@@ -105,6 +107,7 @@ generic Windows selector engine
 generic mouse/keyboard backend
 generic screenshot/window manager
 per-application CAP adapters by default
+per-site / per-web-app CAP adapters by default
 
 own demonstration recorder
 own general workflow compiler/replay engine
@@ -313,13 +316,46 @@ Universal App Bridge or similar routing projects may be compared as reuse candid
 
 ---
 
-## 7. Browser — keep the accepted Playwright boundary
+## 7. Browser — generic browser automation first
 
-Browser already has an accepted project semantic boundary and Playwright-based execution path.
+Browser already has an accepted project semantic boundary and Playwright-based execution path. Keep that boundary; do not replace it for architectural symmetry.
 
-Do not replace it for architectural symmetry.
+A web application should normally be treated as another target behind `BrowserProvider`, not as a new CAP capability family or a mandatory product-specific integration.
 
-Future Browser changes should be measured-gap driven and preserve project-owned identity, provenance, consequence policy, observation/effect verification and Finish Gate semantics.
+Preferred routing rule:
+
+```text
+web application / site
+        |
+        v
+1. existing Playwright/project Browser path
+   DOM / accessibility / semantic targeting
+        | unavailable / insufficient
+2. qualified reusable site-aware browser mechanics
+        | unavailable / insufficient
+3. narrow site-specific Browser adapter for a measured gap
+        | insufficient
+4. selective visual/coordinate fallback where separately allowed
+```
+
+The desired user experience is that opening another ordinary web application does **not** imply new CAP development. Figma, Google Sheets, Notion, Canva, CRM/ERP systems and similar browser products should first be attempted through the generic Browser path.
+
+Do not default to:
+
+```text
+FigmaProvider
+GoogleSheetsProvider
+NotionProvider
+CanvaProvider
+SalesforceProvider
+...
+```
+
+If a specific site has a repeatable structural problem — for example virtualization, canvas-heavy interaction, unusual shadow DOM or another mechanism that the generic path cannot handle reliably — first prefer a reusable browser-layer solution. A direct site-specific CAP Browser adapter is the last implementation step and requires a measured gap plus the applicable fresh Stage Research.
+
+CAP still owns target identity, consequence authorization, provenance, ExpectedEffect, fresh post-action observation, ambiguous-outcome handling, reconciliation and Finish Gate. A successful Playwright click/type/navigation is action evidence, not proof of the required task effect.
+
+Future Browser changes should therefore be measured-gap driven and preserve the current accepted Browser authority/verification boundary.
 
 ---
 
@@ -405,6 +441,10 @@ Composition Stage Research
         |      -> UFO/UFO² only for measured application-aware gaps
         |      -> 3-4 representative app L3 matrix without per-app CAP adapters
         |
+        +--> Browser: preserve accepted Playwright generic path
+        |      -> no per-site CAP adapter by default
+        |      -> specialize only after a measured repeatable web-app gap
+        |
         +--> Procedures: revalidate OpenAdapt selected roles
         |      -> bounded demo/compile/replay spike
         |
@@ -446,6 +486,15 @@ IoT remains off the immediate release-critical path unless the roadmap is separa
 5. Do native/COM/application-specific mechanics, when useful, remain internal to the reusable executor instead of becoming a default CAP integration surface?
 6. Does post-action CAP re-observation prove effects independently of executor command success?
 7. Which measured gaps, if any, truly justify a direct specialized CAP adapter?
+
+### Browser / Playwright + measured specialization
+
+1. Can a newly encountered ordinary web application be controlled through the existing generic Browser path without adding a new CAP adapter?
+2. Do DOM/accessibility/semantic target identities remain strong enough across reload, navigation, dynamic updates and similar elements?
+3. When a web application uses virtualization, canvas, shadow DOM or another difficult structure, can a reusable browser-layer mechanism solve the problem before introducing site-specific CAP code?
+4. Does fresh post-action observation prove the intended effect independently of Playwright command success?
+5. Which measured repeatable gaps, if any, truly justify a direct `FigmaWebAdapter`, `GoogleSheetsWebAdapter` or other site-specific Browser adapter?
+6. Can any site-specific mechanics remain below the existing CAP Browser authority/provenance/verification boundary rather than becoming new planner or completion authority?
 
 ### Procedures / OpenAdapt
 
