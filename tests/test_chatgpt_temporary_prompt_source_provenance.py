@@ -87,9 +87,32 @@ const editor = {{
   getAttribute(name) {{ return name === "contenteditable" ? "true" : null; }},
   isContentEditable: true,
 }};
+
+// Real ChatGPT can expose an empty generic textarea before the actual
+// prompt editor in DOM order. A selector-list query would therefore bind
+// the wrong node even though #prompt-textarea contains the exact prompt.
+const decoyTextarea = {{
+  tagName: "TEXTAREA",
+  value: "",
+  innerText: "",
+  textContent: "",
+  getAttribute() {{ return null; }},
+  isContentEditable: false,
+}};
+
 const composer = {{
   textContent: actualPrompt,
-  querySelector() {{ return editor; }},
+  querySelector(selector) {{
+    if (selector === "#prompt-textarea") return editor;
+    if (selector === '[contenteditable="true"]') return editor;
+    if (selector === "textarea") return decoyTextarea;
+
+    // Reproduce the September 2026 physical DOM failure for the old code.
+    if (selector === '#prompt-textarea,[contenteditable="true"],textarea') {{
+      return decoyTextarea;
+    }}
+    return null;
+  }},
   contains() {{ return false; }},
 }};
 const button = {{
@@ -303,8 +326,11 @@ process.stdout.write(JSON.stringify({{
             temp = Path(temp_dir)
             task = temp / "task.txt"
             task.write_text("Return the bounded fixture fact without changing state.\n", encoding="utf-8")
-            local_app_data = temp / "localappdata"
-            local_app_data.mkdir()
+            # Keep the Windows qualification path below classic MAX_PATH.
+            # TemporaryDirectory already provides an isolated LOCALAPPDATA root;
+            # adding another "localappdata" level can push the exact-head
+            # extension snapshot past 260 characters on Windows.
+            local_app_data = temp
             env = dict(os.environ)
             env["LOCALAPPDATA"] = str(local_app_data)
             completed = subprocess.run(

@@ -246,9 +246,16 @@
       return String(text ?? "").replace(/\r\n?/g, "\n");
     }
 
+    function findComposerEditor(composer) {
+      if (!composer) return null;
+      return composer.querySelector("#prompt-textarea") ||
+        composer.querySelector('[contenteditable="true"]') ||
+        composer.querySelector("textarea");
+    }
+
     function composerPromptText(composer) {
       if (!composer) return null;
-      const editor = composer.querySelector('#prompt-textarea,[contenteditable="true"],textarea');
+      const editor = findComposerEditor(composer);
       if (!editor) return null;
       if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
         return canonicalPromptText(editor.value);
@@ -303,7 +310,7 @@
       const composer = findComposer(button);
       if (!composer) return { clean: true, changed: false };
       if (!policy.hasExpectedPrompt(composer.textContent || "", intent)) return { clean: true, changed: false };
-      const editor = composer.querySelector('#prompt-textarea,[contenteditable="true"],textarea');
+      const editor = findComposerEditor(composer);
       if (!editor) return { clean: false, changed: false };
       let changed = false;
       try {
