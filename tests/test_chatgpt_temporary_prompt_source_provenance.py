@@ -284,12 +284,12 @@ process.stdout.write(JSON.stringify({{
             "'-I'",
             "'-B'",
             "'-S'",
-            'runpy.run_module("runtime.agent_sessions.chatgpt_temporary_controller"',
+            'runpy.run_module("runtime.agent_sessions.chatgpt_temporary_authenticated_controller"',
             "-WorkingDirectory $outputRoot",
             "CAP_AGENT_SESSION_SOURCE_EXECUTION_SNAPSHOT",
         ):
             self.assertIn(phrase, text)
-        self.assertNotIn("'-m', 'runtime.agent_sessions.chatgpt_temporary_controller'", text)
+        self.assertNotIn("'-m', 'runtime.agent_sessions.chatgpt_temporary_authenticated_controller'", text)
         self.assertNotIn("-WorkingDirectory $RepoRoot", text)
         self.assertNotIn("$extensionPath = Join-Path $RepoRoot 'runtime\\agent_sessions\\chatgpt_temporary_extension'", text)
 
@@ -344,6 +344,10 @@ process.stdout.write(JSON.stringify({{
             self.assertEqual(head, source_execution["expected_head"])
             self.assertEqual("git-archive-exact-head", source_execution["runtime_source"])
             self.assertEqual("isolated-zipimport", source_execution["python_mode"])
+            self.assertEqual(
+                "runtime.agent_sessions.chatgpt_temporary_authenticated_controller",
+                source_execution["controller_module"],
+            )
 
             runtime_archive_path = Path(source_execution["runtime_archive_path"])
             self.assertTrue(runtime_archive_path.is_file())

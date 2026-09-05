@@ -30,6 +30,7 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
             "runtime/agent_sessions/source_attestation.py",
             "runtime/agent_sessions/chatgpt_temporary.py",
             "runtime/agent_sessions/chatgpt_temporary_controller.py",
+            "runtime/agent_sessions/chatgpt_temporary_authenticated_controller.py",
             "runtime/agent_sessions/chatgpt_temporary_extension/manifest.json",
             "runtime/agent_sessions/chatgpt_temporary_extension/execution_generation.js",
             "runtime/agent_sessions/chatgpt_temporary_extension/policy.js",
@@ -62,7 +63,7 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertIn("Controller runtime-attestation head mismatch", self.text)
         self.assertIn("Controller execution-generation mismatch", self.text)
 
-    def test_launcher_executes_controller_from_locked_isolated_archive(self) -> None:
+    def test_launcher_executes_authenticated_controller_from_locked_isolated_archive(self) -> None:
         self.assertIn("[System.IO.FileShare]::Read", self.text)
         self.assertIn("runtime_archive_sha256 = $runtimeArchiveSha256", self.text)
         self.assertIn("python_mode = 'isolated-zipimport'", self.text)
@@ -70,11 +71,15 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertIn("'-B'", self.text)
         self.assertIn("'-S'", self.text)
         self.assertIn(
-            'runpy.run_module("runtime.agent_sessions.chatgpt_temporary_controller",run_name="__main__")',
+            'runpy.run_module("runtime.agent_sessions.chatgpt_temporary_authenticated_controller",run_name="__main__")',
+            self.text,
+        )
+        self.assertIn(
+            "controller_module = 'runtime.agent_sessions.chatgpt_temporary_authenticated_controller'",
             self.text,
         )
         self.assertIn("-WorkingDirectory $outputRoot", self.text)
-        self.assertNotIn("'-m', 'runtime.agent_sessions.chatgpt_temporary_controller'", self.text)
+        self.assertNotIn("'-m', 'runtime.agent_sessions.chatgpt_temporary_authenticated_controller'", self.text)
         self.assertNotIn("-WorkingDirectory $RepoRoot", self.text)
 
     def test_source_locks_enclose_controller_and_effect_window(self) -> None:
