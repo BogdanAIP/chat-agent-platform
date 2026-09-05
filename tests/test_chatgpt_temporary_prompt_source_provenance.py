@@ -43,12 +43,15 @@ class ChatGPTTemporaryPromptSourceProvenanceTests(unittest.TestCase):
         script = f"""
 const fs = require("fs");
 const vm = require("vm");
-const webcrypto = require("crypto").webcrypto;
 const policySource = fs.readFileSync({json.dumps(str(POLICY))}, "utf8");
 const contentSource = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8");
 const expectedPrompt = {json.dumps(expected_prompt)};
 const actualPrompt = {json.dumps(actual_prompt)};
 const mutateAfterAuthorize = {json.dumps(mutate_after_authorize)};
+const expectedPromptDigestHex = {json.dumps(prompt_sha)};
+const expectedPromptDigestBytes = Uint8Array.from(
+  expectedPromptDigestHex.match(/../g).map((value) => Number.parseInt(value, 16)),
+);
 const intent = {{
   enabled: true,
   runId: {json.dumps(run_id)},
@@ -56,7 +59,7 @@ const intent = {{
   deliveryId: {json.dumps(delivery_id)},
   taskSha256: {json.dumps(task_sha)},
   expectedHead: {json.dumps(head)},
-  promptSha256: {json.dumps(prompt_sha)},
+  promptSha256: expectedPromptDigestHex,
   prompt: expectedPrompt,
   maxWaitMs: 300000,
   deliveryObserveMs: 20000,
@@ -98,7 +101,16 @@ const button = {{
   click() {{ clicks += 1; }},
 }};
 
-global.crypto = webcrypto;
+global.crypto = {{
+  subtle: {{
+    digest(_algorithm, data) {{
+      const observed = Buffer.from(data).toString("utf8");
+      if (observed !== expectedPrompt) return Promise.resolve(new Uint8Array(32).buffer);
+      return Promise.resolve(expectedPromptDigestBytes.buffer.slice(0));
+    }},
+  }},
+}};
+console.info = () => {{}};
 global.location = {{ href: "https://chatgpt.com/", origin: "https://chatgpt.com" }};
 global.history = {{ state: null, replaceState() {{}} }};
 global.getComputedStyle = () => ({{ visibility: "visible", display: "block" }});
