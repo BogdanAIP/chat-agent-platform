@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
+import tempfile
+import time
 import unittest
 
 
@@ -71,6 +74,120 @@ class ChatGPTTemporaryPhysicalLauncherTests(unittest.TestCase):
         self.assertIn("-WorkingDirectory $outputRoot", self.text)
         self.assertNotIn("'-m', 'runtime.agent_sessions.chatgpt_temporary_controller'", self.text)
         self.assertNotIn("-WorkingDirectory $RepoRoot", self.text)
+
+    def test_source_locks_enclose_controller_and_effect_window(self) -> None:
+        lock_list = self.text.index("$sourceLocks = [System.Collections.Generic.List[System.IDisposable]]::new()")
+        archive_lock = self.text.index(
+            "$sourceLocks.Add((Open-ReadShareOnly -Path $runtimeArchivePath))",
+            lock_list,
+        )
+        extension_lock = self.text.index(
+            "$sourceLocks.Add((Open-ReadShareOnly -Path $snapshotAsset))",
+            archive_lock,
+        )
+        controller_start = self.text.index("$controller = Start-Process", extension_lock)
+        physical_pass = self.text.index("CAP_AGENT_SESSION_PHYSICAL=PASS", controller_start)
+        finally_start = self.text.index("\nfinally {", physical_pass)
+        lock_dispose = self.text.index("$sourceLocks[$index].Dispose()", finally_start)
+
+        self.assertLess(lock_list, archive_lock)
+        self.assertLess(archive_lock, extension_lock)
+        self.assertLess(extension_lock, controller_start)
+        self.assertLess(controller_start, physical_pass)
+        self.assertLess(physical_pass, finally_start)
+        self.assertLess(finally_start, lock_dispose)
+        self.assertNotIn("$sourceLocks[$index].Dispose()", self.text[archive_lock:finally_start])
+        self.assertNotIn("$sourceLocks.Clear()", self.text[archive_lock:finally_start])
+
+    def test_read_share_only_denies_concurrent_write_and_delete_until_release_on_windows(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows FileShare semantics are required")
+        pwsh = shutil.which("pwsh")
+        if pwsh is None:
+            self.skipTest("pwsh is unavailable")
+
+        function_start = self.text.index("function Open-ReadShareOnly {")
+        function_end_marker = "\n}\n\nfunction Write-JsonUtf8NoBom"
+        function_end = self.text.index(function_end_marker, function_start) + 2
+        function_text = self.text[function_start:function_end]
+
+        def ps_literal(path: Path) -> str:
+            return "'" + str(path).replace("'", "''") + "'"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            runtime_archive = root / "exact-head-runtime.zip"
+            extension_asset = root / "content.js"
+            ready = root / "locks-ready.txt"
+            release = root / "locks-release.txt"
+            runtime_archive.write_bytes(b"exact-head-runtime")
+            extension_asset.write_bytes(b"exact-extension-asset")
+
+            script = f"""
+{function_text}
+$locks = [System.Collections.Generic.List[System.IDisposable]]::new()
+try {{
+    $null = $locks.Add((Open-ReadShareOnly -Path {ps_literal(runtime_archive)}))
+    $null = $locks.Add((Open-ReadShareOnly -Path {ps_literal(extension_asset)}))
+    [System.IO.File]::WriteAllText({ps_literal(ready)}, 'ready')
+    $deadline = (Get-Date).AddSeconds(20)
+    while (-not (Test-Path -LiteralPath {ps_literal(release)} -PathType Leaf)) {{
+        if ((Get-Date) -gt $deadline) {{ throw 'source-lock test release timeout' }}
+        Start-Sleep -Milliseconds 50
+    }}
+}}
+finally {{
+    for ($index = $locks.Count - 1; $index -ge 0; $index--) {{
+        $locks[$index].Dispose()
+    }}
+}}
+"""
+            process = subprocess.Popen(
+                [pwsh, "-NoProfile", "-Command", script],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            stdout = ""
+            stderr = ""
+            try:
+                deadline = time.monotonic() + 10
+                while not ready.is_file():
+                    if process.poll() is not None:
+                        stdout, stderr = process.communicate()
+                        self.fail(f"lock holder exited before readiness: {stdout}{stderr}")
+                    if time.monotonic() >= deadline:
+                        self.fail("timed out waiting for read-share-only lock readiness")
+                    time.sleep(0.05)
+
+                for target, original in (
+                    (runtime_archive, b"exact-head-runtime"),
+                    (extension_asset, b"exact-extension-asset"),
+                ):
+                    with self.assertRaises(OSError, msg=f"write unexpectedly opened {target.name}"):
+                        with target.open("r+b") as handle:
+                            handle.write(b"mutated")
+                    with self.assertRaises(OSError, msg=f"delete unexpectedly succeeded for {target.name}"):
+                        target.unlink()
+                    self.assertEqual(original, target.read_bytes())
+            finally:
+                release.write_text("release", encoding="utf-8")
+                try:
+                    stdout, stderr = process.communicate(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    stdout, stderr = process.communicate()
+                    self.fail(f"lock holder did not terminate: {stdout}{stderr}")
+
+            self.assertEqual(0, process.returncode, stdout + stderr)
+            runtime_archive.write_bytes(b"changed-after-release")
+            extension_asset.write_bytes(b"changed-after-release")
+            self.assertEqual(b"changed-after-release", runtime_archive.read_bytes())
+            self.assertEqual(b"changed-after-release", extension_asset.read_bytes())
+            runtime_archive.unlink()
+            extension_asset.unlink()
+            self.assertFalse(runtime_archive.exists())
+            self.assertFalse(extension_asset.exists())
 
     def test_launcher_keeps_state_and_evidence_outside_repository(self) -> None:
         self.assertIn("$env:LOCALAPPDATA", self.text)
