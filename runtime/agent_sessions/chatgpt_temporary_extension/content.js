@@ -242,6 +242,27 @@
       return button.closest("form") || button.parentElement;
     }
 
+    function canonicalPromptText(text) {
+      return String(text ?? "").replace(/\r\n?/g, "\n");
+    }
+
+    function composerPromptText(composer) {
+      if (!composer) return null;
+      const editor = composer.querySelector('#prompt-textarea,[contenteditable="true"],textarea');
+      if (!editor) return null;
+      if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+        return canonicalPromptText(editor.value);
+      }
+      const visibleText = typeof editor.innerText === "string" ? editor.innerText : editor.textContent;
+      return visibleText == null ? null : canonicalPromptText(visibleText);
+    }
+
+    function exactComposerPromptMatches(composer) {
+      if (recovered || typeof intent.prompt !== "string" || !intent.prompt) return false;
+      const observed = composerPromptText(composer);
+      return observed !== null && observed === canonicalPromptText(intent.prompt);
+    }
+
     function launchIntentState() {
       try {
         const url = new URL(location.href);
@@ -447,9 +468,17 @@
       if (authorityRequested) return;
       authorityRequested = true;
       if (!recovered) {
+        if (!exactComposerPromptMatches(composer)) {
+          stop("live-composer-prompt-mismatch-before-authority");
+          return;
+        }
         const promptDigest = await sha256Text(intent.prompt);
         if (promptDigest !== intent.promptSha256) {
           stop("launch-prompt-digest-mismatch");
+          return;
+        }
+        if (!exactComposerPromptMatches(composer)) {
+          stop("live-composer-prompt-changed-before-authority");
           return;
         }
       }
@@ -641,7 +670,7 @@
         const button = findSendButton();
         if (!buttonReady(button)) return;
         const composer = findComposer(button);
-        if (!composer || !policy.hasExpectedPrompt(composer.textContent || "", intent)) return;
+        if (!composer || !exactComposerPromptMatches(composer)) return;
         void requestAuthority(composer);
         return;
       }
@@ -650,7 +679,7 @@
         const button = findSendButton();
         if (!buttonReady(button)) return;
         const composer = findComposer(button);
-        if (!composer || !policy.hasExpectedPrompt(composer.textContent || "", intent)) {
+        if (!composer || !exactComposerPromptMatches(composer)) {
           stop("prompt-binding-changed-before-send");
           return;
         }
