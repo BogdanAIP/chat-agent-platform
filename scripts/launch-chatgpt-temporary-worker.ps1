@@ -26,6 +26,66 @@ function Get-Sha256 {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
+function Get-BytesSha256 {
+    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+    $hasher = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $hasher.ComputeHash($Bytes)
+        return ([System.BitConverter]::ToString($hash)).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $hasher.Dispose()
+    }
+}
+
+function Get-ZipEntryBytes {
+    param(
+        [Parameter(Mandatory = $true)]$Archive,
+        [Parameter(Mandatory = $true)][string]$EntryName
+    )
+    $entry = $Archive.GetEntry($EntryName)
+    if ($null -eq $entry) { throw "Exact-head runtime archive is missing entry: $EntryName" }
+    $stream = $entry.Open()
+    $memory = [System.IO.MemoryStream]::new()
+    try {
+        $stream.CopyTo($memory)
+        return ,$memory.ToArray()
+    }
+    finally {
+        $memory.Dispose()
+        $stream.Dispose()
+    }
+}
+
+function Get-ZipEntrySha256 {
+    param(
+        [Parameter(Mandatory = $true)]$Archive,
+        [Parameter(Mandatory = $true)][string]$EntryName
+    )
+    $bytes = Get-ZipEntryBytes -Archive $Archive -EntryName $EntryName
+    return Get-BytesSha256 -Bytes $bytes
+}
+
+function Get-ZipEntryText {
+    param(
+        [Parameter(Mandatory = $true)]$Archive,
+        [Parameter(Mandatory = $true)][string]$EntryName
+    )
+    $bytes = Get-ZipEntryBytes -Archive $Archive -EntryName $EntryName
+    $utf8 = [System.Text.UTF8Encoding]::new($false, $true)
+    return $utf8.GetString($bytes)
+}
+
+function Open-ReadShareOnly {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return [System.IO.File]::Open(
+        $Path,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::Read
+    )
+}
+
 function Write-JsonUtf8NoBom {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -138,12 +198,24 @@ $preProvenance = Join-Path $outputRoot 'source-provenance-before.json'
 $postProvenance = Join-Path $outputRoot 'source-provenance-after.json'
 $identityPath = Join-Path $outputRoot 'identity.json'
 $runtimeAttestationPath = Join-Path $outputRoot 'expected-runtime-attestation.json'
+$sourceExecutionPath = Join-Path $outputRoot 'source-execution-snapshot.json'
 $taskCopyPath = Join-Path $outputRoot 'task.txt'
 $controllerStdout = Join-Path $outputRoot 'controller.stdout.log'
 $controllerStderr = Join-Path $outputRoot 'controller.stderr.log'
 $preflightPath = Join-Path $outputRoot 'preflight.json'
 $launchPath = Join-Path $outputRoot 'launch.json'
 $resultPath = Join-Path $outputRoot 'result.json'
+$runtimeArchivePath = Join-Path $outputRoot ("exact-head-runtime-$([Guid]::NewGuid().ToString('N')).zip")
+$runtimeSnapshotRoot = Join-Path $outputRoot ("exact-head-source-$ExpectedHead")
+$extensionPath = Join-Path $runtimeSnapshotRoot 'runtime\agent_sessions\chatgpt_temporary_extension'
+$extensionArchivePrefix = 'runtime/agent_sessions/chatgpt_temporary_extension/'
+$extensionAssetNames = @(
+    'manifest.json',
+    'execution_generation.js',
+    'policy.js',
+    'background.js',
+    'content.js'
+)
 
 $null = Invoke-SourceGate -OutputPath $preProvenance -Expected $ExpectedHead
 
@@ -159,25 +231,59 @@ Write-JsonUtf8NoBom -Path $identityPath -Value $identity
 [System.IO.File]::WriteAllText($taskCopyPath, $taskText, [System.Text.UTF8Encoding]::new($false))
 if ((Get-Sha256 -Path $taskCopyPath) -cne $taskSha256) { throw 'Task copy digest changed.' }
 
-$extensionPath = Join-Path $RepoRoot 'runtime\agent_sessions\chatgpt_temporary_extension'
-$executionGenerationPath = Join-Path $extensionPath 'execution_generation.js'
-$executionGenerationText = [System.IO.File]::ReadAllText($executionGenerationPath, [System.Text.UTF8Encoding]::new($false))
-$executionGenerationMatch = [regex]::Match(
-    $executionGenerationText,
-    'CAPChatGPTTemporaryExecutionGeneration\s*=\s*"([0-9a-f]{64})"'
-)
-if (-not $executionGenerationMatch.Success) {
-    throw 'Extension execution generation marker is missing or invalid.'
+# Materialize the effectful runtime from the immutable reviewed Git tree. From
+# this point the controller and expected extension hashes no longer trust
+# mutable worktree bytes observed after the source gate.
+& $git.Source -C $RepoRoot archive --format=zip --output=$runtimeArchivePath $ExpectedHead runtime
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $runtimeArchivePath -PathType Leaf)) {
+    throw 'Failed to create exact-head runtime archive from the reviewed Git tree.'
 }
-$executionGeneration = $executionGenerationMatch.Groups[1].Value
+$runtimeArchiveSha256 = Get-Sha256 -Path $runtimeArchivePath
 
-$runtimeAssets = [ordered]@{
-    'manifest.json' = Get-Sha256 -Path (Join-Path $extensionPath 'manifest.json')
-    'execution_generation.js' = Get-Sha256 -Path $executionGenerationPath
-    'policy.js' = Get-Sha256 -Path (Join-Path $extensionPath 'policy.js')
-    'background.js' = Get-Sha256 -Path (Join-Path $extensionPath 'background.js')
-    'content.js' = Get-Sha256 -Path (Join-Path $extensionPath 'content.js')
+$archive = [System.IO.Compression.ZipFile]::OpenRead($runtimeArchivePath)
+try {
+    $executionGenerationText = Get-ZipEntryText -Archive $archive -EntryName ($extensionArchivePrefix + 'execution_generation.js')
+    $executionGenerationMatch = [regex]::Match(
+        $executionGenerationText,
+        'CAPChatGPTTemporaryExecutionGeneration\s*=\s*"([0-9a-f]{64})"'
+    )
+    if (-not $executionGenerationMatch.Success) {
+        throw 'Exact-head extension execution generation marker is missing or invalid.'
+    }
+    $executionGeneration = $executionGenerationMatch.Groups[1].Value
+
+    $runtimeAssets = [ordered]@{}
+    foreach ($assetName in $extensionAssetNames) {
+        $runtimeAssets[$assetName] = Get-ZipEntrySha256 -Archive $archive -EntryName ($extensionArchivePrefix + $assetName)
+    }
 }
+finally {
+    $archive.Dispose()
+}
+
+if (-not (Test-Path -LiteralPath $runtimeSnapshotRoot -PathType Container)) {
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($runtimeArchivePath, $runtimeSnapshotRoot)
+}
+if (-not (Test-Path -LiteralPath $extensionPath -PathType Container)) {
+    throw 'Exact-head extension snapshot is missing after runtime materialization.'
+}
+
+$expectedExtensionFiles = @($extensionAssetNames | Sort-Object)
+$actualExtensionFiles = @(
+    Get-ChildItem -LiteralPath $extensionPath -File -Recurse -Force |
+        ForEach-Object { [System.IO.Path]::GetRelativePath($extensionPath, $_.FullName).Replace('\', '/') } |
+        Sort-Object
+)
+if (($actualExtensionFiles -join "`n") -cne ($expectedExtensionFiles -join "`n")) {
+    throw 'Exact-head extension snapshot contains missing or unexpected files.'
+}
+foreach ($assetName in $extensionAssetNames) {
+    $snapshotAsset = Join-Path $extensionPath $assetName
+    if ((Get-Sha256 -Path $snapshotAsset) -cne [string]$runtimeAssets[$assetName]) {
+        throw "Exact-head extension snapshot does not match archived source: $assetName"
+    }
+}
+
 $expectedRuntimeAttestation = [ordered]@{
     schema_version = 1
     adapter_id = 'chatgpt-temporary'
@@ -187,9 +293,25 @@ $expectedRuntimeAttestation = [ordered]@{
 }
 Write-JsonUtf8NoBom -Path $runtimeAttestationPath -Value $expectedRuntimeAttestation
 
+$sourceExecution = [ordered]@{
+    schema_version = 1
+    expected_head = $ExpectedHead
+    runtime_source = 'git-archive-exact-head'
+    runtime_archive_path = $runtimeArchivePath
+    runtime_archive_sha256 = $runtimeArchiveSha256
+    python_mode = 'isolated-zipimport'
+    controller_module = 'runtime.agent_sessions.chatgpt_temporary_controller'
+    extension_snapshot_path = $extensionPath
+    extension_assets = $runtimeAssets
+}
+Write-JsonUtf8NoBom -Path $sourceExecutionPath -Value $sourceExecution
+
 Write-Host "CAP_AGENT_SESSION_EXACT_HEAD=$ExpectedHead" -ForegroundColor Cyan
 Write-Host "CAP_AGENT_SESSION_TASK_SHA256=$taskSha256"
 Write-Host "CAP_AGENT_SESSION_EXTENSION_PATH=$extensionPath" -ForegroundColor Cyan
+Write-Host "CAP_AGENT_SESSION_RUNTIME_ARCHIVE=$runtimeArchivePath"
+Write-Host "CAP_AGENT_SESSION_RUNTIME_ARCHIVE_SHA256=$runtimeArchiveSha256"
+Write-Host "CAP_AGENT_SESSION_SOURCE_EXECUTION_SNAPSHOT=$sourceExecutionPath"
 Write-Host "CAP_AGENT_SESSION_EXECUTION_GENERATION=$executionGeneration" -ForegroundColor Cyan
 Write-Host "CAP_AGENT_SESSION_EXPECTED_EXTENSION_ATTESTATION=$runtimeAttestationPath"
 Write-Host "CAP_AGENT_SESSION_OUTPUT_DIR=$outputRoot"
@@ -204,26 +326,58 @@ if ($ValidateOnly) {
 # Controller projection files are not durable authority. Remove every stale
 # projection so neither preflight nor terminal-readback can inherit old bytes.
 Remove-Item -LiteralPath $controllerStdout, $controllerStderr, $preflightPath, $launchPath, $resultPath -Force -ErrorAction SilentlyContinue
-$controllerArgs = @(
-    '-m', 'runtime.agent_sessions.chatgpt_temporary_controller',
-    '--identity-json', $identityPath,
-    '--task-file', $taskCopyPath,
-    '--runtime-attestation-json', $runtimeAttestationPath,
-    '--state-root', $stateRoot,
-    '--output-dir', $outputRoot,
-    '--port', '3078',
-    '--timeout-seconds', [string]$TimeoutSeconds
-)
-$controller = Start-Process `
-    -FilePath $Python.Source `
-    -ArgumentList $controllerArgs `
-    -WorkingDirectory $RepoRoot `
-    -PassThru `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $controllerStdout `
-    -RedirectStandardError $controllerStderr
 
+$sourceLocks = [System.Collections.Generic.List[System.IDisposable]]::new()
+$controller = $null
 try {
+    # Keep the selected source immutable for the effectful authority window.
+    # FileShare.Read permits Python/Chrome reads while denying new write/delete
+    # access to the exact archive and unpacked extension files.
+    $null = $sourceLocks.Add((Open-ReadShareOnly -Path $runtimeArchivePath))
+    if ((Get-Sha256 -Path $runtimeArchivePath) -cne $runtimeArchiveSha256) {
+        throw 'Exact-head runtime archive changed before controller execution.'
+    }
+    foreach ($assetName in $extensionAssetNames) {
+        $snapshotAsset = Join-Path $extensionPath $assetName
+        $null = $sourceLocks.Add((Open-ReadShareOnly -Path $snapshotAsset))
+        if ((Get-Sha256 -Path $snapshotAsset) -cne [string]$runtimeAssets[$assetName]) {
+            throw "Exact-head extension snapshot changed before browser authority: $assetName"
+        }
+    }
+    foreach ($inputPath in @($identityPath, $taskCopyPath, $runtimeAttestationPath)) {
+        $null = $sourceLocks.Add((Open-ReadShareOnly -Path $inputPath))
+    }
+    if ((Get-Sha256 -Path $taskCopyPath) -cne $taskSha256) {
+        throw 'Task copy changed before isolated controller execution.'
+    }
+
+    # -I removes the current directory/user-site/PYTHON* influence. -S avoids
+    # site initialization, -B prevents bytecode writes, and only the exact Git
+    # archive is inserted as the project import root.
+    $pythonBootstrap = 'import runpy,sys;archive=sys.argv.pop(1);sys.path.insert(0,archive);runpy.run_module("runtime.agent_sessions.chatgpt_temporary_controller",run_name="__main__")'
+    $controllerArgs = @(
+        '-I',
+        '-B',
+        '-S',
+        '-c', $pythonBootstrap,
+        $runtimeArchivePath,
+        '--identity-json', $identityPath,
+        '--task-file', $taskCopyPath,
+        '--runtime-attestation-json', $runtimeAttestationPath,
+        '--state-root', $stateRoot,
+        '--output-dir', $outputRoot,
+        '--port', '3078',
+        '--timeout-seconds', [string]$TimeoutSeconds
+    )
+    $controller = Start-Process `
+        -FilePath $Python.Source `
+        -ArgumentList $controllerArgs `
+        -WorkingDirectory $outputRoot `
+        -PassThru `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $controllerStdout `
+        -RedirectStandardError $controllerStderr
+
     $healthUri = 'http://127.0.0.1:3078/health'
     $phase = ''
     for ($attempt = 0; $attempt -lt 75; $attempt++) {
@@ -356,6 +510,7 @@ try {
             Write-Host "CAP_AGENT_SESSION_RESULT_PATH=$resultPath"
             Write-Host "CAP_AGENT_SESSION_SOURCE_PROVENANCE_BEFORE=$preProvenance"
             Write-Host "CAP_AGENT_SESSION_SOURCE_PROVENANCE_AFTER=$postProvenance"
+            Write-Host "CAP_AGENT_SESSION_SOURCE_EXECUTION_SNAPSHOT=$sourceExecutionPath"
             Write-Host 'CAP_AGENT_SESSION_PHYSICAL=PASS' -ForegroundColor Green
             return
         }
@@ -367,8 +522,13 @@ try {
     throw "Temporary worker qualification ended without durable terminal result. Output=$outputRoot $stderr"
 }
 finally {
-    if (-not $controller.HasExited) {
-        Stop-Process -Id $controller.Id -Force -ErrorAction SilentlyContinue
+    if ($null -ne $controller) {
+        if (-not $controller.HasExited) {
+            Stop-Process -Id $controller.Id -Force -ErrorAction SilentlyContinue
+        }
+        $controller.Dispose()
     }
-    $controller.Dispose()
+    for ($index = $sourceLocks.Count - 1; $index -ge 0; $index--) {
+        $sourceLocks[$index].Dispose()
+    }
 }
