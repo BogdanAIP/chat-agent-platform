@@ -103,6 +103,24 @@ function Get-LogText {
     return ([string]$raw).Trim()
 }
 
+function ConvertTo-WindowsCommandLineArgument {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Value)
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') {
+        return $Value
+    }
+    $escaped = [System.Text.RegularExpressions.Regex]::Replace(
+        $Value,
+        '(\\*)"',
+        '$1$1\"'
+    )
+    $escaped = [System.Text.RegularExpressions.Regex]::Replace(
+        $escaped,
+        '(\\+)$',
+        '$1$1'
+    )
+    return '"' + $escaped + '"'
+}
+
 function Invoke-SourceGate {
     param(
         [Parameter(Mandatory = $true)][string]$OutputPath,
@@ -193,7 +211,6 @@ New-Item -ItemType Directory -Force -Path $qualificationBase | Out-Null
 $operationKey = "$($ExpectedHead.Substring(0, 12))-$($taskSha256.Substring(0, 12))"
 $outputRoot = Join-Path $qualificationBase $operationKey
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
-
 $preProvenance = Join-Path $outputRoot 'source-provenance-before.json'
 $postProvenance = Join-Path $outputRoot 'source-provenance-after.json'
 $identityPath = Join-Path $outputRoot 'identity.json'
@@ -239,7 +256,6 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $runtimeArchivePath -Pa
     throw 'Failed to create exact-head runtime archive from the reviewed Git tree.'
 }
 $runtimeArchiveSha256 = Get-Sha256 -Path $runtimeArchivePath
-
 $archive = [System.IO.Compression.ZipFile]::OpenRead($runtimeArchivePath)
 try {
     $executionGenerationText = Get-ZipEntryText -Archive $archive -EntryName ($extensionArchivePrefix + 'execution_generation.js')
@@ -369,9 +385,12 @@ try {
         '--port', '3078',
         '--timeout-seconds', [string]$TimeoutSeconds
     )
+    $controllerArgumentLine = (($controllerArgs | ForEach-Object {
+        ConvertTo-WindowsCommandLineArgument -Value ([string]$_)
+    }) -join ' ')
     $controller = Start-Process `
         -FilePath $Python.Source `
-        -ArgumentList $controllerArgs `
+        -ArgumentList $controllerArgumentLine `
         -WorkingDirectory $outputRoot `
         -PassThru `
         -WindowStyle Hidden `
