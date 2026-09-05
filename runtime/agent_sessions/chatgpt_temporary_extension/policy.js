@@ -79,11 +79,22 @@
   }
 
   function hasExpectedPrompt(text, intent) {
+    // Marker recognition is intentionally weaker than launch equivalence. It is
+    // used only for cleanup/bounded recognition after the exact Send checks.
     const value = String(text || "");
     return value.includes("WORKER_TASK_V1") &&
       value.includes(`delegation_id=${intent.delegationId}`) &&
       value.includes(`delivery_id=${intent.deliveryId}`) &&
       value.includes(`task_sha256=${intent.taskSha256}`);
+  }
+
+  function canonicalPromptText(text) {
+    return String(text ?? "").replace(/\r\n?/g, "\n");
+  }
+
+  function exactPromptMatches(observed, expected) {
+    if (typeof observed !== "string" || typeof expected !== "string" || !expected) return false;
+    return canonicalPromptText(observed) === canonicalPromptText(expected);
   }
 
   function personalizationModeFromText(text) {
@@ -390,6 +401,7 @@
     RESULT_END,
     parseIntent,
     hasExpectedPrompt,
+    exactPromptMatches,
     personalizationModeFromText,
     singleResultBlockShape,
     hasSingleResultBlock,
