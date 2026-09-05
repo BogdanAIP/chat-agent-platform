@@ -121,6 +121,39 @@ function ConvertTo-WindowsCommandLineArgument {
     return '"' + $escaped + '"'
 }
 
+function Get-PinnedControllerListeners {
+    return @(
+        Get-NetTCPConnection -State Listen -LocalPort 3078 -ErrorAction SilentlyContinue
+    )
+}
+
+function Assert-PinnedControllerPortFree {
+    $listeners = @(Get-PinnedControllerListeners)
+    if ($listeners.Count -ne 0) {
+        $owners = @($listeners | ForEach-Object { [string]$_.OwningProcess }) -join ','
+        throw "PINNED_CONTROLLER_PORT_OCCUPIED port=3078 owning_processes=$owners"
+    }
+}
+
+function Assert-ControllerOwnsPinnedPort {
+    param([Parameter(Mandatory = $true)]$Controller)
+    if ($Controller.HasExited) {
+        throw "PINNED_CONTROLLER_PROCESS_EXITED pid=$($Controller.Id)"
+    }
+    $listeners = @(Get-PinnedControllerListeners)
+    $owned = @($listeners | Where-Object {
+        [int]$_.OwningProcess -eq [int]$Controller.Id -and [string]$_.LocalAddress -eq '127.0.0.1'
+    })
+    $foreign = @($listeners | Where-Object { [int]$_.OwningProcess -ne [int]$Controller.Id })
+    if ($owned.Count -ne 1 -or $foreign.Count -ne 0) {
+        $observed = @($listeners | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort):pid=$($_.OwningProcess)" }) -join ';'
+        throw "PINNED_CONTROLLER_LISTENER_IDENTITY_MISMATCH expected_pid=$($Controller.Id) observed=$observed"
+    }
+    if ($Controller.HasExited) {
+        throw "PINNED_CONTROLLER_PROCESS_EXITED_AFTER_LISTENER_PROOF pid=$($Controller.Id)"
+    }
+}
+
 function Invoke-SourceGate {
     param(
         [Parameter(Mandatory = $true)][string]$OutputPath,
@@ -186,6 +219,7 @@ $CriticalAssets = @(
     'runtime/agent_sessions/source_attestation.py',
     'runtime/agent_sessions/chatgpt_temporary.py',
     'runtime/agent_sessions/chatgpt_temporary_controller.py',
+    'runtime/agent_sessions/chatgpt_temporary_authenticated_controller.py',
     'runtime/agent_sessions/chatgpt_temporary_extension/manifest.json',
     'runtime/agent_sessions/chatgpt_temporary_extension/execution_generation.js',
     'runtime/agent_sessions/chatgpt_temporary_extension/policy.js',
@@ -316,7 +350,7 @@ $sourceExecution = [ordered]@{
     runtime_archive_path = $runtimeArchivePath
     runtime_archive_sha256 = $runtimeArchiveSha256
     python_mode = 'isolated-zipimport'
-    controller_module = 'runtime.agent_sessions.chatgpt_temporary_controller'
+    controller_module = 'runtime.agent_sessions.chatgpt_temporary_authenticated_controller'
     extension_snapshot_path = $extensionPath
     extension_assets = $runtimeAssets
 }
@@ -370,7 +404,7 @@ try {
     # -I removes the current directory/user-site/PYTHON* influence. -S avoids
     # site initialization, -B prevents bytecode writes, and only the exact Git
     # archive is inserted as the project import root.
-    $pythonBootstrap = 'import runpy,sys;archive=sys.argv.pop(1);sys.path.insert(0,archive);runpy.run_module("runtime.agent_sessions.chatgpt_temporary_controller",run_name="__main__")'
+    $pythonBootstrap = 'import runpy,sys;archive=sys.argv.pop(1);sys.path.insert(0,archive);runpy.run_module("runtime.agent_sessions.chatgpt_temporary_authenticated_controller",run_name="__main__")'
     $controllerArgs = @(
         '-I',
         '-B',
@@ -388,6 +422,8 @@ try {
     $controllerArgumentLine = (($controllerArgs | ForEach-Object {
         ConvertTo-WindowsCommandLineArgument -Value ([string]$_)
     }) -join ' ')
+
+    Assert-PinnedControllerPortFree
     $controller = Start-Process `
         -FilePath $Python.Source `
         -ArgumentList $controllerArgumentLine `
@@ -407,6 +443,7 @@ try {
                 [string]$health.adapter_id -eq 'chatgpt-temporary' -and
                 [string]$health.status -in @('preflight', 'ready')
             ) {
+                Assert-ControllerOwnsPinnedPort -Controller $controller
                 $phase = [string]$health.status
                 break
             }
@@ -446,6 +483,7 @@ try {
         if ($preflightUrl -match 'cap_run_id|cap_delegation_id|cap_delivery_id|prompt=|temporary-chat') {
             throw 'Preflight URL contains task/private launch material.'
         }
+        Assert-ControllerOwnsPinnedPort -Controller $controller
         Write-Host 'CAP_AGENT_SESSION_PREFLIGHT=opening-neutral-bootstrap' -ForegroundColor Cyan
         Write-Host "CAP_AGENT_SESSION_PREFLIGHT_PATH=$preflightPath"
         Start-Process $preflightUrl
@@ -460,6 +498,7 @@ try {
                     [string]$health.adapter_id -eq 'chatgpt-temporary' -and
                     (Test-Path -LiteralPath $launchPath -PathType Leaf)
                 ) {
+                    Assert-ControllerOwnsPinnedPort -Controller $controller
                     $ready = $true
                     break
                 }
