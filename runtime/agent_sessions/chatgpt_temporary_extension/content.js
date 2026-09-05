@@ -260,7 +260,7 @@
     function exactComposerPromptMatches(composer) {
       if (recovered || typeof intent.prompt !== "string" || !intent.prompt) return false;
       const observed = composerPromptText(composer);
-      return observed !== null && observed === canonicalPromptText(intent.prompt);
+      return observed !== null && policy.exactPromptMatches(observed, intent.prompt);
     }
 
     function launchIntentState() {
@@ -415,12 +415,8 @@
     }
 
     function userDeliveryVisible() {
-      const required = [
-        `delegation_id=${intent.delegationId}`,
-        `delivery_id=${intent.deliveryId}`,
-        `task_sha256=${intent.taskSha256}`,
-      ];
-      return conversationTurns("user").some((text) => required.every((marker) => text.includes(marker)));
+      if (recovered || typeof intent.prompt !== "string" || !intent.prompt) return false;
+      return conversationTurns("user").some((text) => policy.exactPromptMatches(text, intent.prompt));
     }
 
     function stopButtonPresent() {
