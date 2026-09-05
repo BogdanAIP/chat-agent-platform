@@ -234,10 +234,15 @@ function uiNode(text) {{
     contains() {{ return false; }},
   }};
 }}
+const promptLines = prompt.split("\\n");
 const editor = {{
   tagName: "DIV",
-  innerText: prompt,
-  textContent: prompt,
+  // Physical ChatGPT contenteditable shape: one direct P per logical line.
+  // innerText adds layout newlines and textContent collapses the separators,
+  // so neither browser-projected string is exact.
+  innerText: promptLines.join("\\n\\n"),
+  textContent: promptLines.join(""),
+  children: promptLines.map((text) => ({{ tagName: "P", textContent: text }})),
   isConnected: true,
   getBoundingClientRect() {{ return {{ width: 20, height: 20 }}; }},
   getAttribute(name) {{

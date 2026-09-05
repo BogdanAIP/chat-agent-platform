@@ -283,6 +283,30 @@
       return candidates.length === 1 ? candidates[0] : null;
     }
 
+    function contentEditablePromptText(editor) {
+      if (!editor) return null;
+
+      // Physical ChatGPT qualification shows the current contenteditable
+      // serializes each logical prompt line as one direct <p>. Browser
+      // innerText synthesizes extra layout newlines, while textContent drops
+      // the paragraph separators entirely. Reconstruct only the proven
+      // structural representation; unknown block shapes fail closed.
+      const children = editor.children == null ? [] : [...editor.children];
+      if (children.length > 0) {
+        if (!children.every((child) => String(child.tagName || "").toUpperCase() === "P")) {
+          return null;
+        }
+        return canonicalPromptText(
+          children.map((child) => child.textContent ?? "").join("\n"),
+        );
+      }
+
+      // A childless contenteditable is safe only for shapes whose own
+      // textContent already carries the exact logical text (for example a
+      // single-line editor). Exact comparison below still fails closed.
+      return editor.textContent == null ? null : canonicalPromptText(editor.textContent);
+    }
+
     function composerPromptText(composer) {
       if (!composer) return null;
       const editor = findComposerEditor(composer);
@@ -290,8 +314,7 @@
       if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
         return canonicalPromptText(editor.value);
       }
-      const visibleText = typeof editor.innerText === "string" ? editor.innerText : editor.textContent;
-      return visibleText == null ? null : canonicalPromptText(visibleText);
+      return contentEditablePromptText(editor);
     }
 
     function exactComposerPromptMatches(composer) {
