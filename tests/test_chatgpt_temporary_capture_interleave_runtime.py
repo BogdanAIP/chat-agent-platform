@@ -53,9 +53,22 @@ let href = launch.toString();
 let now = 1000;
 let intervalFn = null;
 
-const editor = {{ textContent: "", innerText: "" }};
+const form = {{
+  isConnected: true,
+  getBoundingClientRect() {{ return {{ width: 500, height: 100 }}; }},
+}};
+const editor = {{
+  textContent: "",
+  innerText: "",
+  isConnected: true,
+  tagName: "DIV",
+  isContentEditable: true,
+  getBoundingClientRect() {{ return {{ width: 400, height: 60 }}; }},
+  getAttribute(name) {{ return name === "contenteditable" ? "true" : null; }},
+  closest(selector) {{ return selector === "form" ? form : null; }},
+}};
 const userTurn = {{
-  innerText: `delegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
+  innerText: `WORKER_TASK_V1\\ndelegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
   textContent: "",
 }};
 
@@ -64,6 +77,7 @@ global.history = {{
   state: null,
   replaceState(_state, _title, next) {{ href = new URL(next, href).toString(); }},
 }};
+global.getComputedStyle = () => ({{ visibility: "visible", display: "block" }});
 global.document = {{
   querySelector(selector) {{
     if (selector === "#prompt-textarea") return editor;
@@ -71,6 +85,7 @@ global.document = {{
   }},
   querySelectorAll(selector) {{
     if (selector.includes('data-message-author-role="user"')) return [userTurn];
+    if (selector.includes("prompt-textarea") || selector.includes("contenteditable") || selector.includes("textarea")) return [editor];
     return [];
   }},
 }};
