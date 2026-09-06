@@ -32,7 +32,10 @@ class ChatGPTTemporaryDeliveryVisibilityRuntimeTests(unittest.TestCase):
         script = f"""
 const fs = require("fs");
 const vm = require("vm");
-const contentSource = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8");
+// GitHub's Windows runner may materialize tracked JS with CRLF. Normalize only
+// the source text used to locate production function boundaries; this does not
+// change the behavior under test.
+const contentSource = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8").replace(/\\r\\n?/g, "\\n");
 const policySource = fs.readFileSync({json.dumps(str(POLICY))}, "utf8");
 
 const normalizeStart = contentSource.indexOf("  function normalizeFull(text) {{");
