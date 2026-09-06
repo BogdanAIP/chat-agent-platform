@@ -477,7 +477,12 @@
 
     function userDeliveryVisible() {
       if (recovered || typeof intent.prompt !== "string" || !intent.prompt) return false;
-      return conversationTurns("user").some((text) => policy.exactPromptMatches(text, intent.prompt));
+      // Exact prompt equivalence is already proven immediately before the one
+      // physical click. The submitted user turn is provider-rendered UI and may
+      // include non-message affordances such as "Expand", so post-Send delivery
+      // evidence uses bounded correlation markers instead of re-projecting the
+      // whole composer string.
+      return conversationTurns("user").some((text) => policy.hasExpectedPrompt(text, intent));
     }
 
     function stopButtonPresent() {
