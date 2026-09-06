@@ -68,6 +68,8 @@ const editor = {{
   closest(selector) {{ return selector === "form" ? form : null; }},
 }};
 const userTurn = {{
+  isConnected: true,
+  getBoundingClientRect() {{ return {{width: 500, height: 80}}; }},
   innerText: `WORKER_TASK_V1\\ndelegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
   textContent: "",
 }};

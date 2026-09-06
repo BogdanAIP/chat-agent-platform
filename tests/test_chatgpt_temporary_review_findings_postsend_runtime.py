@@ -42,6 +42,7 @@ const base = `WORKER_TASK_V1\n\ndelegation_id=${{delegationId}}\ndelivery_id=${{
 let userNodes = [];
 const context = {{
   console,
+  getComputedStyle() {{ return {{visibility: "visible", display: "block"}}; }},
   document: {{
     querySelectorAll(selector) {{
       if (selector.includes('data-message-author-role="user"')) return userNodes;
@@ -54,7 +55,8 @@ vm.createContext(context);
 vm.runInContext(policySource, context, {{ filename: "policy.js" }});
 const policy = context.CAPChatGPTTemporaryPolicy;
 if (!policy || typeof policy.hasExpectedPrompt !== "function") process.exit(70);
-const node = (text) => ({{ innerText: text, textContent: text }});
+const node = (text) => ({{ innerText: text, textContent: text, isConnected: true,
+  getBoundingClientRect() {{ return {{width: 500, height: 80}}; }} }});
 const proves = (text, nodes = [text]) => {{
   userNodes = nodes.map(node);
   return policy.hasExpectedPrompt(text, intent);

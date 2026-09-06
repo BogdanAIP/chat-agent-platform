@@ -95,24 +95,39 @@
 
   function exactTaskCorrelationShape(text, intent) {
     if (!intent) return false;
-    const expected = new Map([
-      ["WORKER_TASK_V1", "WORKER_TASK_V1"],
-      ["delegation_id=", `delegation_id=${intent.delegationId}`],
-      ["delivery_id=", `delivery_id=${intent.deliveryId}`],
-      ["task_sha256=", `task_sha256=${intent.taskSha256}`],
-    ]);
-    const counts = new Map([...expected.keys()].map((key) => [key, 0]));
-    const lines = canonicalPromptText(text).replace(/\u0000/g, "").split("\n");
-
-    for (const line of lines) {
-      for (const [marker, exactLine] of expected.entries()) {
-        if (!line.includes(marker)) continue;
-        if (line !== exactLine) return false;
-        counts.set(marker, counts.get(marker) + 1);
-      }
+    const lines = canonicalPromptText(text).split("\n");
+    const start = lines.findIndex((line) => correlationCandidateText(line));
+    if (start < 0 || lines[start] !== "WORKER_TASK_V1") return false;
+    // Parse the outer header in order before considering any task data. A
+    // missing/invalid header field can never be supplied by the task body.
+    let cursor = start + 1;
+    if (lines[cursor] === "") cursor += 1;
+    if (lines[cursor++] !== `delegation_id=${intent.delegationId}`) return false;
+    if (lines[cursor++] !== `delivery_id=${intent.deliveryId}`) return false;
+    if (lines[cursor]?.startsWith("worker_kind=")) {
+      if (!/^worker_kind=[a-z][a-z0-9._-]{0,63}$/.test(lines[cursor++])) return false;
+      if (lines[cursor++] !== "worker_profile=fresh_readonly_worker_v1") return false;
+      if (!/^result_contract_id=[a-z][a-z0-9._-]{0,63}$/.test(lines[cursor++])) return false;
     }
+    if (lines[cursor++] !== `task_sha256=${intent.taskSha256}`) return false;
 
-    return [...counts.values()].every((count) => count === 1);
+    // The producer binds both body fences to the existing task digest. Require
+    // one exact pair: arbitrary literal delimiters in task data cannot extend
+    // the envelope or hide malformed/duplicate markers outside the body.
+    const beginMarker = `TASK_BEGIN:${intent.taskSha256}`;
+    const endMarker = `TASK_END:${intent.taskSha256}`;
+    const begins = lines.flatMap((line, index) => line.includes(beginMarker) ? [index] : []);
+    const ends = lines.flatMap((line, index) => line.includes(endMarker) ? [index] : []);
+    const begin = begins[0] ?? -1;
+    const end = ends[0] ?? -1;
+    if (lines.some((line) => /TASK_BEGIN|TASK_END/.test(line))) {
+      if (begins.length !== 1 || ends.length !== 1 || begin < cursor || end <= begin ||
+          lines[begin] !== beginMarker || lines[end] !== endMarker) return false;
+    }
+    const outside = [...lines.slice(0, start), ...lines.slice(cursor, begin < 0 ? lines.length : begin),
+      ...(end < 0 ? [] : lines.slice(end + 1))];
+    return outside.every((line) => !correlationCandidateText(line) &&
+      !line.includes("TASK_BEGIN") && !line.includes("TASK_END"));
   }
 
   function visibleUserCorrelationState(intent) {
@@ -123,7 +138,7 @@
       const text = String(node?.innerText || node?.textContent || "");
       if (!correlationCandidateText(text)) continue;
       candidateCount += 1;
-      if (exactTaskCorrelationShape(text, intent)) matchCount += 1;
+      if (guardVisible(node) && exactTaskCorrelationShape(text, intent)) matchCount += 1;
     }
     return { candidateCount, matchCount };
   }
@@ -131,7 +146,7 @@
   function hasExpectedPrompt(text, intent) {
     // After the one exact pre-Send composer proof, provider UI may decorate the
     // rendered user turn. Correlation therefore accepts unrelated decoration,
-    // but only around one exact set of whole-line task markers. Prefix/suffix,
+    // but only around one exact outer task header. Task-body markers are data. Prefix/suffix,
     // malformed/duplicate markers and multiple correlated candidate turns fail
     // closed instead of being projected away by substring matching.
     if (!exactTaskCorrelationShape(text, intent)) return false;
@@ -197,7 +212,8 @@
 
   function currentPostDeliveryUiClean() {
     if (!browserGuardRequired || !postDeliveryGuardIntent) return false;
-    return guardLaunchUrlClean() && guardComposerState(postDeliveryGuardIntent).clean;
+    return guardDeliveryVisible(postDeliveryGuardIntent) &&
+      guardLaunchUrlClean() && guardComposerState(postDeliveryGuardIntent).clean;
   }
 
   function captureAuthorization() {
@@ -233,8 +249,29 @@
   function guardVisible(node) {
     if (!node?.isConnected || typeof node.getBoundingClientRect !== "function") return false;
     const rect = node.getBoundingClientRect();
-    const style = getComputedStyle(node);
-    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    if (!(rect.width > 0 && rect.height > 0)) return false;
+    for (let current = node; current; current = current.parentElement) {
+      const style = getComputedStyle(current);
+      if (current.hidden || current.inert || current.getAttribute?.("aria-hidden") === "true" ||
+          ["hidden", "collapse"].includes(style.visibility) || style.display === "none" ||
+          style.opacity === "0") return false;
+    }
+    return true;
+  }
+
+  function eligibleComposerEditor(editor) {
+    if (!guardVisible(editor)) return false;
+    // Disabled/read-only/inert state applies to contenteditable as well as
+    // native controls, including inherited accessibility/container state.
+    for (let node = editor; node; node = node.parentElement) {
+      if (node.hidden || node.inert || node.disabled || node.readOnly ||
+          ["aria-hidden", "aria-disabled", "aria-readonly"].some((name) =>
+            String(node.getAttribute?.(name)).toLowerCase() === "true")) return false;
+      if (node.matches?.(":disabled")) return false;
+    }
+    if (String(editor.tagName || "").toUpperCase() === "TEXTAREA") return true;
+    if (editor.getAttribute?.("contenteditable") === "false") return false;
+    return editor.getAttribute?.("contenteditable") === "true" || editor.isContentEditable === true;
   }
 
   function guardFindComposerEditor() {
@@ -247,21 +284,11 @@
     for (const editor of ordered) {
       if (!editor || seen.has(editor)) continue;
       seen.add(editor);
-      if (!guardVisible(editor)) continue;
-      if (editor.getAttribute?.("aria-hidden") === "true") continue;
+      if (!eligibleComposerEditor(editor)) continue;
 
       const form = editor.closest?.("form");
       if (!form || !guardVisible(form)) continue;
 
-      const tagName = String(editor.tagName || "").toUpperCase();
-      if (tagName === "TEXTAREA") {
-        if (editor.disabled || editor.getAttribute?.("aria-disabled") === "true") continue;
-      } else if (
-        editor.getAttribute?.("contenteditable") !== "true" &&
-        editor.isContentEditable !== true
-      ) {
-        continue;
-      }
       candidates.push(editor);
     }
 
@@ -418,7 +445,10 @@
     resetPostDeliveryStability();
 
     postDeliveryGuardInterval = setInterval(() => {
-      if (!guardDeliveryVisible(postDeliveryGuardIntent)) return;
+      if (!guardDeliveryVisible(postDeliveryGuardIntent)) {
+        resetPostDeliveryStability();
+        return;
+      }
       const urlClean = guardSanitizeLaunchUrl();
       const composer = guardClearBoundComposer(postDeliveryGuardIntent);
       const clean = urlClean && composer.clean;
@@ -483,6 +513,8 @@
     parseIntent,
     hasExpectedPrompt,
     exactPromptMatches,
+    eligibleComposerEditor,
+    findComposerEditor: guardFindComposerEditor,
     personalizationModeFromText,
     singleResultBlockShape,
     hasSingleResultBlock,

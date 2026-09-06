@@ -57,6 +57,7 @@ let userText = prompt + "\\nРазвернуть";
 
 const context = {{
   console,
+  getComputedStyle() {{ return {{visibility: "visible", display: "block"}}; }},
   recovered: false,
   intent: {{
     prompt,
@@ -67,7 +68,8 @@ const context = {{
   document: {{
     querySelectorAll(selector) {{
       if (selector.includes('data-message-author-role="user"')) {{
-        return [{{ innerText: userText, textContent: userText }}];
+        return [{{ innerText: userText, textContent: userText, isConnected: true,
+          getBoundingClientRect() {{ return {{width: 500, height: 80}}; }} }}];
       }}
       return [];
     }},

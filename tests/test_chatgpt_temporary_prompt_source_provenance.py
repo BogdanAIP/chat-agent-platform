@@ -33,6 +33,8 @@ class ChatGPTTemporaryPromptSourceProvenanceTests(unittest.TestCase):
         mutate_after_authorize: str | None = None,
         stale_prompt_editor: str | None = None,
         stale_prompt_editor_visible: bool = False,
+        editor_state: str = "eligible",
+        disable_after_authorize: bool = False,
     ) -> tuple[int, int]:
         if self.node is None:
             self.skipTest("node is unavailable")
@@ -54,6 +56,8 @@ const actualPrompt = {json.dumps(actual_prompt)};
 const mutateAfterAuthorize = {json.dumps(mutate_after_authorize)};
 const stalePromptEditorText = {json.dumps(stale_prompt_editor)};
 const stalePromptEditorVisible = {json.dumps(stale_prompt_editor_visible)};
+const editorState = {json.dumps(editor_state)};
+const disableAfterAuthorize = {json.dumps(disable_after_authorize)};
 const expectedPromptDigestHex = {json.dumps(prompt_sha)};
 const expectedPromptDigestBytes = Uint8Array.from(
   expectedPromptDigestHex.match(/../g).map((value) => Number.parseInt(value, 16)),
@@ -102,10 +106,15 @@ const editor = {{
   _capVisible: true,
   getBoundingClientRect: rect,
   getAttribute(name) {{
+    if (name === "aria-disabled" && editorState === "aria-disabled") return "true";
+    if (name === "aria-readonly" && editorState === "aria-readonly") return "true";
     if (name === "contenteditable") return "true";
     return null;
   }},
   isContentEditable: true,
+  disabled: editorState === "disabled",
+  readOnly: editorState === "readonly",
+  inert: editorState === "inert",
 }};
 
 // Real ChatGPT can expose an empty generic textarea before the actual
@@ -146,6 +155,8 @@ const stalePromptEditor = stalePromptEditorText === null ? null : {{
 }};
 
 const composer = {{
+  isConnected: true,
+  getBoundingClientRect: editorState === 'hidden-form' ? hiddenRect : rect,
   textContent: actualPrompt,
 
   querySelector(selector) {{
@@ -182,6 +193,11 @@ const button = {{
   parentElement: composer,
   click() {{ clicks += 1; }},
 }};
+for (const candidate of [editor, decoyTextarea, stalePromptEditor].filter(Boolean)) {{
+  candidate.closest = selector => selector === 'form' && editorState !== 'ownerless' ? composer : null;
+  candidate.parentElement = composer;
+}}
+const otherEditor = {{...editor, closest: () => ({{isConnected: true, getBoundingClientRect: rect}})}};
 
 Object.defineProperty(globalThis, "crypto", {{
   configurable: true,
@@ -214,6 +230,8 @@ global.document = {{
     }}
     if (selector.includes('data-message-author-role="user"') || selector.includes('data-message-author-role="assistant"')) return [];
     if (selector === "button") return [];
+    if (selector === '#prompt-textarea,[contenteditable="true"],textarea') return [
+      ...composer.querySelectorAll(selector), ...(editorState === 'other-live-form' ? [otherEditor] : [])];
     return [];
   }},
 }};
@@ -222,6 +240,7 @@ global.chrome = {{ runtime: {{
   sendMessage(message, callback) {{
     if (message.kind === "authorize-send") {{
       authorizeCalls += 1;
+      if (disableAfterAuthorize) editor.disabled = true;
       if (mutateAfterAuthorize !== null) {{
         editor.innerText = mutateAfterAuthorize;
         editor.textContent = mutateAfterAuthorize;
@@ -265,6 +284,18 @@ function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
         self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
         value = json.loads(completed.stdout)
         return int(value["authorizeCalls"]), int(value["clicks"])
+
+    def test_disabled_contenteditable_cannot_request_or_consume_send_authority(self) -> None:
+        prompt = self._prompt("Read alpha and summarize it.")
+        for state in ("aria-disabled", "disabled", "aria-readonly", "readonly", "inert",
+                      "ownerless", "hidden-form", "other-live-form"):
+            with self.subTest(state=state):
+                self.assertEqual((0, 0), self._run_content_prompt_case(
+                    actual_prompt=prompt, expected_prompt=prompt, editor_state=state,
+                ))
+        self.assertEqual((1, 0), self._run_content_prompt_case(
+            actual_prompt=prompt, expected_prompt=prompt, disable_after_authorize=True,
+        ))
 
     @staticmethod
     def _prompt(task_body: str) -> str:

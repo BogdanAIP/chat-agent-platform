@@ -210,6 +210,7 @@ const fs = require("fs");
 const vm = require("vm");
 const nodeCrypto = require("crypto");
 const source = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8");
+vm.runInThisContext(fs.readFileSync({json.dumps(str(CONTENT.parent / 'policy.js'))}, "utf8"));
 const generation = "9".repeat(64);
 const runId = "a".repeat(64);
 const delegationId = "b".repeat(64);
@@ -252,6 +253,8 @@ const editor = {{
   isContentEditable: true,
 }};
 const composer = {{
+  isConnected: true,
+  getBoundingClientRect() {{ return {{width: 500, height: 100}}; }},
   textContent: prompt,
   querySelector() {{ return editor; }},
   querySelectorAll(selector) {{
@@ -284,6 +287,7 @@ const intent = {{
   stableMs: 3000,
 }};
 const policy = {{
+  findComposerEditor: globalThis.CAPChatGPTTemporaryPolicy.findComposerEditor,
   HEX64_RE: /^[0-9a-f]{{64}}$/,
   HEAD40_RE: /^[0-9a-f]{{40}}$/,
   parseIntent() {{ return intent; }},
@@ -310,6 +314,7 @@ global.document = {{
     return null;
   }},
   querySelectorAll(selector) {{
+    if (selector === '#prompt-textarea,[contenteditable="true"],textarea') return [editor];
     if (selector === 'button,[role="button"],[aria-label],[title],[data-testid]') {{
       return [uiNode("Temporary Chat"), uiNode("Non-personalized")];
     }}
@@ -319,6 +324,8 @@ global.document = {{
     return [];
   }},
 }};
+editor.closest = selector => selector === 'form' ? composer : null;
+editor.parentElement = composer;
 global.chrome = {{ runtime: {{
   lastError: null,
   sendMessage(message, callback) {{

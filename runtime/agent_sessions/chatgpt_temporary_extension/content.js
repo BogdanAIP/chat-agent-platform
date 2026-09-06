@@ -239,7 +239,7 @@
 
     function findComposer(button) {
       if (!button) return null;
-      return button.closest("form") || button.parentElement;
+      return button.closest("form");
     }
 
     function canonicalPromptText(text) {
@@ -248,39 +248,9 @@
 
     function findComposerEditor(composer) {
       if (!composer) return null;
-
-      const candidates = [];
-      const seen = new Set();
-
-      for (const editor of composer.querySelectorAll(
-        '#prompt-textarea,[contenteditable="true"],textarea',
-      )) {
-        if (!editor || seen.has(editor)) continue;
-        seen.add(editor);
-
-        // Send authority must bind to one live/current editor, never merely to
-        // the first node from a preferred selector class.
-        if (!visible(editor)) continue;
-        if (editor.getAttribute?.("aria-hidden") === "true") continue;
-
-        const tagName = String(editor.tagName || "").toUpperCase();
-        if (tagName === "TEXTAREA") {
-          if (editor.disabled || editor.getAttribute?.("aria-disabled") === "true") {
-            continue;
-          }
-        } else if (
-          editor.getAttribute?.("contenteditable") !== "true" &&
-          editor.isContentEditable !== true
-        ) {
-          continue;
-        }
-
-        candidates.push(editor);
-      }
-
-      // Multiple live editors are ambiguous. Consuming one-shot Send authority
-      // under that ambiguity would not prove what the Send button will submit.
-      return candidates.length === 1 ? candidates[0] : null;
+      const editor = policy.findComposerEditor();
+      // The sole eligible editor on the page must belong to this Send form.
+      return editor?.closest("form") === composer ? editor : null;
     }
 
     function contentEditablePromptText(editor) {
