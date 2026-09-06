@@ -33,17 +33,35 @@ const result = "CAP_WORKER_RESULT_V1_BEGIN\\n{{}}\\nCAP_WORKER_RESULT_V1_END";
 let href = "https://chatgpt.com/c/guard-session-1234";
 let now = 1000;
 let intervalFn = null;
-const editor = {{ textContent: "", innerText: "" }};
+const form = {{
+  isConnected: true,
+  getBoundingClientRect() {{ return {{ width: 500, height: 100 }}; }},
+}};
+const editor = {{
+  textContent: "",
+  innerText: "",
+  isConnected: true,
+  tagName: "DIV",
+  isContentEditable: true,
+  getBoundingClientRect() {{ return {{ width: 400, height: 60 }}; }},
+  getAttribute(name) {{ return name === "contenteditable" ? "true" : null; }},
+  closest(selector) {{ return selector === "form" ? form : null; }},
+}};
 const userTurn = {{
-  innerText: `delegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
+  innerText: `WORKER_TASK_V1\\ndelegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
   textContent: "",
 }};
 
 global.location = {{ get href() {{ return href; }} }};
 global.history = {{ state: null, replaceState(_state, _title, next) {{ href = new URL(next, href).toString(); }} }};
+global.getComputedStyle = () => ({{ visibility: "visible", display: "block" }});
 global.document = {{
   querySelector(selector) {{ return selector === "#prompt-textarea" ? editor : null; }},
-  querySelectorAll(selector) {{ return selector.includes('data-message-author-role="user"') ? [userTurn] : []; }},
+  querySelectorAll(selector) {{
+    if (selector.includes('data-message-author-role="user"')) return [userTurn];
+    if (selector.includes("prompt-textarea") || selector.includes("contenteditable") || selector.includes("textarea")) return [editor];
+    return [];
+  }},
 }};
 global.CAPChatGPTTemporaryExecutionGeneration = "2".repeat(64);
 global.chrome = {{ runtime: {{ sendMessage(_message, callback) {{ callback({{ ok: true, cleanup_token: cleanupToken }}); }} }} }};
