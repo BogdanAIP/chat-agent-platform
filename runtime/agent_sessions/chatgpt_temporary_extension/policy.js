@@ -17,6 +17,12 @@
     "cap_prompt_sha256",
     "prompt",
   ];
+  const TASK_CORRELATION_MARKERS = [
+    "WORKER_TASK_V1",
+    "delegation_id=",
+    "delivery_id=",
+    "task_sha256=",
+  ];
   let postDeliveryUiDisarmed = false;
   let postDeliveryCleanupToken = null;
   let browserGuardRequired = false;
@@ -78,18 +84,60 @@
     };
   }
 
-  function hasExpectedPrompt(text, intent) {
-    // Marker recognition is intentionally weaker than launch equivalence. It is
-    // used only for cleanup/bounded recognition after the exact Send checks.
-    const value = String(text || "");
-    return value.includes("WORKER_TASK_V1") &&
-      value.includes(`delegation_id=${intent.delegationId}`) &&
-      value.includes(`delivery_id=${intent.deliveryId}`) &&
-      value.includes(`task_sha256=${intent.taskSha256}`);
-  }
-
   function canonicalPromptText(text) {
     return String(text ?? "").replace(/\r\n?/g, "\n");
+  }
+
+  function correlationCandidateText(text) {
+    const value = canonicalPromptText(text).replace(/\u0000/g, "");
+    return TASK_CORRELATION_MARKERS.some((marker) => value.includes(marker));
+  }
+
+  function exactTaskCorrelationShape(text, intent) {
+    if (!intent) return false;
+    const expected = new Map([
+      ["WORKER_TASK_V1", "WORKER_TASK_V1"],
+      ["delegation_id=", `delegation_id=${intent.delegationId}`],
+      ["delivery_id=", `delivery_id=${intent.deliveryId}`],
+      ["task_sha256=", `task_sha256=${intent.taskSha256}`],
+    ]);
+    const counts = new Map([...expected.keys()].map((key) => [key, 0]));
+    const lines = canonicalPromptText(text).replace(/\u0000/g, "").split("\n");
+
+    for (const line of lines) {
+      for (const [marker, exactLine] of expected.entries()) {
+        if (!line.includes(marker)) continue;
+        if (line !== exactLine) return false;
+        counts.set(marker, counts.get(marker) + 1);
+      }
+    }
+
+    return [...counts.values()].every((count) => count === 1);
+  }
+
+  function visibleUserCorrelationState(intent) {
+    if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return null;
+    let candidateCount = 0;
+    let matchCount = 0;
+    for (const node of document.querySelectorAll('[data-message-author-role="user"]')) {
+      const text = String(node?.innerText || node?.textContent || "");
+      if (!correlationCandidateText(text)) continue;
+      candidateCount += 1;
+      if (exactTaskCorrelationShape(text, intent)) matchCount += 1;
+    }
+    return { candidateCount, matchCount };
+  }
+
+  function hasExpectedPrompt(text, intent) {
+    // After the one exact pre-Send composer proof, provider UI may decorate the
+    // rendered user turn. Correlation therefore accepts unrelated decoration,
+    // but only around one exact set of whole-line task markers. Prefix/suffix,
+    // malformed/duplicate markers and multiple correlated candidate turns fail
+    // closed instead of being projected away by substring matching.
+    if (!exactTaskCorrelationShape(text, intent)) return false;
+    const visible = visibleUserCorrelationState(intent);
+    if (visible === null || visible.candidateCount === 0) return true;
+    return visible.candidateCount === 1 && visible.matchCount === 1;
   }
 
   function exactPromptMatches(observed, expected) {
@@ -182,9 +230,49 @@
     return String(editor.innerText || editor.textContent || "").replace(/\u0000/g, "").trim();
   }
 
+  function guardVisible(node) {
+    if (!node?.isConnected || typeof node.getBoundingClientRect !== "function") return false;
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  }
+
+  function guardFindComposerEditor() {
+    const candidates = [];
+    const seen = new Set();
+    const primary = document.querySelector("#prompt-textarea");
+    const discovered = [...document.querySelectorAll('#prompt-textarea,[contenteditable="true"],textarea')];
+    const ordered = primary ? [primary, ...discovered] : discovered;
+
+    for (const editor of ordered) {
+      if (!editor || seen.has(editor)) continue;
+      seen.add(editor);
+      if (!guardVisible(editor)) continue;
+      if (editor.getAttribute?.("aria-hidden") === "true") continue;
+
+      const form = editor.closest?.("form");
+      if (!form || !guardVisible(form)) continue;
+
+      const tagName = String(editor.tagName || "").toUpperCase();
+      if (tagName === "TEXTAREA") {
+        if (editor.disabled || editor.getAttribute?.("aria-disabled") === "true") continue;
+      } else if (
+        editor.getAttribute?.("contenteditable") !== "true" &&
+        editor.isContentEditable !== true
+      ) {
+        continue;
+      }
+      candidates.push(editor);
+    }
+
+    // The post-delivery guard must bind the same way as pre-Send authority:
+    // exactly one live/current editor. Hidden/stale or multiple live editors
+    // cannot prove cleanup/capture safety.
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
   function guardComposerState(intent) {
-    const editor = document.querySelector("#prompt-textarea") ||
-      document.querySelector('form [contenteditable="true"],form textarea');
+    const editor = guardFindComposerEditor();
     if (!editor) return { clean: false, editor: null, bound: false };
     const text = guardEditorText(editor);
     return {
@@ -263,15 +351,8 @@
   }
 
   function guardDeliveryVisible(intent) {
-    const required = [
-      `delegation_id=${intent.delegationId}`,
-      `delivery_id=${intent.deliveryId}`,
-      `task_sha256=${intent.taskSha256}`,
-    ];
-    return [...document.querySelectorAll('[data-message-author-role="user"]')].some((node) => {
-      const text = String(node.innerText || node.textContent || "");
-      return required.every((marker) => text.includes(marker));
-    });
+    const visible = visibleUserCorrelationState(intent);
+    return Boolean(visible && visible.candidateCount === 1 && visible.matchCount === 1);
   }
 
   function guardRecordCleanup(intent, callback) {
