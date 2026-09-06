@@ -254,9 +254,11 @@ AGENT_SESSION_DELEGATION_REENTRY.md
  -> AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md
  -> AGENT_SESSION_TEMPORARY_PREFLIGHT_COMMIT_REENTRY.md
  -> AGENT_SESSION_TEMPORARY_PREFLIGHT_OWNER_REBIND_REENTRY.md
+ -> AGENT_SESSION_TEMPORARY_PROMPT_SOURCE_PROVENANCE_REENTRY.md
+ -> AGENT_SESSION_TEMPORARY_LOOPBACK_AUTH_REENTRY.md
 ```
 
-The latest owner-rebind re-entry supersedes only the unnecessary deterministic-handle subproposal from the preceding preflight-commit brief. It preserves the generic Delegation model, one-Send guarantees and complete-browser-loss fail-closed profile while refining same-live-MV3 ownership/reconciliation.
+The owner-rebind re-entry supersedes only the unnecessary deterministic-handle subproposal from the preceding preflight-commit brief. The later prompt/source-provenance re-entry requires exact worker-visible prompt equality before authority and immediately before Send while binding effectful controller/extension expectations to exact reviewed source. The authenticated-loopback re-entry is the latest adapter authority and requires consequence-relevant extension/controller exchanges to authenticate the intended local controller rather than trusting fixed port ownership. These refinements preserve the generic Delegation model, one-Send guarantees and complete-browser-loss fail-closed profile.
 
 If implementation requires nested/fan-out workers, a new scheduler/event bus, mutating children, environment creation, broad provider authority, automatic parent wake, durable browser identity, provider-conversation recovery, a persistent handle registry, or another materially different durability/concurrency mechanism, stop and re-enter Stage Research rather than widening #149 silently.
 

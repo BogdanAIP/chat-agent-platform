@@ -243,6 +243,7 @@ const editor = {{
   innerText: promptLines.join("\\n\\n"),
   textContent: promptLines.join(""),
   children: promptLines.map((text) => ({{ tagName: "P", textContent: text }})),
+  childNodes: promptLines.map((text) => ({{ nodeType: 1, tagName: "P", textContent: text }})),
   isConnected: true,
   getBoundingClientRect() {{ return {{ width: 20, height: 20 }}; }},
   getAttribute(name) {{
@@ -375,6 +376,38 @@ function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
   await flush();
   if (evidenceRefs.length !== 2) process.exit(34);
 }})().catch((error) => {{ console.error(error); process.exit(40); }});
+"""
+        self.run_node(script)
+
+    def test_contenteditable_prompt_projection_rejects_unproven_direct_nodes(self) -> None:
+        script = f"""
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8");
+
+const canonicalStart = source.indexOf("    function canonicalPromptText(text) {{");
+const composerStart = source.indexOf("    function composerPromptText(composer) {{");
+if (canonicalStart < 0 || composerStart <= canonicalStart) process.exit(70);
+
+const snippet = source.slice(canonicalStart, composerStart) +
+  "\\nthis.projectPrompt = contentEditablePromptText;";
+const context = {{}};
+vm.createContext(context);
+vm.runInContext(snippet, context, {{ filename: "content-projection-test.js" }});
+
+const project = context.projectPrompt;
+if (typeof project !== "function") process.exit(71);
+
+const p = (text) => ({{ nodeType: 1, tagName: "P", textContent: text }});
+const text = (value) => ({{ nodeType: 3, textContent: value }});
+const comment = (value) => ({{ nodeType: 8, textContent: value }});
+
+if (project({{ childNodes: [p("line1"), p("line2")] }}) !== "line1\\nline2") process.exit(72);
+if (project({{ childNodes: [p("line1"), text("EXTRA"), p("line2")] }}) !== null) process.exit(73);
+if (project({{ childNodes: [p("line1"), comment("hidden"), p("line2")] }}) !== null) process.exit(74);
+if (project({{ childNodes: [], textContent: "line1\\nline2" }}) !== null) process.exit(75);
+if (project({{ childNodes: [text("line1\\nline2")], textContent: "line1\\nline2" }}) !== null) process.exit(76);
+if (project({{ childNodes: [p("line1"), {{ nodeType: 1, tagName: "DIV", textContent: "line2" }}] }}) !== null) process.exit(77);
 """
         self.run_node(script)
 

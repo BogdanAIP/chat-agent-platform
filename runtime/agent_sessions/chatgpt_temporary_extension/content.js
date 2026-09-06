@@ -286,25 +286,26 @@
     function contentEditablePromptText(editor) {
       if (!editor) return null;
 
-      // Physical ChatGPT qualification shows the current contenteditable
-      // serializes each logical prompt line as one direct <p>. Browser
-      // innerText synthesizes extra layout newlines, while textContent drops
-      // the paragraph separators entirely. Reconstruct only the proven
-      // structural representation; unknown block shapes fail closed.
-      const children = editor.children == null ? [] : [...editor.children];
-      if (children.length > 0) {
-        if (!children.every((child) => String(child.tagName || "").toUpperCase() === "P")) {
+      // Physical ChatGPT qualification proves one direct <p> per logical
+      // prompt line. Use childNodes, not children: Element.children silently
+      // omits direct Text/Comment nodes and could therefore project away live
+      // composer content. Every direct node must belong to the proven shape.
+      const nodes = editor.childNodes == null ? [] : [...editor.childNodes];
+      if (nodes.length === 0) return null;
+
+      const lines = [];
+      for (const node of nodes) {
+        if (
+          node?.nodeType !== 1 ||
+          String(node.tagName || "").toUpperCase() !== "P" ||
+          typeof node.textContent !== "string"
+        ) {
           return null;
         }
-        return canonicalPromptText(
-          children.map((child) => child.textContent ?? "").join("\n"),
-        );
+        lines.push(node.textContent);
       }
 
-      // A childless contenteditable is safe only for shapes whose own
-      // textContent already carries the exact logical text (for example a
-      // single-line editor). Exact comparison below still fails closed.
-      return editor.textContent == null ? null : canonicalPromptText(editor.textContent);
+      return canonicalPromptText(lines.join("\n"));
     }
 
     function composerPromptText(composer) {

@@ -90,6 +90,8 @@ AGENT_SESSION_DELEGATION_REENTRY.md
  -> AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md
  -> AGENT_SESSION_TEMPORARY_PREFLIGHT_COMMIT_REENTRY.md
  -> AGENT_SESSION_TEMPORARY_PREFLIGHT_OWNER_REBIND_REENTRY.md
+ -> AGENT_SESSION_TEMPORARY_PROMPT_SOURCE_PROVENANCE_REENTRY.md
+ -> AGENT_SESSION_TEMPORARY_LOOPBACK_AUTH_REENTRY.md
 ```
 
 The generic decision remains **NARROW**: one manager, one fresh read-only worker, one bounded delegation/delivery and one generic terminal result when trustworthy result capture succeeds. Nested/fan-out workers, mutating children, project/worktree/environment creation, a generic scheduler/event bus, long-lived worker pools, persistent existing-session delivery and automatic same-task parent wake/resampling remain outside that authority.
@@ -103,17 +105,21 @@ The latest adapter boundary is:
 ```text
 prepared/open generic delegation
  -> neutral preflight URL contains only one preflight nonce
- -> exact runtime-attested MV3 worker receives private run/correlation data
+ -> exact archived/runtime-attested MV3 worker receives private run/correlation data
  -> one live owner record stores owner_tab_id + private run + exact correlation + task URL
+ -> authenticated loopback request/response binds the exact local controller
  -> commit attempted
  -> success OR ambiguous transport acknowledgement
- -> same live owner reconciles exact durable commit through private-token /status
+ -> same live owner reconciles exact durable commit through authenticated private-token /status
  -> only that same neutral preflight tab may location.replace(task URL)
  -> task URL carries opaque launch handle only
  -> same live MV3 worker resolves handle -> private run capability
+ -> exact live composer == intended prompt under the qualified DOM shape
+ -> fresh/non-personalized/no-plugin qualification
  -> one browser delivery claim
  -> one project-local delivery claim
  -> exactly one physical Send authority
+ -> exact live composer is rechecked synchronously immediately before click
 ```
 
 The real private `run_id` is absent from task/browser-history URL state and the IndexedDB delivery claim. The legacy fragment name `cap_run_id` currently carries only the opaque live handle.
