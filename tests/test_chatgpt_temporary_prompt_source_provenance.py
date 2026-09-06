@@ -87,10 +87,17 @@ function uiNode(text) {{
     contains() {{ return false; }},
   }};
 }}
+const promptChildNodes = (value) => value.split("\\n").map((line) => ({{
+  nodeType: 1,
+  tagName: "P",
+  textContent: line,
+}}));
+
 const editor = {{
   tagName: "DIV",
   innerText: actualPrompt,
   textContent: actualPrompt,
+  childNodes: promptChildNodes(actualPrompt),
   isConnected: true,
   _capVisible: true,
   getBoundingClientRect: rect,
@@ -124,6 +131,7 @@ const stalePromptEditor = stalePromptEditorText === null ? null : {{
   tagName: "DIV",
   innerText: stalePromptEditorText,
   textContent: stalePromptEditorText,
+  childNodes: promptChildNodes(stalePromptEditorText),
   isConnected: true,
   _capVisible: stalePromptEditorVisible,
   getBoundingClientRect() {{
@@ -217,6 +225,7 @@ global.chrome = {{ runtime: {{
       if (mutateAfterAuthorize !== null) {{
         editor.innerText = mutateAfterAuthorize;
         editor.textContent = mutateAfterAuthorize;
+        editor.childNodes = promptChildNodes(mutateAfterAuthorize);
         composer.textContent = mutateAfterAuthorize;
       }}
       callback({{ ok: true, send_authorized: true, delivery_state: "claimed" }});
