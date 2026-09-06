@@ -29,7 +29,7 @@ class ChatGPTTemporaryPostSendReviewFindingsRuntimeTests(unittest.TestCase):
         self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
 
     def test_post_send_correlation_is_exact_line_bounded_and_ambiguity_rejecting(self) -> None:
-        script = f"""
+        script = rf"""
 const fs = require("fs");
 const vm = require("vm");
 const policySource = fs.readFileSync({json.dumps(str(POLICY))}, "utf8");
@@ -76,7 +76,7 @@ if (!proves(base, ["ordinary unrelated user text", base + "\nExpand"])) process.
         self.run_node(script)
 
     def test_post_delivery_composer_guard_rejects_hidden_stale_and_multiple_live_editors(self) -> None:
-        script = f"""
+        script = rf"""
 const fs = require("fs");
 const vm = require("vm");
 const source = fs.readFileSync({json.dumps(str(POLICY))}, "utf8").replace(/\r\n?/g, "\n");
