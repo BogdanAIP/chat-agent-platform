@@ -39,6 +39,9 @@ const userText = [
   `delegation_id=${{delegationId}}`,
   `delivery_id=${{deliveryId}}`,
   `task_sha256=${{taskSha}}`,
+  `TASK_BEGIN:${{taskSha}}`,
+  "bounded task body",
+  `TASK_END:${{taskSha}}`,
 ].join("\\n");
 
 function rect() {{ return {{width: 500, height: 80}}; }}
@@ -148,26 +151,16 @@ function qualify() {{
 const first = qualify();
 const firstEpoch = first.guardEpoch;
 const beforeDrainCount = observer.takeCount;
-
-// Do not deliver this record through the observer callback. This models a
-// qualifying mutation already detected by MutationObserver but still pending
-// callback delivery at the final synchronous browser capture boundary.
 observer.queue({{type: "attributes", target: form, addedNodes: [], removedNodes: []}});
 assert.equal(policy.captureAuthorization(), null);
 assert.ok(observer.takeCount > beforeDrainCount);
 
 const second = qualify();
 assert.notEqual(second.guardEpoch, firstEpoch);
-
-// The same containment rule applies to an ancestor of the exact correlated
-// user turn, not only to the composer form.
 observer.queue({{type: "attributes", target: userAncestor, addedNodes: [], removedNodes: []}});
 assert.equal(policy.captureAuthorization(), null);
 const third = qualify();
 assert.notEqual(third.guardEpoch, second.guardEpoch);
-
-// Callback-delivered ancestor mutations use the exact same production
-// classifier and cannot leave the current epoch usable.
 observer.callback([{{type: "attributes", target: form, addedNodes: [], removedNodes: []}}]);
 assert.equal(policy.captureAuthorization(), null);
 """
