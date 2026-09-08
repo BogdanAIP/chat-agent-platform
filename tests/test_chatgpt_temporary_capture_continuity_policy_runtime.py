@@ -40,6 +40,9 @@ const userText = [
   `delegation_id=${{delegationId}}`,
   `delivery_id=${{deliveryId}}`,
   `task_sha256=${{taskSha}}`,
+  `TASK_BEGIN:${{taskSha}}`,
+  "bounded task body",
+  `TASK_END:${{taskSha}}`,
 ].join("\\n");
 
 function rect() {{ return {{width: 500, height: 80}}; }}
