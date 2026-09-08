@@ -30,6 +30,15 @@ const expectedHead = "e".repeat(40);
 const promptSha = "f".repeat(64);
 const cleanupToken = "1".repeat(64);
 const result = "CAP_WORKER_RESULT_V1_BEGIN\\n{{}}\\nCAP_WORKER_RESULT_V1_END";
+const userText = [
+  "WORKER_TASK_V1",
+  `delegation_id=${{delegationId}}`,
+  `delivery_id=${{deliveryId}}`,
+  `task_sha256=${{taskSha}}`,
+  `TASK_BEGIN:${{taskSha}}`,
+  "bounded task body",
+  `TASK_END:${{taskSha}}`,
+].join("\\n");
 let href = "https://chatgpt.com/c/guard-session-1234";
 let now = 1000;
 let intervalFn = null;
@@ -50,13 +59,13 @@ const editor = {{
 const userTurn = {{
   isConnected: true,
   getBoundingClientRect() {{ return {{width: 500, height: 80}}; }},
-  innerText: `WORKER_TASK_V1\\ndelegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
-  textContent: "",
+  innerText: userText,
+  textContent: userText,
 }};
 
 global.location = {{ get href() {{ return href; }} }};
 global.history = {{ state: null, replaceState(_state, _title, next) {{ href = new URL(next, href).toString(); }} }};
-global.getComputedStyle = () => ({{ visibility: "visible", display: "block" }});
+global.getComputedStyle = () => ({{ visibility: "visible", display: "block", opacity: "1" }});
 global.document = {{
   querySelector(selector) {{ return selector === "#prompt-textarea" ? editor : null; }},
   querySelectorAll(selector) {{
@@ -72,10 +81,6 @@ global.clearInterval = (_id) => {{}};
 Date.now = () => now;
 
 vm.runInThisContext(fs.readFileSync({json.dumps(str(POLICY))}, "utf8"), {{ filename: "policy.js" }});
-
-// A cleaned URL alone carries no capture authority. The exact live content
-// context must explicitly arm the post-delivery guard with its private run
-// correlation before the policy can accept a terminal result block.
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(10);
 const originalContext = {{
   runId,
@@ -88,7 +93,6 @@ const originalContext = {{
 if (!CAPChatGPTTemporaryPolicy.armPostDeliveryUiGuard(originalContext)) process.exit(11);
 if (typeof intervalFn !== "function") process.exit(12);
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(13);
-
 intervalFn();
 now = 9501;
 intervalFn();
