@@ -41,6 +41,15 @@ const prompt = {json.dumps(prompt)};
 const intent = {{delegationId: 'a'.repeat(64), deliveryId: 'b'.repeat(64),
   taskSha256: {json.dumps(digest)}, runId: 'e'.repeat(64),
   expectedHead: 'f'.repeat(40), promptSha256: '9'.repeat(64)}};
+const fencedCorrelation = [
+  'WORKER_TASK_V1',
+  `delegation_id=${{intent.delegationId}}`,
+  `delivery_id=${{intent.deliveryId}}`,
+  `task_sha256=${{intent.taskSha256}}`,
+  `TASK_BEGIN:${{intent.taskSha256}}`,
+  'bounded task body',
+  `TASK_END:${{intent.taskSha256}}`,
+].join('\\n');
 const rect = () => ({{width: 500, height: 80}});
 const form = {{isConnected: true, getBoundingClientRect: rect}};
 function makeEditor(attrs = {{}}, props = {{}}) {{
@@ -55,7 +64,7 @@ const user = (text, props = {{}}) => ({{innerText: text, textContent: text,
 let now = 1000, poll;
 const ctx = {{console, URL, URLSearchParams, Date: {{now: () => now}},
   location: {{href: 'https://chatgpt.com/'}}, history: {{replaceState() {{}}}},
-  getComputedStyle: n => n.style || ({{visibility: 'visible', display: 'block'}}),
+  getComputedStyle: n => n.style || ({{visibility: 'visible', display: 'block', opacity: '1'}}),
   document: {{
     querySelector: s => s === '#prompt-textarea' ? editors[0] : null,
     querySelectorAll: s => s.includes('data-message-author-role="user"') ? users :
@@ -87,6 +96,8 @@ for (const line of ['WORKER_TASK_V1', `delegation_id=${intent.delegationId}`,
   assert.equal(proves(prompt + '\n' + line), false, 'duplicate after task');
 }
 assert.equal(proves(prompt.replace(`delivery_id=${intent.deliveryId}\n`, '')), false);
+assert.equal(proves(prompt.replace(`TASK_BEGIN:${intent.taskSha256}\n`, '')), false, 'missing begin fence');
+assert.equal(proves(prompt.replace(`\nTASK_END:${intent.taskSha256}`, '')), false, 'missing end fence');
 assert.equal(proves(prompt.replace('TASK_BEGIN', 'broken TASK_BEGIN')), false);
 assert.equal(proves(prompt + '\nWORKER_TASK_V1\nTASK_END'), false, 'extra delimiter cannot hide duplicate');
 assert.equal(proves(prompt + `\nTASK_END:${intent.taskSha256}`), false, 'duplicate digest fence');
@@ -98,7 +109,7 @@ assert.equal(policy.exactPromptMatches(prompt + '\nExpand', prompt), false);
 
     def test_disabled_ineligible_editors_cannot_prove_cleanup(self) -> None:
         self.run_node(r"""
-users = [user(`WORKER_TASK_V1\ndelegation_id=${intent.delegationId}\ndelivery_id=${intent.deliveryId}\ntask_sha256=${intent.taskSha256}`)];
+users = [user(fencedCorrelation)];
 assert.equal(policy.armPostDeliveryUiGuard(intent), true);
 for (const [attrs, props] of [
   [{'aria-disabled': 'true'}, {}], [{}, {disabled: true}],
@@ -129,7 +140,7 @@ for (const attrs of [{}, {'aria-disabled': 'true'}]) {
 
     def test_capture_rechecks_current_delivery_correlation(self) -> None:
         self.run_node(r"""
-const text = `WORKER_TASK_V1\ndelegation_id=${intent.delegationId}\ndelivery_id=${intent.deliveryId}\ntask_sha256=${intent.taskSha256}`;
+const text = fencedCorrelation;
 users = [user(text)];
 assert.equal(policy.armPostDeliveryUiGuard(intent), true);
 poll(); now += 9000; poll(); assert.ok(policy.captureAuthorization());
@@ -149,3 +160,7 @@ for (const replacement of [[], [user(text.replace(intent.deliveryId, '0'.repeat(
   assert.equal(policy.captureAuthorization(), null, 'current visible correlation required');
 }
 """)
+
+
+if __name__ == "__main__":
+    unittest.main()
