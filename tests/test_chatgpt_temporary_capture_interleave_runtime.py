@@ -34,6 +34,9 @@ const prompt = [
   `delegation_id=${{delegationId}}`,
   `delivery_id=${{deliveryId}}`,
   `task_sha256=${{taskSha}}`,
+  `TASK_BEGIN:${{taskSha}}`,
+  "bounded task body",
+  `TASK_END:${{taskSha}}`,
   "CAP_WORKER_RESULT_V1_BEGIN",
   "CAP_WORKER_RESULT_V1_END",
 ].join("\\n");
@@ -70,8 +73,8 @@ const editor = {{
 const userTurn = {{
   isConnected: true,
   getBoundingClientRect() {{ return {{width: 500, height: 80}}; }},
-  innerText: `WORKER_TASK_V1\\ndelegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
-  textContent: "",
+  innerText: prompt,
+  textContent: prompt,
 }};
 
 global.location = {{ get href() {{ return href; }} }};
@@ -103,31 +106,25 @@ if (!intent.enabled) process.exit(9);
 if (!CAPChatGPTTemporaryPolicy.armPostDeliveryUiGuard(intent)) process.exit(10);
 if (typeof intervalFn !== "function") process.exit(11);
 
-// Begin and complete the first uninterrupted clean interval.
 intervalFn();
 now = 9501;
 intervalFn();
 if (!CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(12);
 
-// Restore the exact bound draft without giving the 500 ms poll another turn.
-// The synchronous capture path sees it and must invalidate the old ACK/token.
 editor.textContent = prompt;
 editor.innerText = prompt;
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(13);
 
-// Clearing immediately is not enough: the old ACK/token is no longer authoritative.
 editor.textContent = "";
 editor.innerText = "";
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(14);
 
-// A new clean interval begins only when the guard observes clean state again.
 now = 9600;
 intervalFn();
 now = 17599;
 intervalFn();
 if (CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(15);
 
-// Only after a fresh >8-second uninterrupted interval and ACK may capture reopen.
 now = 17601;
 intervalFn();
 if (!CAPChatGPTTemporaryPolicy.hasSingleResultBlock(result)) process.exit(16);
