@@ -38,11 +38,19 @@ const delegationId = "a".repeat(64);
 const deliveryId = "b".repeat(64);
 const taskSha = "c".repeat(64);
 const intent = {{ delegationId, deliveryId, taskSha256: taskSha }};
-const base = `WORKER_TASK_V1\n\ndelegation_id=${{delegationId}}\ndelivery_id=${{deliveryId}}\ntask_sha256=${{taskSha}}\n\nDo one bounded task.`;
+const base = [
+  "WORKER_TASK_V1",
+  `delegation_id=${{delegationId}}`,
+  `delivery_id=${{deliveryId}}`,
+  `task_sha256=${{taskSha}}`,
+  `TASK_BEGIN:${{taskSha}}`,
+  "Do one bounded task.",
+  `TASK_END:${{taskSha}}`,
+].join("\n");
 let userNodes = [];
 const context = {{
   console,
-  getComputedStyle() {{ return {{visibility: "visible", display: "block"}}; }},
+  getComputedStyle() {{ return {{visibility: "visible", display: "block", opacity: "1"}}; }},
   document: {{
     querySelectorAll(selector) {{
       if (selector.includes('data-message-author-role="user"')) return userNodes;
@@ -69,6 +77,8 @@ if (proves(base.replace(`delivery_id=${{deliveryId}}`, `xdelivery_id=${{delivery
 if (proves(base.replace(`delivery_id=${{deliveryId}}`, `delivery_id=${{deliveryId}}\ndelivery_id=${{deliveryId}}`))) process.exit(75);
 if (proves(base.replace(`task_sha256=${{taskSha}}\n`, ""))) process.exit(76);
 if (proves(base.replace("WORKER_TASK_V1", "prefix-WORKER_TASK_V1"))) process.exit(77);
+if (proves(base.replace(`TASK_BEGIN:${{taskSha}}\n`, ""))) process.exit(81);
+if (proves(base.replace(`\nTASK_END:${{taskSha}}`, ""))) process.exit(82);
 
 const malformed = base.replace(`delivery_id=${{deliveryId}}`, `delivery_id=${{deliveryId}}suffix`);
 if (proves(base, [base, malformed])) process.exit(78);
@@ -117,7 +127,7 @@ let primary = null;
 let editors = [];
 const context = {{
   console,
-  getComputedStyle(node) {{ return {{ visibility: "visible", display: "block" }}; }},
+  getComputedStyle(node) {{ return {{ visibility: "visible", display: "block", opacity: "1" }}; }},
   document: {{
     querySelector(selector) {{ return selector === "#prompt-textarea" ? primary : null; }},
     querySelectorAll() {{ return editors; }},
@@ -133,21 +143,17 @@ const activeDirty = editor({{ text: "UNSAFE ACTIVE COMPOSER" }});
 primary = hiddenStale;
 editors = [hiddenStale, activeDirty];
 if (state().clean !== false || state().editor !== activeDirty) process.exit(71);
-
 const activeEmpty = editor({{ text: "" }});
 editors = [hiddenStale, activeEmpty];
 if (state().clean !== true || state().editor !== activeEmpty) process.exit(72);
-
 const secondLive = editor({{ text: "" }});
 primary = activeEmpty;
 editors = [activeEmpty, secondLive];
 if (state().clean !== false || state().editor !== null) process.exit(73);
-
 const hiddenOnly = editor({{ text: "", ariaHidden: true }});
 primary = hiddenOnly;
 editors = [hiddenOnly];
 if (state().clean !== false || state().editor !== null) process.exit(74);
-
 const ownerless = editor({{ text: "", formOwner: null }});
 primary = ownerless;
 editors = [ownerless];
