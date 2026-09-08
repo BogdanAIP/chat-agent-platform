@@ -23,14 +23,25 @@
     "delivery_id=",
     "task_sha256=",
   ];
+  const CAPTURE_AUTHORITY_SELECTOR = [
+    '[data-message-author-role="user"]',
+    '[data-message-author-role="assistant"]',
+    '#prompt-textarea',
+    '[contenteditable="true"]',
+    'textarea',
+    'button[data-testid="stop-button"]',
+  ].join(",");
   let postDeliveryUiDisarmed = false;
   let postDeliveryCleanupToken = null;
   let browserGuardRequired = false;
   let postDeliveryGuardIntent = null;
   let postDeliveryGuardInterval = null;
+  let postDeliveryGuardObserver = null;
   let postDeliveryStableSince = 0;
   let postDeliveryAckPending = false;
   let postDeliveryGuardEpoch = 0;
+  let postDeliveryAssistantSnapshotEpoch = null;
+  let postDeliveryAssistantSnapshotText = "";
 
   function parseIntent(urlString) {
     let url;
@@ -98,8 +109,6 @@
     const lines = canonicalPromptText(text).split("\n");
     const start = lines.findIndex((line) => correlationCandidateText(line));
     if (start < 0 || lines[start] !== "WORKER_TASK_V1") return false;
-    // Parse the outer header in order before considering any task data. A
-    // missing/invalid header field can never be supplied by the task body.
     let cursor = start + 1;
     if (lines[cursor] === "") cursor += 1;
     if (lines[cursor++] !== `delegation_id=${intent.delegationId}`) return false;
@@ -111,9 +120,6 @@
     }
     if (lines[cursor++] !== `task_sha256=${intent.taskSha256}`) return false;
 
-    // The producer binds both body fences to the existing task digest. Require
-    // one exact pair: arbitrary literal delimiters in task data cannot extend
-    // the envelope or hide malformed/duplicate markers outside the body.
     const beginMarker = `TASK_BEGIN:${intent.taskSha256}`;
     const endMarker = `TASK_END:${intent.taskSha256}`;
     const begins = lines.flatMap((line, index) => line.includes(beginMarker) ? [index] : []);
@@ -144,11 +150,6 @@
   }
 
   function hasExpectedPrompt(text, intent) {
-    // After the one exact pre-Send composer proof, provider UI may decorate the
-    // rendered user turn. Correlation therefore accepts unrelated decoration,
-    // but only around one exact outer task header. Task-body markers are data. Prefix/suffix,
-    // malformed/duplicate markers and multiple correlated candidate turns fail
-    // closed instead of being projected away by substring matching.
     if (!exactTaskCorrelationShape(text, intent)) return false;
     const visible = visibleUserCorrelationState(intent);
     if (visible === null || visible.candidateCount === 0) return true;
@@ -197,10 +198,16 @@
     return !before && !after;
   }
 
+  function resetAssistantCaptureSnapshot() {
+    postDeliveryAssistantSnapshotEpoch = null;
+    postDeliveryAssistantSnapshotText = "";
+  }
+
   function resetPostDeliveryStability() {
     postDeliveryUiDisarmed = false;
     postDeliveryCleanupToken = null;
     postDeliveryStableSince = 0;
+    resetAssistantCaptureSnapshot();
     postDeliveryGuardEpoch += 1;
   }
 
@@ -216,6 +223,23 @@
       guardLaunchUrlClean() && guardComposerState(postDeliveryGuardIntent).clean;
   }
 
+  function currentAssistantResultText() {
+    if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return null;
+    const turns = [...document.querySelectorAll('[data-message-author-role="assistant"]')];
+    if (turns.length === 0) return null;
+    const last = turns.at(-1);
+    return String(last?.innerText || last?.textContent || "").replace(/\u0000/g, "").trim();
+  }
+
+  function guardStopButtonPresent() {
+    if (typeof document === "undefined" || typeof document.querySelector !== "function") return false;
+    if (document.querySelector('button[data-testid="stop-button"]')) return true;
+    if (typeof document.querySelectorAll !== "function") return false;
+    return [...document.querySelectorAll("button")].some((button) =>
+      /^(stop|останов)/i.test(String(button?.getAttribute?.("aria-label") || button?.textContent || "").trim()),
+    );
+  }
+
   function captureAuthorization() {
     if (!browserGuardRequired || !postDeliveryGuardIntent || !postDeliveryUiDisarmed) return null;
     if (!HEX64_RE.test(postDeliveryCleanupToken || "")) return null;
@@ -223,6 +247,26 @@
       resetPostDeliveryStability();
       return null;
     }
+
+    const assistantText = currentAssistantResultText();
+    if (assistantText !== null) {
+      if (!assistantText || guardStopButtonPresent()) {
+        resetPostDeliveryStability();
+        return null;
+      }
+      if (
+        postDeliveryAssistantSnapshotEpoch === postDeliveryGuardEpoch &&
+        postDeliveryAssistantSnapshotText !== assistantText
+      ) {
+        resetPostDeliveryStability();
+        return null;
+      }
+      if (postDeliveryAssistantSnapshotEpoch !== postDeliveryGuardEpoch) {
+        postDeliveryAssistantSnapshotEpoch = postDeliveryGuardEpoch;
+        postDeliveryAssistantSnapshotText = assistantText;
+      }
+    }
+
     return {
       cleanupToken: postDeliveryCleanupToken,
       guardEpoch: postDeliveryGuardEpoch,
@@ -261,8 +305,6 @@
 
   function eligibleComposerEditor(editor) {
     if (!guardVisible(editor)) return false;
-    // Disabled/read-only/inert state applies to contenteditable as well as
-    // native controls, including inherited accessibility/container state.
     for (let node = editor; node; node = node.parentElement) {
       if (node.hidden || node.inert || node.disabled || node.readOnly ||
           ["aria-hidden", "aria-disabled", "aria-readonly"].some((name) =>
@@ -292,9 +334,6 @@
       candidates.push(editor);
     }
 
-    // The post-delivery guard must bind the same way as pre-Send authority:
-    // exactly one live/current editor. Hidden/stale or multiple live editors
-    // cannot prove cleanup/capture safety.
     return candidates.length === 1 ? candidates[0] : null;
   }
 
@@ -421,6 +460,61 @@
       HEAD40_RE.test(intent.expectedHead || "");
   }
 
+  function authorityElement(node) {
+    if (!node) return null;
+    if (node.nodeType === 1) return node;
+    return node.parentElement || null;
+  }
+
+  function authorityNode(node, includeDescendants) {
+    const element = authorityElement(node);
+    if (!element) return false;
+    if (element.matches?.(CAPTURE_AUTHORITY_SELECTOR) || element.closest?.(CAPTURE_AUTHORITY_SELECTOR)) {
+      return true;
+    }
+    return Boolean(includeDescendants && element.querySelector?.(CAPTURE_AUTHORITY_SELECTOR));
+  }
+
+  function authorityMutation(records) {
+    for (const record of records || []) {
+      if (authorityNode(record.target, false)) return true;
+      for (const node of record.addedNodes || []) {
+        if (authorityNode(node, true)) return true;
+      }
+      for (const node of record.removedNodes || []) {
+        if (authorityNode(node, true)) return true;
+      }
+    }
+    return false;
+  }
+
+  function ensurePostDeliveryMutationGuard() {
+    if (postDeliveryGuardObserver || typeof MutationObserver === "undefined" || !document?.documentElement) {
+      return;
+    }
+    postDeliveryGuardObserver = new MutationObserver((records) => {
+      if (authorityMutation(records)) resetPostDeliveryStability();
+    });
+    postDeliveryGuardObserver.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: [
+        "aria-hidden",
+        "aria-disabled",
+        "aria-readonly",
+        "contenteditable",
+        "disabled",
+        "readonly",
+        "hidden",
+        "inert",
+        "style",
+        "class",
+      ],
+    });
+  }
+
   function armPostDeliveryUiGuard(intent) {
     if (
       typeof document === "undefined" ||
@@ -443,6 +537,7 @@
       promptSha256: intent.promptSha256,
     };
     resetPostDeliveryStability();
+    ensurePostDeliveryMutationGuard();
 
     postDeliveryGuardInterval = setInterval(() => {
       if (!guardDeliveryVisible(postDeliveryGuardIntent)) {
