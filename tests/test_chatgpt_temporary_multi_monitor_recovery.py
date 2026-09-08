@@ -334,11 +334,20 @@ const editor = {{
   getAttribute(name) {{ return name === "contenteditable" ? "true" : null; }},
   closest(selector) {{ return selector === "form" ? form : null; }},
 }};
+const userText = [
+  "WORKER_TASK_V1",
+  `delegation_id=${{delegationId}}`,
+  `delivery_id=${{deliveryId}}`,
+  `task_sha256=${{taskSha}}`,
+  `TASK_BEGIN:${{taskSha}}`,
+  "bounded task body",
+  `TASK_END:${{taskSha}}`,
+].join("\\n");
 const userTurn = {{
   isConnected: true,
   getBoundingClientRect() {{ return {{width: 500, height: 80}}; }},
-  innerText: `WORKER_TASK_V1\\ndelegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
-  textContent: "",
+  innerText: userText,
+  textContent: userText,
 }};
 
 global.location = {{ get href() {{ return href; }} }};

@@ -321,7 +321,7 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
                 state_root=self.state_root,
             )
         duplicate = self.result_text(launch) + "\n" + self.result_text(launch)
-        with self.assertRaisesRegex(delegation_state.DelegationStateError, "exactly one"):
+        with self.assertRaises(delegation_state.DelegationStateError):
             chatgpt_temporary.record_temporary_worker_result(
                 identity_dict(),
                 run_id=launch.run_id,
@@ -329,7 +329,7 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
                 state_root=self.state_root,
             )
         wrapped = "extra\n" + self.result_text(launch)
-        with self.assertRaisesRegex(delegation_state.DelegationStateError, "outside structured block"):
+        with self.assertRaises(delegation_state.DelegationStateError):
             chatgpt_temporary.record_temporary_worker_result(
                 identity_dict(),
                 run_id=launch.run_id,

@@ -269,8 +269,10 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         for phrase in (
             'const RESULT_BEGIN = "CAP_WORKER_RESULT_V1_BEGIN"',
             'const RESULT_END = "CAP_WORKER_RESULT_V1_END"',
-            "beginCount !== 1 || endCount !== 1",
-            "return !before && !after",
+            'const lines = value.split("\\n");',
+            "lines[0] !== RESULT_BEGIN",
+            "lines.at(-1) !== RESULT_END",
+            "const parsed = JSON.parse(body);",
         ):
             self.assertIn(phrase, self.policy)
         self.assertIn("if (!policy.hasSingleResultBlock(last)) return;", self.content)

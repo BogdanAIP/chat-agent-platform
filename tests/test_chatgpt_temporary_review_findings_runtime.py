@@ -442,11 +442,23 @@ let invalidations = 0;
 let durableRecorded = false;
 let captureAuthorization = {{ cleanupToken }};
 const stoppedEvents = [];
+function rect() {{ return {{ width: 500, height: 80 }}; }}
 const userTurn = {{
   innerText: `delegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}`,
   textContent: "",
+  isConnected: true,
+  parentElement: null,
+  getBoundingClientRect: rect,
+  getAttribute() {{ return null; }},
 }};
-const assistantTurn = {{ innerText: resultText, textContent: resultText }};
+const assistantTurn = {{
+  innerText: resultText,
+  textContent: resultText,
+  isConnected: true,
+  parentElement: null,
+  getBoundingClientRect: rect,
+  getAttribute() {{ return null; }},
+}};
 
 const policy = {{
   HEX64_RE: /^[0-9a-f]{{64}}$/,
@@ -466,6 +478,7 @@ global.CAPChatGPTTemporaryPolicy = policy;
 global.CAPChatGPTTemporaryExecutionGeneration = generation;
 global.location = {{ href: `https://chatgpt.com/c/${{conversationId}}`, origin: "https://chatgpt.com" }};
 global.history = {{ state: null, replaceState() {{}} }};
+global.getComputedStyle = () => ({{ visibility: "visible", display: "block", opacity: "1" }});
 global.document = {{
   querySelector() {{ return null; }},
   querySelectorAll(selector) {{
