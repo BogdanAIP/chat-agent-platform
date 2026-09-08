@@ -477,7 +477,11 @@
 
   function authorityMutation(records) {
     for (const record of records || []) {
-      if (authorityNode(record.target, false)) return true;
+      // Attribute changes on an ancestor are authority-relevant whenever that
+      // ancestor contains a correlated turn, composer/editor, or stop control.
+      // guardVisible()/eligibleComposerEditor() intentionally walk ancestors,
+      // so the mutation classifier must use the same containment direction.
+      if (authorityNode(record.target, record.type === "attributes")) return true;
       for (const node of record.addedNodes || []) {
         if (authorityNode(node, true)) return true;
       }
