@@ -182,10 +182,16 @@
     }
 
     function visible(node) {
-      if (!node?.isConnected) return false;
+      if (!node?.isConnected || typeof node.getBoundingClientRect !== "function") return false;
       const rect = node.getBoundingClientRect();
-      const style = getComputedStyle(node);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      if (!(rect.width > 0 && rect.height > 0)) return false;
+      for (let current = node; current; current = current.parentElement) {
+        const style = getComputedStyle(current);
+        if (current.hidden || current.inert || current.getAttribute?.("aria-hidden") === "true" ||
+            ["hidden", "collapse"].includes(style.visibility) || style.display === "none" ||
+            style.opacity === "0") return false;
+      }
+      return true;
     }
 
     function candidateText(node) {
@@ -402,6 +408,13 @@
 
     function conversationTurns(role) {
       return [...document.querySelectorAll(`[data-message-author-role="${role}"]`)]
+        .map((node) => normalizeFull(node.innerText || node.textContent || ""))
+        .filter(Boolean);
+    }
+
+    function visibleConversationTurns(role) {
+      return [...document.querySelectorAll(`[data-message-author-role="${role}"]`)]
+        .filter((node) => visible(node))
         .map((node) => normalizeFull(node.innerText || node.textContent || ""))
         .filter(Boolean);
     }
@@ -678,7 +691,7 @@
         if (deliveryState !== "delivered") return;
         const requestId = status.final_observation_request_id;
         if (!policy.HEX64_RE.test(requestId || "") || requestId === finalObservationSentFor) return;
-        const turns = conversationTurns("assistant");
+        const turns = visibleConversationTurns("assistant");
         const last = turns.at(-1) || "";
         const response = await sendMessage("final-observation", {
           request_id: requestId,
@@ -720,6 +733,17 @@
           stop("prompt-binding-changed-before-send");
           return;
         }
+        const currentQualification = observeTemporaryState(composer);
+        if (
+          !currentQualification.temporary_mode ||
+          !currentQualification.fresh_context ||
+          currentQualification.personalization_disabled !== true ||
+          currentQualification.plugin_markers.length > 0
+        ) {
+          event("temporary-ui-changed-before-send", currentQualification);
+          stop("child-qualification-changed-before-send", currentQualification);
+          return;
+        }
         sendClickedAt = Date.now();
         event("send-clicked", { at_ms: sendClickedAt });
         button.click();
@@ -742,7 +766,7 @@
       if (deliveryState !== "delivered") return;
       if (!ensurePostDeliveryCleanup()) return;
       if (stopButtonPresent()) return;
-      const turns = conversationTurns("assistant");
+      const turns = visibleConversationTurns("assistant");
       const last = turns.at(-1) || "";
       if (!last) return;
       if (last !== lastAssistantText) {

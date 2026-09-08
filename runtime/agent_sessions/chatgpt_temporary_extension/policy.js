@@ -31,6 +31,7 @@
     'textarea',
     'button[data-testid="stop-button"]',
   ].join(",");
+  const STOP_AUTHORITY_ATTRIBUTES = new Set(["aria-label", "data-testid"]);
   let postDeliveryUiDisarmed = false;
   let postDeliveryCleanupToken = null;
   let browserGuardRequired = false;
@@ -126,12 +127,19 @@
     const ends = lines.flatMap((line, index) => line.includes(endMarker) ? [index] : []);
     const begin = begins[0] ?? -1;
     const end = ends[0] ?? -1;
-    if (lines.some((line) => /TASK_BEGIN|TASK_END/.test(line))) {
-      if (begins.length !== 1 || ends.length !== 1 || begin < cursor || end <= begin ||
-          lines[begin] !== beginMarker || lines[end] !== endMarker) return false;
-    }
-    const outside = [...lines.slice(0, start), ...lines.slice(cursor, begin < 0 ? lines.length : begin),
-      ...(end < 0 ? [] : lines.slice(end + 1))];
+    if (
+      begins.length !== 1 ||
+      ends.length !== 1 ||
+      begin < cursor ||
+      end <= begin ||
+      lines[begin] !== beginMarker ||
+      lines[end] !== endMarker
+    ) return false;
+    const outside = [
+      ...lines.slice(0, start),
+      ...lines.slice(cursor, begin),
+      ...lines.slice(end + 1),
+    ];
     return outside.every((line) => !correlationCandidateText(line) &&
       !line.includes("TASK_BEGIN") && !line.includes("TASK_END"));
   }
@@ -188,14 +196,17 @@
   }
 
   function singleResultBlockShape(text) {
-    const value = String(text || "").trim();
-    const beginCount = value.split(RESULT_BEGIN).length - 1;
-    const endCount = value.split(RESULT_END).length - 1;
-    if (beginCount !== 1 || endCount !== 1) return false;
-    const before = value.slice(0, value.indexOf(RESULT_BEGIN)).trim();
-    const endIndex = value.indexOf(RESULT_END);
-    const after = value.slice(endIndex + RESULT_END.length).trim();
-    return !before && !after;
+    const value = canonicalPromptText(String(text || "").trim());
+    const lines = value.split("\n");
+    if (lines.length < 3 || lines[0] !== RESULT_BEGIN || lines.at(-1) !== RESULT_END) return false;
+    const body = lines.slice(1, -1).join("\n").trim();
+    if (!body) return false;
+    try {
+      const parsed = JSON.parse(body);
+      return Boolean(parsed) && typeof parsed === "object" && !Array.isArray(parsed);
+    } catch {
+      return false;
+    }
   }
 
   function resetAssistantCaptureSnapshot() {
@@ -224,10 +235,12 @@
   }
 
   function currentAssistantResultText() {
-    if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return null;
+    if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return undefined;
     const turns = [...document.querySelectorAll('[data-message-author-role="assistant"]')];
-    if (turns.length === 0) return null;
-    const last = turns.at(-1);
+    if (turns.length === 0) return undefined;
+    const visibleTurns = turns.filter((node) => guardVisible(node));
+    if (visibleTurns.length === 0) return null;
+    const last = visibleTurns.at(-1);
     return String(last?.innerText || last?.textContent || "").replace(/\u0000/g, "").trim();
   }
 
@@ -253,7 +266,11 @@
     }
 
     const assistantText = currentAssistantResultText();
-    if (assistantText !== null) {
+    if (assistantText === null) {
+      resetPostDeliveryStability();
+      return null;
+    }
+    if (assistantText !== undefined) {
       if (!assistantText || guardStopButtonPresent()) {
         resetPostDeliveryStability();
         return null;
@@ -479,18 +496,43 @@
     return Boolean(includeDescendants && element.querySelector?.(CAPTURE_AUTHORITY_SELECTOR));
   }
 
+  function stopAuthorityMutation(record) {
+    const element = authorityElement(record?.target);
+    if (!element) return false;
+    const button = String(element.tagName || "").toUpperCase() === "BUTTON"
+      ? element
+      : element.closest?.("button");
+    if (!button) return false;
+    if (record.type === "attributes") return STOP_AUTHORITY_ATTRIBUTES.has(record.attributeName);
+    return record.type === "characterData" || record.type === "childList";
+  }
+
+  function stopControlNode(node, includeDescendants) {
+    const element = authorityElement(node);
+    if (!element) return false;
+    const candidates = [];
+    if (String(element.tagName || "").toUpperCase() === "BUTTON") candidates.push(element);
+    if (includeDescendants && typeof element.querySelectorAll === "function") {
+      candidates.push(...element.querySelectorAll("button"));
+    }
+    return candidates.some((button) =>
+      /^(stop|останов)/i.test(String(button?.getAttribute?.("aria-label") || button?.textContent || "").trim()),
+    );
+  }
+
   function authorityMutation(records) {
     for (const record of records || []) {
       // Attribute changes on an ancestor are authority-relevant whenever that
       // ancestor contains a correlated turn, composer/editor, or stop control.
       // guardVisible()/eligibleComposerEditor() intentionally walk ancestors,
       // so the mutation classifier must use the same containment direction.
+      if (stopAuthorityMutation(record)) return true;
       if (authorityNode(record.target, record.type === "attributes")) return true;
       for (const node of record.addedNodes || []) {
-        if (authorityNode(node, true)) return true;
+        if (stopControlNode(node, true) || authorityNode(node, true)) return true;
       }
       for (const node of record.removedNodes || []) {
-        if (authorityNode(node, true)) return true;
+        if (stopControlNode(node, true) || authorityNode(node, true)) return true;
       }
     }
     return false;
@@ -520,6 +562,8 @@
         "aria-hidden",
         "aria-disabled",
         "aria-readonly",
+        "aria-label",
+        "data-testid",
         "contenteditable",
         "disabled",
         "readonly",

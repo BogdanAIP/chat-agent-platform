@@ -438,14 +438,16 @@ def normalize_worker_result_text(
     encoded = text.encode("utf-8")
     if len(encoded) > MAX_RESULT_TEXT_BYTES:
         raise DelegationStateError("worker result text exceeds accepted bound")
-    if text.count(RAW_RESULT_BEGIN) != 1 or text.count(RAW_RESULT_END) != 1:
+
+    normalized_text = text.strip().replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized_text.split("\n")
+    if len(lines) < 3 or lines[0] != RAW_RESULT_BEGIN or lines[-1] != RAW_RESULT_END:
         raise DelegationStateError("worker result must contain exactly one structured block")
-    before, remainder = text.split(RAW_RESULT_BEGIN, 1)
-    body, after = remainder.split(RAW_RESULT_END, 1)
-    if before.strip() or after.strip():
-        raise DelegationStateError("worker result contains content outside structured block")
+    body = "\n".join(lines[1:-1]).strip()
+    if not body:
+        raise DelegationStateError("worker result JSON is invalid")
     try:
-        raw = json.loads(body.strip())
+        raw = json.loads(body)
     except json.JSONDecodeError as exc:
         raise DelegationStateError("worker result JSON is invalid") from exc
     raw = _plain_object(raw, "worker result JSON")
