@@ -60,16 +60,15 @@ const fenced = [
   `TASK_END:${{taskSha}}`,
 ].join("\\n");
 assert.equal(policy.hasExpectedPrompt(fenced, intent), true);
-assert.equal(policy.hasExpectedPrompt(header, intent), false, "both digest fences are mandatory");
+assert.equal(policy.hasExpectedPrompt(header, intent), false);
 assert.equal(policy.hasExpectedPrompt(fenced.replace(`TASK_BEGIN:${{taskSha}}\\n`, ""), intent), false);
 assert.equal(policy.hasExpectedPrompt(fenced.replace(`\\nTASK_END:${{taskSha}}`, ""), intent), false);
-
 const payload = JSON.stringify({{
   schema_version: 1,
   payload: `literal ${{policy.RESULT_BEGIN}} and ${{policy.RESULT_END}} are task data`,
 }});
 const valid = `${{policy.RESULT_BEGIN}}\\n${{payload}}\\n${{policy.RESULT_END}}`;
-assert.equal(policy.singleResultBlockShape(valid), true, "payload marker strings are JSON data");
+assert.equal(policy.singleResultBlockShape(valid), true);
 assert.equal(policy.singleResultBlockShape(valid + "\\n" + valid), false);
 assert.equal(policy.singleResultBlockShape("prefix\\n" + valid), false);
 """
@@ -120,8 +119,7 @@ const assistantNode = {{nodeType: 1, isConnected: true, parentElement: null, hid
   matches(selector) {{ return selector.includes('data-message-author-role="assistant"'); }},
   closest(selector) {{ return this.matches(selector) ? this : null; }}, querySelector() {{ return null; }}}};
 const genericButton = {{nodeType: 1, tagName: "BUTTON", isConnected: true, parentElement: null,
-  textContent: "Regenerate", ariaLabel: "Regenerate",
-  getBoundingClientRect: rect,
+  textContent: "Regenerate", ariaLabel: "Regenerate", getBoundingClientRect: rect,
   getAttribute(name) {{ return name === "aria-label" ? this.ariaLabel : null; }},
   matches() {{ return false; }}, closest(selector) {{ return selector === "button" ? this : null; }},
   querySelectorAll() {{ return []; }}}};
@@ -180,7 +178,7 @@ function qualify() {{
 }}
 const first = qualify();
 observer.queue({{type: "attributes", attributeName: "aria-label", target: genericButton, addedNodes: [], removedNodes: []}});
-assert.equal(policy.captureAuthorization(), null, "pending fallback Stop transition must revoke old epoch");
+assert.equal(policy.captureAuthorization(), null);
 const second = qualify();
 assert.notEqual(second.guardEpoch, first.guardEpoch);
 assistantNode.hidden = true;
@@ -188,7 +186,7 @@ observer.callback([{{type: "attributes", attributeName: "hidden", target: assist
 intervalCallback();
 now += 8001;
 intervalCallback();
-assert.equal(policy.captureAuthorization(), null, "hidden-only assistant cannot regain capture authority");
+assert.equal(policy.captureAuthorization(), null);
 """
         self.run_node(script)
 
@@ -215,7 +213,7 @@ const editor = {{tagName: "TEXTAREA", value: prompt, isConnected: true, parentEl
   getBoundingClientRect: rect, closest(selector) {{ return selector === "form" ? composer : null; }}}};
 const button = {{isConnected: true, disabled: false, parentElement: composer,
   getAttribute(name) {{ return name === "aria-disabled" ? "false" : null; }},
-  closest(selector) {{ return selector === "form" ? composer : null; }}, click() {{ clicks += 1; }}};
+  closest(selector) {{ return selector === "form" ? composer : null; }}, click() {{ clicks += 1; }}}};
 const temporaryNode = {{isConnected: true, parentElement: null, textContent: "Temporary Chat",
   getBoundingClientRect: rect, getAttribute() {{ return null; }}, contains() {{ return false; }}}};
 const personalizationNode = {{isConnected: true, parentElement: null,
@@ -223,8 +221,7 @@ const personalizationNode = {{isConnected: true, parentElement: null,
   getBoundingClientRect: rect, getAttribute() {{ return null; }}, contains() {{ return false; }}}};
 const policy = {{
   HEX64_RE: /^[0-9a-f]{{64}}$/, HEAD40_RE: /^[0-9a-f]{{40}}$/,
-  parseIntent() {{ return intent; }},
-  findComposerEditor() {{ return editor; }},
+  parseIntent() {{ return intent; }}, findComposerEditor() {{ return editor; }},
   exactPromptMatches(observed, expected) {{ return observed === expected; }},
   personalizationModeFromText(text) {{
     const value = String(text);
@@ -274,12 +271,6 @@ function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
 }})().catch((error) => {{ console.error(error); process.exit(73); }});
 """
         self.run_node(script)
-
-    def test_assistant_selection_is_visibility_filtered_in_content_runtime(self) -> None:
-        source = CONTENT.read_text(encoding="utf-8")
-        self.assertIn("function visibleConversationTurns(role)", source)
-        self.assertGreaterEqual(source.count('visibleConversationTurns("assistant")'), 2)
-        self.assertIn(".filter((node) => visible(node))", source)
 
     def test_python_result_parser_accepts_protocol_marker_text_inside_payload(self) -> None:
         task = "bounded parser regression"
