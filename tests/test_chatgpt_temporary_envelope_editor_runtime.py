@@ -56,8 +56,11 @@ let now = 1000, poll;
 const ctx = {{console, URL, URLSearchParams, Date: {{now: () => now}},
   location: {{href: 'https://chatgpt.com/'}}, history: {{replaceState() {{}}}},
   getComputedStyle: n => n.style || ({{visibility: 'visible', display: 'block'}}),
-  document: {{querySelector: () => editors[0], querySelectorAll: s =>
-    s.includes('data-message-author-role') ? users : editors}},
+  document: {{
+    querySelector: s => s === '#prompt-textarea' ? editors[0] : null,
+    querySelectorAll: s => s.includes('data-message-author-role="user"') ? users :
+      (s.includes('data-message-author-role="assistant"') || s === 'button' ? [] : editors)
+  }},
   chrome: {{runtime: {{sendMessage(_m, cb) {{cb({{ok: true, cleanup_token: '8'.repeat(64)}});}}}}}},
   setInterval: fn => {{poll = fn; return 1;}}, clearInterval() {{}}}};
 ctx.globalThis = ctx;
@@ -83,7 +86,6 @@ for (const line of ['WORKER_TASK_V1', `delegation_id=${intent.delegationId}`,
   }
   assert.equal(proves(prompt + '\n' + line), false, 'duplicate after task');
 }
-// A field inside task data cannot repair a missing outer field or broken frame.
 assert.equal(proves(prompt.replace(`delivery_id=${intent.deliveryId}\n`, '')), false);
 assert.equal(proves(prompt.replace('TASK_BEGIN', 'broken TASK_BEGIN')), false);
 assert.equal(proves(prompt + '\nWORKER_TASK_V1\nTASK_END'), false, 'extra delimiter cannot hide duplicate');
@@ -127,7 +129,6 @@ for (const attrs of [{}, {'aria-disabled': 'true'}]) {
 
     def test_capture_rechecks_current_delivery_correlation(self) -> None:
         self.run_node(r"""
-// Use a simple task for the independent stale-correlation regression.
 const text = `WORKER_TASK_V1\ndelegation_id=${intent.delegationId}\ndelivery_id=${intent.deliveryId}\ntask_sha256=${intent.taskSha256}`;
 users = [user(text)];
 assert.equal(policy.armPostDeliveryUiGuard(intent), true);

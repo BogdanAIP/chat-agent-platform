@@ -46,82 +46,48 @@ function rect() {{ return {{width: 500, height: 80}}; }}
 function style() {{ return {{visibility: "visible", display: "block", opacity: "1"}}; }}
 
 const form = {{
-  nodeType: 1,
-  isConnected: true,
-  parentElement: null,
-  hidden: false,
-  inert: false,
-  getBoundingClientRect: rect,
-  getAttribute() {{ return null; }},
-  matches() {{ return false; }},
+  nodeType: 1, tagName: "FORM", isConnected: true, parentElement: null,
+  hidden: false, inert: false, getBoundingClientRect: rect,
+  getAttribute() {{ return null; }}, matches() {{ return false; }},
 }};
 const editor = {{
-  nodeType: 1,
-  tagName: "DIV",
-  isConnected: true,
-  parentElement: form,
-  hidden: false,
-  inert: false,
-  isContentEditable: true,
-  innerText: "",
-  textContent: "",
+  nodeType: 1, tagName: "DIV", isConnected: true, parentElement: form,
+  hidden: false, inert: false, isContentEditable: true, innerText: "", textContent: "",
   getBoundingClientRect: rect,
   getAttribute(name) {{ return name === "contenteditable" ? "true" : null; }},
-  closest(selector) {{ return selector === "form" ? form : null; }},
-  matches() {{ return false; }},
+  closest(selector) {{ return selector === "form" ? form : null; }}, matches() {{ return false; }},
 }};
 const userNode = {{
-  nodeType: 1,
-  isConnected: true,
-  parentElement: null,
-  innerText: userText,
-  textContent: userText,
+  nodeType: 1, isConnected: true, parentElement: null, innerText: userText, textContent: userText,
   getBoundingClientRect: rect,
-  getAttribute() {{ return null; }},
+  getAttribute(name) {{ return name === "data-message-author-role" ? "user" : null; }},
   matches(selector) {{ return selector.includes('data-message-author-role="user"'); }},
-  closest(selector) {{ return this.matches(selector) ? this : null; }},
-  querySelector() {{ return null; }},
+  closest(selector) {{ return this.matches(selector) ? this : null; }}, querySelector() {{ return null; }},
 }};
 const assistantNode = {{
-  nodeType: 1,
-  isConnected: true,
-  parentElement: null,
-  get innerText() {{ return assistantText; }},
-  get textContent() {{ return assistantText; }},
+  nodeType: 1, isConnected: true, parentElement: null,
+  get innerText() {{ return assistantText; }}, get textContent() {{ return assistantText; }},
   getBoundingClientRect: rect,
-  getAttribute() {{ return null; }},
+  getAttribute(name) {{ return name === "data-message-author-role" ? "assistant" : null; }},
   matches(selector) {{ return selector.includes('data-message-author-role="assistant"'); }},
-  closest(selector) {{ return this.matches(selector) ? this : null; }},
-  querySelector() {{ return null; }},
+  closest(selector) {{ return this.matches(selector) ? this : null; }}, querySelector() {{ return null; }},
 }};
-const root = {{
-  nodeType: 1,
-  matches() {{ return false; }},
-  closest() {{ return null; }},
-  querySelector() {{ return null; }},
-}};
-
-class FakeMutationObserver {{
-  constructor(callback) {{ mutationCallback = callback; }}
-  observe() {{}}
-}}
+const root = {{nodeType: 1, matches() {{ return false; }}, closest() {{ return null; }}, querySelector() {{ return null; }}}};
+class FakeMutationObserver {{ constructor(callback) {{ mutationCallback = callback; }} observe() {{}} }}
 
 const context = {{
-  console,
-  URL,
-  URLSearchParams,
+  console, URL, URLSearchParams,
   Date: class extends Date {{ static now() {{ return now; }} }},
   MutationObserver: FakeMutationObserver,
-  setInterval(callback) {{ intervalCallback = callback; return 1; }},
-  clearInterval() {{}},
+  setInterval(callback) {{ intervalCallback = callback; return 1; }}, clearInterval() {{}},
   getComputedStyle: style,
-  location: {{ href: "https://chatgpt.com/c/continuity-test", origin: "https://chatgpt.com" }},
-  history: {{ state: null, replaceState() {{}} }},
+  location: {{href: "https://chatgpt.com/c/continuity-test", origin: "https://chatgpt.com"}},
+  history: {{state: null, replaceState() {{}}}},
   document: {{
     documentElement: root,
     querySelector(selector) {{
       if (selector === "#prompt-textarea") return editor;
-      if (selector === 'button[data-testid="stop-button"]') return stopPresent ? {{}} : null;
+      if (selector === 'button[data-testid="stop-button"]') return stopPresent ? {{tagName: "BUTTON"}} : null;
       return null;
     }},
     querySelectorAll(selector) {{
@@ -132,15 +98,12 @@ const context = {{
       return [];
     }},
   }},
-  chrome: {{ runtime: {{
-    sendMessage(message, callback) {{
-      if (message.kind === "event" && message.event === "delivery-visible") {{
-        callback({{ok: true, cleanup_token: "9".repeat(64)}});
-        return;
-      }}
-      callback({{ok: true}});
-    }},
-  }}}},
+  chrome: {{runtime: {{sendMessage(message, callback) {{
+    if (message.kind === "event" && message.event === "delivery-visible") {{
+      callback({{ok: true, cleanup_token: "9".repeat(64)}}); return;
+    }}
+    callback({{ok: true}});
+  }}}}}},
 }};
 context.globalThis = context;
 vm.createContext(context);
@@ -151,7 +114,6 @@ assert.equal(policy.armPostDeliveryUiGuard(intent), true);
 assert.equal(typeof intervalCallback, "function");
 assert.equal(typeof mutationCallback, "function");
 
-// First uninterrupted 8-second qualification.
 intervalCallback();
 now = 9001;
 intervalCallback();
@@ -159,12 +121,9 @@ const first = policy.captureAuthorization();
 assert.ok(first);
 const firstEpoch = first.guardEpoch;
 
-// A transient relevant mutation is seen immediately even if the DOM is already
-// restored before the next 500ms poll. Old capture authority must disappear.
 mutationCallback([{{type: "childList", target: root, addedNodes: [], removedNodes: [userNode]}}]);
 assert.equal(policy.captureAuthorization(), null);
 
-// Requalify on a fresh uninterrupted interval.
 now = 10000;
 intervalCallback();
 now = 18001;
@@ -173,12 +132,9 @@ const second = policy.captureAuthorization();
 assert.ok(second);
 assert.notEqual(second.guardEpoch, firstEpoch);
 
-// The assistant result itself is part of current capture authority. A text
-// change must be detected synchronously even without waiting for the observer.
-assistantText = "CAP_WORKER_RESULT_V1_BEGIN\\n{{\"changed\":true}}\\nCAP_WORKER_RESULT_V1_END";
+assistantText = 'CAP_WORKER_RESULT_V1_BEGIN\\n{{"changed":true}}\\nCAP_WORKER_RESULT_V1_END';
 assert.equal(policy.captureAuthorization(), null);
 
-// Requalify again, then prove an active generating/stop state also fails closed.
 now = 19000;
 intervalCallback();
 now = 27001;
@@ -188,10 +144,7 @@ stopPresent = true;
 assert.equal(policy.captureAuthorization(), null);
 """
         completed = subprocess.run(
-            [self.node, "-e", script],
-            text=True,
-            capture_output=True,
-            check=False,
+            [self.node, "-e", script], text=True, capture_output=True, check=False,
         )
         self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
 
