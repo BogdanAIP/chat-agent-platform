@@ -32,9 +32,6 @@ class ChatGPTTemporaryDeliveryVisibilityRuntimeTests(unittest.TestCase):
         script = f"""
 const fs = require("fs");
 const vm = require("vm");
-// GitHub's Windows runner may materialize tracked JS with CRLF. Normalize only
-// the source text used to locate production function boundaries; this does not
-// change the behavior under test.
 const contentSource = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8").replace(/\\r\\n?/g, "\\n");
 const policySource = fs.readFileSync({json.dumps(str(POLICY))}, "utf8");
 
@@ -52,19 +49,22 @@ const snippet =
 const delegationId = "b".repeat(64);
 const deliveryId = "c".repeat(64);
 const taskSha = "d".repeat(64);
-const prompt = `WORKER_TASK_V1\\n\\ndelegation_id=${{delegationId}}\\ndelivery_id=${{deliveryId}}\\ntask_sha256=${{taskSha}}\\n\\nDo one bounded task.`;
+const prompt = [
+  "WORKER_TASK_V1",
+  `delegation_id=${{delegationId}}`,
+  `delivery_id=${{deliveryId}}`,
+  `task_sha256=${{taskSha}}`,
+  `TASK_BEGIN:${{taskSha}}`,
+  "Do one bounded task.",
+  `TASK_END:${{taskSha}}`,
+].join("\\n");
 let userText = prompt + "\\nРазвернуть";
 
 const context = {{
   console,
-  getComputedStyle() {{ return {{visibility: "visible", display: "block"}}; }},
+  getComputedStyle() {{ return {{visibility: "visible", display: "block", opacity: "1"}}; }},
   recovered: false,
-  intent: {{
-    prompt,
-    delegationId,
-    deliveryId,
-    taskSha256: taskSha,
-  }},
+  intent: {{ prompt, delegationId, deliveryId, taskSha256: taskSha }},
   document: {{
     querySelectorAll(selector) {{
       if (selector.includes('data-message-author-role="user"')) {{
@@ -83,10 +83,8 @@ vm.runInContext(snippet, context, {{ filename: "delivery-visibility-snippet.js" 
 
 if (typeof context.deliveryVisible !== "function") process.exit(71);
 if (context.deliveryVisible() !== true) process.exit(72);
-
 userText = userText.replace(`delivery_id=${{deliveryId}}`, `delivery_id=${{"e".repeat(64)}}`);
 if (context.deliveryVisible() !== false) process.exit(73);
-
 userText = prompt + "\\nExpand";
 context.recovered = true;
 if (context.deliveryVisible() !== false) process.exit(74);
