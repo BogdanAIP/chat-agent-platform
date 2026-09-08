@@ -243,6 +243,10 @@
   function captureAuthorization() {
     if (!browserGuardRequired || !postDeliveryGuardIntent || !postDeliveryUiDisarmed) return null;
     if (!HEX64_RE.test(postDeliveryCleanupToken || "")) return null;
+    // MutationObserver callbacks are microtask-delivered. Drain any qualifying
+    // records already detected but not yet callback-processed before returning
+    // the authority used by the immediately following one-time capture dispatch.
+    if (!flushPendingPostDeliveryMutations()) return null;
     if (!currentPostDeliveryUiClean()) {
       resetPostDeliveryStability();
       return null;
@@ -489,6 +493,14 @@
         if (authorityNode(node, true)) return true;
       }
     }
+    return false;
+  }
+
+  function flushPendingPostDeliveryMutations() {
+    if (!postDeliveryGuardObserver || typeof postDeliveryGuardObserver.takeRecords !== "function") return true;
+    const pending = postDeliveryGuardObserver.takeRecords();
+    if (!authorityMutation(pending)) return true;
+    resetPostDeliveryStability();
     return false;
   }
 
