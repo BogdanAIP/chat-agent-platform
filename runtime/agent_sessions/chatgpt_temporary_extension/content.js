@@ -607,6 +607,7 @@
         postDeliveryCleanupComplete = false;
         return;
       }
+      const captureGuardEpoch = authorization.guardEpoch;
       captureStarted = true;
       const prepared = await sendMessage("prepare-capture", {
         cleanup_token: authorization.cleanupToken,
@@ -619,7 +620,11 @@
         return;
       }
       const current = policy.captureAuthorization();
-      if (!current || current.cleanupToken !== authorization.cleanupToken) {
+      if (
+        !current ||
+        current.cleanupToken !== authorization.cleanupToken ||
+        current.guardEpoch !== captureGuardEpoch
+      ) {
         resetCaptureAuthority();
         return;
       }
