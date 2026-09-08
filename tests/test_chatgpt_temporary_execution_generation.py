@@ -13,6 +13,7 @@ GENERATION_INPUTS = (
     "manifest.json",
     "execution_generation.js",
     "policy.js",
+    "capture_continuity.js",
     "background.js",
     "content.js",
 )
@@ -63,13 +64,16 @@ class ChatGPTTemporaryExecutionGenerationTests(unittest.TestCase):
         self.assertIn('"' + ("0" * 64) + '"', normalized)
         self.assertIn("CAP_AGENT_LOOPBACK_AUTH_V1", normalized)
 
-    def test_generation_executes_before_policy_content_and_background_logic(self) -> None:
+    def test_generation_executes_before_policy_continuity_content_and_background_logic(self) -> None:
         manifest = json.loads((EXTENSION / "manifest.json").read_text(encoding="utf-8"))
         scripts = manifest["content_scripts"][0]["js"]
         self.assertEqual(
-            ["execution_generation.js", "policy.js", "content.js"],
+            ["execution_generation.js", "policy.js", "capture_continuity.js", "content.js"],
             scripts,
         )
+        continuity = (EXTENSION / "capture_continuity.js").read_text(encoding="utf-8")
+        self.assertIn("MutationObserver", continuity)
+        self.assertIn("captureAuthorization", continuity)
         background = (EXTENSION / "background.js").read_text(encoding="utf-8")
         self.assertTrue(background.startswith('importScripts("execution_generation.js");'))
         self.assertIn("execution_generation: EXECUTION_GENERATION", background)
