@@ -131,10 +131,19 @@ function Complete-CapUpdateTrayOperation {
     }
 
     if ($null -ne $result -and [string]$result.status -eq 'blocked') {
-        Show-CapUpdateTrayBalloon `
-            -Title 'Chat Agent Platform — обновление заблокировано' `
-            -Text 'Удалённый main не является продолжением установленной версии.' `
-            -Milliseconds 5000
+        $reason = [string]$result.reason
+        if ($reason -ceq 'target_missing_self_update_contract') {
+            Show-CapUpdateTrayBalloon `
+                -Title 'Chat Agent Platform — обновление отложено' `
+                -Text 'Доступный main ещё не содержит встроенный обновлятор. Ничего не изменено.' `
+                -Milliseconds 5000
+        }
+        else {
+            Show-CapUpdateTrayBalloon `
+                -Title 'Chat Agent Platform — обновление заблокировано' `
+                -Text 'Удалённый main не является продолжением установленной версии.' `
+                -Milliseconds 5000
+        }
         return
     }
 
