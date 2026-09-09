@@ -150,7 +150,7 @@ class SourceCodeResearchContractTests(unittest.TestCase):
     def test_reuse_baseline_records_codex_reference_in_the_correct_columns(self) -> None:
         baseline = BASELINE.read_text(encoding="utf-8")
         rows = _reuse_baseline_rows(baseline)
-        role = "Agent session / long-lived host lifecycle and orchestration"
+        role = "External agent-host/session lifecycle reference"
         self.assertIn(role, rows)
 
         row = rows[role]
@@ -162,14 +162,14 @@ class SourceCodeResearchContractTests(unittest.TestCase):
 
         self.assertIn("`openai/codex`", source)
         self.assertIn("source-code reference implementation", source)
-        self.assertIn("not a selected runtime dependency", source)
+        self.assertIn("not runtime dependency", source)
 
         for phrase in (
             "App Server/thread lifecycle",
             "resume/fork",
-            "WorldState/Persistent context transitions",
-            "agent-graph parent/child ownership",
-            "async user messaging",
+            "persistent context transitions",
+            "parent/child ownership/restoration",
+            "async messaging patterns",
         ):
             with self.subTest(intended=phrase):
                 self.assertIn(phrase, intended_reuse)
@@ -180,13 +180,14 @@ class SourceCodeResearchContractTests(unittest.TestCase):
             "Verification Kernel",
             "Finish Gate",
             "capability grants",
-            "bounded public semantic surface",
-            "unresolved wake/scheduler semantics",
+            "bounded public surface",
+            "Codex tool/planner authority",
         ):
             with self.subTest(not_delegated=phrase):
                 self.assertIn(phrase, not_delegated)
 
         self.assertIn("`CODEX_AGENT_HOST_SOURCE_REVIEW.md`", detailed_owner)
+        self.assertIn("`AGENT_SESSION_DELEGATION_REENTRY.md`", detailed_owner)
         self.assertEqual(posture, "`REFERENCE_REVALIDATE_PER_STAGE`")
 
         self.assertIn(".agents/skills/source-code-research/SKILL.md", baseline)

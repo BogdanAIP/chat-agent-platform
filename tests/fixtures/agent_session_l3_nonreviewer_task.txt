@@ -1,0 +1,5 @@
+This is a bounded read-only reasoning task.
+
+Without using web search, apps, plugins, connectors, files, or any external tool, explain in exactly three numbered points the engineering difference between an idempotency key and a retry counter in a reliable system.
+
+Keep the task-specific answer under 120 words. Do not perform any external action.

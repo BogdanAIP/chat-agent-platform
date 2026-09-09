@@ -45,19 +45,22 @@ class RealTaskAcceptanceContractTests(unittest.TestCase):
         self.assertNotIn('PHYSICAL ACCEPTED / MERGED #113', roadmap)
         self.assertNotIn('PHYSICAL ACCEPTED / MERGED #118', roadmap)
 
-    def test_roadmap_keeps_track_m_parallel_and_future(self):
+    def test_roadmap_promotes_bounded_track_m_slice_and_keeps_broader_orchestration_future(self):
         roadmap = (CONTEXT / 'ROADMAP.md').read_text(encoding='utf-8')
         track_m = (CONTEXT / 'CONVERSATION_BRIDGE_ARCHITECTURE.md').read_text(encoding='utf-8')
         hooks = (CONTEXT / 'CAPABILITY_REGISTRY_EVENT_HOOKS_ARCHITECTURE.md').read_text(encoding='utf-8')
         combined = roadmap + track_m
         folded = roadmap.casefold()
 
-        self.assertIn('parallel track m — agent sessions / delegation', folded)
-        self.assertIn('future work-distribution capability', folded)
-        self.assertIn('must not displace release-critical stage 26', folded)
+        self.assertIn('post-26.3c — bounded agent session / delegation — current', folded)
+        self.assertIn('one genuinely fresh read-only worker', folded)
+        self.assertIn('track m expansion beyond the first bounded slice — future', folded)
+        self.assertIn('broader orchestration remains future', folded)
         for identity in ('HarnessSession', 'DelegationTask', 'MessageDelivery', 'ExecutionEnvironment'):
             self.assertIn(identity, combined)
-        self.assertIn('max_spawn_depth=1', roadmap)
+        self.assertIn('do not pre-authorize `max_spawn_depth`', folded)
+        self.assertIn('worker pools', folded)
+        self.assertIn('generic task fan-out', folded)
 
         # Registry/event/hook detail is owned by ADR-037, not the roadmap.
         self.assertIn('CapabilityRegistry', hooks)

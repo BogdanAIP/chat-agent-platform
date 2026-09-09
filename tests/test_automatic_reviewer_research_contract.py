@@ -51,18 +51,31 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
                 self.assertIn(heading, self.research)
 
     def test_narrow_is_accepted_after_research_pr_merge(self) -> None:
-        # The immutable research Brief keeps the historical adoption condition.
+        # The immutable reviewer research Brief keeps the historical adoption condition.
         self.assertIn("NARROW (PROPOSED UNTIL THIS PR IS ACCEPTED)", self.research)
         self.assertIn("Production implementation remains blocked until this research PR", self.research)
         self.assertIn("effective only after this PR is accepted and merged", self.research)
 
-        # CURRENT_STATE is the live owner and must advance as implementation slices merge.
-        self.assertIn("AUTOMATIC_REVIEWER_RESEARCH.md", self.current)
-        self.assertIn("PR #140 is **merged and accepted**", self.current)
-        self.assertIn("supplies the current `NARROW` implementation authority", self.current)
-        self.assertIn("PR #141 is **merged and accepted** as the first production implementation slice", self.current)
-        self.assertIn("The current wiring slice registers the accepted fixed", self.current)
-        self.assertIn("It does not yet implement reviewer-authority qualification, browser launch, MV3 claiming or automatic Send", self.current)
+        # CURRENT_STATE is the live owner. Agent Session / Delegation may supersede
+        # reviewer automation as the product-level critical path without deleting
+        # the already accepted reviewer-specific fallback and fixed procedures.
+        self.assertIn("AGENT_SESSION_DELEGATION_REENTRY.md", self.current)
+        self.assertIn("PR #149", self.current)
+        self.assertIn("## Automatic reviewer status", self.current)
+        self.assertIn(
+            "automatic-review Stage Research / local-result v1 ACCEPTED NARROW / MERGED #140",
+            self.current,
+        )
+        self.assertIn("automatic-review local state foundation           ACCEPTED / MERGED #141", self.current)
+        self.assertIn("automatic-review fixed procedure wiring           ACCEPTED / MERGED #142", self.current)
+        for procedure in (
+            "launch_independent_review_v1",
+            "submit_independent_review_result_v1",
+            "reconcile_independent_review_result_v1",
+        ):
+            self.assertIn(procedure, self.current)
+        self.assertIn("remain intact", self.current)
+        self.assertIn("not deleted or silently replaced by #149", self.current)
         self.assertNotIn("Production implementation is **still blocked** until #140", self.current)
         self.assertNotIn("PR #140 is currently the **open acceptance gate**", self.current)
 
@@ -207,20 +220,43 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
         self.assertIn("NEW_ARCHITECTURE", section)
         self.assertIn("Scope qualifiers are separate", section)
 
-    def test_reuse_baseline_preserves_old_postures_and_new_reviewer_rows_are_unambiguous(self) -> None:
+    def test_reuse_baseline_preserves_specialist_reviewer_roles_and_generic_lineage(self) -> None:
         self.assertIn("`PREFERRED_CANDIDATE_REVALIDATE_BEFORE_ADOPTION`", self.reuse)
         self.assertIn("`REFERENCE_REVALIDATE_PER_STAGE`", self.reuse)
         self.assertIn("Existing historical posture labels in this table are preserved", self.reuse)
         role_map = self.reuse.split("## Canonical role map", 1)[1].split("## How to compare a new mechanism", 1)[0]
-        rows = [line for line in role_map.splitlines() if line.startswith("| Automatic")]
-        self.assertGreaterEqual(len(rows), 8)
+        data_rows = []
+        for line in role_map.splitlines():
+            if not line.startswith("|") or "---" in line or "Architectural role" in line:
+                continue
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if len(cells) == 7:
+                data_rows.append(cells)
+        rows = {cells[0]: cells for cells in data_rows}
+        expected_reviewer_roles = {
+            "Automatic-review local concurrent ownership",
+            "Automatic-review immutable operation genesis",
+            "Automatic-review mutable operation/result state",
+            "Automatic-review reviewer authority qualification",
+            "Automatic-review local result submission/reconciliation",
+            "Automatic independent-review consumer launch / correlation",
+        }
+        self.assertTrue(expected_reviewer_roles.issubset(rows))
         allowed = CANONICAL_LINEAGE | {"NEW_ARCHITECTURE"}
-        for row in rows:
-            cells = [cell.strip() for cell in row.strip("|").split("|")]
-            self.assertEqual(7, len(cells), row)
-            posture = _markdown_value(cells[-1])
-            with self.subTest(role=cells[0], posture=posture):
+        for role in expected_reviewer_roles:
+            posture = _markdown_value(rows[role][-1])
+            with self.subTest(role=role, posture=posture):
                 self.assertIn(posture, allowed)
+        for role, posture in (
+            ("Bounded Agent Session / Delegation lifecycle", "REFINE"),
+            ("Agent-session local concurrent ownership", "REUSE_MORE"),
+            ("Agent-session immutable genesis", "REUSE_MORE"),
+            ("Agent-session mutable lifecycle/result state", "REUSE_MORE"),
+            ("Agent-session first-provider fresh-chat/composer mechanics", "REUSE_MORE"),
+            ("Agent-session first-provider browser delivery ownership", "REFINE"),
+        ):
+            self.assertIn(role, rows)
+            self.assertEqual(posture, _markdown_value(rows[role][-1]))
 
     def test_source_code_evidence_uses_required_classifications(self) -> None:
         for phrase in (

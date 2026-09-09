@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "CAP ChatGPT Temporary Worker Adapter",
+  "version": "0.1.0",
+  "description": "Ephemeral bounded one-worker Temporary Chat adapter for Chat Agent Platform delegation.",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["execution_generation.js", "policy.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:3078/*"
+  ]
+}
