@@ -254,10 +254,12 @@ async function runScenario(config) {{
         completed = subprocess.run(
             [self.node, "-e", script],
             text=True,
+            encoding="utf-8",
             capture_output=True,
             check=False,
         )
-        self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
+        output = (completed.stdout or "") + (completed.stderr or "")
+        self.assertEqual(0, completed.returncode, output)
 
 
 if __name__ == "__main__":
