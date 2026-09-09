@@ -610,9 +610,13 @@
     }
 
     function stopButtonPresent() {
-      return Boolean(
-        document.querySelector('button[data-testid="stop-button"]') ||
-        [...document.querySelectorAll("button")].some((button) => /^(stop|останов)/i.test(normalize(button.getAttribute("aria-label") || button.textContent))),
+      const primary = document.querySelector('button[data-testid="stop-button"]');
+      if (primary && visible(primary)) return true;
+      return [...document.querySelectorAll("button")].some((button) =>
+        visible(button) && (
+          button.getAttribute?.("data-testid") === "stop-button" ||
+          /^(stop|останов)/i.test(normalize(button.getAttribute?.("aria-label") || button.textContent))
+        ),
       );
     }
 
