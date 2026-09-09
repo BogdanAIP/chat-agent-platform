@@ -210,7 +210,9 @@ function rect() {{ return {{width: 400, height: 80}}; }}
 const composer = {{isConnected: true, parentElement: null, getBoundingClientRect: rect,
   contains() {{ return false; }}}};
 const editor = {{tagName: "TEXTAREA", value: prompt, isConnected: true, parentElement: composer,
-  getBoundingClientRect: rect, closest(selector) {{ return selector === "form" ? composer : null; }}}};
+  getBoundingClientRect: rect,
+  getAttribute(name) {{ return name === "placeholder" ? "Temporary Chat" : null; }},
+  closest(selector) {{ return selector === "form" ? composer : null; }}}};
 const button = {{isConnected: true, disabled: false, parentElement: composer,
   getAttribute(name) {{ return name === "aria-disabled" ? "false" : null; }},
   closest(selector) {{ return selector === "form" ? composer : null; }}, click() {{ clicks += 1; }}}};

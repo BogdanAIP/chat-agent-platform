@@ -235,17 +235,40 @@
       console.info(`[CAP Agent Session] stopped: ${reason}`, details);
     }
 
-    function findSendButton() {
-      return document.querySelector('button[data-testid="send-button"]');
-    }
-
     function buttonReady(button) {
-      return Boolean(button?.isConnected) && !button.disabled && button.getAttribute("aria-disabled") !== "true";
+      if (!button?.isConnected || !visible(button) || button.disabled || button.getAttribute?.("aria-disabled") === "true") {
+        return false;
+      }
+      for (let current = button; current; current = current.parentElement) {
+        if (current.disabled || current.matches?.(":disabled") || current.getAttribute?.("aria-disabled") === "true") {
+          return false;
+        }
+      }
+      return true;
     }
 
-    function findComposer(button) {
-      if (!button) return null;
-      return button.closest("form");
+    function currentComposerBinding() {
+      const editor = policy.findComposerEditor();
+      if (!editor) return null;
+      const composer = editor.closest?.("form");
+      if (!composer || !visible(composer)) return null;
+      return { composer, editor };
+    }
+
+    function findSendBinding() {
+      const current = currentComposerBinding();
+      if (!current) return null;
+      let buttons = [...document.querySelectorAll('button[data-testid="send-button"]')];
+      // Some focused production-behavior fixtures expose querySelector only.
+      // In a real DOM querySelectorAll and querySelector cannot disagree here.
+      if (buttons.length === 0) {
+        const fallback = document.querySelector('button[data-testid="send-button"]');
+        if (fallback) buttons = [fallback];
+      }
+      const eligible = buttons.filter((button) =>
+        buttonReady(button) && button.closest?.("form") === current.composer,
+      );
+      return eligible.length === 1 ? { ...current, button: eligible[0] } : null;
     }
 
     function canonicalPromptText(text) {
@@ -254,9 +277,8 @@
 
     function findComposerEditor(composer) {
       if (!composer) return null;
-      const editor = policy.findComposerEditor();
-      // The sole eligible editor on the page must belong to this Send form.
-      return editor?.closest("form") === composer ? editor : null;
+      const current = currentComposerBinding();
+      return current?.composer === composer ? current.editor : null;
     }
 
     function contentEditablePromptText(editor) {
@@ -336,21 +358,19 @@
     }
 
     function clearBoundPromptFromComposer() {
-      const button = findSendButton();
-      const composer = findComposer(button);
-      if (!composer) return { clean: true, changed: false };
+      const current = currentComposerBinding();
+      if (!current) return { clean: true, changed: false };
+      const { composer, editor } = current;
       if (!policy.hasExpectedPrompt(composer.textContent || "", intent)) return { clean: true, changed: false };
-      const editor = findComposerEditor(composer);
-      if (!editor) return { clean: false, changed: false };
       let changed = false;
       try {
-        if (editor instanceof HTMLTextAreaElement) {
+        if (typeof HTMLTextAreaElement !== "undefined" && editor instanceof HTMLTextAreaElement) {
           const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
           if (setter) setter.call(editor, "");
           else editor.value = "";
           editor.dispatchEvent(new Event("input", { bubbles: true }));
           changed = true;
-        } else if (editor.getAttribute("contenteditable") === "true" || editor.isContentEditable) {
+        } else if (editor.getAttribute?.("contenteditable") === "true" || editor.isContentEditable) {
           editor.focus({ preventScroll: true });
           const selection = window.getSelection();
           const range = document.createRange();
@@ -423,38 +443,87 @@
       return document.querySelectorAll('[data-message-author-role="user"],[data-message-author-role="assistant"]').length;
     }
 
+    function temporaryMatches(text) {
+      const value = String(text || "");
+      return [/temporary chat/i, /temporary/i, /временн(?:ый|ого|ом|ая|ую|ое)/i, /tempor[aä]r/i]
+        .some((pattern) => pattern.test(value));
+    }
+
+    function attributeEvidence(node, names) {
+      if (!node) return "";
+      return normalize(names.map((name) => node.getAttribute?.(name)).filter(Boolean).join(" | "));
+    }
+
+    function externalTemporaryControlActive(node) {
+      if (!node) return false;
+      const pressed = String(node.getAttribute?.("aria-pressed") || "").toLowerCase();
+      const selected = String(node.getAttribute?.("aria-selected") || "").toLowerCase();
+      const current = String(node.getAttribute?.("aria-current") || "").toLowerCase();
+      const state = String(node.getAttribute?.("data-state") || "").toLowerCase();
+      return pressed === "true" || selected === "true" ||
+        (current !== "" && current !== "false") ||
+        ["active", "checked", "on", "selected"].includes(state);
+    }
+
+    function activeComposerTemporaryEvidence(composer) {
+      const editor = findComposerEditor(composer);
+      if (!editor) return [];
+      const nodes = [editor, composer];
+      if (typeof editor.querySelectorAll === "function") {
+        nodes.push(...editor.querySelectorAll('[placeholder],[data-placeholder],[aria-label],[title],[data-testid],[data-mode],[data-chat-mode]'));
+      }
+      const seen = new Set();
+      const evidence = [];
+      for (const node of nodes) {
+        if (!node || seen.has(node)) continue;
+        seen.add(node);
+        const text = attributeEvidence(node, [
+          "placeholder",
+          "data-placeholder",
+          "aria-label",
+          "title",
+          "data-testid",
+          "data-mode",
+          "data-chat-mode",
+        ]);
+        if (text && temporaryMatches(text)) evidence.push(text);
+      }
+      return evidence;
+    }
+
     function observeTemporaryState(composer) {
-      const temporaryPatterns = [/temporary chat/i, /temporary/i, /временн(?:ый|ого|ом|ая|ую|ое)/i, /tempor[aä]r/i];
-      const candidates = [];
+      const candidates = activeComposerTemporaryEvidence(composer);
       const personalizationEvidence = [];
       const personalizationModes = new Set();
-      const pluginMarkers = new Set();
       for (const node of document.querySelectorAll('button,[role="button"],[aria-label],[title],[data-testid]')) {
         if (!visible(node)) continue;
-        if (composer && (composer === node || composer.contains(node) || node.contains(composer))) continue;
+        if (composer && (composer === node || composer.contains?.(node) || node.contains?.(composer))) continue;
         const text = candidateText(node);
         if (!text) continue;
-        if (temporaryPatterns.some((pattern) => pattern.test(text))) candidates.push(text);
+        if (temporaryMatches(text) && externalTemporaryControlActive(node)) candidates.push(text);
         const personalizationMode = policy.personalizationModeFromText(text);
         if (personalizationMode !== "unknown") {
           personalizationModes.add(personalizationMode);
           personalizationEvidence.push(text);
         }
-        for (const marker of ["GitHub", "Chat Local Bridge Test", "Google Drive", "Gmail", "Canva"]) {
-          if (text.includes(marker)) pluginMarkers.add(marker);
-        }
       }
       const temporaryMode = candidates.length > 0;
+      const freshContext = allConversationTurnCount() === 0;
       const personalizationState = personalizationModes.size === 1 ? [...personalizationModes][0] : "unknown";
+      const personalizationDisabled = personalizationState === "non-personalized";
+      const closedReadOnlyProfile = temporaryMode && freshContext && personalizationDisabled;
       return {
         temporary_mode: temporaryMode,
         positive_ui_evidence: temporaryMode,
         ui_evidence: candidates.slice(0, 8),
-        fresh_context: allConversationTurnCount() === 0,
-        personalization_disabled: personalizationState === "non-personalized",
+        fresh_context: freshContext,
+        personalization_disabled: personalizationDisabled,
         personalization_state: personalizationState,
         personalization_ui_evidence: personalizationEvidence.slice(0, 8),
-        plugin_markers: [...pluginMarkers],
+        // The accepted fresh_readonly_worker_v1 profile is closed by positive
+        // active Temporary + fresh + non-personalized provider state. Do not
+        // infer plugin safety from an open-ended list of current product brands.
+        plugin_markers: closedReadOnlyProfile ? [] : ["closed-profile-not-proven"],
       };
     }
 
@@ -717,19 +786,17 @@
       }
 
       if (!sendAuthorized && !monitorOnly && !authorityRequested) {
-        const button = findSendButton();
-        if (!buttonReady(button)) return;
-        const composer = findComposer(button);
-        if (!composer || !exactComposerPromptMatches(composer)) return;
-        void requestAuthority(composer);
+        const binding = findSendBinding();
+        if (!binding || !exactComposerPromptMatches(binding.composer)) return;
+        void requestAuthority(binding.composer);
         return;
       }
 
       if (sendAuthorized && !sendClickedAt) {
-        const button = findSendButton();
-        if (!buttonReady(button)) return;
-        const composer = findComposer(button);
-        if (!composer || !exactComposerPromptMatches(composer)) {
+        const binding = findSendBinding();
+        if (!binding) return;
+        const { button, composer } = binding;
+        if (!exactComposerPromptMatches(composer)) {
           stop("prompt-binding-changed-before-send");
           return;
         }
