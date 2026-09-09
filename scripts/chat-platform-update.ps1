@@ -29,6 +29,7 @@ $RemoteUrl = $script:CapUpdateOfficialRemote
 $MutexName = 'Local\ChatAgentPlatformUpdateOperation'
 $MutexTimeoutMilliseconds = 30000
 $ProcessTimeoutMilliseconds = 900000
+$TargetContinuityBlockedReason = 'target_missing_self_update_contract'
 
 foreach ($directory in @($StateDir, $CacheRoot, $WorktreeRoot, $LogDir)) {
     New-Item -ItemType Directory -Force -Path $directory | Out-Null
@@ -150,6 +151,65 @@ function Invoke-CapPwshProcess {
     }
 }
 
+function Test-CapTargetSelfUpdateContract {
+    param([Parameter(Mandatory)] [string]$WorktreePath)
+
+    if (-not (Test-Path -LiteralPath $WorktreePath -PathType Container)) {
+        return $false
+    }
+
+    $requirements = @(
+        [pscustomobject]@{
+            path = 'scripts\bootstrap-chat-platform.ps1'
+            markers = @(
+                'chat-platform-tray-update.ps1',
+                'chat-platform-update-core.ps1',
+                'chat-platform-update.ps1',
+                'MAIN_UPDATE_UI=tray-more-menu',
+                'MAIN_UPDATER_INSTALLED=True'
+            )
+        },
+        [pscustomobject]@{
+            path = 'scripts\chat-platform-tray.ps1'
+            markers = @('chat-platform-tray-update.ps1', 'Register-CapUpdateTrayMenu')
+        },
+        [pscustomobject]@{
+            path = 'scripts\chat-platform-tray-update.ps1'
+            markers = @('Register-CapUpdateTrayMenu', "'-Action', 'Update'", 'platform-update-result.json')
+        },
+        [pscustomobject]@{
+            path = 'scripts\chat-platform-update-core.ps1'
+            markers = @('CapUpdateOfficialRemote', 'CapUpdateBranch', 'Sync-CapUpdateMain')
+        },
+        [pscustomobject]@{
+            path = 'scripts\chat-platform-update.ps1'
+            markers = @('CapUpdateOfficialRemote', 'New-CapUpdateWorktree', 'Publish-CapInstalledVersionFromSource')
+        }
+    )
+
+    foreach ($requirement in $requirements) {
+        $path = Join-Path $WorktreePath ([string]$requirement.path)
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            return $false
+        }
+
+        try {
+            $text = Get-Content -LiteralPath $path -Raw -Encoding utf8 -ErrorAction Stop
+        }
+        catch {
+            return $false
+        }
+
+        foreach ($marker in @($requirement.markers)) {
+            if (-not $text.Contains([string]$marker)) {
+                return $false
+            }
+        }
+    }
+
+    return $true
+}
+
 function Save-CapDecisionState {
     param(
         [Parameter(Mandatory)] $Decision,
@@ -238,6 +298,12 @@ try {
             -CacheRepo $CacheRepo `
             -WorktreeRoot $WorktreeRoot `
             -TargetCommitSha ([string]$decision.target_commit_sha)
+
+        if (-not (Test-CapTargetSelfUpdateContract -WorktreePath $worktree)) {
+            Write-CapUpdateLog "update blocked reason=$TargetContinuityBlockedReason target=$($decision.target_commit_sha)"
+            throw [System.InvalidOperationException]::new($TargetContinuityBlockedReason)
+        }
+
         $bootstrap = Join-Path $worktree 'scripts\bootstrap-chat-platform.ps1'
         if (-not (Test-Path -LiteralPath $bootstrap -PathType Leaf)) {
             throw 'The exact main worktree does not contain the accepted bootstrap script.'
@@ -288,24 +354,50 @@ try {
 catch {
     $message = $_.Exception.Message
     Write-CapUpdateLog "error=$message"
-    try {
-        $state = Read-CapUpdateState -Path $StatePath
-        if ($null -ne $state) {
-            $errorState = New-CapUpdateState `
-                -InstalledCommitSha ([string]$state.installed_commit_sha) `
-                -InstalledAt ([string]$state.installed_at) `
-                -Status 'error' `
-                -TargetCommitSha ([string]$state.target_commit_sha) `
+
+    if ($message -ceq $TargetContinuityBlockedReason) {
+        try {
+            $state = Read-CapUpdateState -Path $StatePath
+            $blockedState = New-CapUpdateState `
+                -InstalledCommitSha $(if ($null -eq $state) { $null } else { [string]$state.installed_commit_sha }) `
+                -InstalledAt $(if ($null -eq $state) { $null } else { [string]$state.installed_at }) `
+                -Status 'blocked' `
+                -TargetCommitSha $(if ($null -eq $state) { $null } else { [string]$state.target_commit_sha }) `
                 -LastCheckedAt ([datetimeoffset]::UtcNow.ToString('o')) `
-                -LastError $message
-            Write-CapUpdateAtomicJson -Path $StatePath -Value $errorState
+                -LastError $TargetContinuityBlockedReason
+            Write-CapUpdateAtomicJson -Path $StatePath -Value $blockedState
         }
+        catch {
+            Write-CapUpdateLog "could_not_persist_blocked_state=$($_.Exception.Message)"
+        }
+
+        Write-CapUpdateResult `
+            -Status 'blocked' `
+            -InstalledCommitSha $(if ($null -eq $decision) { $null } else { [string]$decision.installed_commit_sha }) `
+            -TargetCommitSha $(if ($null -eq $decision) { $null } else { [string]$decision.target_commit_sha }) `
+            -Reason $TargetContinuityBlockedReason
+        $exitCode = 4
     }
-    catch {
-        Write-CapUpdateLog "could_not_persist_error_state=$($_.Exception.Message)"
+    else {
+        try {
+            $state = Read-CapUpdateState -Path $StatePath
+            if ($null -ne $state) {
+                $errorState = New-CapUpdateState `
+                    -InstalledCommitSha ([string]$state.installed_commit_sha) `
+                    -InstalledAt ([string]$state.installed_at) `
+                    -Status 'error' `
+                    -TargetCommitSha ([string]$state.target_commit_sha) `
+                    -LastCheckedAt ([datetimeoffset]::UtcNow.ToString('o')) `
+                    -LastError $message
+                Write-CapUpdateAtomicJson -Path $StatePath -Value $errorState
+            }
+        }
+        catch {
+            Write-CapUpdateLog "could_not_persist_error_state=$($_.Exception.Message)"
+        }
+        Write-CapUpdateResult -Status 'error' -Reason $message
+        $exitCode = 1
     }
-    Write-CapUpdateResult -Status 'error' -Reason $message
-    $exitCode = 1
 }
 finally {
     if ($acquired -and -not [string]::IsNullOrWhiteSpace($worktree)) {
