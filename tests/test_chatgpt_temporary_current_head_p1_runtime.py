@@ -217,7 +217,8 @@ async function runScenario(config) {{
   const closedProfile = await runScenario({{composerTemporary: true, pluginName: "Slack"}});
   assert.equal(closedProfile.clicks, 1, "closed Temporary profile must not depend on a finite plugin brand list");
   assert.ok(closedProfile.authorizeMessage);
-  assert.deepEqual(closedProfile.authorizeMessage.plugin_markers, []);
+  assert.equal(Array.isArray(closedProfile.authorizeMessage.plugin_markers), true);
+  assert.equal(closedProfile.authorizeMessage.plugin_markers.length, 0);
 
   const cleanupWithoutSend = await runScenario({{composerTemporary: true, removeSendAfterClick: true}});
   assert.equal(cleanupWithoutSend.clicks, 1);

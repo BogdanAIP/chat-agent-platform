@@ -109,6 +109,7 @@ const editor = {{
     if (name === "aria-disabled" && editorState === "aria-disabled") return "true";
     if (name === "aria-readonly" && editorState === "aria-readonly") return "true";
     if (name === "contenteditable") return "true";
+    if (name === "placeholder") return "Temporary Chat";
     return null;
   }},
   isContentEditable: true,
@@ -188,6 +189,7 @@ const composer = {{
 const button = {{
   isConnected: true,
   disabled: false,
+  getBoundingClientRect: rect,
   getAttribute(name) {{ return name === "aria-disabled" ? "false" : null; }},
   closest() {{ return composer; }},
   parentElement: composer,

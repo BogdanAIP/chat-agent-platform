@@ -248,7 +248,9 @@ const editor = {{
   isConnected: true,
   getBoundingClientRect() {{ return {{ width: 20, height: 20 }}; }},
   getAttribute(name) {{
-    return name === "contenteditable" ? "true" : null;
+    if (name === "contenteditable") return "true";
+    if (name === "placeholder") return "Temporary Chat";
+    return null;
   }},
   isContentEditable: true,
 }};
@@ -268,6 +270,7 @@ const composer = {{
 const button = {{
   isConnected: true,
   disabled: false,
+  getBoundingClientRect() {{ return {{ width: 20, height: 20 }}; }},
   getAttribute(name) {{ return name === "aria-disabled" ? "false" : null; }},
   closest() {{ return composer; }},
   parentElement: composer,
@@ -461,6 +464,7 @@ const assistantTurn = {{
 }};
 
 const policy = {{
+  findComposerEditor() {{ return null; }},
   HEX64_RE: /^[0-9a-f]{{64}}$/,
   HEAD40_RE: /^[0-9a-f]{{40}}$/,
   parseIntent() {{ return {{ enabled: false }}; }},

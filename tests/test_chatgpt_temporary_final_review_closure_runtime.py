@@ -214,6 +214,7 @@ const editor = {{tagName: "TEXTAREA", value: prompt, isConnected: true, parentEl
   getAttribute(name) {{ return name === "placeholder" ? "Temporary Chat" : null; }},
   closest(selector) {{ return selector === "form" ? composer : null; }}}};
 const button = {{isConnected: true, disabled: false, parentElement: composer,
+  getBoundingClientRect: rect,
   getAttribute(name) {{ return name === "aria-disabled" ? "false" : null; }},
   closest(selector) {{ return selector === "form" ? composer : null; }}, click() {{ clicks += 1; }}}};
 const temporaryNode = {{isConnected: true, parentElement: null, textContent: "Temporary Chat",
