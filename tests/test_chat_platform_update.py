@@ -125,6 +125,29 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
         self.assertNotIn("MessageBox", self.tray_update)
         self.assertNotIn("-Action', 'Check'", self.tray_update)
 
+    def test_target_main_cannot_remove_the_updater_that_invoked_it(self) -> None:
+        for marker in (
+            "function Test-CapTargetSelfUpdateContract",
+            "scripts\\bootstrap-chat-platform.ps1",
+            "scripts\\chat-platform-tray.ps1",
+            "scripts\\chat-platform-tray-update.ps1",
+            "scripts\\chat-platform-update-core.ps1",
+            "scripts\\chat-platform-update.ps1",
+            "target_missing_self_update_contract",
+        ):
+            self.assertIn(marker, self.updater)
+
+        gate = self.updater.index("Test-CapTargetSelfUpdateContract -WorktreePath $worktree")
+        bootstrap = self.updater.index("Invoke-CapPwshProcess -ScriptPath $bootstrap")
+        self.assertLess(gate, bootstrap)
+        self.assertIn("-Status 'blocked'", self.updater)
+        self.assertIn("-Reason $TargetContinuityBlockedReason", self.updater)
+        self.assertIn("target_missing_self_update_contract", self.tray_update)
+        self.assertIn(
+            "Доступный main ещё не содержит встроенный обновлятор. Ничего не изменено.",
+            self.tray_update,
+        )
+
     def test_tray_update_completion_does_not_depend_on_inherited_pipes(self) -> None:
         self.assertIn("platform-update-result.json", self.updater)
         self.assertIn("Write-CapUpdateAtomicJson -Path $ResultPath -Value $result", self.updater)
