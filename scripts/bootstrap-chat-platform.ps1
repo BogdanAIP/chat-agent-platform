@@ -15,8 +15,15 @@ $TunnelModule = Join-Path $PSScriptRoot 'bootstrap-tunnel-runtime.ps1'
 $ManagerModule = Join-Path $PSScriptRoot 'bootstrap-manager-runtime.ps1'
 $LifecycleModule = Join-Path $PSScriptRoot 'bootstrap-manager-lifecycle.ps1'
 $WindowsProcedureModule = Join-Path $PSScriptRoot 'bootstrap-windows-procedure-runtime.ps1'
+$UpdateCoreModule = Join-Path $PSScriptRoot 'chat-platform-update-core.ps1'
 
-foreach ($module in @($TunnelModule, $ManagerModule, $LifecycleModule, $WindowsProcedureModule)) {
+foreach ($module in @(
+    $TunnelModule,
+    $ManagerModule,
+    $LifecycleModule,
+    $WindowsProcedureModule,
+    $UpdateCoreModule
+)) {
     if (-not (Test-Path -LiteralPath $module -PathType Leaf)) {
         throw "Bootstrap module is missing: $module"
     }
@@ -36,6 +43,7 @@ $TunnelStateFile = Join-Path $StateDir 'tunnel.json'
 $LegacyTunnelProfile = Join-Path $TunnelDir 'local-1mcp.yaml'
 $InstallMetadata = Join-Path $StateDir 'tunnel-client-install.json'
 $AppInstallMetadata = Join-Path $StateDir 'manager-install.json'
+$UpdateStatePath = Join-Path $StateDir 'platform-update.json'
 $CommandPath = Join-Path $AppScriptsDir 'chat-platform.ps1'
 $ControllerPath = Join-Path $AppScriptsDir 'chat-platform-controller.ps1'
 $DirectControllerPath = Join-Path $AppScriptsDir 'semantic-direct-controller.ps1'
@@ -86,6 +94,9 @@ function Assert-ChatBootstrapEnvironment {
         (Join-Path $PSScriptRoot 'semantic-direct-controller.ps1'),
         (Join-Path $PSScriptRoot 'chat-platform.ps1'),
         (Join-Path $PSScriptRoot 'chat-platform-tray.ps1'),
+        (Join-Path $PSScriptRoot 'chat-platform-tray-update.ps1'),
+        (Join-Path $PSScriptRoot 'chat-platform-update-core.ps1'),
+        (Join-Path $PSScriptRoot 'chat-platform-update.ps1'),
         (Join-Path $PSScriptRoot 'bootstrap-windows-procedure-runtime.ps1'),
         (Join-Path $RepoRoot 'runtime\semantic-projection\bin\semantic-control-plane-projection.mjs'),
         (Join-Path $RepoRoot 'runtime\semantic-projection\lib\browser-verification-bridge.mjs'),
@@ -155,6 +166,20 @@ Install-ChatManagerBundle `
     -DirectControllerPath $DirectControllerPath `
     -TrayPath $TrayPath
 
+Write-Step 'Установка bounded main updater'
+foreach ($name in @(
+    'chat-platform-tray-update.ps1',
+    'chat-platform-update-core.ps1',
+    'chat-platform-update.ps1'
+)) {
+    Copy-ChatVerifiedFile `
+        -Source (Join-Path $RepoRoot "scripts\$name") `
+        -Destination (Join-Path $AppScriptsDir $name)
+}
+Write-Host 'MAIN_UPDATE_SOURCE=official-main-only'
+Write-Host 'MAIN_UPDATE_UI=tray-more-menu'
+Write-Host 'MAIN_UPDATER_INSTALLED=True'
+
 Write-Step 'Установка bounded Windows procedure runtime'
 Install-ChatWindowsProcedureBundle `
     -RepoRoot $RepoRoot `
@@ -172,6 +197,13 @@ if (-not $SkipSmokeTest) {
     Write-Step 'Проверка normal six-tool semantic lifecycle'
     Invoke-ChatBootstrapSmokeTest -CommandPath $CommandPath -LocalRoot $LocalRoot
 }
+
+Write-Step 'Фиксация exact accepted main для будущих обновлений'
+$installedVersionRecorded = Publish-CapInstalledVersionFromSource `
+    -RepoRoot $RepoRoot `
+    -StatePath $UpdateStatePath
+Write-Host "INSTALLED_VERSION_RECORDED=$installedVersionRecorded"
+Write-Host "INSTALLED_VERSION_STATE=$UpdateStatePath"
 
 if ($LaunchTray) {
     Start-Process -FilePath (Require-Command 'pwsh.exe') -ArgumentList @(
