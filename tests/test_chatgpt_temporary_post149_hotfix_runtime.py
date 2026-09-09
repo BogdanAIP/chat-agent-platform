@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "runtime" / "agent_sessions" / "chatgpt_temporary_extension"
 BACKGROUND = EXTENSION / "background.js"
 POLICY = EXTENSION / "policy.js"
+CONTENT = EXTENSION / "content.js"
 
 
 class ChatGPTTemporaryPost149HotfixRuntimeTests(unittest.TestCase):
@@ -93,20 +94,21 @@ context.owner = {{url: "https://chatgpt.com/", tab: {{id: 17}}}};
 (async () => {{
   const resolved = vm.runInContext("resolveLiveMessage(raw)", context);
   if (!resolved || resolved.launch_handle !== launchHandle || resolved.run_id !== privateRun) process.exit(10);
+  if (resolved.owner_tab_id !== 17) process.exit(11);
 
   context.resolved = resolved;
   const rejected = await vm.runInContext("authorizeSend(resolved, nonOwner)", context);
-  if (rejected.send_authorized !== false) process.exit(11);
-  if (context.claimCalls !== 0 || context.localCalls !== 0) process.exit(12);
+  if (rejected.send_authorized !== false || rejected.reason !== "browser-launch-owned-by-other-tab") process.exit(12);
+  if (context.claimCalls !== 0 || context.localCalls !== 0) process.exit(13);
 
   const accepted = await vm.runInContext("authorizeSend(resolved, owner)", context);
-  if (accepted.send_authorized !== true) process.exit(13);
-  if (context.claimCalls !== 1 || context.localCalls !== 1) process.exit(14);
+  if (accepted.send_authorized !== true) process.exit(14);
+  if (context.claimCalls !== 1 || context.localCalls !== 1) process.exit(15);
 }})().catch((error) => {{ console.error(error); process.exit(20); }});
 """
         self.run_node(script)
 
-    def test_hidden_stop_button_does_not_block_stable_result_capture(self) -> None:
+    def test_hidden_stop_button_does_not_block_stable_result_capture_but_visible_stop_does(self) -> None:
         script = f"""
 const fs = require("fs");
 const vm = require("vm");
@@ -149,7 +151,7 @@ const assistantNode = {{nodeType: 1, isConnected: true, parentElement: null, hid
   getAttribute(name) {{ return name === "data-message-author-role" ? "assistant" : null; }},
   matches(selector) {{ return selector.includes('data-message-author-role="assistant"'); }},
   closest(selector) {{ return this.matches(selector) ? this : null; }}, querySelector() {{ return null; }}}};
-const hiddenStop = {{nodeType: 1, tagName: "BUTTON", isConnected: true, parentElement: null,
+const stop = {{nodeType: 1, tagName: "BUTTON", isConnected: true, parentElement: null,
   hidden: true, inert: false, textContent: "Stop", getBoundingClientRect: rect,
   getAttribute(name) {{
     if (name === "data-testid") return "stop-button";
@@ -176,14 +178,14 @@ const context = {{
     documentElement: root,
     querySelector(selector) {{
       if (selector === "#prompt-textarea") return editor;
-      if (selector === 'button[data-testid="stop-button"]') return hiddenStop;
+      if (selector === 'button[data-testid="stop-button"]') return stop;
       return null;
     }},
     querySelectorAll(selector) {{
       if (selector === '#prompt-textarea,[contenteditable="true"],textarea') return [editor];
       if (selector.includes('data-message-author-role="user"')) return [userNode];
       if (selector.includes('data-message-author-role="assistant"')) return [assistantNode];
-      if (selector === "button") return [hiddenStop];
+      if (selector === "button") return [stop];
       return [];
     }},
   }},
@@ -205,6 +207,119 @@ now += 8001;
 intervalCallback();
 const authorization = policy.captureAuthorization();
 if (!authorization) process.exit(31);
+stop.hidden = false;
+if (policy.captureAuthorization() !== null) process.exit(32);
+"""
+        self.run_node(script)
+
+    def test_content_final_observation_ignores_hidden_stop_and_reports_visible_stop(self) -> None:
+        script = f"""
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8");
+const generation = "9".repeat(64);
+const runId = "1".repeat(64);
+const delegationId = "2".repeat(64);
+const deliveryId = "3".repeat(64);
+const taskSha = "4".repeat(64);
+const head = "5".repeat(40);
+const promptSha = "6".repeat(64);
+const requestId = "7".repeat(64);
+function rect() {{ return {{width: 400, height: 80}}; }}
+function visibleStyle() {{ return {{visibility: "visible", display: "block", opacity: "1"}}; }}
+async function runCase(hidden) {{
+  const observations = [];
+  const assistant = {{
+    isConnected: true, parentElement: null, hidden: false, inert: false,
+    innerText: "CAP_WORKER_RESULT_V1_BEGIN\\n{{}}\\nCAP_WORKER_RESULT_V1_END",
+    textContent: "CAP_WORKER_RESULT_V1_BEGIN\\n{{}}\\nCAP_WORKER_RESULT_V1_END",
+    getBoundingClientRect: rect,
+    getAttribute(name) {{ return name === "data-message-author-role" ? "assistant" : null; }},
+  }};
+  const stop = {{
+    isConnected: true, parentElement: null, hidden, inert: false, textContent: "Stop",
+    getBoundingClientRect: rect,
+    getAttribute(name) {{
+      if (name === "data-testid") return "stop-button";
+      if (name === "aria-label") return "Stop";
+      return null;
+    }},
+  }};
+  const policy = {{
+    HEX64_RE: /^[0-9a-f]{{64}}$/,
+    HEAD40_RE: /^[0-9a-f]{{40}}$/,
+    parseIntent() {{ return {{enabled: false}}; }},
+    conversationId() {{ return "post149conv"; }},
+    armPostDeliveryUiGuard() {{ return true; }},
+    singleResultBlockShape() {{ return true; }},
+    hasSingleResultBlock() {{ return false; }},
+    captureAuthorization() {{ return null; }},
+    invalidatePostDeliveryAuthorization() {{}},
+    findComposerEditor() {{ return null; }},
+    exactPromptMatches() {{ return false; }},
+    hasExpectedPrompt() {{ return false; }},
+    personalizationModeFromText() {{ return "unknown"; }},
+  }};
+  const context = {{
+    console, URL, URLSearchParams, TextEncoder,
+    CAPChatGPTTemporaryPolicy: policy,
+    CAPChatGPTTemporaryExecutionGeneration: generation,
+    location: {{href: "https://chatgpt.com/c/post149conv", origin: "https://chatgpt.com"}},
+    history: {{state: null, replaceState() {{}}}},
+    getComputedStyle: visibleStyle,
+    setInterval() {{ return 1; }}, clearInterval() {{}},
+    document: {{
+      querySelector(selector) {{
+        if (selector === 'button[data-testid="stop-button"]') return stop;
+        return null;
+      }},
+      querySelectorAll(selector) {{
+        if (selector === '[data-message-author-role="user"]') return [];
+        if (selector === '[data-message-author-role="assistant"]') return [assistant];
+        if (selector === '[data-message-author-role="user"],[data-message-author-role="assistant"]') return [assistant];
+        if (selector === "button") return [stop];
+        return [];
+      }},
+    }},
+    chrome: {{runtime: {{lastError: null, sendMessage(message, callback) {{
+      if (message.kind === "resume-intent") {{
+        callback({{
+          ok: true, enabled: true, monitor_only: true,
+          execution_generation: generation,
+          run_id: runId, delegation_id: delegationId, delivery_id: deliveryId,
+          task_sha256: taskSha, expected_runtime_head: head, prompt_sha256: promptSha,
+          conversation_id: "post149conv", delivery_state: "delivered",
+        }});
+        return;
+      }}
+      if (message.kind === "status") {{
+        callback({{
+          ok: true, delegation_id: delegationId, delivery_id: deliveryId,
+          result_state: "open", delivery_state: "delivered",
+          final_observation_request_id: requestId,
+        }});
+        return;
+      }}
+      if (message.kind === "final-observation") {{
+        observations.push(message.worker_generating);
+        callback({{ok: true}});
+        return;
+      }}
+      callback({{ok: true}});
+    }}}}}},
+  }};
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(source, context, {{filename: "content.js"}});
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  if (observations.length !== 1) throw new Error("final-observation-count:" + observations.length);
+  return observations[0];
+}}
+(async () => {{
+  if (await runCase(true)) process.exit(40);
+  if (!(await runCase(false))) process.exit(41);
+}})().catch((error) => {{ console.error(error); process.exit(42); }});
 """
         self.run_node(script)
 
