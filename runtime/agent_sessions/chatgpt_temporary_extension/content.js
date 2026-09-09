@@ -491,8 +491,80 @@
       return evidence;
     }
 
+    function exactTemporaryPageTitle(text) {
+      const value = normalizeFull(text).replace(/\s+/g, " ").trim();
+      return [
+        /^temporary chat$/i,
+        /^временный чат$/i,
+        /^tempor[aä]rer chat$/i,
+      ].some((pattern) => pattern.test(value));
+    }
+
+    function temporaryPolicyCopyScore(text) {
+      const value = normalizeFull(text).replace(/\s+/g, " ").trim();
+      if (value.length < 20 || value.length > 500) return 0;
+      const groups = [
+        [/\bmemory\b/i, /памят/i, /erinner/i],
+        [/\bplugins?\b/i, /плагин/i],
+        [/custom instructions?/i, /пользовательск\w*\s+инструкц/i, /benutzerdefiniert\w*\s+anweis/i],
+        [/\bhistory\b/i, /истори/i, /verlauf/i],
+      ];
+      return groups.filter((patterns) => patterns.some((pattern) => pattern.test(value))).length;
+    }
+
+    function activePageTemporaryEvidence(composer) {
+      if (!composer || !visible(composer)) return [];
+      const root = composer.closest?.('main,[role="main"]');
+      if (!root || !visible(root) || typeof root.querySelectorAll !== "function") return [];
+
+      const blockingOverlay = [...document.querySelectorAll('dialog,[role="dialog"],[role="menu"],[role="listbox"]')]
+        .some((node) => visible(node));
+      if (blockingOverlay) return [];
+
+      const interactiveOrOverlaySelector = [
+        "button",
+        "a",
+        '[role="button"]',
+        '[role="menuitem"]',
+        '[role="option"]',
+        '[role="tab"]',
+        '[role="switch"]',
+        "dialog",
+        '[role="dialog"]',
+        '[role="menu"]',
+        '[role="listbox"]',
+      ].join(",");
+
+      let title = "";
+      for (const node of root.querySelectorAll('h1,h2,h3,h4,[role="heading"],div,p,span')) {
+        if (!visible(node)) continue;
+        if (composer === node || composer.contains?.(node) || node.contains?.(composer)) continue;
+        if (node.closest?.(interactiveOrOverlaySelector)) continue;
+        const text = normalizeFull(node.innerText || node.textContent || "").replace(/\s+/g, " ").trim();
+        if (!exactTemporaryPageTitle(text)) continue;
+        title = text;
+        break;
+      }
+      if (!title) return [];
+
+      let policyScore = 0;
+      for (const node of root.querySelectorAll("p,div,span")) {
+        if (!visible(node)) continue;
+        if (composer === node || composer.contains?.(node) || node.contains?.(composer)) continue;
+        if (node.closest?.(interactiveOrOverlaySelector)) continue;
+        const score = temporaryPolicyCopyScore(node.innerText || node.textContent || "");
+        if (score > policyScore) policyScore = score;
+        if (policyScore >= 3) break;
+      }
+      if (policyScore < 3) return [];
+      return [`active-temporary-page:${title}:policy-signals=${policyScore}`];
+    }
+
     function observeTemporaryState(composer) {
-      const candidates = activeComposerTemporaryEvidence(composer);
+      const candidates = [
+        ...activeComposerTemporaryEvidence(composer),
+        ...activePageTemporaryEvidence(composer),
+      ];
       const personalizationEvidence = [];
       const personalizationModes = new Set();
       for (const node of document.querySelectorAll('button,[role="button"],[aria-label],[title],[data-testid]')) {
