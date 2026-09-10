@@ -324,5 +324,536 @@ async function runCase(hidden) {{
         self.run_node(script)
 
 
+    def test_temporary_ui_settle_is_bounded_before_send_authority(self) -> None:
+        script = r"""
+const fs = require("fs");
+const vm = require("vm");
+const nodeCrypto = require("crypto");
+const assert = require("assert/strict");
+
+const source = fs.readFileSync(__CONTENT_PATH__, "utf8");
+
+const prompt = "bounded exact prompt";
+const promptSha =
+  nodeCrypto.createHash("sha256").update(prompt, "utf8").digest("hex");
+
+const digestBytes = Uint8Array.from(
+  promptSha.match(/../g).map(value => parseInt(value, 16))
+);
+
+function makeNode(tagName, text = "", attrs = {}, parent = null) {
+  const n = {
+    nodeType: 1,
+    tagName: String(tagName).toUpperCase(),
+    isConnected: true,
+    hidden: false,
+    inert: false,
+    parentElement: parent,
+    textContent: text,
+    innerText: text,
+    value: "",
+    disabled: false,
+    childNodes: [],
+
+    getBoundingClientRect() {
+      return {x: 0, y: 0, width: 200, height: 40};
+    },
+
+    getAttribute(name) {
+      return Object.prototype.hasOwnProperty.call(attrs, name)
+        ? attrs[name]
+        : null;
+    },
+
+    contains(other) {
+      for (let current = other; current; current = current.parentElement) {
+        if (current === n) return true;
+      }
+      return false;
+    },
+
+    matches(selector) {
+      if (selector === ":disabled") return false;
+      if (selector === "form") return n.tagName === "FORM";
+
+      if (selector === 'main,[role="main"]') {
+        return n.tagName === "MAIN";
+      }
+
+      if (selector.includes("button") && n.tagName === "BUTTON") {
+        return true;
+      }
+
+      if (selector.includes("dialog") && n.tagName === "DIALOG") {
+        return true;
+      }
+
+      return false;
+    },
+
+    closest(selector) {
+      for (let current = n; current; current = current.parentElement) {
+        if (current.matches?.(selector)) return current;
+      }
+      return null;
+    },
+
+    querySelectorAll() {
+      return [];
+    },
+  };
+
+  return n;
+}
+
+
+async function runCase({
+  temporaryReadyAt,
+  personalizationText = "Non-personalized",
+}) {
+  let now = 1000;
+  let intervalFn = null;
+  let clicks = 0;
+  let authorizeCount = 0;
+
+  const events = [];
+
+  const main = makeNode("main");
+
+  const composer = makeNode(
+    "form",
+    prompt,
+    {},
+    main
+  );
+
+  const editor = makeNode(
+    "textarea",
+    "",
+    {},
+    composer
+  );
+  editor.value = prompt;
+
+  const send = makeNode(
+    "button",
+    "Send",
+    {
+      "data-testid": "send-button",
+      "aria-disabled": "false",
+    },
+    composer
+  );
+
+  send.click = () => {
+    clicks += 1;
+  };
+
+  const personalization = makeNode(
+    "button",
+    personalizationText,
+    {},
+    main
+  );
+
+  const title = makeNode(
+    "h1",
+    "Temporary Chat",
+    {
+      "data-testid": "temporary-chat-label",
+    },
+    main
+  );
+
+  const policyCopy = makeNode(
+    "p",
+    "This chat will not use memory, plugins, custom instructions, or appear in history.",
+    {},
+    main
+  );
+
+  main.querySelectorAll = selector => {
+    const ready =
+      temporaryReadyAt !== null &&
+      now >= temporaryReadyAt;
+
+    if (!ready) return [];
+
+    if (
+      selector ===
+      'h1,h2,h3,h4,[role="heading"],div,p,span'
+    ) {
+      return [title, policyCopy];
+    }
+
+    if (selector === "p,div,span") {
+      return [policyCopy];
+    }
+
+    return [];
+  };
+
+  const intent = {
+    enabled: true,
+    runId: "a".repeat(64),
+    delegationId: "b".repeat(64),
+    deliveryId: "c".repeat(64),
+    taskSha256: "d".repeat(64),
+    expectedHead: "e".repeat(40),
+    promptSha256: promptSha,
+    prompt,
+    maxWaitMs: 300000,
+    deliveryObserveMs: 20000,
+    stableMs: 0,
+  };
+
+  const policy = {
+    HEX64_RE: /^[0-9a-f]{64}$/,
+    HEAD40_RE: /^[0-9a-f]{40}$/,
+
+    parseIntent() {
+      return intent;
+    },
+
+    findComposerEditor() {
+      return editor;
+    },
+
+    exactPromptMatches(observed, expected) {
+      return observed === expected;
+    },
+
+    personalizationModeFromText(text) {
+      const value = String(text || "");
+
+      if (/Non-personalized/i.test(value)) {
+        return "non-personalized";
+      }
+
+      if (/Personalized/i.test(value)) {
+        return "personalized";
+      }
+
+      return "unknown";
+    },
+
+    conversationId() {
+      return null;
+    },
+
+    armPostDeliveryUiGuard() {
+      return true;
+    },
+
+    hasExpectedPrompt() {
+      return false;
+    },
+
+    invalidatePostDeliveryAuthorization() {},
+    captureAuthorization() { return null; },
+    singleResultBlockShape() { return false; },
+    hasSingleResultBlock() { return false; },
+  };
+
+  const document = {
+    querySelector(selector) {
+      if (selector === 'button[data-testid="send-button"]') {
+        return send;
+      }
+
+      if (selector === 'button[data-testid="stop-button"]') {
+        return null;
+      }
+
+      return null;
+    },
+
+    querySelectorAll(selector) {
+      if (selector === 'button[data-testid="send-button"]') {
+        return [send];
+      }
+
+      if (
+        selector ===
+        'button,[role="button"],[aria-label],[title],[data-testid]'
+      ) {
+        return [send, personalization];
+      }
+
+      if (
+        selector ===
+        'dialog,[role="dialog"],[role="menu"],[role="listbox"]'
+      ) {
+        return [];
+      }
+
+      if (
+        selector ===
+        '[data-message-author-role="user"],[data-message-author-role="assistant"]'
+      ) {
+        return [];
+      }
+
+      if (selector === '[data-message-author-role="user"]') {
+        return [];
+      }
+
+      if (selector === '[data-message-author-role="assistant"]') {
+        return [];
+      }
+
+      if (selector === "button") {
+        return [send, personalization];
+      }
+
+      return [];
+    },
+  };
+
+  const context = {
+    console,
+    URL,
+    URLSearchParams,
+    TextEncoder,
+
+    Date: class extends Date {
+      static now() {
+        return now;
+      }
+    },
+
+    crypto: {
+      subtle: {
+        digest: async () => digestBytes.slice().buffer,
+      },
+    },
+
+    CAPChatGPTTemporaryPolicy: policy,
+    CAPChatGPTTemporaryExecutionGeneration: "9".repeat(64),
+
+    location: {
+      href: "https://chatgpt.com/?temporary-chat=true",
+      origin: "https://chatgpt.com",
+    },
+
+    history: {
+      state: null,
+      replaceState() {},
+    },
+
+    document,
+
+    getComputedStyle() {
+      return {
+        visibility: "visible",
+        display: "block",
+        opacity: "1",
+      };
+    },
+
+    setInterval(fn) {
+      intervalFn = fn;
+      return 1;
+    },
+
+    clearInterval() {},
+
+    chrome: {
+      runtime: {
+        lastError: null,
+
+        sendMessage(message, callback) {
+          if (message.kind === "event") {
+            events.push(message);
+            callback({ok: true});
+            return;
+          }
+
+          if (message.kind === "authorize-send") {
+            authorizeCount += 1;
+
+            callback({
+              ok: true,
+              send_authorized: true,
+              delivery_state: "claimed",
+            });
+
+            return;
+          }
+
+          if (message.kind === "status") {
+            callback({
+              ok: true,
+              delegation_id: intent.delegationId,
+              delivery_id: intent.deliveryId,
+              result_state: "open",
+              delivery_state: "claimed",
+              result_status: null,
+              final_observation_request_id: null,
+            });
+
+            return;
+          }
+
+          callback({ok: true});
+        },
+      },
+    },
+  };
+
+  context.globalThis = context;
+
+  vm.createContext(context);
+
+  vm.runInContext(
+    source,
+    context,
+    {filename: "content.js"}
+  );
+
+  const flush = () =>
+    new Promise(resolve => setImmediate(resolve));
+
+  async function settle() {
+    await flush();
+    await flush();
+    await flush();
+    await flush();
+  }
+
+  async function step() {
+    now += 500;
+
+    if (typeof intervalFn === "function") {
+      intervalFn();
+    }
+
+    await settle();
+  }
+
+  await settle();
+
+  return {
+    async steps(count) {
+      for (let i = 0; i < count; i += 1) {
+        await step();
+      }
+    },
+
+    get clicks() {
+      return clicks;
+    },
+
+    get authorizeCount() {
+      return authorizeCount;
+    },
+
+    events,
+  };
+}
+
+
+(async () => {
+  const delayed = await runCase({
+    temporaryReadyAt: 3000,
+  });
+
+  assert.equal(delayed.authorizeCount, 0);
+  assert.equal(delayed.clicks, 0);
+
+  await delayed.steps(3);
+
+  assert.equal(
+    delayed.authorizeCount,
+    0,
+    "Send authority must not exist before Temporary UI proof"
+  );
+
+  assert.equal(delayed.clicks, 0);
+
+  await delayed.steps(1);
+
+  assert.equal(
+    delayed.authorizeCount,
+    1,
+    "exactly one Send authority request must occur after Temporary UI proof"
+  );
+
+  assert.equal(
+    delayed.clicks,
+    0,
+    "authority acquisition and physical click remain separate observations"
+  );
+
+  await delayed.steps(1);
+
+  assert.equal(delayed.authorizeCount, 1);
+  assert.equal(delayed.clicks, 1);
+
+  assert.equal(
+    delayed.events.some(
+      event =>
+        event.event === "stopped" &&
+        event.details?.reason === "child-qualification-failed"
+    ),
+    false
+  );
+
+
+  const absent = await runCase({
+    temporaryReadyAt: null,
+  });
+
+  await absent.steps(21);
+
+  assert.equal(
+    absent.authorizeCount,
+    0,
+    "authority must never be requested without Temporary UI proof"
+  );
+
+  assert.equal(absent.clicks, 0);
+
+  assert.ok(
+    absent.events.some(
+      event =>
+        event.event === "stopped" &&
+        event.details?.reason === "child-qualification-failed"
+    ),
+    "Temporary UI that never appears must fail closed after the bounded window"
+  );
+
+
+  const personalized = await runCase({
+    temporaryReadyAt: null,
+    personalizationText: "Personalized",
+  });
+
+  assert.equal(personalized.authorizeCount, 0);
+  assert.equal(personalized.clicks, 0);
+
+  assert.ok(
+    personalized.events.some(
+      event =>
+        event.event === "stopped" &&
+        event.details?.reason === "child-qualification-failed"
+    ),
+    "non-Temporary failures must not receive the settlement grace period"
+  );
+})().catch(error => {
+  console.error(error);
+  process.exit(1);
+});
+"""
+
+        script = script.replace(
+            "__CONTENT_PATH__",
+            json.dumps(str(CONTENT)),
+        )
+
+        self.run_node(script)
+
+
+
 if __name__ == "__main__":
     unittest.main()
