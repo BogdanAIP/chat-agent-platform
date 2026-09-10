@@ -10,6 +10,7 @@
   const STATUS_POLL_MS = 1000;
   const PREFLIGHT_RETRY_MS = 750;
   const PREFLIGHT_MAX_MS = 5 * 60 * 1000;
+  const TEMPORARY_UI_SETTLE_MS = 10000;
   const MAX_RECOVERY_CLAIMS = 8;
   const LAUNCH_QUERY_KEYS = [
     "temporary-chat",
@@ -155,6 +156,7 @@
     let stopped = false;
     let intervalId = null;
     let authorityRequested = recovered;
+    let temporaryUiPendingSince = null;
     let sendAuthorized = false;
     let monitorOnly = recovered;
     let sendClickedAt = recovered ? Date.now() : 0;
@@ -610,9 +612,13 @@
     }
 
     function stopButtonPresent() {
-      return Boolean(
-        document.querySelector('button[data-testid="stop-button"]') ||
-        [...document.querySelectorAll("button")].some((button) => /^(stop|останов)/i.test(normalize(button.getAttribute("aria-label") || button.textContent))),
+      const primary = document.querySelector('button[data-testid="stop-button"]');
+      if (primary && visible(primary)) return true;
+      return [...document.querySelectorAll("button")].some((button) =>
+        visible(button) && (
+          button.getAttribute?.("data-testid") === "stop-button" ||
+          /^(stop|останов)/i.test(normalize(button.getAttribute?.("aria-label") || button.textContent))
+        ),
       );
     }
 
@@ -669,11 +675,48 @@
         }
       }
       const temporary = observeTemporaryState(composer);
-      if (!temporary.temporary_mode || !temporary.fresh_context || temporary.personalization_disabled !== true || temporary.plugin_markers.length > 0) {
-        event("temporary-ui-not-proven", temporary);
+      const closedProfileProven =
+        temporary.temporary_mode &&
+        temporary.fresh_context &&
+        temporary.personalization_disabled === true &&
+        temporary.plugin_markers.length === 0;
+
+      if (!closedProfileProven) {
+        // ChatGPT may render the composer and Send before the dedicated
+        // Temporary-page evidence reaches the live DOM. Retry only that
+        // narrow presentation race. No Send authority exists while pending.
+        const retryableTemporaryUiSettle =
+          !temporary.temporary_mode &&
+          temporary.fresh_context === true &&
+          temporary.personalization_disabled === true;
+
+        if (retryableTemporaryUiSettle) {
+          const now = Date.now();
+
+          if (temporaryUiPendingSince === null) {
+            temporaryUiPendingSince = now;
+            event("temporary-ui-not-proven", {
+              ...temporary,
+              qualification_pending: true,
+              settle_ms: TEMPORARY_UI_SETTLE_MS,
+            });
+          }
+
+          if (now - temporaryUiPendingSince < TEMPORARY_UI_SETTLE_MS) {
+            authorityRequested = false;
+            return;
+          }
+        }
+
+        event("temporary-ui-not-proven", {
+          ...temporary,
+          qualification_pending: false,
+        });
         stop("child-qualification-failed", temporary);
         return;
       }
+
+      temporaryUiPendingSince = null;
       observationSeq += 1;
       const response = await sendMessage("authorize-send", {
         task_sha256: intent.taskSha256,

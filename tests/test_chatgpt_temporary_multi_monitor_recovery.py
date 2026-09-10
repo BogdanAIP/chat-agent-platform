@@ -254,6 +254,7 @@ context.message = {{
   task_sha256: taskSha,
   expected_runtime_head: head,
   prompt_sha256: promptSha,
+  owner_tab_id: ownerTab,
 }};
 context.record = {{
   schema_version: 1,
