@@ -211,9 +211,10 @@ class ChatGPTTemporaryExtensionContractTests(unittest.TestCase):
         self.assertIn("policy.personalizationModeFromText(text)", observe)
         self.assertIn('personalizationState === "non-personalized"', observe)
         self.assertNotIn("personalization_disabled: temporaryMode", observe)
-        self.assertIn("temporary.personalization_disabled !== true", request)
+        self.assertIn("temporary.personalization_disabled === true", request)
+        self.assertIn("if (!closedProfileProven)", request)
         self.assertLess(
-            request.index("temporary.personalization_disabled !== true"),
+            request.index("temporary.personalization_disabled === true"),
             request.index('sendMessage("authorize-send"'),
         )
 
