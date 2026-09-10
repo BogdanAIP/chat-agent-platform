@@ -120,6 +120,32 @@ vendor-by-vendor IoT integrations by default
 
 A custom implementation of one of these requires a **measured gap**: a concrete consumer, a failed/rejected reuse candidate, and Stage Research showing why the project-owned implementation is the smallest justified mechanism.
 
+
+### Future multi-agent / shared-memory boundary
+
+Future multi-agent or shared-memory work remains research-only and does not override the reuse-first rule above.
+
+If multiple agents later share persistent state, CAP must preserve a strict knowledge/authority boundary: agent-contributed shared knowledge is untrusted input until independently qualified under CAP provenance, freshness, verification and authorization semantics.
+
+In particular:
+
+```text
+agent contribution
+        !=
+authoritative CAP state
+
+multi-agent consensus
+        !=
+independent verification
+
+shared-memory recommendation
+        !=
+consequence authorization
+```
+
+See: `MULTI_AGENT_SHARED_MEMORY_AUTHORITY_BOUNDARY.md`.
+
+
 ---
 
 ## 4. Provider families — narrow contracts, not one universal state machine
