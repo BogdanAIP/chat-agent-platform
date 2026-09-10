@@ -121,29 +121,28 @@ vendor-by-vendor IoT integrations by default
 A custom implementation of one of these requires a **measured gap**: a concrete consumer, a failed/rejected reuse candidate, and Stage Research showing why the project-owned implementation is the smallest justified mechanism.
 
 
-### Future multi-agent / shared-memory boundary
+### Future shared-memory multi-agent research
 
-Future multi-agent or shared-memory work remains research-only and does not override the reuse-first rule above.
+A promising future research direction is to test whether several strong agents can coordinate through a controlled persistent shared-knowledge space without CAP hard-coding a large planner/worker/reviewer hierarchy.
 
-If multiple agents later share persistent state, CAP must preserve a strict knowledge/authority boundary: agent-contributed shared knowledge is untrusted input until independently qualified under CAP provenance, freshness, verification and authorization semantics.
-
-In particular:
+The hypothesis is:
 
 ```text
-agent contribution
-        !=
-authoritative CAP state
-
-multi-agent consensus
-        !=
-independent verification
-
-shared-memory recommendation
-        !=
-consequence authorization
+multiple strong agents
++ persistent shared knowledge
++ ability to continue / challenge / extend prior work
+=
+emergent collaboration
++ specialization
++ cross-run continuity
++ accumulated long-horizon progress
 ```
 
-See: `MULTI_AGENT_SHARED_MEMORY_AUTHORITY_BOUNDARY.md`.
+The shared-memory layer would support exploration, handoff, synthesis and spontaneous division of labor. CAP would remain the separate authority/effect layer for consequential actions, fresh verification and whole-task completion.
+
+This remains research-only and does not authorize a swarm runtime or project-owned multi-agent infrastructure.
+
+See: `SHARED_MEMORY_MULTI_AGENT_ARCHITECTURE.md`.
 
 
 ---
