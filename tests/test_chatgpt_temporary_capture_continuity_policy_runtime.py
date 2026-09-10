@@ -90,7 +90,21 @@ const context = {{
     documentElement: root,
     querySelector(selector) {{
       if (selector === "#prompt-textarea") return editor;
-      if (selector === 'button[data-testid="stop-button"]') return stopPresent ? {{tagName: "BUTTON"}} : null;
+      if (selector === 'button[data-testid="stop-button"]') return stopPresent ? {{
+        nodeType: 1,
+        tagName: "BUTTON",
+        isConnected: true,
+        parentElement: null,
+        hidden: false,
+        inert: false,
+        textContent: "Stop",
+        getBoundingClientRect: rect,
+        getAttribute(name) {{
+          if (name === "data-testid") return "stop-button";
+          if (name === "aria-label") return "Stop";
+          return null;
+        }},
+      }} : null;
       return null;
     }},
     querySelectorAll(selector) {{

@@ -342,7 +342,13 @@ function resolveLiveMessage(message) {
     return null;
   }
   if (message.task_sha256 !== undefined && message.task_sha256 !== live.task_sha256) return null;
-  return { ...message, launch_handle: launchHandle, run_id: live.run_id, task_sha256: live.task_sha256 };
+  return {
+    ...message,
+    launch_handle: launchHandle,
+    run_id: live.run_id,
+    task_sha256: live.task_sha256,
+    owner_tab_id: live.owner_tab_id,
+  };
 }
 
 async function claimBrowserSend(message, tabId) {
@@ -513,6 +519,14 @@ async function requestLocalSendAuthority(message, tabId) {
 async function authorizeSend(message, sender) {
   const tabId = senderTab(sender);
   if (tabId === null) return { ok: false, send_authorized: false, reason: "invalid-sender" };
+  if (!Number.isInteger(message.owner_tab_id) || message.owner_tab_id !== tabId) {
+    return {
+      ok: true,
+      send_authorized: false,
+      monitor_only: false,
+      reason: "browser-launch-owned-by-other-tab",
+    };
+  }
 
   let browserClaim;
   try {

@@ -69,6 +69,7 @@ context.message = {{
   task_sha256: taskSha,
   expected_runtime_head: head,
   prompt_sha256: promptSha,
+  owner_tab_id: ownerTab,
 }};
 context.record = {{
   schema_version: 1,
@@ -108,7 +109,7 @@ vm.runInContext(`
 (async () => {{
   const loser = await vm.runInContext("authorizeSend(message, loserSender)", context);
   if (loser.send_authorized !== false || loser.monitor_only !== false) process.exit(10);
-  if (loser.reason !== "browser-claim-owned-by-other-tab") process.exit(11);
+  if (loser.reason !== "browser-launch-owned-by-other-tab") process.exit(11);
   if (context.authorityCalls.length !== 0) process.exit(12);
 
   const owner = await vm.runInContext("authorizeSend(message, ownerSender)", context);
@@ -159,6 +160,7 @@ context.message = {{
   task_sha256: taskSha,
   expected_runtime_head: head,
   prompt_sha256: promptSha,
+  owner_tab_id: reusedOwnerTab,
 }};
 context.record = {{
   schema_version: 1,
