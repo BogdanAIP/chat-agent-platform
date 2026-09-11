@@ -70,14 +70,38 @@ function Show-CapUpdateTrayBalloon {
 }
 
 function Read-CapUpdateTrayResult {
+    param(
+        [Parameter(Mandatory)] [int]$ExpectedProcessId,
+        [Parameter(Mandatory)] [datetimeoffset]$StartedAt
+    )
+
     if (-not (Test-Path -LiteralPath $script:CapTrayUpdateResultPath -PathType Leaf)) {
         return $null
     }
     try {
-        return (
+        $result = (
             Get-Content -LiteralPath $script:CapTrayUpdateResultPath -Raw -Encoding utf8 |
                 ConvertFrom-Json -ErrorAction Stop
         )
+        if (
+            $null -eq $result.PSObject.Properties['process_id'] -or
+            [int]$result.process_id -ne $ExpectedProcessId -or
+            $null -eq $result.PSObject.Properties['action'] -or
+            [string]$result.action -cne 'update' -or
+            $null -eq $result.PSObject.Properties['completed_at']
+        ) {
+            return $null
+        }
+
+        $completedAt = [datetimeoffset]::Parse(
+            [string]$result.completed_at,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind
+        ).ToUniversalTime()
+        if ($completedAt -lt $StartedAt.ToUniversalTime()) {
+            return $null
+        }
+        return $result
     }
     catch {
         return $null
@@ -104,7 +128,14 @@ function Complete-CapUpdateTrayOperation {
     }
 
     $exitCode = try { [int]$script:CapTrayUpdateProcess.ExitCode } catch { -1 }
-    $result = Read-CapUpdateTrayResult
+    $processId = try { [int]$script:CapTrayUpdateProcess.Id } catch { -1 }
+    $startedAt = $script:CapTrayUpdateStartedAt
+    $result = if ($processId -gt 0 -and $null -ne $startedAt) {
+        Read-CapUpdateTrayResult -ExpectedProcessId $processId -StartedAt $startedAt
+    }
+    else {
+        $null
+    }
 
     Clear-CapUpdateTrayProcess
     if ($null -ne $script:CapTrayUpdateItem) {
@@ -223,6 +254,7 @@ function Start-CapUpdateTrayOperation {
 
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
+    $launchStartedAt = [datetimeoffset]::UtcNow
     try {
         if (-not $process.Start()) {
             throw 'Не удалось запустить updater.'
@@ -237,7 +269,7 @@ function Start-CapUpdateTrayOperation {
     }
 
     $script:CapTrayUpdateProcess = $process
-    $script:CapTrayUpdateStartedAt = [datetimeoffset]::UtcNow
+    $script:CapTrayUpdateStartedAt = $launchStartedAt
 
     # Reuse the existing tray lifecycle-busy projection while the updater owns
     # installation. This blocks power-toggle/double-click and mode changes from
