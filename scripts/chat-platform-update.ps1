@@ -406,7 +406,14 @@ catch {
         }
     }
 
-    if ($message -ceq $TargetContinuityBlockedReason) {
+    if (-not $acquired) {
+        # A process that never acquired the updater mutex is not update-state
+        # authority. In particular, it must not overwrite the active owner's
+        # state or terminal result while reporting a duplicate/busy failure.
+        Write-CapUpdateLog "unowned_error=$message"
+        $exitCode = 2
+    }
+    elseif ($message -ceq $TargetContinuityBlockedReason) {
         try {
             $state = Read-CapUpdateState -Path $StatePath
             $blockedState = New-CapUpdateState `
