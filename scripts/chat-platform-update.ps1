@@ -195,6 +195,8 @@ function Test-CapTargetSelfUpdateContract {
                 'New-CapUpdateWorktree',
                 'Publish-CapInstalledVersionFromSource',
                 'process_id = $PID',
+                'if (-not $acquired)',
+                'unowned_error=',
                 'pre-update-platform-stop',
                 'update-recovery-platform-start'
             )
