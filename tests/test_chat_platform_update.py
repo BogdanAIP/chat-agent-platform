@@ -198,6 +198,20 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
         self.assertNotIn("CapTrayUpdateStdoutTask", self.tray_update)
         self.assertNotIn("CapTrayUpdateStderrTask", self.tray_update)
 
+    def test_non_owner_updater_cannot_mutate_shared_state_or_result(self) -> None:
+        catch = self.updater.index("\ncatch {")
+        owner_guard = self.updater.index("if (-not $acquired)", catch)
+        target_branch = self.updater.index(
+            "elseif ($message -ceq $TargetContinuityBlockedReason)",
+            owner_guard,
+        )
+        self.assertLess(catch, owner_guard)
+        self.assertLess(owner_guard, target_branch)
+        guarded = self.updater[owner_guard:target_branch]
+        self.assertIn("unowned_error=", guarded)
+        self.assertNotIn("Write-CapUpdateResult", guarded)
+        self.assertNotIn("Write-CapUpdateAtomicJson -Path $StatePath", guarded)
+
     def test_tray_rejects_stale_or_foreign_terminal_results(self) -> None:
         self.assertIn("process_id = $PID", self.updater)
         for marker in (
@@ -476,6 +490,85 @@ exit 92
         self.assertEqual(final_state["status"], "error")
         self.assertEqual(final_state["installed_commit_sha"], self.first)
         self.assertEqual(final_state["target_commit_sha"], target)
+
+    @unittest.skipUnless(os.name == "nt", "Named updater mutex behavior requires Windows")
+    def test_duplicate_updater_without_mutex_leaves_owner_state_and_result_untouched(self) -> None:
+        local_appdata = self.root / "localappdata"
+        state_dir = local_appdata / "ChatAgentPlatform" / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        state_path = state_dir / "platform-update.json"
+        result_path = state_dir / "platform-update-result.json"
+        state_bytes = b'{"owner":"active"}\n'
+        result_bytes = b'{"owner":"active-result"}\n'
+        state_path.write_bytes(state_bytes)
+        result_path.write_bytes(result_bytes)
+
+        harness = self.root / "mutex-harness"
+        harness.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(CORE, harness / CORE.name)
+        updater_text = UPDATER.read_text(encoding="utf-8")
+        timeout_line = "$MutexTimeoutMilliseconds = 30000"
+        self.assertEqual(updater_text.count(timeout_line), 1)
+        updater_text = updater_text.replace(
+            timeout_line,
+            "$MutexTimeoutMilliseconds = 200",
+        )
+        harness_updater = harness / UPDATER.name
+        harness_updater.write_text(updater_text, encoding="utf-8")
+
+        pwsh = shutil.which("pwsh") or "pwsh"
+        holder_script = (
+            "$m=[System.Threading.Mutex]::new($false,"
+            "'Local\\ChatAgentPlatformUpdateOperation');"
+            "$null=$m.WaitOne();"
+            "[Console]::Out.WriteLine('READY');"
+            "[Console]::Out.Flush();"
+            "Start-Sleep -Seconds 10"
+        )
+        holder = subprocess.Popen(
+            [pwsh, "-NoLogo", "-NoProfile", "-Command", holder_script],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            self.assertIsNotNone(holder.stdout)
+            self.assertEqual(holder.stdout.readline().strip(), "READY")
+            env = os.environ.copy()
+            env["LOCALAPPDATA"] = str(local_appdata)
+            result = subprocess.run(
+                [
+                    pwsh,
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(harness_updater),
+                    "-Action",
+                    "Update",
+                ],
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+            self.assertEqual(
+                result.returncode,
+                2,
+                msg=f"stdout={result.stdout}\nstderr={result.stderr}",
+            )
+            self.assertEqual(state_path.read_bytes(), state_bytes)
+            self.assertEqual(result_path.read_bytes(), result_bytes)
+        finally:
+            holder.terminate()
+            try:
+                holder.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                holder.kill()
+                holder.wait(timeout=5)
 
     def test_state_round_trip_is_strict(self) -> None:
         state_path = self.root / "state.json"
