@@ -198,6 +198,33 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
         self.assertNotIn("CapTrayUpdateStdoutTask", self.tray_update)
         self.assertNotIn("CapTrayUpdateStderrTask", self.tray_update)
 
+    def test_tray_rejects_stale_or_foreign_terminal_results(self) -> None:
+        self.assertIn("process_id = $PID", self.updater)
+        for marker in (
+            "[int]$ExpectedProcessId",
+            "[datetimeoffset]$StartedAt",
+            "$result.process_id -ne $ExpectedProcessId",
+            "[string]$result.action -cne 'update'",
+            "[string]$result.completed_at",
+            "$completedAt -lt $StartedAt.ToUniversalTime()",
+            "Read-CapUpdateTrayResult -ExpectedProcessId $processId -StartedAt $startedAt",
+        ):
+            self.assertIn(marker, self.tray_update)
+
+        read = self.tray_update.index(
+            "Read-CapUpdateTrayResult -ExpectedProcessId $processId -StartedAt $startedAt"
+        )
+        clear = self.tray_update.index("Clear-CapUpdateTrayProcess", read)
+        self.assertLess(read, clear)
+
+        target_contract = self.updater.split(
+            "function Test-CapTargetSelfUpdateContract",
+            1,
+        )[1].split("function Save-CapDecisionState", 1)[0]
+        self.assertIn("'ExpectedProcessId'", target_contract)
+        self.assertIn("'completed_at'", target_contract)
+        self.assertIn("'process_id = $PID'", target_contract)
+
     def test_tray_does_not_kill_an_active_update(self) -> None:
         exit_handler = self.tray.split("$exitItem.add_Click({", 1)[1]
         exit_handler = exit_handler.split("Refresh-VisualState", 1)[0]
