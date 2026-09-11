@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -277,6 +278,177 @@ class ChatPlatformUpdateGitBehaviorTests(unittest.TestCase):
             f"-InstalledCommitSha '{second}' -TargetCommitSha '{self.first}'"
         ).splitlines()[-1].strip()
         self.assertEqual(rollback, "False")
+
+    @unittest.skipUnless(os.name == "nt", "Windows updater orchestration requires Windows")
+    def test_running_platform_is_quiesced_before_bootstrap_and_restarted_after_failure(self) -> None:
+        scripts = self.source / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+
+        action_log = self.root / "actions.log"
+        tunnel_sentinel = self.root / "tunnel-running.txt"
+        tunnel_sentinel.write_text("running\n", encoding="utf-8")
+        local_appdata = self.root / "localappdata"
+        state_dir = local_appdata / "ChatAgentPlatform" / "state"
+        manager_dir = local_appdata / "ChatAgentPlatform" / "app" / "scripts"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        manager_dir.mkdir(parents=True, exist_ok=True)
+
+        desired_state = state_dir / "desired-state.json"
+        desired_state.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "desired_state": "running",
+                    "source": "user_action",
+                    "updated_at": "2026-09-11T00:00:00Z",
+                }
+            ),
+            encoding="utf-8",
+        )
+        update_state = state_dir / "platform-update.json"
+        update_state.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "repository": "BogdanAIP/chat-agent-platform",
+                    "branch": "main",
+                    "installed_commit_sha": self.first,
+                    "installed_at": "2026-09-11T00:00:00Z",
+                    "status": "current",
+                    "target_commit_sha": self.first,
+                    "last_checked_at": "2026-09-11T00:00:00Z",
+                    "last_error": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manager = manager_dir / "chat-platform.ps1"
+        manager.write_text(
+            """[CmdletBinding()]
+param(
+    [ValidateSet('Start', 'Stop')]
+    [string]$Action,
+    [switch]$NoNotify
+)
+$ErrorActionPreference = 'Stop'
+Add-Content -LiteralPath $env:CAP_TEST_ACTION_LOG -Value $Action -Encoding utf8
+if ($Action -eq 'Stop') {
+    Remove-Item -LiteralPath $env:CAP_TEST_TUNNEL_SENTINEL -Force -ErrorAction SilentlyContinue
+    '{"schema_version":1,"desired_state":"stopped","source":"user_action","updated_at":"2026-09-11T00:00:01Z"}' |
+        Set-Content -LiteralPath $env:CAP_TEST_DESIRED_STATE -Encoding utf8
+}
+else {
+    Set-Content -LiteralPath $env:CAP_TEST_TUNNEL_SENTINEL -Value 'running' -Encoding utf8
+    '{"schema_version":1,"desired_state":"running","source":"user_action","updated_at":"2026-09-11T00:00:02Z"}' |
+        Set-Content -LiteralPath $env:CAP_TEST_DESIRED_STATE -Encoding utf8
+}
+exit 0
+""",
+            encoding="utf-8",
+        )
+
+        (scripts / "bootstrap-chat-platform.ps1").write_text(
+            """# chat-platform-tray-update.ps1
+# chat-platform-update-core.ps1
+# chat-platform-update.ps1
+# MAIN_UPDATE_UI=tray-more-menu
+# MAIN_UPDATER_INSTALLED=True
+$ErrorActionPreference = 'Stop'
+Add-Content -LiteralPath $env:CAP_TEST_ACTION_LOG -Value 'Bootstrap' -Encoding utf8
+if (Test-Path -LiteralPath $env:CAP_TEST_TUNNEL_SENTINEL -PathType Leaf) {
+    exit 90
+}
+exit 92
+""",
+            encoding="utf-8",
+        )
+        (scripts / "chat-platform-tray.ps1").write_text(
+            "# chat-platform-tray-update.ps1 Register-CapUpdateTrayMenu\n",
+            encoding="utf-8",
+        )
+        (scripts / "chat-platform-tray-update.ps1").write_text(
+            "# Register-CapUpdateTrayMenu '-Action', 'Update' platform-update-result.json\n",
+            encoding="utf-8",
+        )
+        (scripts / "chat-platform-update-core.ps1").write_text(
+            "# CapUpdateOfficialRemote CapUpdateBranch Sync-CapUpdateMain\n",
+            encoding="utf-8",
+        )
+        (scripts / "chat-platform-update.ps1").write_text(
+            (
+                "# CapUpdateOfficialRemote New-CapUpdateWorktree "
+                "Publish-CapInstalledVersionFromSource "
+                "pre-update-platform-stop update-recovery-platform-start\n"
+            ),
+            encoding="utf-8",
+        )
+        run(["git", "add", "scripts"], cwd=self.source)
+        run(["git", "commit", "-m", "target with self-update contract"], cwd=self.source)
+        target = run(["git", "rev-parse", "HEAD"], cwd=self.source)
+        run(["git", "push", "origin", "main"], cwd=self.source)
+
+        harness = self.root / "harness"
+        harness.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(CORE, harness / CORE.name)
+        updater_text = UPDATER.read_text(encoding="utf-8")
+        fixed_source = "$RemoteUrl = $script:CapUpdateOfficialRemote"
+        self.assertEqual(updater_text.count(fixed_source), 1)
+        updater_text = updater_text.replace(
+            fixed_source,
+            f"$RemoteUrl = {ps_quote(self.remote)}",
+        )
+        harness_updater = harness / UPDATER.name
+        harness_updater.write_text(updater_text, encoding="utf-8")
+
+        env = os.environ.copy()
+        env["LOCALAPPDATA"] = str(local_appdata)
+        env["CAP_TEST_ACTION_LOG"] = str(action_log)
+        env["CAP_TEST_TUNNEL_SENTINEL"] = str(tunnel_sentinel)
+        env["CAP_TEST_DESIRED_STATE"] = str(desired_state)
+        result = subprocess.run(
+            [
+                shutil.which("pwsh") or "pwsh",
+                "-NoLogo",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(harness_updater),
+                "-Action",
+                "Update",
+            ],
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(
+            result.returncode,
+            1,
+            msg=f"stdout={result.stdout}\nstderr={result.stderr}",
+        )
+
+        actions = action_log.read_text(encoding="utf-8-sig").splitlines()
+        self.assertEqual(actions, ["Stop", "Bootstrap", "Start"])
+        self.assertTrue(tunnel_sentinel.is_file())
+        self.assertEqual(
+            json.loads(desired_state.read_text(encoding="utf-8-sig"))["desired_state"],
+            "running",
+        )
+
+        terminal = json.loads(
+            (state_dir / "platform-update-result.json").read_text(encoding="utf-8-sig")
+        )
+        self.assertEqual(terminal["status"], "error")
+        self.assertTrue(terminal["restarted"])
+        self.assertIn("bootstrap-chat-platform failed with exit code 92", terminal["reason"])
+
+        final_state = json.loads(update_state.read_text(encoding="utf-8-sig"))
+        self.assertEqual(final_state["status"], "error")
+        self.assertEqual(final_state["installed_commit_sha"], self.first)
+        self.assertEqual(final_state["target_commit_sha"], target)
 
     def test_state_round_trip_is_strict(self) -> None:
         state_path = self.root / "state.json"
