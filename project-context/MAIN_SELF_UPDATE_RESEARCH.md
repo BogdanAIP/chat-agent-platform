@@ -290,8 +290,8 @@ The narrow guarantee is ordinary process/retry correctness, not power-loss trans
 | bootstrap succeeds, before wrapper reconciliation | bootstrap may already have exact target receipt, or previous accepted bootstrap may not know updater | installed target bundle is present | `Publish-CapInstalledVersionFromSource` on same exact worktree + receipt reread | reconciliation only; no second bootstrap required in same run | explicit post-bootstrap reconciliation |
 | receipt target committed, before optional restart | target installed SHA authoritative | new runtime installed but stopped | installed command Start result | no reinstall; at most one Start attempt in this run | restart branch tests/source review |
 | restart fails | target installed SHA remains truthful; updater status becomes error | new runtime installed, desired service may be stopped | separate manager status/start | do not downgrade/reinstall automatically; operator retry Start/update | error state preserves installed SHA |
-| updater process exits before tray consumes result | receipt/updater state authoritative | operation already terminal | child exit + structured stdout or state/log | tray must not replay update automatically | tray observes once; no background retry |
-| duplicate tray click / second updater | first process + named mutex authoritative | first update may be active | process/mutex ownership | duplicate effect prohibited; second caller rejected | busy state + named mutex |
+| updater process exits before tray consumes result | receipt/updater state authoritative | operation already terminal | child exit + PID/time-correlated terminal result | tray must reject stale/foreign result files and must not replay update automatically | exact updater PID + `completed_at` correlation; no background retry |
+| duplicate tray click / second updater | first process + named mutex authoritative | first update may be active | process/mutex ownership | duplicate effect prohibited; a caller that never acquires the mutex exits without mutating shared update state/result | busy state + named mutex + Windows ownership-isolation regression |
 | tray close while updater active | updater process authoritative | installation may be in progress | updater child still running | tray close blocked; zero cancellation effects | source contract asserts no `Kill()` |
 | power loss during bundle replacement | previous or target receipt may not fully describe partially copied bundle | partial installation possible | **outside narrow guarantee** | no automatic claim; Stage 27 required for transactional rollback | explicit non-goal / release risk remains open |
 
@@ -326,6 +326,9 @@ This mechanism does not attempt to defend against a hostile same-user Windows en
 - canonical bootstrap reuse only after quiesce completes;
 - exact receipt reconciliation after bootstrap;
 - recovery Start after any post-stop failure when pre-update desired state was `running`;
+- strict pre-update desired-state validation: malformed persisted intent fails before quiesce;
+- updater-mutex ownership is required before mutating shared update state or terminal result;
+- tray terminal-result consumption is correlated to the exact updater PID and launch/completion time;
 - one tray **Обновить** action with no confirmation/check UI;
 - no tray cancellation of active updater;
 - serialization against tray Start/Stop/mode operations;
@@ -374,6 +377,9 @@ Hosted acceptance must prove at minimum:
 - production updater source remains fixed to official `main`;
 - Windows behavioral fixture proves exact ordering `continuity gate -> Stop -> bootstrap`;
 - forced post-stop bootstrap failure produces `Stop -> Bootstrap -> Start`, restores prior `running` intent, reports `status=error` / `restarted=true`, and does not publish a false target receipt;
+- malformed persistent desired state is rejected before any Stop/quiesce attempt;
+- a duplicate updater that cannot acquire the named mutex leaves the active owner's state/result bytes untouched;
+- tray accepts terminal result only when `process_id`, action and `completed_at` correlate to the exact child invocation;
 - existing six-tool/public semantic contracts remain unchanged.
 
 Physical target-Windows acceptance must prove on exact PR bytes:
@@ -449,5 +455,8 @@ Durable invariants preserved:
 - UI success is not installation truth; exact receipt/bootstrap result is;
 - bootstrap is never entered while the updater intentionally leaves the managed platform running;
 - a post-stop failure cannot silently abandon prior `running` intent without a bounded recovery Start attempt;
+- invalid persisted running/stopped intent cannot be silently reinterpreted before update;
+- only the mutex owner may mutate shared update state/result;
+- tray UI never treats an uncorrelated stale/foreign result as the current invocation's truth;
 - no active update is cancelled by the tray;
 - release-grade update/rollback remains explicitly unclaimed until Stage 27.
