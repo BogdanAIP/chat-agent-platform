@@ -149,6 +149,22 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
             self.tray_update,
         )
 
+    def test_invalid_persistent_desired_state_fails_closed_before_quiesce(self) -> None:
+        desired = self.updater.split("function Get-CapDesiredRunning", 1)[1]
+        desired = desired.split("function Invoke-CapPwshProcess", 1)[0]
+        self.assertIn("$desired -notin @('running', 'stopped')", desired)
+        self.assertIn("refusing update before quiesce", desired)
+
+        intent_read = self.updater.index("$wasRunning = Get-CapDesiredRunning")
+        stop_attempt = self.updater.index("$platformStopAttempted = $true", intent_read)
+        self.assertLess(intent_read, stop_attempt)
+
+        target_contract = self.updater.split(
+            "function Test-CapTargetSelfUpdateContract",
+            1,
+        )[1].split("function Save-CapDecisionState", 1)[0]
+        self.assertIn("'refusing update before quiesce'", target_contract)
+
     def test_update_quiesces_running_platform_before_bootstrap_and_recovers_on_error(self) -> None:
         gate = self.updater.index("Test-CapTargetSelfUpdateContract -WorktreePath $worktree")
         stop_attempt = self.updater.index("$platformStopAttempted = $true", gate)
@@ -211,6 +227,13 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
         self.assertIn("unowned_error=", guarded)
         self.assertNotIn("Write-CapUpdateResult", guarded)
         self.assertNotIn("Write-CapUpdateAtomicJson -Path $StatePath", guarded)
+
+        target_contract = self.updater.split(
+            "function Test-CapTargetSelfUpdateContract",
+            1,
+        )[1].split("function Save-CapDecisionState", 1)[0]
+        self.assertIn("'if (-not $acquired)'", target_contract)
+        self.assertIn("'unowned_error='", target_contract)
 
     def test_tray_rejects_stale_or_foreign_terminal_results(self) -> None:
         self.assertIn("process_id = $PID", self.updater)
@@ -409,7 +432,10 @@ exit 92
             encoding="utf-8",
         )
         (scripts / "chat-platform-tray-update.ps1").write_text(
-            "# Register-CapUpdateTrayMenu '-Action', 'Update' platform-update-result.json\n",
+            (
+                "# Register-CapUpdateTrayMenu '-Action', 'Update' "
+                "platform-update-result.json ExpectedProcessId completed_at\n"
+            ),
             encoding="utf-8",
         )
         (scripts / "chat-platform-update-core.ps1").write_text(
@@ -419,7 +445,8 @@ exit 92
         (scripts / "chat-platform-update.ps1").write_text(
             (
                 "# CapUpdateOfficialRemote New-CapUpdateWorktree "
-                "Publish-CapInstalledVersionFromSource "
+                "Publish-CapInstalledVersionFromSource process_id = $PID "
+                "if (-not $acquired) unowned_error= refusing update before quiesce "
                 "pre-update-platform-stop update-recovery-platform-start\n"
             ),
             encoding="utf-8",
