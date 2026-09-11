@@ -76,10 +76,17 @@ function Get-CapDesiredRunning {
     }
     try {
         $state = Get-Content -LiteralPath $DesiredStatePath -Raw -Encoding utf8 | ConvertFrom-Json -ErrorAction Stop
-        return ([string]$state.desired_state -eq 'running')
+        if ($null -eq $state.PSObject.Properties['desired_state']) {
+            throw 'desired_state is missing'
+        }
+        $desired = [string]$state.desired_state
+        if ($desired -notin @('running', 'stopped')) {
+            throw "unsupported desired_state '$desired'"
+        }
+        return ($desired -eq 'running')
     }
     catch {
-        return $false
+        throw "Persistent desired state is invalid; refusing update before quiesce: $($_.Exception.Message)"
     }
 }
 
@@ -197,6 +204,7 @@ function Test-CapTargetSelfUpdateContract {
                 'process_id = $PID',
                 'if (-not $acquired)',
                 'unowned_error=',
+                'refusing update before quiesce',
                 'pre-update-platform-stop',
                 'update-recovery-platform-start'
             )
