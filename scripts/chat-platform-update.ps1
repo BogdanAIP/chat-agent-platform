@@ -53,6 +53,7 @@ function Write-CapUpdateResult {
 
     $result = [ordered]@{
         schema_version = 1
+        process_id = $PID
         action = $Action.ToLowerInvariant()
         status = $Status
         repository = $script:CapUpdateRepository
