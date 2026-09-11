@@ -176,7 +176,13 @@ function Test-CapTargetSelfUpdateContract {
         },
         [pscustomobject]@{
             path = 'scripts\chat-platform-tray-update.ps1'
-            markers = @('Register-CapUpdateTrayMenu', "'-Action', 'Update'", 'platform-update-result.json')
+            markers = @(
+                'Register-CapUpdateTrayMenu',
+                "'-Action', 'Update'",
+                'platform-update-result.json',
+                'ExpectedProcessId',
+                'completed_at'
+            )
         },
         [pscustomobject]@{
             path = 'scripts\chat-platform-update-core.ps1'
@@ -188,6 +194,7 @@ function Test-CapTargetSelfUpdateContract {
                 'CapUpdateOfficialRemote',
                 'New-CapUpdateWorktree',
                 'Publish-CapInstalledVersionFromSource',
+                'process_id = $PID',
                 'pre-update-platform-stop',
                 'update-recovery-platform-start'
             )
