@@ -286,7 +286,7 @@ The narrow guarantee is ordinary process/retry correctness, not power-loss trans
 | after durable `installing`, before worktree | receipt retains previous installed SHA + target | installed runtime still previous | next exact fetch/decision | retry allowed; at most one later canonical bootstrap | state round-trip test |
 | after worktree creation, before bootstrap | same `installing` state | exact source staged, installed runtime previous | exact worktree HEAD + clean status | retry allowed after cleanup; no install effect yet | worktree HEAD/clean test |
 | during per-file bootstrap replacement | previous installed SHA remains authoritative | bundle may be partially replaced if bootstrap/process/power fails | successful future bootstrap + smoke; no inference from partial files | fail closed; retry bootstrap; whole-install rollback explicitly not claimed | existing verified-copy/bootstrap tests; Stage 27 owns stronger transaction |
-| bootstrap fails | previous installed SHA remains authoritative unless no truthful receipt existed | runtime may be stopped / partially refreshed | successful subsequent bootstrap/smoke | retry allowed; no success claim | wrapper error state; no new current receipt |
+| bootstrap fails after updater quiesce | previous installed SHA remains authoritative unless no truthful receipt existed | bundle may be partially refreshed; updater has already stopped the managed runtime | recovery Start through the installed manager when pre-update desired state was `running`; subsequent successful bootstrap/smoke remains authoritative for installation | no success claim; one bounded recovery Start attempt in this run; no false target receipt | Windows behavioral regression proves Stop -> Bootstrap -> recovery Start and preserves previous installed SHA |
 | bootstrap succeeds, before wrapper reconciliation | bootstrap may already have exact target receipt, or previous accepted bootstrap may not know updater | installed target bundle is present | `Publish-CapInstalledVersionFromSource` on same exact worktree + receipt reread | reconciliation only; no second bootstrap required in same run | explicit post-bootstrap reconciliation |
 | receipt target committed, before optional restart | target installed SHA authoritative | new runtime installed but stopped | installed command Start result | no reinstall; at most one Start attempt in this run | restart branch tests/source review |
 | restart fails | target installed SHA remains truthful; updater status becomes error | new runtime installed, desired service may be stopped | separate manager status/start | do not downgrade/reinstall automatically; operator retry Start/update | error state preserves installed SHA |
@@ -322,8 +322,10 @@ This mechanism does not attempt to defend against a hostile same-user Windows en
 - known-installed ancestry gate;
 - strict installed-version receipt;
 - one updater mutex;
-- canonical bootstrap reuse;
+- pre-bootstrap installed-manager Stop/quiesce after exact target validation and before canonical bootstrap;
+- canonical bootstrap reuse only after quiesce completes;
 - exact receipt reconciliation after bootstrap;
+- recovery Start after any post-stop failure when pre-update desired state was `running`;
 - one tray **Обновить** action with no confirmation/check UI;
 - no tray cancellation of active updater;
 - serialization against tray Start/Stop/mode operations;
@@ -369,6 +371,9 @@ Hosted acceptance must prove at minimum:
 - CURRENT produces the exact no-update notification;
 - tray never calls `Kill()` on the updater;
 - active update blocks tray exit and lifecycle/mode mutations;
+- production updater source remains fixed to official `main`;
+- Windows behavioral fixture proves exact ordering `continuity gate -> Stop -> bootstrap`;
+- forced post-stop bootstrap failure produces `Stop -> Bootstrap -> Start`, restores prior `running` intent, reports `status=error` / `restarted=true`, and does not publish a false target receipt;
 - existing six-tool/public semantic contracts remain unchanged.
 
 Physical target-Windows acceptance must prove on exact PR bytes:
@@ -378,9 +383,10 @@ Physical target-Windows acceptance must prove on exact PR bytes:
 3. fixed source resolves official accepted `main`, never the PR branch;
 4. if target equals installed receipt, no bootstrap runs and the expected no-update notification appears;
 5. for an actual accepted-main transition when available/fixture-qualified, installation uses an exact detached target and reaches the expected installed receipt;
-6. a running platform is returned to running after successful update;
-7. no duplicate update is possible from repeated clicks;
-8. no tray close/lifecycle action can terminate or race active update.
+6. with the platform already running, the exact target path quiesces the installed manager before bootstrap and returns the platform to running after successful update;
+7. a forced post-stop failure attempts recovery Start, restores prior `running` intent when the installed manager remains usable, and does not publish a false installed receipt;
+8. no duplicate update is possible from repeated clicks;
+9. no tray close/lifecycle action can terminate or race active update.
 
 The mandatory fresh ordinary-Chat semantic review then reviews the exact final BASE..HEAD and this physical/CI evidence. Any material code change invalidates that review/evidence as required by repository policy.
 
@@ -426,9 +432,11 @@ fixed official main
  -> exact target SHA
  -> ancestry guard
  -> exact detached clean worktree
+ -> installed-manager Stop/quiesce
  -> existing canonical bootstrap
  -> exact installed receipt
- -> optional restart to preserved pre-update running intent
+ -> restart to preserved pre-update running intent
+ -> recovery Start on post-stop failure when previously running
  -> one existing-tray notification flow
 ```
 
@@ -439,5 +447,7 @@ Durable invariants preserved:
 - no PR/feature branch is production update authority;
 - known installed version never automatically moves backward;
 - UI success is not installation truth; exact receipt/bootstrap result is;
+- bootstrap is never entered while the updater intentionally leaves the managed platform running;
+- a post-stop failure cannot silently abandon prior `running` intent without a bounded recovery Start attempt;
 - no active update is cancelled by the tray;
 - release-grade update/rollback remains explicitly unclaimed until Stage 27.
