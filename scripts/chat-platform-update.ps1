@@ -237,6 +237,9 @@ $mutex = New-Object System.Threading.Mutex($false, $MutexName)
 $acquired = $false
 $exitCode = 1
 $worktree = $null
+$wasRunning = $false
+$platformStopAttempted = $false
+$platformRestarted = $false
 
 try {
     try {
@@ -309,6 +312,19 @@ try {
             throw 'The exact main worktree does not contain the accepted bootstrap script.'
         }
 
+        if (-not (Test-Path -LiteralPath $InstalledManagerPath -PathType Leaf)) {
+            throw 'Installed manager command is missing before update quiesce.'
+        }
+
+        Write-CapUpdateLog "quiesce platform before bootstrap was_running=$wasRunning"
+        $platformStopAttempted = $true
+        Invoke-CapPwshProcess `
+            -ScriptPath $InstalledManagerPath `
+            -Arguments @('-Action', 'Stop', '-NoNotify') `
+            -Label 'pre-update-platform-stop' `
+            -TimeoutMilliseconds 120000 `
+            -CaptureOutput:$false
+
         Write-CapUpdateLog "install target=$($decision.target_commit_sha) source=$worktree"
         Invoke-CapPwshProcess -ScriptPath $bootstrap -Label 'bootstrap-chat-platform'
 
@@ -339,6 +355,7 @@ try {
                 -Label 'updated-platform-start' `
                 -TimeoutMilliseconds 120000 `
                 -CaptureOutput:$false
+            $platformRestarted = $true
             $restarted = $true
         }
 
@@ -354,6 +371,26 @@ try {
 catch {
     $message = $_.Exception.Message
     Write-CapUpdateLog "error=$message"
+
+    if ($platformStopAttempted -and $wasRunning -and -not $platformRestarted) {
+        try {
+            if (-not (Test-Path -LiteralPath $InstalledManagerPath -PathType Leaf)) {
+                throw 'Installed manager command is missing during update recovery.'
+            }
+            Write-CapUpdateLog 'recovery restart begin'
+            Invoke-CapPwshProcess `
+                -ScriptPath $InstalledManagerPath `
+                -Arguments @('-Action', 'Start', '-NoNotify') `
+                -Label 'update-recovery-platform-start' `
+                -TimeoutMilliseconds 120000 `
+                -CaptureOutput:$false
+            $platformRestarted = $true
+            Write-CapUpdateLog 'recovery restart success'
+        }
+        catch {
+            Write-CapUpdateLog "recovery_restart_error=$($_.Exception.Message)"
+        }
+    }
 
     if ($message -ceq $TargetContinuityBlockedReason) {
         try {
@@ -395,7 +432,7 @@ catch {
         catch {
             Write-CapUpdateLog "could_not_persist_error_state=$($_.Exception.Message)"
         }
-        Write-CapUpdateResult -Status 'error' -Reason $message
+        Write-CapUpdateResult -Status 'error' -Reason $message -Restarted:$platformRestarted
         $exitCode = 1
     }
 }
