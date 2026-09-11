@@ -148,6 +148,40 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
             self.tray_update,
         )
 
+    def test_update_quiesces_running_platform_before_bootstrap_and_recovers_on_error(self) -> None:
+        gate = self.updater.index("Test-CapTargetSelfUpdateContract -WorktreePath $worktree")
+        stop_attempt = self.updater.index("$platformStopAttempted = $true", gate)
+        stop_call = self.updater.index(
+            "-Arguments @('-Action', 'Stop', '-NoNotify')",
+            stop_attempt,
+        )
+        bootstrap = self.updater.index("Invoke-CapPwshProcess -ScriptPath $bootstrap", stop_call)
+        self.assertLess(gate, stop_attempt)
+        self.assertLess(stop_attempt, stop_call)
+        self.assertLess(stop_call, bootstrap)
+
+        catch = self.updater.index("\ncatch {", bootstrap)
+        recovery = self.updater.index(
+            "if ($platformStopAttempted -and $wasRunning -and -not $platformRestarted)",
+            catch,
+        )
+        recovery_start = self.updater.index(
+            "-Arguments @('-Action', 'Start', '-NoNotify')",
+            recovery,
+        )
+        self.assertLess(catch, recovery)
+        self.assertLess(recovery, recovery_start)
+        self.assertIn("'pre-update-platform-stop'", self.updater)
+        self.assertIn("'update-recovery-platform-start'", self.updater)
+        self.assertIn("-Restarted:$platformRestarted", self.updater[catch:])
+
+        target_contract = self.updater.split(
+            "function Test-CapTargetSelfUpdateContract",
+            1,
+        )[1].split("function Save-CapDecisionState", 1)[0]
+        self.assertIn("'pre-update-platform-stop'", target_contract)
+        self.assertIn("'update-recovery-platform-start'", target_contract)
+
     def test_tray_update_completion_does_not_depend_on_inherited_pipes(self) -> None:
         self.assertIn("platform-update-result.json", self.updater)
         self.assertIn("Write-CapUpdateAtomicJson -Path $ResultPath -Value $result", self.updater)
