@@ -183,7 +183,13 @@ function Test-CapTargetSelfUpdateContract {
         },
         [pscustomobject]@{
             path = 'scripts\chat-platform-update.ps1'
-            markers = @('CapUpdateOfficialRemote', 'New-CapUpdateWorktree', 'Publish-CapInstalledVersionFromSource')
+            markers = @(
+                'CapUpdateOfficialRemote',
+                'New-CapUpdateWorktree',
+                'Publish-CapInstalledVersionFromSource',
+                'pre-update-platform-stop',
+                'update-recovery-platform-start'
+            )
         }
     )
 
