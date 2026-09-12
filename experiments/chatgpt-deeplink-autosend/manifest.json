@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "CAP ChatGPT Deep-Link AutoSend",
+  "version": "0.1.0",
+  "description": "Experimental fail-closed autosend for explicitly run-id-bound ChatGPT deep links.",
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["policy.js", "content.js"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ]
+}

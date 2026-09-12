@@ -1,0 +1,1 @@
+Use only Chat Local Bridge Test. Call workspace_read exactly once on stage26-3b-browser-real-task.txt. If the callable tool is exposed and the call reaches the bridge, report DEEPLINK_SCHEDULED_BRIDGE=PASS and echo the CAP_AUTOSEND_RUN_ID from this message. A downstream bridge/tunnel error still counts as exposed. Do not modify any file or repository.
