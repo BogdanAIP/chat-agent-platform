@@ -1,10 +1,12 @@
-# CAP Delegation Provider Contract (Draft v0.1)
+# CAP Delegation Provider Contract (Draft v0.2)
 
 ## Purpose
 
 This document freezes the architectural boundary between CAP control semantics and execution providers.
 
-The goal is not to create a new agent runtime. The goal is to make explicit the contract already implemented by the bounded Agent Session work.
+The goal is not to create a new agent runtime. The goal is to make explicit the delegation boundary and trust semantics established by the bounded Agent Session work.
+
+This document clarifies existing architecture. It does not replace ARCHITECTURE.md, CONTROL_PLANE.md, ADR decisions, or CURRENT_STATE.md.
 
 ## Ownership model
 
@@ -26,24 +28,21 @@ A provider owns:
 
 ## Core flow
 
-```
 Delegation
-    |
-    v
+ |
+ v
 Provider execution
-    |
-    v
+ |
+ v
 Provider result
-    |
-    v
-Evidence collection
-    |
-    v
-CAP verification
-    |
-    v
-Verified effect
-```
+ |
+ v
+CAP result integrity / provenance checks
+ |
+ v
+Recorded delegation outcome
+
+ExpectedEffect-based verification and Verified Effect belong to CAP verification flows where an external effect is being evaluated.
 
 ## Required concepts
 
@@ -61,7 +60,7 @@ Examples:
 
 - Temporary Chat session;
 - Codex session;
-- future bounded provider.
+- future bounded execution adapter.
 
 ### Delivery claim
 
@@ -71,13 +70,13 @@ Duplicate execution attempts must fail closed.
 
 ### Provider result
 
-A provider result proves only that the provider returned a result.
+A provider result proves that the provider returned a correlated result.
 
-It does not prove that the requested effect occurred.
+It does not by itself prove that the requested external effect occurred.
 
 ### Verified effect
 
-Only CAP can produce this state after checking evidence against the expected effect.
+Verified Effect is produced only by CAP verification flows after checking evidence against an ExpectedEffect definition.
 
 ## Non-goals
 
@@ -93,4 +92,4 @@ This contract does not define:
 
 The first implementation remains the existing ChatGPT Temporary provider.
 
-Future providers must prove compatibility with this contract without changing CAP trust semantics.
+Future execution adapters may be evaluated against this boundary without changing CAP trust semantics.
