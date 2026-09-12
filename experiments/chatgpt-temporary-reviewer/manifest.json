@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "CAP Temporary Reviewer Physical Probe",
+  "version": "0.1.0",
+  "description": "Experiment-only one-shot Temporary Chat reviewer delivery and result capture.",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "http://127.0.0.1:3077/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["policy.js", "content.js"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ]
+}
