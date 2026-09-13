@@ -180,6 +180,116 @@ Provider-native state remains provider-native when flattening it would lose usef
 
 The adapter conformance suite is an **acceptance layer first**, not authority to merge every adapter into one runtime/state machine.
 
+### Planner / executor separation reference — codex-with-chatgpt
+
+External architecture reference:
+
+- repository: `XiaoDuoYa/codex-with-chatgpt`
+- inspected `main` baseline on 2026-09-14: `9663b88753e35c76796c5bce000293e0bd22cd9e`
+- license: MIT
+- CAP disposition: **REFERENCE_ONLY / ADAPT_MECHANIC** by default
+
+This project is relevant because it demonstrates a narrow composition in which ordinary ChatGPT acts as planning/review layer while Codex owns mutation/execution. Its architecture separates two channels:
+
+```text
+                 ChatGPT
+                    |
+          +---------+---------+
+          |                   |
+          v                   v
+   control messages       read-only MCP
+          |                   |
+          v                   v
+        Codex              workspace
+          |
+          v
+ shell / files / git / tests
+```
+
+The useful CAP lesson is not the fixed `ChatGPT <-> Codex` product pairing. It is the stronger boundary:
+
+```text
+planner / reviewer
+        !=
+mutation executor
+        !=
+verification authority
+```
+
+and the related separation:
+
+```text
+control plane
+        !=
+data/evidence plane
+```
+
+The inspected protocol uses concise state-bearing control messages while current files, diffs, git state and released execution output are read independently through the workspace connector. The reviewer is explicitly instructed not to accept an executor's `EXECUTED` claim as proof; it re-reads the diff/evidence before returning another plan or `DONE`.
+
+That mechanic aligns with CAP's existing distinction:
+
+```text
+provider execution/result
+        !=
+freshly verified external effect
+        !=
+whole-task completion
+```
+
+#### Mechanics worth Stage Research
+
+Research for selective adaptation:
+
+- physically read-only planner/reviewer workspace access;
+- narrow control messages separate from code/diff/log payloads;
+- explicit task/iteration identity;
+- independent post-execution inspection rather than trusting executor summaries;
+- bounded handoff/checkpoint state when a planning conversation is replaced;
+- workspace-scoped connector identity and wrong-workspace rejection;
+- execution-output release as evidence rather than ambient unrestricted shell access;
+- recovery/iteration limits that do not imply blind replay of consequential mutations.
+
+The upstream protocol's `INIT / PLAN / EXECUTED / DONE / BLOCKED / HANDOFF` style states are useful reference mechanics, but CAP must not adopt them as a second universal state machine if existing CAP operation/attempt/WorkingState semantics already cover the needed identity and settlement behavior.
+
+#### CAP adaptation hypothesis
+
+A provider-neutral form to evaluate is:
+
+```text
+strong planner/reviewer
+        |
+        v
+CAP trust / authority / correlation / verification
+        |
+        +----------------------+
+        |                      |
+        v                      v
+read-only evidence         execution provider
+surface                    (Codex / other)
+        |                      |
+        v                      v
+workspace state       files / shell / git / tests
+        \______________________/
+                   |
+                   v
+            fresh CAP review
+```
+
+The planner identity and executor identity should remain replaceable. Do not hard-code `ChatGPT -> Codex` as the CAP architecture and do not make Cloudflare Tunnel, this project's MCP server, or its browser-control path mandatory dependencies.
+
+#### Questions before any reuse
+
+1. Which read-only workspace tools materially improve independent verification over CAP's current evidence paths?
+2. Which security properties are structural (no write/shell tools exposed) versus prompt-only?
+3. Can the connector be used without giving the planning model a parallel consequence-bearing authority path?
+4. How should CAP map task/iteration/handoff identifiers onto canonical operation/attempt/session identities without duplicating them?
+5. Which control-plane messages are actually needed once CAP already owns WorkingState and Finish Gate?
+6. Can execution output be exposed as bounded evidence with provenance and retention rules rather than a general data channel?
+7. Which tunnel/authentication mechanics are needed only because the planner runs in cloud ChatGPT, and which should remain provider-specific?
+8. How does the design behave after ambiguous executor crash, partial mutation or lost control message?
+9. Can wrong-workspace/cross-project connector use be rejected deterministically at the CAP boundary?
+10. Which mechanics are useful independently of Codex and ordinary ChatGPT so they remain valuable with future providers?
+
 ---
 
 ## 5. Sessions — CCCC first, #149 specialized, Prime optional
