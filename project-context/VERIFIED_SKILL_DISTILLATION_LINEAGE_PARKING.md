@@ -30,6 +30,99 @@ Do not adopt the DisCo agent/runtime wholesale merely to get these ideas.
 
 Before implementation, rerun current CAP `stage-research` + `source-code-research` against the then-current exact AREX ref. README/docs-level evidence is insufficient when public implementation exists. Inspect concrete Creator/Researcher routing, creation, verification, provenance, refresh, import/rollback, package/update and router implementation/tests.
 
+## Additional external reference — Microsoft Skill Recorder
+
+Secondary reference candidate:
+
+- repository: `microsoft/skill-recorder`
+- inspected `main` baseline on 2026-09-14: `d22be1a66b250c663dde3bf202b04514ba82134c`
+- license: MIT
+- CAP disposition: **REFERENCE_ONLY / REUSE_CANDIDATE / ADAPT_MECHANIC** by default
+
+Skill Recorder is materially relevant to the Stage 26.4 Human Demo -> verified candidate skill path because it does not merely record coordinates for later replay. Its current flow is:
+
+```text
+human demonstration
+ -> local capture of screen/activity + optional narration
+ -> Copilot analysis
+ -> reconstructed intent + ordered steps
+ -> reviewed analysis
+ -> generated SKILL.md and/or Automation
+```
+
+The generated procedure is intended to generalize from the demonstrated run and prefers agent-native tools such as CLI/API-style tools over reproducing raw UI clicks when those tools are available.
+
+This makes Skill Recorder a distinct reuse candidate from a pure demonstration-replay substrate:
+
+```text
+OpenAdapt candidate role:
+capture -> compile/program graph -> replay/checkpoint mechanics
+
+Skill Recorder candidate role:
+capture -> infer intent/steps -> generalize -> skill/automation artifact
+```
+
+Do not assume either product owns the complete CAP path. Fresh Stage Research should compare whether CAP can reuse one or both layers behind CAP-owned provenance, verification, consequence authority and Finish Gate.
+
+### CAP adaptation hypothesis
+
+A desirable provider-neutral CAP flow to research is:
+
+```text
+human demonstrates one task
+        ↓
+qualified capture substrate
+        ↓
+intent / ordered-step reconstruction
+        ↓
+tool-generalized candidate procedure
+        ↓
+CAP skill packaging
+        ↓
+source/demo provenance + lineage
+        ↓
+CAP Verification Kernel
+        ↓
+independent Finish Gate
+        ↓
+VERIFIED_CANDIDATE
+        ↓
+human-approved install
+```
+
+The architectural value is the **demonstration -> generalized skill** transformation, not dependence on Copilot itself. CAP should investigate whether the mechanics can be reused, adapted or reimplemented behind a provider-neutral boundary so the resulting skill can later be executed by whatever qualified provider owns the required CLI/API/browser/desktop mechanics.
+
+Do not silently make GitHub Copilot, Microsoft Scout or any Microsoft-hosted analysis service a mandatory CAP runtime dependency.
+
+### Privacy / trust boundary note
+
+At the inspected baseline, recording/storage/frame extraction and optional narration transcription happen locally. When the user explicitly chooses Analyze, event timeline data, window/document titles, URLs, clipboard previews, extracted screen images and narration text are sent to GitHub cloud for Copilot processing.
+
+Therefore any CAP adoption must separately research:
+
+- explicit user consent before remote analysis;
+- secret/credential redaction or hard capture exclusions;
+- whether a fully local or user-selected analysis provider is possible;
+- provenance for which model/provider transformed a demonstration into a candidate skill;
+- separation between capture evidence and installed runtime skill bytes;
+- whether sensitive screenshots/clipboard evidence can be discarded after verification;
+- offline/degraded behavior when the cloud analysis provider is unavailable.
+
+### Stage Research questions added for Skill Recorder
+
+Before implementation, inspect the exact source release/current source and answer:
+
+1. Which capture, describer and builder components can be reused independently of Copilot-specific product wiring?
+2. What is the precise generated `SKILL.md` contract and how much of the generalization logic lives in prompts versus deterministic code?
+3. Can output be redirected into CAP's existing `.agents/skills/*/SKILL.md` packaging without adopting a second skill authority?
+4. How does the builder decide to replace demonstrated UI actions with native CLI/API tools, and how is that mapping verified?
+5. What evals currently measure describer and builder generalization, and which of them can become CAP evidence?
+6. Can capture be composed with OpenAdapt, WinApp CLI, BrowserProvider or another qualified substrate rather than creating a second overlapping recorder stack?
+7. Can remote analysis be made provider-selectable or local without forking most of the product?
+8. What Windows support and capture limitations matter for CAP's actual Windows target matrix?
+9. What failure mode occurs when the inferred generalized procedure is plausible but semantically wrong, and how should CAP force it to remain `CANDIDATE` until independent verification succeeds?
+10. Which upstream components are useful as maintained reuse dependencies versus reference-only implementation ideas?
+
 ## What CAP should take
 
 ### 1. Verified skill-distillation lifecycle
