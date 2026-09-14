@@ -8,7 +8,7 @@ The current conservative rule is intentionally simple: physical evidence is boun
 
 That rule is correct as a safety fallback, but it is too coarse as a permanent developer workflow. CAP should move toward **dependency-bound evidence + selective requalification** rather than "rerun every physical gate after any runtime change".
 
-This note does not weaken PR #149 and must not be used to waive its current gates. Any production adoption requires fresh Stage Research after #149 is accepted.
+This note does not weaken the accepted #149 guarantees and must not be used to waive current gates. The #149 prerequisite is satisfied; any production adoption still requires fresh applicable Stage Research.
 
 ---
 
