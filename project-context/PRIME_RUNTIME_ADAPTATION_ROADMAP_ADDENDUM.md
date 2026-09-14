@@ -2,7 +2,7 @@
 
 Status: **PROPOSED RESEARCH ROADMAP ADDENDUM — NO PRODUCTION AUTHORITY**
 
-This addendum closes several details that were discussed after the first roadmap draft but were not explicit enough in `PRIME_RUNTIME_ADAPTATION_ROADMAP.md`. It is part of the preserved research intent and must be folded into the main Prime roadmap when the branch is refreshed after PR #149. It does not authorize production implementation.
+This addendum preserves details that were discussed after the first roadmap draft but were not explicit enough in `PRIME_RUNTIME_ADAPTATION_ROADMAP.md`. PR #149 is now accepted and merged; this material remains candidate-specific research input and does not override the composition-first sequencing in `COMPOSITION_FIRST_ARCHITECTURE.md` or authorize production implementation.
 
 ## 1. Non-negotiable product target
 
