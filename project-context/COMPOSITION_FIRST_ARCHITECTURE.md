@@ -87,6 +87,148 @@ whole task is complete
 
 ---
 
+## 2.1 Consequence assurance floor and current implementation-depth map
+
+Composition-first must not be interpreted as "any mature executor may sit below CAP if it can perform the action." Reuse is accepted only when the resulting path preserves the CAP consequence contract at the depth required by that effect class.
+
+The project currently has strong common primitives, but **not every public or registered consequence-bearing path composes all of them at the same depth**. Treat that as an explicit integration state rather than implying that one physical "kernel process" already intercepts every effect.
+
+### Assurance layers
+
+Use the following layers when evaluating an existing CAP path or a new provider:
+
+```text
+A. authority / scope
+   exact capability, subject, actor/environment and allowed consequence
+
+B. pre-effect identity
+   fresh current observation and target identity before mutation
+
+C. declared effect
+   bounded ExpectedEffect / postcondition known before delivery
+
+D. bounded delivery
+   one reviewed action; provider receipt is evidence only
+
+E. fresh effect verification
+   fresh same-subject/same-stream observation
+   -> PASS | FAIL | UNKNOWN
+
+F. ambiguity semantics
+   delivery failure/ack loss/partial observation never becomes assumed success
+
+G. durable operation / attempt settlement
+   required where restart, retry, acknowledgement loss or duplicate delivery
+   can repeat a consequence:
+   operation identity + attempt identity + reconciliation + no blind retry
+
+H. whole-task completion
+   transition PASS != task DONE;
+   use an independent Finish Gate when the path claims task completion
+
+I. provenance / executed-byte closure
+   required where source/runtime identity is release-critical
+
+J. bypass resistance
+   provider-native shell/write/admin/generic-tool authority must not create a
+   parallel consequence path outside the admitted CAP boundary
+```
+
+Not every read-only observation needs all ten layers. Not every low-consequence one-shot action needs durable restart state. The rule is proportional:
+
+```text
+read-only observation
+ -> A + bounded identity/provenance appropriate to the source
+
+one bounded consequence with no accepted retry/restart semantics
+ -> A+B+C+D+E+F
+
+consequence that can be retried/resumed after ambiguous delivery
+ -> A+B+C+D+E+F+G
+
+procedure/task claiming completion
+ -> required transition layers + H
+
+release-critical external runtime/provider
+ -> required effect layers + I + J
+```
+
+A provider may keep its native state model. CAP does not require every provider to inherit one universal class or state machine. It does require evidence that equivalent safety properties survive the adapter boundary.
+
+### Current implementation-depth map
+
+As of the post-#149 baseline researched for this PR, the accepted/public paths are intentionally heterogeneous:
+
+| Path | Bounded authority | Fresh effect verification | Durable operation/attempt settlement | Independent completion boundary | Current interpretation |
+|---|---|---|---|---|---|
+| `workspace_read` | yes | read-only | n/a | n/a | bounded observation |
+| `workspace_write` | rooted/scoped write | no common ExpectedEffect re-read path | no | no | bounded direct write; do not describe as full Control Plane assurance |
+| `web_open` | bounded Browser schema/network policy | yes | no durable cross-call attempt settlement | no task Finish Gate | verified transition path |
+| `web_interact` | bounded click/type + declared postcondition | yes | no durable cross-call WorkingState/reconciliation path | no task Finish Gate | verified transition path; delivery ambiguity fails closed for that call |
+| `verified_workspace_artifact_v1` | closed registered procedure | yes | yes: WorkingState/AttemptIntent/reconciliation/LoopGuard scope | yes | current strongest general consequence/recovery reference path |
+| `windows_case_update_v1` | closed registered candidate procedure | yes | procedure checkpoint/budget, but not the full WorkingState attempt/reconciliation model | external L3 Finish Gate required | strong transition verification with narrower recovery semantics |
+| `chatgpt-temporary` Delegation | specialized bounded worker authority | provider-specific correlated delivery/result checks | yes: specialized durable launch/delivery/result settlement and no blind second Send | worker result explicitly != manager task DONE | strong specialized session/delegation path, not a universal runtime |
+
+This table is a **depth map, not an acceptance downgrade**. Existing accepted scopes remain accepted for what their evidence proved. It prevents future architecture prose from silently upgrading a narrower path into guarantees it does not yet implement.
+
+In particular:
+
+- `workspace_write` is a useful bounded primitive but must not be cited as proof that all public mutations already pass through ExpectedEffect + WorkingState + Finish Gate;
+- Browser currently has strong before/action/after verification but its ordinary public calls do not by themselves provide durable cross-call ambiguous-outcome reconciliation;
+- `verified_workspace_artifact_v1` is the current reference implementation for durable logical operation / attempt / reconciliation semantics;
+- Windows application procedure evidence proves a strong bounded workflow but its recovery model is not yet identical to the accepted WorkingState production consumer;
+- Delegation correctly keeps a provider-specific durable lifecycle rather than pretending Chat sessions and file mutations are one state machine.
+
+### Provider conformance rule
+
+A new substrate is not accepted because it has a sandbox, policy engine, audit log, browser, shell, session store or "success" receipt. Before promotion, map the exact proposed role to the assurance layers above and prove the required properties.
+
+Required review shape:
+
+```text
+proposed provider role
+ -> exact consequence classes exposed
+ -> exact bypass-capable native powers
+ -> required assurance layers A..J
+ -> provider-native guarantees
+ -> thin CAP adapter responsibilities
+ -> unresolved gaps
+ -> deterministic/adversarial tests
+ -> physical/L3 evidence where the consequence requires it
+ -> PROCEED | NARROW | DEFER | REJECT
+```
+
+This applies equally to CCCC, WinApp CLI, UFO/UFO², OpenAdapt, OpenBot-style computer environments, Home Assistant and future candidates.
+
+For sandbox/computer providers specifically, distinguish **environment lifecycle** from action authority:
+
+```text
+ExecutionEnvironment provider
+   create / isolate / suspend / resume / destroy
+            !=
+Browser / Files / LocalExecution consequence authority
+```
+
+A reusable computer sandbox may be valuable without granting its resident agent unrestricted shell, filesystem or browser mutation authority. If the upstream environment exposes such powers, the qualified CAP profile must physically remove/deny them or place them behind separately accepted consequence contracts. Prompt-only discouragement is insufficient.
+
+### Architecture completion target
+
+The goal is **not** to force every path through one giant runtime. The goal is to make the assurance depth explicit and converge consequence-bearing paths on common guarantees where their failure model requires them:
+
+```text
+shared CAP invariants
+      +
+capability-native state
+      +
+provider-specific mechanics
+      +
+only the durable settlement machinery justified by that consequence class
+```
+
+This keeps composition-first honest: reuse mechanics aggressively, but never outsource CAP's authority, effect verification, ambiguity handling or completion semantics by accident.
+
+---
+
 ## 3. What CAP should stop building by default
 
 After #149, do **not** start or continue broad project-owned implementations of the following merely because they are useful agent-platform features:
