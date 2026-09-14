@@ -1,6 +1,6 @@
 # Verified Skill Distillation + Skill Lineage — parked Stage 26.4 plan
 
-Status: **PARKED — architecture/research input for PR #151; do not implement in PR #149**
+Status: **PARKED — architecture/research input for PR #151; not part of the accepted #149 scope**
 
 This note records the AREX/DisCo mechanics that are candidates for adaptation into Chat Agent Platform so the idea is preserved together with the broader composition-first architecture.
 
