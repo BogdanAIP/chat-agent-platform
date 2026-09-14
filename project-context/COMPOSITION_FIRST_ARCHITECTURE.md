@@ -438,7 +438,7 @@ The planner identity and executor identity should remain replaceable. Do not har
 
 ### 5.1 PR #149
 
-PR #149 remains valuable and must be completed under its current narrow scope.
+PR #149 is **accepted and merged**. Preserve its current narrow scope rather than broadening the specialized Temporary Chat implementation.
 
 Its role is the specialized isolated profile:
 
@@ -455,7 +455,7 @@ Do not generalize #149 into the persistent-session runtime.
 
 ### 5.2 Persistent ordinary ChatGPT
 
-After #149 merge, the **first candidate** for persistent ordinary-ChatGPT conversation/session delivery is CCCC or an equivalent mature substrate discovered by fresh research.
+For persistent ordinary-ChatGPT conversation/session delivery, the **first candidate** remains CCCC or an equivalent mature substrate discovered by fresh research.
 
 Target role:
 
@@ -694,16 +694,16 @@ CAP owns consequence policy, stable subject identity/provenance, fresh observati
 
 ## 10. Post-#149 order — speed-first sequence
 
-After PR #149 is accepted and merged:
+PR #149 is already accepted and merged. The active sequence is:
 
 ```text
 #149 accepted + merged
         |
         v
-refresh this research branch from new main
+composition-first research branch active
         |
         v
-rerun repository skill bootstrap
+rerun repository skill/bootstrap context as needed
         |
         v
 Composition Stage Research
@@ -744,7 +744,7 @@ IoT remains off the immediate release-critical path unless the roadmap is separa
 
 ---
 
-## 11. First acceptance questions after #149
+## 11. Composition Stage acceptance questions
 
 ### Sessions / CCCC
 
