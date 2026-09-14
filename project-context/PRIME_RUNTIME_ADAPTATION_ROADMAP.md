@@ -161,38 +161,37 @@ Prime session A <-> ChatGPT conversation A
 
 This preserves useful accumulated context and avoids repeatedly rebuilding the whole project/task history.
 
-## 6. Prime branch rule relative to PR #149
+## 6. Prime branch rule relative to accepted PR #149
 
-This research branch is created from the currently accepted `main` and stays logically separate from PR #149.
+PR #149 is accepted and merged. This research branch is now post-#149 input and must preserve that accepted foundation rather than returning to or widening the merged implementation.
 
-Sequence:
+Current sequence:
 
 ```text
-create and preserve this roadmap branch now
-  -> return to PR #149
-  -> finish/fix/review/physically qualify/merge #149
-  -> refresh this branch against the then-current main
-  -> rerun repository skill bootstrap
-  -> perform Prime Stage Research
+#149 accepted + merged
+  -> composition-first research branch active
+  -> preserve the specialized fresh Temporary Chat provider
+  -> compare reusable runtime/session candidates only for measured missing primitives
+  -> rerun repository skill/bootstrap context when re-entering a candidate
+  -> perform exact-source Stage Research before implementation
 ```
 
-No Prime production integration is to be mixed into PR #149.
+No Prime production integration is retroactively part of PR #149.
 
-## 7. Gate 0 — finish the current foundation without overgeneralizing Temporary Chat
+## 7. Gate 0 — preserve the accepted foundation without overgeneralizing Temporary Chat
 
-Before Prime implementation work:
+This prerequisite is satisfied by merged #149. Future Prime research must preserve:
 
-- finish PR #149 under its current accepted/researched scope;
-- preserve generic delegation identity, delivery identity, private run capability, crash-safe state, no-blind-resend rules, result correlation and runtime provenance;
-- ensure fresh/Temporary Chat remains adapter/profile policy rather than universal Agent Session truth;
-- finish required hosted CI, fresh semantic review and physical qualification;
-- merge #149 before using it as accepted foundation for Prime research.
+- generic delegation identity, delivery identity, private run capability, crash-safe state, no-blind-resend rules, result correlation and runtime provenance;
+- fresh/Temporary Chat requirements as adapter/profile policy rather than universal Agent Session truth;
+- provider result as evidence/data rather than CAP effect or whole-task completion authority;
+- the accepted fail-closed behavior of the specialized ephemeral provider.
 
-This gate does **not** require implementing a rich-context worker in #149. It only requires keeping the generic lifecycle open to future profile diversity.
+Gate 0 is therefore a **regression constraint**, not remaining implementation work.
 
 ## 8. Gate 1 — exact source-code Stage Research for Prime
 
-After #149 is accepted, rerun `AGENTS.md` bootstrap on the new main and execute:
+When Prime is re-entered because a measured runtime primitive is missing, rerun `AGENTS.md` bootstrap on the then-current `main` and execute:
 
 - `.agents/skills/stage-research/SKILL.md`;
 - `.agents/skills/source-code-research/SKILL.md`.
@@ -683,17 +682,16 @@ If the decision is `KEEP`, continue the project-owned runtime roadmap using less
 
 ## 26. Immediate next actions
 
-Current work order after preserving this document:
+Current work order:
 
 ```text
-1. Leave this Prime branch parked as research/documentation only.
-2. Return to PR #149.
-3. Correct the generic worker-profile boundary without adding Prime implementation.
-4. Finish #149 CI/review/physical acceptance and merge it.
-5. Refresh `research/prime-runtime-adaptation` from the new main.
-6. Rerun skill bootstrap.
-7. Perform exact-source Prime Stage Research.
-8. Only after `PROCEED` or `NARROW`, implement Gate 2 model-bridge spike.
+1. Keep Prime parked as research/documentation only.
+2. Use COMPOSITION_FIRST_ARCHITECTURE.md and the consequence assurance floor as the active sequencing authority.
+3. First test the simpler session/execution candidates selected by composition-first research.
+4. Re-enter Prime only if those tests expose a concrete missing retained-runtime/subagent/compaction/long-loop primitive.
+5. On re-entry, rerun exact-source Stage Research against the then-current Prime baseline.
+6. Compare Prime against alternative reusable substrates and the smallest CAP-owned mechanism.
+7. Only after PROCEED or NARROW, implement the smallest bounded spike needed to test the missing primitive.
 ```
 
-This sequencing intentionally preserves the existing work while preventing the project from spending months duplicating runtime infrastructure before testing whether Prime can safely and economically provide it.
+This sequencing preserves the useful Prime research without making Prime a mandatory layer or rebuilding runtime infrastructure before a measured need exists.
