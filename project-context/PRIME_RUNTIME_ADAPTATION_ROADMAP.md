@@ -67,7 +67,7 @@ independent reviewer
 
 Therefore generic delegation/session state should not encode "Temporary Chat" or "fresh reviewer" as a universal invariant. Provider/profile policy owns those requirements.
 
-PR #149 should be completed as its bounded Agent Session / Delegation foundation, but before merge its generic lifecycle must not accidentally make `fresh_readonly_worker_v1` the only possible future worker profile. The Temporary Chat adapter may remain strict for the fresh-review/read-only profile.
+PR #149 is accepted as the bounded Agent Session / Delegation foundation. Its generic lifecycle remains provider-neutral; `fresh_readonly_worker_v1` is a specialized first profile rather than the only possible future worker profile. The Temporary Chat adapter remains strict for the fresh-review/read-only profile.
 
 ## 3. What must remain project-owned even if Prime is adopted
 
