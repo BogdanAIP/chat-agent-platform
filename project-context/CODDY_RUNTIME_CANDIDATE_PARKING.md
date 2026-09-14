@@ -32,7 +32,7 @@ NARROW / REUSE-WITH-ADAPTER
 
 Coddy joins Prime in the future retained/subagent runtime comparison cohort. Neither is preselected.
 
-Re-enter only after #149 is accepted and a **measured** need for retained workers, subagents, background orchestration, persistent local agent-loop mechanics, or another missing runtime primitive is demonstrated.
+The #149 prerequisite is satisfied. Re-enter Coddy only when a **measured** need for retained workers, subagents, background orchestration, persistent local agent-loop mechanics, or another missing runtime primitive is demonstrated.
 
 ## What is attractive for CAP
 
