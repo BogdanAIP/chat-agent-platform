@@ -52,7 +52,7 @@ class RealTaskAcceptanceContractTests(unittest.TestCase):
         combined = roadmap + track_m
         folded = roadmap.casefold()
 
-        self.assertIn('post-26.3c — bounded agent session / delegation — current', folded)
+        self.assertIn('post-26.3c — bounded agent session / delegation — accepted bounded scope', folded)
         self.assertIn('one genuinely fresh read-only worker', folded)
         self.assertIn('track m expansion beyond the first bounded slice — future', folded)
         self.assertIn('broader orchestration remains future', folded)

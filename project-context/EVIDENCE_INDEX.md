@@ -70,12 +70,22 @@ Exact code/tests/current CI and original physical results remain more authoritat
 | Stage 26.3B Windows/application real-task L3 (#115) | `5ae5d5ac52f391b1a58662e94a976c6ab8d48c62` | target-Windows ordinary ChatGPT Case Desk + frozen Finish Gate | five bounded verified transitions; exact target state; unchanged decoys; source/install/runtime provenance; cleanup; `EXTERNAL_FINISH_GATE=DONE` |
 | Stage 26.3B Browser stronger source-provenance repeat (#118) | `e29517fdf1c940d36bc822cfcc1a729ed7dd9574` | `C:\Users\eahra\AppData\Local\ChatAgentPlatform\stage26\stage26-3b-browser-real-task-20260828-005002-8BE43853` | target-Windows ordinary-Chat randomized Case Desk through the six-tool headless Playwright/Chrome route; source/install/full exact-lock Node tree revalidated after Browser actions; atomic frozen snapshot; target-only mutation history; `SAVE_COUNT=1`; `AUDIT_COUNT=1`; decoys unchanged; `EXTERNAL_FINISH_GATE=DONE`; fixture/guardian cleanup PASS |
 | Stage 26.3C production WorkingState/restart reconciliation (#126) | `d53e65d8804b28af0da6902e9beee3991bb26802` | PR #126 final target-Windows ordinary ChatGPT / `Chat Local Bridge Test`; `RUNTIME_PROVENANCE=PASS`; `STAGE26_3C_PHYSICAL_PROCEDURE=PASS` | `verified_workspace_artifact_v1`: first run completed the three-action graph; a new overwrite attempt abstained at preflight with zero actions / `target_already_exists`; target content remained unchanged; qualification bound installed runtime bytes to the reviewed head |
+| Bounded Agent Session non-reviewer A0/A/B1/B2 (#149) | `0e2ddcd05430c6b13d30aa3025186d67e8c91c42` | [Exact-head physical checkpoint](https://github.com/BogdanAIP/chat-agent-platform/pull/149#issuecomment-5602959948) | one fresh read-only worker/result; complete Chrome/MV3 loss before first claim preserves claim=0/Send=0; post-delivery loss preserves claim=1/Send=1 with no fabricated result; historical review disposition below |
+| Agent Session owner/Stop hotfix requalification (#154) | `c4fafcf84a427f21fcc397293feeb2e55394e3b8` | [Final gate](https://github.com/BogdanAIP/chat-agent-platform/pull/154#issuecomment-5622018666), [normal A](https://github.com/BogdanAIP/chat-agent-platform/pull/154#issuecomment-5620798777), [B1](https://github.com/BogdanAIP/chat-agent-platform/pull/154#issuecomment-5621408074), [B2](https://github.com/BogdanAIP/chat-agent-platform/pull/154#issuecomment-5622005326) | exact generation A0/A/B1/B2, automatic Send, before/after source provenance; fresh exact-head review and hosted checks recorded; does not widen persistent-session scope |
+| Bounded updater install / blocked-target continuity (#150) | `bd7e65967eb02119125869e8f70e4e619e627323` | [Target-Windows requalification](https://github.com/BogdanAIP/chat-agent-platform/pull/150#issuecomment-5644299862) | clean exact-head install; visible Update action; pre-updater-main target blocked before quiesce; installed bytes preserved; full tray restart and runtime READY; successful accepted-main transition is not claimed |
+
+## Historical merge/review dispositions
+
+- #149 merged with an explicit [owner waiver for that merge only](https://github.com/BogdanAIP/chat-agent-platform/pull/149#pullrequestreview-5155369387). Do not relabel the waived fresh review as PASS or apply the waiver to future work. The later #154 hotfix has its own [fresh exact-head PASS](https://github.com/BogdanAIP/chat-agent-platform/pull/154#issuecomment-5620166705).
+- #150 is merged, but the inspected timeline ends its automatic review attempt at [ABSTAIN / reviewer_authority_unqualified](https://github.com/BogdanAIP/chat-agent-platform/pull/150#issuecomment-5644301427). No final fresh-review result was found in that timeline. The physical row above indexes the recorded scoped run, not proof of a completed review or successful accepted-main update. Locate any retained manual result/reconciliation evidence before claiming that historical review gate passed; do not infer it from merge state.
 
 ## Accepted non-physical foundations
 
 Some accepted architecture/runtime foundations are intentionally absent from the physical table because their accepting PR did not change a production consequence path and required deterministic/hosted evidence only.
 
 Most importantly:
+
+- PR #155 clarifies the existing delegation/provider contract; PR #156 adds documentation contract guards. Neither establishes a new generic execution-provider API or physical provider qualification.
 
 - PR #124 accepted the Stage 26.3C **WorkingState / typed reconciliation / budgets / LoopGuard / StagnationReport L1 foundation** with deterministic/adversarial state-machine evidence.
 - PR #126 subsequently accepted the first consequence-bearing production consumer for the declared local-Windows process-restart scope; that physical evidence is indexed above rather than being inferred from the #124 foundation.
@@ -90,7 +100,7 @@ Future or incomplete evidence scopes include:
 - broad cross-application Windows/Browser/Electron/Office reliability;
 - trusted-site full-browser/JS/CDP authority and complete Browser Network Gate;
 - generic Local Execution Kernel / arbitrary Python authority;
-- Track M Agent Session/Delegation runtime and multi-worker orchestration;
+- persistent-session delivery, automatic manager wake and multi-worker Track M orchestration beyond the accepted bounded one-worker slice;
 - release-grade distribution/maintenance and clean-user stable release.
 
 Any later consequence-bearing WorkingState/recovery integration must earn evidence appropriate to its own changed effect boundary; do not treat #126 as universal authorization for unrelated capabilities. Active PR/design state belongs in `CURRENT_STATE.md`, not this evidence ledger.
