@@ -90,7 +90,7 @@ Ordinary ChatGPT remains the **only current general planner/intelligence**. The 
 
 WorkingState is capability-spanning structured operational state, never private chain-of-thought.
 
-## Current release-critical work — bounded Agent Session / Delegation
+## Accepted bounded Agent Session / Delegation
 
 Fresh Stage Research in PR #149 re-entered Track M and selected **NARROW** rather than continuing reviewer-specific launch/state mechanics as the product-level architecture.
 
@@ -107,7 +107,21 @@ one ordinary-ChatGPT manager
 
 This does **not** accept broad multi-agent orchestration. It deliberately excludes nested/fan-out workers, mutating children, project/worktree/environment creation, a scheduler/event bus, worker rotation, long-lived background workers and automatic same-task parent wake/resampling.
 
-PR #149 is the active implementation PR and remains **UNACCEPTED / DRAFT until its required review and physical evidence pass**.
+PR #149 is **MERGED**. The bounded worker path has recorded target-Windows
+A0/A/B1/B2 acceptance; PR #154 subsequently fixed initial claim ownership and
+hidden Stop handling and requalified that scope. `EVIDENCE_INDEX.md` records
+exact evidence and the historical #149 review waiver; that waiver does not
+change review requirements for later work.
+
+PR #150 is also merged and ships the bounded one-click main updater. Its recorded
+physical proof covers installation and a blocked pre-updater-main target across
+a tray restart; it does not prove a successful accepted-main update transition.
+The #150 final fresh-review result was not found in the inspected PR timeline;
+merge metadata alone must not be described as proof that review passed.
+
+PR #155 documents the existing delegation/provider ownership boundary and #156
+adds documentation contract guards. They do not implement a general provider
+API or a WorkspaceProvider. See `DELEGATION_PROVIDER_CONTRACT.md`.
 
 ### L1 — generic delegation state
 
@@ -129,11 +143,11 @@ fail-closed corrupt/missing/foreign/temp-residue state
 
 A restart never manufactures a replacement run/delivery identity and never regains blind launch/Send authority.
 
-### L2 candidate — first `chatgpt-temporary` provider adapter
+### L2 — accepted `chatgpt-temporary` provider adapter
 
 The first concrete adapter is intentionally provider-specific rather than a premature generic provider framework.
 
-Current candidate path:
+Accepted bounded path:
 
 ```text
 generic delegation state stays prepared/open
@@ -187,7 +201,7 @@ The earlier fresh review finding that final observation could synthesize an ERRO
 
 The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution and opens **only the neutral preflight URL** for a genuinely new prepared delegation. It never independently opens the task-bearing URL. The same preflight tab owns the task navigation through `location.replace()` only after exact commit/reconciliation proof. `launch.json` remains evidence/status projection, not physical browser-launch authority. Source provenance is rechecked after terminal result capture.
 
-Persistent rich-context ordinary-ChatGPT conversation identity, automatic browser wake and cross-restart existing-session delivery remain separate future research. The parked Prime research branch is the next decision point after #149 for determining which durable session/runtime mechanics should be project-owned versus adapted from Prime before a generic existing-session implementation is selected.
+Persistent rich-context ordinary-ChatGPT conversation identity, automatic browser wake and cross-restart existing-session delivery remain separate future research. The open composition research is the next decision input; no persistent-session substrate or new provider implementation is accepted by that Draft.
 
 ## Automatic reviewer status
 
@@ -205,13 +219,16 @@ generic bounded Agent Session / Delegation lifecycle
 
 MimiSeek may later consume the same fresh-worker capability for its independent reviewer while keeping review-job semantics outside CAP. Returning a result to an existing persistent project chat is a separate existing-session delivery capability and is not smuggled into the Temporary adapter.
 
-Migration occurs only after the generic worker path is physically accepted and can preserve all existing reviewer guarantees. Until then, the accepted reviewer procedures remain the release-assurance fallback.
+The generic worker path has scoped physical evidence. Reviewer migration still needs separate proof that it preserves all existing reviewer guarantees; until that migration is accepted, the existing reviewer procedures remain the release-assurance fallback.
 
 PR #138 and #145 remain experiment evidence only; they do not become production authority. Reusable fresh-chat/Send observations may be adapted, while reviewer-specific experiment code does not define generic Agent Sessions.
 
-## Acceptance required for PR #149
+## Bounded worker acceptance scope
 
-Before #149 can merge, require:
+The historical qualification ladder below describes the worker scope. It is not
+an instruction to reopen merged PR #149. Its recorded evidence and review
+disposition are indexed in `EVIDENCE_INDEX.md`; future material changes remain
+subject to the current `AGENTS.md` policy. The ladder includes:
 
 ```text
 focused generic state-machine tests
@@ -244,7 +261,7 @@ A worker result is evidence/data. It does not grant a capability, self-authorize
 
 Merged #127 requires Stage Research re-entry for materially new persistence/recovery/retry/concurrency/identity/security/authority mechanisms.
 
-The active bounded Agent Session authority chain is:
+The bounded Agent Session design authority chain is:
 
 ```text
 AGENT_SESSION_DELEGATION_REENTRY.md
@@ -278,18 +295,28 @@ OpenAdapt remains a selected source for procedure-local compiler/resume/effect-e
 
 ## Immediate critical path
 
-```text
-finish deterministic preflight commit/restart fault tests + docs
- -> obtain preliminary exact-head hosted CI/security
- -> freeze BASE/HEAD
- -> obtain fresh exact-head ordinary-ChatGPT semantic review
- -> fix/falsify findings and repeat fresh review after any HEAD movement
- -> run final target-Windows/Plus normal + pre-first-claim/post-claim browser-loss physical qualification
- -> run final exact-head hosted checks
- -> re-resolve exact BASE/HEAD and merge #149
- -> refresh parked Prime research from accepted main
- -> exact-source Prime Stage Research and CAP/Prime ownership decision
-```
+The remaining open work is PR #151 (`research/prime-runtime-adaptation`), a
+**research/documentation-only Draft**. Its latest description is composition-first:
+CAP keeps trust, identity, authorization, reconciliation and verification;
+execution substrates remain behind narrow adapters. Resolve the live branch and
+its diff before using its research documents, which are not accepted-main policy.
+Its post-#149 refresh predates the later main merges and must be checked against
+current main again.
+
+Next development work:
+
+1. Reconcile the research branch with current accepted main and rerun repository
+   skill discovery at the resulting ref.
+2. Complete the applicable Stage Research/source-code research before selecting
+   a new execution adapter or persistent-session implementation. The Draft lists
+   CCCC/equivalent sessions and WinApp CLI desktop research; Prime is optional,
+   not an already selected runtime dependency.
+3. Implement only the bounded slice authorized by that fresh decision. Existing
+   workspace procedures are evidence to inspect, not proof that a separate
+   WorkspaceProvider abstraction is already needed or implemented.
+
+`ROADMAP.md` retains the release sequence. This continuation correction does not
+adopt the Draft architecture, add a dependency, or waive any acceptance gate.
 
 ## Non-negotiable rules
 

@@ -104,6 +104,6 @@ When `.agents/skills/stage-research/SKILL.md` applies:
 
 ## Future architecture boundary
 
-Track M Agent Sessions/Delegation, ADR-036 broader Browser/Local Execution and ADR-037 CapabilityRegistry/Event/Policy Hooks remain future/provisional and add no current public authority.
+The bounded one-worker Agent Session/Delegation slice is merged; broader Track M orchestration, ADR-036 broader Browser/Local Execution and ADR-037 CapabilityRegistry/Event/Policy Hooks remain future/provisional and add no current public authority.
 
 OpenAdapt/UFO/CtxPort-derived mechanisms are reuse/reference sources behind project-owned WorkingState/authorization/Verification/Finish boundaries; applicable Stage Research must explicitly keep/refine/replace/defer/reject/reuse-more their prior role rather than silently redesign it.

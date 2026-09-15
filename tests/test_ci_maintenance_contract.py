@@ -52,7 +52,7 @@ class CiMaintenanceContractTests(unittest.TestCase):
             "Stage 26.3C **production** WorkingState/restart-reconciliation integration",
             not_accepted,
         )
-        self.assertIn("Track M Agent Session/Delegation runtime", not_accepted)
+        self.assertIn("multi-worker Track M orchestration beyond the accepted bounded one-worker slice", not_accepted)
         self.assertIn("release-grade distribution/maintenance", not_accepted)
         self.assertNotIn("Stage 26.3B advanced verifier/postcondition library", not_accepted)
 
