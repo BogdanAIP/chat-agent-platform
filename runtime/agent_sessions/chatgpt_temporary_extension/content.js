@@ -11,7 +11,6 @@
   const PREFLIGHT_RETRY_MS = 750;
   const PREFLIGHT_MAX_MS = 5 * 60 * 1000;
   const TEMPORARY_UI_SETTLE_MS = 10000;
-  const COMPOSER_PROMPT_STABLE_MS = 2000;
   const MAX_RECOVERY_CLAIMS = 8;
   const LAUNCH_QUERY_KEYS = [
     "temporary-chat",
@@ -175,8 +174,6 @@
     let statusPollPending = false;
     let lastStatusPollAt = 0;
     let finalObservationSentFor = "";
-    let composerPromptStableSince = 0;
-    let composerPromptStableEditor = null;
     let recoveryConversationBound = recovered;
     let recoveryConversationBindPending = false;
     let lastRecoveryConversationBindAt = 0;
@@ -325,26 +322,6 @@
       if (recovered || typeof intent.prompt !== "string" || !intent.prompt) return false;
       const observed = composerPromptText(composer);
       return observed !== null && policy.exactPromptMatches(observed, intent.prompt);
-    }
-
-    function exactComposerPromptStable(composer) {
-      const editor = findComposerEditor(composer);
-      if (!editor || !exactComposerPromptMatches(composer)) {
-        composerPromptStableSince = 0;
-        composerPromptStableEditor = null;
-        return false;
-      }
-      const now = Date.now();
-      if (composerPromptStableEditor !== editor) {
-        composerPromptStableEditor = editor;
-        composerPromptStableSince = now;
-        return false;
-      }
-      if (!composerPromptStableSince) {
-        composerPromptStableSince = now;
-        return false;
-      }
-      return now - composerPromptStableSince >= COMPOSER_PROMPT_STABLE_MS;
     }
 
     function launchIntentState() {
@@ -641,6 +618,51 @@
       return observed !== null && observed.trim().length === 0;
     }
 
+    function clearExactDuplicateAfterSend() {
+      const current = currentComposerBinding();
+      if (!current || !exactComposerPromptMatches(current.composer)) {
+        return { matched: false, clean: composerEmptyAfterSend(), changed: false };
+      }
+      const { editor } = current;
+      try {
+        if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+          const setter = typeof HTMLTextAreaElement !== "undefined"
+            ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set
+            : null;
+          if (setter) setter.call(editor, "");
+          else editor.value = "";
+          editor.dispatchEvent(new Event("input", { bubbles: true }));
+        } else if (editor.getAttribute?.("contenteditable") === "true" || editor.isContentEditable) {
+          editor.focus({ preventScroll: true });
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(editor);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          let deleted = false;
+          try {
+            deleted = typeof document.execCommand === "function" &&
+              document.execCommand("delete", false, null) === true;
+          } finally {
+            selection?.removeAllRanges();
+          }
+          if (!deleted && exactComposerPromptMatches(current.composer)) {
+            editor.replaceChildren();
+            editor.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              inputType: "deleteContentBackward",
+              data: null,
+            }));
+          }
+        } else {
+          return { matched: true, clean: false, changed: false };
+        }
+      } catch {
+        return { matched: true, clean: false, changed: true };
+      }
+      return { matched: true, clean: composerEmptyAfterSend(), changed: true };
+    }
+
     function stopButtonPresent() {
       const primary = document.querySelector('button[data-testid="stop-button"]');
       if (primary && visible(primary)) return true;
@@ -932,12 +954,7 @@
 
       if (!sendAuthorized && !monitorOnly && !authorityRequested) {
         const binding = findSendBinding();
-        if (!binding) {
-          composerPromptStableSince = 0;
-          composerPromptStableEditor = null;
-          return;
-        }
-        if (!exactComposerPromptStable(binding.composer)) return;
+        if (!binding || !exactComposerPromptMatches(binding.composer)) return;
         void requestAuthority(binding.composer);
         return;
       }
@@ -971,7 +988,17 @@
       void pollControllerStatus();
       if (!recoveryConversationBound) void bindRecoveryConversation();
       const visibleDelivery = userDeliveryVisible();
-      const composerEmpty = composerEmptyAfterSend();
+      let composerEmpty = composerEmptyAfterSend();
+      if (visibleDelivery && !composerEmpty) {
+        const duplicate = clearExactDuplicateAfterSend();
+        if (duplicate.matched) {
+          composerEmpty = duplicate.clean;
+          if (duplicate.changed) {
+            event("post-send-exact-duplicate-cleared", { composer_clean: duplicate.clean });
+            return;
+          }
+        }
+      }
       if (visibleDelivery && composerEmpty && deliveryState !== "delivered") {
         void postDelivery("delivered", deliveryEvidenceRef("delivered", "visible-and-composer-empty"));
         return;
@@ -981,7 +1008,7 @@
         Date.now() - sendClickedAt >= intent.deliveryObserveMs &&
         !deliveryOutcomeAt
       ) {
-        const kind = visibleDelivery && !composerEmpty ? "partial-send-residue" : "ambiguous";
+        const kind = visibleDelivery && !composerEmpty ? "post-send-composer-residue" : "ambiguous";
         void postDelivery("unknown", deliveryEvidenceRef("unknown", kind));
         return;
       }
