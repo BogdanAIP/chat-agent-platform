@@ -328,6 +328,68 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             self.assertEqual("open", result["result_state"])
             self.assertEqual("ABSTAIN", result["automatic_worker_status"])
 
+    def test_terminal_manual_fallback_skips_late_automatic_settlement(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            state_root = Path(state_dir)
+            review_state.prepare_review_operation(identity_value(), state_root=state_root)
+            review_state.mark_dispatch_attempted(identity_value(), state_root=state_root)
+            reconcile = identity_request(RECONCILE_PROCEDURE_ID)
+            manual = run_reconcile_independent_review_result(
+                {**reconcile, "manual_result": pass_result()},
+                state_root=state_root,
+            )
+            self.assertEqual("manual-fallback-recorded", manual["result_state"])
+
+            with patch(
+                "runtime.control_plane.independent_review_procedures.settle_review_from_delegation"
+            ) as settle:
+                repeated = run_reconcile_independent_review_result(
+                    reconcile,
+                    state_root=state_root,
+                )
+
+            settle.assert_not_called()
+            self.assertEqual("recorded", repeated["status"])
+            self.assertEqual("manual-fallback-recorded", repeated["result_state"])
+            self.assertEqual("manual", repeated["result_source"])
+            self.assertEqual(pass_result(), repeated["result"])
+
+    def test_manual_fallback_winning_during_automatic_settlement_remains_authoritative(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            state_root = Path(state_dir)
+            review_state.prepare_review_operation(identity_value(), state_root=state_root)
+            review_state.mark_dispatch_attempted(identity_value(), state_root=state_root)
+            reconcile = identity_request(RECONCILE_PROCEDURE_ID)
+
+            def lose_automatic_race(*args, **kwargs):
+                review_state.reconcile_independent_review_result(
+                    {**identity_value(), "manual_result": pass_result()},
+                    state_root=state_root,
+                )
+                raise review_state.ReviewStateError(
+                    "automatic submission is closed by manual fallback"
+                )
+
+            with (
+                patch(
+                    "runtime.control_plane.independent_review_procedures.review_delegation_state_root",
+                    return_value=state_root / "agent-sessions",
+                ),
+                patch(
+                    "runtime.control_plane.independent_review_procedures.settle_review_from_delegation",
+                    side_effect=lose_automatic_race,
+                ),
+            ):
+                result = run_reconcile_independent_review_result(
+                    reconcile,
+                    state_root=state_root,
+                )
+
+            self.assertEqual("recorded", result["status"])
+            self.assertEqual("manual-fallback-recorded", result["result_state"])
+            self.assertEqual("manual", result["result_source"])
+            self.assertEqual(pass_result(), result["result"])
+
     def test_fixed_procedure_schemas_reject_generic_authority_fields(self) -> None:
         forbidden = (
             {"url": "https://chatgpt.com/"},
