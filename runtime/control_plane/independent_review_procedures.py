@@ -228,22 +228,46 @@ def run_reconcile_independent_review_result(
     _require_procedure(value, RECONCILE_PROCEDURE_ID, label="reconcile independent review result")
     identity = _identity_from_procedure_request(value)
 
+    state_request: dict[str, Any] = dict(identity)
+    if "manual_result" in value:
+        state_request["manual_result"] = value["manual_result"]
+        return reconcile_independent_review_result(state_request, state_root=state_root)
+
+    # A terminal reviewer result is already authoritative. In particular, a
+    # manual fallback that committed first must not be made unreadable by a
+    # later generic worker result that can no longer claim the automatic slot.
+    current = reconcile_independent_review_result(state_request, state_root=state_root)
+    if current.get("result_state") in {
+        "automatic-result-recorded",
+        "manual-fallback-recorded",
+    }:
+        return current
+
     settlement: dict[str, Any] | None = None
-    if "manual_result" not in value:
+    try:
+        delegation_state_root = review_delegation_state_root()
+    except ReviewStateError:
+        delegation_state_root = None
+    if delegation_state_root is not None:
         try:
-            delegation_state_root = review_delegation_state_root()
-        except ReviewStateError:
-            delegation_state_root = None
-        if delegation_state_root is not None:
             settlement = settle_review_from_delegation(
                 identity,
                 reviewer_state_root=state_root,
                 delegation_state_root=delegation_state_root,
             )
+        except ReviewStateError:
+            # Close the automatic/manual race without hiding real invalid
+            # automatic results. If manual fallback won while settlement was
+            # attempting the automatic commit, return that now-authoritative
+            # result. Otherwise preserve the fail-closed validation error.
+            raced = reconcile_independent_review_result(
+                state_request,
+                state_root=state_root,
+            )
+            if raced.get("result_state") == "manual-fallback-recorded":
+                return raced
+            raise
 
-    state_request: dict[str, Any] = dict(identity)
-    if "manual_result" in value:
-        state_request["manual_result"] = value["manual_result"]
     result = reconcile_independent_review_result(state_request, state_root=state_root)
 
     if settlement is not None and settlement.get("status") == "worker_terminal_noncompleting":
