@@ -16,6 +16,7 @@ from typing import Any, Mapping
 from runtime.agent_sessions import chatgpt_temporary, source_attestation
 from runtime.control_plane.independent_review_delegation import (
     prepare_review_delegation,
+    review_delegation_state_root,
     settle_review_from_delegation,
 )
 from runtime.control_plane.independent_review_state import (
@@ -327,10 +328,12 @@ def _run(args: argparse.Namespace) -> int:
     if prepared_review.dispatch_state != "dispatch-attempted" or prepared_review.result_state != "open":
         raise ReviewStateError("reviewer worker requires one open dispatch-attempted review operation")
 
+    delegation_state_root = review_delegation_state_root()
+    delegation_state_root.mkdir(parents=True, exist_ok=True)
     task, delegation_identity = prepare_review_delegation(
         prepared_review.identity,
         review_run_id=prepared_review.review_run_id,
-        state_root=state_root,
+        delegation_state_root=delegation_state_root,
     )
 
     operation_key = review_operation_key(identity)
@@ -365,7 +368,7 @@ def _run(args: argparse.Namespace) -> int:
                 identity_path=identity_path,
                 task_path=task_path,
                 attestation_path=attestation_path,
-                state_root=state_root,
+                state_root=delegation_state_root,
                 output_dir=output_dir,
             ),
             cwd=str(app_root),
@@ -381,7 +384,11 @@ def _run(args: argparse.Namespace) -> int:
                 _open_preflight(output_dir)
             _wait_terminal(process, output_dir=output_dir)
 
-            settled = settle_review_from_delegation(identity.as_dict(), state_root=state_root)
+            settled = settle_review_from_delegation(
+                identity.as_dict(),
+                reviewer_state_root=state_root,
+                delegation_state_root=delegation_state_root,
+            )
             if settled is not None and settled.get("status") in {"recorded", "already_recorded"}:
                 return 0
 
@@ -389,7 +396,11 @@ def _run(args: argparse.Namespace) -> int:
             # result immediately before process exit. Give settlement one final
             # bounded retry without granting any new launch/Send authority.
             time.sleep(0.2)
-            settled = settle_review_from_delegation(identity.as_dict(), state_root=state_root)
+            settled = settle_review_from_delegation(
+                identity.as_dict(),
+                reviewer_state_root=state_root,
+                delegation_state_root=delegation_state_root,
+            )
             if settled is not None and settled.get("status") in {"recorded", "already_recorded"}:
                 return 0
             return 3
