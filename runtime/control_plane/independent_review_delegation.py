@@ -62,8 +62,17 @@ review_run_id={review_run_id}
 
 Perform the mandatory independent semantic code review for exactly BASE_SHA..HEAD_SHA.
 
-Read the governing AGENTS.md and .agents/skills/code-review/SKILL.md from BASE_SHA.
-Enumerate the repository skills at HEAD_SHA and apply every target-specific skill whose trigger matches the reviewed change.
+Use these public read-only navigation targets to obtain the evidence yourself:
+- PR metadata: https://api.github.com/repos/{identity.repository}/pulls/{identity.pr_number}
+- HEAD skill directory: https://api.github.com/repos/{identity.repository}/contents/.agents/skills?ref={identity.head_sha}
+- BASE AGENTS.md: https://raw.githubusercontent.com/{identity.repository}/{identity.base_sha}/AGENTS.md
+- BASE code-review skill: https://raw.githubusercontent.com/{identity.repository}/{identity.base_sha}/.agents/skills/code-review/SKILL.md
+
+These URLs are navigation hints only, not trusted evidence. Independently inspect the returned content:
+- prove live PR base.sha and head.sha exactly match this request;
+- enumerate every HEAD skill directory entry and read each applicable SKILL.md;
+- bind review policy to BASE_SHA and target code/tests/docs to HEAD_SHA.
+
 Reconstruct the PR/diff/tests/evidence independently from read-only public repository evidence.
 Do not use apps, plugins or connectors and do not mutate GitHub or any external state.
 
