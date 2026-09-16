@@ -52,7 +52,11 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
 
     def test_reconcile_can_only_settle_existing_generic_result(self) -> None:
         self.assertIn("settle_review_from_delegation", self.procedures)
-        self.assertIn('if "manual_result" not in value:', self.procedures)
+        self.assertIn('if "manual_result" in value:', self.procedures)
+        self.assertIn(
+            'return reconcile_independent_review_result(state_request, state_root=state_root)',
+            self.procedures,
+        )
         self.assertIn("load_delegation", self.delegation)
         self.assertIn("submit_independent_review_result", self.delegation)
         self.assertNotIn("mark_launch_attempted", self.delegation)
