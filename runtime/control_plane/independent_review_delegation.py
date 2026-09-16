@@ -17,6 +17,7 @@ from runtime.control_plane.delegation_state import (
 from .independent_review_state import (
     ReviewIdentity,
     ReviewStateError,
+    parse_review_result,
     prepare_review_operation,
     review_operation_key,
     submit_independent_review_result,
@@ -128,6 +129,25 @@ def settle_review_from_delegation(
     payload = snapshot.result_payload
     if type(payload) is not str or not payload:
         raise ReviewStateError("delegated reviewer completed without a bounded result payload")
+
+    parsed = parse_review_result(
+        payload,
+        expected_identity=prepared_review.identity,
+        automatic=True,
+        expected_review_run_id=prepared_review.review_run_id,
+    )
+    if (
+        parsed.header["status"] not in {"PASS", "FINDINGS"}
+        or parsed.header["review_validity"] != "CURRENT"
+    ):
+        return {
+            "schema_version": 1,
+            "status": "review_terminal_noncompleting",
+            "review_status": parsed.header["status"],
+            "review_validity": parsed.header["review_validity"],
+            "delegation_id": snapshot.delegation_id,
+            "result_sha256": snapshot.result_sha256,
+        }
 
     try:
         settled = submit_independent_review_result(
