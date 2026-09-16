@@ -369,7 +369,7 @@ const server = new McpServer(
   { name: 'chat-semantic-control-plane', version: VERSION },
   {
     instructions:
-      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations require fresh final-state verification. procedure_run admits only registered bounded procedures. The independent-review procedures accept only exact review identity, private run capability/result submission, or exact reconciliation/manual-result fields; launch remains fail-closed before browser dispatch until reviewer authority qualification and Send claiming are separately installed and accepted. No shell, arbitrary Python, URL/prompt launcher, backend selector, generic dispatch or arbitrary filesystem path is exposed.'
+      'Canonical Chat Agent Platform semantic surface. It always exposes exactly six reviewed tools: workspace_read, workspace_write, web_open, web_observe, web_interact and procedure_run. Browser mutations require fresh final-state verification. procedure_run admits only registered bounded procedures. The independent-review procedures accept only exact review identity, private run capability/result submission, or exact reconciliation/manual-result fields; reviewer launch may start only the fixed installed reviewer-owned Temporary Chat worker after its private runtime preflight succeeds; otherwise it fails closed before dispatch. No shell, arbitrary Python, URL/prompt launcher, backend selector, generic dispatch or arbitrary filesystem path is exposed.'
   }
 );
 
@@ -433,7 +433,7 @@ server.registerTool('web_interact', {
 server.registerTool('procedure_run', {
   title: 'Run Verified Procedure',
   description:
-    'Run one registered bounded local procedure. Registered ids are verified_workspace_artifact_v1, windows_case_update_v1, launch_independent_review_v1, submit_independent_review_result_v1 and reconcile_independent_review_result_v1. Reviewer launch accepts only exact review identity and currently ABSTAINS before browser dispatch while reviewer authority is unqualified; it never returns review_run_id. Submit accepts only the private review_run_id plus REVIEW_RESULT_V1 text. Reconcile accepts exact review identity plus optional fresh manual REVIEW_RESULT_V1. No PID, HWND, URL, prompt, path, command, Python, backend, GitHub credential or generic tool selector is accepted.',
+    'Run one registered bounded local procedure. Registered ids are verified_workspace_artifact_v1, windows_case_update_v1, launch_independent_review_v1, submit_independent_review_result_v1 and reconcile_independent_review_result_v1. Reviewer launch accepts only exact review identity, never returns review_run_id, and may start only the fixed installed reviewer-owned Temporary Chat worker; unavailable runtime fails closed without consuming dispatch, while any post-dispatch failure never authorizes relaunch. Submit accepts only the private review_run_id plus REVIEW_RESULT_V1 text. Reconcile accepts exact review identity plus optional fresh manual REVIEW_RESULT_V1. No PID, HWND, URL, prompt, path, command, Python, backend, GitHub credential or generic tool selector is accepted.',
   inputSchema: z.union([
     workspaceArtifactProcedureSchema,
     windowsCaseProcedureSchema,
