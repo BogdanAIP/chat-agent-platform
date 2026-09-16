@@ -123,6 +123,41 @@ class DocumentationConsistencyTests(unittest.TestCase):
         self.assertNotIn("draft #126", roadmap.casefold())
         self.assertNotIn("hard-link final create", roadmap.casefold())
 
+    def test_authoritative_roadmap_stage_headings_do_not_promote_research_candidates(self) -> None:
+        roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
+
+        # A prior accepted-looking roadmap heading promoted OpenAdapt from a
+        # research candidate into the release sequence while all existing docs
+        # checks stayed green. Keep vendor/research names out of roadmap stage
+        # headings; they may still appear in explanatory body text as candidates
+        # selected/rejected by fresh Stage Research.
+        research_candidates = (
+            "openadapt",
+            "prime",
+            "cccc",
+            "arex",
+            "skill recorder",
+            "winapp",
+            "ufo",
+            "coddy",
+        )
+        headings = [
+            match.group(1).strip().casefold()
+            for match in re.finditer(r"(?m)^#{1,6}\s+(.+?)\s*$", roadmap)
+        ]
+
+        for heading in headings:
+            for candidate in research_candidates:
+                with self.subTest(heading=heading, candidate=candidate):
+                    self.assertNotIn(
+                        candidate,
+                        heading,
+                        msg=(
+                            "authoritative ROADMAP stage headings must describe "
+                            "product capabilities, not research/vendor candidates"
+                        ),
+                    )
+
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
         control = (CONTEXT / "CONTROL_PLANE.md").read_text(encoding="utf-8")
