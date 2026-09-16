@@ -54,26 +54,67 @@ automatic-review specialist state/procedure foundation     ACCEPTED / MERGED #14
 
 Exact PR/physical evidence belongs in `CURRENT_STATE.md` / `EVIDENCE_INDEX.md`, not here.
 
-## Current release-critical sequence
+## Product release roadmap — authoritative order
+
+This is the implementation order toward CAP v1. **Research projects and vendor names are not roadmap stages.** Prime, CCCC, AREX, Skill Recorder, WinApp CLI, OpenAdapt and similar projects are candidates that may be revalidated when a roadmap stage needs their mechanics; they are not commitments to integrate them.
+
+The accepted Stage 26.3C foundation remains the starting point. The remaining product sequence is:
 
 ```text
-accepted bounded Agent Session / Delegation first slice
- -> automatic reviewer migration as first specialist consumer + reviewer quality baseline
- -> broad real-application physical coverage gate
- -> bounded OpenAdapt integration spike
- -> 26.4 Human Demo -> verified candidate skill / skill lineage
- -> 26.5 Hybrid Computer-Use Integration + selective Office reuse
- -> 27 Distribution & Maintenance
- -> 28 Clean User E2E / stable release
+1. Reviewer reuse over the accepted Delegation lifecycle
+   -> migrate the automatic reviewer without weakening reviewer-specific guarantees
+
+2. General computer-use coverage
+   -> prove the existing Browser/Desktop path across a finite real-application matrix
+
+3. External procedure integration
+   -> execute one externally compiled bounded procedure through CAP authority,
+      WorkingState where required, Verification Kernel and Finish Gate
+
+4. Skill lifecycle
+   -> CANDIDATE -> VERIFIED -> STALE / REJECTED with provenance and bounded qualification
+
+5. Skill acquisition
+   -> 26.4 Human Demo / external skill / existing workflow -> candidate skill
+   -> changed-input replay and negative/fail-closed cases
+
+6. Hybrid capability use
+   -> 26.5 Hybrid Computer-Use Integration + selective Office reuse
+
+7. Distribution
+   -> 27 Distribution & Maintenance
+
+8. Stable release
+   -> 28 Clean User E2E / stable release
 ```
 
-The current Agent Session item is a **bounded product mechanism**, not broad multi-agent orchestration. Its first accepted scope is exactly one ordinary-ChatGPT manager -> one genuinely fresh read-only worker -> one bounded delegation/delivery -> one correlated durable result.
+Every roadmap stage must be closed by a concrete product outcome and acceptance evidence, not by integrating a named technology. At stage entry, fresh repository bootstrap and applicable Stage Research select or reject current implementation candidates.
 
-Automatic review remains important developer/release-assurance infrastructure, but its reusable session/delivery lifecycle is no longer the generic product owner. The accepted reviewer-specific #140-#142 state/procedures remain fallback until a later consumer migration proves that reviewer freshness, exact PR/BASE/HEAD identity, least privilege, `REVIEW_RESULT_V1`, stale handling and manual fallback survive unchanged above the generic worker lifecycle.
+### ChatGPT session boundary
 
-Broad real-app coverage is an acceptance objective, not a new architecture family.
+Ordinary CAP work uses the user's **ordinary ChatGPT conversation** through the accepted six-tool semantic route. The concrete `chatgpt-temporary` adapter is **reviewer-only product infrastructure**: it exists to obtain the fresh independent context required by the mandatory code-review policy.
 
-Nested/fan-out Agent Sessions, same-task automatic manager wake/resampling and Track P local general planner remain future. UFO³ Galaxy remains deferred until multi-device orchestration is an observed bottleneck.
+```text
+ordinary user task
+ -> ordinary ChatGPT
+ -> CAP six-tool semantic surface
+ -> Control Plane / capabilities
+
+independent code review
+ -> reviewer policy
+ -> generic bounded Delegation lifecycle
+ -> chatgpt-temporary
+ -> fresh isolated reviewer
+ -> validated reviewer result
+```
+
+Do not route normal user tasks, ordinary specialist work, skill execution, procedure execution or future persistent-session work through `chatgpt-temporary`. Its earlier non-reviewer physical task remains scoped evidence that the underlying Delegation lifecycle was not reviewer-specific; it does not make Temporary Chat a general product execution mode.
+
+If a future non-reviewer consumer genuinely requires a fresh isolated worker, re-enter the applicable Stage Research and select a suitable session/provider mechanism from current evidence instead of silently widening `chatgpt-temporary`.
+
+The accepted reviewer-specific #140-#142 state/procedures remain fallback until reviewer migration proves that freshness, exact PR/BASE/HEAD identity, least privilege, `REVIEW_RESULT_V1`, stale handling and manual fallback survive unchanged above the generic Delegation lifecycle.
+
+Broad real-app coverage is an acceptance objective, not a new architecture family. Nested/fan-out workers, same-task automatic manager wake/resampling and Track P local general planner remain future and must not displace the product sequence above.
 
 ---
 
@@ -274,16 +315,16 @@ Define a finite acceptance matrix before expanding this gate so it cannot become
 
 ---
 
-# Pre-26.4 — bounded OpenAdapt integration spike
+# Pre-26.4 — bounded external-procedure integration qualification
 
-After the project-owned 26.3C production state/recovery shape is accepted, revalidate selected OpenAdapt roles through `ARCHITECTURE_REUSE_BASELINE.md` and fresh Stage Research rather than assuming prior selection is sufficient.
+After the project-owned 26.3C production state/recovery shape is accepted, qualify one external procedure/capture/replay path through `ARCHITECTURE_REUSE_BASELINE.md` and fresh Stage Research. Do not assume any previously researched implementation candidate remains selected merely because it was explored earlier.
 
-Target bounded spike:
+Target bounded qualification:
 
 ```text
-human demonstration
- -> OpenAdapt Capture / Flow compile
- -> ProgramGraph / deterministic replay
+human demonstration / existing external workflow
+ -> selected capture/compiler/replay candidate, if required
+ -> bounded external procedure representation
  -> upstream effect evidence
  -> project evidence adapter
  -> project ObservationSnapshot / ExpectedEffect
@@ -291,9 +332,11 @@ human demonstration
  -> PROJECT independent Finish Gate
 ```
 
-No upstream verdict becomes unconditional project `PASS`/`DONE`. No raw workflow catalog, generic desktop executor, shell/Python authority or second planner is introduced merely for the spike.
+OpenAdapt is one previously researched candidate for parts of this path, not a roadmap stage or mandatory dependency. Stage Research may select, adapt or reject it in favor of another current mechanism.
 
-Before implementation, define a bounded exit decision such as `ADOPT`, `ADAPT` or `REJECT` for each evaluated role. If upstream mechanics do not fit the exact current failure/authority model, keep them qualified but outside the production path rather than extending the spike indefinitely.
+No upstream verdict becomes unconditional project `PASS`/`DONE`. No raw workflow catalog, generic desktop executor, shell/Python authority or second planner is introduced merely for the qualification.
+
+Before implementation, define a bounded exit decision such as `ADOPT`, `ADAPT` or `REJECT` for each evaluated role. If a candidate does not fit the exact current failure/authority model, keep it outside the production path rather than extending the qualification indefinitely.
 
 ---
 
