@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+import subprocess
+import sys
 import unittest
 
 
@@ -22,6 +24,22 @@ class AutomaticReviewerQualificationContractTests(unittest.TestCase):
         self.assertIn("review_delegation_identity", self.driver)
         self.assertIn("settle_review_from_delegation", self.driver)
         self.assertIn("reconcile_independent_review_result", self.driver)
+
+    def test_driver_runs_directly_from_scripts_directory(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(DRIVER), "--help"],
+            cwd=DRIVER.parent,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(
+            completed.returncode,
+            0,
+            msg=f"stdout={completed.stdout}\nstderr={completed.stderr}",
+        )
+        self.assertNotIn("ModuleNotFoundError", completed.stderr)
 
     def test_harness_reuses_exact_head_generic_temporary_launcher(self) -> None:
         self.assertIn("launch-chatgpt-temporary-worker.ps1", self.harness)
