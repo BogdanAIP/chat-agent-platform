@@ -27,7 +27,7 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
         self.assertIn('state["repository"] != _REPOSITORY', self.worker)
         self.assertIn('state["branch"] != _BRANCH', self.worker)
         self.assertIn('"ChatAgentPlatform" / "app"', self.delegation)
-        self.assertIn('"ChatAgentPlatform" / "app"', self.worker)
+        self.assertIn('app_root = (local_root / "app").resolve()', self.worker)
 
     def test_worker_opens_only_neutral_preflight_and_never_accepts_url_or_command(self) -> None:
         self.assertIn("cap_agent_preflight=1#cap_preflight_id=", self.worker)
