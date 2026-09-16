@@ -85,6 +85,7 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
 
     $semanticRoot = Join-Path $AppRuntimeDir 'semantic-projection'
     $controlPlaneRoot = Join-Path $AppRuntimeDir 'control_plane'
+    $agentSessionRoot = Join-Path $AppRuntimeDir 'agent_sessions'
     $manifestPath = Join-Path $semanticRoot 'package.json'
     $lockPath = Join-Path $semanticRoot 'package-lock.json'
     $semanticConfigPath = Join-Path $AppRuntimeDir 'chat-profiles\semantic\mcp.json'
@@ -107,6 +108,9 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
         'browser_transition.py',
         'browser_transition_cli.py',
         'cli.py',
+        'delegation_state.py',
+        'automatic_review_worker.py',
+        'independent_review_delegation.py',
         'independent_review_procedures.py',
         'independent_review_state.py',
         'file_artifact_observation.py',
@@ -114,6 +118,20 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
         'verified_workspace_artifact.py',
         'windows_file_pin.py',
         'working_state.py'
+    )
+    $agentSessionFiles = @(
+        '__init__.py',
+        'chatgpt_temporary.py',
+        'chatgpt_temporary_controller.py',
+        'chatgpt_temporary_authenticated_controller.py',
+        'source_attestation.py'
+    )
+    $agentSessionExtensionFiles = @(
+        'manifest.json',
+        'execution_generation.js',
+        'policy.js',
+        'background.js',
+        'content.js'
     )
     $visionScripts = @(
         'local-vision-runtime.ps1',
@@ -135,6 +153,12 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
     }
     foreach ($name in $controlPlaneFiles) {
         $required.Add((Join-Path $controlPlaneRoot $name))
+    }
+    foreach ($name in $agentSessionFiles) {
+        $required.Add((Join-Path $agentSessionRoot $name))
+    }
+    foreach ($name in $agentSessionExtensionFiles) {
+        $required.Add((Join-Path $agentSessionRoot "chatgpt_temporary_extension\$name"))
     }
     foreach ($name in $visionScripts) {
         $required.Add((Join-Path $AppScriptsDir $name))
@@ -308,6 +332,9 @@ function Install-ChatManagerBundle {
         @('runtime\control_plane\browser_transition.py', 'runtime\control_plane\browser_transition.py'),
         @('runtime\control_plane\browser_transition_cli.py', 'runtime\control_plane\browser_transition_cli.py'),
         @('runtime\control_plane\cli.py', 'runtime\control_plane\cli.py'),
+        @('runtime\control_plane\delegation_state.py', 'runtime\control_plane\delegation_state.py'),
+        @('runtime\control_plane\automatic_review_worker.py', 'runtime\control_plane\automatic_review_worker.py'),
+        @('runtime\control_plane\independent_review_delegation.py', 'runtime\control_plane\independent_review_delegation.py'),
         @('runtime\control_plane\independent_review_procedures.py', 'runtime\control_plane\independent_review_procedures.py'),
         @('runtime\control_plane\independent_review_state.py', 'runtime\control_plane\independent_review_state.py'),
         @('runtime\control_plane\file_artifact_observation.py', 'runtime\control_plane\file_artifact_observation.py'),
@@ -315,6 +342,16 @@ function Install-ChatManagerBundle {
         @('runtime\control_plane\verified_workspace_artifact.py', 'runtime\control_plane\verified_workspace_artifact.py'),
         @('runtime\control_plane\windows_file_pin.py', 'runtime\control_plane\windows_file_pin.py'),
         @('runtime\control_plane\working_state.py', 'runtime\control_plane\working_state.py'),
+        @('runtime\agent_sessions\__init__.py', 'runtime\agent_sessions\__init__.py'),
+        @('runtime\agent_sessions\chatgpt_temporary.py', 'runtime\agent_sessions\chatgpt_temporary.py'),
+        @('runtime\agent_sessions\chatgpt_temporary_controller.py', 'runtime\agent_sessions\chatgpt_temporary_controller.py'),
+        @('runtime\agent_sessions\chatgpt_temporary_authenticated_controller.py', 'runtime\agent_sessions\chatgpt_temporary_authenticated_controller.py'),
+        @('runtime\agent_sessions\source_attestation.py', 'runtime\agent_sessions\source_attestation.py'),
+        @('runtime\agent_sessions\chatgpt_temporary_extension\manifest.json', 'runtime\agent_sessions\chatgpt_temporary_extension\manifest.json'),
+        @('runtime\agent_sessions\chatgpt_temporary_extension\execution_generation.js', 'runtime\agent_sessions\chatgpt_temporary_extension\execution_generation.js'),
+        @('runtime\agent_sessions\chatgpt_temporary_extension\policy.js', 'runtime\agent_sessions\chatgpt_temporary_extension\policy.js'),
+        @('runtime\agent_sessions\chatgpt_temporary_extension\background.js', 'runtime\agent_sessions\chatgpt_temporary_extension\background.js'),
+        @('runtime\agent_sessions\chatgpt_temporary_extension\content.js', 'runtime\agent_sessions\chatgpt_temporary_extension\content.js'),
         @('config\local-vision-runtime.json', 'config\local-vision-runtime.json'),
         @('runtime\local_vision_adapter\__init__.py', 'runtime\local_vision_adapter\__init__.py'),
         @('runtime\local_vision_adapter\benchmark.py', 'runtime\local_vision_adapter\benchmark.py'),
