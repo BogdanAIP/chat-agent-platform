@@ -123,40 +123,66 @@ class DocumentationConsistencyTests(unittest.TestCase):
         self.assertNotIn("draft #126", roadmap.casefold())
         self.assertNotIn("hard-link final create", roadmap.casefold())
 
-    def test_authoritative_roadmap_stage_headings_do_not_promote_research_candidates(self) -> None:
+    def test_authoritative_roadmap_stages_are_capability_owned(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
 
-        # A prior accepted-looking roadmap heading promoted OpenAdapt from a
-        # research candidate into the release sequence while all existing docs
-        # checks stayed green. Keep vendor/research names out of roadmap stage
-        # headings; they may still appear in explanatory body text as candidates
-        # selected/rejected by fresh Stage Research.
-        research_candidates = (
-            "openadapt",
-            "prime",
-            "cccc",
-            "arex",
-            "skill recorder",
-            "winapp",
-            "ufo",
-            "coddy",
+        # A prior accepted-looking roadmap heading promoted a research candidate
+        # into the release sequence while the coarse release-order check stayed
+        # green. Pin the capability-owned sequence and its detailed stage headings
+        # so changing a product stage requires an explicit regression-guard update.
+        sequence_block = re.search(
+            r"The remaining product sequence is:\s*\x60{3}text\s*(?P<body>.*?)\x60{3}",
+            roadmap,
+            re.IGNORECASE | re.DOTALL,
         )
-        headings = [
-            match.group(1).strip().casefold()
-            for match in re.finditer(r"(?m)^#{1,6}\s+(.+?)\s*$", roadmap)
-        ]
+        self.assertIsNotNone(sequence_block)
+        assert sequence_block is not None
+        release_stage_titles = tuple(
+            match.group(1).strip()
+            for match in re.finditer(
+                r"(?m)^\d+\.\s+(.+?)\s*$",
+                sequence_block.group("body"),
+            )
+        )
+        self.assertEqual(
+            release_stage_titles,
+            (
+                "Reviewer reuse over the accepted Delegation lifecycle",
+                "General computer-use coverage",
+                "External procedure integration",
+                "Skill lifecycle",
+                "Skill acquisition",
+                "Hybrid capability use",
+                "Distribution",
+                "Stable release",
+            ),
+        )
 
-        for heading in headings:
-            for candidate in research_candidates:
-                with self.subTest(heading=heading, candidate=candidate):
-                    self.assertNotIn(
-                        candidate,
-                        heading,
-                        msg=(
-                            "authoritative ROADMAP stage headings must describe "
-                            "product capabilities, not research/vendor candidates"
-                        ),
-                    )
+        top_level_headings = tuple(
+            match.group(1).strip()
+            for match in re.finditer(r"(?m)^#\s+(.+?)\s*$", roadmap)
+        )
+        detailed_release_headings = tuple(
+            heading
+            for heading in top_level_headings
+            if re.match(
+                r"^(?:Automatic reviewer\b|Broad real-application\b|Pre-26\.4\b|26\.4\b|26\.5\b|27\b|28\b)",
+                heading,
+                re.IGNORECASE,
+            )
+        )
+        self.assertEqual(
+            detailed_release_headings,
+            (
+                "Automatic reviewer — first specialist consumer after generic Agent Session acceptance",
+                "Broad real-application physical coverage gate",
+                "Pre-26.4 — bounded external-procedure integration qualification",
+                "26.4 — Human Demo -> verified candidate skill / lineage",
+                "26.5 — Hybrid Computer-Use Integration",
+                "27 — Distribution & Maintenance",
+                "28 — Clean User E2E / stable release",
+            ),
+        )
 
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
