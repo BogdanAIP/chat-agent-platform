@@ -4,6 +4,7 @@ import hashlib
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from runtime.control_plane import cli as control_plane_cli
@@ -11,6 +12,7 @@ from runtime.control_plane import delegation_state
 from runtime.control_plane import independent_review_state as review_state
 from runtime.control_plane.independent_review_delegation import (
     prepare_review_delegation,
+    settle_review_from_delegation,
 )
 from runtime.control_plane.independent_review_procedures import (
     LAUNCH_PROCEDURE_ID,
@@ -64,6 +66,28 @@ def pass_result(*, review_run_id: str | None = None) -> str:
     if review_run_id is not None:
         lines.append(f"review_run_id={review_run_id}")
     return "\n".join(lines)
+
+
+def stale_result(*, review_run_id: str) -> str:
+    return "\n".join(
+        [
+            "REVIEW_RESULT_V1",
+            "repository=BogdanAIP/chat-agent-platform",
+            "pr_number=141",
+            f"base_sha={BASE_SHA}",
+            f"head_sha={HEAD_SHA}",
+            f"review_policy_ref={BASE_SHA}",
+            "review_skill=code-review",
+            "review_skill_version=1.1",
+            "review_context=ordinary_chat_fresh",
+            "status=STALE",
+            "review_validity=STALE_MATERIAL_CHANGE",
+            "reported_findings=0",
+            "rejected_candidates=0",
+            "reviewed_at=2026-09-01T00:00:00+00:00",
+            f"review_run_id={review_run_id}",
+        ]
+    )
 
 
 class IndependentReviewProcedureWiringTests(unittest.TestCase):
@@ -327,6 +351,49 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             self.assertEqual("pending", result["status"])
             self.assertEqual("open", result["result_state"])
             self.assertEqual("ABSTAIN", result["automatic_worker_status"])
+
+    def test_stale_completed_worker_payload_remains_noncompleting_review_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            state_root = Path(state_dir)
+            prepared_review = review_state.prepare_review_operation(
+                identity_value(),
+                state_root=state_root,
+            )
+            review_state.mark_dispatch_attempted(identity_value(), state_root=state_root)
+            payload = stale_result(review_run_id=prepared_review.review_run_id)
+            fake_snapshot = SimpleNamespace(
+                result_state="recorded",
+                result_status="COMPLETED",
+                result_payload=payload,
+                delegation_id="d" * 64,
+                result_sha256=hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+            )
+
+            with patch(
+                "runtime.control_plane.independent_review_delegation.load_delegation",
+                return_value=fake_snapshot,
+            ):
+                settlement = settle_review_from_delegation(
+                    identity_value(),
+                    reviewer_state_root=state_root,
+                    delegation_state_root=state_root / "agent-sessions",
+                )
+
+            self.assertIsNotNone(settlement)
+            assert settlement is not None
+            self.assertEqual("review_terminal_noncompleting", settlement["status"])
+            self.assertEqual("STALE", settlement["review_status"])
+            self.assertEqual(
+                "STALE_MATERIAL_CHANGE",
+                settlement["review_validity"],
+            )
+
+            pending = review_state.reconcile_independent_review_result(
+                identity_value(),
+                state_root=state_root,
+            )
+            self.assertEqual("pending", pending["status"])
+            self.assertEqual("open", pending["result_state"])
 
     def test_terminal_manual_fallback_skips_late_automatic_settlement(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
