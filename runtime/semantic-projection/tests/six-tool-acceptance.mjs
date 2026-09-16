@@ -94,7 +94,7 @@ try {
   assert(procedure, 'procedure_run missing from canonical semantic surface');
   assert.equal(procedure.annotations?.readOnlyHint, false);
   assert.equal(procedure.annotations?.destructiveHint, true);
-  assert.equal(procedure.annotations?.openWorldHint, false);
+  assert.equal(procedure.annotations?.openWorldHint, true);
 
   const variants = closedSchemaVariants(procedure.inputSchema);
   const byProcedure = new Map(variants.map(variant => [procedureLiteral(variant), variant]));
