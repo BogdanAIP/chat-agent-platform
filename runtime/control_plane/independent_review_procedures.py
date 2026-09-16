@@ -3,8 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
+from .independent_review_delegation import (
+    prepare_review_delegation,
+    settle_review_from_delegation,
+    spawn_review_worker,
+)
 from .independent_review_state import (
     ReviewStateError,
+    mark_dispatch_attempted,
     parse_review_identity,
     prepare_review_operation,
     reconcile_independent_review_result,
@@ -64,14 +70,7 @@ def run_launch_independent_review(
     *,
     state_root: Path,
 ) -> dict[str, Any]:
-    """Prepare one exact review operation and fail closed before browser dispatch.
-
-    This production slice deliberately does not implement reviewer-authority
-    qualification, browser launch, or MV3 Send claiming. Those mechanisms are a
-    later accepted boundary. Preparing the operation here preserves the durable
-    exact identity and private nonce while ensuring no caller can mistake this
-    contract-only wiring for a completed automatic launch.
-    """
+    """Start at most one automatic reviewer over the generic Delegation lifecycle."""
 
     value = _require_plain_request(request, label="launch independent review")
     _require_exact_request_keys(
@@ -80,28 +79,84 @@ def run_launch_independent_review(
         label="launch independent review",
     )
     _require_procedure(value, LAUNCH_PROCEDURE_ID, label="launch independent review")
-    identity = _identity_from_procedure_request(value)
-    prepared = prepare_review_operation(identity, state_root=state_root)
+    identity_value = _identity_from_procedure_request(value)
+    identity = parse_review_identity(identity_value, exact_keys=True)
+    prepared = prepare_review_operation(identity_value, state_root=state_root)
 
     if prepared.result_state != "open":
-        reason = "review_result_already_recorded"
-    elif prepared.dispatch_state != "prepared":
-        reason = "review_dispatch_already_attempted"
-    else:
-        reason = "reviewer_authority_unqualified"
+        summary = reconcile_independent_review_result(identity_value, state_root=state_root)
+        return {
+            **summary,
+            "procedure_id": LAUNCH_PROCEDURE_ID,
+            "automatic_launch_performed": False,
+        }
+
+    if prepared.dispatch_state != "prepared":
+        settlement = settle_review_from_delegation(identity_value, state_root=state_root)
+        if settlement is not None and settlement.get("status") in {"recorded", "already_recorded"}:
+            summary = reconcile_independent_review_result(identity_value, state_root=state_root)
+            return {
+                **summary,
+                "procedure_id": LAUNCH_PROCEDURE_ID,
+                "automatic_launch_performed": False,
+            }
+        return {
+            "schema_version": 1,
+            "status": "pending",
+            "procedure_id": LAUNCH_PROCEDURE_ID,
+            "operation_key": prepared.operation_key,
+            "dispatch_state": prepared.dispatch_state,
+            "result_state": prepared.result_state,
+            "automatic_launch_performed": False,
+            "automatic_submission_open": prepared.dispatch_state == "dispatch-attempted",
+            **(
+                {
+                    "automatic_worker_status": settlement.get("worker_status"),
+                    "automatic_worker_result_sha256": settlement.get("result_sha256"),
+                }
+                if settlement is not None
+                and settlement.get("status") == "worker_terminal_noncompleting"
+                else {}
+            ),
+        }
+
+    # Create/load the deterministic generic Delegation while reviewer dispatch
+    # is still prepared. A crash here leaves reviewer launch authority intact
+    # because no physical child launch has yet been authorized.
+    prepare_review_delegation(
+        prepared.identity,
+        review_run_id=prepared.review_run_id,
+        state_root=state_root,
+    )
+
+    # Reviewer launch authority is consumed before the external process starts.
+    # If process creation fails or its acknowledgement is lost, automatic
+    # relaunch is permanently forbidden for this exact review operation.
+    dispatch = mark_dispatch_attempted(identity_value, state_root=state_root)
+    try:
+        spawn_review_worker(identity, state_root=state_root)
+    except ReviewStateError:
+        return {
+            "schema_version": 1,
+            "status": "abstained",
+            "procedure_id": LAUNCH_PROCEDURE_ID,
+            "operation_key": prepared.operation_key,
+            "dispatch_state": dispatch["dispatch_state"],
+            "result_state": dispatch["result_state"],
+            "automatic_launch_performed": False,
+            "automatic_submission_open": True,
+            "escalation_reason": "reviewer_worker_spawn_failed",
+        }
 
     return {
         "schema_version": 1,
-        "status": "abstained",
+        "status": "pending",
         "procedure_id": LAUNCH_PROCEDURE_ID,
         "operation_key": prepared.operation_key,
-        "dispatch_state": prepared.dispatch_state,
-        "result_state": prepared.result_state,
-        "automatic_launch_performed": False,
-        "automatic_submission_open": (
-            prepared.dispatch_state == "dispatch-attempted" and prepared.result_state == "open"
-        ),
-        "escalation_reason": reason,
+        "dispatch_state": dispatch["dispatch_state"],
+        "result_state": dispatch["result_state"],
+        "automatic_launch_performed": True,
+        "automatic_submission_open": True,
     }
 
 
@@ -144,7 +199,20 @@ def run_reconcile_independent_review_result(
         )
     _require_procedure(value, RECONCILE_PROCEDURE_ID, label="reconcile independent review result")
     identity = _identity_from_procedure_request(value)
+
+    settlement: dict[str, Any] | None = None
+    if "manual_result" not in value:
+        settlement = settle_review_from_delegation(identity, state_root=state_root)
+
     state_request: dict[str, Any] = dict(identity)
     if "manual_result" in value:
         state_request["manual_result"] = value["manual_result"]
-    return reconcile_independent_review_result(state_request, state_root=state_root)
+    result = reconcile_independent_review_result(state_request, state_root=state_root)
+
+    if settlement is not None and settlement.get("status") == "worker_terminal_noncompleting":
+        result = {
+            **result,
+            "automatic_worker_status": settlement.get("worker_status"),
+            "automatic_worker_result_sha256": settlement.get("result_sha256"),
+        }
+    return result
