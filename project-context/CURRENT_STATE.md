@@ -300,20 +300,27 @@ The remaining open work is PR #151 (`research/prime-runtime-adaptation`), a
 CAP keeps trust, identity, authorization, reconciliation and verification;
 execution substrates remain behind narrow adapters. Resolve the live branch and
 its diff before using its research documents, which are not accepted-main policy.
-Its post-#149 refresh predates the later main merges and must be checked against
-current main again.
+This research branch includes the post-#157 main refresh. The accepted-main
+status/evidence owner was retained when resolving the merge conflict.
 
-Next development work:
+The workspace extraction investigation is complete in
+`COMPOSITION_FIRST_ARCHITECTURE.md`, section 14: **DEFER** a new
+`WorkspaceProvider` until a concrete substitution consumer and retained-handle
+lifetime contract justify it. The current procedure retains CAP admission,
+WorkingState, reconciliation, verification and completion authority. This
+research result changes no production runtime or provider API.
 
-1. Reconcile the research branch with current accepted main and rerun repository
-   skill discovery at the resulting ref.
-2. Complete the applicable Stage Research/source-code research before selecting
-   a new execution adapter or persistent-session implementation. The Draft lists
-   CCCC/equivalent sessions and WinApp CLI desktop research; Prime is optional,
-   not an already selected runtime dependency.
-3. Implement only the bounded slice authorized by that fresh decision. Existing
-   workspace procedures are evidence to inspect, not proof that a separate
-   WorkspaceProvider abstraction is already needed or implemented.
+The persistent Sessions investigation is recorded in section 15 of that owner:
+**DEFER** production integration. Stock CCCC retains shell/edit/Git authority
+when code mode is disabled; delivery/result correlation and crash acceptance
+for CAP remain unproved. CCCC remains the first candidate, not an adopted backend.
+
+Next bounded work in #151 is an isolated connector-free CCCC feasibility
+experiment: prove no model-reachable mutation authority outside CAP, exact
+request/result correlation and no second Send through the recorded crash matrix.
+Evaluate a narrow upstream/fork profile if that route cannot provide the needed
+receipts/results. Desktop/WinApp CLI research remains separate; Prime is optional.
+Do not reopen workspace extraction solely because a generic provider class is absent.
 
 `ROADMAP.md` retains the release sequence. This continuation correction does not
 adopt the Draft architecture, add a dependency, or waive any acceptance gate.
