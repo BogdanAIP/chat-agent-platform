@@ -352,6 +352,47 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             self.assertEqual("open", result["result_state"])
             self.assertEqual("ABSTAIN", result["automatic_worker_status"])
 
+    def test_repeated_launch_surfaces_noncompleting_review_result_without_relaunch(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            state_root = Path(state_dir)
+            review_state.prepare_review_operation(identity_value(), state_root=state_root)
+            review_state.mark_dispatch_attempted(identity_value(), state_root=state_root)
+
+            with (
+                patch(
+                    "runtime.control_plane.independent_review_procedures.review_delegation_state_root",
+                    return_value=state_root / "agent-sessions",
+                ),
+                patch(
+                    "runtime.control_plane.independent_review_procedures.settle_review_from_delegation",
+                    return_value={
+                        "schema_version": 1,
+                        "status": "review_terminal_noncompleting",
+                        "review_status": "STALE",
+                        "review_validity": "STALE_MATERIAL_CHANGE",
+                        "delegation_id": "d" * 64,
+                        "result_sha256": "e" * 64,
+                    },
+                ),
+                patch(
+                    "runtime.control_plane.independent_review_procedures.spawn_review_worker"
+                ) as spawn,
+            ):
+                result = run_launch_independent_review(
+                    identity_request(LAUNCH_PROCEDURE_ID),
+                    state_root=state_root,
+                )
+
+            spawn.assert_not_called()
+            self.assertEqual("pending", result["status"])
+            self.assertFalse(result["automatic_launch_performed"])
+            self.assertEqual("STALE", result["automatic_review_status"])
+            self.assertEqual(
+                "STALE_MATERIAL_CHANGE",
+                result["automatic_review_validity"],
+            )
+            self.assertEqual("e" * 64, result["automatic_worker_result_sha256"])
+
     def test_stale_completed_worker_payload_remains_noncompleting_review_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             state_root = Path(state_dir)
