@@ -116,7 +116,11 @@ Extend the verified manager bundle with the exact generic Delegation/Temporary a
 - the five `chatgpt_temporary_extension/*` assets;
 - one reviewer-specific fixed worker owner/launcher.
 
+Reviewer-specific operation/result state remains under the existing procedure-runtime owner. Generic Delegation state remains under the already accepted `%LOCALAPPDATA%\ChatAgentPlatform\agent-sessions\private-state` owner; reviewer migration does not create a second Delegation store.
+
 Installed-version provenance remains bound to the existing accepted-main update receipt. A feature checkout must not become production reviewer runtime authority.
+
+The unpacked MV3 extension also needs a stable browser installation/loading path. The existing physical qualification required loading the exact unpacked extension snapshot before the run. For this narrow pre-Stage-27 slice, production may require one explicit setup/reload of the extension from the stable installed CAP path; the reviewer runtime must still attest the executing bytes on every consequence-bearing exchange. Packaging/managed-extension distribution remains Stage 27 rather than being hidden inside reviewer launch.
 
 ### 2. Reviewer-specific task adapter
 
@@ -194,10 +198,12 @@ The only permitted post-crash automatic recovery is **terminal-result settlement
 
 ### Physical target-Windows gate
 
-One exact-head ordinary-Chat development flow must prove:
+Pre-merge physical acceptance uses the existing exact-HEAD Temporary-worker qualification mechanics with a reviewer-specific task/result adapter so the PR branch is never mislabeled as installed accepted `main`. The production public launch remains fixed to the installed accepted-main bundle and is covered deterministically before merge; the first post-merge installed-main reviewer run must additionally confirm the same product path on the accepted commit.
+
+The exact-head reviewer qualification must prove:
 
 ```text
-launch_independent_review_v1
+reviewer qualification prepare
  -> no manual new-chat opening
  -> one non-personalized Temporary Chat reviewer
  -> plugin/app markers absent
@@ -207,6 +213,8 @@ launch_independent_review_v1
  -> reviewer local state automatic-result-recorded
  -> reconcile_independent_review_result_v1 returns the same exact result
 ```
+
+The qualification may require the operator to load/reload the exact unpacked reviewer extension from the path emitted by the existing exact-head launcher. It must never require a manual Send or manual result copy/paste.
 
 Negative physical gate:
 
