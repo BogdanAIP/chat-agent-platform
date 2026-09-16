@@ -22,12 +22,13 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
         ast.parse(self.delegation)
 
     def test_worker_uses_installed_main_receipt_and_fixed_app_root(self) -> None:
-        self.assertIn("platform-update.json", self.worker)
-        self.assertIn('state["status"] not in {"current", "update_available"}', self.worker)
-        self.assertIn('state["repository"] != _REPOSITORY', self.worker)
-        self.assertIn('state["branch"] != _BRANCH', self.worker)
+        self.assertIn("platform-update.json", self.delegation)
+        self.assertIn('value["status"] not in {"current", "update_available"}', self.delegation)
+        self.assertIn('value["repository"] != _REPOSITORY', self.delegation)
+        self.assertIn('value["branch"] != _BRANCH', self.delegation)
         self.assertIn('"ChatAgentPlatform" / "app"', self.delegation)
-        self.assertIn('app_root = (local_root / "app").resolve()', self.worker)
+        self.assertIn("validate_review_worker_runtime", self.worker)
+        self.assertIn("app_root, expected_head =", self.worker)
 
     def test_worker_opens_only_neutral_preflight_and_never_accepts_url_or_command(self) -> None:
         self.assertIn("cap_agent_preflight=1#cap_preflight_id=", self.worker)
@@ -37,6 +38,7 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
             self.assertNotIn(forbidden, parser_block)
 
     def test_running_extension_must_attest_exact_installed_assets(self) -> None:
+        self.assertIn("source_attestation.RUNTIME_ASSETS", self.delegation)
         self.assertIn("source_attestation.RUNTIME_ASSETS", self.worker)
         self.assertIn("expected-runtime-attestation.json", self.worker)
         self.assertIn("execution_generation.js", self.worker)
