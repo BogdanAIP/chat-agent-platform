@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Mapping
 
-from runtime.agent_sessions import chatgpt_temporary
+from runtime.agent_sessions import chatgpt_temporary, source_attestation
 from runtime.control_plane.delegation_state import (
     DelegationStateError,
     WORKER_PROFILE,
@@ -27,7 +29,23 @@ from .independent_review_state import (
 WORKER_KIND = "code-review"
 RESULT_CONTRACT_ID = "review_result_v1"
 _AUTOMATIC_REVIEW_WORKER_MODULE = "runtime.control_plane.automatic_review_worker"
-_HEX40 = set("0123456789abcdef")
+_REPOSITORY = "BogdanAIP/chat-agent-platform"
+_BRANCH = "main"
+_HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
+_GENERATION_RE = re.compile(
+    r'CAPChatGPTTemporaryExecutionGeneration\s*=\s*"([0-9a-f]{64})"'
+)
+_UPDATE_STATE_KEYS = {
+    "schema_version",
+    "repository",
+    "branch",
+    "installed_commit_sha",
+    "installed_at",
+    "status",
+    "target_commit_sha",
+    "last_checked_at",
+    "last_error",
+}
 
 
 def build_review_worker_task(identity: ReviewIdentity, *, review_run_id: str) -> str:
@@ -194,8 +212,34 @@ def _installed_app_root() -> Path:
     return root
 
 
-def validate_review_worker_runtime(*, state_root: Path) -> Path:
-    """Fail closed before reviewer dispatch authority is consumed."""
+def _installed_review_head(local_root: Path) -> str:
+    update_path = local_root / "state" / "platform-update.json"
+    try:
+        raw = update_path.read_bytes()
+    except OSError as exc:
+        raise ReviewStateError("installed-version state is unavailable") from exc
+    if not raw or len(raw) > 64_000:
+        raise ReviewStateError("installed-version state has invalid size")
+    try:
+        value = json.loads(raw.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ReviewStateError("installed-version state is invalid JSON") from exc
+    if type(value) is not dict or set(value) != _UPDATE_STATE_KEYS:
+        raise ReviewStateError("installed-version state keys mismatch")
+    if value["schema_version"] != 1:
+        raise ReviewStateError("installed-version state schema mismatch")
+    if value["repository"] != _REPOSITORY or value["branch"] != _BRANCH:
+        raise ReviewStateError("installed-version source identity mismatch")
+    if value["status"] not in {"current", "update_available"}:
+        raise ReviewStateError("installed runtime is not in a reviewer-safe update state")
+    head = value["installed_commit_sha"]
+    if type(head) is not str or _HEX40_RE.fullmatch(head) is None:
+        raise ReviewStateError("installed runtime has no exact accepted-main identity")
+    return head
+
+
+def validate_review_worker_runtime(*, state_root: Path) -> tuple[Path, str]:
+    """Prove the fixed installed reviewer runtime before dispatch is consumed."""
 
     if os.name != "nt":
         raise ReviewStateError("automatic reviewer launch is supported only on Windows")
@@ -213,10 +257,41 @@ def validate_review_worker_runtime(*, state_root: Path) -> Path:
         raise ReviewStateError("automatic reviewer requires the installed CAP private state root")
 
     app_root = _installed_app_root()
-    worker_path = app_root / "runtime" / "control_plane" / "automatic_review_worker.py"
-    if not worker_path.is_file():
-        raise ReviewStateError("automatic reviewer worker is not installed")
-    return app_root
+    expected_head = _installed_review_head(local_root)
+
+    required = (
+        app_root / "runtime" / "control_plane" / "automatic_review_worker.py",
+        app_root / "runtime" / "control_plane" / "independent_review_delegation.py",
+        app_root / "runtime" / "control_plane" / "delegation_state.py",
+        app_root / "runtime" / "agent_sessions" / "chatgpt_temporary.py",
+        app_root / "runtime" / "agent_sessions" / "chatgpt_temporary_controller.py",
+        app_root / "runtime" / "agent_sessions" / "chatgpt_temporary_authenticated_controller.py",
+        app_root / "runtime" / "agent_sessions" / "source_attestation.py",
+    )
+    for path in required:
+        if not path.is_file():
+            raise ReviewStateError(f"installed automatic reviewer runtime asset is missing: {path.name}")
+
+    extension_root = (
+        app_root / "runtime" / "agent_sessions" / "chatgpt_temporary_extension"
+    )
+    for name in source_attestation.RUNTIME_ASSETS:
+        if not (extension_root / name).is_file():
+            raise ReviewStateError(
+                f"installed reviewer extension asset is missing: {name}"
+            )
+    try:
+        generation_text = (extension_root / "execution_generation.js").read_text(
+            encoding="utf-8"
+        )
+    except OSError as exc:
+        raise ReviewStateError(
+            "installed reviewer execution generation is unavailable"
+        ) from exc
+    if _GENERATION_RE.search(generation_text) is None:
+        raise ReviewStateError("installed reviewer execution generation is invalid")
+
+    return app_root, expected_head
 
 
 def spawn_review_worker(
@@ -231,7 +306,8 @@ def spawn_review_worker(
     automatically relaunched by this function.
     """
 
-    app_root = validate_review_worker_runtime(state_root=state_root)
+    app_root, _expected_head = validate_review_worker_runtime(state_root=state_root)
+    del _expected_head
 
     bootstrap = (
         "import runpy,sys;"
