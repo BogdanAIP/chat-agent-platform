@@ -9,6 +9,57 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTEXT = ROOT / "project-context"
 
 
+def _roadmap_top_level_structure(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return allowed ATX H1 headings plus disallowed alternate H1 syntax.
+
+    ROADMAP.md intentionally standardizes authoritative top-level sections on
+    ATX `# ...` headings. This keeps the release-structure guard structural
+    without pretending to implement a complete Markdown parser.
+    """
+
+    headings: list[str] = []
+    violations: list[str] = []
+    fence_char: str | None = None
+    fence_length = 0
+
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if fence_char is None:
+            opening = re.match(r"^ {0,3}((?:`{3,})|(?:~{3,}))(?:[^\n]*)$", line)
+            if opening is not None:
+                marker = opening.group(1)
+                fence_char = marker[0]
+                fence_length = len(marker)
+                continue
+        else:
+            closing = re.match(
+                rf"^ {{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*$",
+                line,
+            )
+            if closing is not None:
+                fence_char = None
+                fence_length = 0
+            continue
+
+        if re.match(r"^ {0,3}=+[ \t]*$", line) is not None:
+            violations.append(f"setext-h1-underline:{line_number}")
+            continue
+
+        if re.search(r"<\s*/?\s*h1(?:\s|>)", line, re.IGNORECASE) is not None:
+            violations.append(f"raw-html-h1:{line_number}")
+            continue
+
+        atx = re.match(r"^ {0,3}#(?!#)(?:[ \t]+|$)(.*?)(?:[ \t]+#+[ \t]*)?$", line)
+        if atx is not None:
+            title = atx.group(1).strip()
+            if title:
+                headings.append(title)
+
+    if fence_char is not None:
+        violations.append("unterminated-fence")
+
+    return tuple(headings), tuple(violations)
+
+
 class DocumentationConsistencyTests(unittest.TestCase):
     def test_current_document_owners_are_classified_and_historical_default_is_explicit(self) -> None:
         status = (CONTEXT / "DOCUMENT_STATUS.md").read_text(encoding="utf-8")
@@ -122,6 +173,101 @@ class DocumentationConsistencyTests(unittest.TestCase):
         self.assertIn("active PR/design snapshot", status)
         self.assertNotIn("draft #126", roadmap.casefold())
         self.assertNotIn("hard-link final create", roadmap.casefold())
+
+    def test_authoritative_roadmap_stages_are_capability_owned(self) -> None:
+        roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
+
+        # A prior accepted-looking roadmap heading promoted a research candidate
+        # into the release sequence while the coarse release-order check stayed
+        # green. The first attempted guard filtered only known stage prefixes,
+        # which meant a new prefix (for example "Pre-26.5") could reproduce the
+        # same failure class invisibly. Standardize authoritative top-level
+        # ROADMAP sections on ATX H1, reject alternate H1 syntax outside fenced
+        # code, then pin the complete top-level structure. Any new
+        # authoritative-looking section therefore requires an explicit
+        # review/guard update instead of silently entering the release document.
+        sequence_block = re.search(
+            r"The remaining product sequence is:\s*\x60{3}text\s*(?P<body>.*?)\x60{3}",
+            roadmap,
+            re.IGNORECASE | re.DOTALL,
+        )
+        self.assertIsNotNone(sequence_block)
+        assert sequence_block is not None
+        release_stage_titles = tuple(
+            match.group(1).strip()
+            for match in re.finditer(
+                r"(?m)^\d+\.\s+(.+?)\s*$",
+                sequence_block.group("body"),
+            )
+        )
+        self.assertEqual(
+            release_stage_titles,
+            (
+                "Reviewer reuse over the accepted Delegation lifecycle",
+                "General computer-use coverage",
+                "External procedure integration",
+                "Skill lifecycle",
+                "Skill acquisition",
+                "Hybrid capability use",
+                "Distribution",
+                "Stable release",
+            ),
+        )
+
+        # Guard the scanner itself against the bypass/false-positive paths
+        # that defeated earlier versions of this check.
+        setext_headings, setext_violations = _roadmap_top_level_structure(
+            "Pre-26.5 — OpenAdapt integration qualification\n====\n"
+        )
+        self.assertEqual(setext_headings, ())
+        self.assertEqual(setext_violations, ("setext-h1-underline:2",))
+
+        fenced_headings, fenced_violations = _roadmap_top_level_structure(
+            "```text\n# not a roadmap heading\nTitle\n====\n<h1>also code</h1>\n```\n# Real heading\n"
+        )
+        self.assertEqual(fenced_headings, ("Real heading",))
+        self.assertEqual(fenced_violations, ())
+
+        html_headings, html_violations = _roadmap_top_level_structure(
+            "<h1>Pre-26.5 — OpenAdapt integration qualification</h1>\n"
+        )
+        self.assertEqual(html_headings, ())
+        self.assertEqual(html_violations, ("raw-html-h1:1",))
+
+        top_level_headings, heading_syntax_violations = _roadmap_top_level_structure(roadmap)
+        self.assertEqual(
+            heading_syntax_violations,
+            (),
+            msg=(
+                "authoritative ROADMAP top-level sections must use ATX '# ...' "
+                "headings outside fenced code"
+            ),
+        )
+        self.assertEqual(
+            top_level_headings,
+            (
+                "Roadmap — Chat Agent Platform",
+                "26.3B — Verification Kernel + independent Finish Gate — ACCEPTED / CLOSED",
+                "26.3C — WorkingState + recovery/reconciliation + LoopGuard — ACCEPTED / CLOSED",
+                "Post-26.3C — bounded Agent Session / Delegation — ACCEPTED BOUNDED SCOPE",
+                "Automatic reviewer — first specialist consumer after generic Agent Session acceptance",
+                "Broad real-application physical coverage gate",
+                "Pre-26.4 — bounded external-procedure integration qualification",
+                "26.4 — Human Demo -> verified candidate skill / lineage",
+                "26.5 — Hybrid Computer-Use Integration",
+                "Future research seam — same-task continuation / wake",
+                "Future research seam — Physical Device / IoT Capability Family",
+                "Local Execution Kernel — adjacent future consequence class",
+                "27 — Distribution & Maintenance",
+                "28 — Clean User E2E / stable release",
+                "Track M expansion beyond the first bounded slice — FUTURE",
+                "Parallel Track P — optional future local planner",
+            ),
+            msg=(
+                "authoritative ROADMAP top-level structure changed; classify the "
+                "new section explicitly before it can enter the release document"
+            ),
+        )
 
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")

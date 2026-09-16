@@ -22,6 +22,45 @@ A future local general planner remains optional Track P research and stays above
 
 Future Track M Agent Sessions/Delegation adds a capability/state family beneath the same Control Plane and does not become an independent orchestration authority.
 
+
+## Public semantic surface evolution
+
+The accepted Chat-facing surface is currently exactly six tools:
+
+```text
+workspace_read
+workspace_write
+web_open
+web_observe
+web_interact
+procedure_run
+```
+
+Six is the **current accepted contract, not a permanent magic number**.
+
+Keep the surface small by default, but do not preserve the number six by turning `procedure_run` into a hidden generic dispatcher. `procedure_run` is for registered bounded multi-step procedures with closed schemas, known transition authority and explicit completion verification. It must not accept arbitrary provider/backend/tool/command/Python selectors.
+
+A new top-level semantic tool is justified only when a materially distinct **interactive capability family** requires planner-visible observe/act turns that cannot be truthfully represented by an existing semantic family or by one bounded registered procedure. Any such expansion requires its own contract/security/physical acceptance decision.
+
+Skills and application-specific knowledge normally do **not** become new public tools. They should compose existing capability families and registered procedures. Likewise, adding a new application should not require a new top-level tool unless measured evidence shows a genuinely new consequence/interaction class.
+
+Decision rule:
+
+```text
+known bounded workflow with fixed semantics
+ -> registered procedure behind procedure_run
+
+new reusable knowledge / task method
+ -> skill using existing capabilities/procedures
+
+new execution substrate behind an existing capability family
+ -> internal adapter/provider boundary
+
+new planner-visible interactive consequence class
+ -> consider a new top-level semantic tool
+    only after separate acceptance
+```
+
 ## Target execution architecture
 
 ```text

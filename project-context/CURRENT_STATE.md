@@ -145,7 +145,7 @@ A restart never manufactures a replacement run/delivery identity and never regai
 
 ### L2 — accepted `chatgpt-temporary` provider adapter
 
-The first concrete adapter is intentionally provider-specific rather than a premature generic provider framework.
+The first concrete adapter is intentionally provider-specific rather than a premature generic provider framework. **Current product policy restricts this concrete adapter to the independent-review path.** Ordinary CAP tasks stay in the user's ordinary ChatGPT conversation through the canonical six-tool route. The earlier non-reviewer qualification task remains evidence for the generic Delegation lifecycle, not authorization to use Temporary Chat as a general task mode.
 
 Accepted bounded path:
 
@@ -209,15 +209,16 @@ The accepted reviewer-specific local state and fixed `launch_independent_review_
 
 They are **not deleted or silently replaced by #149**. Reviewer methodology, exact PR/BASE/HEAD semantics, read-only GitHub authority qualification, `REVIEW_RESULT_V1`, Harbor/ReviewBench evaluation and manual-fallback rules remain specialist policy.
 
-The architecture direction is now:
+The architecture direction for this concrete provider is now:
 
 ```text
-generic bounded Agent Session / Delegation lifecycle
- -> fresh Temporary Chat reviewer-style consumer
- -> reviewer-specific task/result/authority policy above it
+reviewer-specific task/result/authority policy
+ -> generic bounded Delegation lifecycle
+ -> chatgpt-temporary transport
+ -> fresh independent reviewer only
 ```
 
-MimiSeek may later consume the same fresh-worker capability for its independent reviewer while keeping review-job semantics outside CAP. Returning a result to an existing persistent project chat is a separate existing-session delivery capability and is not smuggled into the Temporary adapter.
+MimiSeek may later consume the same path only for an independent reviewer use case while keeping review-job semantics outside CAP. Normal CAP work, skill/procedure execution and ordinary specialist tasks remain in ordinary ChatGPT. Returning a result to an existing persistent project chat is a separate future capability and is not smuggled into the Temporary adapter.
 
 The generic worker path has scoped physical evidence. Reviewer migration still needs separate proof that it preserves all existing reviewer guarantees; until that migration is accepted, the existing reviewer procedures remain the release-assurance fallback.
 
@@ -295,28 +296,17 @@ OpenAdapt remains a selected source for procedure-local compiler/resume/effect-e
 
 ## Immediate critical path
 
-The remaining open work is PR #151 (`research/prime-runtime-adaptation`), a
-**research/documentation-only Draft**. Its latest description is composition-first:
-CAP keeps trust, identity, authorization, reconciliation and verification;
-execution substrates remain behind narrow adapters. Resolve the live branch and
-its diff before using its research documents, which are not accepted-main policy.
-Its post-#149 refresh predates the later main merges and must be checked against
-current main again.
+`ROADMAP.md` now owns a product-outcome sequence rather than a vendor/integration backlog. PR #151 (`research/prime-runtime-adaptation`) remains a **research/idea bank** only: its Prime, CCCC, WinApp CLI, OpenAdapt, skill-distillation and other candidate notes may inform later Stage Research, but the PR does not define release order and no candidate becomes mandatory merely because it is documented there.
 
-Next development work:
+Current development work:
 
-1. Reconcile the research branch with current accepted main and rerun repository
-   skill discovery at the resulting ref.
-2. Complete the applicable Stage Research/source-code research before selecting
-   a new execution adapter or persistent-session implementation. The Draft lists
-   CCCC/equivalent sessions and WinApp CLI desktop research; Prime is optional,
-   not an already selected runtime dependency.
-3. Implement only the bounded slice authorized by that fresh decision. Existing
-   workspace procedures are evidence to inspect, not proof that a separate
-   WorkspaceProvider abstraction is already needed or implemented.
+1. Migrate the automatic reviewer onto the already accepted generic Delegation lifecycle.
+2. Keep reviewer-specific guarantees above that lifecycle: fresh independent ordinary-ChatGPT review context, exact repository/PR/BASE/HEAD identity, read-only authority qualification, `REVIEW_RESULT_V1`, stale handling and manual fallback.
+3. Use `chatgpt-temporary` only for that reviewer isolation path. Ordinary CAP tasks continue through the current ordinary ChatGPT conversation and the canonical six-tool route.
+4. After reviewer migration is independently accepted, execute the finite broad real-application coverage gate from `ROADMAP.md`.
+5. Only then enter the external-procedure stage and revalidate current reuse candidates such as OpenAdapt for the concrete ProgramGraph/procedure role.
 
-`ROADMAP.md` retains the release sequence. This continuation correction does not
-adopt the Draft architecture, add a dependency, or waive any acceptance gate.
+Do not implement Prime, persistent ChatGPT sessions, shared-memory multi-agent runtime, WorkspaceProvider, a generic Provider framework, skill catalogs or bulk external-skill import merely because PR #151 discusses them. Re-enter those ideas only when a current roadmap stage exposes a concrete need.
 
 ## Non-negotiable rules
 
