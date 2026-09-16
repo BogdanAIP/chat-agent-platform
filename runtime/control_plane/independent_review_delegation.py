@@ -76,27 +76,28 @@ def prepare_review_delegation(
     identity: ReviewIdentity,
     *,
     review_run_id: str,
-    state_root: Path,
+    delegation_state_root: Path,
 ) -> tuple[str, dict[str, str]]:
     task, delegation_identity = review_delegation_identity(
         identity,
         review_run_id=review_run_id,
     )
-    prepare_delegation(delegation_identity, state_root=state_root)
+    prepare_delegation(delegation_identity, state_root=delegation_state_root)
     return task, delegation_identity
 
 
 def settle_review_from_delegation(
     identity_value: Mapping[str, Any],
     *,
-    state_root: Path,
+    reviewer_state_root: Path,
+    delegation_state_root: Path,
 ) -> dict[str, Any] | None:
     """Commit an already-recorded generic worker result into reviewer state.
 
     This function never creates launch or Send authority. It is settlement-only.
     """
 
-    prepared_review = prepare_review_operation(identity_value, state_root=state_root)
+    prepared_review = prepare_review_operation(identity_value, state_root=reviewer_state_root)
     task, delegation_identity = review_delegation_identity(
         prepared_review.identity,
         review_run_id=prepared_review.review_run_id,
@@ -104,7 +105,7 @@ def settle_review_from_delegation(
     del task
 
     try:
-        snapshot = load_delegation(delegation_identity, state_root=state_root)
+        snapshot = load_delegation(delegation_identity, state_root=delegation_state_root)
     except DelegationStateError as exc:
         # A reviewer operation may legitimately predate Delegation migration or
         # may still be prepared before the generic child state has been created.
@@ -134,7 +135,7 @@ def settle_review_from_delegation(
                 "review_run_id": prepared_review.review_run_id,
                 "result": payload,
             },
-            state_root=state_root,
+            state_root=reviewer_state_root,
         )
     except ReviewStateError:
         # Preserve reviewer-specific race semantics. A manual fallback that
@@ -147,6 +148,20 @@ def settle_review_from_delegation(
         "delegation_id": snapshot.delegation_id,
         "delegation_result_sha256": snapshot.result_sha256,
     }
+
+
+def review_delegation_state_root() -> Path:
+    """Return the accepted private state root for generic Agent Sessions."""
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if not local_app_data:
+        raise ReviewStateError("LOCALAPPDATA is required for automatic reviewer delegation")
+    return (
+        Path(local_app_data)
+        / "ChatAgentPlatform"
+        / "agent-sessions"
+        / "private-state"
+    ).resolve()
 
 
 def _installed_app_root() -> Path:
