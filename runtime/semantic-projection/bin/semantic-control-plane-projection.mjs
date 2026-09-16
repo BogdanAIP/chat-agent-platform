@@ -441,7 +441,7 @@ server.registerTool('procedure_run', {
     reviewSubmitProcedureSchema,
     reviewReconcileProcedureSchema
   ]),
-  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
 }, args => runProcedure(args));
 
 if (PUBLIC_TOOLS.size !== 6) throw new Error('canonical semantic tool inventory must contain exactly six tools');
