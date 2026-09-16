@@ -315,16 +315,16 @@ Define a finite acceptance matrix before expanding this gate so it cannot become
 
 ---
 
-# Pre-26.4 — bounded OpenAdapt integration spike
+# Pre-26.4 — bounded external-procedure integration qualification
 
-After the project-owned 26.3C production state/recovery shape is accepted, revalidate selected OpenAdapt roles through `ARCHITECTURE_REUSE_BASELINE.md` and fresh Stage Research rather than assuming prior selection is sufficient.
+After the project-owned 26.3C production state/recovery shape is accepted, qualify one external procedure/capture/replay path through `ARCHITECTURE_REUSE_BASELINE.md` and fresh Stage Research. Do not assume any previously researched implementation candidate remains selected merely because it was explored earlier.
 
-Target bounded spike:
+Target bounded qualification:
 
 ```text
-human demonstration
- -> OpenAdapt Capture / Flow compile
- -> ProgramGraph / deterministic replay
+human demonstration / existing external workflow
+ -> selected capture/compiler/replay candidate, if required
+ -> bounded external procedure representation
  -> upstream effect evidence
  -> project evidence adapter
  -> project ObservationSnapshot / ExpectedEffect
@@ -332,9 +332,11 @@ human demonstration
  -> PROJECT independent Finish Gate
 ```
 
-No upstream verdict becomes unconditional project `PASS`/`DONE`. No raw workflow catalog, generic desktop executor, shell/Python authority or second planner is introduced merely for the spike.
+OpenAdapt is one previously researched candidate for parts of this path, not a roadmap stage or mandatory dependency. Stage Research may select, adapt or reject it in favor of another current mechanism.
 
-Before implementation, define a bounded exit decision such as `ADOPT`, `ADAPT` or `REJECT` for each evaluated role. If upstream mechanics do not fit the exact current failure/authority model, keep them qualified but outside the production path rather than extending the spike indefinitely.
+No upstream verdict becomes unconditional project `PASS`/`DONE`. No raw workflow catalog, generic desktop executor, shell/Python authority or second planner is introduced merely for the qualification.
+
+Before implementation, define a bounded exit decision such as `ADOPT`, `ADAPT` or `REJECT` for each evaluated role. If a candidate does not fit the exact current failure/authority model, keep it outside the production path rather than extending the qualification indefinitely.
 
 ---
 
