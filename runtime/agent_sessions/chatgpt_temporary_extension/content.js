@@ -611,6 +611,13 @@
       return conversationTurns("user").some((text) => policy.hasExpectedPrompt(text, intent));
     }
 
+    function composerEmptyAfterSend() {
+      const current = currentComposerBinding();
+      if (!current) return false;
+      const observed = composerPromptText(current.composer);
+      return observed !== null && observed.trim().length === 0;
+    }
+
     function stopButtonPresent() {
       const primary = document.querySelector('button[data-testid="stop-button"]');
       if (primary && visible(primary)) return true;
@@ -936,12 +943,18 @@
       void pollControllerStatus();
       if (!recoveryConversationBound) void bindRecoveryConversation();
       const visibleDelivery = userDeliveryVisible();
-      if (visibleDelivery && deliveryState !== "delivered") {
-        void postDelivery("delivered", deliveryEvidenceRef("delivered", "visible"));
+      const composerEmpty = composerEmptyAfterSend();
+      if (visibleDelivery && composerEmpty && deliveryState !== "delivered") {
+        void postDelivery("delivered", deliveryEvidenceRef("delivered", "visible-and-composer-empty"));
         return;
       }
-      if (!visibleDelivery && deliveryState === "claimed" && Date.now() - sendClickedAt >= intent.deliveryObserveMs && !deliveryOutcomeAt) {
-        void postDelivery("unknown", deliveryEvidenceRef("unknown", "ambiguous"));
+      if (
+        deliveryState === "claimed" &&
+        Date.now() - sendClickedAt >= intent.deliveryObserveMs &&
+        !deliveryOutcomeAt
+      ) {
+        const kind = visibleDelivery && !composerEmpty ? "partial-send-residue" : "ambiguous";
+        void postDelivery("unknown", deliveryEvidenceRef("unknown", kind));
         return;
       }
 
