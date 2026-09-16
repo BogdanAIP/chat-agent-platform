@@ -11,6 +11,7 @@
   const PREFLIGHT_RETRY_MS = 750;
   const PREFLIGHT_MAX_MS = 5 * 60 * 1000;
   const TEMPORARY_UI_SETTLE_MS = 10000;
+  const COMPOSER_PROMPT_STABLE_MS = 2000;
   const MAX_RECOVERY_CLAIMS = 8;
   const LAUNCH_QUERY_KEYS = [
     "temporary-chat",
@@ -174,6 +175,8 @@
     let statusPollPending = false;
     let lastStatusPollAt = 0;
     let finalObservationSentFor = "";
+    let composerPromptStableSince = 0;
+    let composerPromptStableEditor = null;
     let recoveryConversationBound = recovered;
     let recoveryConversationBindPending = false;
     let lastRecoveryConversationBindAt = 0;
@@ -322,6 +325,26 @@
       if (recovered || typeof intent.prompt !== "string" || !intent.prompt) return false;
       const observed = composerPromptText(composer);
       return observed !== null && policy.exactPromptMatches(observed, intent.prompt);
+    }
+
+    function exactComposerPromptStable(composer) {
+      const editor = findComposerEditor(composer);
+      if (!editor || !exactComposerPromptMatches(composer)) {
+        composerPromptStableSince = 0;
+        composerPromptStableEditor = null;
+        return false;
+      }
+      const now = Date.now();
+      if (composerPromptStableEditor !== editor) {
+        composerPromptStableEditor = editor;
+        composerPromptStableSince = now;
+        return false;
+      }
+      if (!composerPromptStableSince) {
+        composerPromptStableSince = now;
+        return false;
+      }
+      return now - composerPromptStableSince >= COMPOSER_PROMPT_STABLE_MS;
     }
 
     function launchIntentState() {
@@ -909,7 +932,12 @@
 
       if (!sendAuthorized && !monitorOnly && !authorityRequested) {
         const binding = findSendBinding();
-        if (!binding || !exactComposerPromptMatches(binding.composer)) return;
+        if (!binding) {
+          composerPromptStableSince = 0;
+          composerPromptStableEditor = null;
+          return;
+        }
+        if (!exactComposerPromptStable(binding.composer)) return;
         void requestAuthority(binding.composer);
         return;
       }
