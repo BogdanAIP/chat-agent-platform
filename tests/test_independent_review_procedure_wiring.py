@@ -72,7 +72,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             state_root = Path(state_dir)
             result = run_launch_independent_review(
                 identity_request(LAUNCH_PROCEDURE_ID),
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
 
             self.assertEqual("abstained", result["status"])
@@ -92,10 +92,15 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
     def test_successful_launch_consumes_dispatch_once_and_never_spawns_twice(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             state_root = Path(state_dir)
+            delegation_root = state_root / "agent-sessions"
             with (
                 patch(
                     "runtime.control_plane.independent_review_procedures.validate_review_worker_runtime",
                     return_value=state_root,
+                ),
+                patch(
+                    "runtime.control_plane.independent_review_procedures.review_delegation_state_root",
+                    return_value=delegation_root,
                 ),
                 patch(
                     "runtime.control_plane.independent_review_procedures.spawn_review_worker"
@@ -137,7 +142,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     "review_run_id": prepared.review_run_id,
                     "result": payload,
                 },
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             repeated = run_submit_independent_review_result(
                 {
@@ -145,7 +150,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     "review_run_id": prepared.review_run_id,
                     "result": payload,
                 },
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
 
             self.assertEqual("recorded", result["status"])
@@ -157,7 +162,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             state_root = Path(state_dir)
             run_launch_independent_review(
                 identity_request(LAUNCH_PROCEDURE_ID),
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
 
             reconcile = identity_request(RECONCILE_PROCEDURE_ID)
@@ -168,7 +173,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
 
             terminal = run_reconcile_independent_review_result(
                 {**reconcile, "manual_result": pass_result()},
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             self.assertEqual("recorded", terminal["status"])
             self.assertEqual("manual-fallback-recorded", terminal["result_state"])
@@ -183,16 +188,16 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             _task, delegated_identity = prepare_review_delegation(
                 prepared_review.identity,
                 review_run_id=prepared_review.review_run_id,
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             prepared = delegation_state.prepare_delegation(
                 delegated_identity,
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             delegation_state.mark_launch_attempted(
                 delegated_identity,
                 run_id=prepared.run_id,
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             delegation_state.bind_worker_session(
                 delegated_identity,
@@ -204,19 +209,19 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     "ownership": "manager_owned",
                     "observation_ref": "test-observation",
                 },
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             delegation_state.claim_delivery(
                 delegated_identity,
                 run_id=prepared.run_id,
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             delegation_state.record_delivery_outcome(
                 delegated_identity,
                 run_id=prepared.run_id,
                 outcome="delivered",
                 evidence_ref="test-delivered",
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
 
             payload = pass_result(review_run_id=prepared_review.review_run_id)
@@ -234,12 +239,12 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     "payload": payload,
                     "payload_sha256": digest,
                 },
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
 
             result = run_reconcile_independent_review_result(
                 identity_request(RECONCILE_PROCEDURE_ID),
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             self.assertEqual("recorded", result["status"])
             self.assertEqual("automatic-result-recorded", result["result_state"])
@@ -254,16 +259,16 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             _task, delegated_identity = prepare_review_delegation(
                 prepared_review.identity,
                 review_run_id=prepared_review.review_run_id,
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             prepared = delegation_state.prepare_delegation(
                 delegated_identity,
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             delegation_state.mark_launch_attempted(
                 delegated_identity,
                 run_id=prepared.run_id,
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             delegation_state.bind_worker_session(
                 delegated_identity,
@@ -275,19 +280,19 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     "ownership": "manager_owned",
                     "observation_ref": "test-observation",
                 },
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             delegation_state.claim_delivery(
                 delegated_identity,
                 run_id=prepared.run_id,
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             delegation_state.record_delivery_outcome(
                 delegated_identity,
                 run_id=prepared.run_id,
                 outcome="delivered",
                 evidence_ref="test-delivered",
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
 
             payload = "worker could not obtain required read-only evidence"
@@ -304,12 +309,12 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     "payload": payload,
                     "payload_sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
                 },
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
 
             result = run_reconcile_independent_review_result(
                 identity_request(RECONCILE_PROCEDURE_ID),
-                state_root=state_root,
+                delegation_state_root=state_root / "agent-sessions",
             )
             self.assertEqual("pending", result["status"])
             self.assertEqual("open", result["result_state"])
