@@ -7,6 +7,7 @@ from .independent_review_delegation import (
     prepare_review_delegation,
     settle_review_from_delegation,
     spawn_review_worker,
+    validate_review_worker_runtime,
 )
 from .independent_review_state import (
     ReviewStateError,
@@ -118,6 +119,21 @@ def run_launch_independent_review(
                 and settlement.get("status") == "worker_terminal_noncompleting"
                 else {}
             ),
+        }
+
+    try:
+        validate_review_worker_runtime(state_root=state_root)
+    except ReviewStateError:
+        return {
+            "schema_version": 1,
+            "status": "abstained",
+            "procedure_id": LAUNCH_PROCEDURE_ID,
+            "operation_key": prepared.operation_key,
+            "dispatch_state": prepared.dispatch_state,
+            "result_state": prepared.result_state,
+            "automatic_launch_performed": False,
+            "automatic_submission_open": False,
+            "escalation_reason": "reviewer_runtime_unavailable",
         }
 
     # Create/load the deterministic generic Delegation while reviewer dispatch
