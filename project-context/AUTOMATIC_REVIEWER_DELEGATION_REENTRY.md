@@ -120,6 +120,8 @@ Reviewer-specific operation/result state remains under the existing procedure-ru
 
 Installed-version provenance remains bound to the existing accepted-main update receipt. A feature checkout must not become production reviewer runtime authority.
 
+The current narrow guarantee is **not** a signed-package or hostile-local-tamper guarantee. Bootstrap verifies source -> installed copies byte-for-byte at installation time; the updater receipt identifies the accepted-main commit installed; reviewer runtime attestation then proves that the executing MV3 bytes match the current installed AppRoot expectation. A later attacker or process with authority to modify both the installed AppRoot and its local expectation is outside this slice. Signed/package-level integrity, rollback and clean-machine distribution remain Stage 27 work and must not be falsely claimed here.
+
 The unpacked MV3 extension also needs a stable browser installation/loading path. The existing physical qualification required loading the exact unpacked extension snapshot before the run. For this narrow pre-Stage-27 slice, production may require one explicit setup/reload of the extension from the stable installed CAP path; the reviewer runtime must still attest the executing bytes on every consequence-bearing exchange. Packaging/managed-extension distribution remains Stage 27 rather than being hidden inside reviewer launch.
 
 ### 2. Reviewer-specific task adapter
