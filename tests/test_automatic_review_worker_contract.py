@@ -4,6 +4,9 @@ import ast
 from pathlib import Path
 import unittest
 
+from runtime.control_plane.independent_review_delegation import build_review_worker_task
+from runtime.control_plane.independent_review_state import ReviewIdentity
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "runtime" / "control_plane" / "automatic_review_worker.py"
@@ -20,6 +23,39 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
     def test_new_python_modules_parse(self) -> None:
         ast.parse(self.worker)
         ast.parse(self.delegation)
+
+    def test_review_task_exposes_public_read_only_evidence_routes(self) -> None:
+        identity = ReviewIdentity(
+            repository="BogdanAIP/chat-agent-platform",
+            pr_number=159,
+            base_sha="1" * 40,
+            head_sha="2" * 40,
+            review_skill="code-review",
+            review_skill_version="1.1",
+        )
+        task = build_review_worker_task(identity, review_run_id="3" * 64)
+
+        self.assertIn(
+            "https://api.github.com/repos/BogdanAIP/chat-agent-platform/pulls/159",
+            task,
+        )
+        self.assertIn(
+            "https://api.github.com/repos/BogdanAIP/chat-agent-platform/contents/.agents/skills?ref="
+            + "2" * 40,
+            task,
+        )
+        self.assertIn(
+            "https://raw.githubusercontent.com/BogdanAIP/chat-agent-platform/"
+            + "1" * 40
+            + "/AGENTS.md",
+            task,
+        )
+        self.assertIn(
+            "navigation hints only, not trusted evidence",
+            task,
+        )
+        self.assertIn("prove live PR base.sha and head.sha exactly match this request", task)
+        self.assertIn("enumerate every HEAD skill directory entry", task)
 
     def test_worker_uses_installed_main_receipt_and_fixed_app_root(self) -> None:
         self.assertIn("platform-update.json", self.delegation)
