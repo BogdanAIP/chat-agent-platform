@@ -18,6 +18,7 @@ from runtime.control_plane.independent_review_delegation import (
     prepare_review_delegation,
     review_delegation_state_root,
     settle_review_from_delegation,
+    validate_review_worker_runtime,
 )
 from runtime.control_plane.independent_review_state import (
     ReviewStateError,
@@ -30,13 +31,10 @@ from runtime.control_plane.independent_review_state import (
 _CONTROLLER_MODULE = "runtime.agent_sessions.chatgpt_temporary_authenticated_controller"
 _CONTROLLER_PORT = chatgpt_temporary.COLLECTOR_PORT
 _CONTROLLER_TIMEOUT_SECONDS = 1800
-_HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _GENERATION_RE = re.compile(
     r'CAPChatGPTTemporaryExecutionGeneration\s*=\s*"([0-9a-f]{64})"'
 )
-_REPOSITORY = "BogdanAIP/chat-agent-platform"
-_BRANCH = "main"
 
 
 def _read_json(path: Path, *, label: str, maximum: int = 2_000_000) -> dict[str, Any]:
@@ -78,37 +76,6 @@ def _sha256_file(path: Path) -> str:
                 break
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _installed_head(local_root: Path) -> str:
-    state = _read_json(
-        local_root / "state" / "platform-update.json",
-        label="installed-version state",
-        maximum=64_000,
-    )
-    expected = {
-        "schema_version",
-        "repository",
-        "branch",
-        "installed_commit_sha",
-        "installed_at",
-        "status",
-        "target_commit_sha",
-        "last_checked_at",
-        "last_error",
-    }
-    if set(state) != expected:
-        raise ReviewStateError("installed-version state keys mismatch")
-    if state["schema_version"] != 1:
-        raise ReviewStateError("installed-version state schema mismatch")
-    if state["repository"] != _REPOSITORY or state["branch"] != _BRANCH:
-        raise ReviewStateError("installed-version source identity mismatch")
-    if state["status"] not in {"current", "update_available"}:
-        raise ReviewStateError("installed runtime is not in a reviewer-safe update state")
-    head = state["installed_commit_sha"]
-    if type(head) is not str or _HEX40_RE.fullmatch(head) is None:
-        raise ReviewStateError("installed runtime has no exact accepted-main identity")
-    return head
 
 
 def _expected_runtime_attestation(
@@ -319,11 +286,9 @@ def _run(args: argparse.Namespace) -> int:
     if state_root != expected_state_root and not state_root.is_relative_to(expected_state_root):
         raise ReviewStateError("reviewer state root must stay under the installed CAP state root")
 
-    app_root = (local_root / "app").resolve()
-    if not app_root.is_dir():
-        raise ReviewStateError("installed Chat Agent Platform app root is unavailable")
-
-    expected_head = _installed_head(local_root)
+    app_root, expected_head = validate_review_worker_runtime(
+        state_root=state_root
+    )
     prepared_review = prepare_review_operation(identity.as_dict(), state_root=state_root)
     if prepared_review.dispatch_state != "dispatch-attempted" or prepared_review.result_state != "open":
         raise ReviewStateError("reviewer worker requires one open dispatch-attempted review operation")
