@@ -1007,3 +1007,206 @@ or documentation owner. This section uses the existing composition research
 owner and replaces the unsupported assumption that renaming the procedure
 constitutes provider separation. Production implementation remains blocked for
 this extraction until the stated re-entry conditions are met.
+
+## 15. Persistent Sessions — CCCC authority and recovery investigation
+
+Research date: 2026-09-16. CAP baseline: accepted main
+`92ef431b9d412bd78307c51641b1379184fe560d`; research parent
+`9cbbdde74bb6ed1da4aaca25a03ef4b17641ffcb`. This bounded investigation
+answers whether stock CCCC can now become the persistent ordinary-ChatGPT
+transport. It does not close the separate Desktop research or authorize a
+second planner, automatic task scheduling, or broader public tools.
+
+### Goal, problem evidence and existing CAP mechanisms
+
+The concrete consumer is an explicitly selected existing ordinary-ChatGPT chat:
+deliver two separately authorized requests in order to that same conversation,
+retain their identities across local restart, and never resend an uncertain
+request. A transport receipt must remain separate from a correlated model result
+and from CAP task completion. Fresh independent review remains a different
+consumer; persistence cannot replace the Temporary Chat independence profile.
+
+`runtime/control_plane/delegation_state.py` already commits one delivery claim
+under the task lock and permits `unknown -> delivered` reconciliation without
+renewing Send authority. Its `prepare_delegation`, `claim_delivery` and
+`record_delivery_outcome` paths were traced, together with duplicate-contender,
+wrong-run, residue, interrupted-write and unknown-delivery tests. That accepted
+one-shot identity is not a multi-turn mailbox. The accepted Temporary adapter
+deliberately loses authority on complete browser/MV3 loss; prior physical evidence
+did not supply a stable persistent conversation identity. These are actual scope
+limitations, not evidence that CAP needs another general agent runtime.
+
+### Source-code evidence
+
+All classifications below are scoped to inspected mechanisms. Rust/Cargo is not
+installed in this research environment: upstream Rust tests were **read, not run**.
+No authenticated ChatGPT delivery or upstream connector was activated.
+
+**CCCC — `ChesterRa/cccc`, `7fe01875ffbdc04d8670c74acb265f77cc24f55d`.**
+Inspected current native implementation, not the retired Python product.
+
+- **OPEN_IMPLEMENTED:** `cccc-web/src/routes/web_model_connectors.rs` resolves
+  the connector-bound actor, rejects another group, then invokes
+  `cccc_mcp::handle_request_for_actor`. In `cccc-mcp/src/router.rs`,
+  `authorize_tool` accepts `WEB_MODEL_CORE_TOOL_NAMES` for Web Model peers as
+  well as foremen. The [actual core list](https://github.com/ChesterRa/cccc/blob/7fe01875ffbdc04d8670c74acb265f77cc24f55d/crates/cccc-core/src/capability_builtin.rs)
+  includes repo editing, patching, shell, process execution, Git and code mode.
+  `local_tools::call` routes these to real file/process operations; `one_shot`
+  starts the requested executable with the workspace as current directory.
+  A working directory is not an OS execution sandbox or CAP grant.
+- **OPEN_IMPLEMENTED:** `CCCC_WEB_MODEL_CODE_MODE=0` affects
+  `code_mode::ensure_enabled` and `lib.rs::hide_disabled_code_mode_tools`; it
+  removes only `cccc_code_exec` and `cccc_code_wait`. It does not remove shell,
+  Git or editing. `lib_tests::web_model_schema_stays_fixed_while_daemon_is_unavailable`
+  explicitly expects the remaining fixed catalog during daemon failure.
+  `router` tests cover role-aware management restrictions, not a transport-only
+  actor. Making the actor a peer is insufficient.
+- **OPEN_IMPLEMENTED:** [deliver_once](https://github.com/ChesterRa/cccc/blob/7fe01875ffbdc04d8670c74acb265f77cc24f55d/crates/cccc-web/src/routes/web_model_delivery.rs)
+  obtains a structured turn, derives a delivery ID, durably updates the target
+  to `submitting`, then invokes `submit_prompt_with_attachment`. Restart at that
+  fence becomes ambiguous; a completion retry does not click Send again.
+  `integration_state::group_update -> GroupStore::mutate` and atomic-write helpers
+  own the target persistence. There are separate target and daemon-ledger writes;
+  `record_delivery` logs an IPC error rather than propagating it. The local target
+  fence therefore matters independently of the delivery ledger.
+- **OPEN_IMPLEMENTED:** `web_model_delivery_completion::reconcile` retries the
+  same completion identity. `cccc-daemon/src/ops/runtime_state.rs` checks retained
+  receipt, active turn and exact event IDs before completion, and accepts
+  transport states `accepted` **or `ambiguous`** for that closure. Its `done`
+  cannot become CAP verified delivery or manager task DONE.
+- **OPEN_IMPLEMENTED, insufficient CAP correlation proof:**
+  [prompt_submission.rs](https://github.com/ChesterRa/cccc/blob/7fe01875ffbdc04d8670c74acb265f77cc24f55d/crates/cccc-web/src/browser_surface/prompt_submission.rs)
+  checks the saved conversation before composer interaction, supports prompt echo,
+  and classifies failed submit dispatch as uncertain. But
+  `verified_submission_evidence` also accepts an increase in user-message count;
+  that predicate alone does not bind the new message to CAP's request. An unrelated
+  user/actor message is a required adversarial case, not a confirmed upstream
+  exploit or a demonstrated current failure.
+- **NOT_FOUND_AFTER_TARGETED_SEARCH:** a supported per-actor transport-only
+  profile that removes *all* local mutation and indirect capability routes.
+  Searched Web Model routes, MCP catalog/router/local tools/code mode, core
+  capability lists and read-only settings. Global read-only mode is not the
+  answer: `web_model_supervisor::spawn` returns without starting delivery.
+- **Failure/coverage history:** pinned `CHANGELOG.md` records dispatch-unknown
+  duplicate prevention, target-aware single-flight delivery and completion
+  separation. Its 0.4.35 entry also explicitly records removal of Web Model
+  automated tests and visible Send fixtures. Targeted searches of current
+  Web/daemon tests did not recover a corresponding end-to-end browser crash
+  matrix; generic schema/authorization and storage tests still exist. Do not
+  equate a green upstream suite with qualification of this consumer.
+
+Lesson: **UNRESOLVED** for component adoption; retain CCCC as first candidate.
+Target binding, dispatch fencing and completion reconciliation are useful
+**REFERENCE_ONLY** mechanics until the authority and correlation gaps are proved
+closed. This is a mismatch with CAP's intended profile, not a claim that CCCC's
+documented development-actor permissions are an upstream vulnerability.
+
+**Codex — `openai/codex`, `50d77959bf927293c4b5ddcca81d05331ae582ea`.**
+**OPEN_IMPLEMENTED / REFERENCE_ONLY.** Traced
+[`ThreadManager::resume_thread_from_rollout -> resume_thread_with_history`](https://github.com/openai/codex/blob/50d77959bf927293c4b5ddcca81d05331ae582ea/codex-rs/core/src/thread_manager.rs)
+to spawning with retained history; inspected App Server
+`request_processors/thread_lifecycle.rs` pending-unload exclusion and
+`persisted_resume_settings.rs` authority-setting reconstruction. Read
+`thread_resume.rs` tests rejecting another process's active writer and restoring
+approval settings. [Issue #33957](https://github.com/openai/codex/issues/33957)
+reports resume/shutdown overlap returning a stale runtime. The current code
+serializes that boundary; this inspection does not claim to reproduce or close
+the issue. CAP must distinguish durable conversation identity from a currently
+usable runtime generation. Codex is an agent host, not proof of ordinary-ChatGPT
+browser delivery or permission-free adoption.
+
+**Goose — `aaif-goose/goose`, `9605469109718205097b49b88682d6bf1d112d06`.**
+**OPEN_IMPLEMENTED / REFERENCE_ONLY.** Traced
+[`handle_load_session`](https://github.com/aaif-goose/goose/blob/9605469109718205097b49b88682d6bf1d112d06/crates/goose/src/acp/server/load_session.rs):
+load exact session, validate working directory, prepare activation, replay visible
+history, restore provider and update extension working directory. Inspected
+`session_manager::add_message` (SQLite `BEGIN IMMEDIATE`, message identity and
+ordered timestamps) and `PermissionManager::mutate_permission_map` (exclusive
+lock, reload latest permissions before mutation). Read
+`permission_persistence::stale_manager_cannot_restore_revoked_permission` and
+active-turn permission replay tests. [Issue #3221](https://github.com/aaif-goose/goose/issues/3221)
+is historical working-directory failure evidence, not proof of a present bug.
+Lesson: resume must restore both data and the correct authority/environment;
+transcript replay alone is insufficient. Its provider/tool runtime does not
+supply this CAP browser transport.
+
+### Primitives, solution evidence and alternatives
+
+| Primitive / engineering domain | Relevant evidence and constraint |
+|---|---|
+| Request identity / distributed retry | [AWS idempotent API design](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) binds caller request ID to parameters. Identical text can represent two intentional turns; timeout cannot authorize a new identity. A browser Send has no established server-side idempotency key. |
+| Durable fence / transaction recovery | CCCC target write before browser dispatch preserves at-most-once intent, at the cost of possible undelivered UNKNOWN. [SQLite transactions](https://www.sqlite.org/lang_transaction.html) serialize local state; they do not atomically commit an external browser effect. No power-loss or exactly-once claim follows. |
+| Owner generation / concurrency and lifecycle | Codex writer/unload guards and CAP task locks separate durable identity from live ownership. CCCC process-local single-flight alone must not be assumed to exclude manual browser actions or another process. |
+| Least authority / complete mediation | CCCC routes demonstrate why hiding two tools or prompting the actor is insufficient. A selected profile must deny direct names and indirect dispatch at execution, including after restart. |
+| Evidence / controller reconciliation | CCCC completion receipts close transport turns; CAP separately needs exact request/chat/result binding. Message-count growth and `done` alone are insufficient. |
+
+| Approach | Strength / state owner | Failure boundary and maintenance | Current fit |
+|---|---|---|---|
+| Stock CCCC connector, code mode off, peer actor | Existing browser/turn/ledger implementation | Local shell/edit/Git remain executable; broad upstream catalog and bootstrap | Reject this configuration for CAP adoption |
+| CCCC browser transport with no CCCC MCP connector issued/exposed to the chat | Reuses browser/target/fence; CAP remains the only connected authority | Supervisor can select browser delivery from actor settings, but bootstrap expects CCCC tools; safe result capture and exact multi-turn correlation are unproved | First bounded experiment to evaluate; not a proven production profile |
+| Small upstream/fork transport-only profile | Could preserve CCCC recovery while enforcing an immutable minimal allowlist | Must cover catalog, direct dispatch, capability/code-mode nesting, bootstrap and durable configuration; security patch/upgrade burden | Evaluate if connector-free route cannot supply required receipts/results |
+| New CAP persistent browser adapter | Can use CAP's existing authority/state primitives directly | Duplicates conversation lifecycle and browser crash handling; Temporary profile cannot simply be widened | Not selected while bounded CCCC routes remain plausible |
+| Codex/Goose host adoption | Mature retained session/history and permission mechanisms | Different planner/provider/tool model and ongoing host integration; no inspected ChatGPT Web transport | Reference only for this consumer |
+
+The connector-free route is a source-supported experiment hypothesis: it must
+also prove that no CCCC token, public endpoint, nested dispatcher or browser-side
+generic execution route is reachable by the model. Not installing a connector
+is not, on its own, complete authority qualification. Do not expose a CCCC admin
+endpoint or token to the model as an expedient replacement.
+
+### Failure/crash matrix and falsifying acceptance
+
+| Boundary | State / possible effect | Required rule; maximum additional Sends | Evidence still needed |
+|---|---|---|---|
+| Before durable request/fence | No authorized dispatch | Persist exact chat/request identity first; 0 until committed | CAP-to-provider identity mapping |
+| Fence persisted, before click | `submitting`; chat may be unchanged | Restart remains UNKNOWN; 0 blind retries | Kill after target write with no click |
+| Click or acknowledgement lost | Message may exist | Same-request fresh chat evidence only; 0 resends | Kill/timeout immediately around dispatch |
+| Browser accepted, daemon record failed | Target and ledger may disagree | Reconcile same identity; 0 resends | Inject failed `record_delivery` IPC |
+| Completion receipt committed, reply lost | Transport may already be closed | Retry completion identity only; 0 Sends | Lost completion reply, stale newer-turn conflict |
+| Durable outcome before next request | Prior transport settled, result possibly absent | No task DONE inference; each next request separately authorized | Two distinct turns, same text and different text |
+| State replacement fails/corrupts | Prior state or residue; external outcome uncertain | No replacement request or silent reset; 0 Sends | Disk/write failure and missing/corrupt target |
+| Browser restart, wrong chat/account, provisional URL | Saved route may be unavailable or rebound | Fresh exact target/authority proof; otherwise 0 Sends | Target Windows restart and wrong-target cases |
+| Concurrent/manual message or owner replacement | Count may increase for unrelated text | Exact request evidence; stale owner cannot send; 0 duplicate Sends | Foreign-message injection and two competing runners |
+| Compensation/cancel while unresolved | Submitted text may already be visible | Cancellation does not erase ambiguity or authorize replay; 0 Sends | Late receipt/result after cancellation |
+| Resume or indirect tool call | Prior settings may restore broader powers | All non-CAP consequences denied before dispatch; 0 forbidden effects | Direct and nested shell/edit/Git/capability calls, restart/downgrade |
+
+Unknown acceptance cells above block production integration. They are not
+assertions that upstream fails every case. Use a local fake browser/daemon first
+to inject deterministic faults without sending real tasks, then qualify exact
+reviewed bytes on Windows and an ordinary ChatGPT account: two sequential turns,
+restart, interrupted Send, wrong target and unavailable tool authority. Capture
+per-request Send counts, exact target and payload/result hashes independently of
+provider status. A second Send after uncertainty, accepted unrelated message,
+resurrected permission or result mapped to task DONE falsifies the design.
+
+### Lineage, decision and next bounded work
+
+**KEEP** ordinary ChatGPT planning, official CAP reachability, the six-tool
+boundary, WorkingState, Control Plane authorization, Verification Kernel and
+Finish Gate. **KEEP** the accepted one-shot delegation state, concurrency and
+persistence roles and specialized Temporary provider; no multi-turn semantics
+are retrofitted into them. **KEEP** Codex's reference-only role and the existing
+provider-adaptation boundary. Persistent conversation delivery is
+**NEW_ARCHITECTURE** relative to the accepted baseline; CCCC remains a research
+candidate in this Draft, not a previously accepted dependency being replaced.
+Prime, fan-out, automatic manager wake, Desktop and reviewer migration are outside
+this implementation decision. No accepted baseline role assignment changes.
+
+**DEFER production persistent-session integration.** Stock CCCC fails the requested
+authority profile by source inspection, while its useful delivery mechanisms do
+not yet establish CAP's exact correlation and crash guarantees. Do not switch to
+a custom runtime solely because this gate is unresolved.
+
+The next bounded work is a connector-free CCCC feasibility experiment with an
+isolated fake browser/daemon, using Standard text delivery only. First prove no
+model-reachable CCCC mutation authority and exact request/result correlation;
+then exercise the crash matrix. If the missing result/receipt path requires a
+profile patch, evaluate that narrow upstream/fork change before local replacement.
+Re-enter Stage Research with executable evidence and a fresh PROCEED/NARROW before
+production changes. This decision does not authorize a live connector rollout.
+
+Validation performed: 23 CAP delegation/provider/failure-class tests passed on
+Linux. This verifies retained CAP behavior only. Upstream Rust suites and physical
+ChatGPT/Windows multi-turn delivery were not run; no independent semantic review
+is claimed. Complexity added here: one section in the existing research owner,
+no runtime classes, dependencies, registry, new tool or state service.

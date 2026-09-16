@@ -310,12 +310,17 @@ lifetime contract justify it. The current procedure retains CAP admission,
 WorkingState, reconciliation, verification and completion authority. This
 research result changes no production runtime or provider API.
 
-Next development work remains the bounded composition research in #151:
-select a concrete Sessions/Desktop consumer, compare its required mechanics
-against the existing CAP path and pinned upstream code, and finish the applicable
-Stage Research before proposing production changes. CCCC/equivalent sessions and
-WinApp CLI remain candidates; Prime remains optional. Do not reopen workspace
-extraction solely because the generic provider class is absent.
+The persistent Sessions investigation is recorded in section 15 of that owner:
+**DEFER** production integration. Stock CCCC retains shell/edit/Git authority
+when code mode is disabled; delivery/result correlation and crash acceptance
+for CAP remain unproved. CCCC remains the first candidate, not an adopted backend.
+
+Next bounded work in #151 is an isolated connector-free CCCC feasibility
+experiment: prove no model-reachable mutation authority outside CAP, exact
+request/result correlation and no second Send through the recorded crash matrix.
+Evaluate a narrow upstream/fork profile if that route cannot provide the needed
+receipts/results. Desktop/WinApp CLI research remains separate; Prime is optional.
+Do not reopen workspace extraction solely because a generic provider class is absent.
 
 `ROADMAP.md` retains the release sequence. This continuation correction does not
 adopt the Draft architecture, add a dependency, or waive any acceptance gate.
