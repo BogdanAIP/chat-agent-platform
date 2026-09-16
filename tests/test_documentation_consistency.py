@@ -128,8 +128,12 @@ class DocumentationConsistencyTests(unittest.TestCase):
 
         # A prior accepted-looking roadmap heading promoted a research candidate
         # into the release sequence while the coarse release-order check stayed
-        # green. Pin the capability-owned sequence and its detailed stage headings
-        # so changing a product stage requires an explicit regression-guard update.
+        # green. The first attempted guard filtered only known stage prefixes,
+        # which meant a new prefix (for example "Pre-26.5") could reproduce the
+        # same failure class invisibly. Pin the complete level-1 ROADMAP
+        # structure so any new authoritative-looking top-level section requires
+        # an explicit review/guard update instead of silently entering the
+        # release document.
         sequence_block = re.search(
             r"The remaining product sequence is:\s*\x60{3}text\s*(?P<body>.*?)\x60{3}",
             roadmap,
@@ -162,25 +166,29 @@ class DocumentationConsistencyTests(unittest.TestCase):
             match.group(1).strip()
             for match in re.finditer(r"(?m)^#\s+(.+?)\s*$", roadmap)
         )
-        detailed_release_headings = tuple(
-            heading
-            for heading in top_level_headings
-            if re.match(
-                r"^(?:Automatic reviewer\b|Broad real-application\b|Pre-26\.4\b|26\.4\b|26\.5\b|27\b|28\b)",
-                heading,
-                re.IGNORECASE,
-            )
-        )
         self.assertEqual(
-            detailed_release_headings,
+            top_level_headings,
             (
+                "Roadmap — Chat Agent Platform",
+                "26.3B — Verification Kernel + independent Finish Gate — ACCEPTED / CLOSED",
+                "26.3C — WorkingState + recovery/reconciliation + LoopGuard — ACCEPTED / CLOSED",
+                "Post-26.3C — bounded Agent Session / Delegation — ACCEPTED BOUNDED SCOPE",
                 "Automatic reviewer — first specialist consumer after generic Agent Session acceptance",
                 "Broad real-application physical coverage gate",
                 "Pre-26.4 — bounded external-procedure integration qualification",
                 "26.4 — Human Demo -> verified candidate skill / lineage",
                 "26.5 — Hybrid Computer-Use Integration",
+                "Future research seam — same-task continuation / wake",
+                "Future research seam — Physical Device / IoT Capability Family",
+                "Local Execution Kernel — adjacent future consequence class",
                 "27 — Distribution & Maintenance",
                 "28 — Clean User E2E / stable release",
+                "Track M expansion beyond the first bounded slice — FUTURE",
+                "Parallel Track P — optional future local planner",
+            ),
+            msg=(
+                "authoritative ROADMAP top-level structure changed; classify the "
+                "new section explicitly before it can enter the release document"
             ),
         )
 
