@@ -128,7 +128,16 @@ def run_launch_independent_review(
                 }
                 if settlement is not None
                 and settlement.get("status") == "worker_terminal_noncompleting"
-                else {}
+                else (
+                    {
+                        "automatic_review_status": settlement.get("review_status"),
+                        "automatic_review_validity": settlement.get("review_validity"),
+                        "automatic_worker_result_sha256": settlement.get("result_sha256"),
+                    }
+                    if settlement is not None
+                    and settlement.get("status") == "review_terminal_noncompleting"
+                    else {}
+                )
             ),
         }
 
