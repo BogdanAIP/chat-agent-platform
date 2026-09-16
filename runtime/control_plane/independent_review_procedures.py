@@ -5,6 +5,7 @@ from typing import Any, Mapping
 
 from .independent_review_delegation import (
     prepare_review_delegation,
+    review_delegation_state_root,
     settle_review_from_delegation,
     spawn_review_worker,
     validate_review_worker_runtime,
@@ -83,6 +84,7 @@ def run_launch_independent_review(
     identity_value = _identity_from_procedure_request(value)
     identity = parse_review_identity(identity_value, exact_keys=True)
     prepared = prepare_review_operation(identity_value, state_root=state_root)
+    delegation_state_root = review_delegation_state_root()
 
     if prepared.result_state != "open":
         summary = reconcile_independent_review_result(identity_value, state_root=state_root)
@@ -93,7 +95,11 @@ def run_launch_independent_review(
         }
 
     if prepared.dispatch_state != "prepared":
-        settlement = settle_review_from_delegation(identity_value, state_root=state_root)
+        settlement = settle_review_from_delegation(
+            identity_value,
+            reviewer_state_root=state_root,
+            delegation_state_root=delegation_state_root,
+        )
         if settlement is not None and settlement.get("status") in {"recorded", "already_recorded"}:
             summary = reconcile_independent_review_result(identity_value, state_root=state_root)
             return {
@@ -142,7 +148,7 @@ def run_launch_independent_review(
     prepare_review_delegation(
         prepared.identity,
         review_run_id=prepared.review_run_id,
-        state_root=state_root,
+        delegation_state_root=delegation_state_root,
     )
 
     # Reviewer launch authority is consumed before the external process starts.
@@ -218,7 +224,11 @@ def run_reconcile_independent_review_result(
 
     settlement: dict[str, Any] | None = None
     if "manual_result" not in value:
-        settlement = settle_review_from_delegation(identity, state_root=state_root)
+        settlement = settle_review_from_delegation(
+            identity,
+            reviewer_state_root=state_root,
+            delegation_state_root=review_delegation_state_root(),
+        )
 
     state_request: dict[str, Any] = dict(identity)
     if "manual_result" in value:
