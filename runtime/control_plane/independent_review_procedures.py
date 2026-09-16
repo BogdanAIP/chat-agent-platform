@@ -276,4 +276,11 @@ def run_reconcile_independent_review_result(
             "automatic_worker_status": settlement.get("worker_status"),
             "automatic_worker_result_sha256": settlement.get("result_sha256"),
         }
+    elif settlement is not None and settlement.get("status") == "review_terminal_noncompleting":
+        result = {
+            **result,
+            "automatic_review_status": settlement.get("review_status"),
+            "automatic_review_validity": settlement.get("review_validity"),
+            "automatic_worker_result_sha256": settlement.get("result_sha256"),
+        }
     return result
