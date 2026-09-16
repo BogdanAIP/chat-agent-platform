@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from runtime.control_plane import cli as control_plane_cli
+from runtime.control_plane import delegation_state
 from runtime.control_plane import independent_review_state as review_state
+from runtime.control_plane.independent_review_delegation import (
+    prepare_review_delegation,
+)
 from runtime.control_plane.independent_review_procedures import (
     LAUNCH_PROCEDURE_ID,
     RECONCILE_PROCEDURE_ID,
@@ -61,7 +67,7 @@ def pass_result(*, review_run_id: str | None = None) -> str:
 
 
 class IndependentReviewProcedureWiringTests(unittest.TestCase):
-    def test_launch_prepares_exact_operation_but_fails_closed_before_dispatch(self) -> None:
+    def test_launch_preserves_dispatch_when_installed_reviewer_runtime_is_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             state_root = Path(state_dir)
             result = run_launch_independent_review(
@@ -71,7 +77,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
 
             self.assertEqual("abstained", result["status"])
             self.assertEqual(LAUNCH_PROCEDURE_ID, result["procedure_id"])
-            self.assertEqual("reviewer_authority_unqualified", result["escalation_reason"])
+            self.assertEqual("reviewer_runtime_unavailable", result["escalation_reason"])
             self.assertEqual("prepared", result["dispatch_state"])
             self.assertEqual("open", result["result_state"])
             self.assertFalse(result["automatic_launch_performed"])
@@ -83,22 +89,40 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             self.assertEqual("prepared", prepared.dispatch_state)
             self.assertEqual("open", prepared.result_state)
 
-    def test_repeated_launch_reuses_operation_without_disclosing_nonce(self) -> None:
+    def test_successful_launch_consumes_dispatch_once_and_never_spawns_twice(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             state_root = Path(state_dir)
-            first = run_launch_independent_review(
-                identity_request(LAUNCH_PROCEDURE_ID),
-                state_root=state_root,
-            )
-            second = run_launch_independent_review(
-                identity_request(LAUNCH_PROCEDURE_ID),
-                state_root=state_root,
-            )
+            with (
+                patch(
+                    "runtime.control_plane.independent_review_procedures.validate_review_worker_runtime",
+                    return_value=state_root,
+                ),
+                patch(
+                    "runtime.control_plane.independent_review_procedures.spawn_review_worker"
+                ) as spawn,
+            ):
+                first = run_launch_independent_review(
+                    identity_request(LAUNCH_PROCEDURE_ID),
+                    state_root=state_root,
+                )
+                second = run_launch_independent_review(
+                    identity_request(LAUNCH_PROCEDURE_ID),
+                    state_root=state_root,
+                )
+
+            self.assertEqual("pending", first["status"])
+            self.assertEqual("dispatch-attempted", first["dispatch_state"])
+            self.assertTrue(first["automatic_launch_performed"])
+            self.assertTrue(first["automatic_submission_open"])
+            self.assertNotIn("review_run_id", first)
 
             self.assertEqual(first["operation_key"], second["operation_key"])
-            self.assertNotIn("review_run_id", first)
+            self.assertEqual("pending", second["status"])
+            self.assertEqual("dispatch-attempted", second["dispatch_state"])
+            self.assertFalse(second["automatic_launch_performed"])
+            self.assertTrue(second["automatic_submission_open"])
             self.assertNotIn("review_run_id", second)
-            self.assertEqual("prepared", second["dispatch_state"])
+            spawn.assert_called_once()
 
     def test_submit_is_real_local_recording_after_trusted_dispatch_transition(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
@@ -150,6 +174,146 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             self.assertEqual("manual-fallback-recorded", terminal["result_state"])
             self.assertEqual("manual", terminal["result_source"])
             self.assertEqual(pass_result(), terminal["result"])
+
+    def test_reconcile_settles_recorded_generic_worker_result_into_reviewer_state(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            state_root = Path(state_dir)
+            prepared_review = review_state.prepare_review_operation(identity_value(), state_root=state_root)
+            review_state.mark_dispatch_attempted(identity_value(), state_root=state_root)
+            _task, delegated_identity = prepare_review_delegation(
+                prepared_review.identity,
+                review_run_id=prepared_review.review_run_id,
+                state_root=state_root,
+            )
+            prepared = delegation_state.prepare_delegation(
+                delegated_identity,
+                state_root=state_root,
+            )
+            delegation_state.mark_launch_attempted(
+                delegated_identity,
+                run_id=prepared.run_id,
+                state_root=state_root,
+            )
+            delegation_state.bind_worker_session(
+                delegated_identity,
+                run_id=prepared.run_id,
+                session_ref_value={
+                    "adapter_id": "chatgpt-temporary",
+                    "session_id": "chatgpt-delivery-test",
+                    "conversation_id": None,
+                    "ownership": "manager_owned",
+                    "observation_ref": "test-observation",
+                },
+                state_root=state_root,
+            )
+            delegation_state.claim_delivery(
+                delegated_identity,
+                run_id=prepared.run_id,
+                state_root=state_root,
+            )
+            delegation_state.record_delivery_outcome(
+                delegated_identity,
+                run_id=prepared.run_id,
+                outcome="delivered",
+                evidence_ref="test-delivered",
+                state_root=state_root,
+            )
+
+            payload = pass_result(review_run_id=prepared_review.review_run_id)
+            digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            delegation_state.record_worker_result(
+                delegated_identity,
+                run_id=prepared.run_id,
+                result_value={
+                    "schema_version": 1,
+                    "delegation_id": prepared.delegation_id,
+                    "delivery_id": prepared.delivery_id,
+                    "worker_kind": delegated_identity["worker_kind"],
+                    "result_contract_id": delegated_identity["result_contract_id"],
+                    "status": "COMPLETED",
+                    "payload": payload,
+                    "payload_sha256": digest,
+                },
+                state_root=state_root,
+            )
+
+            result = run_reconcile_independent_review_result(
+                identity_request(RECONCILE_PROCEDURE_ID),
+                state_root=state_root,
+            )
+            self.assertEqual("recorded", result["status"])
+            self.assertEqual("automatic-result-recorded", result["result_state"])
+            self.assertEqual("automatic", result["result_source"])
+            self.assertEqual(payload, result["result"])
+
+    def test_noncompleting_generic_worker_result_does_not_close_reviewer_state(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            state_root = Path(state_dir)
+            prepared_review = review_state.prepare_review_operation(identity_value(), state_root=state_root)
+            review_state.mark_dispatch_attempted(identity_value(), state_root=state_root)
+            _task, delegated_identity = prepare_review_delegation(
+                prepared_review.identity,
+                review_run_id=prepared_review.review_run_id,
+                state_root=state_root,
+            )
+            prepared = delegation_state.prepare_delegation(
+                delegated_identity,
+                state_root=state_root,
+            )
+            delegation_state.mark_launch_attempted(
+                delegated_identity,
+                run_id=prepared.run_id,
+                state_root=state_root,
+            )
+            delegation_state.bind_worker_session(
+                delegated_identity,
+                run_id=prepared.run_id,
+                session_ref_value={
+                    "adapter_id": "chatgpt-temporary",
+                    "session_id": "chatgpt-delivery-test",
+                    "conversation_id": None,
+                    "ownership": "manager_owned",
+                    "observation_ref": "test-observation",
+                },
+                state_root=state_root,
+            )
+            delegation_state.claim_delivery(
+                delegated_identity,
+                run_id=prepared.run_id,
+                state_root=state_root,
+            )
+            delegation_state.record_delivery_outcome(
+                delegated_identity,
+                run_id=prepared.run_id,
+                outcome="delivered",
+                evidence_ref="test-delivered",
+                state_root=state_root,
+            )
+
+            payload = "worker could not obtain required read-only evidence"
+            delegation_state.record_worker_result(
+                delegated_identity,
+                run_id=prepared.run_id,
+                result_value={
+                    "schema_version": 1,
+                    "delegation_id": prepared.delegation_id,
+                    "delivery_id": prepared.delivery_id,
+                    "worker_kind": delegated_identity["worker_kind"],
+                    "result_contract_id": delegated_identity["result_contract_id"],
+                    "status": "ABSTAIN",
+                    "payload": payload,
+                    "payload_sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+                },
+                state_root=state_root,
+            )
+
+            result = run_reconcile_independent_review_result(
+                identity_request(RECONCILE_PROCEDURE_ID),
+                state_root=state_root,
+            )
+            self.assertEqual("pending", result["status"])
+            self.assertEqual("open", result["result_state"])
+            self.assertEqual("ABSTAIN", result["automatic_worker_status"])
 
     def test_fixed_procedure_schemas_reject_generic_authority_fields(self) -> None:
         forbidden = (
