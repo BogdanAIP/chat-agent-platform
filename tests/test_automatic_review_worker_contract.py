@@ -23,6 +23,8 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
 
     def test_worker_uses_installed_main_receipt_and_fixed_app_root(self) -> None:
         self.assertIn("platform-update.json", self.delegation)
+        self.assertIn("installed-version state is unavailable", self.delegation)
+        self.assertIn("source_attestation.RUNTIME_ASSETS", self.delegation)
         self.assertIn('value["status"] not in {"current", "update_available"}', self.delegation)
         self.assertIn('value["repository"] != _REPOSITORY', self.delegation)
         self.assertIn('value["branch"] != _BRANCH', self.delegation)
@@ -45,9 +47,11 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
         self.assertIn("_sha256_file(path)", self.worker)
         self.assertIn("chatgpt_temporary_authenticated_controller", self.worker)
 
-    def test_dispatch_is_consumed_before_background_spawn_and_never_rearmed(self) -> None:
+    def test_dispatch_is_consumed_only_after_installed_runtime_preflight(self) -> None:
+        validate = self.procedures.index("validate_review_worker_runtime(")
         mark = self.procedures.index("mark_dispatch_attempted(")
         spawn = self.procedures.index("spawn_review_worker(")
+        self.assertLess(validate, mark)
         self.assertLess(mark, spawn)
         self.assertNotIn("mark_dispatch_prepared", self.procedures)
         self.assertNotIn("automatic_relaunch", self.procedures)
