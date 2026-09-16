@@ -242,10 +242,14 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                 state_root=state_root / "agent-sessions",
             )
 
-            result = run_reconcile_independent_review_result(
-                identity_request(RECONCILE_PROCEDURE_ID),
-                state_root=state_root,
-            )
+            with patch(
+                "runtime.control_plane.independent_review_procedures.review_delegation_state_root",
+                return_value=state_root / "agent-sessions",
+            ):
+                result = run_reconcile_independent_review_result(
+                    identity_request(RECONCILE_PROCEDURE_ID),
+                    state_root=state_root,
+                )
             self.assertEqual("recorded", result["status"])
             self.assertEqual("automatic-result-recorded", result["result_state"])
             self.assertEqual("automatic", result["result_source"])
@@ -312,10 +316,14 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                 state_root=state_root / "agent-sessions",
             )
 
-            result = run_reconcile_independent_review_result(
-                identity_request(RECONCILE_PROCEDURE_ID),
-                state_root=state_root,
-            )
+            with patch(
+                "runtime.control_plane.independent_review_procedures.review_delegation_state_root",
+                return_value=state_root / "agent-sessions",
+            ):
+                result = run_reconcile_independent_review_result(
+                    identity_request(RECONCILE_PROCEDURE_ID),
+                    state_root=state_root,
+                )
             self.assertEqual("pending", result["status"])
             self.assertEqual("open", result["result_state"])
             self.assertEqual("ABSTAIN", result["automatic_worker_status"])
