@@ -9,29 +9,43 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTEXT = ROOT / "project-context"
 
 
-def _markdown_level_one_headings(text: str) -> tuple[str, ...]:
-    """Extract GFM/CommonMark level-1 headings outside fenced code blocks."""
+def _roadmap_top_level_structure(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return allowed ATX H1 headings plus disallowed alternate H1 syntax.
+
+    ROADMAP.md intentionally standardizes authoritative top-level sections on
+    ATX `# ...` headings. This keeps the release-structure guard structural
+    without pretending to implement a complete Markdown parser.
+    """
 
     headings: list[str] = []
+    violations: list[str] = []
     fence_char: str | None = None
     fence_length = 0
-    pending_setext_title: str | None = None
 
-    for line in text.splitlines():
-        fence = re.match(r"^ {0,3}((?:`{3,})|(?:~{3,}))(?:[^\n]*)$", line)
-        if fence is not None:
-            marker = fence.group(1)
-            char = marker[0]
-            if fence_char is None:
-                fence_char = char
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if fence_char is None:
+            opening = re.match(r"^ {0,3}((?:`{3,})|(?:~{3,}))(?:[^\n]*)$", line)
+            if opening is not None:
+                marker = opening.group(1)
+                fence_char = marker[0]
                 fence_length = len(marker)
-            elif char == fence_char and len(marker) >= fence_length:
+                continue
+        else:
+            closing = re.match(
+                rf"^ {{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*$",
+                line,
+            )
+            if closing is not None:
                 fence_char = None
                 fence_length = 0
-            pending_setext_title = None
             continue
 
-        if fence_char is not None:
+        if re.match(r"^ {0,3}=+[ \t]*$", line) is not None:
+            violations.append(f"setext-h1-underline:{line_number}")
+            continue
+
+        if re.search(r"<\s*/?\s*h1(?:\s|>)", line, re.IGNORECASE) is not None:
+            violations.append(f"raw-html-h1:{line_number}")
             continue
 
         atx = re.match(r"^ {0,3}#(?!#)(?:[ \t]+|$)(.*?)(?:[ \t]+#+[ \t]*)?$", line)
@@ -39,22 +53,11 @@ def _markdown_level_one_headings(text: str) -> tuple[str, ...]:
             title = atx.group(1).strip()
             if title:
                 headings.append(title)
-            pending_setext_title = None
-            continue
 
-        if re.match(r"^ {0,3}=+[ \t]*$", line) is not None:
-            if pending_setext_title:
-                headings.append(pending_setext_title)
-            pending_setext_title = None
-            continue
+    if fence_char is not None:
+        violations.append("unterminated-fence")
 
-        if not line.strip() or re.match(r"^ {4}", line):
-            pending_setext_title = None
-            continue
-
-        pending_setext_title = line.strip()
-
-    return tuple(headings)
+    return tuple(headings), tuple(violations)
 
 
 class DocumentationConsistencyTests(unittest.TestCase):
@@ -178,11 +181,11 @@ class DocumentationConsistencyTests(unittest.TestCase):
         # into the release sequence while the coarse release-order check stayed
         # green. The first attempted guard filtered only known stage prefixes,
         # which meant a new prefix (for example "Pre-26.5") could reproduce the
-        # same failure class invisibly. Parse both ATX and Setext level-1
-        # headings outside fenced code, then pin the complete level-1 ROADMAP
-        # structure so any new authoritative-looking top-level section requires
-        # an explicit review/guard update instead of silently entering the
-        # release document.
+        # same failure class invisibly. Standardize authoritative top-level
+        # ROADMAP sections on ATX H1, reject alternate H1 syntax outside fenced
+        # code, then pin the complete top-level structure. Any new
+        # authoritative-looking section therefore requires an explicit
+        # review/guard update instead of silently entering the release document.
         sequence_block = re.search(
             r"The remaining product sequence is:\s*\x60{3}text\s*(?P<body>.*?)\x60{3}",
             roadmap,
@@ -211,22 +214,35 @@ class DocumentationConsistencyTests(unittest.TestCase):
             ),
         )
 
-        # Guard the extractor itself against the two counterexamples that
-        # defeated/over-constrained earlier versions of this check.
-        self.assertEqual(
-            _markdown_level_one_headings(
-                "Pre-26.5 — OpenAdapt integration qualification\n====\n"
-            ),
-            ("Pre-26.5 — OpenAdapt integration qualification",),
+        # Guard the scanner itself against the bypass/false-positive paths
+        # that defeated earlier versions of this check.
+        setext_headings, setext_violations = _roadmap_top_level_structure(
+            "Pre-26.5 — OpenAdapt integration qualification\n====\n"
         )
-        self.assertEqual(
-            _markdown_level_one_headings(
-                "```text\n# not a roadmap heading\n```\n# Real heading\n"
-            ),
-            ("Real heading",),
-        )
+        self.assertEqual(setext_headings, ())
+        self.assertEqual(setext_violations, ("setext-h1-underline:2",))
 
-        top_level_headings = _markdown_level_one_headings(roadmap)
+        fenced_headings, fenced_violations = _roadmap_top_level_structure(
+            "```text\n# not a roadmap heading\nTitle\n====\n<h1>also code</h1>\n```\n# Real heading\n"
+        )
+        self.assertEqual(fenced_headings, ("Real heading",))
+        self.assertEqual(fenced_violations, ())
+
+        html_headings, html_violations = _roadmap_top_level_structure(
+            "<h1>Pre-26.5 — OpenAdapt integration qualification</h1>\n"
+        )
+        self.assertEqual(html_headings, ())
+        self.assertEqual(html_violations, ("raw-html-h1:1",))
+
+        top_level_headings, heading_syntax_violations = _roadmap_top_level_structure(roadmap)
+        self.assertEqual(
+            heading_syntax_violations,
+            (),
+            msg=(
+                "authoritative ROADMAP top-level sections must use ATX '# ...' "
+                "headings outside fenced code"
+            ),
+        )
         self.assertEqual(
             top_level_headings,
             (
