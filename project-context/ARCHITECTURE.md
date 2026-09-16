@@ -80,7 +80,7 @@ There is no accepted five/six runtime mode. Historical five-tool projection is i
 
 Six is the current accepted contract, not an eternal maximum. A genuinely new consequence class requires a truthful public schema/security/ordinary-Chat acceptance decision. Never preserve the count by hiding desktop/session/project/local-code authority behind misleading semantics or generic dispatch.
 
-The first bounded Agent Session / Delegation mechanism remains internal/registered behind existing bounded procedure/runtime authority while under acceptance; it does not add a seventh generic public dispatcher.
+The first bounded Agent Session / Delegation mechanism remains internal/registered behind existing bounded procedure/runtime authority within its accepted scope; it does not add a seventh generic public dispatcher.
 
 ## Transport / extension boundary
 

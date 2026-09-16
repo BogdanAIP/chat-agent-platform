@@ -40,10 +40,6 @@ stage-research mechanism-depth hardening          MERGED #127
 automatic-review Stage Research / local-result v1 ACCEPTED NARROW / MERGED #140
 automatic-review local state foundation           ACCEPTED / MERGED #141
 automatic-review fixed procedure wiring           ACCEPTED / MERGED #142
-bounded Agent Session / Delegation foundation      ACCEPTED / MERGED #149
-bounded one-click main updater                      ACCEPTED / MERGED #150
-Delegation Provider Contract boundary               MERGED #155
-Delegation Provider Contract guard                  MERGED #156
 ```
 
 These are scoped proofs. They do not imply universal Browser/Windows/application reliability, machine/power-loss transactional durability, or a generally accepted multi-agent runtime.
@@ -96,72 +92,176 @@ WorkingState is capability-spanning structured operational state, never private 
 
 ## Accepted bounded Agent Session / Delegation
 
-PR #149 is **ACCEPTED / MERGED**. Its accepted product scope remains deliberately narrow:
+Fresh Stage Research in PR #149 re-entered Track M and selected **NARROW** rather than continuing reviewer-specific launch/state mechanics as the product-level architecture.
+
+The selected first product mechanism is exactly:
 
 ```text
 one ordinary-ChatGPT manager
  -> one genuinely fresh read-only worker
- -> one bounded provider-independent DelegationIdentity
+ -> one bounded delegation identity
  -> one initial delivery
- -> delivered | unknown settlement without blind resend
- -> one correlated structured WORKER_RESULT_V1
+ -> one correlated structured terminal result
  -> durable local closure when that result is captured
 ```
 
-The first concrete provider remains `chatgpt-temporary` bound to the specialized `fresh_readonly_worker_v1` profile:
+This does **not** accept broad multi-agent orchestration. It deliberately excludes nested/fan-out workers, mutating children, project/worktree/environment creation, a scheduler/event bus, worker rotation, long-lived background workers and automatic same-task parent wake/resampling.
 
-```text
-fresh
-independent
-non-personalized
-no-plugin / closed-profile
-Temporary Chat
-one-shot bounded worker
-```
+PR #149 is **MERGED**. The bounded worker path has recorded target-Windows
+A0/A/B1/B2 acceptance; PR #154 subsequently fixed initial claim ownership and
+hidden Stop handling and requalified that scope. `EVIDENCE_INDEX.md` records
+exact evidence and the historical #149 review waiver; that waiver does not
+change review requirements for later work.
 
-The accepted mechanism does **not** authorize broad multi-agent orchestration, nested/fan-out workers, mutating children, project/worktree/environment creation, generic scheduler/event-bus authority, worker pools/rotation, long-lived background workers, automatic same-task parent wake/resampling, persistent provider-conversation recovery, or generic existing-session delivery.
+PR #150 is also merged and ships the bounded one-click main updater. Its recorded
+physical proof covers installation and a blocked pre-updater-main target across
+a tray restart; it does not prove a successful accepted-main update transition.
+The #150 final fresh-review result was not found in the inspected PR timeline;
+merge metadata alone must not be described as proof that review passed.
 
-Durable delegation rules now accepted on `main` include:
+PR #155 documents the existing delegation/provider ownership boundary and #156
+adds documentation contract guards. They do not implement a general provider
+API or a WorkspaceProvider. See `DELEGATION_PROVIDER_CONTRACT.md`.
+
+### L1 — generic delegation state
 
 ```text
 provider-independent deterministic delegation identity
 immutable private genesis + private run capability
-launch attempt committed before physical launch authority
-one child/session binding
-one delivery identity and one delivery claim
-prepared | claimed | unknown | delivered
-unknown -> delivered only from fresh same-delivery evidence
-no blind second Send
-one correlated bounded WORKER_RESULT_V1
-provider result remains evidence/data rather than CAP verification authority
-complete browser/MV3 lifetime loss remains fail closed for the ephemeral profile
+one delivery identity
+accepted OS-backed single-writer locking
+crash-safe mutable state replacement
+launch-attempt committed before physical launch authority
+child/session binding
+one delivery claim
+prepared | claimed | unknown | delivered delivery state
+unknown -> delivered reconciliation only from fresh evidence
+one correlated terminal WORKER_RESULT_V1
+bounded payload + adapter-computed SHA-256
+fail-closed corrupt/missing/foreign/temp-residue state
 ```
 
-The provider-specific Temporary Chat adapter remains intentionally narrower than the generic Delegation model. Private run capability is not worker-visible authority; provider session/message identifiers are observations rather than canonical CAP identity.
+A restart never manufactures a replacement run/delivery identity and never regains blind launch/Send authority.
 
-A worker result proves only that a correlated provider result was captured. It does not grant capability authority, prove an unrelated external effect, or make the manager's whole user task `DONE`.
+### L2 — accepted `chatgpt-temporary` provider adapter
 
-### Current post-#149 architecture direction
+The first concrete adapter is intentionally provider-specific rather than a premature generic provider framework.
 
-Post-#149 work is composition-first:
+Accepted bounded path:
 
 ```text
-CAP trust/effect semantics
-        +
-narrow provider adapters
-        +
-provider conformance / physical acceptance
+generic delegation state stays prepared/open
+ -> neutral ChatGPT preflight URL with one preflight nonce only
+ -> exact runtime-attested MV3 service worker receives private run/correlation handoff
+ -> one live owner record binds owner_tab_id + private run + exact correlation + task URL
+ -> controller commit is attempted
+ -> success OR ambiguous commit acknowledgement
+ -> same live owner reconciles exact committed state through private-token /status
+ -> only that neutral preflight tab location.replace() navigates to the task URL
+ -> task-bearing Temporary Chat URL carries only the opaque live handle
+ -> same live MV3 lifetime resolves handle -> private run capability
+ -> positive fresh/non-personalized/no-plugin child qualification
+ -> extension-origin IndexedDB unique delivery claim across tabs
+ -> project-local delivery claim
+ -> exactly one Send authority
+ -> visible delivery observation
+ -> delivered | unknown
+ -> same-delivery reconciliation after ambiguity
+ -> exact WORKER_RESULT_V1 capture when the original browser context remains available
+ -> durable terminal result
 ```
 
-Do not generalize the specialized Temporary Chat implementation into a project-owned universal agent/session runtime. Persistent ordinary-ChatGPT delivery, retained workers/subagents, broader execution environments and other runtime mechanics require fresh Stage Research and should prefer mature reusable substrates when they can satisfy CAP authority and recovery constraints.
+The MV3 extension has no `nativeMessaging`, GitHub, filesystem, cookies, downloads, management or generic network authority. Its only host permission is the pinned loopback controller at `127.0.0.1:3078`.
 
-The active research owner for that sequencing is PR #151 / `COMPOSITION_FIRST_ARCHITECTURE.md`.
+Target-Windows physical qualification proved that the specialized Temporary Chat path can produce one fresh qualified worker, exactly one Send, visible delivery and a valid terminal worker result, but did **not** positively expose a stable provider conversation identity suitable for complete-Chrome restart recovery. The earlier browser-recovery research explicitly required re-entry in that case.
+
+`AGENT_SESSION_TEMPORARY_EPHEMERAL_REENTRY.md` therefore made `fresh_readonly_worker_v1` an **ephemeral one-shot independence profile**, not a persistent Agent Session. The durable IndexedDB delivery claim and same-live-service-worker pre-Send owner witness remain, but provider-conversation restart recovery is disabled. A complete browser/service-worker lifetime loss after a committed task launch never reconstructs Send or monitor authority. If trustworthy result capture was not already completed, the durable delegation remains fail-closed/open rather than fabricating a result or relaunching another worker.
+
+A later fresh semantic review found a pre-first-claim gap: a task bootstrap carrying the private durable `run_id` could be restored from browser session history after complete Chrome loss and recreate first-Send authority before the existing-claim fence applied. Development-side falsification confirmed that P1. `AGENT_SESSION_TEMPORARY_BOOTSTRAP_LIFETIME_REENTRY.md` narrowed the adapter to a neutral preflight plus an opaque task launch handle held against private authority only in live MV3 memory.
+
+A subsequent fresh review found two additional release-critical crash/acknowledgement gaps in that preflight boundary: commit-response ACK loss could delete the sole live mapping after the controller had durably committed, and controller crash after durable `launch-attempted` but before projection/activation could strand the one launch even while the original MV3 owner survived. Development-side falsification confirmed both findings.
+
+`AGENT_SESSION_TEMPORARY_PREFLIGHT_COMMIT_REENTRY.md` and the narrower superseding `AGENT_SESSION_TEMPORARY_PREFLIGHT_OWNER_REBIND_REENTRY.md` are now the latest adapter authority for those gaps. The selected mechanism keeps browser launch ownership entirely inside one MV3 lifetime:
+
+```text
+one neutral preflight tab owns navigation
+ -> LIVE_LAUNCHES keeps private run + exact correlation + owner_tab_id + current handle/task URL
+ -> commit transport failure is UNKNOWN, not rollback
+ -> live mapping survives ambiguity
+ -> exact private-token /status reconciles a committed launch
+ -> owner tab alone receives navigate_url
+ -> owner tab location.replace(task URL)
+```
+
+If the controller restarts **after** durable launch commit, the surviving owner can reconcile the restarted controller from generic durable launch/delivery/result state plus exact head/prompt/generation and its private run token; the controller does not need to reproduce the old opaque handle. If the controller restarts **before** commit while durable state remains `prepared/open`, a later neutral preflight may refresh the current handle/task URL/preflight capability into the same existing live record only after exact run/delegation/delivery/task/head/prompt correlation. `owner_tab_id` is preserved and the later preflight tab never gains navigation authority. If the original owner tab is gone, ownership is not transferred.
+
+Complete MV3/browser loss remains intentionally fail closed. No durable browser lease, provider-conversation identity or persistent handle registry was introduced.
+
+The earlier fresh review finding that final observation could synthesize an ERROR worker result was also confirmed and fixed: `terminal_result_visible=false` is now only an unresolved observation. It does not create `WORKER_RESULT_V1`, `result.json`, `result_state=recorded` or controller `done`; later genuine capture remains possible while the original context is alive, otherwise controller exit may be nonzero with truthful durable `delivered/open` state.
+
+The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution and opens **only the neutral preflight URL** for a genuinely new prepared delegation. It never independently opens the task-bearing URL. The same preflight tab owns the task navigation through `location.replace()` only after exact commit/reconciliation proof. `launch.json` remains evidence/status projection, not physical browser-launch authority. Source provenance is rechecked after terminal result capture.
+
+Persistent rich-context ordinary-ChatGPT conversation identity, automatic browser wake and cross-restart existing-session delivery remain separate future research. The open composition research is the next decision input; no persistent-session substrate or new provider implementation is accepted by that Draft.
+
+## Automatic reviewer status
+
+The accepted reviewer-specific local state and fixed `launch_independent_review_v1`, `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` procedures from #141/#142 remain intact.
+
+They are **not deleted or silently replaced by #149**. Reviewer methodology, exact PR/BASE/HEAD semantics, read-only GitHub authority qualification, `REVIEW_RESULT_V1`, Harbor/ReviewBench evaluation and manual-fallback rules remain specialist policy.
+
+The architecture direction is now:
+
+```text
+generic bounded Agent Session / Delegation lifecycle
+ -> fresh Temporary Chat reviewer-style consumer
+ -> reviewer-specific task/result/authority policy above it
+```
+
+MimiSeek may later consume the same fresh-worker capability for its independent reviewer while keeping review-job semantics outside CAP. Returning a result to an existing persistent project chat is a separate existing-session delivery capability and is not smuggled into the Temporary adapter.
+
+The generic worker path has scoped physical evidence. Reviewer migration still needs separate proof that it preserves all existing reviewer guarantees; until that migration is accepted, the existing reviewer procedures remain the release-assurance fallback.
+
+PR #138 and #145 remain experiment evidence only; they do not become production authority. Reusable fresh-chat/Send observations may be adapted, while reviewer-specific experiment code does not define generic Agent Sessions.
+
+## Bounded worker acceptance scope
+
+The historical qualification ladder below describes the worker scope. It is not
+an instruction to reopen merged PR #149. Its recorded evidence and review
+disposition are indexed in `EVIDENCE_INDEX.md`; future material changes remain
+subject to the current `AGENTS.md` policy. The ladder includes:
+
+```text
+focused generic state-machine tests
+ -> deterministic first-adapter/controller/extension tests
+ -> duplicate-tab/process/restart/unknown-delivery adversarial tests
+ -> deterministic fault injection for preflight commit ACK loss + controller commit/projection crash
+ -> prove non-owner preflight cannot gain navigation authority
+ -> preliminary exact-head hosted CI/security and six-tool regressions
+ -> freeze exact BASE/HEAD
+ -> fresh ordinary-ChatGPT exact-BASE/exact-HEAD semantic review
+ -> disposition/fix every surviving finding; fresh review again if HEAD moves
+ -> target-Windows/Plus physical qualification on the reviewed exact HEAD
+ -> exact source/runtime provenance for the physical claim
+ -> normal uninterrupted fresh-worker result capture
+ -> complete-Chrome browser-loss fail-closed proof at both pre-first-claim and post-claim boundaries
+ -> zero second Send/recovery authority
+ -> final exact-head hosted CI
+ -> re-resolve BASE/HEAD unchanged before merge
+```
+
+The normal physical E2E must be a **non-reviewer** task. A code-review run does not count as proof that the generic lifecycle is truly specialist-independent.
+
+The browser-loss physical case does not require restoration of the Temporary conversation. It proves the opposite safety boundary: after a committed task launch, complete browser-context loss cannot resolve the live launch handle, regain Send/monitor authority, blindly relaunch, or fabricate a result. The pre-first-claim subcase is mandatory because that was the exact interleaving missed by the earlier claim-exists restart gate.
+
+The two preflight commit/restart P1s are covered by deterministic runtime fault injection because their required positive recovery exists only while the original MV3 owner lifetime survives. If a deterministic target-Windows fault can be injected without changing reviewed source, it may be added as evidence; it does not replace the mandatory normal run plus browser-loss B1/B2 gates.
+
+A worker result is evidence/data. It does not grant a capability, self-authorize a consequence, or by itself make the manager's whole user task `DONE`.
 
 ## Architecture research rule now in force
 
 Merged #127 requires Stage Research re-entry for materially new persistence/recovery/retry/concurrency/identity/security/authority mechanisms.
 
-The active bounded Agent Session authority chain is:
+The bounded Agent Session design authority chain is:
 
 ```text
 AGENT_SESSION_DELEGATION_REENTRY.md
@@ -195,17 +295,30 @@ OpenAdapt remains a selected source for procedure-local compiler/resume/effect-e
 
 ## Immediate critical path
 
-```text
-keep merged #149 specialized and stable
- -> complete composition-first Stage Research in PR #151
- -> define consequence/provider conformance obligations
- -> map current capability paths against that assurance floor
- -> evaluate reusable substrates only behind the CAP trust/effect boundary
- -> implement thin adapters for measured gaps
- -> require path-specific hosted / adversarial / physical acceptance before promotion
-```
+The remaining open work is PR #151 (`research/prime-runtime-adaptation`), a
+**research/documentation-only Draft**. Its latest description is composition-first:
+CAP keeps trust, identity, authorization, reconciliation and verification;
+execution substrates remain behind narrow adapters. Resolve the live branch and
+its diff before using its research documents, which are not accepted-main policy.
+This research branch includes the post-#157 main refresh. The accepted-main
+status/evidence owner was retained when resolving the merge conflict.
 
-Persistent ordinary-ChatGPT session delivery remains a separate research problem from the accepted fresh Temporary Chat worker. Broader retained-agent/runtime mechanics remain optional and must be justified by a concrete missing primitive rather than by platform-fashion pressure.
+The workspace extraction investigation is complete in
+`COMPOSITION_FIRST_ARCHITECTURE.md`, section 14: **DEFER** a new
+`WorkspaceProvider` until a concrete substitution consumer and retained-handle
+lifetime contract justify it. The current procedure retains CAP admission,
+WorkingState, reconciliation, verification and completion authority. This
+research result changes no production runtime or provider API.
+
+Next development work remains the bounded composition research in #151:
+select a concrete Sessions/Desktop consumer, compare its required mechanics
+against the existing CAP path and pinned upstream code, and finish the applicable
+Stage Research before proposing production changes. CCCC/equivalent sessions and
+WinApp CLI remain candidates; Prime remains optional. Do not reopen workspace
+extraction solely because the generic provider class is absent.
+
+`ROADMAP.md` retains the release sequence. This continuation correction does not
+adopt the Draft architecture, add a dependency, or waive any acceptance gate.
 
 ## Non-negotiable rules
 

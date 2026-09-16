@@ -57,7 +57,7 @@ Exact PR/physical evidence belongs in `CURRENT_STATE.md` / `EVIDENCE_INDEX.md`, 
 ## Current release-critical sequence
 
 ```text
-bounded Agent Session / Delegation first slice
+accepted bounded Agent Session / Delegation first slice
  -> automatic reviewer migration as first specialist consumer + reviewer quality baseline
  -> broad real-application physical coverage gate
  -> bounded OpenAdapt integration spike
@@ -154,7 +154,7 @@ Do not reopen 26.3C merely to add another consumer or variant. Material new pers
 
 ---
 
-# Post-26.3C — bounded Agent Session / Delegation — CURRENT
+# Post-26.3C — bounded Agent Session / Delegation — ACCEPTED BOUNDED SCOPE
 
 Fresh Stage Research in `AGENT_SESSION_DELEGATION_REENTRY.md` selected **NARROW**.
 
@@ -216,7 +216,11 @@ clean exact source HEAD
  -> post-action source/runtime revalidation
 ```
 
-Completion condition for this first Agent Session slice: the deterministic L1/L2 contract and target-Windows ordinary-Plus L3 pass on the same reviewed final design, canonical lineage/owners are synchronized, and the required fresh exact-head semantic review reports no unresolved acceptance finding.
+Recorded completion is scoped to the merged first slice and its later hotfix;
+`EVIDENCE_INDEX.md` preserves the exact qualification evidence and historical
+review disposition. Further material changes follow the current review policy.
+
+Acceptance criteria for this bounded Agent Session scope: the deterministic L1/L2 contract and target-Windows ordinary-Plus L3 pass on the same reviewed final design, canonical lineage/owners are synchronized, and the required fresh exact-head semantic review reports no unresolved acceptance finding.
 
 This completion does **not** authorize nested/fan-out workers, mutation, worker-created environments, general scheduling, long-lived worker pools or same-task manager wake/resampling.
 

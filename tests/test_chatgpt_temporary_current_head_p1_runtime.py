@@ -26,6 +26,7 @@ const assert = require("assert/strict");
 const source = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8");
 const prompt = "bounded exact prompt";
 const promptSha = nodeCrypto.createHash("sha256").update(prompt, "utf8").digest("hex");
+const digestBytes = Uint8Array.from(promptSha.match(/../g).map(value => parseInt(value, 16)));
 
 function makeNode(text, attrs = {{}}, options = {{}}) {{
   return {{
@@ -146,7 +147,11 @@ async function runScenario(config) {{
     URL,
     URLSearchParams,
     TextEncoder,
-    crypto: nodeCrypto.webcrypto,
+    crypto: {{
+      subtle: {{
+        digest: async () => digestBytes.slice().buffer,
+      }},
+    }},
     CAPChatGPTTemporaryPolicy: policy,
     CAPChatGPTTemporaryExecutionGeneration: "9".repeat(64),
     location: {{href: "https://chatgpt.com/", origin: "https://chatgpt.com"}},

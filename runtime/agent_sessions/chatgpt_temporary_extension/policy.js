@@ -246,10 +246,14 @@
 
   function guardStopButtonPresent() {
     if (typeof document === "undefined" || typeof document.querySelector !== "function") return false;
-    if (document.querySelector('button[data-testid="stop-button"]')) return true;
+    const primary = document.querySelector('button[data-testid="stop-button"]');
+    if (primary && guardVisible(primary)) return true;
     if (typeof document.querySelectorAll !== "function") return false;
     return [...document.querySelectorAll("button")].some((button) =>
-      /^(stop|останов)/i.test(String(button?.getAttribute?.("aria-label") || button?.textContent || "").trim()),
+      guardVisible(button) && (
+        button?.getAttribute?.("data-testid") === "stop-button" ||
+        /^(stop|останов)/i.test(String(button?.getAttribute?.("aria-label") || button?.textContent || "").trim())
+      ),
     );
   }
 

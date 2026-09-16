@@ -839,3 +839,171 @@ Is the whole task done, or only one transition?
 ```
 
 That boundary should be preserved even when the mechanical executor underneath changes.
+
+---
+
+## 14. Workspace extraction decision — source-backed Stage Research
+
+Research performed 2026-09-15, recorded 2026-09-16. This is a bounded decision
+about extracting `WorkspaceProvider`, not completion of the Sessions/Desktop
+research in this Draft. It does not adopt any new production dependency.
+
+### Goal and exact baseline
+
+Determine whether the accepted local-file path needs an execution-only provider
+now, and identify which responsibilities must stay in CAP. CAP source inspected:
+`92ef431b9d412bd78307c51641b1379184fe560d` (accepted main after #157).
+The research branch was refreshed from that main; runtime and tests are identical
+to it. The CURRENT_STATE merge conflict was resolved using the accepted main
+owner so #157's evidence limitations and reviewer fallback are preserved.
+
+The candidate must preserve rooted scope, exclusive creation, object identity,
+prepared intent before effect, no blind retry, independent observation, and CAP
+Verification Kernel/Finish Gate decisions. A new class name is not a product
+outcome. No second filesystem backend requiring substitution was identified in
+the inspected procedure call sites.
+
+### Problem evidence: the actual two paths
+
+| Current path | Executable owner / trace | Contract and extraction consequence |
+|---|---|---|
+| `workspace_write` | `runtime/semantic-projection/bin/semantic-control-plane-projection.mjs` forwards to `semantic-projection.mjs`; its handler resolves the relative workspace path and calls filesystem backend `write_file` | Bounded create-or-overwrite, not this procedure's durable no-overwrite graph. A filesystem execution backend already exists here. Reusing its write verb would change the procedure's semantics. |
+| `procedure_run` / `verified_workspace_artifact_v1` | semantic projection -> `runtime/control_plane/cli.py::_run_workspace_artifact` -> package initialization -> `verified_workspace_artifact.py::run_verified_workspace_artifact` | CAP admission, request validation, task correlation/lock, checkpoint recovery and graph execution. This whole function is not an execution-only provider. |
+| Stage creation | `_prepare_transition` -> durable checkpoint -> patched `_exclusive_create_file` -> fresh observation -> Kernel -> receipt/checkpoint | `control_plane/__init__.py` installs handle-relative Windows creation, live delivery proof and checkpoint wrappers before the procedure uses them. Creation proof survives the call return until its receipt is durable. |
+| Final creation | `pin_file_for_verified_link` -> retained identity/content checks -> `_exclusive_link_file` -> AFTER/Kernel -> checkpoint within the pin | Same-filesystem hard link, no overwrite. Returning from a narrow link call must not release the surrounding protection early. |
+| Cleanup / compensation | `pin_file_for_verified_delete` and `VerifiedDeletePin`; independent final observation and Finish Gate | Handle-bound deletion revalidates identity. Compensation is blocked while an attempt is unresolved and may delete only a verified owned object. |
+
+Targeted searches covered `WorkspaceProvider`, `workspace_provider`, provider
+directories, `run_verified_workspace_artifact`, `_exclusive_create_file`,
+`_exclusive_link_file`, checkpoint writers and their call sites in runtime/tests.
+No existing separate WorkspaceProvider was found there. This is a bounded search
+result, not a claim that all future backends are unnecessary.
+
+Concrete failure history is executable in
+`test_stage26_3c_post_effect_exception_recovery.py`,
+`test_stage26_3c_checkpoint_progress_validation.py`,
+`test_stage26_3c_stage_create_namespace_pin.py` and the workspace hard-crash,
+link-pin, delete-pin and reconciliation-authority suites. In particular,
+post-link verification/checkpoint exceptions retain the last prepared state so
+resume reconciles rather than creating another link. Matching bytes alone must
+not manufacture ownership after loss of the process-local creation proof.
+
+### Primitives and engineering domains
+
+| Primitive | Domain / required boundary |
+|---|---|
+| Exclusive create and same-volume link | Filesystem namespace atomicity; collision cannot overwrite an existing target |
+| Open file/directory handles and generation identity | OS object lifetime, reparse/TOCTOU/ABA protection; a path string is not retained object identity |
+| Prepared intent, atomic checkpoint replacement and lock | Recovery/transaction processing and cooperating-writer serialization; process-restart scope, not a machine-power-loss transaction |
+| Independent AFTER evidence and reconciliation | Controller/verification semantics; delivery receipts cannot award PASS or authorize retry |
+| Context lifetime through durable receipt | Resource ownership; executor-return and proof-release are distinct boundaries |
+
+Microsoft's [CreateFileW contract](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew)
+explains handle sharing restrictions; [NtCreateFile](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntcreatefile)
+allows a leaf to be resolved relative to an open directory handle. This supports
+the existing CAP namespace mechanism, not a generic path-only replacement.
+[CreateHardLinkW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createhardlinkw)
+requires links to stay on one volume. A fallback copy/move is a different effect.
+
+### Source-code evidence and external failure lessons
+
+- **CAP, exact main above — OPEN_IMPLEMENTED / KEEP.** Traced projection, CLI,
+  package import bindings, procedure, support helpers, observation and Windows
+  pins. `__init__.py::_write_checkpoint_with_recovery_and_stage_create_proof`
+  preserves the last durable prepared state and releases proof only after a
+  successful checkpoint. The wrapper's finally cleans up on exit. Reading the
+  procedure module in isolation would miss these production semantics.
+- **fsspec/filesystem_spec at `d548583843a2400b1f47318d5efd03b4b59d711e` —
+  OPEN_IMPLEMENTED / REFERENCE_ONLY.** Inspected
+  [Transaction.complete](https://github.com/fsspec/filesystem_spec/blob/d548583843a2400b1f47318d5efd03b4b59d711e/fsspec/transaction.py),
+  `LocalFileSystem.link`, `LocalFileOpener._open/commit/discard`, and local tests
+  `test_commit_discard`, `test_transaction_ends_when_a_commit_fails` and
+  `test_transaction_cross_device_but_mock_temp_dir_on_wrong_device`. Commit loops
+  over files and local publication uses `shutil.move`; failed completion cleans
+  up remaining deferred files and resets transaction state. A local probe using
+  these exact classes confirmed overwrite of an existing file and a partial
+  commit when the second file's commit raises: `a=true, b=false, c=false`, with
+  transaction state reset. This is not CAP no-overwrite or durable reconciliation.
+  Upstream regression comments describe cached instances swallowing later writes
+  when failed transactions were not reset. CAP must keep outcome reconciliation
+  distinct from resource cleanup. No fsspec dependency is selected.
+- **OpenAdaptAI/openadapt-flow at `cfea6ecd9540b78bafcdf6bb72887d61c2a59fc0` —
+  OPEN_IMPLEMENTED for inspected durable workflow mechanics / REFERENCE_ONLY
+  for this extraction.** Inspected
+  [checkpoint.py](https://github.com/OpenAdaptAI/openadapt-flow/blob/cfea6ecd9540b78bafcdf6bb72887d61c2a59fc0/openadapt_flow/runtime/durable/checkpoint.py),
+  `DurableController.record` and `durable/resume.py`: workflow results are
+  evidence-checked before checkpoint publication, writes use sibling temporary
+  files plus fsync/replace, and resume validates retained manifest, pause and
+  inputs. Read tests for projection failure and exact resume-state binding in
+  `test_durable_runtime.py` and `test_durable_resume_state_binding.py`; not executed
+  here. This is a workflow persistence/authority subsystem, not a drop-in local
+  file executor. Its current source differs from CAP's existing Flow lock; no
+  version update or wholesale reuse is justified by this narrow question.
+
+The fsspec probe used temporary files and `unittest.mock.patch` on
+`LocalFileOpener.commit`, raising `PermissionError` for basename `b` while
+committing files `a,b,c`. Expected observed output:
+`existing_after=new; a=true; b=false; c=false; transaction_reset=true`.
+The upstream pytest suite was not run because pytest is absent in this runtime.
+
+### Alternatives and lineage comparison
+
+| Approach | Owner / recovery and identity | Benefit / limitation | Decision for this question |
+|---|---|---|---|
+| Keep accepted procedure and existing OS helpers | CAP owns intent/state/verification; handles span consequence and receipt | Proven scoped boundary, no new dispatch; import-time wiring remains a maintenance cost | Selected now |
+| Extract a local execution-only context adapter | CAP must still own all decisions; adapter retains handles until CAP finishes observation/checkpoint | Potentially clearer mechanical dependency, but a simple `execute -> receipt` API is insufficient; no present substitution consumer proves the extra abstraction | Defer until a concrete consumer and lifetime conformance proof |
+| Replace file primitives with general filesystem API / fsspec transactions | Library owns publication mechanics; CAP still needs separate identity/recovery | Useful backend breadth, but inspected transaction semantics allow overwrite/partial commit and do not supply CAP pin lifetimes | Reject as a drop-in replacement, not as a future library in another scope |
+| Reuse OpenAdapt procedure runtime | External workflow has its own durable state, evidence and continuation rules | Relevant to future compiled procedures; adopting it here changes more than a file-execution boundary | Keep prior future role; no adoption in this slice |
+
+Baseline roles `capability authorization`, `capability-spanning WorkingState`,
+`transition verification`, and `task completion`: **KEEP** project ownership.
+OpenAdapt compiler, checkpoint/resume and effect-evidence roles: **KEEP** their
+existing revalidate-per-consumer selection; this investigation does not replace
+them or claim to qualify a new integration. A generic WorkspaceProvider registry
+would be **NEW_ARCHITECTURE**, not an already accepted baseline requirement.
+No existing role assignment changes, so the reuse baseline is not rewritten.
+
+### Failure/crash matrix constraining any later extraction
+
+| Boundary | Retained / possible physical state | Required evidence; permitted extra effects | Existing guard / acceptance obligation |
+|---|---|---|---|
+| Before intent checkpoint | No delivery authorized | Zero effects until CAP durably prepares | `_prepare_transition`, budget/admission tests |
+| Prepared, before create | Intent; file absent or foreign file appears | Fresh observation; retry only after confirmed-not-applied, within budget | working-state/reconciliation suites |
+| Create applied, receipt absent | Prepared intent; staging may exist | Live creation proof required to adopt; after complete process loss matching bytes alone stay UNKNOWN, zero blind adoption | stage-create namespace/proof and hard-crash suites |
+| Final link applied, receipt/checkpoint fails | Last prepared state; staging and target may refer to the same retained object | Fresh same-stream identity/Kernel proof; no second link when applied | post-effect-exception and hard-crash suites |
+| Receipt durable, before next node | Verified prior action | Validate checkpoint progress against WorkingState; zero replay of settled action | checkpoint-progress-validation suite |
+| Cleanup effect / acknowledgement ambiguous | Prepared cleanup; staging may be absent | Reobserve target identity and staging absence; no blind second delete | hard-crash and reconciliation suites |
+| Checkpoint write fails | Last durable prepared state remains authoritative | Preserve it; no terminal failure overwrite that erases recovery | checkpoint recovery wrapper and regression tests |
+| Concurrent resume / foreign same-content replacement | One task lock; identity may diverge | Loser cannot act; content equality does not authorize replacement | task lock, identity, pin suites |
+| Compensation during unresolved attempt | Outcome unsettled | Zero compensation until settled; delete only verified owned object | `safe_to_compensate`, delete-pin and normal-authority suites |
+
+These are existing design obligations, not claims that Linux reproduces Windows
+handle protection. The attempted Linux/Python 3.12 run of six relevant modules
+reported **45 tests: 19 failures, 2 errors, 2 skipped**. A minimal real procedure
+probe stopped at `staged_verified` with `delivery_error_confirmed_not_applied`;
+Windows pin APIs explicitly reject non-Windows execution. Runtime/tests have no
+delta from the accepted main in this branch. This local run is not acceptance;
+use exact-head hosted Windows CI for the supported implementation. It does not
+justify weakening pins or introducing portable fallback writes.
+
+### Decision, verification and re-entry
+
+**DEFER production WorkspaceProvider extraction.** Keep the accepted execution
+path. The whole procedure owns CAP trust/recovery and cannot become a provider;
+a new path-only wrapper adds no current capability and risks shortening proof
+lifetime. This is a completed negative decision for this candidate, not approval
+of all remaining PR #151 research.
+
+Re-enter when a concrete second backend or bounded consumer demonstrates which
+mechanics must vary. Before implementation, specify retained-object lifetime,
+exclusive publication, exception-after-effect handling, independent observation
+and checkpoint ownership; prove the matrix on the supported Windows path. Then
+obtain a fresh PROCEED/NARROW decision, independent semantic review and applicable
+physical qualification. Generic remote storage, machine-power-loss durability,
+agent/session runtimes and broad provider registries are outside this decision.
+
+Complexity budget: no new runtime class, registry, state store, tool, dependency
+or documentation owner. This section uses the existing composition research
+owner and replaces the unsupported assumption that renaming the procedure
+constitutes provider separation. Production implementation remains blocked for
+this extraction until the stated re-entry conditions are met.
