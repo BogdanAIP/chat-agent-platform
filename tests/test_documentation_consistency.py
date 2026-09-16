@@ -9,6 +9,54 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTEXT = ROOT / "project-context"
 
 
+def _markdown_level_one_headings(text: str) -> tuple[str, ...]:
+    """Extract GFM/CommonMark level-1 headings outside fenced code blocks."""
+
+    headings: list[str] = []
+    fence_char: str | None = None
+    fence_length = 0
+    pending_setext_title: str | None = None
+
+    for line in text.splitlines():
+        fence = re.match(r"^ {0,3}((?:`{3,})|(?:~{3,}))(?:[^\n]*)$", line)
+        if fence is not None:
+            marker = fence.group(1)
+            char = marker[0]
+            if fence_char is None:
+                fence_char = char
+                fence_length = len(marker)
+            elif char == fence_char and len(marker) >= fence_length:
+                fence_char = None
+                fence_length = 0
+            pending_setext_title = None
+            continue
+
+        if fence_char is not None:
+            continue
+
+        atx = re.match(r"^ {0,3}#(?!#)(?:[ \t]+|$)(.*?)(?:[ \t]+#+[ \t]*)?$", line)
+        if atx is not None:
+            title = atx.group(1).strip()
+            if title:
+                headings.append(title)
+            pending_setext_title = None
+            continue
+
+        if re.match(r"^ {0,3}=+[ \t]*$", line) is not None:
+            if pending_setext_title:
+                headings.append(pending_setext_title)
+            pending_setext_title = None
+            continue
+
+        if not line.strip() or re.match(r"^ {4}", line):
+            pending_setext_title = None
+            continue
+
+        pending_setext_title = line.strip()
+
+    return tuple(headings)
+
+
 class DocumentationConsistencyTests(unittest.TestCase):
     def test_current_document_owners_are_classified_and_historical_default_is_explicit(self) -> None:
         status = (CONTEXT / "DOCUMENT_STATUS.md").read_text(encoding="utf-8")
@@ -130,7 +178,8 @@ class DocumentationConsistencyTests(unittest.TestCase):
         # into the release sequence while the coarse release-order check stayed
         # green. The first attempted guard filtered only known stage prefixes,
         # which meant a new prefix (for example "Pre-26.5") could reproduce the
-        # same failure class invisibly. Pin the complete level-1 ROADMAP
+        # same failure class invisibly. Parse both ATX and Setext level-1
+        # headings outside fenced code, then pin the complete level-1 ROADMAP
         # structure so any new authoritative-looking top-level section requires
         # an explicit review/guard update instead of silently entering the
         # release document.
@@ -162,10 +211,22 @@ class DocumentationConsistencyTests(unittest.TestCase):
             ),
         )
 
-        top_level_headings = tuple(
-            match.group(1).strip()
-            for match in re.finditer(r"(?m)^#\s+(.+?)\s*$", roadmap)
+        # Guard the extractor itself against the two counterexamples that
+        # defeated/over-constrained earlier versions of this check.
+        self.assertEqual(
+            _markdown_level_one_headings(
+                "Pre-26.5 — OpenAdapt integration qualification\n====\n"
+            ),
+            ("Pre-26.5 — OpenAdapt integration qualification",),
         )
+        self.assertEqual(
+            _markdown_level_one_headings(
+                "```text\n# not a roadmap heading\n```\n# Real heading\n"
+            ),
+            ("Real heading",),
+        )
+
+        top_level_headings = _markdown_level_one_headings(roadmap)
         self.assertEqual(
             top_level_headings,
             (
