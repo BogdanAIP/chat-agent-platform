@@ -159,6 +159,31 @@ def _installed_app_root() -> Path:
     return root
 
 
+def validate_review_worker_runtime(*, state_root: Path) -> Path:
+    """Fail closed before reviewer dispatch authority is consumed."""
+
+    if os.name != "nt":
+        raise ReviewStateError("automatic reviewer launch is supported only on Windows")
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if not local_app_data:
+        raise ReviewStateError("LOCALAPPDATA is required for automatic reviewer launch")
+    local_root = (Path(local_app_data) / "ChatAgentPlatform").resolve()
+    expected_state_root = (local_root / "state").resolve()
+    resolved_state_root = state_root.resolve()
+    if (
+        resolved_state_root != expected_state_root
+        and not resolved_state_root.is_relative_to(expected_state_root)
+    ):
+        raise ReviewStateError("automatic reviewer requires the installed CAP private state root")
+
+    app_root = _installed_app_root()
+    worker_path = app_root / "runtime" / "control_plane" / "automatic_review_worker.py"
+    if not worker_path.is_file():
+        raise ReviewStateError("automatic reviewer worker is not installed")
+    return app_root
+
+
 def spawn_review_worker(
     identity: ReviewIdentity,
     *,
@@ -171,13 +196,7 @@ def spawn_review_worker(
     automatically relaunched by this function.
     """
 
-    if os.name != "nt":
-        raise ReviewStateError("automatic reviewer launch is supported only on Windows")
-
-    app_root = _installed_app_root()
-    worker_path = app_root / "runtime" / "control_plane" / "automatic_review_worker.py"
-    if not worker_path.is_file():
-        raise ReviewStateError("automatic reviewer worker is not installed")
+    app_root = validate_review_worker_runtime(state_root=state_root)
 
     bootstrap = (
         "import runpy,sys;"
