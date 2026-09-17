@@ -43,9 +43,9 @@ const prompt = [
   "TASK_END:" + "d".repeat(64),
   "",
   "CAP_WORKER_RESULT_V1_BEGIN",
-  "{{\"schema_version\":1}}",
+  '{{"schema_version":1}}',
   "CAP_WORKER_RESULT_V1_END",
-].join("\n");
+].join("\\n");
 const promptSha = nodeCrypto.createHash("sha256").update(prompt, "utf8").digest("hex");
 
 let now = 1000;
