@@ -38,14 +38,12 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
 
         self.assertIn(
             "https://api.github.com/repos/BogdanAIP/chat-agent-platform/pulls/159"
-            + f"?cap_review_run={review_run_id}&expected_head="
+            + "?expected_head="
             + "2" * 40,
             task,
         )
-        self.assertNotIn(
-            "PR metadata: https://api.github.com/repos/BogdanAIP/chat-agent-platform/pulls/159\n",
-            task,
-        )
+        self.assertNotIn("cap_review_run=", task)
+        self.assertNotIn(review_run_id, task.split("- PR metadata:", 1)[1].split("\n", 1)[0])
         self.assertIn(
             "https://api.github.com/repos/BogdanAIP/chat-agent-platform/contents/.agents/skills?ref="
             + "2" * 40,
