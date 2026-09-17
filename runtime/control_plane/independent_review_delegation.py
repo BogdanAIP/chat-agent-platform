@@ -135,6 +135,8 @@ def settle_review_from_delegation(
     try:
         snapshot = load_delegation(delegation_identity, state_root=delegation_state_root)
     except DelegationStateError as exc:
+        # A reviewer operation may legitimately predate Delegation migration or
+        # may still be prepared before the generic child state has been created.
         if "does not exist" in str(exc):
             return None
         raise ReviewStateError(f"delegated reviewer state is invalid: {exc}") from exc
@@ -183,6 +185,9 @@ def settle_review_from_delegation(
             state_root=reviewer_state_root,
         )
     except ReviewStateError:
+        # Preserve reviewer-specific race semantics. A manual fallback that
+        # committed first remains authoritative; malformed/stale automatic
+        # payloads remain fail-closed and are surfaced to the caller.
         raise
 
     return {
