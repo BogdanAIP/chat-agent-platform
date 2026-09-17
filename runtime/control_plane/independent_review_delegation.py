@@ -63,7 +63,7 @@ review_run_id={review_run_id}
 Perform the mandatory independent semantic code review for exactly BASE_SHA..HEAD_SHA.
 
 Use these public read-only navigation targets to obtain the evidence yourself:
-- PR metadata: https://api.github.com/repos/{identity.repository}/pulls/{identity.pr_number}
+- PR metadata: https://api.github.com/repos/{identity.repository}/pulls/{identity.pr_number}?cap_review_run={review_run_id}&expected_head={identity.head_sha}
 - HEAD skill directory: https://api.github.com/repos/{identity.repository}/contents/.agents/skills?ref={identity.head_sha}
 - BASE AGENTS.md: https://raw.githubusercontent.com/{identity.repository}/{identity.base_sha}/AGENTS.md
 - BASE code-review skill: https://raw.githubusercontent.com/{identity.repository}/{identity.base_sha}/.agents/skills/code-review/SKILL.md
@@ -135,8 +135,6 @@ def settle_review_from_delegation(
     try:
         snapshot = load_delegation(delegation_identity, state_root=delegation_state_root)
     except DelegationStateError as exc:
-        # A reviewer operation may legitimately predate Delegation migration or
-        # may still be prepared before the generic child state has been created.
         if "does not exist" in str(exc):
             return None
         raise ReviewStateError(f"delegated reviewer state is invalid: {exc}") from exc
@@ -185,9 +183,6 @@ def settle_review_from_delegation(
             state_root=reviewer_state_root,
         )
     except ReviewStateError:
-        # Preserve reviewer-specific race semantics. A manual fallback that
-        # committed first remains authoritative; malformed/stale automatic
-        # payloads remain fail-closed and are surfaced to the caller.
         raise
 
     return {
