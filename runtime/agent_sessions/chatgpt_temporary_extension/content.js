@@ -614,7 +614,16 @@
     function composerEmptyAfterSend() {
       const current = currentComposerBinding();
       if (!current) return false;
-      const observed = composerPromptText(current.composer);
+      const { editor } = current;
+      if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+        return canonicalPromptText(editor.value).trim().length === 0;
+      }
+      if (editor.getAttribute?.("contenteditable") !== "true" && !editor.isContentEditable) return false;
+      const nodes = editor.childNodes == null ? [] : [...editor.childNodes];
+      if (nodes.length === 0) {
+        return canonicalPromptText(editor.innerText || editor.textContent || "").replace(/\u0000/g, "").trim().length === 0;
+      }
+      const observed = contentEditablePromptText(editor);
       return observed !== null && observed.trim().length === 0;
     }
 
@@ -631,24 +640,46 @@
             : null;
           if (setter) setter.call(editor, "");
           else editor.value = "";
-          editor.dispatchEvent(new Event("input", { bubbles: true }));
+          if (typeof editor.dispatchEvent === "function") {
+            editor.dispatchEvent(new Event("input", { bubbles: true }));
+          }
         } else if (editor.getAttribute?.("contenteditable") === "true" || editor.isContentEditable) {
-          editor.focus({ preventScroll: true });
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(editor);
-          selection?.removeAllRanges();
-          selection?.addRange(range);
           let deleted = false;
           try {
-            deleted = typeof document.execCommand === "function" &&
-              document.execCommand("delete", false, null) === true;
-          } finally {
-            selection?.removeAllRanges();
+            if (typeof editor.focus === "function") editor.focus({ preventScroll: true });
+            const selection = typeof window !== "undefined" && typeof window.getSelection === "function"
+              ? window.getSelection()
+              : null;
+            const range = typeof document.createRange === "function" ? document.createRange() : null;
+            if (selection && range) {
+              range.selectNodeContents(editor);
+              selection.removeAllRanges();
+              selection.addRange(range);
+              try {
+                deleted = typeof document.execCommand === "function" &&
+                  document.execCommand("delete", false, null) === true;
+              } finally {
+                selection.removeAllRanges();
+              }
+            }
+          } catch {
+            deleted = false;
           }
+
           if (!deleted && exactComposerPromptMatches(current.composer)) {
-            editor.replaceChildren();
-            editor.dispatchEvent(new InputEvent("input", {
+            if (typeof editor.replaceChildren === "function") {
+              editor.replaceChildren();
+            } else {
+              if (Array.isArray(editor.childNodes)) editor.childNodes.length = 0;
+              if (Array.isArray(editor.children)) editor.children.length = 0;
+              if ("textContent" in editor) editor.textContent = "";
+              if ("innerText" in editor) editor.innerText = "";
+            }
+          }
+
+          if (typeof editor.dispatchEvent === "function") {
+            const InputCtor = typeof InputEvent === "function" ? InputEvent : Event;
+            editor.dispatchEvent(new InputCtor("input", {
               bubbles: true,
               inputType: "deleteContentBackward",
               data: null,
