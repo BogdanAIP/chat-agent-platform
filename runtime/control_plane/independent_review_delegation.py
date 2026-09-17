@@ -63,7 +63,7 @@ review_run_id={review_run_id}
 Perform the mandatory independent semantic code review for exactly BASE_SHA..HEAD_SHA.
 
 Use these public read-only navigation targets to obtain the evidence yourself:
-- PR metadata: https://api.github.com/repos/{identity.repository}/pulls/{identity.pr_number}?expected_head={identity.head_sha}
+- PR metadata: https://api.github.com/repos/{identity.repository}/pulls/{identity.pr_number}?expected_base={identity.base_sha}&expected_head={identity.head_sha}
 - HEAD skill directory: https://api.github.com/repos/{identity.repository}/contents/.agents/skills?ref={identity.head_sha}
 - BASE AGENTS.md: https://raw.githubusercontent.com/{identity.repository}/{identity.base_sha}/AGENTS.md
 - BASE code-review skill: https://raw.githubusercontent.com/{identity.repository}/{identity.base_sha}/.agents/skills/code-review/SKILL.md
