@@ -36,14 +36,19 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
         review_run_id = "3" * 64
         task = build_review_worker_task(identity, review_run_id=review_run_id)
 
+        metadata_line = task.split("- PR metadata:", 1)[1].split("\n", 1)[0]
         self.assertIn(
             "https://api.github.com/repos/BogdanAIP/chat-agent-platform/pulls/159"
-            + "?expected_head="
+            + "?expected_base="
+            + "1" * 40
+            + "&expected_head="
             + "2" * 40,
             task,
         )
+        self.assertIn("expected_base=" + "1" * 40, metadata_line)
+        self.assertIn("expected_head=" + "2" * 40, metadata_line)
         self.assertNotIn("cap_review_run=", task)
-        self.assertNotIn(review_run_id, task.split("- PR metadata:", 1)[1].split("\n", 1)[0])
+        self.assertNotIn(review_run_id, metadata_line)
         self.assertIn(
             "https://api.github.com/repos/BogdanAIP/chat-agent-platform/contents/.agents/skills?ref="
             + "2" * 40,
