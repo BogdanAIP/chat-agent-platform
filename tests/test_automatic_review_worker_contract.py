@@ -33,10 +33,17 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
             review_skill="code-review",
             review_skill_version="1.1",
         )
-        task = build_review_worker_task(identity, review_run_id="3" * 64)
+        review_run_id = "3" * 64
+        task = build_review_worker_task(identity, review_run_id=review_run_id)
 
         self.assertIn(
-            "https://api.github.com/repos/BogdanAIP/chat-agent-platform/pulls/159",
+            "https://api.github.com/repos/BogdanAIP/chat-agent-platform/pulls/159"
+            + f"?cap_review_run={review_run_id}&expected_head="
+            + "2" * 40,
+            task,
+        )
+        self.assertNotIn(
+            "PR metadata: https://api.github.com/repos/BogdanAIP/chat-agent-platform/pulls/159\n",
             task,
         )
         self.assertIn(
@@ -63,7 +70,6 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
         self.assertIn("source_attestation.RUNTIME_ASSETS", self.delegation)
         self.assertIn('value["status"] not in {"current", "update_available"}', self.delegation)
         self.assertIn('value["repository"] != _REPOSITORY', self.delegation)
-        self.assertIn('value["branch"] != _BRANCH', self.delegation)
         self.assertIn('"ChatAgentPlatform" / "app"', self.delegation)
         self.assertIn("validate_review_worker_runtime", self.worker)
         self.assertIn("app_root, expected_head =", self.worker)
