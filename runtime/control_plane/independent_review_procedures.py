@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -73,16 +77,47 @@ def _submit_delegated_result_via_registered_procedure(
     *,
     state_root: Path,
 ) -> dict[str, Any]:
-    """Use the accepted fixed automatic-result procedure as the sole state writer."""
+    """Submit through the same registered control-plane CLI used by procedure_run."""
 
-    return run_submit_independent_review_result(
-        {
-            "procedure": SUBMIT_PROCEDURE_ID,
-            "review_run_id": review_run_id,
-            "result": result,
-        },
-        state_root=state_root,
-    )
+    request = {
+        "procedure": SUBMIT_PROCEDURE_ID,
+        "review_run_id": review_run_id,
+        "result": result,
+    }
+    app_root = Path(__file__).resolve().parents[2]
+    control_plane_cli = Path(__file__).resolve().with_name("cli.py")
+    env = os.environ.copy()
+    env["CHAT_LOCAL_FILES_ROOT"] = str(app_root)
+    env["CHAT_PROCEDURE_STATE_ROOT"] = str(state_root.resolve())
+    env.pop("CHAT_PROCEDURE_ASSIGNED_TASK_ID", None)
+
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(control_plane_cli)],
+            input=json.dumps(request, ensure_ascii=False).encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            cwd=str(app_root),
+            env=env,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ReviewStateError("registered review submit procedure is unavailable") from exc
+
+    if len(completed.stdout) > 1_000_000:
+        raise ReviewStateError("registered review submit response is too large")
+    try:
+        value = json.loads(completed.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ReviewStateError("registered review submit response is invalid") from exc
+    if type(value) is not dict:
+        raise ReviewStateError("registered review submit response must be an object")
+    if completed.returncode != 0 or value.get("status") not in {"recorded", "already_recorded"}:
+        raise ReviewStateError(
+            f"registered review submit procedure failed: {value.get('reason', value.get('status'))}"
+        )
+    return value
 
 
 def _settle_delegated_result(
