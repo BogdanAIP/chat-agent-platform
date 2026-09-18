@@ -6,7 +6,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from runtime.agent_sessions import chatgpt_temporary, source_attestation
 from runtime.control_plane.delegation_state import (
@@ -22,7 +22,6 @@ from .independent_review_state import (
     parse_review_result,
     prepare_review_operation,
     review_operation_key,
-    submit_independent_review_result,
 )
 
 
@@ -119,10 +118,13 @@ def settle_review_from_delegation(
     *,
     reviewer_state_root: Path,
     delegation_state_root: Path,
+    submit_result: Callable[[str, str], dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """Commit an already-recorded generic worker result into reviewer state.
+    """Validate one recorded generic worker result and submit through the fixed procedure.
 
-    This function never creates launch or Send authority. It is settlement-only.
+    This function never creates launch or Send authority and never writes reviewer
+    result state directly. The caller must supply the registered
+    submit_independent_review_result_v1 procedure boundary.
     """
 
     prepared_review = prepare_review_operation(identity_value, state_root=reviewer_state_root)
@@ -177,13 +179,7 @@ def settle_review_from_delegation(
         }
 
     try:
-        settled = submit_independent_review_result(
-            {
-                "review_run_id": prepared_review.review_run_id,
-                "result": payload,
-            },
-            state_root=reviewer_state_root,
-        )
+        settled = submit_result(prepared_review.review_run_id, payload)
     except ReviewStateError:
         # Preserve reviewer-specific race semantics. A manual fallback that
         # committed first remains authoritative; malformed/stale automatic
