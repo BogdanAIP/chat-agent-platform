@@ -131,7 +131,7 @@ try {
   assert.equal(launch.isError, undefined, textOf(launch));
   const launchPayload = launch.structuredContent ?? JSON.parse(textOf(launch));
   assert.equal(launchPayload.status, 'abstained');
-  assert.equal(launchPayload.escalation_reason, 'reviewer_authority_unqualified');
+  assert.equal(launchPayload.escalation_reason, 'reviewer_runtime_unavailable');
   assert.equal(launchPayload.dispatch_state, 'prepared');
   assert.equal(launchPayload.result_state, 'open');
   assert.equal(launchPayload.automatic_launch_performed, false);

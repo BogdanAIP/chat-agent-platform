@@ -611,6 +611,89 @@
       return conversationTurns("user").some((text) => policy.hasExpectedPrompt(text, intent));
     }
 
+    function composerEmptyAfterSend() {
+      const current = currentComposerBinding();
+      if (!current) return false;
+      const { editor } = current;
+      if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+        return canonicalPromptText(editor.value).trim().length === 0;
+      }
+      if (editor.getAttribute?.("contenteditable") !== "true" && !editor.isContentEditable) return false;
+      const nodes = editor.childNodes == null ? [] : [...editor.childNodes];
+      if (nodes.length === 0) {
+        return canonicalPromptText(editor.innerText || editor.textContent || "").replace(/\u0000/g, "").trim().length === 0;
+      }
+      const observed = contentEditablePromptText(editor);
+      return observed !== null && observed.trim().length === 0;
+    }
+
+    function clearExactDuplicateAfterSend() {
+      const current = currentComposerBinding();
+      if (!current || !exactComposerPromptMatches(current.composer)) {
+        return { matched: false, clean: composerEmptyAfterSend(), changed: false };
+      }
+      const { editor } = current;
+      try {
+        if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+          const setter = typeof HTMLTextAreaElement !== "undefined"
+            ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set
+            : null;
+          if (setter) setter.call(editor, "");
+          else editor.value = "";
+          if (typeof editor.dispatchEvent === "function") {
+            editor.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+        } else if (editor.getAttribute?.("contenteditable") === "true" || editor.isContentEditable) {
+          let deleted = false;
+          try {
+            if (typeof editor.focus === "function") editor.focus({ preventScroll: true });
+            const selection = typeof window !== "undefined" && typeof window.getSelection === "function"
+              ? window.getSelection()
+              : null;
+            const range = typeof document.createRange === "function" ? document.createRange() : null;
+            if (selection && range) {
+              range.selectNodeContents(editor);
+              selection.removeAllRanges();
+              selection.addRange(range);
+              try {
+                deleted = typeof document.execCommand === "function" &&
+                  document.execCommand("delete", false, null) === true;
+              } finally {
+                selection.removeAllRanges();
+              }
+            }
+          } catch {
+            deleted = false;
+          }
+
+          if (!deleted && exactComposerPromptMatches(current.composer)) {
+            if (typeof editor.replaceChildren === "function") {
+              editor.replaceChildren();
+            } else {
+              if (Array.isArray(editor.childNodes)) editor.childNodes.length = 0;
+              if (Array.isArray(editor.children)) editor.children.length = 0;
+              if ("textContent" in editor) editor.textContent = "";
+              if ("innerText" in editor) editor.innerText = "";
+            }
+          }
+
+          if (typeof editor.dispatchEvent === "function") {
+            const InputCtor = typeof InputEvent === "function" ? InputEvent : Event;
+            editor.dispatchEvent(new InputCtor("input", {
+              bubbles: true,
+              inputType: "deleteContentBackward",
+              data: null,
+            }));
+          }
+        } else {
+          return { matched: true, clean: false, changed: false };
+        }
+      } catch {
+        return { matched: true, clean: false, changed: true };
+      }
+      return { matched: true, clean: composerEmptyAfterSend(), changed: true };
+    }
+
     function stopButtonPresent() {
       const primary = document.querySelector('button[data-testid="stop-button"]');
       if (primary && visible(primary)) return true;
@@ -936,12 +1019,28 @@
       void pollControllerStatus();
       if (!recoveryConversationBound) void bindRecoveryConversation();
       const visibleDelivery = userDeliveryVisible();
-      if (visibleDelivery && deliveryState !== "delivered") {
-        void postDelivery("delivered", deliveryEvidenceRef("delivered", "visible"));
+      let composerEmpty = composerEmptyAfterSend();
+      if (visibleDelivery && !composerEmpty) {
+        const duplicate = clearExactDuplicateAfterSend();
+        if (duplicate.matched) {
+          composerEmpty = duplicate.clean;
+          if (duplicate.changed) {
+            event("post-send-exact-duplicate-cleared", { composer_clean: duplicate.clean });
+            return;
+          }
+        }
+      }
+      if (visibleDelivery && composerEmpty && deliveryState !== "delivered") {
+        void postDelivery("delivered", deliveryEvidenceRef("delivered", "visible-and-composer-empty"));
         return;
       }
-      if (!visibleDelivery && deliveryState === "claimed" && Date.now() - sendClickedAt >= intent.deliveryObserveMs && !deliveryOutcomeAt) {
-        void postDelivery("unknown", deliveryEvidenceRef("unknown", "ambiguous"));
+      if (
+        deliveryState === "claimed" &&
+        Date.now() - sendClickedAt >= intent.deliveryObserveMs &&
+        !deliveryOutcomeAt
+      ) {
+        const kind = visibleDelivery && !composerEmpty ? "post-send-composer-residue" : "ambiguous";
+        void postDelivery("unknown", deliveryEvidenceRef("unknown", kind));
         return;
       }
 

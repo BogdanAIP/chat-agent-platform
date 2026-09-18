@@ -23,6 +23,8 @@ AUTH_VERSION_HEADER = "X-CAP-Agent-Auth-Version"
 AUTH_NONCE_HEADER = "X-CAP-Agent-Auth-Nonce"
 AUTH_MAC_HEADER = "X-CAP-Agent-Auth-Mac"
 MAX_SEEN_NONCES = 2048
+STATUS_LOCK_RETRY_ATTEMPTS = 5
+STATUS_LOCK_RETRY_DELAY_SECONDS = 0.05
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -66,6 +68,17 @@ def _response_auth_input(method: str, path: str, nonce: str, status: int, body: 
 def _mac_hex(secret_hex: str, value: bytes) -> str:
     key = bytes.fromhex(_hex64(secret_hex, "authentication secret"))
     return hmac.new(key, value, hashlib.sha256).hexdigest()
+
+
+def _status_with_transient_lock_retry(state: Any) -> dict[str, Any]:
+    for attempt in range(STATUS_LOCK_RETRY_ATTEMPTS):
+        try:
+            return state.status()
+        except BlockingIOError as exc:
+            if attempt + 1 >= STATUS_LOCK_RETRY_ATTEMPTS:
+                raise DelegationStateError("delegation status temporarily busy") from exc
+            time.sleep(STATUS_LOCK_RETRY_DELAY_SECONDS)
+    raise AssertionError("unreachable status retry exhaustion")
 
 
 class _ReplayWindow:
@@ -186,7 +199,7 @@ def make_authenticated_handler(runtime: legacy.TemporaryControllerRuntime):
                 self._write_json(403, {"status": "forbidden"})
                 return
             try:
-                value = state.status()
+                value = _status_with_transient_lock_retry(state)
                 self._write_authenticated_json(200, value, secret=secret, nonce=nonce)
             except DelegationStateError as exc:
                 self._write_authenticated_json(
