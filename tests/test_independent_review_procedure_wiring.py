@@ -279,6 +279,89 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             self.assertEqual("automatic", result["result_source"])
             self.assertEqual(payload, result["result"])
 
+    def test_delegated_result_uses_registered_submit_procedure_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            state_root = Path(state_dir)
+            prepared_review = review_state.prepare_review_operation(identity_value(), state_root=state_root)
+            review_state.mark_dispatch_attempted(identity_value(), state_root=state_root)
+            _task, delegated_identity = prepare_review_delegation(
+                prepared_review.identity,
+                review_run_id=prepared_review.review_run_id,
+                delegation_state_root=state_root / "agent-sessions",
+            )
+            prepared = delegation_state.prepare_delegation(
+                delegated_identity,
+                state_root=state_root / "agent-sessions",
+            )
+            delegation_state.mark_launch_attempted(
+                delegated_identity,
+                run_id=prepared.run_id,
+                state_root=state_root / "agent-sessions",
+            )
+            delegation_state.bind_worker_session(
+                delegated_identity,
+                run_id=prepared.run_id,
+                session_ref_value={
+                    "adapter_id": "chatgpt-temporary",
+                    "session_id": "chatgpt-submit-boundary-test",
+                    "conversation_id": None,
+                    "ownership": "manager_owned",
+                    "observation_ref": "test-observation",
+                },
+                state_root=state_root / "agent-sessions",
+            )
+            delegation_state.claim_delivery(
+                delegated_identity,
+                run_id=prepared.run_id,
+                state_root=state_root / "agent-sessions",
+            )
+            delegation_state.record_delivery_outcome(
+                delegated_identity,
+                run_id=prepared.run_id,
+                outcome="delivered",
+                evidence_ref="test-delivered",
+                state_root=state_root / "agent-sessions",
+            )
+            payload = pass_result(review_run_id=prepared_review.review_run_id)
+            delegation_state.record_worker_result(
+                delegated_identity,
+                run_id=prepared.run_id,
+                result_value={
+                    "schema_version": 1,
+                    "delegation_id": prepared.delegation_id,
+                    "delivery_id": prepared.delivery_id,
+                    "worker_kind": delegated_identity["worker_kind"],
+                    "result_contract_id": delegated_identity["result_contract_id"],
+                    "status": "COMPLETED",
+                    "payload": payload,
+                    "payload_sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+                },
+                state_root=state_root / "agent-sessions",
+            )
+
+            original_submit = run_submit_independent_review_result
+            with (
+                patch(
+                    "runtime.control_plane.independent_review_procedures.review_delegation_state_root",
+                    return_value=state_root / "agent-sessions",
+                ),
+                patch(
+                    "runtime.control_plane.independent_review_procedures.run_submit_independent_review_result",
+                    wraps=original_submit,
+                ) as submit,
+            ):
+                result = run_reconcile_independent_review_result(
+                    identity_request(RECONCILE_PROCEDURE_ID),
+                    state_root=state_root,
+                )
+
+            submit.assert_called_once()
+            submitted = submit.call_args.args[0]
+            self.assertEqual(SUBMIT_PROCEDURE_ID, submitted["procedure"])
+            self.assertEqual(prepared_review.review_run_id, submitted["review_run_id"])
+            self.assertEqual(payload, submitted["result"])
+            self.assertEqual("automatic-result-recorded", result["result_state"])
+
     def test_noncompleting_generic_worker_result_does_not_close_reviewer_state(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             state_root = Path(state_dir)
