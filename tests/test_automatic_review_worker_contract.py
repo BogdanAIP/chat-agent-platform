@@ -67,6 +67,26 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
         self.assertIn("prove live PR base.sha and head.sha exactly match this request", task)
         self.assertIn("enumerate every HEAD skill directory entry", task)
 
+    def test_worker_capability_artifacts_stay_inside_private_review_state(self) -> None:
+        self.assertIn("STATE_DIRECTORY as REVIEW_STATE_DIRECTORY", self.worker)
+        self.assertIn(
+            'state_root / REVIEW_STATE_DIRECTORY / operation_key / "worker"',
+            self.worker,
+        )
+        self.assertNotIn("reviewer-worker-v1", self.worker)
+
+    def test_delegated_settlement_has_no_direct_reviewer_state_submit(self) -> None:
+        self.assertNotIn(
+            "submit_independent_review_result(",
+            self.delegation,
+        )
+        self.assertIn("submit_result(prepared_review.review_run_id, payload)", self.delegation)
+        self.assertIn(
+            "_submit_delegated_result_via_registered_procedure",
+            self.procedures,
+        )
+        self.assertIn('"procedure": SUBMIT_PROCEDURE_ID', self.procedures)
+
     def test_worker_uses_installed_main_receipt_and_fixed_app_root(self) -> None:
         self.assertIn("platform-update.json", self.delegation)
         self.assertIn("installed-version state is unavailable", self.delegation)
