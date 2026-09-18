@@ -44,6 +44,39 @@ local platform
 
 Ordinary ChatGPT is the **only current general planner**. A delegated worker is a bounded specialist whose output is data returned to the manager, not another project planner or local authority layer. A future local general planner is optional Track P research and remains above the same deterministic authority/verification boundaries.
 
+## Harness/runtime vs AI/inference source — durable future boundary
+
+The long-horizon architecture keeps the execution **harness/runtime** separate from the **AI/inference source** that supplies model turns.
+
+```text
+ordinary ChatGPT manager / planner
+  -> selects a bounded delegation
+  -> may select a harness/runtime and an AI/inference source independently
+  -> CAP binds that selection under explicit authority
+
+harness/runtime
+  = agent loop / task execution mechanics / tool-use mechanics / harness-local memory or session state
+
+AI/inference source
+  = model or model-backed session that produces the requested inference turn
+```
+
+The current product does **not** yet expose a generic AI-access gateway. The first concrete `chatgpt-temporary` path may physically combine harness/session/inference concerns inside one provider surface, but that implementation convenience does not collapse the architectural roles.
+
+For a future bounded consumer where the harness supports an external model connection, the intended shape is:
+
+```text
+selected harness/runtime
+  -> CAP-bound AI connection
+  -> selected AI/inference source
+```
+
+CAP owns the binding identity, authorization/scope, correlation, applicable budgets and verification boundary. The harness owns its bounded execution loop and provider-specific execution mechanics. The AI/inference source owns inference/session semantics. Neither CAP nor the harness may silently replace the planner-selected AI source unless the planner explicitly granted a bounded routing/fallback policy.
+
+Prefer mature provider-compatible APIs, host protocols or existing model-gateway mechanics when they fit the concrete role. Do not rebuild provider clients or a universal model gateway merely to satisfy this boundary.
+
+This is a **durable design boundary, not current implementation authority**. A generic AI-access contract, cross-harness binding, model fallback/routing or a second provider implementation requires fresh Stage Research and evidence from a real second consumer/provider. The existing rule that `semantic-projection` must not become a generic model/tool/harness gateway remains unchanged; any future accepted AI-access mechanism belongs below the separately researched Agent Session/provider execution boundary, not inside semantic projection.
+
 ## General planner vs deterministic Control Plane
 
 **General planner** = open-ended semantic strategy: understand user goal, select materially different approaches, adapt to novel state.

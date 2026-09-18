@@ -550,6 +550,21 @@ accepted one-manager -> one fresh read-only worker
  -> broader cross-harness/provider adoption only after at least one additional provider proves the abstraction
 ```
 
+### Harness/runtime × AI/inference separation — future research seam
+
+Keep harness/runtime choice and AI/inference-source choice as separate long-horizon axes.
+
+A future planner-selected binding may look like:
+
+```text
+ordinary ChatGPT manager
+  -> selected harness/runtime
+  -> CAP authority/correlation binding
+  -> selected AI/inference source
+```
+
+This is not a current roadmap stage and does not authorize a generic provider framework now. Re-enter only when a real second harness/provider consumer requires the separation. At that point, prefer existing compatible model-provider/gateway protocols where they satisfy the role, and keep CAP focused on binding authority, identity, correlation, budgets and verification rather than reimplementing vendor inference stacks.
+
 Do not pre-authorize `max_spawn_depth`, worker pools, destructive cleanup, environment creation or generic task fan-out merely because the object model can represent them.
 
 ---
