@@ -383,7 +383,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             },
             request,
         )
-        self.assertTrue(str(run.call_args.args[0][1]).endswith("runtime/control_plane/cli.py"))
+        self.assertEqual("cli.py", Path(run.call_args.args[0][1]).name)
 
     def test_noncompleting_generic_worker_result_does_not_close_reviewer_state(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
