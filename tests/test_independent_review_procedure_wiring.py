@@ -339,28 +339,51 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                 state_root=state_root / "agent-sessions",
             )
 
-            original_submit = run_submit_independent_review_result
-            with (
-                patch(
-                    "runtime.control_plane.independent_review_procedures.review_delegation_state_root",
-                    return_value=state_root / "agent-sessions",
-                ),
-                patch(
-                    "runtime.control_plane.independent_review_procedures.run_submit_independent_review_result",
-                    wraps=original_submit,
-                ) as submit,
+            with patch(
+                "runtime.control_plane.independent_review_procedures.review_delegation_state_root",
+                return_value=state_root / "agent-sessions",
             ):
                 result = run_reconcile_independent_review_result(
                     identity_request(RECONCILE_PROCEDURE_ID),
                     state_root=state_root,
                 )
 
-            submit.assert_called_once()
-            submitted = submit.call_args.args[0]
-            self.assertEqual(SUBMIT_PROCEDURE_ID, submitted["procedure"])
-            self.assertEqual(prepared_review.review_run_id, submitted["review_run_id"])
-            self.assertEqual(payload, submitted["result"])
             self.assertEqual("automatic-result-recorded", result["result_state"])
+            persisted = review_state.reconcile_independent_review_result(
+                identity_value(),
+                state_root=state_root,
+            )
+            self.assertEqual("automatic-result-recorded", persisted["result_state"])
+            self.assertEqual(payload, persisted["result"])
+
+    def test_delegated_submit_invokes_control_plane_cli_with_exact_registered_request(self) -> None:
+        from runtime.control_plane import independent_review_procedures as review_procedures
+
+        fake = SimpleNamespace(
+            stdout=b'{"schema_version":1,"status":"recorded"}',
+            returncode=0,
+        )
+        with tempfile.TemporaryDirectory() as state_dir, patch(
+            "runtime.control_plane.independent_review_procedures.subprocess.run",
+            return_value=fake,
+        ) as run:
+            result = review_procedures._submit_delegated_result_via_registered_procedure(
+                "a" * 64,
+                "REVIEW_RESULT_V1",
+                state_root=Path(state_dir),
+            )
+
+        self.assertEqual("recorded", result["status"])
+        request = __import__("json").loads(run.call_args.kwargs["input"].decode("utf-8"))
+        self.assertEqual(
+            {
+                "procedure": SUBMIT_PROCEDURE_ID,
+                "review_run_id": "a" * 64,
+                "result": "REVIEW_RESULT_V1",
+            },
+            request,
+        )
+        self.assertTrue(str(run.call_args.args[0][1]).endswith("runtime/control_plane/cli.py"))
 
     def test_noncompleting_generic_worker_result_does_not_close_reviewer_state(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
