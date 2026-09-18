@@ -14,8 +14,8 @@ if str(ROOT) not in sys.path:
 from runtime.control_plane.independent_review_delegation import (
     review_delegation_identity,
     review_delegation_state_root,
-    settle_review_from_delegation,
 )
+from runtime.control_plane.independent_review_procedures import _settle_delegated_result
 from runtime.control_plane.independent_review_state import (
     ReviewStateError,
     mark_dispatch_attempted,
@@ -89,9 +89,9 @@ def prepare(args: argparse.Namespace) -> int:
 def settle(args: argparse.Namespace) -> int:
     identity = _identity(args)
     reviewer_state_root = Path(args.reviewer_state_root).resolve()
-    settlement = settle_review_from_delegation(
+    settlement = _settle_delegated_result(
         identity.as_dict(),
-        reviewer_state_root=reviewer_state_root,
+        state_root=reviewer_state_root,
         delegation_state_root=review_delegation_state_root(),
     )
     if settlement is None:
