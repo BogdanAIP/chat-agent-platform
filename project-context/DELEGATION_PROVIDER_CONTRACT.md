@@ -26,6 +26,24 @@ A provider owns:
 - provider-specific state;
 - provider receipts and observations.
 
+### Harness/runtime and inference-source separation
+
+For the current first provider, one adapter may encapsulate both the worker harness/session transport and the model-backed inference surface. That is an implementation shape, not a requirement that those roles remain permanently coupled.
+
+Long-horizon provider evolution keeps these axes distinct when a real consumer supports it:
+
+```text
+Delegation
+  -> selected harness/runtime
+  -> CAP-authorized inference binding
+  -> selected AI/model/session source
+  -> correlated provider result
+```
+
+CAP owns the binding authority and correlation. A harness must not silently substitute another AI/model source unless the manager/planner explicitly authorized a bounded routing or fallback policy.
+
+This contract does not yet define a generic AI-access API, model router, credential broker or provider framework. Those remain future Stage Research and should reuse mature compatible provider/gateway protocols where practical rather than duplicate them locally.
+
 ## Core flow
 
 Delegation
