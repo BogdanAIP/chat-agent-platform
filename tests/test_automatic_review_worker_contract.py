@@ -86,6 +86,8 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
             self.procedures,
         )
         self.assertIn('"procedure": SUBMIT_PROCEDURE_ID', self.procedures)
+        self.assertIn('with_name("cli.py")', self.procedures)
+        self.assertIn("subprocess.run(", self.procedures)
 
     def test_worker_uses_installed_main_receipt_and_fixed_app_root(self) -> None:
         self.assertIn("platform-update.json", self.delegation)
