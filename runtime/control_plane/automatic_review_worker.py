@@ -17,9 +17,9 @@ from runtime.agent_sessions import chatgpt_temporary, source_attestation
 from runtime.control_plane.independent_review_delegation import (
     prepare_review_delegation,
     review_delegation_state_root,
-    settle_review_from_delegation,
     validate_review_worker_runtime,
 )
+from runtime.control_plane.independent_review_procedures import _settle_delegated_result
 from runtime.control_plane.independent_review_state import (
     STATE_DIRECTORY as REVIEW_STATE_DIRECTORY,
     ReviewStateError,
@@ -352,9 +352,9 @@ def _run(args: argparse.Namespace) -> int:
                 _open_preflight(output_dir)
             _wait_terminal(process, output_dir=output_dir)
 
-            settled = settle_review_from_delegation(
+            settled = _settle_delegated_result(
                 identity.as_dict(),
-                reviewer_state_root=state_root,
+                state_root=state_root,
                 delegation_state_root=delegation_state_root,
             )
             if settled is not None and settled.get("status") in {"recorded", "already_recorded"}:
@@ -364,9 +364,9 @@ def _run(args: argparse.Namespace) -> int:
             # result immediately before process exit. Give settlement one final
             # bounded retry without granting any new launch/Send authority.
             time.sleep(0.2)
-            settled = settle_review_from_delegation(
+            settled = _settle_delegated_result(
                 identity.as_dict(),
-                reviewer_state_root=state_root,
+                state_root=state_root,
                 delegation_state_root=delegation_state_root,
             )
             if settled is not None and settled.get("status") in {"recorded", "already_recorded"}:
