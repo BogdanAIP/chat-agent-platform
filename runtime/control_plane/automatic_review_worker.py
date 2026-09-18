@@ -21,6 +21,7 @@ from runtime.control_plane.independent_review_delegation import (
     validate_review_worker_runtime,
 )
 from runtime.control_plane.independent_review_state import (
+    STATE_DIRECTORY as REVIEW_STATE_DIRECTORY,
     ReviewStateError,
     parse_review_identity,
     prepare_review_operation,
@@ -302,7 +303,9 @@ def _run(args: argparse.Namespace) -> int:
     )
 
     operation_key = review_operation_key(identity)
-    output_dir = (local_root / "state" / "reviewer-worker-v1" / operation_key).resolve()
+    output_dir = (
+        state_root / REVIEW_STATE_DIRECTORY / operation_key / "worker"
+    ).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     for name in (
         "preflight.json",
