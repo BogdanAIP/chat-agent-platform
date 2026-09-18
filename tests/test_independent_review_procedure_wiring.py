@@ -501,6 +501,9 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     identity_value(),
                     reviewer_state_root=state_root,
                     delegation_state_root=state_root / "agent-sessions",
+                    submit_result=lambda _review_run_id, _result: self.fail(
+                        "noncompleting result must not invoke submit"
+                    ),
                 )
 
             self.assertIsNotNone(settlement)
