@@ -67,6 +67,42 @@ def _identity_from_procedure_request(request: Mapping[str, Any]) -> dict[str, An
     return identity.as_dict()
 
 
+def _submit_delegated_result_via_registered_procedure(
+    review_run_id: str,
+    result: str,
+    *,
+    state_root: Path,
+) -> dict[str, Any]:
+    """Use the accepted fixed automatic-result procedure as the sole state writer."""
+
+    return run_submit_independent_review_result(
+        {
+            "procedure": SUBMIT_PROCEDURE_ID,
+            "review_run_id": review_run_id,
+            "result": result,
+        },
+        state_root=state_root,
+    )
+
+
+def _settle_delegated_result(
+    identity_value: Mapping[str, Any],
+    *,
+    state_root: Path,
+    delegation_state_root: Path,
+) -> dict[str, Any] | None:
+    return settle_review_from_delegation(
+        identity_value,
+        reviewer_state_root=state_root,
+        delegation_state_root=delegation_state_root,
+        submit_result=lambda review_run_id, result: _submit_delegated_result_via_registered_procedure(
+            review_run_id,
+            result,
+            state_root=state_root,
+        ),
+    )
+
+
 def run_launch_independent_review(
     request: Mapping[str, Any],
     *,
@@ -100,9 +136,9 @@ def run_launch_independent_review(
         except ReviewStateError:
             delegation_state_root = None
         if delegation_state_root is not None:
-            settlement = settle_review_from_delegation(
+            settlement = _settle_delegated_result(
                 identity_value,
-                reviewer_state_root=state_root,
+                state_root=state_root,
                 delegation_state_root=delegation_state_root,
             )
         if settlement is not None and settlement.get("status") in {"recorded", "already_recorded"}:
@@ -259,9 +295,9 @@ def run_reconcile_independent_review_result(
         delegation_state_root = None
     if delegation_state_root is not None:
         try:
-            settlement = settle_review_from_delegation(
+            settlement = _settle_delegated_result(
                 identity,
-                reviewer_state_root=state_root,
+                state_root=state_root,
                 delegation_state_root=delegation_state_root,
             )
         except ReviewStateError:
