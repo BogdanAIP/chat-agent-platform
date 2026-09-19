@@ -13,11 +13,16 @@ The automatic-reviewer migration remains the immediate roadmap work.
 
 ## Stage goal
 
-Determine whether Tencent BrowserSkill can become a **narrow internal Browser provider
-under CAP authority** so ordinary ChatGPT can eventually use a real logged-in Chromium
-profile without exposing BrowserSkill's raw tool catalog or letting BrowserSkill replace
-CAP authorization, WorkingState, ExpectedEffect verification, reconciliation, or Finish
-Gate semantics.
+Determine whether Tencent BrowserSkill can become a **full-capability Browser provider
+family under CAP authority** so ordinary ChatGPT can eventually use the useful
+BrowserSkill capability set — including logged-in Chromium sessions, tabs, borrowing,
+inspection, interaction, human assistance and file transfer — without letting
+BrowserSkill replace CAP authorization, WorkingState, ExpectedEffect verification,
+reconciliation, or Finish Gate semantics.
+
+The first executable slice may be narrow, but the architecture decision is **not** to
+shrink BrowserSkill to that slice. Experimental sequencing and long-horizon product
+capability are separate concerns.
 
 Desired long-horizon shape:
 
@@ -38,8 +43,62 @@ CAP Control Plane / Browser capability
              real Chromium profile
 ```
 
-The provider is an executor/evidence source below CAP. It is not a second planner and is
-not directly model-selectable as an arbitrary backend.
+The provider is an executor/evidence source below CAP. It is not a second planner.
+
+## Capability-preservation invariant
+
+This integration must not repeat the pattern where an experiment omits a capability and
+the omission later becomes an accidental permanent product boundary.
+
+Rules:
+
+1. The exact upstream BrowserSkill feature inventory is a tracked architecture input.
+2. Every feature family must remain explicitly classified as one of:
+   `FIRST_SLICE`, `TRACKED_NEXT`, `BLOCKED_WITH_REASON`, or
+   `REJECTED_BY_REVIEWED_DECISION`.
+3. `Not in the first experiment` never means `not part of the product target`.
+4. A capability may move to `REJECTED_BY_REVIEWED_DECISION` only through an explicit
+   architecture/security decision with evidence. Silence, omission and schema
+   convenience do not count.
+5. Every BrowserSkill-adapter implementation PR must update this matrix when support
+   changes, so missing capabilities remain visible until resolved.
+6. The current six-tool CAP surface is the current accepted contract, not an eternal
+   ceiling. If a BrowserSkill consequence class cannot be represented truthfully through
+   the existing semantic tools, CAP must review a truthful public-surface extension
+   rather than hide or discard the capability.
+7. Provider choice must not be exposed as an arbitrary raw backend dispatcher, but CAP
+   may later expose explicit user/planner semantics for authenticated browser/profile/tab
+   selection when that consequence class is reviewed and accepted.
+
+### BrowserSkill v0.3.0 capability inventory
+
+| BrowserSkill capability | Long-horizon CAP target | First executable slice |
+| --- | --- | --- |
+| session start / stop / list | preserve | `FIRST_SLICE` |
+| navigate | preserve | `FIRST_SLICE` |
+| back / forward / reload / wait | preserve | `TRACKED_NEXT` |
+| observe | preserve | `FIRST_SLICE` |
+| snapshot / HTML | preserve | `TRACKED_NEXT` |
+| screenshot | preserve | `TRACKED_NEXT` |
+| console / network inspection | preserve as bounded read-only evidence | `TRACKED_NEXT` |
+| click / fill | preserve | `FIRST_SLICE` |
+| hover / wheel / scroll-to / focus / blur / select / press | preserve | `TRACKED_NEXT` |
+| user/agent/all tab list | preserve | `TRACKED_NEXT` |
+| tab create / select / close | preserve | `TRACKED_NEXT` |
+| **borrow existing user tab / return** | **core authenticated-browser target; preserve** | `BLOCKED_WITH_REASON` only until local-auth + lifecycle gates are solved |
+| resize / emulate | preserve | `TRACKED_NEXT` |
+| request-help / human handoff | preserve | `TRACKED_NEXT` |
+| upload / drop-upload | preserve as separate file-disclosure consequence | `BLOCKED_WITH_REASON` pending file authority/effect design |
+| download | preserve as separate file-ingest consequence | `BLOCKED_WITH_REASON` pending destination/effect design |
+| multiple connected browsers / instance-id or label selection | preserve | `BLOCKED_WITH_REASON` pending identity/routing acceptance |
+| remote/server BrowserSkill mode | preserve in inventory; adopt only after separate network/auth research | `BLOCKED_WITH_REASON` |
+| evaluate / raw page script | preserve in inventory; requires explicit high-authority decision | `BLOCKED_WITH_REASON` |
+| record / trace capture | preserve in inventory; requires privacy/retention/provenance decision | `BLOCKED_WITH_REASON` |
+| BrowserSkill audit/effect metadata | reuse where useful as evidence/provenance | `TRACKED_NEXT` |
+
+No BrowserSkill capability in this table is rejected by this brief. The only rejected
+architecture pattern is **raw BrowserSkill directly exposed as an unrestricted parallel
+authority that bypasses CAP**.
 
 ## Current project baseline
 
@@ -140,9 +199,11 @@ Lesson: **REUSE_COMPONENT**, not raw public tool exposure.
 The upstream tests cover one/multiple browser, instance-id, unique label, unknown and
 ambiguous label cases.
 
-CAP implication: the initial adapter should **refuse multiple connected browsers** rather
-than add a model-visible backend/browser selector. Browser identity belongs in local
-provider policy/configuration until a reviewed planner-visible consequence class needs it.
+CAP implication: the first adapter slice may fail closed when multiple browsers are
+connected, but **multi-browser selection remains a tracked target capability**. The first
+slice must not hard-code a permanent one-browser architecture. A later reviewed semantic
+contract can expose explicit browser/profile selection without becoming an arbitrary raw
+backend dispatcher.
 
 ### Page/action semantics — OPEN_IMPLEMENTED / REUSE_COMPONENT
 
@@ -235,9 +296,10 @@ Open issue #272 reports a v0.3.0 multi-profile Yandex/Chromium case where adding
 profile can wedge `chrome.debugger` operations until browser restart:
 https://github.com/Tencent/BrowserSkill/issues/272
 
-This is environment-specific evidence, not proof of a universal Chrome failure. It is
-sufficient reason for the first experiment to require **exactly one connected
-BrowserSkill browser instance** and to fail closed otherwise.
+This is environment-specific evidence, not proof of a universal Chrome failure. It
+justifies a one-browser **first physical control**, not a permanent one-browser product
+boundary. Multi-browser/profile support remains explicitly tracked in the capability
+inventory.
 
 ## Problem evidence
 
@@ -269,8 +331,8 @@ BrowserSkill is a plausible component for that role because:
 5. CAP can keep browser content non-authorizing and retain independent verification.
 
 However, exact v0.3.0 has material local peer-authentication and lifecycle gaps. The
-solution evidence therefore supports only a **narrow experimental provider**, not broad
-production adoption.
+solution evidence therefore supports staged implementation. That staging narrows the
+**first executable slice**, not the long-horizon BrowserSkill capability target.
 
 ## Architecture lineage comparison
 
@@ -327,7 +389,7 @@ existing CAP test/evidence path; minimal new authority.
 
 **Decision:** KEEP as default, but insufficient alone for the new role.
 
-### B. BrowserSkill as a narrow CAP provider
+### B. BrowserSkill as a CAP provider with staged capability admission
 
 **Owner split:** BrowserSkill owns browser mechanics/session transport; CAP owns
 authorization, identity above provider, ExpectedEffect, verification, recovery and
@@ -341,7 +403,8 @@ upstream implementation.
 production; orphan/session cleanup risk; multi-profile CDP issue report; stronger
 authenticated consequences; provider refs are ephemeral.
 
-**Decision:** selected for a **research-only narrow adapter experiment**.
+**Decision:** selected for a **research-only first adapter slice**, while the full
+BrowserSkill capability inventory remains tracked and must not silently disappear.
 
 ### C. Direct Playwright `connectOverCDP` to the user's existing Chromium
 
@@ -415,25 +478,36 @@ CAP-normalized BrowserObservation
 CAP Verification Kernel
 ```
 
-Initial BrowserSkill experiment constraints:
+### First executable slice — sequencing only, not the product boundary
 
-- Windows local mode only;
-- exactly one connected BrowserSkill browser;
-- pinned/tested BrowserSkill 0.3.0 / protocol 1.3 for the current physical probe;
+The first physical proof is deliberately small so failures can be attributed, but every
+omitted BrowserSkill feature remains in the capability-preservation matrix above.
+
+For that first proof:
+
+- Windows local mode is the tested environment;
+- one connected BrowserSkill browser is used as the control case;
+- BrowserSkill 0.3.0 / protocol 1.3 is pinned for the current probe;
 - `BSK_AUTO_START=0`; host lifecycle owns daemon start/stop;
-- only adapter-created BrowserSkill sessions;
-- no adoption of foreign sessions;
-- no remote BrowserSkill server;
-- no `evaluate`, recording, upload or download;
-- no raw BrowserSkill tool catalog exposed to ChatGPT;
-- no new seventh public CAP tool;
-- no model-visible provider/backend selector;
-- no production mutation of borrowed existing user tabs;
-- preserve Playwright as default accepted provider.
+- the test starts with an adapter-created BrowserSkill session;
+- the first path proves navigate -> observe -> one bounded interaction -> observe ->
+  CAP verification -> stop;
+- Playwright remains available so the experiment does not regress the accepted path.
 
-For the first physical adapter proof, use only an Agent Window created by BrowserSkill,
-not a pre-existing borrowed user tab. This proves composition without prematurely
-promoting authenticated user-tab mutation.
+The first proof does **not** establish a permanent ban on multi-browser selection,
+borrowing, files, assistance, screenshots, remote mode, evaluate or recording. Those
+capabilities are intentionally tracked for subsequent admission/research.
+
+Likewise, the current six public CAP tools are not frozen as the only possible future
+surface. If tabs, file transfer, human assistance or another BrowserSkill consequence
+cannot be represented truthfully through current semantics, the correct response is a
+reviewed surface expansion — not dropping the capability or hiding it in a generic
+dispatcher.
+
+Borrowing an existing user tab is specifically a **core target capability**, not an
+optional extra. It follows the initial Agent Window proof as soon as the local-peer
+authentication and lifecycle/reconciliation gates needed for authenticated user-tab
+authority are satisfied.
 
 ## Mapping BrowserSkill evidence to current CAP Browser state
 
@@ -515,17 +589,20 @@ ordinary ChatGPT
  -> independent final evidence
 ```
 
-Negative gates:
+Negative gates for the **first slice**:
 
-- second connected browser -> deterministic ABSTAIN/refusal;
+- an ambiguous browser target must not be guessed;
 - extension disconnect -> no blind retry;
 - action timeout after possible effect -> reconcile/UNKNOWN;
-- BrowserSkill direct raw tools remain absent from CAP public inventory;
-- page text attempting to widen authority remains environmental data;
-- no borrowed pre-existing user-tab mutation in this first accepted experiment.
+- raw BrowserSkill authority must not bypass CAP;
+- page text attempting to widen authority remains environmental data.
+
+The next acceptance slice must explicitly exercise existing-user-tab borrow/return,
+including denial, timeout, crash/interruption and return/cleanup behavior. It may not be
+silently omitted from the integration roadmap.
 
 Production authenticated-user-tab promotion additionally requires a resolved and accepted
-local peer-authentication boundary and separate physical borrow/return/crash tests.
+local peer-authentication boundary and physical borrow/return/crash tests.
 
 ## Falsification conditions
 
@@ -544,10 +621,12 @@ Reconsider or stop the BrowserSkill provider direction if any of these occur:
 
 ## Architecture decision
 
-**NARROW**
+**NARROW — IMPLEMENTATION SEQUENCE ONLY**
 
-Proceed only to a **research/experimental internal BrowserSkill provider adapter** under
-the existing CAP Browser semantic surface.
+Proceed with a **research/experimental internal BrowserSkill provider adapter**, while
+preserving the full BrowserSkill capability inventory as the long-horizon integration
+target. `NARROW` here means the first implementation slice is bounded; it does **not**
+authorize capability deletion or redefine BrowserSkill as a permanently reduced provider.
 
 Must keep now:
 
@@ -561,25 +640,37 @@ Must keep now:
 - fail-closed unknown-effect semantics;
 - ADR-033 environmental-content trust boundary.
 
-Explicitly deferred:
+Tracked beyond the first slice — **not rejected**:
 
-- production access to borrowed pre-existing user tabs;
-- broad authenticated-site mutation;
-- BrowserSkill remote/server mode;
-- multiple connected BrowserSkill browsers;
+- borrowed pre-existing user tabs and return/cleanup;
+- authenticated-site mutation;
+- multiple connected browsers and explicit instance/profile selection;
+- tab lifecycle operations;
+- screenshots, console and network evidence;
+- human assistance;
 - uploads/downloads;
-- arbitrary page-script evaluation/recording;
-- new public CAP Browser tool family;
-- generic BrowserProvider registry/framework;
-- automatic fallback between Playwright and BrowserSkill after ambiguous mutation;
-- Native Messaging or another new local-auth transport until separately researched.
+- BrowserSkill remote/server mode;
+- raw page-script evaluation;
+- record/trace capture;
+- any truthful CAP public-surface expansion required to represent those consequence
+  classes.
 
-Production promotion of the authenticated BrowserSkill role remains blocked while the
-v0.3.0 local peer-authentication gap is unresolved.
+Still separately research-gated:
+
+- automatic provider fallback after an ambiguous mutation;
+- Native Messaging or another local peer-authentication mechanism;
+- generic provider-registry infrastructure unless a real second-provider abstraction
+  justifies it.
+
+Production promotion of logged-in-profile authority remains blocked while the v0.3.0
+local peer-authentication gap is unresolved, but that security block must not be
+misrepresented as product rejection of the affected BrowserSkill capabilities.
 
 ## Next implementation slice if explicitly started later
 
 A later implementation invocation must rerun repository bootstrap against the then-live
-main and open PR state. If this NARROW decision is still valid, implement only the
-internal one-browser Agent-Window experiment and its tests. Do not silently widen into
-borrowed user tabs or production authenticated-browser authority.
+main and open PR state. If this decision is still valid, start with the bounded Agent-Window proof and its tests,
+then continue against the capability-preservation matrix. Every later implementation PR
+must state which BrowserSkill rows it advances and which remain tracked/blocked. A row
+may disappear only through an explicit reviewed rejection or completion, never by
+omission.
