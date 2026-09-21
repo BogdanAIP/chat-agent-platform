@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import tempfile
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -110,6 +112,9 @@ class ChatGPTTemporaryPromptCapabilityTests(unittest.TestCase):
                 output_dir=Path(output_dir),
             )
             self.assertIsNotNone(runtime.preflight_id)
+            preflight_projection = json.loads(runtime.preflight_path.read_text(encoding="utf-8"))
+            self.assertNotIn(PRIVATE_REVIEW_NONCE, json.dumps(preflight_projection, sort_keys=True))
+            self.assertNotIn("prompt", preflight_projection)
             response = runtime.prepare_live_handoff(
                 {
                     "schema_version": 1,
@@ -124,7 +129,7 @@ class ChatGPTTemporaryPromptCapabilityTests(unittest.TestCase):
         self.assertIn(PRIVATE_REVIEW_NONCE, prompt)
         self.assertEqual(
             response["prompt_sha256"],
-            chatgpt_temporary.hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         )
         self.assert_capability_free_task_url(response["launch_url"], prompt)
 
