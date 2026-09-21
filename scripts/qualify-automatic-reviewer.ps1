@@ -44,8 +44,11 @@ if (-not [string]::IsNullOrWhiteSpace($dirty)) {
     throw 'Qualification source must be clean before reviewer task preparation.'
 }
 
+if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+    throw 'LOCALAPPDATA is required for automatic reviewer qualification.'
+}
 $qualificationId = '{0}-pr{1}-{2}' -f $ExpectedHead.Substring(0, 12), $PrNumber, ([guid]::NewGuid().ToString('N').Substring(0, 8))
-$qualificationRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform\automatic-reviewer\qualification\$qualificationId"
+$qualificationRoot = Join-Path $env:LOCALAPPDATA "ChatAgentPlatform\state\automatic-reviewer-qualification\$qualificationId"
 $reviewerStateRoot = Join-Path $qualificationRoot 'review-state'
 $outputDir = Join-Path $qualificationRoot 'adapter'
 New-Item -ItemType Directory -Force -Path $reviewerStateRoot, $outputDir | Out-Null
