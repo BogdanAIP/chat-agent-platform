@@ -375,6 +375,64 @@ boundary and undo the accepted opaque-`launch_handle` separation.
 Fewer than three credible safe delivery designs were not assumed; four materially
 different approaches were considered above.
 
+### Capability storage / FilesRoot alias refinement
+
+The same capability-location invariant applies before the browser handoff. The
+September 21 review/fix sequence identified three concrete local placements:
+
+- reviewer qualification capability artifacts:
+  `%LOCALAPPDATA%\\ChatAgentPlatform\\state\\automatic-reviewer-qualification`;
+- generic Temporary-worker qualification copies:
+  `%LOCALAPPDATA%\\ChatAgentPlatform\\state\\agent-session-q`;
+- accepted generic Delegation durable private state:
+  `%LOCALAPPDATA%\\ChatAgentPlatform\\agent-sessions\\private-state`.
+
+The first two are qualification-only material under the already protected manager
+state hierarchy. The third remains under the already accepted Delegation persistence
+owner rather than being moved merely for path uniformity.
+
+For FilesRoot selection, lexical string comparison is insufficient on Windows because
+a junction/symlink or a not-yet-created child can refer into a protected physical
+tree. The selected rule is therefore physical/potential-path normalization followed
+by **bidirectional overlap rejection**: a candidate FilesRoot is rejected if it is
+the protected root itself, a descendant of it, or an ancestor that would expose it.
+
+Material alternatives considered for this local-state part of the same failure class:
+
+#### E. Leave qualification artifacts in their historical public-ish sibling roots — REJECT
+
+That makes capability safety depend on every future FilesRoot caller remembering
+special subdirectories and repeats the failure already observed by review.
+
+#### F. Put qualification artifacts under manager state; retain Delegation private-state owner and protect both lifetime roots — SELECT
+
+This reuses the existing state owners, requires no migration of accepted Delegation
+persistence, and lets both the semantic launcher and legacy profile launcher enforce
+the same disjointness property for current and future children.
+
+#### G. Move generic Delegation persistence under manager state solely to obtain one root — REJECT
+
+That would change an accepted persistence owner and migration/recovery boundary
+without a correctness need. Path protection can provide the same isolation without
+architecture churn.
+
+Additional filesystem/alias failure cells:
+
+| Boundary | Candidate / physical state | Required behavior |
+|---|---|---|
+| qualification output requested outside private manager state | no capability artifact yet | reject **before** reviewer genesis/task write |
+| FilesRoot equals a protected root | exact private tree | reject |
+| FilesRoot is a child of a protected root | direct private descendant | reject |
+| FilesRoot is an ancestor of a protected root | would expose private subtree transitively | reject |
+| FilesRoot is a symlink/junction alias into a protected root | lexical path appears disjoint; physical path overlaps | resolve physical target and reject |
+| requested protected child does not yet exist | nearest existing ancestor + remaining path | resolve potential physical path and reject overlap before later creation |
+| generic terminal Delegation result contains `REVIEW_RESULT_V1` / private `review_run_id` | durable `agent-sessions\\private-state` | keep under Delegation owner but lifetime-protect from FilesRoot |
+| qualification copied task contains reviewer nonce | durable qualification evidence | keep only under manager state; never expose through supported FilesRoot |
+
+These cells do not introduce a new filesystem sandbox primitive. They refine the
+existing manager/semantic FilesRoot boundary so every capability-bearing placement is
+covered by one explicit physical-overlap invariant.
+
 ### Updated failure / crash matrix
 
 | Boundary | Capability location | Physical state | Required behavior |
