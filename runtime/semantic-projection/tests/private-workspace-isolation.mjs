@@ -29,6 +29,11 @@ try {
     'automatic-reviewer-qualification',
     'case-1'
   );
+  const agentSessionQualificationPrivateRoot = path.join(
+    managerStateRoot,
+    'agent-session-q',
+    'case-1'
+  );
   const safeWorkspace = path.join(root, 'workspace');
   const customParent = path.join(root, 'custom-private-parent');
   const customStateRoot = path.join(customParent, 'procedure-state');
@@ -39,6 +44,10 @@ try {
   fs.mkdirSync(qualificationWorkspace, { recursive: true });
   fs.mkdirSync(
     path.join(reviewerQualificationPrivateRoot, 'adapter'),
+    { recursive: true }
+  );
+  fs.mkdirSync(
+    path.join(agentSessionQualificationPrivateRoot, 'task-copy'),
     { recursive: true }
   );
   fs.mkdirSync(safeWorkspace, { recursive: true });
@@ -115,6 +124,8 @@ try {
     path.join(managerStateRoot, 'procedure-runtime'),
     reviewerQualificationPrivateRoot,
     path.join(reviewerQualificationPrivateRoot, 'adapter'),
+    agentSessionQualificationPrivateRoot,
+    path.join(agentSessionQualificationPrivateRoot, 'task-copy'),
     localAppData
   ]) {
     assert.throws(
@@ -205,6 +216,7 @@ try {
   console.log('SEMANTIC_PRIVATE_WORKSPACE_ISOLATION=PASS');
   console.log('SEMANTIC_CONFIGURED_REVIEW_STATE_ISOLATION=PASS');
   console.log('SEMANTIC_REVIEWER_QUALIFICATION_PRIVATE_STATE_ISOLATION=PASS');
+  console.log('SEMANTIC_AGENT_SESSION_QUALIFICATION_PRIVATE_STATE_ISOLATION=PASS');
   console.log('SEMANTIC_QUALIFICATION_WORKTREE_REMAINS_ALLOWED=PASS');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
