@@ -322,7 +322,10 @@ External mechanism evidence:
   sensitive information and may be exposed through referrer behavior:
   https://developer.mozilla.org/en-US/docs/Web/Security/Practical_implementation_guides/Referrer_policy
 - Chrome documents extension message passing as the supported communication path
-  between content scripts and the extension service worker:
+  between content scripts and the extension service worker, and explicitly warns
+  that content scripts are less trustworthy and that data sent to them may leak to
+  the web page. This is why the private prompt is withheld until the destination
+  page has positively proved the required isolated Temporary profile:
   https://developer.chrome.com/docs/extensions/develop/concepts/messaging
 - Chrome documents that MV3 service-worker global variables can disappear on
   termination. For this adapter that is a useful fail-closed boundary for live
