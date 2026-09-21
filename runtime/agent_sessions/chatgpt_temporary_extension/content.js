@@ -1160,6 +1160,20 @@
           return;
         }
 
+        if (!recovered && intent.prompt) {
+          const currentQualification = observeTemporaryState(current.composer);
+          if (
+            !currentQualification.temporary_mode ||
+            !currentQualification.fresh_context ||
+            currentQualification.personalization_disabled !== true ||
+            currentQualification.plugin_markers.length > 0
+          ) {
+            event("temporary-ui-changed-before-prompt-population", currentQualification);
+            stop("child-qualification-changed-before-prompt-population", currentQualification);
+            return;
+          }
+        }
+
         if (!populateEmptyComposer(current.composer)) return;
         const binding = findSendBinding();
         if (!binding || !exactComposerPromptMatches(binding.composer)) return;
