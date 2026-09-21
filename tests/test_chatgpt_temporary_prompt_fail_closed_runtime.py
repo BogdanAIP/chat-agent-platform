@@ -91,6 +91,16 @@ assert.equal(parsed.reason, "prompt-in-url");
         )
         self._run_node(script)
 
+    def test_profile_change_after_handoff_blocks_prompt_population(self) -> None:
+        script = self._content_case(
+            editor_value="",
+            response_prompt="prompt",
+            expected_stopped_reason="child-qualification-changed-before-prompt-population",
+            expect_interval=True,
+            change_profile_after_handoff=True,
+        )
+        self._run_node(script)
+
     def _content_case(
         self,
         *,
@@ -100,6 +110,7 @@ assert.equal(parsed.reason, "prompt-in-url");
         expect_interval: bool,
         qualified_profile: bool = True,
         expect_task_prompt_calls: int = 1,
+        change_profile_after_handoff: bool = False,
     ) -> str:
         return f"""
 const fs = require("fs");
@@ -268,6 +279,7 @@ const context = {{
           expected_runtime_head: intent.expectedHead,
           prompt_sha256: intent.promptSha256,
         }});
+        {"personalization.textContent = \"Personalized\";" if change_profile_after_handoff else ""}
         return;
       }}
       if (message.kind === "authorize-send") {{
