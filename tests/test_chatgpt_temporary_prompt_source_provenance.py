@@ -70,7 +70,7 @@ const intent = {{
   taskSha256: {json.dumps(task_sha)},
   expectedHead: {json.dumps(head)},
   promptSha256: expectedPromptDigestHex,
-  prompt: expectedPrompt,
+  prompt: "",
   maxWaitMs: 300000,
   deliveryObserveMs: 20000,
   stableMs: 3000,
@@ -240,6 +240,18 @@ global.document = {{
 global.chrome = {{ runtime: {{
   lastError: null,
   sendMessage(message, callback) {{
+    if (message.kind === "task-prompt") {{
+      callback({{
+        ok: true,
+        prompt: expectedPrompt,
+        delegation_id: intent.delegationId,
+        delivery_id: intent.deliveryId,
+        task_sha256: intent.taskSha256,
+        expected_runtime_head: intent.expectedHead,
+        prompt_sha256: intent.promptSha256,
+      }});
+      return;
+    }}
     if (message.kind === "authorize-send") {{
       authorizeCalls += 1;
       if (disableAfterAuthorize) editor.disabled = true;
@@ -314,9 +326,9 @@ function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
 
             You are one fresh bounded read-only worker for exactly this task.
 
-            TASK_BEGIN
+            TASK_BEGIN:NaN
             {task_body}
-            TASK_END
+            TASK_END:NaN
 
             CAP_WORKER_RESULT_V1_BEGIN
             {{"schema_version":1}}
