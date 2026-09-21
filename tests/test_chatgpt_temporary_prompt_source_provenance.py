@@ -326,9 +326,9 @@ function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
 
             You are one fresh bounded read-only worker for exactly this task.
 
-            TASK_BEGIN:NaN
+            TASK_BEGIN:{'d' * 64}
             {task_body}
-            TASK_END:NaN
+            TASK_END:{'d' * 64}
 
             CAP_WORKER_RESULT_V1_BEGIN
             {{"schema_version":1}}
