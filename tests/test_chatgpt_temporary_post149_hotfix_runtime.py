@@ -512,7 +512,11 @@ async function runCase({
     HEAD40_RE: /^[0-9a-f]{40}$/,
 
     parseIntent() {
-      return intent;
+      return {...intent, prompt: ""};
+    },
+
+    promptMatchesIntent(candidate) {
+      return candidate === prompt;
     },
 
     findComposerEditor() {
@@ -663,6 +667,19 @@ async function runCase({
         lastError: null,
 
         sendMessage(message, callback) {
+          if (message.kind === "task-prompt") {
+            callback({
+              ok: true,
+              prompt,
+              delegation_id: intent.delegationId,
+              delivery_id: intent.deliveryId,
+              task_sha256: intent.taskSha256,
+              expected_runtime_head: intent.expectedHead,
+              prompt_sha256: intent.promptSha256,
+            });
+            return;
+          }
+
           if (message.kind === "event") {
             events.push(message);
             callback({ok: true});
