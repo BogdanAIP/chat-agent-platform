@@ -79,6 +79,9 @@ process.stdout.write(JSON.stringify(value));
             f"delegation_id={delegation_id}\n"
             f"delivery_id={delivery_id}\n"
             f"task_sha256={task_sha}\n"
+            f"TASK_BEGIN:{task_sha}\n"
+            "bounded task\n"
+            f"TASK_END:{task_sha}\n"
             "CAP_WORKER_RESULT_V1_BEGIN\nCAP_WORKER_RESULT_V1_END"
         )
 
