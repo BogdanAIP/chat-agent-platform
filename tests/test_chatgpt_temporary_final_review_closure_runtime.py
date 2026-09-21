@@ -278,7 +278,11 @@ global.clearInterval = (_id) => {{}};
 vm.runInThisContext(source, {{filename: "content.js"}});
 function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
 (async () => {{
-  for (let i = 0; i < 10 && authorizeCalls === 0; i += 1) await flush();
+  for (let i = 0; i < 10 && authorizeCalls === 0; i += 1) {
+    await flush();
+    if (typeof intervalFn === "function") intervalFn();
+    await flush();
+  }
   if (authorizeCalls !== 1) process.exit(70);
   personalized = true;
   intervalFn();
