@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -23,6 +24,31 @@ from runtime.control_plane.independent_review_state import (
     prepare_review_operation,
     reconcile_independent_review_result,
 )
+
+
+QUALIFICATION_STATE_DIRECTORY = "automatic-reviewer-qualification"
+
+
+def _qualification_private_root() -> Path:
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if not local_app_data:
+        raise ReviewStateError("LOCALAPPDATA is required for reviewer qualification")
+    return (
+        Path(local_app_data)
+        / "ChatAgentPlatform"
+        / "state"
+        / QUALIFICATION_STATE_DIRECTORY
+    ).resolve()
+
+
+def _require_private_qualification_path(path: Path, *, label: str) -> Path:
+    root = _qualification_private_root()
+    resolved = path.resolve()
+    if resolved != root and not resolved.is_relative_to(root):
+        raise ReviewStateError(
+            f"{label} must stay under the private manager-state qualification root"
+        )
+    return resolved
 
 
 def _identity(args: argparse.Namespace):
@@ -50,8 +76,14 @@ def _write_json(path: Path, value: dict) -> None:
 
 def prepare(args: argparse.Namespace) -> int:
     identity = _identity(args)
-    state_root = Path(args.reviewer_state_root).resolve()
-    output_dir = Path(args.output_dir).resolve()
+    state_root = _require_private_qualification_path(
+        Path(args.reviewer_state_root),
+        label="qualification reviewer state",
+    )
+    output_dir = _require_private_qualification_path(
+        Path(args.output_dir),
+        label="qualification capability artifacts",
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     prepared = prepare_review_operation(identity.as_dict(), state_root=state_root)
@@ -88,7 +120,10 @@ def prepare(args: argparse.Namespace) -> int:
 
 def settle(args: argparse.Namespace) -> int:
     identity = _identity(args)
-    reviewer_state_root = Path(args.reviewer_state_root).resolve()
+    reviewer_state_root = _require_private_qualification_path(
+        Path(args.reviewer_state_root),
+        label="qualification reviewer state",
+    )
     settlement = _settle_delegated_result(
         identity.as_dict(),
         state_root=reviewer_state_root,
