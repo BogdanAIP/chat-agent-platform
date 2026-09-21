@@ -1185,13 +1185,6 @@
       stop("post-delivery-guard-unavailable");
       return;
     }
-    if (!recovered) {
-      const initialUrlCleanup = sanitizeLaunchUrl();
-      if (!initialUrlCleanup.clean) {
-        stop("pre-send-launch-url-cleanup-failed");
-        return;
-      }
-    }
     event("adapter-loaded", { href: location.href.slice(0, 2048), recovered, execution_generation: executionGeneration });
     intervalId = setInterval(tick, 500);
     tick();
