@@ -101,7 +101,7 @@ function node(tagName, text = "", attrs = {{}}, parent = null) {{
 const main = node("main");
 const composer = node("form", "", {{}}, main);
 const editor = node("textarea", "", {{}}, composer);
-editor.value = prompt;
+editor.value = "";
 editor.dispatchEvent = () => true;
 editor.closest = selector => selector === "form" ? composer :
   selector === 'main,[role="main"]' ? main : null;
@@ -154,7 +154,8 @@ const intent = {{
 const policy = {{
   HEX64_RE: /^[0-9a-f]{{64}}$/,
   HEAD40_RE: /^[0-9a-f]{{40}}$/,
-  parseIntent() {{ return intent; }},
+  parseIntent() {{ return {{...intent, prompt: ""}}; }},
+  promptMatchesIntent(candidate) {{ return candidate === prompt; }},
   findComposerEditor() {{ return editor; }},
   exactPromptMatches(observed, expected) {{ return observed === expected; }},
   personalizationModeFromText(text) {{
@@ -200,10 +201,18 @@ const context = {{
   CAPChatGPTTemporaryPolicy: policy,
   CAPChatGPTTemporaryExecutionGeneration: "9".repeat(64),
   location: {{
-    href: "https://chatgpt.com/?temporary-chat=true",
+    href: "https://chatgpt.com/?temporary-chat=true&cap_agent_delegate=1&cap_delegation_id=" + "b".repeat(64) +
+      "&cap_delivery_id=" + "c".repeat(64) + "&cap_task_sha256=" + "d".repeat(64) +
+      "&cap_expected_head=" + "e".repeat(40) + "&cap_prompt_sha256=" + promptSha +
+      "#cap_run_id=" + "a".repeat(64),
     origin: "https://chatgpt.com",
   }},
-  history: {{state: null, replaceState() {{}}}},
+  history: {{
+    state: null,
+    replaceState(_state, _title, nextUrl) {{
+      context.location.href = new URL(nextUrl, context.location.href).href;
+    }},
+  }},
   document,
   getComputedStyle: style,
   setInterval(fn) {{ tick = fn; return 1; }},
@@ -211,6 +220,18 @@ const context = {{
   chrome: {{runtime: {{
     lastError: null,
     sendMessage(message, callback) {{
+      if (message.kind === "task-prompt") {{
+        callback({{
+          ok: true,
+          prompt,
+          delegation_id: intent.delegationId,
+          delivery_id: intent.deliveryId,
+          task_sha256: intent.taskSha256,
+          expected_runtime_head: intent.expectedHead,
+          prompt_sha256: intent.promptSha256,
+        }});
+        return;
+      }}
       if (message.kind === "event") {{
         events.push(message);
         callback({{ok: true}});
@@ -247,6 +268,11 @@ vm.runInContext(source, context, {{filename: "content.js"}});
 
 const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {{
+  await flush();
+  await flush();
+  assert.equal(editor.value, prompt, "live handoff must populate the empty composer before Send");
+  assert.ok(!context.location.href.includes("prompt="), "task prompt must never be projected into the URL");
+
   for (let i = 0; i < 8; i += 1) {{
     now += 500;
     tick();
