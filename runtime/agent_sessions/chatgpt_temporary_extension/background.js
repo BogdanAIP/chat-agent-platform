@@ -140,6 +140,9 @@ function validPreparedLaunch(prepared) {
     !HEX64_RE.test(prepared.task_sha256 || "") ||
     !HEAD40_RE.test(prepared.expected_runtime_head || "") ||
     !HEX64_RE.test(prepared.prompt_sha256 || "") ||
+    typeof prepared.prompt !== "string" ||
+    !prepared.prompt ||
+    prepared.prompt.length > 120000 ||
     typeof prepared.launch_url !== "string" ||
     !prepared.launch_url
   ) {
@@ -152,9 +155,10 @@ function validPreparedLaunch(prepared) {
     return false;
   }
   if (url.origin !== "https://chatgpt.com" || url.searchParams.get("cap_agent_delegate") !== "1") return false;
+  if (url.searchParams.has("prompt")) return false;
   const fragment = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
   if (fragment.get("cap_run_id") !== prepared.launch_handle) return false;
-  if (prepared.launch_url.includes(prepared.run_id)) return false;
+  if (prepared.launch_url.includes(prepared.run_id) || prepared.launch_url.includes(prepared.prompt)) return false;
   return true;
 }
 
@@ -165,7 +169,8 @@ function exactLiveCorrelation(live, prepared) {
     live.delivery_id === prepared.delivery_id &&
     live.task_sha256 === prepared.task_sha256 &&
     live.expected_runtime_head === prepared.expected_runtime_head &&
-    live.prompt_sha256 === prepared.prompt_sha256;
+    live.prompt_sha256 === prepared.prompt_sha256 &&
+    live.prompt === prepared.prompt;
 }
 
 function exactCommittedStatus(live, status) {
@@ -277,6 +282,8 @@ async function prepareLiveLaunch(preflightId, sender) {
     runtime_attestation: attestation,
   });
   if (!validPreparedLaunch(prepared)) throw new Error("invalid-preflight-handoff");
+  const preparedPromptDigest = await sha256Hex(new TextEncoder().encode(prepared.prompt));
+  if (preparedPromptDigest !== prepared.prompt_sha256) throw new Error("preflight-prompt-digest-mismatch");
 
   const sameDelegation = liveLaunchForDelegation(prepared.delegation_id, prepared.delivery_id);
   if (sameDelegation) {
@@ -290,11 +297,13 @@ async function prepareLiveLaunch(preflightId, sender) {
     if (sameDelegation.launchHandle !== prepared.launch_handle) {
       LIVE_LAUNCHES.delete(sameDelegation.launchHandle);
       existing.launch_url = prepared.launch_url;
+      existing.prompt = prepared.prompt;
       existing.preflight_id = preflightId;
       existing.commit_state = "prepared";
       LIVE_LAUNCHES.set(prepared.launch_handle, existing);
     } else {
       existing.launch_url = prepared.launch_url;
+      existing.prompt = prepared.prompt;
       existing.preflight_id = preflightId;
     }
 
@@ -316,6 +325,8 @@ async function prepareLiveLaunch(preflightId, sender) {
     task_sha256: prepared.task_sha256,
     expected_runtime_head: prepared.expected_runtime_head,
     prompt_sha256: prepared.prompt_sha256,
+    prompt: prepared.prompt,
+    prompt_claimed: false,
     launch_url: prepared.launch_url,
     owner_tab_id: tabId,
     preflight_id: preflightId,
@@ -652,6 +663,40 @@ chrome.runtime.onMessage.addListener((incoming, sender, sendResponse) => {
   if (!message || !validCommon(message)) {
     sendResponse({ ok: false, reason: "live-launch-context-expired-or-invalid" });
     return false;
+  }
+
+  if (message.kind === "task-prompt") {
+    const tabId = senderTab(sender);
+    const live = LIVE_LAUNCHES.get(incoming.run_id || "");
+    if (tabId === null || !live || live.owner_tab_id !== tabId) {
+      sendResponse({ ok: false, reason: "prompt-owner-tab-mismatch" });
+      return false;
+    }
+    if (live.prompt_claimed === true || typeof live.prompt !== "string" || !live.prompt) {
+      sendResponse({ ok: false, reason: "prompt-handoff-expired" });
+      return false;
+    }
+    const prompt = live.prompt;
+    live.prompt = "";
+    live.prompt_claimed = true;
+    void sha256Hex(new TextEncoder().encode(prompt))
+      .then((digest) => {
+        if (digest !== live.prompt_sha256) {
+          sendResponse({ ok: false, reason: "prompt-handoff-digest-mismatch" });
+          return;
+        }
+        sendResponse({
+          ok: true,
+          prompt,
+          delegation_id: live.delegation_id,
+          delivery_id: live.delivery_id,
+          task_sha256: live.task_sha256,
+          expected_runtime_head: live.expected_runtime_head,
+          prompt_sha256: live.prompt_sha256,
+        });
+      })
+      .catch((error) => sendResponse({ ok: false, reason: error?.message || "prompt-handoff-failed" }));
+    return true;
   }
 
   if (message.kind === "authorize-send") {
