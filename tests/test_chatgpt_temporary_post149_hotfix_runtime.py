@@ -792,8 +792,16 @@ async function runCase({
 
   assert.equal(
     delayed.authorizeCount,
+    0,
+    "prompt handoff may occur after Temporary UI proof but before Send authority"
+  );
+
+  await delayed.steps(1);
+
+  assert.equal(
+    delayed.authorizeCount,
     1,
-    "exactly one Send authority request must occur after Temporary UI proof"
+    "exactly one Send authority request must occur after qualified prompt handoff"
   );
 
   assert.equal(
@@ -811,7 +819,7 @@ async function runCase({
     delayed.events.some(
       event =>
         event.event === "stopped" &&
-        event.details?.reason === "child-qualification-failed"
+        event.details?.reason === "child-qualification-failed-before-prompt-handoff"
     ),
     false
   );
@@ -835,7 +843,7 @@ async function runCase({
     absent.events.some(
       event =>
         event.event === "stopped" &&
-        event.details?.reason === "child-qualification-failed"
+        event.details?.reason === "child-qualification-failed-before-prompt-handoff"
     ),
     "Temporary UI that never appears must fail closed after the bounded window"
   );
@@ -853,7 +861,7 @@ async function runCase({
     personalized.events.some(
       event =>
         event.event === "stopped" &&
-        event.details?.reason === "child-qualification-failed"
+        event.details?.reason === "child-qualification-failed-before-prompt-handoff"
     ),
     "non-Temporary failures must not receive the settlement grace period"
   );
