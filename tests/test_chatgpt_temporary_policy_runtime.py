@@ -45,10 +45,16 @@ process.stdout.write(JSON.stringify(value));
         expected_head: str = "e" * 40,
         prompt_sha256: str = "f" * 64,
         run_in_query: bool = False,
+        include_prompt: bool = False,
     ) -> str:
         run_query_line = (
             f'u.searchParams.set("cap_run_id", {json.dumps(run_id)});'
             if run_in_query
+            else ""
+        )
+        prompt_line = (
+            f'u.searchParams.set("prompt", {json.dumps(prompt)});'
+            if include_prompt
             else ""
         )
         return f"""(() => {{
@@ -61,7 +67,7 @@ process.stdout.write(JSON.stringify(value));
   u.searchParams.set("cap_task_sha256", {json.dumps(task_sha)});
   u.searchParams.set("cap_expected_head", {json.dumps(expected_head)});
   u.searchParams.set("cap_prompt_sha256", {json.dumps(prompt_sha256)});
-  u.searchParams.set("prompt", {json.dumps(prompt)});
+  {prompt_line}
   u.hash = "cap_run_id={run_id}";
   return CAPChatGPTTemporaryPolicy.parseIntent(u.toString());
 }})()"""
@@ -102,6 +108,23 @@ process.stdout.write(JSON.stringify(value));
         self.assertEqual(task_sha, value["taskSha256"])
         self.assertEqual("e" * 40, value["expectedHead"])
         self.assertEqual("f" * 64, value["promptSha256"])
+        self.assertEqual("", value["prompt"])
+
+        live_prompt_valid = self.run_policy(
+            "CAPChatGPTTemporaryPolicy.promptMatchesIntent("
+            + json.dumps(prompt)
+            + ","
+            + json.dumps(
+                {
+                    "runId": run_id,
+                    "delegationId": delegation_id,
+                    "deliveryId": delivery_id,
+                    "taskSha256": task_sha,
+                }
+            )
+            + ")"
+        )
+        self.assertTrue(live_prompt_valid)
 
     def test_private_run_capability_in_query_is_rejected(self) -> None:
         run_id = "a" * 64
@@ -143,10 +166,27 @@ process.stdout.write(JSON.stringify(value));
                 delivery_id=delivery_id,
                 task_sha=task_sha,
                 prompt=prompt,
+                include_prompt=True,
             )
         )
         self.assertFalse(value["enabled"])
-        self.assertEqual("private-run-id-leaked-to-prompt", value["reason"])
+        self.assertEqual("prompt-in-url", value["reason"])
+
+        live_prompt_valid = self.run_policy(
+            "CAPChatGPTTemporaryPolicy.promptMatchesIntent("
+            + json.dumps(prompt)
+            + ","
+            + json.dumps(
+                {
+                    "runId": run_id,
+                    "delegationId": delegation_id,
+                    "deliveryId": delivery_id,
+                    "taskSha256": task_sha,
+                }
+            )
+            + ")"
+        )
+        self.assertFalse(live_prompt_valid)
 
     def test_personalization_labels_are_classified_fail_closed(self) -> None:
         labels = {
