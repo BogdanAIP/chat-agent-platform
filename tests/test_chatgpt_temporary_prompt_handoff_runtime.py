@@ -128,6 +128,10 @@ function send(sender) {{
   assert.equal(wrongTab.ok, false);
   assert.equal(wrongTab.reason, "prompt-owner-tab-mismatch");
 
+  const wrongUrl = await send({{url: "https://chatgpt.com/", tab: {{id: 41, url: "https://chatgpt.com/"}}}});
+  assert.equal(wrongUrl.ok, false);
+  assert.equal(wrongUrl.reason, "prompt-sender-url-mismatch");
+
   const first = await send({{url: taskUrl, tab: {{id: 41, url: taskUrl}}}});
   assert.equal(first.ok, true);
   assert.equal(first.prompt, prompt);
