@@ -239,7 +239,7 @@ if (-not $ParentTaskId) { $ParentTaskId = "agent-session-l3-$($ExpectedHead.Subs
 if (-not $SubgoalId) { $SubgoalId = "temporary-worker-$($taskSha256.Substring(0, 12))" }
 
 $stateRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\agent-sessions\private-state'
-$qualificationBase = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\agent-sessions\qualification'
+$qualificationBase = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\state\agent-session-q'
 New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $qualificationBase | Out-Null
 $operationKey = "$($ExpectedHead.Substring(0, 12))-$($taskSha256.Substring(0, 12))"
