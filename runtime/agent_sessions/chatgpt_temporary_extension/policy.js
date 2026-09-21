@@ -62,24 +62,12 @@
     const taskSha256 = url.searchParams.get("cap_task_sha256") || "";
     const expectedHead = url.searchParams.get("cap_expected_head") || "";
     const promptSha256 = url.searchParams.get("cap_prompt_sha256") || "";
-    const prompt = url.searchParams.get("prompt") || "";
-    if (![runId, delegationId, deliveryId, taskSha256, promptSha256].every((value) => HEX64_RE.test(value))) {
+    if ([runId, delegationId, deliveryId, taskSha256, promptSha256].some((value) => !HEX64_RE.test(value))) {
       return { enabled: false, reason: "invalid-correlation" };
     }
     if (!HEAD40_RE.test(expectedHead)) return { enabled: false, reason: "invalid-expected-head" };
     if (url.searchParams.has("cap_run_id")) return { enabled: false, reason: "private-run-id-in-query" };
-    if (!prompt || prompt.length > 120000) return { enabled: false, reason: "invalid-prompt" };
-    for (const marker of [
-      "WORKER_TASK_V1",
-      `delegation_id=${delegationId}`,
-      `delivery_id=${deliveryId}`,
-      `task_sha256=${taskSha256}`,
-      RESULT_BEGIN,
-      RESULT_END,
-    ]) {
-      if (!prompt.includes(marker)) return { enabled: false, reason: "prompt-binding-mismatch" };
-    }
-    if (prompt.includes(runId)) return { enabled: false, reason: "private-run-id-leaked-to-prompt" };
+    if (url.searchParams.has("prompt")) return { enabled: false, reason: "prompt-in-url" };
 
     return {
       enabled: true,
@@ -89,7 +77,7 @@
       taskSha256,
       expectedHead,
       promptSha256,
-      prompt,
+      prompt: "",
       maxWaitMs: 30 * 60 * 1000,
       deliveryObserveMs: 20000,
       stableMs: 3000,
@@ -162,6 +150,22 @@
     const visible = visibleUserCorrelationState(intent);
     if (visible === null || visible.candidateCount === 0) return true;
     return visible.candidateCount === 1 && visible.matchCount === 1;
+  }
+
+  function promptMatchesIntent(prompt, intent) {
+    if (typeof prompt !== "string" || !prompt || prompt.length > 120000 || !intent) return false;
+    for (const marker of [
+      "WORKER_TASK_V1",
+      `delegation_id=${intent.delegationId}`,
+      `delivery_id=${intent.deliveryId}`,
+      `task_sha256=${intent.taskSha256}`,
+      RESULT_BEGIN,
+      RESULT_END,
+    ]) {
+      if (!prompt.includes(marker)) return false;
+    }
+    if (prompt.includes(intent.runId)) return false;
+    return exactTaskCorrelationShape(prompt, intent);
   }
 
   function exactPromptMatches(observed, expected) {
@@ -670,6 +674,7 @@
     RESULT_BEGIN,
     RESULT_END,
     parseIntent,
+    promptMatchesIntent,
     hasExpectedPrompt,
     exactPromptMatches,
     eligibleComposerEditor,
