@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import secrets
@@ -123,6 +124,8 @@ def _task_launch_url_from_preflight(
         delivery_id=snapshot.delivery_id,
         task=task,
     )
+    if hashlib.sha256(prompt.encode("utf-8")).hexdigest() != snapshot.prompt_sha256:
+        raise DelegationStateError("task launch prompt digest changed during handoff")
     query = urlencode(
         {
             "temporary-chat": "true",
@@ -132,13 +135,12 @@ def _task_launch_url_from_preflight(
             "cap_task_sha256": snapshot.identity.task_sha256,
             "cap_expected_head": expected_head,
             "cap_prompt_sha256": snapshot.prompt_sha256,
-            "prompt": prompt,
         }
     )
     fragment = urlencode({"cap_run_id": launch_handle})
     value = f"https://chatgpt.com/?{query}#{fragment}"
-    if snapshot.run_id in value:
-        raise DelegationStateError("task launch URL leaked private run capability")
+    if "prompt=" in value or prompt in value or snapshot.run_id in value:
+        raise DelegationStateError("task launch URL leaked private prompt material")
     return value
 
 
@@ -694,6 +696,14 @@ class TemporaryControllerRuntime:
                 self.pending_launch_handle = secrets.token_hex(32)
             launch_handle = self.pending_launch_handle
 
+        prompt = chatgpt_temporary.build_worker_prompt(
+            snapshot.identity,
+            delegation_id=snapshot.delegation_id,
+            delivery_id=snapshot.delivery_id,
+            task=self.task,
+        )
+        if hashlib.sha256(prompt.encode("utf-8")).hexdigest() != snapshot.prompt_sha256:
+            raise DelegationStateError("browser preflight prompt digest mismatch")
         launch_url = _task_launch_url_from_preflight(
             snapshot,
             task=self.task,
@@ -710,6 +720,7 @@ class TemporaryControllerRuntime:
             "task_sha256": snapshot.identity.task_sha256,
             "expected_runtime_head": self.expected_runtime_attestation.expected_head,
             "prompt_sha256": snapshot.prompt_sha256,
+            "prompt": prompt,
             "launch_url": launch_url,
             "runtime_attestation_sha256": runtime_digest,
         }
