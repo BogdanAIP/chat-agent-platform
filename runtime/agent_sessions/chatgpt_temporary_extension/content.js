@@ -191,6 +191,7 @@
     let authorityRequested = recovered;
     let temporaryUiPendingSince = null;
     let sendAuthorized = false;
+    let promptHandoffRequested = recovered;
     let promptPopulationAttemptedAt = 0;
     let monitorOnly = recovered;
     let sendClickedAt = recovered ? Date.now() : 0;
@@ -1105,7 +1106,61 @@
 
       if (!sendAuthorized && !monitorOnly && !authorityRequested) {
         const current = currentComposerBinding();
-        if (!current || !populateEmptyComposer(current.composer)) return;
+        if (!current) return;
+
+        if (!recovered && !intent.prompt) {
+          const temporary = observeTemporaryState(current.composer);
+          const closedProfileProven =
+            temporary.temporary_mode &&
+            temporary.fresh_context &&
+            temporary.personalization_disabled === true &&
+            temporary.plugin_markers.length === 0;
+
+          if (!closedProfileProven) {
+            const retryableTemporaryUiSettle =
+              !temporary.temporary_mode &&
+              temporary.fresh_context === true &&
+              temporary.personalization_disabled === true;
+
+            if (retryableTemporaryUiSettle) {
+              const now = Date.now();
+              if (temporaryUiPendingSince === null) {
+                temporaryUiPendingSince = now;
+                event("temporary-ui-not-proven", {
+                  ...temporary,
+                  qualification_pending: true,
+                  settle_ms: TEMPORARY_UI_SETTLE_MS,
+                  before_prompt_handoff: true,
+                });
+              }
+              if (now - temporaryUiPendingSince < TEMPORARY_UI_SETTLE_MS) return;
+            }
+
+            event("temporary-ui-not-proven", {
+              ...temporary,
+              qualification_pending: false,
+              before_prompt_handoff: true,
+            });
+            stop("child-qualification-failed-before-prompt-handoff", temporary);
+            return;
+          }
+
+          temporaryUiPendingSince = null;
+          if (promptHandoffRequested) return;
+          promptHandoffRequested = true;
+          void requestTaskPrompt(intent).then((bound) => {
+            if (!bound) {
+              stop("task-prompt-handoff-unavailable");
+              return;
+            }
+            intent.prompt = bound.prompt;
+            promptPopulationAttemptedAt = 0;
+            event("prompt-handoff-received", { prompt_sha256: intent.promptSha256 });
+          });
+          return;
+        }
+
+        if (!populateEmptyComposer(current.composer)) return;
         const binding = findSendBinding();
         if (!binding || !exactComposerPromptMatches(binding.composer)) return;
         void requestAuthority(binding.composer);
@@ -1192,13 +1247,7 @@
 
   const initial = policy.parseIntent(location.href);
   if (initial.enabled) {
-    void requestTaskPrompt(initial).then((bound) => {
-      if (!bound) {
-        console.info("[CAP Agent Session] task prompt handoff unavailable");
-        return;
-      }
-      start(bound, false);
-    });
+    start(initial, false);
     return;
   }
 
