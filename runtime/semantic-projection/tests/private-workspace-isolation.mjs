@@ -37,7 +37,10 @@ try {
 
   fs.mkdirSync(reviewerState, { recursive: true });
   fs.mkdirSync(qualificationWorkspace, { recursive: true });
-  fs.mkdirSync(reviewerQualificationPrivateRoot, { recursive: true });
+  fs.mkdirSync(
+    path.join(reviewerQualificationPrivateRoot, 'adapter'),
+    { recursive: true }
+  );
   fs.mkdirSync(safeWorkspace, { recursive: true });
   fs.mkdirSync(customReviewRoot, { recursive: true });
   fs.mkdirSync(tempDir, { recursive: true });
