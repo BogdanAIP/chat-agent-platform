@@ -80,6 +80,17 @@ assert.equal(parsed.reason, "prompt-in-url");
         )
         self._run_node(script)
 
+    def test_unqualified_page_never_receives_capability_bearing_prompt(self) -> None:
+        script = self._content_case(
+            editor_value="",
+            response_prompt="prompt",
+            expected_stopped_reason="child-qualification-failed-before-prompt-handoff",
+            expect_interval=True,
+            qualified_profile=False,
+            expect_task_prompt_calls=0,
+        )
+        self._run_node(script)
+
     def _content_case(
         self,
         *,
@@ -87,6 +98,8 @@ assert.equal(parsed.reason, "prompt-in-url");
         response_prompt: str,
         expected_stopped_reason: str | None,
         expect_interval: bool,
+        qualified_profile: bool = True,
+        expect_task_prompt_calls: int = 1,
     ) -> str:
         return f"""
 const fs = require("fs");
@@ -117,6 +130,7 @@ const promptSha = nodeCrypto.createHash("sha256").update(prompt, "utf8").digest(
 let intervals = 0;
 let tick = null;
 let authorizeCalls = 0;
+let taskPromptCalls = 0;
 const events = [];
 
 function rect() {{ return {{width: 500, height: 80}}; }}
@@ -161,9 +175,9 @@ const personalization = {{
   inert: false,
   disabled: false,
   parentElement: null,
-  textContent: "Non-personalized",
+  textContent: {json.dumps("Non-personalized" if qualified_profile else "Personalized")},
   getBoundingClientRect: rect,
-  getAttribute(name) {{ return name === "aria-label" ? "Non-personalized" : null; }},
+  getAttribute(name) {{ return name === "aria-label" ? this.textContent : null; }},
 }};
 
 const intent = {{
@@ -190,7 +204,12 @@ const policy = {{
   exactPromptMatches(observed, expected) {{
     return String(observed || "") === String(expected || "");
   }},
-  personalizationModeFromText() {{ return "non-personalized"; }},
+  personalizationModeFromText(text) {{
+    const value = String(text || "");
+    if (/Non-personalized/i.test(value)) return "non-personalized";
+    if (/Personalized/i.test(value)) return "personalized";
+    return "unknown";
+  }},
   conversationId() {{ return null; }},
   armPostDeliveryUiGuard() {{ return true; }},
   hasExpectedPrompt() {{ return false; }},
@@ -239,6 +258,7 @@ const context = {{
     lastError: null,
     sendMessage(message, callback) {{
       if (message.kind === "task-prompt") {{
+        taskPromptCalls += 1;
         callback({{
           ok: true,
           prompt: {response_prompt},
@@ -273,6 +293,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   await flush();
   await flush();
   {"assert.ok(intervals > 0); assert.equal(typeof tick, 'function'); tick(); await flush();" if expect_interval else "assert.equal(intervals, 0);"}
+  assert.equal(taskPromptCalls, {expect_task_prompt_calls});
   assert.equal(authorizeCalls, 0);
   assert.equal(editor.value, {json.dumps(editor_value)});
   {f'assert.ok(events.some(event => event.event === "stopped" && event.details?.reason === {json.dumps(expected_stopped_reason)}));' if expected_stopped_reason else ''}
