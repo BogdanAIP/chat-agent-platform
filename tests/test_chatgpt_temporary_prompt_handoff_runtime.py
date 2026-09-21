@@ -66,6 +66,7 @@ let onMessage = null;
 const context = {{
   console,
   URL,
+  URLSearchParams,
   TextEncoder,
   crypto: nodeCrypto.webcrypto,
   importScripts() {{}},
