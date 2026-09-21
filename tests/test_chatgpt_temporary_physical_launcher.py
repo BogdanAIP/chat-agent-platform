@@ -336,7 +336,8 @@ finally {{
     def test_launcher_keeps_state_and_evidence_outside_repository(self) -> None:
         self.assertIn("$env:LOCALAPPDATA", self.text)
         self.assertIn("ChatAgentPlatform\\agent-sessions\\private-state", self.text)
-        self.assertIn("ChatAgentPlatform\\agent-sessions\\qualification", self.text)
+        self.assertIn("ChatAgentPlatform\\state\\agent-session-q", self.text)
+        self.assertNotIn("ChatAgentPlatform\\agent-sessions\\qualification", self.text)
         self.assertNotIn("Set-Content -Path $RepoRoot", self.text)
 
     def test_launcher_opens_only_neutral_preflight_and_never_task_url(self) -> None:
