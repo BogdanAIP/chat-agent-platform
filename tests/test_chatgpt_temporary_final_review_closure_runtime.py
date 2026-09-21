@@ -224,7 +224,9 @@ const personalizationNode = {{isConnected: true, parentElement: null,
   getBoundingClientRect: rect, getAttribute() {{ return null; }}, contains() {{ return false; }}}};
 const policy = {{
   HEX64_RE: /^[0-9a-f]{{64}}$/, HEAD40_RE: /^[0-9a-f]{{40}}$/,
-  parseIntent() {{ return intent; }}, findComposerEditor() {{ return editor; }},
+  parseIntent() {{ return {{...intent, prompt: ""}}; }},
+  promptMatchesIntent(candidate) {{ return candidate === prompt; }},
+  findComposerEditor() {{ return editor; }},
   exactPromptMatches(observed, expected) {{ return observed === expected; }},
   personalizationModeFromText(text) {{
     const value = String(text);
@@ -255,6 +257,18 @@ global.document = {{
   }},
 }};
 global.chrome = {{runtime: {{lastError: null, sendMessage(message, callback) {{
+  if (message.kind === "task-prompt") {{
+    callback({{
+      ok: true,
+      prompt,
+      delegation_id: intent.delegationId,
+      delivery_id: intent.deliveryId,
+      task_sha256: intent.taskSha256,
+      expected_runtime_head: intent.expectedHead,
+      prompt_sha256: intent.promptSha256,
+    }});
+    return;
+  }}
   if (message.kind === "authorize-send") {{ authorizeCalls += 1; callback({{ok: true, send_authorized: true, delivery_state: "claimed"}}); return; }}
   if (message.kind === "event") events.push(message);
   callback({{ok: true}});
