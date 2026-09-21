@@ -230,6 +230,12 @@ function Resolve-SafeFilesRoot {
         if (Test-PathsOverlap -Left $physicalFull -Right $physicalManagerStateRoot) {
             throw "Refusing FilesRoot '$physicalFull' because Chat workspaces must be path-disjoint from private manager state '$physicalManagerStateRoot'."
         }
+
+        $agentSessionPrivateStateRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform\agent-sessions\private-state'
+        $physicalAgentSessionPrivateStateRoot = Resolve-PotentialPhysicalDirectoryPath -Path $agentSessionPrivateStateRoot
+        if (Test-PathsOverlap -Left $physicalFull -Right $physicalAgentSessionPrivateStateRoot) {
+            throw "Refusing FilesRoot '$physicalFull' because Chat workspaces must be path-disjoint from private Agent Session state '$physicalAgentSessionPrivateStateRoot'."
+        }
     }
 
     if (-not [string]::IsNullOrWhiteSpace($env:CHAT_PROCEDURE_STATE_ROOT)) {
