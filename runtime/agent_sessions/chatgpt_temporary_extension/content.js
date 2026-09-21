@@ -67,6 +67,39 @@
     });
   }
 
+  async function requestTaskPrompt(intent) {
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        {
+          schema_version: 1,
+          kind: "task-prompt",
+          run_id: intent.runId,
+          delegation_id: intent.delegationId,
+          delivery_id: intent.deliveryId,
+          task_sha256: intent.taskSha256,
+          expected_runtime_head: intent.expectedHead,
+          prompt_sha256: intent.promptSha256,
+          execution_generation: executionGeneration,
+        },
+        (value) => resolve(value || {
+          ok: false,
+          reason: chrome.runtime.lastError?.message || "no-response",
+        }),
+      );
+    });
+    if (!response?.ok || typeof response.prompt !== "string") return null;
+    if (
+      response.delegation_id !== intent.delegationId ||
+      response.delivery_id !== intent.deliveryId ||
+      response.task_sha256 !== intent.taskSha256 ||
+      response.expected_runtime_head !== intent.expectedHead ||
+      response.prompt_sha256 !== intent.promptSha256
+    ) return null;
+    if (!policy.promptMatchesIntent(response.prompt, intent)) return null;
+    if (await sha256Text(response.prompt) !== intent.promptSha256) return null;
+    return { ...intent, prompt: response.prompt };
+  }
+
   function currentPreflightId() {
     let url;
     try {
@@ -158,6 +191,7 @@
     let authorityRequested = recovered;
     let temporaryUiPendingSince = null;
     let sendAuthorized = false;
+    let promptPopulationAttemptedAt = 0;
     let monitorOnly = recovered;
     let sendClickedAt = recovered ? Date.now() : 0;
     let deliveryState = recovered ? intent.recoveredDeliveryState : "prepared";
@@ -255,6 +289,92 @@
       const composer = editor.closest?.("form");
       if (!composer || !visible(composer)) return null;
       return { composer, editor };
+    }
+
+    function editorText(editor) {
+      if (!editor) return null;
+      if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+        return canonicalPromptText(editor.value);
+      }
+      if (editor.getAttribute?.("contenteditable") !== "true" && !editor.isContentEditable) return null;
+      const structured = contentEditablePromptText(editor);
+      if (structured !== null) return structured;
+      return canonicalPromptText(editor.innerText || editor.textContent || "").replace(/\u0000/g, "");
+    }
+
+    function populateEmptyComposer(composer) {
+      if (recovered || typeof intent.prompt !== "string" || !intent.prompt) return false;
+      const editor = findComposerEditor(composer);
+      if (!editor) return false;
+      if (exactComposerPromptMatches(composer)) return true;
+
+      const observed = editorText(editor);
+      if (observed === null) return false;
+      if (observed.trim().length > 0) {
+        stop("composer-not-empty-before-prompt-handoff");
+        return false;
+      }
+
+      if (promptPopulationAttemptedAt) {
+        if (Date.now() - promptPopulationAttemptedAt >= 5000) {
+          stop("composer-prompt-population-failed");
+        }
+        return false;
+      }
+      promptPopulationAttemptedAt = Date.now();
+
+      try {
+        if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+          const setter = typeof HTMLTextAreaElement !== "undefined"
+            ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set
+            : null;
+          if (setter) setter.call(editor, intent.prompt);
+          else editor.value = intent.prompt;
+          const InputCtor = typeof InputEvent === "function" ? InputEvent : Event;
+          editor.dispatchEvent(new InputCtor("input", {
+            bubbles: true,
+            inputType: "insertText",
+            data: intent.prompt,
+          }));
+        } else if (editor.getAttribute?.("contenteditable") === "true" || editor.isContentEditable) {
+          if (typeof editor.focus === "function") editor.focus({ preventScroll: true });
+          let inserted = false;
+          if (typeof document.execCommand === "function") {
+            try {
+              inserted = document.execCommand("insertText", false, intent.prompt) === true;
+            } catch {
+              inserted = false;
+            }
+          }
+          if (!inserted && typeof editor.replaceChildren === "function" && typeof document.createElement === "function") {
+            const nodes = canonicalPromptText(intent.prompt).split("\n").map((line) => {
+              const paragraph = document.createElement("p");
+              if (line) paragraph.textContent = line;
+              else if (typeof paragraph.appendChild === "function") paragraph.appendChild(document.createElement("br"));
+              return paragraph;
+            });
+            editor.replaceChildren(...nodes);
+            const InputCtor = typeof InputEvent === "function" ? InputEvent : Event;
+            editor.dispatchEvent(new InputCtor("input", {
+              bubbles: true,
+              inputType: "insertText",
+              data: intent.prompt,
+            }));
+          }
+        } else {
+          stop("composer-editor-unsupported");
+          return false;
+        }
+      } catch {
+        stop("composer-prompt-population-failed");
+        return false;
+      }
+
+      if (exactComposerPromptMatches(composer)) {
+        event("prompt-bound-from-live-handoff", { prompt_sha256: intent.promptSha256 });
+        return true;
+      }
+      return false;
     }
 
     function findSendBinding() {
@@ -984,6 +1104,8 @@
       }
 
       if (!sendAuthorized && !monitorOnly && !authorityRequested) {
+        const current = currentComposerBinding();
+        if (!current || !populateEmptyComposer(current.composer)) return;
         const binding = findSendBinding();
         if (!binding || !exactComposerPromptMatches(binding.composer)) return;
         void requestAuthority(binding.composer);
@@ -1063,6 +1185,13 @@
       stop("post-delivery-guard-unavailable");
       return;
     }
+    if (!recovered) {
+      const initialUrlCleanup = sanitizeLaunchUrl();
+      if (!initialUrlCleanup.clean) {
+        stop("pre-send-launch-url-cleanup-failed");
+        return;
+      }
+    }
     event("adapter-loaded", { href: location.href.slice(0, 2048), recovered, execution_generation: executionGeneration });
     intervalId = setInterval(tick, 500);
     tick();
@@ -1070,7 +1199,13 @@
 
   const initial = policy.parseIntent(location.href);
   if (initial.enabled) {
-    start(initial, false);
+    void requestTaskPrompt(initial).then((bound) => {
+      if (!bound) {
+        console.info("[CAP Agent Session] task prompt handoff unavailable");
+        return;
+      }
+      start(bound, false);
+    });
     return;
   }
 
