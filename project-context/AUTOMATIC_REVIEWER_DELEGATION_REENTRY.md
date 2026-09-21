@@ -355,11 +355,13 @@ The service worker must require:
 - exact launch handle;
 - exact delegation/delivery/task/prompt/head correlation;
 - the exact original owner tab;
+- the exact capability-free task-navigation URL shape for that live owner;
 - an unconsumed prompt handoff.
 
 The content script then recomputes `prompt_sha256`, validates the exact worker-task
-markers and populates only an empty composer. Immediately before Send it repeats the
-positive Temporary/non-personalized/no-plugin qualification and then obtains the
+markers and re-proves the isolated profile immediately before any DOM population.
+Only an empty composer may receive the prompt. Immediately before Send it repeats the
+positive Temporary/non-personalized/no-plugin qualification again and then obtains the
 existing durable browser Send claim. Thus a wrong/personalized/unqualified page never
 receives the private reviewer task at all.
 
@@ -447,9 +449,9 @@ covered by one explicit physical-overlap invariant.
 | controller returns handoff, before commit | controller + live MV3 memory | neutral tab | exact owner/correlation only; retry same preflight is allowed while launch remains prepared |
 | launch committed, before task navigation | live MV3 memory; durable launch-attempted | neutral tab | MV3 loss fails closed; no relaunch / no Send |
 | task URL created/navigated | **no reviewer capability/prompt in URL** | one task tab | URL may contain only bounded public correlations + opaque live handle |
-| after navigation, before prompt handoff | live MV3 memory | empty task composer | positively prove fresh Temporary/non-personalized/no-plugin state; wrong UI/tab/handle/correlation or lost owner => no prompt, no Send |
-| prompt handoff to content script | live extension/content memory | already-qualified empty composer | one-shot owner-bound handoff; recompute digest + exact structural validation before DOM mutation |
-| composer population fails or existing content is non-empty | live page only | unsatisfied binding | fail closed; never overwrite unrelated content and never request Send authority |
+| after navigation, before prompt handoff | live MV3 memory | empty task composer | positively prove fresh Temporary/non-personalized/no-plugin state; wrong UI/tab/handle/correlation/task URL or lost owner => no prompt, no Send |
+| prompt handoff to content script | live extension/content memory | already-qualified empty composer | one-shot owner-bound handoff; recompute digest + exact structural validation; re-prove isolation before DOM mutation |
+| profile changes or composer becomes non-empty before population | prompt only in isolated extension/content memory | unsafe target DOM | fail closed; do not write prompt into DOM and never request Send authority |
 | exact prompt visible, before Send claim | live composer | previously qualified Temporary UI | re-prove current isolation state before obtaining Send authority |
 | browser claim/controller authority denied | live composer | no Send | stop; no second prompt handoff / no second Send |
 | Send committed/visible | submitted reviewer turn | provider conversation | existing delivery/result lifecycle applies |
@@ -467,10 +469,11 @@ private reviewer nonce that:
    or the worker prompt;
 2. the task URL contains no `prompt` query parameter at all;
 3. an unqualified/personalized/non-Temporary page receives no prompt handoff at all;
-4. the MV3 prompt handoff is exact-owner-tab, exact-handle, exact-correlation and
-   one-shot/fail-closed;
-5. the content script rejects a digest mismatch and non-empty unrelated composer;
-6. successful population still requires exact visible-composer equality and a second
+4. the MV3 prompt handoff is exact-owner-tab, exact-handle, exact-task-URL,
+   exact-correlation and one-shot/fail-closed;
+5. the content script rejects a digest mismatch, a profile change after handoff and
+   a non-empty unrelated composer before any prompt DOM population;
+6. successful population still requires exact visible-composer equality and another
    positive isolation check before requesting Send authority;
 7. no CAP URL/log/public metadata projection intentionally contains the private
    reviewer nonce;
