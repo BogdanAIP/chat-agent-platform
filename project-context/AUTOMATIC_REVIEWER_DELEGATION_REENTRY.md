@@ -2,7 +2,8 @@
 
 Status: **STAGE RESEARCH — NARROW**
 
-Research date: 2026-09-16.
+Original research date: 2026-09-16.  
+Security-boundary re-entry: 2026-09-21.
 
 ## Stage question
 
@@ -239,3 +240,191 @@ Implement only:
 5. deterministic tests and one target-Windows physical E2E.
 
 Do not implement persistent sessions, general worker scheduling, automatic parent wake, worker pools, generic provider framework, new public tools, GitHub mutation authority or general Temporary-Chat task routing.
+
+
+## 2026-09-21 capability-location / browser-handoff re-entry
+
+### Re-entry trigger
+
+Fresh independent review of exact HEAD `bcd5c8ea8c413e69ecc6b3b66c075e6b2ec0b0ff`
+exposed a failure class that the 2026-09-16 matrix did not cover: a reviewer task
+contains the private `review_run_id`, and the selected provider adapter embedded the
+entire `WORKER_TASK_V1` prompt in the ChatGPT navigation URL. Later URL cleanup
+therefore occurred after the private reviewer capability had already crossed the
+browser URL/history/navigation boundary.
+
+The same review also exposed adjacent capability-location questions for qualification
+artifacts, generic Delegation persistence and FilesRoot physical aliases. Those
+filesystem/state placements were narrowed into already existing project-owned private
+state roots; they did not create a new state owner. This re-entry covers the whole
+discovered capability-location class before further production changes.
+
+### Updated stage question
+
+How should the accepted reviewer-specific private capability and the generic worker
+prompt cross the provider-browser boundary without entering URLs, public metadata or
+new durable browser storage, while preserving the already accepted one-owner /
+one-Send / fail-closed Temporary Chat lifecycle?
+
+### Current baseline and lineage
+
+No role assignment from `ARCHITECTURE_REUSE_BASELINE.md` changes:
+
+| Role | Existing owner | Re-entry decision |
+|---|---|---|
+| Reviewer exact identity/result capability | reviewer-specific local state | **KEEP** |
+| Delegation lifecycle/private run capability | project `delegation_state` | **KEEP / REUSE_MORE** |
+| First-provider browser launch/delivery ownership | project MV3 service worker + authenticated controller | **REFINE** |
+| Browser URL/history | provider/browser transport only | **REJECT as capability store** |
+| Durable prompt/capability cache in extension storage | none | **REJECT** |
+
+The affected baseline browser-delivery role already says the live MV3 mapping is
+ephemeral and loss of that owner fails closed. This re-entry refines what may be kept
+in that live mapping; it does not add a persistent-session role or move authority out
+of the Control Plane.
+
+### Architecture primitives and adjacent domains
+
+The refined design relies only on mechanisms already present in the selected adapter:
+
+- opaque live `launch_handle` bound to one owner tab;
+- authenticated loopback controller response;
+- MV3 service-worker/content-script message passing;
+- exact prompt digest/correlation;
+- existing durable one-Send IndexedDB claim.
+
+The new invariant is a **capability-location rule**, not a new persistence primitive:
+the capability-bearing worker prompt may exist in protected local manager/delegation
+state, an authenticated live extension handoff, the live composer, and the submitted
+reviewer turn, but never in a navigation URL, browser-history projection, public
+metadata or logs intentionally emitted by CAP.
+
+Adjacent domains are bearer-capability handling, browser URL/referrer exposure,
+extension trust boundaries and MV3 service-worker lifetime.
+
+### Problem evidence
+
+Repository evidence:
+
+- `build_review_worker_task()` includes private `review_run_id`;
+- `build_worker_prompt()` embeds that reviewer task verbatim;
+- the previous task launch encoded the complete prompt as `?prompt=...`;
+- the content script navigated with `location.replace(task_url)` and sanitized only
+  after task navigation.
+
+External mechanism evidence:
+
+- RFC 6750 section 2.3/5 states that bearer credentials in URI query parameters are
+  not recommended because URLs are likely to be logged and can survive in browser
+  history and other data structures:
+  https://www.rfc-editor.org/rfc/rfc6750.html
+- MDN's Referrer-Policy security guidance notes that URL parameters can contain
+  sensitive information and may be exposed through referrer behavior:
+  https://developer.mozilla.org/en-US/docs/Web/Security/Practical_implementation_guides/Referrer_policy
+- Chrome documents extension message passing as the supported communication path
+  between content scripts and the extension service worker:
+  https://developer.chrome.com/docs/extensions/develop/concepts/messaging
+- Chrome documents that MV3 service-worker global variables can disappear on
+  termination. For this adapter that is a useful fail-closed boundary for live
+  launch capability material, not a reason to persist the prompt:
+  https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle
+
+### Solution evidence and alternatives
+
+#### A. Keep `?prompt=<worker task>` and sanitize immediately — REJECT
+
+It preserves provider auto-fill mechanics but violates the new capability-location
+invariant before cleanup can run. `replaceState` cannot retroactively prevent prior
+URL/history/log observation.
+
+#### B. Authenticated controller -> live MV3 owner -> content-script handoff — SELECT
+
+The neutral preflight remains the only browser entry opened by PowerShell. The
+authenticated controller returns the exact prompt and digest to the already attested
+MV3 service worker, but the task navigation URL contains only non-secret correlation
+metadata plus the opaque live `launch_handle`.
+
+After navigation, the task content script requests the prompt from the same live
+owner. The service worker must require:
+
+- exact launch handle;
+- exact delegation/delivery/task/prompt/head correlation;
+- the exact original owner tab;
+- an unconsumed prompt handoff.
+
+The content script recomputes `prompt_sha256`, validates the exact worker-task
+markers, populates only an empty composer, then retains the existing positive
+Temporary/non-personalized/no-plugin qualification and durable browser Send claim
+before clicking Send.
+
+This reuses the existing provider adapter and does not create another authority owner.
+
+#### C. Persist the prompt in `chrome.storage` / IndexedDB for navigation recovery — REJECT
+
+Chrome recommends storage when extension state must survive service-worker
+termination, but persistence is the wrong guarantee for this authority artifact.
+Persisting the reviewer capability-bearing prompt would introduce another durable
+secret owner plus cleanup, replay, stale-generation and local-read exposure. The
+accepted adapter already defines complete live-owner loss as fail closed.
+
+#### D. Give the content script the private controller `run_id` and fetch the prompt directly — REJECT
+
+This would widen the private Delegation capability into the renderer/content-script
+boundary and undo the accepted opaque-`launch_handle` separation.
+
+Fewer than three credible safe delivery designs were not assumed; four materially
+different approaches were considered above.
+
+### Updated failure / crash matrix
+
+| Boundary | Capability location | Physical state | Required behavior |
+|---|---|---|---|
+| before authenticated preflight | protected local state only | neutral tab | no prompt/capability in URL |
+| controller returns handoff, before commit | controller + live MV3 memory | neutral tab | exact owner/correlation only; retry same preflight is allowed while launch remains prepared |
+| launch committed, before task navigation | live MV3 memory; durable launch-attempted | neutral tab | MV3 loss fails closed; no relaunch / no Send |
+| task URL created/navigated | **no reviewer capability/prompt in URL** | one task tab | URL may contain only bounded public correlations + opaque live handle |
+| after navigation, before prompt handoff | live MV3 memory | empty task composer | wrong tab/handle/correlation or lost owner => no prompt, no Send |
+| prompt handoff to content script | live extension/content memory | empty composer | recompute digest + exact structural validation before DOM mutation |
+| composer population fails or existing content is non-empty | live page only | unsatisfied binding | fail closed; never overwrite unrelated content and never request Send authority |
+| exact prompt visible, before Send claim | live composer | qualified Temporary UI | existing positive isolation proof still required |
+| browser claim/controller authority denied | live composer | no Send | stop; no second prompt handoff / no second Send |
+| Send committed/visible | submitted reviewer turn | provider conversation | existing delivery/result lifecycle applies |
+| MV3/browser loss at any pre-Send point after launch commit | protected durable state + possibly page | ambiguous/lost live owner | no reconstruction from durable prompt cache; pending/manual fallback |
+
+All release-critical cells have a defined fail-closed outcome. No cell requires a
+second launch or second Send.
+
+### Failure shields / acceptance additions
+
+Before this re-entry can be accepted, deterministic tests must prove with a known
+private reviewer nonce that:
+
+1. neither the neutral preflight URL nor the task navigation URL contains the nonce
+   or the worker prompt;
+2. the task URL contains no `prompt` query parameter at all;
+3. the MV3 prompt handoff is exact-owner-tab, exact-handle, exact-correlation and
+   one-shot/fail-closed;
+4. the content script rejects a digest mismatch and non-empty unrelated composer;
+5. successful population still requires exact visible-composer equality before
+   requesting Send authority;
+6. no CAP URL/log/public metadata projection intentionally contains the private
+   reviewer nonce;
+7. service-worker/live-owner loss before Send produces no reconstruction, second
+   navigation or second Send.
+
+The existing target-Windows physical gate must additionally prove that the new
+non-URL composer population works against the real ChatGPT UI and still produces
+exactly one Send.
+
+### Re-entry decision
+
+**NARROW**
+
+Proceed only with the provider-specific handoff refinement above and the already
+identified private-state/FilesRoot guards. Do not add durable prompt storage,
+persistent browser/session recovery, a generic secret broker, a new public semantic
+tool, a new provider framework, or any second-launch recovery path.
+
+This decision supersedes the 2026-09-16 browser task-delivery detail that allowed the
+worker prompt in the task URL. All other scope limits of the original NARROW decision
+remain in force.
