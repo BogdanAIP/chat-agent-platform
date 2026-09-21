@@ -124,12 +124,12 @@ const delegationId = "4".repeat(64);
 const deliveryId = "5".repeat(64);
 const taskSha = "6".repeat(64);
 const head = "7".repeat(40);
-const promptSha = "8".repeat(64);
 const prompt = "bounded-live-prompt";
+const promptSha = require("crypto").createHash("sha256").update(prompt, "utf8").digest("hex");
 const taskUrl = `https://chatgpt.com/?temporary-chat=true&cap_agent_delegate=1#cap_run_id=${{launchHandle}}`;
 const sender = {{ url: `https://chatgpt.com/?cap_agent_preflight=1#cap_preflight_id=${{preflightId}}`, tab: {{ id: 17 }} }};
 const context = {{
-  console, URL, generation, preflightId, launchHandle, runId, delegationId, deliveryId,
+  console, URL, TextEncoder, crypto: require("crypto").webcrypto, generation, preflightId, launchHandle, runId, delegationId, deliveryId,
   taskSha, head, promptSha, prompt, taskUrl, sender,
   importScripts() {{}}, CAPChatGPTTemporaryExecutionGeneration: generation,
   commitApplied: false, commitCalls: 0, statusCalls: 0,
@@ -190,12 +190,12 @@ const delegationId = "4".repeat(64);
 const deliveryId = "5".repeat(64);
 const taskSha = "6".repeat(64);
 const head = "7".repeat(40);
-const promptSha = "8".repeat(64);
 const prompt = "bounded-live-prompt";
+const promptSha = require("crypto").createHash("sha256").update(prompt, "utf8").digest("hex");
 const taskUrl = `https://chatgpt.com/?temporary-chat=true&cap_agent_delegate=1#cap_run_id=${{launchHandle}}`;
 const sender = {{ url: `https://chatgpt.com/?cap_agent_preflight=1#cap_preflight_id=${{preflightId}}`, tab: {{ id: 17 }} }};
 const context = {{
-  console, URL, generation, preflightId, launchHandle, runId, delegationId, deliveryId,
+  console, URL, TextEncoder, crypto: require("crypto").webcrypto, generation, preflightId, launchHandle, runId, delegationId, deliveryId,
   taskSha, head, promptSha, prompt, taskUrl, sender,
   importScripts() {{}}, CAPChatGPTTemporaryExecutionGeneration: generation, commitCalls: 0,
   chrome: {{ runtime: {{ onInstalled: {{ addListener() {{}} }}, onStartup: {{ addListener() {{}} }}, onMessage: {{ addListener() {{}} }} }} }},
@@ -242,14 +242,14 @@ const delegationId = "6".repeat(64);
 const deliveryId = "7".repeat(64);
 const taskSha = "8".repeat(64);
 const head = "9".repeat(40);
-const promptSha = "a".repeat(64);
 const prompt = "bounded-live-prompt";
+const promptSha = require("crypto").createHash("sha256").update(prompt, "utf8").digest("hex");
 const oldUrl = `https://chatgpt.com/?temporary-chat=true&cap_agent_delegate=1#cap_run_id=${{oldHandle}}`;
 const newUrl = `https://chatgpt.com/?temporary-chat=true&cap_agent_delegate=1#cap_run_id=${{newHandle}}`;
 const oldOwner = {{ url: `https://chatgpt.com/?cap_agent_preflight=1#cap_preflight_id=${{oldPreflight}}`, tab: {{ id: 17 }} }};
 const newTab = {{ url: `https://chatgpt.com/?cap_agent_preflight=1#cap_preflight_id=${{newPreflight}}`, tab: {{ id: 18 }} }};
 const context = {{
-  console, URL, generation, oldPreflight, newPreflight, oldHandle, newHandle, runId,
+  console, URL, TextEncoder, crypto: require("crypto").webcrypto, generation, oldPreflight, newPreflight, oldHandle, newHandle, runId,
   delegationId, deliveryId, taskSha, head, promptSha, prompt, oldUrl, newUrl, oldOwner, newTab,
   importScripts() {{}}, CAPChatGPTTemporaryExecutionGeneration: generation, commitCalls: [],
   chrome: {{ runtime: {{ onInstalled: {{ addListener() {{}} }}, onStartup: {{ addListener() {{}} }}, onMessage: {{ addListener() {{}} }} }} }},
