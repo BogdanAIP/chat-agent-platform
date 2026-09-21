@@ -107,7 +107,8 @@ async function runScenario(config) {{
   const policy = {{
     HEX64_RE: /^[0-9a-f]{{64}}$/,
     HEAD40_RE: /^[0-9a-f]{{40}}$/,
-    parseIntent() {{ return intent; }},
+    parseIntent() {{ return {{...intent, prompt: ""}}; }},
+    promptMatchesIntent(candidate) {{ return candidate === prompt; }},
     findComposerEditor() {{ return editor; }},
     exactPromptMatches(observed, expected) {{ return observed === expected; }},
     personalizationModeFromText(text) {{
@@ -163,6 +164,18 @@ async function runScenario(config) {{
     chrome: {{runtime: {{
       lastError: null,
       sendMessage(message, callback) {{
+        if (message.kind === "task-prompt") {{
+          callback({{
+            ok: true,
+            prompt,
+            delegation_id: intent.delegationId,
+            delivery_id: intent.deliveryId,
+            task_sha256: intent.taskSha256,
+            expected_runtime_head: intent.expectedHead,
+            prompt_sha256: intent.promptSha256,
+          }});
+          return;
+        }}
         if (message.kind === "event") events.push(message);
         if (message.kind === "authorize-send") {{
           authorizeMessage = message;
