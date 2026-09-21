@@ -173,6 +173,23 @@ function exactLiveCorrelation(live, prepared) {
     live.prompt === prepared.prompt;
 }
 
+function promptSenderMatchesLiveLaunch(sender, launchHandle, live) {
+  let actual;
+  let expected;
+  try {
+    actual = new URL(senderUrl(sender));
+    expected = new URL(live.launch_url);
+  } catch {
+    return false;
+  }
+  if (actual.origin !== "https://chatgpt.com" || expected.origin !== actual.origin) return false;
+  if (actual.pathname !== expected.pathname) return false;
+  if (actual.search !== expected.search) return false;
+  if (actual.searchParams.has("prompt")) return false;
+  const fragment = new URLSearchParams(actual.hash.startsWith("#") ? actual.hash.slice(1) : actual.hash);
+  return fragment.get("cap_run_id") === launchHandle;
+}
+
 function exactCommittedStatus(live, status) {
   return status &&
     status.status === "ready" &&
@@ -670,6 +687,10 @@ chrome.runtime.onMessage.addListener((incoming, sender, sendResponse) => {
     const live = LIVE_LAUNCHES.get(incoming.run_id || "");
     if (tabId === null || !live || live.owner_tab_id !== tabId) {
       sendResponse({ ok: false, reason: "prompt-owner-tab-mismatch" });
+      return false;
+    }
+    if (!promptSenderMatchesLiveLaunch(sender, incoming.run_id || "", live)) {
+      sendResponse({ ok: false, reason: "prompt-sender-url-mismatch" });
       return false;
     }
     if (live.prompt_claimed === true || typeof live.prompt !== "string" || !live.prompt) {
