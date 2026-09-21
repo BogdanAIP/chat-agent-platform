@@ -67,7 +67,7 @@ assert.equal(parsed.reason, "prompt-in-url");
             editor_value="",
             response_prompt='prompt + "\\ncorrupted"',
             expected_stopped_reason=None,
-            expect_interval=False,
+            expect_interval=True,
         )
         self._run_node(script)
 
@@ -147,10 +147,23 @@ const editor = {{
   value: {json.dumps(editor_value)},
   childNodes: [],
   getBoundingClientRect: rect,
-  getAttribute() {{ return null; }},
+  getAttribute(name) {{ return name === "data-mode" ? "Temporary Chat" : null; }},
   matches(selector) {{ return selector === ":disabled" ? false : false; }},
   closest(selector) {{ return selector === "form" ? composer : null; }},
   dispatchEvent() {{ return true; }},
+}};
+
+const personalization = {{
+  nodeType: 1,
+  tagName: "BUTTON",
+  isConnected: true,
+  hidden: false,
+  inert: false,
+  disabled: false,
+  parentElement: null,
+  textContent: "Non-personalized",
+  getBoundingClientRect: rect,
+  getAttribute(name) {{ return name === "aria-label" ? "Non-personalized" : null; }},
 }};
 
 const intent = {{
@@ -214,7 +227,10 @@ const context = {{
       if (selector === 'button[data-testid="stop-button"]') return null;
       return null;
     }},
-    querySelectorAll() {{ return []; }},
+    querySelectorAll(selector) {{
+      if (selector === 'button,[role="button"],[aria-label],[title],[data-testid]') return [personalization];
+      return [];
+    }},
   }},
   getComputedStyle: style,
   setInterval(fn) {{ intervals += 1; tick = fn; return intervals; }},
