@@ -86,14 +86,140 @@ class AutomaticReviewerQualificationContractTests(unittest.TestCase):
         )
         self.assertNotIn("ModuleNotFoundError", completed.stderr)
 
+    def test_prepare_rejects_capability_artifacts_outside_private_manager_state(self) -> None:
+        with tempfile.TemporaryDirectory() as local_dir:
+            local_root = Path(local_dir)
+            private_root = (
+                local_root
+                / "ChatAgentPlatform"
+                / "state"
+                / "automatic-reviewer-qualification"
+                / "test"
+            )
+            reviewer_state_root = private_root / "review-state"
+            unsafe_output_dir = (
+                local_root
+                / "ChatAgentPlatform"
+                / "automatic-reviewer"
+                / "qualification"
+                / "leaked-adapter"
+            )
+            reviewer_state_root.mkdir(parents=True, exist_ok=True)
+
+            env = os.environ.copy()
+            env["LOCALAPPDATA"] = str(local_root)
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(DRIVER),
+                    "prepare",
+                    "--repository",
+                    "BogdanAIP/chat-agent-platform",
+                    "--pr-number",
+                    "159",
+                    "--base-sha",
+                    BASE_SHA,
+                    "--head-sha",
+                    HEAD_SHA,
+                    "--review-skill",
+                    "code-review",
+                    "--review-skill-version",
+                    "1.1",
+                    "--reviewer-state-root",
+                    str(reviewer_state_root),
+                    "--output-dir",
+                    str(unsafe_output_dir),
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+
+            self.assertEqual(2, completed.returncode)
+            self.assertEqual(
+                {"status": "error", "reason": "ReviewStateError"},
+                json.loads(completed.stdout),
+            )
+            self.assertFalse((unsafe_output_dir / "review-task.txt").exists())
+            self.assertFalse(
+                (reviewer_state_root / review_state.STATE_DIRECTORY).exists(),
+                "path validation must happen before private reviewer genesis is created",
+            )
+
+    def test_prepare_keeps_task_capability_under_private_manager_state(self) -> None:
+        with tempfile.TemporaryDirectory() as local_dir:
+            local_root = Path(local_dir)
+            private_root = (
+                local_root
+                / "ChatAgentPlatform"
+                / "state"
+                / "automatic-reviewer-qualification"
+                / "test"
+            )
+            reviewer_state_root = private_root / "review-state"
+            output_dir = private_root / "adapter"
+
+            env = os.environ.copy()
+            env["LOCALAPPDATA"] = str(local_root)
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(DRIVER),
+                    "prepare",
+                    "--repository",
+                    "BogdanAIP/chat-agent-platform",
+                    "--pr-number",
+                    "159",
+                    "--base-sha",
+                    BASE_SHA,
+                    "--head-sha",
+                    HEAD_SHA,
+                    "--review-skill",
+                    "code-review",
+                    "--review-skill-version",
+                    "1.1",
+                    "--reviewer-state-root",
+                    str(reviewer_state_root),
+                    "--output-dir",
+                    str(output_dir),
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+
+            self.assertEqual(
+                0,
+                completed.returncode,
+                msg=f"stdout={completed.stdout}\nstderr={completed.stderr}",
+            )
+            result = json.loads(completed.stdout)
+            task_path = Path(result["task_file"]).resolve()
+            manager_state_root = (
+                local_root / "ChatAgentPlatform" / "state"
+            ).resolve()
+            self.assertTrue(task_path.is_relative_to(manager_state_root))
+            self.assertTrue(task_path.is_relative_to(private_root.resolve()))
+            self.assertIn(
+                "review_run_id=",
+                task_path.read_text(encoding="utf-8"),
+                "the capability-bearing task must remain protected by manager-state placement",
+            )
+
     def test_settle_closes_recorded_generic_result_through_registered_submit_path(self) -> None:
         with tempfile.TemporaryDirectory() as local_dir:
             local_root = Path(local_dir)
             reviewer_state_root = (
                 local_root
                 / "ChatAgentPlatform"
-                / "automatic-reviewer"
-                / "qualification"
+                / "state"
+                / "automatic-reviewer-qualification"
                 / "test"
                 / "review-state"
             )
@@ -232,8 +358,16 @@ class AutomaticReviewerQualificationContractTests(unittest.TestCase):
         self.assertNotIn("Set-Clipboard", self.harness)
         self.assertNotIn("Get-Clipboard", self.harness)
 
-    def test_qualification_state_is_separate_but_generic_state_remains_accepted_owner(self) -> None:
-        self.assertIn("automatic-reviewer\\qualification", self.harness)
+    def test_qualification_state_is_private_and_generic_state_remains_accepted_owner(self) -> None:
+        self.assertIn(
+            "ChatAgentPlatform\\state\\automatic-reviewer-qualification",
+            self.harness,
+        )
+        self.assertNotIn(
+            "ChatAgentPlatform\\automatic-reviewer\\qualification",
+            self.harness,
+        )
+        self.assertIn("_require_private_qualification_path", self.driver)
         self.assertIn("review_delegation_state_root", self.driver)
         self.assertNotIn("procedure-runtime", self.driver)
 
