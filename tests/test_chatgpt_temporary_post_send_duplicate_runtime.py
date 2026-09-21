@@ -270,6 +270,8 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {{
   await flush();
   await flush();
+  tick();
+  await flush();
   assert.equal(editor.value, prompt, "live handoff must populate the empty composer before Send");
   assert.ok(!context.location.href.includes("prompt="), "task prompt must never be projected into the URL");
 
