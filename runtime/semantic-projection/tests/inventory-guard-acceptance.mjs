@@ -12,6 +12,7 @@ import {
   prepareSemanticRuntimeEnvironment,
   resolveSemanticRuntimePaths
 } from '../bin/semantic-projection-launcher.mjs';
+import { createSemanticActivationEnvironment } from '../lib/semantic-activation.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const canonicalEntry = path.resolve(here, '..', 'bin', 'semantic-control-plane-projection.mjs');
@@ -30,7 +31,7 @@ function childEnvironment() {
   delete env.CONTROL_PLANE_API_KEY;
   delete env.OPENAI_API_KEY;
   delete env.OPENAI_ADMIN_KEY;
-  return env;
+  return createSemanticActivationEnvironment(env).env;
 }
 
 function ownershipOptions(pid, extraEnv = {}) {
