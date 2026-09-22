@@ -1485,3 +1485,8 @@ def _run_verified_workspace_artifact_locked(
         rollback=rollback,
         resumed=resume_task_id is not None,
     )
+
+# Load the procedure-owned Stage 26.3C runtime hardening only after this
+# module's definitions exist. Importing runtime.control_plane itself remains
+# provider/application neutral.
+from . import _verified_workspace_artifact_runtime as _runtime_hardening  # noqa: E402,F401
