@@ -18,6 +18,11 @@ from .file_artifact_observation import (
     FileArtifactObservationStream,
     observe_file_state,
 )
+from .local_state import (
+    TaskLock as _TaskLock,
+    acquire_task_lock as _acquire_task_lock,
+    safe_child as _safe_child,
+)
 from .verification import (
     ExpectedEffect,
     FinishStatus,
@@ -135,81 +140,6 @@ def _same_file_identity(path: Path, expected: dict[str, Any] | None) -> bool:
     return all(actual.get(key) == value for key, value in normalized.items())
 
 
-class _TaskLock:
-    """Hold one cooperating-runner lock for the lifetime of a procedure call."""
-
-    def __init__(self, handle: Any, backend: str) -> None:
-        self._handle = handle
-        self._backend = backend
-        self._closed = False
-
-    def close(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
-        handle = self._handle
-        self._handle = None
-        if handle is None:
-            return
-        try:
-            handle.seek(0)
-            if self._backend == "windows":
-                import msvcrt
-
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
-
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        except (OSError, ValueError):
-            pass
-        finally:
-            try:
-                handle.close()
-            except Exception:
-                pass
-
-    def __enter__(self) -> "_TaskLock":
-        return self
-
-    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
-        self.close()
-
-    def __del__(self) -> None:
-        self.close()
-
-
-def _task_lock_path(state_root: Path, task_id: str) -> Path:
-    if not _TASK_ID_RE.fullmatch(task_id):
-        raise ValueError("invalid task id")
-    return _safe_child(state_root, state_root / f".{task_id}.lock")
-
-
-def _acquire_task_lock(state_root: Path, task_id: str) -> _TaskLock:
-    state_root.mkdir(parents=True, exist_ok=True)
-    path = _task_lock_path(state_root, task_id)
-    handle = path.open("a+b")
-    try:
-        handle.seek(0, os.SEEK_END)
-        if handle.tell() == 0:
-            handle.write(b"\x00")
-            handle.flush()
-        handle.seek(0)
-        if os.name == "nt":
-            import msvcrt
-
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            return _TaskLock(handle, "windows")
-
-        import fcntl
-
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return _TaskLock(handle, "posix")
-    except (OSError, ImportError) as exc:
-        handle.close()
-        raise BlockingIOError("task_already_running") from exc
-
-
 def _file_predicates(
     name: str,
     *,
@@ -313,14 +243,6 @@ def _kernel_receipt(result: VerificationResult) -> dict[str, Any]:
         "observation": result.observation.as_dict() if result.observation is not None else None,
         "evidence_batch_id": result.evidence_batch_id,
     }
-
-
-def _safe_child(root: Path, child: Path) -> Path:
-    root = root.resolve()
-    resolved = child.resolve(strict=False)
-    if resolved == root or not resolved.is_relative_to(root):
-        raise ValueError("procedure path escaped its configured root")
-    return resolved
 
 
 def _checkpoint_path(state_root: Path, task_id: str) -> Path:
