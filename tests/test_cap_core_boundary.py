@@ -51,6 +51,37 @@ print(json.dumps({
         self.assertTrue(value["has_working_state"])
         self.assertTrue(value["has_verification"])
 
+    def test_star_import_is_core_only_and_provider_neutral(self) -> None:
+        value = self.run_isolated(
+            """
+import json
+import sys
+namespace = {}
+exec("from runtime.control_plane import *", namespace)
+blocked = [
+    "runtime.control_plane.file_artifact_observation",
+    "runtime.control_plane.verified_workspace_artifact",
+    "runtime.control_plane._verified_workspace_artifact_support",
+    "runtime.control_plane._verified_workspace_artifact_runtime",
+    "runtime.control_plane.windows_file_pin",
+    "runtime.control_plane.windows_observation",
+    "runtime.control_plane.windows_transition",
+]
+print(json.dumps({
+    "blocked_loaded": [name for name in blocked if name in sys.modules],
+    "working_state_exported": "WorkingState" in namespace,
+    "provider_exports": sorted(name for name in (
+        "FILE_ARTIFACT_CAPABILITY",
+        "run_verified_workspace_artifact",
+        "WINDOWS_DESKTOP_CAPABILITY",
+    ) if name in namespace),
+}))
+"""
+        )
+        self.assertEqual([], value["blocked_loaded"])
+        self.assertTrue(value["working_state_exported"])
+        self.assertEqual([], value["provider_exports"])
+
     def test_workspace_compatibility_export_loads_hardening_lazily(self) -> None:
         value = self.run_isolated(
             """
