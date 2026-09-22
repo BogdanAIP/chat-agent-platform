@@ -7,6 +7,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { SEMANTIC_ACTIVATION_ENV_KEYS } from '../lib/semantic-activation.mjs';
+
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { McpServer } from '@modelcontextprotocol/server';
@@ -61,11 +63,6 @@ const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'PLAYWRIGHT_MCP_OUTPUT_DIR'
 ]);
 
-const SEMANTIC_ACTIVATION_ENV_ALLOWLIST = new Set([
-  'CHAT_SEMANTIC_ACTIVATION_REF',
-  'CHAT_SEMANTIC_ACTIVATION_VERSION',
-  'CHAT_SEMANTIC_BROWSER_POLICY_REF'
-]);
 
 function toolError(message) {
   return { content: [{ type: 'text', text: message }], isError: true };
@@ -136,7 +133,7 @@ function safeChildEnvironment() {
 
 function semanticChildEnvironment() {
   const env = safeChildEnvironment();
-  for (const name of SEMANTIC_ACTIVATION_ENV_ALLOWLIST) {
+  for (const name of SEMANTIC_ACTIVATION_ENV_KEYS) {
     const value = process.env[name];
     if (typeof value === 'string') env[name] = value;
   }
