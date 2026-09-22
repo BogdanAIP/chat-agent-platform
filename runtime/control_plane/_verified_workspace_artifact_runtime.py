@@ -1,9 +1,9 @@
-"""Deterministic verified-procedure Control Plane.
+"""Procedure-owned Stage 26.3C workspace hardening.
 
-Ordinary ChatGPT remains the general planner.  This package only progresses
-explicitly registered procedures through bounded, current-state-verified
-transitions.  It does not expose generic code execution or persist private
-reasoning.
+Importing this module installs only the pre-import hooks that must exist before
+verified_workspace_artifact imports selected support helpers by value. The
+procedure calls install_post_import_hardening() after all of its definitions
+exist. Importing runtime.control_plane itself never imports this module.
 """
 
 import copy
@@ -348,24 +348,18 @@ else:
         _portable_workspace_create_with_delivery_proof
     )
 
-from . import verified_workspace_artifact as _workspace_artifact
 
 
-# A prepared stage_create has no durable file identity before its transition
-# receipt. Fresh post-restart bytes therefore cannot authenticate themselves as
-# the object created by the dead process. Only the still-live in-process
-# delivery proof may authorize CONFIRMED_APPLIED; a missing staging+target pair
-# remains safe to confirm as NOT_APPLIED and retry within the existing budget.
-_original_workspace_direct_reconciliation_status = (
-    _workspace_artifact._direct_reconciliation_status
-)
-_original_workspace_reconciliation_predicates = (
-    _workspace_artifact._reconciliation_predicates
-)
-_original_workspace_restore_working_state = _workspace_artifact._restore_working_state
-_original_workspace_write_checkpoint = _workspace_artifact._write_checkpoint
-_original_workspace_run = _workspace_artifact.run_verified_workspace_artifact
+# Post-import bindings are installed only after verified_workspace_artifact has
+# imported the already-patched support helpers by value.
+_workspace_artifact = None
+_original_workspace_direct_reconciliation_status = None
+_original_workspace_reconciliation_predicates = None
+_original_workspace_restore_working_state = None
+_original_workspace_write_checkpoint = None
+_original_workspace_run = None
 _WORKSPACE_CHECKPOINT_LOCAL = threading.local()
+_POST_INSTALLED = False
 
 
 def _restore_workspace_working_state_with_progress(task_state, *, task_id):
@@ -520,84 +514,43 @@ def _run_workspace_artifact_with_stage_create_proof_cleanup(*args, **kwargs):
         _WORKSPACE_CHECKPOINT_LOCAL.active = False
 
 
-_workspace_artifact._direct_reconciliation_status = (
-    _bound_workspace_direct_reconciliation_status
-)
-_workspace_artifact._reconciliation_predicates = _bound_workspace_reconciliation_predicates
-_workspace_artifact._restore_working_state = _restore_workspace_working_state_with_progress
-_workspace_artifact._write_checkpoint = _write_checkpoint_with_recovery_and_stage_create_proof
-_workspace_artifact.run_verified_workspace_artifact = (
-    _run_workspace_artifact_with_stage_create_proof_cleanup
-)
 
-PROCEDURE_ID = _workspace_artifact.PROCEDURE_ID
-PROCEDURE_VERSION = _workspace_artifact.PROCEDURE_VERSION
-run_verified_workspace_artifact = _workspace_artifact.run_verified_workspace_artifact
+def install_post_import_hardening(workspace_artifact) -> None:
+    """Bind post-import procedure hooks exactly once after module definition."""
 
-from .windows_observation import (
-    WINDOWS_DESKTOP_CAPABILITY,
-    WindowsDesktopObservationStream,
-)
-from .windows_transition import (
-    WINDOWS_DESKTOP_EFFECT_ID,
-    build_windows_desktop_effect,
-    verify_windows_desktop_transition,
-)
-from .working_state import (
-    AttemptIntent,
-    AttemptRecord,
-    BudgetKind,
-    BudgetState,
-    FailureCategory,
-    FailureReason,
-    GuardDecision,
-    GuardStatus,
-    LoopGuard,
-    LoopGuardPolicy,
-    MutatingOutcome,
-    ReconciliationRecord,
-    ReconciliationStatus,
-    StagnationReport,
-    WorkingState,
-    reconciliation_effect_id,
-)
+    global _workspace_artifact
+    global _original_workspace_direct_reconciliation_status
+    global _original_workspace_reconciliation_predicates
+    global _original_workspace_restore_working_state
+    global _original_workspace_write_checkpoint
+    global _original_workspace_run
+    global _POST_INSTALLED
 
-__all__ = [
-    "AttemptIntent",
-    "AttemptRecord",
-    "BudgetKind",
-    "BudgetState",
-    "ExpectedEffect",
-    "FailureCategory",
-    "FailureReason",
-    "FILE_ARTIFACT_CAPABILITY",
-    "FileArtifactObservationStream",
-    "FinishGateResult",
-    "FinishStatus",
-    "GuardDecision",
-    "GuardStatus",
-    "LoopGuard",
-    "LoopGuardPolicy",
-    "MutatingOutcome",
-    "ObservationRef",
-    "ObservationSnapshot",
-    "PredicateOperator",
-    "PROCEDURE_ID",
-    "PROCEDURE_VERSION",
-    "ReconciliationRecord",
-    "ReconciliationStatus",
-    "StagnationReport",
-    "StatePredicate",
-    "VerificationResult",
-    "VerificationStatus",
-    "WINDOWS_DESKTOP_CAPABILITY",
-    "WINDOWS_DESKTOP_EFFECT_ID",
-    "WindowsDesktopObservationStream",
-    "WorkingState",
-    "build_windows_desktop_effect",
-    "evaluate_finish_gate",
-    "reconciliation_effect_id",
-    "run_verified_workspace_artifact",
-    "verify_expected_effect",
-    "verify_windows_desktop_transition",
-]
+    if _POST_INSTALLED:
+        if _workspace_artifact is not workspace_artifact:
+            raise RuntimeError("workspace hardening already bound to a different module")
+        return
+
+    _workspace_artifact = workspace_artifact
+    _original_workspace_direct_reconciliation_status = (
+        workspace_artifact._direct_reconciliation_status
+    )
+    _original_workspace_reconciliation_predicates = (
+        workspace_artifact._reconciliation_predicates
+    )
+    _original_workspace_restore_working_state = workspace_artifact._restore_working_state
+    _original_workspace_write_checkpoint = workspace_artifact._write_checkpoint
+    _original_workspace_run = workspace_artifact.run_verified_workspace_artifact
+
+    workspace_artifact._direct_reconciliation_status = (
+        _bound_workspace_direct_reconciliation_status
+    )
+    workspace_artifact._reconciliation_predicates = (
+        _bound_workspace_reconciliation_predicates
+    )
+    workspace_artifact._restore_working_state = _restore_workspace_working_state_with_progress
+    workspace_artifact._write_checkpoint = _write_checkpoint_with_recovery_and_stage_create_proof
+    workspace_artifact.run_verified_workspace_artifact = (
+        _run_workspace_artifact_with_stage_create_proof_cleanup
+    )
+    _POST_INSTALLED = True
