@@ -16,13 +16,13 @@ class ManagerBundleReviewModuleTests(unittest.TestCase):
         assertion = self.source.split("function Assert-ChatInstalledSixToolSemanticRuntime", 1)[1].split(
             "function Install-ChatManagerBundle", 1
         )[0]
-        for name in ("independent_review_procedures.py", "independent_review_state.py"):
+        for name in ("independent_review_procedures.py", "independent_review_state.py", "local_state.py", "_verified_workspace_artifact_runtime.py"):
             with self.subTest(name=name):
                 self.assertIn(f"        '{name}',", assertion)
 
     def test_production_bundle_copies_reviewer_modules_and_records_them_as_runtime_assets(self) -> None:
         installer = self.source.split("function Install-ChatManagerBundle", 1)[1]
-        for name in ("independent_review_procedures.py", "independent_review_state.py"):
+        for name in ("independent_review_procedures.py", "independent_review_state.py", "local_state.py", "_verified_workspace_artifact_runtime.py"):
             relative = f"runtime\\control_plane\\{name}"
             with self.subTest(name=name):
                 self.assertIn(f"@('{relative}', '{relative}')", installer)

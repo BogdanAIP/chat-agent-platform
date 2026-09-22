@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import secrets
+import sys
 import time
 from pathlib import Path
 from typing import Any, Callable
+
+# Install the procedure-owned pre-import hardening before importing support
+# helpers by value. This ordering is part of the Stage 26.3C delivery proof.
+from . import _verified_workspace_artifact_runtime as _runtime_hardening
 
 from ._verified_workspace_artifact_support import (
     CHECKPOINT_SCHEMA_VERSION,
@@ -1485,3 +1490,7 @@ def _run_verified_workspace_artifact_locked(
         rollback=rollback,
         resumed=resume_task_id is not None,
     )
+
+# Complete the second phase only after every original procedure definition
+# exists. The runtime module captured no procedure functions during pre-import.
+_runtime_hardening.install_post_import_hardening(sys.modules[__name__])

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import runtime.control_plane as control_plane
+import runtime.control_plane._verified_workspace_artifact_runtime as workspace_runtime
 import runtime.control_plane.verified_workspace_artifact as workspace_artifact
 
 
@@ -107,7 +107,7 @@ class Stage263CPostEffectExceptionRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)
             state = Path(state_dir)
-            real_write = control_plane._original_workspace_write_checkpoint
+            real_write = workspace_runtime._original_workspace_write_checkpoint
             injected = False
 
             def fail_first_final_receipt(state_root: Path, task_state: dict) -> None:
@@ -122,7 +122,7 @@ class Stage263CPostEffectExceptionRecoveryTests(unittest.TestCase):
                 real_write(state_root, task_state)
 
             with patch.object(
-                control_plane,
+                workspace_runtime,
                 "_original_workspace_write_checkpoint",
                 new=fail_first_final_receipt,
             ):
