@@ -60,8 +60,8 @@ jobs:
             throw 'Google Chrome is required for Stage 25.1 same-session vision bridge acceptance.'
           }
           $manifest = Get-Content 'runtime/semantic-projection/package.json' -Raw -Encoding utf8 | ConvertFrom-Json
-          if ([string]$manifest.dependencies.'@playwright/mcp' -ne '0.0.78') {
-            throw 'Stage 25.1 bridge acceptance requires the reviewed @playwright/mcp 0.0.78 pin.'
+          if ([string]$manifest.dependencies.'@playwright/mcp' -ne '0.0.81') {
+            throw 'Stage 25.1 bridge acceptance requires the reviewed @playwright/mcp 0.0.81 pin.'
           }
 
       - name: Install locked semantic projection dependencies

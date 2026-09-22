@@ -152,9 +152,9 @@ function Assert-ChatInstalledSixToolSemanticRuntime {
     $pins = [ordered]@{
         '@modelcontextprotocol/client' = '2.0.0'
         '@modelcontextprotocol/server' = '2.0.0'
-        '@modelcontextprotocol/server-filesystem' = '2026.7.10'
-        '@playwright/mcp' = '0.0.78'
-        'zod' = '4.4.3'
+        '@modelcontextprotocol/server-filesystem' = '2026.8.31'
+        '@playwright/mcp' = '0.0.81'
+        'zod' = '4.6.5'
     }
     if (
         [string]$manifest.name -ne '@chat-agent-platform/semantic-projection' -or
