@@ -789,6 +789,102 @@ def _make_intent(
     )
 
 
+def _workspace_guard_decision(
+    state: WorkingState,
+    intent: AttemptIntent,
+    *,
+    task_id: str,
+    transition_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+):
+    if not _workspace_uses_concrete_grant(
+        state,
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    ):
+        return _WORKSPACE_GUARD.evaluate(
+            state,
+            intent,
+            expected_revision=state.revision,
+        )
+    return _WORKSPACE_GUARD.evaluate_authorized(
+        state,
+        intent,
+        authorization_request=_workspace_authorization_request(
+            state,
+            intent,
+            task_id=task_id,
+            transition_id=transition_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        capability_grant=_workspace_grant(
+            state,
+            task_id=task_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        expected_revision=state.revision,
+    )
+
+
+def _record_workspace_attempt(
+    state: WorkingState,
+    intent: AttemptIntent,
+    outcome: MutatingOutcome,
+    failure: FailureReason | None,
+    *,
+    task_id: str,
+    transition_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> WorkingState:
+    if not _workspace_uses_concrete_grant(
+        state,
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    ):
+        return state.record_attempt(
+            intent,
+            outcome,
+            failure,
+            expected_revision=state.revision,
+            guard=_WORKSPACE_GUARD,
+        )
+    return state.record_authorized_attempt(
+        intent,
+        outcome,
+        failure,
+        authorization_request=_workspace_authorization_request(
+            state,
+            intent,
+            task_id=task_id,
+            transition_id=transition_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        capability_grant=_workspace_grant(
+            state,
+            task_id=task_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        expected_revision=state.revision,
+        guard=_WORKSPACE_GUARD,
+    )
+
+
 def _prepared_marker(intent: AttemptIntent, *, transition_id: str, action_count: int) -> dict[str, Any]:
     return {
         "transition_id": transition_id,
