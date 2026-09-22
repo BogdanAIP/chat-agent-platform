@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import { createSemanticActivationEnvironment } from '../lib/semantic-activation.mjs';
 
 if (process.platform !== 'win32') {
   throw new Error('Windows junction security acceptance must run on Windows.');
@@ -27,7 +28,7 @@ function childEnvironment(extra) {
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === 'string') env[key] = value;
   }
-  return { ...env, ...extra };
+  return createSemanticActivationEnvironment({ ...env, ...extra }).env;
 }
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-stage25-1-junction-'));

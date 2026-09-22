@@ -133,7 +133,9 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
             self.assertIn(f"'{secret}'", source)
         self.assertIn("delete process.env[key]", source)
         self.assertIn("SAFE_CHILD_ENV_ALLOWLIST", source)
-        self.assertIn("env: safeChildEnvironment()", source)
+        self.assertIn("function semanticChildEnvironment()", source)
+        self.assertIn("env: semanticChildEnvironment()", source)
+        self.assertIn("const env = safeChildEnvironment()", source)
         self.assertIn("env,", source)
         allowlist_block = source.split("const SAFE_CHILD_ENV_ALLOWLIST", 1)[1].split("]);", 1)[0]
         for secret in ("CONTROL_PLANE_API_KEY", "OPENAI_API_KEY", "OPENAI_ADMIN_KEY"):

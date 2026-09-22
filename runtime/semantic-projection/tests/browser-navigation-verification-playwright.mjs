@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import { createSemanticActivationEnvironment } from '../lib/semantic-activation.mjs';
 
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,8 +20,10 @@ function textOf(result) {
 
 function childEnvironment(extra) {
   const env = {};
-  for (const [key, value] of Object.entries(process.env)) if (typeof value === 'string') env[key] = value;
-  return { ...env, ...extra };
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') env[key] = value;
+  }
+  return createSemanticActivationEnvironment({ ...env, ...extra }).env;
 }
 
 async function fixtureServer() {
@@ -65,6 +68,9 @@ try {
     arguments: { url: `${fixture.baseUrl}/exact` },
   });
   assert.equal(exact.isError, undefined, textOf(exact));
+  assert.equal(exact.structuredContent?.browser_authorization?.status, 'authorized');
+  assert.equal(exact.structuredContent?.delivery?.attempted, true);
+  assert.equal(exact.structuredContent?.delivery?.acknowledged, true);
   assert.equal(exact.structuredContent?.browser_verification?.status, 'pass');
   assert.equal(exact.structuredContent?.browser_verification?.verification?.status, 'pass');
   assert(textOf(exact).includes('web_open final-state verification=pass'), textOf(exact));

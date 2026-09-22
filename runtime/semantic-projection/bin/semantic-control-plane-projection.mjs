@@ -7,6 +7,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { SEMANTIC_ACTIVATION_ENV_KEYS } from '../lib/semantic-activation.mjs';
+
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { McpServer } from '@modelcontextprotocol/server';
@@ -60,6 +62,7 @@ const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'CHAT_PROCEDURE_STATE_ROOT',
   'PLAYWRIGHT_MCP_OUTPUT_DIR'
 ]);
+
 
 function toolError(message) {
   return { content: [{ type: 'text', text: message }], isError: true };
@@ -128,6 +131,15 @@ function safeChildEnvironment() {
   return env;
 }
 
+function semanticChildEnvironment() {
+  const env = safeChildEnvironment();
+  for (const name of SEMANTIC_ACTIVATION_ENV_KEYS) {
+    const value = process.env[name];
+    if (typeof value === 'string') env[name] = value;
+  }
+  return env;
+}
+
 function controlPlaneEnvironment(request) {
   const env = safeChildEnvironment();
   const workspace = env.CHAT_LOCAL_FILES_ROOT;
@@ -178,7 +190,7 @@ const semanticClient = new Client({
 const semanticTransport = new StdioClientTransport({
   command: process.execPath,
   args: [semanticEntry],
-  env: safeChildEnvironment()
+  env: semanticChildEnvironment()
 });
 
 await semanticClient.connect(semanticTransport);

@@ -135,6 +135,24 @@ print(json.dumps({
                 self.assertIn(relative, workflow)
                 self.assertIn(relative.replace("/", "\\"), manager)
 
+    def test_semantic_mutation_gate_assets_are_in_both_installed_bundles(self) -> None:
+        workflow = (
+            ROOT / ".github" / "workflows" / "semantic-projection.yml"
+        ).read_text(encoding="utf-8")
+        manager = (ROOT / "scripts" / "bootstrap-manager-runtime.ps1").read_text(
+            encoding="utf-8"
+        )
+        for relative in (
+            "runtime/semantic-projection/lib/semantic-activation.mjs",
+            "runtime/semantic-projection/lib/browser-authorization-bridge.mjs",
+            "runtime/semantic-projection/lib/workspace-write-bridge.mjs",
+            "runtime/control_plane/semantic_browser_authorization.py",
+            "runtime/control_plane/semantic_workspace_write.py",
+        ):
+            with self.subTest(relative=relative):
+                self.assertIn(relative, workflow)
+                self.assertIn(relative.replace("/", "\\"), manager)
+
     def test_local_state_lock_remains_fail_closed_and_reusable_after_release(self) -> None:
         from runtime.control_plane.local_state import acquire_task_lock
 

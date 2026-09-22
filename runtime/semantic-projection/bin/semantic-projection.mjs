@@ -17,9 +17,21 @@ import {
   verifyPlaywrightInteraction,
   verifyPlaywrightNavigation,
 } from '../lib/browser-verification-bridge.mjs';
+import { authorizeSemanticBrowserMutation } from '../lib/browser-authorization-bridge.mjs';
 import { createSemanticVisionClickRouter } from '../lib/semantic-vision-click-router.mjs';
+import {
+  requireSemanticActivation,
+  semanticProviderEnvironment,
+} from '../lib/semantic-activation.mjs';
+import {
+  prepareSemanticWorkspaceWrite,
+  semanticWorkspaceWriteIdentity,
+  verifySemanticWorkspaceWrite,
+} from '../lib/workspace-write-bridge.mjs';
 
 const VERSION = '0.1.0';
+
+const semanticActivation = requireSemanticActivation();
 const require = createRequire(import.meta.url);
 const FILESYSTEM_ENTRY = require.resolve('@modelcontextprotocol/server-filesystem/dist/index.js');
 const PLAYWRIGHT_MANIFEST = require.resolve('@playwright/mcp/package.json');
@@ -264,7 +276,10 @@ async function createBackend(kind) {
   }
 
   const client = new Client({ name: `chat-semantic-projection-${kind}`, version: VERSION });
-  const transport = new StdioClientTransport(spec);
+  const transport = new StdioClientTransport({
+    ...spec,
+    env: semanticProviderEnvironment(),
+  });
   try {
     await client.connect(transport);
     const inventory = await client.listTools();
@@ -298,41 +313,105 @@ async function captureBrowserObservation() {
   return parsePlaywrightSnapshotResult(snapshot);
 }
 
-function browserVerifiedResult(delivery, verification, operationName) {
-  const result = normalizeBackendResult(delivery);
+function browserMutationVerifiedResult({
+  delivery,
+  deliveryError,
+  deliveryAttempted,
+  verification,
+  operationName,
+  authorization,
+}) {
+  const result = delivery === null ? { content: [] } : normalizeBackendResult(delivery);
   const status = verification?.status ?? 'unknown';
   const reason = verification?.verification?.reason ?? 'browser_verification_missing_reason';
+  const acknowledged = (
+    deliveryAttempted === true &&
+    deliveryError === null &&
+    delivery !== null &&
+    !delivery.isError
+  );
   result.content = [
     ...result.content,
     {
       type: 'text',
-      text: `${operationName} final-state verification=${status}; reason=${reason}`,
+      text: `${operationName} final-state verification=${status}; reason=${reason}; delivery_acknowledged=${acknowledged}`,
     },
   ];
   result.structuredContent = {
     ...(delivery?.structuredContent !== undefined ? { backend: delivery.structuredContent } : {}),
+    browser_authorization: authorization,
+    delivery: {
+      attempted: deliveryAttempted === true,
+      acknowledged,
+      ...(deliveryError === null ? {} : {
+        error: deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
+      }),
+    },
     browser_verification: verification,
   };
-  if (status !== 'pass') result.isError = true;
+  if (status === 'pass') {
+    delete result.isError;
+  } else {
+    result.isError = true;
+  }
   return result;
 }
 
-function browserDeliveredButUnverifiedResult(delivery, operationName, error) {
-  const result = normalizeBackendResult(delivery);
+function browserMutationUnverifiedResult({
+  delivery,
+  deliveryError,
+  deliveryAttempted,
+  operationName,
+  authorization,
+  error,
+}) {
+  const result = delivery === null ? { content: [] } : normalizeBackendResult(delivery);
   const reason = error instanceof Error ? error.message : String(error);
+  const acknowledged = (
+    deliveryAttempted === true &&
+    deliveryError === null &&
+    delivery !== null &&
+    !delivery.isError
+  );
   result.content = [
     ...result.content,
     {
       type: 'text',
-      text: `${operationName} action was delivered, but fresh final-state verification could not complete: ${reason}`,
+      text: `${operationName} action was attempted, but fresh final-state verification could not complete: ${reason}`,
     },
   ];
   result.structuredContent = {
     ...(delivery?.structuredContent !== undefined ? { backend: delivery.structuredContent } : {}),
+    browser_authorization: authorization,
+    delivery: {
+      attempted: deliveryAttempted === true,
+      acknowledged,
+      ...(deliveryError === null ? {} : {
+        error: deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
+      }),
+    },
     browser_verification: { status: 'unknown', reason: 'verification_runtime_unavailable' },
   };
   result.isError = true;
   return result;
+}
+
+function browserAlreadySatisfiedResult({ operationName, authorization }) {
+  return {
+    content: [{
+      type: 'text',
+      text: `${operationName} performed no physical action because fresh pre-state already satisfies the requested final state.`,
+    }],
+    structuredContent: {
+      browser_authorization: authorization,
+      delivery: { attempted: false, acknowledged: false },
+      browser_verification: {
+        status: 'pass',
+        reason: 'already_satisfied_before_delivery',
+        observation_fingerprint: authorization?.before_fingerprint ?? null,
+      },
+    },
+  };
 }
 
 async function getSemanticVisionRouter() {
@@ -428,48 +507,210 @@ server.registerTool('workspace_read', {
 
 server.registerTool('workspace_write', {
   title: 'Write Workspace Text',
-  description: 'Create or overwrite one UTF-8 text file inside the configured workspace root. The path must be relative; arbitrary filesystem tools are not available.',
+  description: 'Create or overwrite one UTF-8 text file inside the configured workspace root. The request is authorized against the active semantic scope and success requires fresh exact-byte verification. The path must be relative; arbitrary filesystem tools are not available.',
   inputSchema: z.object({ path: relativePathSchema, content: z.string().max(4_000_000) }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
 }, async ({ path: relativePath, content }) => {
-  try { return await callBackend('filesystem', 'write_file', { path: resolveWorkspacePath(relativePath), content }); }
-  catch (error) { return toolError(`workspace_write failed: ${error instanceof Error ? error.message : String(error)}`); }
+  let prepared;
+  let identity;
+  let resolvedPath;
+  try {
+    resolvedPath = resolveWorkspacePath(relativePath);
+    identity = semanticWorkspaceWriteIdentity(content);
+    prepared = await prepareSemanticWorkspaceWrite({
+      activationRef: semanticActivation.activationRef,
+      workspaceRoot,
+      relativePath,
+      ...identity,
+    });
+  } catch (error) {
+    return toolError(`workspace_write refused before delivery: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (prepared?.status !== 'authorized') {
+    return toolError(`workspace_write refused before delivery: authorization=${prepared?.status ?? 'unknown'} reason=${prepared?.reason ?? 'missing'}`);
+  }
+
+  if (prepared.already_satisfied === true) {
+    return {
+      content: [{
+        type: 'text',
+        text: 'workspace_write performed no physical write because fresh pre-state already matches the requested UTF-8 bytes.',
+      }],
+      structuredContent: {
+        delivery: { attempted: false, acknowledged: false },
+        workspace_verification: {
+          status: 'pass',
+          reason: 'already_satisfied_before_delivery',
+          authorization: prepared.authorization,
+          observation: prepared.before,
+        },
+      },
+    };
+  }
+
+  let delivery = null;
+  let deliveryError = null;
+  try {
+    delivery = await callBackend('filesystem', 'write_file', {
+      path: resolvedPath,
+      content,
+    });
+  } catch (error) {
+    deliveryError = error;
+  }
+
+  let verified;
+  try {
+    verified = await verifySemanticWorkspaceWrite({
+      activationRef: semanticActivation.activationRef,
+      workspaceRoot,
+      relativePath,
+      ...identity,
+      before: prepared.before,
+    });
+  } catch (error) {
+    const result = delivery === null ? { content: [] } : normalizeBackendResult(delivery);
+    const reason = error instanceof Error ? error.message : String(error);
+    result.content = [
+      ...result.content,
+      {
+        type: 'text',
+        text: `workspace_write delivery was attempted, but fresh exact-byte verification could not complete: ${reason}`,
+      },
+    ];
+    result.structuredContent = {
+      ...(delivery?.structuredContent !== undefined ? { backend: delivery.structuredContent } : {}),
+      delivery: {
+        attempted: true,
+        acknowledged: delivery !== null && !delivery.isError,
+        ...(deliveryError === null ? {} : {
+          error: deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
+        }),
+      },
+      workspace_verification: {
+        status: 'unknown',
+        reason: 'verification_runtime_unavailable',
+        authorization: prepared.authorization,
+      },
+    };
+    result.isError = true;
+    return result;
+  }
+
+  const result = delivery === null ? { content: [] } : normalizeBackendResult(delivery);
+  const deliveryAcknowledged = delivery !== null && !delivery.isError;
+  result.content = [
+    ...result.content,
+    {
+      type: 'text',
+      text: `workspace_write final-state verification=${verified.status}; reason=${verified.reason}; delivery_acknowledged=${deliveryAcknowledged}`,
+    },
+  ];
+  result.structuredContent = {
+    ...(delivery?.structuredContent !== undefined ? { backend: delivery.structuredContent } : {}),
+    delivery: {
+      attempted: true,
+      acknowledged: deliveryAcknowledged,
+      ...(deliveryError === null ? {} : {
+        error: deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
+      }),
+    },
+    workspace_verification: verified,
+  };
+  if (verified.status === 'pass') {
+    delete result.isError;
+  } else {
+    result.isError = true;
+  }
+  return result;
 });
 
 server.registerTool('web_open', {
   title: 'Open Web Page',
-  description: 'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows. Success requires fresh post-navigation verification of the exact canonical final URL and document snapshot.',
+  description: 'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows. The exact navigation is authorized against the active semantic scope and success requires fresh post-navigation verification of the exact canonical final URL and document snapshot.',
   inputSchema: z.object({ url: z.string().url().max(4096) }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
 }, async ({ url }) => {
+  let before = null;
+  let authorization = null;
   let delivery = null;
+  let deliveryError = null;
+  let deliveryAttempted = false;
+  let parsed;
+  let networkPolicy;
+
   try {
-    const parsed = new URL(url);
+    parsed = new URL(url);
     if (!['http:', 'https:'].includes(parsed.protocol)) return toolError('web_open accepts only HTTP or HTTPS URLs.');
     if (parsed.username || parsed.password) return toolError('web_open rejects URLs containing embedded credentials.');
-    const networkPolicy = classifyDirectNavigationHost(parsed.hostname);
+    networkPolicy = classifyDirectNavigationHost(parsed.hostname);
     if (!networkPolicy.allowed) {
       return toolError(`web_open rejects direct ${networkPolicy.scope} destinations by default: ${parsed.hostname}. Loopback remains allowed; broader private-network access requires a separately reviewed capability.`);
     }
 
-    const before = await captureBrowserObservation();
-    delivery = await callBackend('playwright', 'browser_navigate', { url: parsed.href });
-    if (delivery.isError) return delivery;
+    before = await captureBrowserObservation();
+    authorization = await authorizeSemanticBrowserMutation({
+      activationRef: semanticActivation.activationRef,
+      browserPolicyRef: semanticActivation.browserPolicyRef,
+      actionRef: 'browser.navigate',
+      before,
+      resource: {
+        url: parsed.href,
+        network_scope: networkPolicy.scope,
+      },
+    });
+    if (authorization?.status !== 'authorized') {
+      return toolError(`web_open refused before delivery: authorization=${authorization?.status ?? 'unknown'} reason=${authorization?.reason ?? 'missing'}`);
+    }
 
-    try {
-      const after = await captureBrowserObservation();
-      const verification = await verifyPlaywrightNavigation({
-        before,
-        after,
-        expectedUrl: parsed.href,
-      });
-      return browserVerifiedResult(delivery, verification, 'web_open');
-    } catch (error) {
-      return browserDeliveredButUnverifiedResult(delivery, 'web_open', error);
+    if (before?.settled === true && before?.complete === true && before?.ambiguous !== true) {
+      try {
+        if (normalizeExpectedBrowserUrl(before.url) === parsed.href) {
+          return browserAlreadySatisfiedResult({
+            operationName: 'web_open',
+            authorization,
+          });
+        }
+      } catch {
+        // about:blank or a non-admitted current URL is simply not already satisfied.
+      }
     }
   } catch (error) {
-    if (delivery && !delivery.isError) return browserDeliveredButUnverifiedResult(delivery, 'web_open', error);
-    return toolError(`web_open failed: ${error instanceof Error ? error.message : String(error)}`);
+    return toolError(`web_open refused before delivery: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  deliveryAttempted = true;
+  try {
+    delivery = await callBackend('playwright', 'browser_navigate', { url: parsed.href });
+  } catch (error) {
+    deliveryError = error;
+  }
+
+  try {
+    const after = await captureBrowserObservation();
+    const verification = await verifyPlaywrightNavigation({
+      before,
+      after,
+      expectedUrl: parsed.href,
+    });
+    return browserMutationVerifiedResult({
+      delivery,
+      deliveryError,
+      deliveryAttempted,
+      verification,
+      operationName: 'web_open',
+      authorization,
+    });
+  } catch (error) {
+    return browserMutationUnverifiedResult({
+      delivery,
+      deliveryError,
+      deliveryAttempted,
+      operationName: 'web_open',
+      authorization,
+      error,
+    });
   }
 });
 
@@ -495,7 +736,7 @@ server.registerTool('web_observe', {
 
 server.registerTool('web_interact', {
   title: 'Interact With Web Page',
-  description: 'Interact with the isolated browser using click or type, with fresh before/after verification of a bounded observable postcondition. type without submit may infer the target control value; click and type+submit require expected={url and/or control state} before delivery. The action is refused when expected is already satisfied or cannot be safely distinguished from the fresh pre-action state. click may optionally use the existing reviewed text-labeled visual fallback. Generic page-change heuristics, arbitrary JavaScript, file upload, direct network inspection and backend/tool selection are not accepted.',
+  description: 'Interact with the isolated browser using click or type, with exact active-scope authorization and fresh before/after verification of a bounded observable postcondition. type without submit may infer the target control value; click and type+submit require expected={url and/or control state} before delivery. The action is refused when expected is already satisfied or cannot be safely distinguished from the fresh pre-action state. click may optionally use the existing reviewed text-labeled visual fallback. Generic page-change heuristics, arbitrary JavaScript, file upload, direct network inspection and backend/tool selection are not accepted.',
   inputSchema: z.object({
     operation: z.enum(['click', 'type']), target: z.string().min(1).max(4096).optional(),
     element: z.string().min(1).max(1024).optional(), doubleClick: z.boolean().optional(),
@@ -504,7 +745,13 @@ server.registerTool('web_interact', {
   }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
 }, async args => {
+  let before = null;
+  let expected = null;
+  let authorization = null;
   let delivery = null;
+  let deliveryError = null;
+  let deliveryAttempted = false;
+
   try {
     if (args.operation === 'click') {
       if (args.text !== undefined || args.submit !== undefined || args.slowly !== undefined) return toolError('web_interact click does not accept type-only arguments.');
@@ -521,14 +768,13 @@ server.registerTool('web_interact', {
       if (args.doubleClick !== undefined) return toolError('web_interact type does not accept doubleClick.');
     }
 
-    let expected;
     try {
       expected = normalizeInteractionExpected(args);
     } catch (error) {
       return toolError(`web_interact refused action before delivery: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    const before = await captureBrowserObservation();
+    before = await captureBrowserObservation();
     const preflight = assessInteractionExpectedBefore(before, expected);
     if (preflight.status === 'already_satisfied') {
       return toolError('web_interact refused action before delivery: expected postcondition is already satisfied by the fresh pre-action observation.');
@@ -537,44 +783,91 @@ server.registerTool('web_interact', {
       return toolError('web_interact refused action before delivery: expected postcondition cannot be safely distinguished from the fresh pre-action observation.');
     }
 
-    if (args.operation === 'click') {
-      if (args.visualFallback !== undefined) {
-        const router = await getSemanticVisionRouter();
-        const outcome = await router.click({
-          target: args.target ?? null,
-          element: args.element ?? null,
-          visualFallback: args.visualFallback,
-        });
-        if (outcome?.status !== 'acted') return visualOutcomeResult(outcome);
-        delivery = visualOutcomeResult(outcome);
-      } else {
+    authorization = await authorizeSemanticBrowserMutation({
+      activationRef: semanticActivation.activationRef,
+      browserPolicyRef: semanticActivation.browserPolicyRef,
+      actionRef: args.operation === 'click' ? 'browser.click' : 'browser.type',
+      before,
+      resource: {
+        operation: args.operation,
+        target: args.target ?? null,
+        element: args.element ?? null,
+        double_click: args.doubleClick ?? null,
+        text: args.text ?? null,
+        submit: args.submit ?? null,
+        slowly: args.slowly ?? null,
+        visual_fallback: args.visualFallback === undefined ? null : args.visualFallback,
+        expected,
+      },
+    });
+    if (authorization?.status !== 'authorized') {
+      return toolError(`web_interact refused action before delivery: authorization=${authorization?.status ?? 'unknown'} reason=${authorization?.reason ?? 'missing'}`);
+    }
+  } catch (error) {
+    return toolError(`web_interact refused action before delivery: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (args.operation === 'click' && args.visualFallback !== undefined) {
+    let outcome;
+    try {
+      const router = await getSemanticVisionRouter();
+      outcome = await router.click({
+        target: args.target ?? null,
+        element: args.element ?? null,
+        visualFallback: args.visualFallback,
+      });
+    } catch (error) {
+      return toolError(`web_interact failed before a proven delivery attempt: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    deliveryAttempted = outcome?.deliveryAttempted === true;
+    if (!deliveryAttempted) {
+      return visualOutcomeResult(outcome);
+    }
+    delivery = visualOutcomeResult(outcome);
+    if (outcome?.deliveryError !== undefined) {
+      deliveryError = new Error(String(outcome.deliveryError));
+    }
+  } else {
+    deliveryAttempted = true;
+    try {
+      if (args.operation === 'click') {
         const downstream = { target: args.target };
         if (args.element !== undefined) downstream.element = args.element;
         if (args.doubleClick !== undefined) downstream.doubleClick = args.doubleClick;
         delivery = await callBackend('playwright', 'browser_click', downstream);
+      } else {
+        const downstream = { target: args.target, text: args.text };
+        if (args.element !== undefined) downstream.element = args.element;
+        if (args.submit !== undefined) downstream.submit = args.submit;
+        if (args.slowly !== undefined) downstream.slowly = args.slowly;
+        delivery = await callBackend('playwright', 'browser_type', downstream);
       }
-    } else {
-      const downstream = { target: args.target, text: args.text };
-      if (args.element !== undefined) downstream.element = args.element;
-      if (args.submit !== undefined) downstream.submit = args.submit;
-      if (args.slowly !== undefined) downstream.slowly = args.slowly;
-      delivery = await callBackend('playwright', 'browser_type', downstream);
-    }
-
-    if (delivery?.isError) return delivery;
-
-    try {
-      const after = await captureBrowserObservation();
-      const verification = await verifyPlaywrightInteraction({ before, after, expected });
-      return browserVerifiedResult(delivery, verification, `web_interact ${args.operation}`);
     } catch (error) {
-      return browserDeliveredButUnverifiedResult(delivery, `web_interact ${args.operation}`, error);
+      deliveryError = error;
     }
+  }
+
+  try {
+    const after = await captureBrowserObservation();
+    const verification = await verifyPlaywrightInteraction({ before, after, expected });
+    return browserMutationVerifiedResult({
+      delivery,
+      deliveryError,
+      deliveryAttempted,
+      verification,
+      operationName: `web_interact ${args.operation}`,
+      authorization,
+    });
   } catch (error) {
-    if (delivery && !delivery.isError) {
-      return browserDeliveredButUnverifiedResult(delivery, `web_interact ${args.operation}`, error);
-    }
-    return toolError(`web_interact failed: ${error instanceof Error ? error.message : String(error)}`);
+    return browserMutationUnverifiedResult({
+      delivery,
+      deliveryError,
+      deliveryAttempted,
+      operationName: `web_interact ${args.operation}`,
+      authorization,
+      error,
+    });
   }
 });
 

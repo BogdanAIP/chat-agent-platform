@@ -303,25 +303,39 @@ export class SameSessionVisualGroundingBridge {
       };
     }
 
-    const click = await this.#client.callTool({
-      name: 'browser_mouse_click_xy',
-      arguments: {
-        x: prepared.point.x,
-        y: prepared.point.y,
-        button: 'left',
-        clickCount: 1
-      }
-    });
+    let click = null;
+    try {
+      click = await this.#client.callTool({
+        name: 'browser_mouse_click_xy',
+        arguments: {
+          x: prepared.point.x,
+          y: prepared.point.y,
+          button: 'left',
+          clickCount: 1
+        }
+      });
+    } catch (error) {
+      return {
+        status: 'error',
+        reason: `coordinate-click-ack-unknown:${error instanceof Error ? error.message : String(error)}`,
+        deliveryAttempted: true,
+        deliveryError: error instanceof Error ? error.message : String(error)
+      };
+    }
     if (click?.isError) {
       return {
         status: 'error',
-        reason: `coordinate-click-error:${resultText(click) || 'unknown backend error'}`
+        reason: `coordinate-click-error:${resultText(click) || 'unknown backend error'}`,
+        deliveryAttempted: true,
+        backendResult: click
       };
     }
     return {
       status: 'acted',
       reason: 'visual-click-committed',
-      point: prepared.point
+      point: prepared.point,
+      deliveryAttempted: true,
+      backendResult: click
     };
   }
 

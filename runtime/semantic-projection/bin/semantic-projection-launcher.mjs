@@ -7,6 +7,20 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import {
+  SEMANTIC_ACTIVATION_ENV_KEYS,
+  SEMANTIC_ACTIVATION_VERSION,
+  SEMANTIC_BROWSER_POLICY_REF,
+  createSemanticActivationEnvironment,
+} from '../lib/semantic-activation.mjs';
+
+export {
+  SEMANTIC_ACTIVATION_ENV_KEYS,
+  SEMANTIC_ACTIVATION_VERSION,
+  SEMANTIC_BROWSER_POLICY_REF,
+  createSemanticActivationEnvironment,
+};
+
 const tunnelOnlyCredentialKeys = [
   'CONTROL_PLANE_API_KEY',
   'OPENAI_API_KEY',
@@ -207,6 +221,8 @@ export function prepareSemanticRuntimeEnvironment(options = {}) {
   const paths = assertPrivateWorkspaceIsolation(options);
   fs.mkdirSync(paths.playwrightOutputDirectory, { recursive: true });
   const env = stringEnvironment(options.env ?? process.env);
+  for (const key of SEMANTIC_ACTIVATION_ENV_KEYS) delete env[key];
+  env.CHAT_LOCAL_FILES_ROOT = paths.workspaceRoot;
   env.PLAYWRIGHT_MCP_OUTPUT_DIR = paths.playwrightOutputDirectory;
   return { ...paths, env };
 }
@@ -283,9 +299,10 @@ async function main() {
   const semanticEntry = path.join(launcherDir, 'semantic-control-plane-projection.mjs');
 
   try {
+    const inventoryActivation = createSemanticActivationEnvironment(runtime.env);
     await assertExpectedSemanticInventory({
       entry: semanticEntry,
-      env: runtime.env
+      env: inventoryActivation.env
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -294,9 +311,10 @@ async function main() {
     return;
   }
 
+  const liveActivation = createSemanticActivationEnvironment(runtime.env);
   const child = spawn(process.execPath, [semanticEntry], {
     cwd: runtime.runtimeDirectory,
-    env: runtime.env,
+    env: liveActivation.env,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true
   });
