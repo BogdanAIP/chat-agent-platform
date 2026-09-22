@@ -396,7 +396,7 @@ function browserMutationUnverifiedResult({
   return result;
 }
 
-function browserAlreadySatisfiedResult({ operationName, authorization, before }) {
+function browserAlreadySatisfiedResult({ operationName, authorization }) {
   return {
     content: [{
       type: 'text',
@@ -408,7 +408,7 @@ function browserAlreadySatisfiedResult({ operationName, authorization, before })
       browser_verification: {
         status: 'pass',
         reason: 'already_satisfied_before_delivery',
-        before,
+        observation_fingerprint: authorization?.before_fingerprint ?? null,
       },
     },
   };
@@ -670,7 +670,6 @@ server.registerTool('web_open', {
           return browserAlreadySatisfiedResult({
             operationName: 'web_open',
             authorization,
-            before,
           });
         }
       } catch {
