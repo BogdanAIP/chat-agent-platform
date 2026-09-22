@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import { createSemanticActivationEnvironment } from '../lib/semantic-activation.mjs';
 
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,8 +20,10 @@ function textOf(result) {
 
 function childEnvironment(extra) {
   const env = {};
-  for (const [key, value] of Object.entries(process.env)) if (typeof value === 'string') env[key] = value;
-  return { ...env, ...extra };
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') env[key] = value;
+  }
+  return createSemanticActivationEnvironment({ ...env, ...extra }).env;
 }
 
 async function fixtureServer() {
