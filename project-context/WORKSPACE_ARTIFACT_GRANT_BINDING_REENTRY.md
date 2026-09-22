@@ -106,12 +106,19 @@ Do not silently reinterpret that shared id as the new concrete grant.
 
 Selected migration rule:
 
-- new WorkingState creation stores only the deterministic concrete grant ref;
-- a schema-2 resume carrying the legacy shared admission may continue only through
-  the already-reviewed legacy attempt path for the remainder of that existing
+- bump the workspace checkpoint contract to **schema 3** for newly created/migrated
+  WorkingState;
+- schema-3 WorkingState stores only the deterministic concrete grant ref and every
+  mutation uses the authorized Core path;
+- a genuine schema-2 resume carrying the historical shared admission may continue
+  only through the already-reviewed legacy attempt path for the remainder of that
   checkpoint;
-- new/updated checkpoints created under this migration use the concrete grant ref;
-- no legacy checkpoint is upgraded in place merely by loading it.
+- schema-2 checkpoints remain schema 2 when merely checkpointed/resumed; they are
+  not silently upgraded to schema 3;
+- schema 1 may migrate through the existing explicit migration path into a newly
+  constructed schema-3 WorkingState;
+- a schema-3 checkpoint carrying the legacy shared admission is invalid and fails
+  closed.
 
 This keeps old crash-recovery evidence truthful and prevents a new grant from being
 minted retroactively for an earlier physical attempt.
