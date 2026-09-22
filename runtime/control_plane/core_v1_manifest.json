@@ -13,6 +13,7 @@
   "allowed_internal_dependencies": {
     "runtime/control_plane/verification.py": [],
     "runtime/control_plane/working_state.py": [
+      "runtime.control_plane.authorization",
       "runtime.control_plane.verification"
     ],
     "runtime/control_plane/local_state.py": [],

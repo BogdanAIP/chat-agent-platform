@@ -6,6 +6,7 @@ from dataclasses import dataclass, fields, is_dataclass, replace
 from enum import StrEnum
 from typing import Any, Mapping
 
+from .authorization import AuthorizationRequest, CapabilityGrant, authorize_request
 from .verification import ObservationRef, VerificationResult, VerificationStatus
 
 SCHEMA_VERSION = 1
@@ -751,6 +752,23 @@ class WorkingState:
                 unresolved.append(attempt)
         return tuple(unresolved)
 
+    def _record_allowed_attempt(
+        self,
+        intent: AttemptIntent,
+        outcome: MutatingOutcome,
+        failure: FailureReason | None,
+    ) -> "WorkingState":
+        new_revision = self.revision + 1
+        record = AttemptRecord(intent, outcome, self.revision, new_revision, failure)
+        return replace(
+            self,
+            revision=new_revision,
+            recovery_epoch=self.recovery_epoch + (1 if failure is not None else 0),
+            budgets=self._consume_attempt_budgets(intent.strategy_id),
+            attempts=self.attempts + (record,),
+            failures=self.failures + ((failure,) if failure is not None else ()),
+        )
+
     def record_attempt(
         self,
         intent: AttemptIntent,
@@ -760,6 +778,8 @@ class WorkingState:
         expected_revision: int,
         guard: "LoopGuard | None" = None,
     ) -> "WorkingState":
+        """Legacy structural-guard path kept for staged consumer migration."""
+
         if expected_revision != self.revision:
             raise ValueError("stale WorkingState revision")
         if not isinstance(intent, AttemptIntent) or not isinstance(outcome, MutatingOutcome):
@@ -773,16 +793,37 @@ class WorkingState:
         if not decision.allowed:
             code = decision.failure.code if decision.failure is not None else "blocked"
             raise ValueError(f"LoopGuard blocked attempt: {code}")
-        new_revision = self.revision + 1
-        record = AttemptRecord(intent, outcome, self.revision, new_revision, failure)
-        return replace(
+        return self._record_allowed_attempt(intent, outcome, failure)
+
+    def record_authorized_attempt(
+        self,
+        intent: AttemptIntent,
+        outcome: MutatingOutcome,
+        failure: FailureReason | None,
+        *,
+        authorization_request: AuthorizationRequest,
+        capability_grant: CapabilityGrant | None,
+        expected_revision: int,
+        guard: "LoopGuard | None" = None,
+    ) -> "WorkingState":
+        """Record a mutation only after exact Core authorization and LoopGuard."""
+
+        if expected_revision != self.revision:
+            raise ValueError("stale WorkingState revision")
+        if not isinstance(intent, AttemptIntent) or not isinstance(outcome, MutatingOutcome):
+            raise TypeError("attempt requires AttemptIntent and MutatingOutcome")
+        active_guard = guard or LoopGuard()
+        decision = active_guard.evaluate_authorized(
             self,
-            revision=new_revision,
-            recovery_epoch=self.recovery_epoch + (1 if failure is not None else 0),
-            budgets=self._consume_attempt_budgets(intent.strategy_id),
-            attempts=self.attempts + (record,),
-            failures=self.failures + ((failure,) if failure is not None else ()),
+            intent,
+            authorization_request=authorization_request,
+            capability_grant=capability_grant,
+            expected_revision=expected_revision,
         )
+        if not decision.allowed:
+            code = decision.failure.code if decision.failure is not None else "blocked"
+            raise ValueError(f"LoopGuard blocked authorized attempt: {code}")
+        return self._record_allowed_attempt(intent, outcome, failure)
 
     def record_failure(
         self,
@@ -1361,6 +1402,111 @@ class LoopGuard:
                         evidence_refs=intent.evidence_refs,
                     ),
                 )
+
+        return GuardDecision(
+            GuardStatus.ALLOW,
+            state.revision,
+            intent.authorization_fingerprint,
+        )
+
+    def evaluate_authorized(
+        self,
+        state: WorkingState,
+        intent: AttemptIntent,
+        *,
+        authorization_request: AuthorizationRequest,
+        capability_grant: CapabilityGrant | None,
+        expected_revision: int,
+    ) -> GuardDecision:
+        """Require one active exact grant bound to this exact AttemptIntent."""
+
+        structural = self.evaluate(
+            state,
+            intent,
+            expected_revision=expected_revision,
+        )
+        if not structural.allowed:
+            return structural
+
+        if not isinstance(authorization_request, AuthorizationRequest):
+            raise TypeError("authorization_request must be AuthorizationRequest")
+        if capability_grant is not None and not isinstance(capability_grant, CapabilityGrant):
+            raise TypeError("capability_grant must be CapabilityGrant or None")
+
+        def deny(code: str, message: str) -> GuardDecision:
+            return self._block(
+                state,
+                intent,
+                self._reason(
+                    code,
+                    FailureCategory.PERMISSION_DENIED,
+                    message,
+                    intent,
+                    evidence_refs=intent.evidence_refs,
+                ),
+            )
+
+        if capability_grant is None:
+            return deny(
+                "capability_grant_missing",
+                "No active CapabilityGrant was supplied for this mutation.",
+            )
+        if capability_grant.grant_ref not in state.capability_grant_refs:
+            return deny(
+                "capability_grant_not_active",
+                "CapabilityGrant is not active in current WorkingState.",
+            )
+        if authorization_request.task_ref != state.task_id:
+            return deny(
+                "authorization_task_mismatch",
+                "AuthorizationRequest task does not match current WorkingState.",
+            )
+        if state.actor_ref is None or authorization_request.principal_ref != state.actor_ref:
+            return deny(
+                "authorization_principal_mismatch",
+                "AuthorizationRequest principal does not match current actor.",
+            )
+        if authorization_request.capability != intent.observation_ref.capability:
+            return deny(
+                "authorization_capability_mismatch",
+                "AuthorizationRequest capability does not match AttemptIntent observation.",
+            )
+        if authorization_request.delegation_ref != state.delegation_ref:
+            return deny(
+                "authorization_delegation_mismatch",
+                "AuthorizationRequest delegation does not match current WorkingState.",
+            )
+        if (
+            authorization_request.execution_environment_ref
+            != intent.execution_environment_ref
+        ):
+            return deny(
+                "authorization_environment_mismatch",
+                "AuthorizationRequest environment does not match AttemptIntent.",
+            )
+        if authorization_request.evidence_scope_ref != intent.evidence_scope_ref:
+            return deny(
+                "authorization_evidence_scope_mismatch",
+                "AuthorizationRequest evidence scope does not match AttemptIntent.",
+            )
+        if (
+            authorization_request.attempt_authorization_fingerprint
+            != intent.authorization_fingerprint
+        ):
+            return deny(
+                "authorization_attempt_fingerprint_mismatch",
+                "AuthorizationRequest is not bound to this exact AttemptIntent.",
+            )
+
+        authorization = authorize_request(
+            authorization_request,
+            capability_grant,
+        )
+        if not authorization.authorized:
+            return deny(
+                f"authorization_{authorization.reason}",
+                "CapabilityGrant does not authorize this exact request.",
+            )
 
         return GuardDecision(
             GuardStatus.ALLOW,
