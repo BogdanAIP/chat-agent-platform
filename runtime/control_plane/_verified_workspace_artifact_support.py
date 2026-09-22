@@ -1134,32 +1134,47 @@ def _record_normal_outcome(
     after: ObservationSnapshot,
     *,
     task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
 ) -> WorkingState:
     if status is ReconciliationStatus.CONFIRMED_APPLIED:
-        state = state.record_attempt(
+        state = _record_workspace_attempt(
+            state,
             intent,
             MutatingOutcome.VERIFIED_APPLIED,
             None,
-            expected_revision=state.revision,
-            guard=_WORKSPACE_GUARD,
+            task_id=task_id,
+            transition_id=intent.strategy_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
         )
         return _advance_working_observation(state, after)
     if status is ReconciliationStatus.CONFIRMED_NOT_APPLIED:
-        state = state.record_attempt(
+        state = _record_workspace_attempt(
+            state,
             intent,
             MutatingOutcome.NOT_APPLIED,
             _not_applied_failure(intent, code="workspace_mutation_not_applied"),
-            expected_revision=state.revision,
-            guard=_WORKSPACE_GUARD,
+            task_id=task_id,
+            transition_id=intent.strategy_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
         )
         return _advance_working_observation(state, after)
 
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
         _unknown_failure(intent),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=intent.strategy_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     attempt = state.attempts[-1]
     return state.record_reconciliation(
@@ -1200,10 +1215,14 @@ def _prepare_transition(
         expected_sha=expected_sha,
         content_size=content_size,
     )
-    decision = _WORKSPACE_GUARD.evaluate(
+    decision = _workspace_guard_decision(
         state,
         intent,
-        expected_revision=state.revision,
+        task_id=task_id,
+        transition_id=transition_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     if not decision.allowed:
         code = decision.failure.code if decision.failure is not None else "blocked"
@@ -1224,14 +1243,22 @@ def _record_file_exists_no_effect(
     intent: AttemptIntent,
     after: ObservationSnapshot,
     *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
     checkpoint: Callable[[], None],
 ) -> WorkingState:
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.NOT_APPLIED,
         _not_applied_failure(intent, code="exclusive_create_precondition_changed"),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=intent.strategy_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     state = _advance_working_observation(state, after)
     task_state["working_state"] = state.as_dict()
@@ -1430,12 +1457,16 @@ def _recover_prepared_intent(
         content_size=content_size,
         action_count=int(task_state["action_count"]),
     )
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
         _unknown_failure(intent),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=transition_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     attempt = state.attempts[-1]
     fresh = observer.observe()
@@ -1499,16 +1530,21 @@ def _reconcile_exceptional_delivery(
     *,
     transition_id: str,
     task_id: str,
+    relative_target: str,
     content_size: int,
     expected_sha: str,
     checkpoint: Callable[[], None],
 ) -> WorkingState:
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
         _unknown_failure(intent),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=transition_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     attempt = state.attempts[-1]
     fresh = observer.observe()
