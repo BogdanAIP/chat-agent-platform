@@ -76,6 +76,9 @@ function controlByName(parsed, name) {
 
 function assertVerifiedPass(result, label) {
   assert.equal(result?.isError, undefined, `${label}: ${textOf(result)}`);
+  assert.equal(result?.structuredContent?.browser_authorization?.status, 'authorized', `${label}: ${textOf(result)}`);
+  assert.equal(result?.structuredContent?.delivery?.attempted, true, `${label}: ${textOf(result)}`);
+  assert.equal(result?.structuredContent?.delivery?.acknowledged, true, `${label}: ${textOf(result)}`);
   assert.equal(result?.structuredContent?.browser_verification?.status, 'pass', `${label}: ${textOf(result)}`);
 }
 
