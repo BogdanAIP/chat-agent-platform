@@ -362,10 +362,28 @@ _WORKSPACE_CHECKPOINT_LOCAL = threading.local()
 _POST_INSTALLED = False
 
 
-def _restore_workspace_working_state_with_progress(task_state, *, task_id):
-    """Require checkpoint progress and WorkingState applied history to agree."""
+def _restore_workspace_working_state_with_progress(
+    task_state,
+    *,
+    task_id,
+    relative_target,
+    expected_sha,
+    content_size,
+):
+    """Require checkpoint progress and WorkingState applied history to agree.
 
-    state = _original_workspace_restore_working_state(task_state, task_id=task_id)
+    Preserve the concrete workspace grant/resource binding introduced by the
+    schema-3 restore contract while retaining the independent progress/history
+    consistency check owned by this hardening layer.
+    """
+
+    state = _original_workspace_restore_working_state(
+        task_state,
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
     if str(task_state.get("status")) not in {"running", "completed"}:
         return state
 
