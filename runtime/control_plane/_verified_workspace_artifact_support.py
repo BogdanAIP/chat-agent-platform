@@ -500,7 +500,7 @@ def _validate_resume_state(
     if not required.issubset(task_state):
         raise ValueError("resume checkpoint is missing required fields")
     schema_version = int(task_state["schema_version"])
-    if schema_version not in (1, CHECKPOINT_SCHEMA_VERSION):
+    if schema_version not in (1, LEGACY_WORKING_STATE_SCHEMA_VERSION, CHECKPOINT_SCHEMA_VERSION):
         raise ValueError("resume checkpoint schema is unsupported")
     if str(task_state["task_id"]) != task_id:
         raise ValueError("resume checkpoint task id mismatch")
@@ -524,7 +524,7 @@ def _validate_resume_state(
         raise ValueError("resume checkpoint action count is invalid")
     if not isinstance(task_state["transition_receipts"], list):
         raise ValueError("resume checkpoint transition receipts are invalid")
-    if schema_version == CHECKPOINT_SCHEMA_VERSION:
+    if schema_version >= LEGACY_WORKING_STATE_SCHEMA_VERSION:
         if "working_state" not in task_state or "prepared_intent" not in task_state:
             raise ValueError("resume checkpoint is missing Stage 26.3C recovery state")
         if not isinstance(task_state["working_state"], dict):
@@ -609,7 +609,20 @@ def _validate_resume_state(
     return schema_version
 
 
-def _new_working_state(task_id: str, snapshot: ObservationSnapshot) -> WorkingState:
+def _new_working_state(
+    task_id: str,
+    snapshot: ObservationSnapshot,
+    *,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> WorkingState:
+    grant_ref = _workspace_grant_ref(
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
     return WorkingState.create(
         task_id=task_id,
         task_budget=_WORKING_TASK_BUDGET,
@@ -623,11 +636,19 @@ def _new_working_state(task_id: str, snapshot: ObservationSnapshot) -> WorkingSt
         user_constraints=("no-overwrite", "exact-file-identity"),
         subgoal_refs=_TRANSITIONS,
         evidence_refs=(_observation_evidence_ref(snapshot),),
-        capability_grant_refs=(QUALIFICATION_ADMISSION,),
+        capability_grant_refs=(grant_ref,),
     )
 
 
-def _validate_working_state(state: WorkingState, *, task_id: str) -> None:
+def _validate_working_state(
+    state: WorkingState,
+    *,
+    task_id: str,
+    schema_version: int,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> None:
     if state.task_id != task_id:
         raise ValueError("WorkingState task id mismatch")
     if state.actor_ref != _WORKING_ACTOR:
@@ -638,8 +659,22 @@ def _validate_working_state(state: WorkingState, *, task_id: str) -> None:
         raise ValueError("WorkingState procedure mismatch")
     if state.evidence_scope_ref != state.observation_ref.stream_id:
         raise ValueError("WorkingState evidence scope mismatch")
-    if state.capability_grant_refs != (QUALIFICATION_ADMISSION,):
+
+    concrete_grant_ref = _workspace_grant_ref(
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
+    if schema_version == LEGACY_WORKING_STATE_SCHEMA_VERSION:
+        expected_grants = (QUALIFICATION_ADMISSION,)
+    elif schema_version == CHECKPOINT_SCHEMA_VERSION:
+        expected_grants = (concrete_grant_ref,)
+    else:
+        raise ValueError("WorkingState is not valid for this checkpoint schema")
+    if state.capability_grant_refs != expected_grants:
         raise ValueError("WorkingState capability grant mismatch")
+
     if state.observation_ref.capability != FILE_ARTIFACT_CAPABILITY:
         raise ValueError("WorkingState observation capability mismatch")
     if state.observation_ref.subject != f"{PROCEDURE_ID}:{task_id}":
@@ -658,14 +693,27 @@ def _validate_working_state(state: WorkingState, *, task_id: str) -> None:
         raise ValueError("WorkingState budget contract mismatch")
 
 
-def _restore_working_state(task_state: dict[str, Any], *, task_id: str) -> WorkingState:
+def _restore_working_state(
+    task_state: dict[str, Any],
+    *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> WorkingState:
     try:
         state = WorkingState.from_dict(task_state["working_state"])
     except Exception as exc:
         raise ValueError("resume checkpoint WorkingState is invalid") from exc
-    _validate_working_state(state, task_id=task_id)
+    _validate_working_state(
+        state,
+        task_id=task_id,
+        schema_version=int(task_state["schema_version"]),
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
     return state
-
 
 def _observation_evidence_ref(snapshot: ObservationSnapshot) -> str:
     return f"observation:{snapshot.ref.stream_id}:{snapshot.ref.sequence}"
