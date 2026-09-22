@@ -91,6 +91,27 @@ class SemanticBrowserAuthorizationTests(unittest.TestCase):
                 self.request(resource={"bad": float("nan")})
             )
 
+    def test_public_scale_unicode_resources_remain_authorizable(self) -> None:
+        for label, text in (
+            ("cyrillic", "я" * 190_000),
+            ("non_bmp", "😀" * 95_000),
+            ("escaped_controls", "\u0000" * 200_000),
+        ):
+            with self.subTest(label=label):
+                result = authorize_browser_request(
+                    self.request(
+                        action_ref="browser.type",
+                        resource={
+                            "operation": "type",
+                            "target": "e1",
+                            "text": text,
+                            "submit": True,
+                            "expected": {"url": "https://example.com/done"},
+                        },
+                    )
+                )
+                self.assertEqual("authorized", result["status"])
+
     def test_unknown_fields_are_rejected(self) -> None:
         request = self.request()
         request["backend"] = "playwright"
