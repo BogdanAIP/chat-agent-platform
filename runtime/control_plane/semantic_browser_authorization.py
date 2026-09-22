@@ -30,8 +30,8 @@ _ALLOWED_ACTIONS = {
 }
 _ACTIVATION_RE = re.compile(r"^[0-9a-f]{32}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-MAX_REQUEST_BYTES = 1_200_000
-MAX_RESOURCE_JSON_BYTES = 1_100_000
+MAX_REQUEST_BYTES = 1_400_000
+MAX_RESOURCE_JSON_BYTES = 1_300_000
 
 
 def _error(reason: str) -> dict[str, Any]:
@@ -74,10 +74,10 @@ def _canonical_json(value: Any) -> bytes:
         encoded = json.dumps(
             value,
             sort_keys=True,
-            ensure_ascii=True,
+            ensure_ascii=False,
             separators=(",", ":"),
             allow_nan=False,
-        ).encode("ascii")
+        ).encode("utf-8")
     except (TypeError, ValueError) as exc:
         raise ValueError("resource payload must be bounded plain JSON") from exc
     if len(encoded) > MAX_RESOURCE_JSON_BYTES:
