@@ -122,6 +122,7 @@ function Get-SemanticProjectionEntryPath {
         'bin/semantic-control-plane-projection.mjs',
         'bin/semantic-projection.mjs',
         'lib/browser-verification-bridge.mjs',
+        'lib/browser-authorization-bridge.mjs',
         'lib/semantic-activation.mjs',
         'lib/workspace-write-bridge.mjs',
         'lib/semantic-vision-click-router.mjs',
