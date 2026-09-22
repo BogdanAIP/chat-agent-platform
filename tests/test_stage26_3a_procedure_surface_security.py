@@ -16,8 +16,10 @@ class Stage263AProcedureSurfaceSecurityTests(unittest.TestCase):
     def test_all_descendants_use_explicit_environment_allowlists(self) -> None:
         self.assertIn("const SAFE_CHILD_ENV_ALLOWLIST = new Set", self.source)
         self.assertIn("function safeChildEnvironment()", self.source)
+        self.assertIn("function semanticChildEnvironment()", self.source)
         self.assertIn("function controlPlaneEnvironment(request)", self.source)
-        self.assertIn("env: safeChildEnvironment()", self.source)
+        self.assertIn("env: semanticChildEnvironment()", self.source)
+        self.assertIn("const env = safeChildEnvironment()", self.source)
         self.assertNotIn("env: process.env", self.source)
 
     def test_descendants_do_not_receive_tunnel_or_openai_credentials(self) -> None:
@@ -37,6 +39,13 @@ class Stage263AProcedureSurfaceSecurityTests(unittest.TestCase):
             "CHAT_PROCEDURE_STATE_ROOT",
         ):
             self.assertIn(required, allowlist_block)
+
+        activation_block = self.source[
+            self.source.index("function semanticChildEnvironment()") :
+            self.source.index("function controlPlaneEnvironment(request)")
+        ]
+        self.assertIn("SEMANTIC_ACTIVATION_ENV_KEYS", activation_block)
+        self.assertIn("safeChildEnvironment()", activation_block)
 
         for secret in (
             "CONTROL_PLANE_API_KEY",
