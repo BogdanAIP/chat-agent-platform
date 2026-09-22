@@ -119,7 +119,7 @@ function classifySemanticCandidates(candidates) {
 }
 
 function noAction(status, reason, extra = {}) {
-  return { status, reason, acted: false, ...extra };
+  return { status, reason, acted: false, deliveryAttempted: false, ...extra };
 }
 
 export class SemanticVisionClickRouter {
@@ -147,15 +147,28 @@ export class SemanticVisionClickRouter {
     const semantic = classifySemanticCandidates(candidates);
     if (semantic.status === 'resolved') {
       const downstream = { target: semantic.candidate.ref, element: element ?? fallback.targetText };
-      const click = await this.#client.callTool({ name: 'browser_click', arguments: downstream });
+      let click = null;
+      try {
+        click = await this.#client.callTool({ name: 'browser_click', arguments: downstream });
+      } catch (error) {
+        return noAction('error', `semantic-click-ack-unknown:${error instanceof Error ? error.message : String(error)}`, {
+          source: 'semantic',
+          deliveryAttempted: true,
+          deliveryError: error instanceof Error ? error.message : String(error),
+          semanticCandidateCount: candidates.length
+        });
+      }
       if (click?.isError) {
         return noAction('error', `semantic-click-error:${resultText(click) || 'unknown backend error'}`, {
-          source: 'semantic', backendResult: click, semanticCandidateCount: candidates.length
+          source: 'semantic',
+          backendResult: click,
+          deliveryAttempted: true,
+          semanticCandidateCount: candidates.length
         });
       }
       return {
         status: 'acted', reason: semantic.reason, acted: true, source: 'semantic',
-        backendResult: click, semanticCandidateCount: candidates.length
+        backendResult: click, deliveryAttempted: true, semanticCandidateCount: candidates.length
       };
     }
 
@@ -179,12 +192,18 @@ export class SemanticVisionClickRouter {
     const committed = await this.#bridge.commitClick(prepared.token);
     if (committed.status !== 'acted') {
       return noAction(committed.status, committed.reason ?? 'visual-fallback-not-committed', {
-        source: 'vision', semanticCandidateCount: 0
+        source: 'vision',
+        semanticCandidateCount: 0,
+        deliveryAttempted: committed.deliveryAttempted === true,
+        ...(committed.backendResult !== undefined ? { backendResult: committed.backendResult } : {}),
+        ...(committed.deliveryError !== undefined ? { deliveryError: committed.deliveryError } : {})
       });
     }
     return {
       status: 'acted', reason: committed.reason ?? 'visual-click-committed', acted: true,
-      source: 'vision', point: committed.point, semanticCandidateCount: 0
+      source: 'vision', point: committed.point, semanticCandidateCount: 0,
+      deliveryAttempted: true,
+      ...(committed.backendResult !== undefined ? { backendResult: committed.backendResult } : {})
     };
   }
 
