@@ -5,16 +5,18 @@
   "package": "runtime.control_plane",
   "facade": "runtime/control_plane/__init__.py",
   "kernel_modules": [
+    "runtime/control_plane/authorization.py",
+    "runtime/control_plane/local_state.py",
     "runtime/control_plane/verification.py",
-    "runtime/control_plane/working_state.py",
-    "runtime/control_plane/local_state.py"
+    "runtime/control_plane/working_state.py"
   ],
   "allowed_internal_dependencies": {
     "runtime/control_plane/verification.py": [],
     "runtime/control_plane/working_state.py": [
       "runtime.control_plane.verification"
     ],
-    "runtime/control_plane/local_state.py": []
+    "runtime/control_plane/local_state.py": [],
+    "runtime/control_plane/authorization.py": []
   },
   "forbidden_dependency_prefixes": [
     "runtime.agent_sessions",
@@ -29,8 +31,12 @@
   "core_exports": [
     "AttemptIntent",
     "AttemptRecord",
+    "AuthorizationDecision",
+    "AuthorizationRequest",
+    "AuthorizationStatus",
     "BudgetKind",
     "BudgetState",
+    "CapabilityGrant",
     "ExpectedEffect",
     "FailureCategory",
     "FailureReason",
@@ -51,6 +57,7 @@
     "VerificationResult",
     "VerificationStatus",
     "WorkingState",
+    "authorize_request",
     "evaluate_finish_gate",
     "reconciliation_effect_id",
     "verify_expected_effect"

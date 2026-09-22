@@ -128,6 +128,7 @@ print(json.dumps({
         )
         for relative in (
             "runtime/control_plane/local_state.py",
+            "runtime/control_plane/authorization.py",
             "runtime/control_plane/_verified_workspace_artifact_runtime.py",
         ):
             with self.subTest(relative=relative):

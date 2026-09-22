@@ -29,6 +29,7 @@ class CapCoreV1ManifestTests(unittest.TestCase):
                 "runtime/control_plane/verification.py",
                 "runtime/control_plane/working_state.py",
                 "runtime/control_plane/local_state.py",
+                "runtime/control_plane/authorization.py",
             },
             set(modules),
         )
