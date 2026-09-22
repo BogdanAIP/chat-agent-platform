@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import { createSemanticActivationEnvironment } from '../lib/semantic-activation.mjs';
 import { parsePlaywrightSnapshotResult } from '../lib/browser-verification-bridge.mjs';
 
 
@@ -26,7 +27,7 @@ function childEnvironment(extra) {
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === 'string') env[key] = value;
   }
-  return { ...env, ...extra };
+  return createSemanticActivationEnvironment({ ...env, ...extra }).env;
 }
 
 async function startFixtureServer() {
