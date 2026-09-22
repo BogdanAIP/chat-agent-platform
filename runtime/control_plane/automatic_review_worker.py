@@ -172,13 +172,18 @@ def _health() -> dict[str, Any] | None:
     return value if type(value) is dict else None
 
 
-def _assert_listener_owner(pid: int) -> None:
+def _assert_listener_owner(pid: int, *, port: int = _CONTROLLER_PORT) -> None:
     """Defense-in-depth ownership proof before opening the browser preflight."""
+
+    expected_pid = int(pid)
+    expected_port = int(port)
+    if expected_pid <= 0 or not (1 <= expected_port <= 65535):
+        raise ReviewStateError("reviewer controller listener ownership input is invalid")
 
     pwsh = "pwsh.exe"
     script = (
-        "$expected=[int]$args[0];"
-        f"$rows=@(Get-NetTCPConnection -State Listen -LocalAddress '127.0.0.1' -LocalPort {_CONTROLLER_PORT} "
+        f"$expected={expected_pid};"
+        f"$rows=@(Get-NetTCPConnection -State Listen -LocalAddress '127.0.0.1' -LocalPort {expected_port} "
         "-ErrorAction SilentlyContinue);"
         "if($rows.Count -ne 1){exit 11};"
         "if([int]$rows[0].OwningProcess -ne $expected){exit 12};"
@@ -186,7 +191,7 @@ def _assert_listener_owner(pid: int) -> None:
     )
     try:
         completed = subprocess.run(
-            [pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script, str(pid)],
+            [pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
