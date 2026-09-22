@@ -200,10 +200,15 @@ class DocumentationConsistencyTests(unittest.TestCase):
                 sequence_block.group("body"),
             )
         )
+        self.assertIn("### Native Host v1 language decision", roadmap)
+        self.assertIn("Rust is now the selected implementation language", roadmap)
+
         self.assertEqual(
             release_stage_titles,
             (
                 "Reviewer reuse over the accepted Delegation lifecycle",
+                "CAP Core v1 completion and freeze",
+                "Native Host v1 — Rust",
                 "General computer-use coverage",
                 "External procedure integration",
                 "Skill lifecycle",

@@ -13,6 +13,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable
 
+from .authorization import AuthorizationRequest, CapabilityGrant
 from .file_artifact_observation import (
     FILE_ARTIFACT_CAPABILITY,
     FileArtifactObservationStream,
@@ -56,7 +57,8 @@ MAX_CONTENT_CHARS = 4096
 MAX_CONTENT_BYTES = 16384
 MAX_ACTIONS = 3
 MAX_RUNTIME_SECONDS = 10.0
-CHECKPOINT_SCHEMA_VERSION = 2
+CHECKPOINT_SCHEMA_VERSION = 3
+LEGACY_WORKING_STATE_SCHEMA_VERSION = 2
 _WORKING_TASK_BUDGET = 6
 _WORKING_PROCEDURE_BUDGET = 6
 _WORKING_STRATEGY_BUDGET = 2
@@ -85,6 +87,118 @@ def _utc_now() -> str:
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _workspace_resource_scope_ref(
+    *,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> str:
+    return (
+        f"workspace-artifact:{relative_target}:"
+        f"sha256:{expected_sha}:size:{content_size}"
+    )
+
+
+def _workspace_grant_ref(
+    *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> str:
+    payload = {
+        "procedure": PROCEDURE_ID,
+        "version": PROCEDURE_VERSION,
+        "admission": QUALIFICATION_ADMISSION,
+        "task_id": task_id,
+        "artifact": relative_target,
+        "sha256": expected_sha,
+        "size": content_size,
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"grant:workspace-artifact:{digest}"
+
+
+def _workspace_grant(
+    state: WorkingState,
+    *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> CapabilityGrant:
+    return CapabilityGrant(
+        grant_ref=_workspace_grant_ref(
+            task_id=task_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        task_ref=task_id,
+        principal_ref=_WORKING_ACTOR,
+        capability=FILE_ARTIFACT_CAPABILITY,
+        allowed_action_refs=_TRANSITIONS,
+        resource_scope_ref=_workspace_resource_scope_ref(
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        delegation_ref=state.delegation_ref,
+        execution_environment_ref=_WORKING_ENVIRONMENT,
+        evidence_scope_ref=state.evidence_scope_ref,
+    )
+
+
+def _workspace_authorization_request(
+    state: WorkingState,
+    intent: AttemptIntent,
+    *,
+    task_id: str,
+    transition_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> AuthorizationRequest:
+    return AuthorizationRequest(
+        task_ref=task_id,
+        principal_ref=_WORKING_ACTOR,
+        capability=FILE_ARTIFACT_CAPABILITY,
+        action_ref=transition_id,
+        resource_scope_ref=_workspace_resource_scope_ref(
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        attempt_authorization_fingerprint=intent.authorization_fingerprint,
+        delegation_ref=state.delegation_ref,
+        execution_environment_ref=_WORKING_ENVIRONMENT,
+        evidence_scope_ref=state.evidence_scope_ref,
+    )
+
+
+def _workspace_uses_concrete_grant(
+    state: WorkingState,
+    *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> bool:
+    expected = _workspace_grant_ref(
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
+    if state.capability_grant_refs == (expected,):
+        return True
+    if state.capability_grant_refs == (QUALIFICATION_ADMISSION,):
+        return False
+    raise ValueError("WorkingState capability grant identity is invalid")
 
 
 def _evidence(path: Path) -> dict[str, Any]:
@@ -386,7 +500,7 @@ def _validate_resume_state(
     if not required.issubset(task_state):
         raise ValueError("resume checkpoint is missing required fields")
     schema_version = int(task_state["schema_version"])
-    if schema_version not in (1, CHECKPOINT_SCHEMA_VERSION):
+    if schema_version not in (1, LEGACY_WORKING_STATE_SCHEMA_VERSION, CHECKPOINT_SCHEMA_VERSION):
         raise ValueError("resume checkpoint schema is unsupported")
     if str(task_state["task_id"]) != task_id:
         raise ValueError("resume checkpoint task id mismatch")
@@ -410,7 +524,7 @@ def _validate_resume_state(
         raise ValueError("resume checkpoint action count is invalid")
     if not isinstance(task_state["transition_receipts"], list):
         raise ValueError("resume checkpoint transition receipts are invalid")
-    if schema_version == CHECKPOINT_SCHEMA_VERSION:
+    if schema_version >= LEGACY_WORKING_STATE_SCHEMA_VERSION:
         if "working_state" not in task_state or "prepared_intent" not in task_state:
             raise ValueError("resume checkpoint is missing Stage 26.3C recovery state")
         if not isinstance(task_state["working_state"], dict):
@@ -495,7 +609,20 @@ def _validate_resume_state(
     return schema_version
 
 
-def _new_working_state(task_id: str, snapshot: ObservationSnapshot) -> WorkingState:
+def _new_working_state(
+    task_id: str,
+    snapshot: ObservationSnapshot,
+    *,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> WorkingState:
+    grant_ref = _workspace_grant_ref(
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
     return WorkingState.create(
         task_id=task_id,
         task_budget=_WORKING_TASK_BUDGET,
@@ -509,11 +636,19 @@ def _new_working_state(task_id: str, snapshot: ObservationSnapshot) -> WorkingSt
         user_constraints=("no-overwrite", "exact-file-identity"),
         subgoal_refs=_TRANSITIONS,
         evidence_refs=(_observation_evidence_ref(snapshot),),
-        capability_grant_refs=(QUALIFICATION_ADMISSION,),
+        capability_grant_refs=(grant_ref,),
     )
 
 
-def _validate_working_state(state: WorkingState, *, task_id: str) -> None:
+def _validate_working_state(
+    state: WorkingState,
+    *,
+    task_id: str,
+    schema_version: int,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> None:
     if state.task_id != task_id:
         raise ValueError("WorkingState task id mismatch")
     if state.actor_ref != _WORKING_ACTOR:
@@ -524,8 +659,22 @@ def _validate_working_state(state: WorkingState, *, task_id: str) -> None:
         raise ValueError("WorkingState procedure mismatch")
     if state.evidence_scope_ref != state.observation_ref.stream_id:
         raise ValueError("WorkingState evidence scope mismatch")
-    if state.capability_grant_refs != (QUALIFICATION_ADMISSION,):
+
+    concrete_grant_ref = _workspace_grant_ref(
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
+    if schema_version == LEGACY_WORKING_STATE_SCHEMA_VERSION:
+        expected_grants = (QUALIFICATION_ADMISSION,)
+    elif schema_version == CHECKPOINT_SCHEMA_VERSION:
+        expected_grants = (concrete_grant_ref,)
+    else:
+        raise ValueError("WorkingState is not valid for this checkpoint schema")
+    if state.capability_grant_refs != expected_grants:
         raise ValueError("WorkingState capability grant mismatch")
+
     if state.observation_ref.capability != FILE_ARTIFACT_CAPABILITY:
         raise ValueError("WorkingState observation capability mismatch")
     if state.observation_ref.subject != f"{PROCEDURE_ID}:{task_id}":
@@ -544,14 +693,27 @@ def _validate_working_state(state: WorkingState, *, task_id: str) -> None:
         raise ValueError("WorkingState budget contract mismatch")
 
 
-def _restore_working_state(task_state: dict[str, Any], *, task_id: str) -> WorkingState:
+def _restore_working_state(
+    task_state: dict[str, Any],
+    *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> WorkingState:
     try:
         state = WorkingState.from_dict(task_state["working_state"])
     except Exception as exc:
         raise ValueError("resume checkpoint WorkingState is invalid") from exc
-    _validate_working_state(state, task_id=task_id)
+    _validate_working_state(
+        state,
+        task_id=task_id,
+        schema_version=int(task_state["schema_version"]),
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
     return state
-
 
 def _observation_evidence_ref(snapshot: ObservationSnapshot) -> str:
     return f"observation:{snapshot.ref.stream_id}:{snapshot.ref.sequence}"
@@ -624,6 +786,102 @@ def _make_intent(
         evidence_refs=(
             f"observation:{state.observation_ref.stream_id}:{state.observation_ref.sequence}",
         ),
+    )
+
+
+def _workspace_guard_decision(
+    state: WorkingState,
+    intent: AttemptIntent,
+    *,
+    task_id: str,
+    transition_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+):
+    if not _workspace_uses_concrete_grant(
+        state,
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    ):
+        return _WORKSPACE_GUARD.evaluate(
+            state,
+            intent,
+            expected_revision=state.revision,
+        )
+    return _WORKSPACE_GUARD.evaluate_authorized(
+        state,
+        intent,
+        authorization_request=_workspace_authorization_request(
+            state,
+            intent,
+            task_id=task_id,
+            transition_id=transition_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        capability_grant=_workspace_grant(
+            state,
+            task_id=task_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        expected_revision=state.revision,
+    )
+
+
+def _record_workspace_attempt(
+    state: WorkingState,
+    intent: AttemptIntent,
+    outcome: MutatingOutcome,
+    failure: FailureReason | None,
+    *,
+    task_id: str,
+    transition_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> WorkingState:
+    if not _workspace_uses_concrete_grant(
+        state,
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    ):
+        return state.record_attempt(
+            intent,
+            outcome,
+            failure,
+            expected_revision=state.revision,
+            guard=_WORKSPACE_GUARD,
+        )
+    return state.record_authorized_attempt(
+        intent,
+        outcome,
+        failure,
+        authorization_request=_workspace_authorization_request(
+            state,
+            intent,
+            task_id=task_id,
+            transition_id=transition_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        capability_grant=_workspace_grant(
+            state,
+            task_id=task_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        expected_revision=state.revision,
+        guard=_WORKSPACE_GUARD,
     )
 
 
@@ -876,32 +1134,47 @@ def _record_normal_outcome(
     after: ObservationSnapshot,
     *,
     task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
 ) -> WorkingState:
     if status is ReconciliationStatus.CONFIRMED_APPLIED:
-        state = state.record_attempt(
+        state = _record_workspace_attempt(
+            state,
             intent,
             MutatingOutcome.VERIFIED_APPLIED,
             None,
-            expected_revision=state.revision,
-            guard=_WORKSPACE_GUARD,
+            task_id=task_id,
+            transition_id=intent.strategy_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
         )
         return _advance_working_observation(state, after)
     if status is ReconciliationStatus.CONFIRMED_NOT_APPLIED:
-        state = state.record_attempt(
+        state = _record_workspace_attempt(
+            state,
             intent,
             MutatingOutcome.NOT_APPLIED,
             _not_applied_failure(intent, code="workspace_mutation_not_applied"),
-            expected_revision=state.revision,
-            guard=_WORKSPACE_GUARD,
+            task_id=task_id,
+            transition_id=intent.strategy_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
         )
         return _advance_working_observation(state, after)
 
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
         _unknown_failure(intent),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=intent.strategy_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     attempt = state.attempts[-1]
     return state.record_reconciliation(
@@ -942,10 +1215,14 @@ def _prepare_transition(
         expected_sha=expected_sha,
         content_size=content_size,
     )
-    decision = _WORKSPACE_GUARD.evaluate(
+    decision = _workspace_guard_decision(
         state,
         intent,
-        expected_revision=state.revision,
+        task_id=task_id,
+        transition_id=transition_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     if not decision.allowed:
         code = decision.failure.code if decision.failure is not None else "blocked"
@@ -966,14 +1243,22 @@ def _record_file_exists_no_effect(
     intent: AttemptIntent,
     after: ObservationSnapshot,
     *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
     checkpoint: Callable[[], None],
 ) -> WorkingState:
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.NOT_APPLIED,
         _not_applied_failure(intent, code="exclusive_create_precondition_changed"),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=intent.strategy_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     state = _advance_working_observation(state, after)
     task_state["working_state"] = state.as_dict()
@@ -1172,12 +1457,16 @@ def _recover_prepared_intent(
         content_size=content_size,
         action_count=int(task_state["action_count"]),
     )
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
         _unknown_failure(intent),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=transition_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     attempt = state.attempts[-1]
     fresh = observer.observe()
@@ -1241,16 +1530,21 @@ def _reconcile_exceptional_delivery(
     *,
     transition_id: str,
     task_id: str,
+    relative_target: str,
     content_size: int,
     expected_sha: str,
     checkpoint: Callable[[], None],
 ) -> WorkingState:
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
         _unknown_failure(intent),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=transition_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     attempt = state.attempts[-1]
     fresh = observer.observe()
@@ -1403,8 +1697,14 @@ def run_verified_workspace_artifact(
         task_state.setdefault("staging_file_identity", None)
         task_state.setdefault("target_file_identity", None)
         task_state["resumed_at"] = _utc_now()
-        if schema_version == CHECKPOINT_SCHEMA_VERSION:
-            working_state = _restore_working_state(task_state, task_id=task_id)
+        if schema_version >= LEGACY_WORKING_STATE_SCHEMA_VERSION:
+            working_state = _restore_working_state(
+                task_state,
+                task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
+            )
 
     if working_state is None:
         observer = FileArtifactObservationStream(
@@ -1430,7 +1730,8 @@ def run_verified_workspace_artifact(
         if time.monotonic() - started > MAX_RUNTIME_SECONDS:
             raise RuntimeError("runtime budget exceeded")
         if working_state is not None:
-            task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
+            if int(task_state.get("schema_version", CHECKPOINT_SCHEMA_VERSION)) != LEGACY_WORKING_STATE_SCHEMA_VERSION:
+                task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
             durable = task_state.get("working_state")
             durable_revision = (
                 durable.get("revision", -1)
@@ -1540,7 +1841,13 @@ def run_verified_workspace_artifact(
     if node == "preflight":
         preflight = observer.observe()
         if working_state is None:
-            working_state = _new_working_state(task_id, preflight)
+            working_state = _new_working_state(
+                task_id,
+                preflight,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
+            )
             task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
             task_state["working_state"] = working_state.as_dict()
             task_state["prepared_intent"] = None
@@ -1620,7 +1927,13 @@ def run_verified_workspace_artifact(
         task_state["staging_file_identity"] = upgraded_staging_identity
         migrated_snapshot = resume_staged_snapshot
         if working_state is None:
-            working_state = _new_working_state(task_id, resume_staged_snapshot)
+            working_state = _new_working_state(
+                task_id,
+                resume_staged_snapshot,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
+            )
             task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
             task_state["prepared_intent"] = None
         else:
@@ -1678,7 +1991,13 @@ def run_verified_workspace_artifact(
         task_state["target_file_identity"] = upgraded_target_identity
         migrated_snapshot = resume_final_snapshot
         if working_state is None:
-            working_state = _new_working_state(task_id, resume_final_snapshot)
+            working_state = _new_working_state(
+                task_id,
+                resume_final_snapshot,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
+            )
             task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
             task_state["prepared_intent"] = None
         else:
@@ -1719,6 +2038,10 @@ def run_verified_workspace_artifact(
                     working_state,
                     intent,
                     stage_after,
+                    task_id=task_id,
+                    relative_target=relative_target,
+                    expected_sha=expected_sha,
+                    content_size=len(content_bytes),
                     checkpoint=checkpoint,
                 )
                 return _result(
@@ -1736,6 +2059,7 @@ def run_verified_workspace_artifact(
                     observer,
                     transition_id="stage_create",
                     task_id=task_id,
+                    relative_target=relative_target,
                     content_size=len(content_bytes),
                     expected_sha=expected_sha,
                     checkpoint=checkpoint,
@@ -1777,6 +2101,9 @@ def run_verified_workspace_artifact(
                 direct_status,
                 stage_after,
                 task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
             task_state["action_count"] = int(task_state["action_count"]) + 1
             task_state["working_state"] = working_state.as_dict()
@@ -1843,6 +2170,10 @@ def run_verified_workspace_artifact(
                     working_state,
                     intent,
                     final_after,
+                    task_id=task_id,
+                    relative_target=relative_target,
+                    expected_sha=expected_sha,
+                    content_size=len(content_bytes),
                     checkpoint=checkpoint,
                 )
                 return _result(
@@ -1860,6 +2191,7 @@ def run_verified_workspace_artifact(
                     observer,
                     transition_id="final_create",
                     task_id=task_id,
+                    relative_target=relative_target,
                     content_size=len(content_bytes),
                     expected_sha=expected_sha,
                     checkpoint=checkpoint,
@@ -1907,6 +2239,9 @@ def run_verified_workspace_artifact(
                 direct_status,
                 final_after,
                 task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
             task_state["action_count"] = int(task_state["action_count"]) + 1
             task_state["working_state"] = working_state.as_dict()
@@ -1983,6 +2318,7 @@ def run_verified_workspace_artifact(
                     observer,
                     transition_id="staging_cleanup",
                     task_id=task_id,
+                    relative_target=relative_target,
                     content_size=len(content_bytes),
                     expected_sha=expected_sha,
                     checkpoint=checkpoint,
@@ -2036,6 +2372,9 @@ def run_verified_workspace_artifact(
                 direct_status,
                 completion_after,
                 task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
             task_state["action_count"] = int(task_state["action_count"]) + 1
             task_state["working_state"] = working_state.as_dict()
