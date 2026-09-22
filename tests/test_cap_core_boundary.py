@@ -144,7 +144,9 @@ print(json.dumps({
         )
         for relative in (
             "runtime/semantic-projection/lib/semantic-activation.mjs",
+            "runtime/semantic-projection/lib/browser-authorization-bridge.mjs",
             "runtime/semantic-projection/lib/workspace-write-bridge.mjs",
+            "runtime/control_plane/semantic_browser_authorization.py",
             "runtime/control_plane/semantic_workspace_write.py",
         ):
             with self.subTest(relative=relative):
