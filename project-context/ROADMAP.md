@@ -64,31 +64,69 @@ The accepted Stage 26.3C foundation remains the starting point. The remaining pr
 1. Reviewer reuse over the accepted Delegation lifecycle
    -> migrate the automatic reviewer without weakening reviewer-specific guarantees
 
-2. General computer-use coverage
+2. CAP Core v1 completion and freeze
+   -> finish provider-neutral authorization/enforcement
+   -> migrate consequence-bearing consumers off legacy authority paths
+   -> prove Core can remain stable while capability implementations stay replaceable
+
+3. Native Host v1 — Rust
+   -> add a narrow Rust systems host below CAP Core authority
+   -> own process/process-tree lifecycle, PTY/terminal, Windows Job Objects,
+      native process handles, cancellation/shutdown/child reaping and bounded
+      sandbox/bootstrap mechanics
+   -> consume only already-authorized bounded operations and return receipts/evidence
+   -> never own planning, grants, WorkingState, project PASS or task DONE
+
+4. General computer-use coverage
    -> prove the existing Browser/Desktop path across a finite real-application matrix
 
-3. External procedure integration
+5. External procedure integration
    -> execute one externally compiled bounded procedure through CAP authority,
       WorkingState where required, Verification Kernel and Finish Gate
 
-4. Skill lifecycle
+6. Skill lifecycle
    -> CANDIDATE -> VERIFIED -> STALE / REJECTED with provenance and bounded qualification
 
-5. Skill acquisition
+7. Skill acquisition
    -> 26.4 Human Demo / external skill / existing workflow -> candidate skill
    -> changed-input replay and negative/fail-closed cases
 
-6. Hybrid capability use
+8. Hybrid capability use
    -> 26.5 Hybrid Computer-Use Integration + selective Office reuse
 
-7. Distribution
+9. Distribution
    -> 27 Distribution & Maintenance
 
-8. Stable release
+10. Stable release
    -> 28 Clean User E2E / stable release
 ```
 
 Every roadmap stage must be closed by a concrete product outcome and acceptance evidence, not by integrating a named technology. At stage entry, fresh repository bootstrap and applicable Stage Research select or reject current implementation candidates.
+
+### Native Host v1 language decision
+
+For **Native Host v1 specifically**, Rust is now the selected implementation language.
+
+This selection is intentionally narrow. It does **not** authorize a Rust rewrite of CAP Core, WorkingState, Verification Kernel, Finish Gate, semantic projection, skills or planner logic.
+
+Target boundary:
+
+```text
+ordinary ChatGPT
+ -> CAP Core v1
+    authorization / WorkingState / verification / reconciliation / Finish Gate
+ -> capability adapter
+ -> Rust Native Host v1
+    process tree / PTY / Job Objects / native handles
+    cancellation / shutdown / child reaping / bounded sandbox bootstrap
+ -> operating system
+```
+
+The Rust host receives only an already-authorized bounded operation and returns execution receipts/evidence. Backend availability or native execution success never becomes CAP authorization, project `PASS` or task `DONE`.
+
+The prior `chat/rust-relay-server` branch is reference/reuse material only. Reuse must be selective: extract suitable typed/native/process/security mechanics into the new host boundary rather than reviving the earlier Rust-first architecture wholesale.
+
+Fresh Stage Research is still required before implementation to freeze the exact IPC/process ownership/failure contract and to revalidate which old Rust components are safe to reuse, but **the implementation language for Native Host v1 is Rust unless later blocking evidence forces an explicit roadmap decision change**.
 
 ### ChatGPT session boundary
 
