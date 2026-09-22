@@ -30,8 +30,8 @@ _ALLOWED_ACTIONS = {
 }
 _ACTIVATION_RE = re.compile(r"^[0-9a-f]{32}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-MAX_REQUEST_BYTES = 256 * 1024
-MAX_RESOURCE_JSON_BYTES = 220 * 1024
+MAX_REQUEST_BYTES = 1_200_000
+MAX_RESOURCE_JSON_BYTES = 1_100_000
 
 
 def _error(reason: str) -> dict[str, Any]:
