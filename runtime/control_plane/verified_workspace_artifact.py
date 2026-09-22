@@ -12,6 +12,7 @@ from . import _verified_workspace_artifact_runtime as _runtime_hardening
 
 from ._verified_workspace_artifact_support import (
     CHECKPOINT_SCHEMA_VERSION,
+    LEGACY_WORKING_STATE_SCHEMA_VERSION,
     MAX_ACTIONS,
     MAX_CONTENT_BYTES,
     MAX_CONTENT_CHARS,
@@ -47,6 +48,7 @@ from ._verified_workspace_artifact_support import (
     _record_file_exists_no_effect,
     _record_normal_outcome,
     _record_transition,
+    _record_workspace_attempt,
     _restore_working_state,
     _result,
     _rollback_owned_file,
@@ -391,12 +393,16 @@ def _recover_prepared_intent(
         content_size=content_size,
         action_count=int(task_state["action_count"]),
     )
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
         _unknown_failure(intent),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=transition_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     attempt = state.attempts[-1]
     fresh = observer.observe()
@@ -465,6 +471,7 @@ def _reconcile_exceptional_delivery(
     *,
     transition_id: str,
     task_id: str,
+    relative_target: str,
     content_size: int,
     expected_sha: str,
     checkpoint: Callable[[], None],
@@ -475,12 +482,16 @@ def _reconcile_exceptional_delivery(
     if not isinstance(marker, dict):
         raise ValueError("prepared_intent disappeared during exceptional delivery")
 
-    state = state.record_attempt(
+    state = _record_workspace_attempt(
+        state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
         _unknown_failure(intent),
-        expected_revision=state.revision,
-        guard=_WORKSPACE_GUARD,
+        task_id=task_id,
+        transition_id=transition_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
     )
     attempt = state.attempts[-1]
     fresh = observer.observe()
@@ -666,8 +677,14 @@ def _run_verified_workspace_artifact_locked(
         task_state.setdefault("staging_file_identity", None)
         task_state.setdefault("target_file_identity", None)
         task_state["resumed_at"] = _utc_now()
-        if schema_version == CHECKPOINT_SCHEMA_VERSION:
-            working_state = _restore_working_state(task_state, task_id=task_id)
+        if schema_version >= LEGACY_WORKING_STATE_SCHEMA_VERSION:
+            working_state = _restore_working_state(
+                task_state,
+                task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
+            )
 
     if working_state is None:
         observer = FileArtifactObservationStream(
@@ -693,7 +710,8 @@ def _run_verified_workspace_artifact_locked(
         if time.monotonic() - started > MAX_RUNTIME_SECONDS:
             raise RuntimeError("runtime budget exceeded")
         if working_state is not None:
-            task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
+            if int(task_state.get("schema_version", CHECKPOINT_SCHEMA_VERSION)) != LEGACY_WORKING_STATE_SCHEMA_VERSION:
+                task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
             durable = task_state.get("working_state")
             durable_revision = (
                 durable.get("revision", -1)
@@ -828,7 +846,13 @@ def _run_verified_workspace_artifact_locked(
         if reconciled_retry_snapshot is None:
             preflight = observer.observe()
             if working_state is None:
-                working_state = _new_working_state(task_id, preflight)
+                working_state = _new_working_state(
+                    task_id,
+                    preflight,
+                    relative_target=relative_target,
+                    expected_sha=expected_sha,
+                    content_size=len(content_bytes),
+                )
                 task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
                 task_state["working_state"] = working_state.as_dict()
                 task_state["prepared_intent"] = None
@@ -913,7 +937,13 @@ def _run_verified_workspace_artifact_locked(
         task_state["staging_file_identity"] = upgraded_staging_identity
         migrated_snapshot = resume_staged_snapshot
         if working_state is None:
-            working_state = _new_working_state(task_id, resume_staged_snapshot)
+            working_state = _new_working_state(
+                task_id,
+                resume_staged_snapshot,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
+            )
             task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
             task_state["prepared_intent"] = None
         else:
@@ -974,7 +1004,13 @@ def _run_verified_workspace_artifact_locked(
         task_state["target_file_identity"] = upgraded_target_identity
         migrated_snapshot = resume_final_snapshot
         if working_state is None:
-            working_state = _new_working_state(task_id, resume_final_snapshot)
+            working_state = _new_working_state(
+                task_id,
+                resume_final_snapshot,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
+            )
             task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
             task_state["prepared_intent"] = None
         else:
@@ -1018,6 +1054,10 @@ def _run_verified_workspace_artifact_locked(
                     working_state,
                     intent,
                     stage_after,
+                    task_id=task_id,
+                    relative_target=relative_target,
+                    expected_sha=expected_sha,
+                    content_size=len(content_bytes),
                     checkpoint=checkpoint,
                 )
                 return _result(
@@ -1035,6 +1075,7 @@ def _run_verified_workspace_artifact_locked(
                     observer,
                     transition_id="stage_create",
                     task_id=task_id,
+                    relative_target=relative_target,
                     content_size=len(content_bytes),
                     expected_sha=expected_sha,
                     checkpoint=checkpoint,
@@ -1083,6 +1124,9 @@ def _run_verified_workspace_artifact_locked(
                 authoritative_status,
                 stage_after,
                 task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
             task_state["action_count"] = int(task_state["action_count"]) + 1
             task_state["working_state"] = working_state.as_dict()
@@ -1207,6 +1251,9 @@ def _run_verified_workspace_artifact_locked(
                         authoritative_status,
                         final_after,
                         task_id=task_id,
+                        relative_target=relative_target,
+                        expected_sha=expected_sha,
+                        content_size=len(content_bytes),
                     )
                     task_state["action_count"] = int(task_state["action_count"]) + 1
                     task_state["working_state"] = working_state.as_dict()
@@ -1242,6 +1289,10 @@ def _run_verified_workspace_artifact_locked(
                     working_state,
                     intent,
                     final_after,
+                    task_id=task_id,
+                    relative_target=relative_target,
+                    expected_sha=expected_sha,
+                    content_size=len(content_bytes),
                     checkpoint=checkpoint,
                 )
                 return _result(
@@ -1261,6 +1312,7 @@ def _run_verified_workspace_artifact_locked(
                     observer,
                     transition_id="final_create",
                     task_id=task_id,
+                    relative_target=relative_target,
                     content_size=len(content_bytes),
                     expected_sha=expected_sha,
                     checkpoint=checkpoint,
@@ -1337,6 +1389,7 @@ def _run_verified_workspace_artifact_locked(
                     observer,
                     transition_id="staging_cleanup",
                     task_id=task_id,
+                    relative_target=relative_target,
                     content_size=len(content_bytes),
                     expected_sha=expected_sha,
                     checkpoint=checkpoint,
@@ -1396,6 +1449,9 @@ def _run_verified_workspace_artifact_locked(
                 authoritative_status,
                 completion_after,
                 task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
             task_state["action_count"] = int(task_state["action_count"]) + 1
             task_state["working_state"] = working_state.as_dict()
