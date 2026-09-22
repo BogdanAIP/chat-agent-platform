@@ -69,6 +69,11 @@ try {
   const byName = new Map(inventory.tools.map(tool => [tool.name, tool]));
   assert.equal(byName.get('workspace_read')?.annotations?.readOnlyHint, true);
   assert.equal(byName.get('workspace_write')?.annotations?.destructiveHint, true);
+  assert.deepEqual(
+    Object.keys(byName.get('workspace_write')?.inputSchema?.properties ?? {}).sort(),
+    ['content', 'path'],
+    'workspace_write public schema must not expose activation/grant/authorization fields',
+  );
   assert.equal(byName.get('web_observe')?.annotations?.readOnlyHint, true);
   assert.equal(byName.get('web_interact')?.annotations?.openWorldHint, true);
 
@@ -76,7 +81,7 @@ try {
   assert(interact, 'web_interact missing from canonical semantic surface');
   const interactProperties = interact.inputSchema?.properties ?? {};
   assert(interactProperties.expected, 'web_interact must expose bounded expected postconditions');
-  for (const forbidden of ['javascript', 'script', 'selector', 'code', 'command', 'backend', 'tool']) {
+  for (const forbidden of ['javascript', 'script', 'selector', 'code', 'command', 'backend', 'tool', 'activation_ref', 'grant', 'authorization']) {
     assert.equal(
       Object.prototype.hasOwnProperty.call(interactProperties, forbidden),
       false,
