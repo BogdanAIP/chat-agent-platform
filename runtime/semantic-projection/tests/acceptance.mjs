@@ -115,6 +115,16 @@ try {
 
   const write = await client.callTool({ name: 'workspace_write', arguments: { path: 'output.txt', content: 'SEMANTIC_PROJECTION_WRITE_OK' } });
   assert.equal(write.isError, undefined, textOf(write));
+  assert.equal(write.structuredContent?.workspace_verification?.status, 'pass', textOf(write));
+  assert.equal(write.structuredContent?.delivery?.attempted, true, textOf(write));
+  assert.equal(write.structuredContent?.delivery?.acknowledged, true, textOf(write));
+  assert.equal(fs.readFileSync(outputPath, 'utf8'), 'SEMANTIC_PROJECTION_WRITE_OK');
+
+  const writeNoop = await client.callTool({ name: 'workspace_write', arguments: { path: 'output.txt', content: 'SEMANTIC_PROJECTION_WRITE_OK' } });
+  assert.equal(writeNoop.isError, undefined, textOf(writeNoop));
+  assert.equal(writeNoop.structuredContent?.workspace_verification?.status, 'pass', textOf(writeNoop));
+  assert.equal(writeNoop.structuredContent?.workspace_verification?.reason, 'already_satisfied_before_delivery', textOf(writeNoop));
+  assert.equal(writeNoop.structuredContent?.delivery?.attempted, false, textOf(writeNoop));
   assert.equal(fs.readFileSync(outputPath, 'utf8'), 'SEMANTIC_PROJECTION_WRITE_OK');
 
   const traversal = await client.callTool({ name: 'workspace_read', arguments: { operation: 'read_text', path: '../outside.txt' } });
