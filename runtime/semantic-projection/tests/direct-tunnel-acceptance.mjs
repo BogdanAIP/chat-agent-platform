@@ -241,6 +241,12 @@ try {
   });
   assert.equal(legacyOpen.isError, undefined, textOf(legacyOpen));
   assert.equal(legacyOpen.structuredContent?.browser_verification?.status, 'pass', textOf(legacyOpen));
+  assert.equal(
+    legacyOpen.structuredContent?.browser_verification?.reason,
+    'already_satisfied_before_delivery',
+    textOf(legacyOpen),
+  );
+  assert.equal(legacyOpen.structuredContent?.delivery?.attempted, false, textOf(legacyOpen));
 
   const legacyFindButton = await client.callTool({
     name: 'semantic-projection_1mcp_web_observe',
@@ -272,8 +278,15 @@ try {
       expected: { control: { target: legacyStatusRef, value: 'DIRECT_TUNNEL_BROWSER_DONE' } }
     }
   });
-  assert.equal(legacyClick.isError, undefined, textOf(legacyClick));
-  assert.equal(legacyClick.structuredContent?.browser_verification?.status, 'pass', textOf(legacyClick));
+  assert.equal(
+    legacyClick.isError,
+    true,
+    'compatibility alias must inherit the current already-satisfied zero-action guard',
+  );
+  assert(
+    textOf(legacyClick).includes('already satisfied'),
+    textOf(legacyClick),
+  );
 
   const legacyFindDone = await client.callTool({
     name: 'semantic-projection_1mcp_web_observe',
