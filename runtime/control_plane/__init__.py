@@ -14,6 +14,13 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
+from .authorization import (
+    AuthorizationDecision,
+    AuthorizationRequest,
+    AuthorizationStatus,
+    CapabilityGrant,
+    authorize_request,
+)
 from .verification import (
     ExpectedEffect,
     FinishGateResult,
@@ -107,9 +114,13 @@ def __dir__() -> list[str]:
 
 __all__ = [
     "AttemptIntent",
+    "AuthorizationDecision",
+    "AuthorizationRequest",
+    "AuthorizationStatus",
     "AttemptRecord",
     "BudgetKind",
     "BudgetState",
+    "CapabilityGrant",
     "ExpectedEffect",
     "FailureCategory",
     "FailureReason",
@@ -130,6 +141,7 @@ __all__ = [
     "VerificationResult",
     "VerificationStatus",
     "WorkingState",
+    "authorize_request",
     "evaluate_finish_gate",
     "reconciliation_effect_id",
     "verify_expected_effect",
