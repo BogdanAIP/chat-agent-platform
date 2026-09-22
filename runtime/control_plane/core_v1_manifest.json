@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "core_id": "cap-core-v1",
+  "status": "freeze-candidate",
+  "package": "runtime.control_plane",
+  "facade": "runtime/control_plane/__init__.py",
+  "kernel_modules": [
+    "runtime/control_plane/verification.py",
+    "runtime/control_plane/working_state.py",
+    "runtime/control_plane/local_state.py"
+  ],
+  "allowed_internal_dependencies": {
+    "runtime/control_plane/verification.py": [],
+    "runtime/control_plane/working_state.py": [
+      "runtime.control_plane.verification"
+    ],
+    "runtime/control_plane/local_state.py": []
+  },
+  "forbidden_dependency_prefixes": [
+    "runtime.agent_sessions",
+    "runtime.local_vision_adapter",
+    "runtime.semantic_projection",
+    "runtime.control_plane.browser_",
+    "runtime.control_plane.file_artifact_",
+    "runtime.control_plane.independent_review_",
+    "runtime.control_plane.verified_workspace_artifact",
+    "runtime.control_plane.windows_"
+  ],
+  "core_exports": [
+    "AttemptIntent",
+    "AttemptRecord",
+    "BudgetKind",
+    "BudgetState",
+    "ExpectedEffect",
+    "FailureCategory",
+    "FailureReason",
+    "FinishGateResult",
+    "FinishStatus",
+    "GuardDecision",
+    "GuardStatus",
+    "LoopGuard",
+    "LoopGuardPolicy",
+    "MutatingOutcome",
+    "ObservationRef",
+    "ObservationSnapshot",
+    "PredicateOperator",
+    "ReconciliationRecord",
+    "ReconciliationStatus",
+    "StagnationReport",
+    "StatePredicate",
+    "VerificationResult",
+    "VerificationStatus",
+    "WorkingState",
+    "evaluate_finish_gate",
+    "reconciliation_effect_id",
+    "verify_expected_effect"
+  ],
+  "non_core_examples": [
+    "runtime/control_plane/delegation_state.py",
+    "runtime/control_plane/independent_review_state.py",
+    "runtime/control_plane/verified_workspace_artifact.py",
+    "runtime/control_plane/windows_observation.py",
+    "runtime/semantic-projection/bin/semantic-projection.mjs",
+    "runtime/agent_sessions/chatgpt_temporary.py"
+  ],
+  "rules": [
+    "Core owns provider-independent authority, state, verification, reconciliation, budgets and Finish Gate semantics.",
+    "Capability/provider/session/procedure implementations may depend on Core; Core must not depend on them.",
+    "Provider success is evidence only and cannot directly establish project PASS or DONE.",
+    "Adding a provider inside an accepted capability family must not require widening Core authority or the public Chat schema.",
+    "A genuinely new consequence class requires separate reviewed semantics and is not hidden behind a provider seam."
+  ]
+}
