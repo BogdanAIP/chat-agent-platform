@@ -22,6 +22,11 @@ import {
   requireSemanticActivation,
   semanticProviderEnvironment,
 } from '../lib/semantic-activation.mjs';
+import {
+  prepareSemanticWorkspaceWrite,
+  semanticWorkspaceWriteIdentity,
+  verifySemanticWorkspaceWrite,
+} from '../lib/workspace-write-bridge.mjs';
 
 const VERSION = '0.1.0';
 
@@ -437,12 +442,123 @@ server.registerTool('workspace_read', {
 
 server.registerTool('workspace_write', {
   title: 'Write Workspace Text',
-  description: 'Create or overwrite one UTF-8 text file inside the configured workspace root. The path must be relative; arbitrary filesystem tools are not available.',
+  description: 'Create or overwrite one UTF-8 text file inside the configured workspace root. The request is authorized against the active semantic scope and success requires fresh exact-byte verification. The path must be relative; arbitrary filesystem tools are not available.',
   inputSchema: z.object({ path: relativePathSchema, content: z.string().max(4_000_000) }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
 }, async ({ path: relativePath, content }) => {
-  try { return await callBackend('filesystem', 'write_file', { path: resolveWorkspacePath(relativePath), content }); }
-  catch (error) { return toolError(`workspace_write failed: ${error instanceof Error ? error.message : String(error)}`); }
+  let prepared;
+  let identity;
+  let resolvedPath;
+  try {
+    resolvedPath = resolveWorkspacePath(relativePath);
+    identity = semanticWorkspaceWriteIdentity(content);
+    prepared = await prepareSemanticWorkspaceWrite({
+      activationRef: semanticActivation.activationRef,
+      workspaceRoot,
+      relativePath,
+      ...identity,
+    });
+  } catch (error) {
+    return toolError(`workspace_write refused before delivery: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (prepared?.status !== 'authorized') {
+    return toolError(`workspace_write refused before delivery: authorization=${prepared?.status ?? 'unknown'} reason=${prepared?.reason ?? 'missing'}`);
+  }
+
+  if (prepared.already_satisfied === true) {
+    return {
+      content: [{
+        type: 'text',
+        text: 'workspace_write performed no physical write because fresh pre-state already matches the requested UTF-8 bytes.',
+      }],
+      structuredContent: {
+        delivery: { attempted: false, acknowledged: false },
+        workspace_verification: {
+          status: 'pass',
+          reason: 'already_satisfied_before_delivery',
+          authorization: prepared.authorization,
+          observation: prepared.before,
+        },
+      },
+    };
+  }
+
+  let delivery = null;
+  let deliveryError = null;
+  try {
+    delivery = await callBackend('filesystem', 'write_file', {
+      path: resolvedPath,
+      content,
+    });
+  } catch (error) {
+    deliveryError = error;
+  }
+
+  let verified;
+  try {
+    verified = await verifySemanticWorkspaceWrite({
+      activationRef: semanticActivation.activationRef,
+      workspaceRoot,
+      relativePath,
+      ...identity,
+      before: prepared.before,
+    });
+  } catch (error) {
+    const result = delivery === null ? { content: [] } : normalizeBackendResult(delivery);
+    const reason = error instanceof Error ? error.message : String(error);
+    result.content = [
+      ...result.content,
+      {
+        type: 'text',
+        text: `workspace_write delivery was attempted, but fresh exact-byte verification could not complete: ${reason}`,
+      },
+    ];
+    result.structuredContent = {
+      ...(delivery?.structuredContent !== undefined ? { backend: delivery.structuredContent } : {}),
+      delivery: {
+        attempted: true,
+        acknowledged: delivery !== null && !delivery.isError,
+        ...(deliveryError === null ? {} : {
+          error: deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
+        }),
+      },
+      workspace_verification: {
+        status: 'unknown',
+        reason: 'verification_runtime_unavailable',
+        authorization: prepared.authorization,
+      },
+    };
+    result.isError = true;
+    return result;
+  }
+
+  const result = delivery === null ? { content: [] } : normalizeBackendResult(delivery);
+  const deliveryAcknowledged = delivery !== null && !delivery.isError;
+  result.content = [
+    ...result.content,
+    {
+      type: 'text',
+      text: `workspace_write final-state verification=${verified.status}; reason=${verified.reason}; delivery_acknowledged=${deliveryAcknowledged}`,
+    },
+  ];
+  result.structuredContent = {
+    ...(delivery?.structuredContent !== undefined ? { backend: delivery.structuredContent } : {}),
+    delivery: {
+      attempted: true,
+      acknowledged: deliveryAcknowledged,
+      ...(deliveryError === null ? {} : {
+        error: deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
+      }),
+    },
+    workspace_verification: verified,
+  };
+  if (verified.status === 'pass') {
+    delete result.isError;
+  } else {
+    result.isError = true;
+  }
+  return result;
 });
 
 server.registerTool('web_open', {
