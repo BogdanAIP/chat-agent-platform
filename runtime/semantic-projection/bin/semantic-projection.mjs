@@ -18,46 +18,12 @@ import {
   verifyPlaywrightNavigation,
 } from '../lib/browser-verification-bridge.mjs';
 import { createSemanticVisionClickRouter } from '../lib/semantic-vision-click-router.mjs';
+import {
+  requireSemanticActivation,
+  semanticProviderEnvironment,
+} from '../lib/semantic-activation.mjs';
 
 const VERSION = '0.1.0';
-
-const SEMANTIC_ACTIVATION_VERSION = 'semantic-activation-v1';
-const SEMANTIC_BROWSER_POLICY_REF = 'isolated-playwright-public-http-loopback-v1';
-const SEMANTIC_ACTIVATION_REF_RE = /^[0-9a-f]{32}$/;
-const SAFE_BACKEND_ENV_ALLOWLIST = new Set([
-  'PATH', 'Path', 'PATHEXT',
-  'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC',
-  'TEMP', 'TMP', 'TMPDIR',
-  'LOCALAPPDATA', 'HOME', 'USERPROFILE',
-  'PROGRAMFILES', 'ProgramFiles', 'PROGRAMFILES(X86)',
-  'LANG', 'LC_ALL', 'PYTHONUTF8', 'PYTHONIOENCODING',
-  'PLAYWRIGHT_MCP_OUTPUT_DIR'
-]);
-
-function requireSemanticActivation(env = process.env) {
-  const activationRef = env.CHAT_SEMANTIC_ACTIVATION_REF;
-  const activationVersion = env.CHAT_SEMANTIC_ACTIVATION_VERSION;
-  const browserPolicyRef = env.CHAT_SEMANTIC_BROWSER_POLICY_REF;
-  if (typeof activationRef !== 'string' || !SEMANTIC_ACTIVATION_REF_RE.test(activationRef)) {
-    throw new Error('semantic mutation runtime requires a launcher-owned activation_ref');
-  }
-  if (activationVersion !== SEMANTIC_ACTIVATION_VERSION) {
-    throw new Error('semantic mutation runtime activation version mismatch');
-  }
-  if (browserPolicyRef !== SEMANTIC_BROWSER_POLICY_REF) {
-    throw new Error('semantic mutation runtime browser policy mismatch');
-  }
-  return Object.freeze({ activationRef, activationVersion, browserPolicyRef });
-}
-
-function backendEnvironment(env = process.env) {
-  const result = {};
-  for (const name of SAFE_BACKEND_ENV_ALLOWLIST) {
-    const value = env[name];
-    if (typeof value === 'string') result[name] = value;
-  }
-  return result;
-}
 
 const semanticActivation = requireSemanticActivation();
 const require = createRequire(import.meta.url);
@@ -306,7 +272,7 @@ async function createBackend(kind) {
   const client = new Client({ name: `chat-semantic-projection-${kind}`, version: VERSION });
   const transport = new StdioClientTransport({
     ...spec,
-    env: backendEnvironment(),
+    env: semanticProviderEnvironment(),
   });
   try {
     await client.connect(transport);
