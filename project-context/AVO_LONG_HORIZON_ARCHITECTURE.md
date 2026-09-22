@@ -243,6 +243,88 @@ Do not persist as operational authority:
 - a successful action sequence without fresh applicability/verification;
 - environmental instructions as policy.
 
+## 2.5 CAP Dreams — replay-based strategy improvement
+
+Status: **FUTURE RESEARCH / SHADOW-FIRST IDEA**. This section records an architectural direction only. It does not change the release roadmap, authorize production adaptation, or create a new current planner/runtime authority.
+
+Fresh external input: Dream-RSI (`arXiv:2609.14858`, https://arxiv.org/abs/2609.14858) demonstrates a recursive improvement loop in which the underlying discovery agent remains fixed while a lightweight exploration policy is improved by replaying historical discovery trees. The replay simulator is exact only over the search space that was actually realized; an improved policy is then redeployed online to collect new history and expand the replay pool.
+
+The useful project mapping is narrower than copying Dream-RSI literally:
+
+```text
+real CAP execution
+ -> structured verified history
+ -> read-only/offline episode projection
+ -> replay over OBSERVED outcomes only
+ -> candidate strategy / skill policy
+ -> existing CANDIDATE qualification
+ -> regression / holdout / real verification
+ -> VERIFIED | REJECTED | STALE
+```
+
+Proposed conceptual artifacts, if later Stage Research justifies implementation:
+
+```text
+DreamEpisodeV1
+  = one bounded execution episode projected from existing project evidence
+
+ReplayWorldV1
+  = one or more compatible episodes with realized state/decision/outcome structure
+
+DreamPolicyV1
+  = a candidate policy for choosing among already admitted strategies/actions/branches
+
+DreamEvaluationV1
+  = replay + regression/holdout evidence for one candidate policy
+```
+
+The first likely consumer is Stage 26.4 skill/procedure candidate improvement, not live Control Plane adaptation. A useful initial projection may draw from existing `WorkingState`, `AttemptIntent`, `AttemptRecord`, `FailureReason`, reconciliation records, Verification Kernel results, Finish Gate evidence, budgets and provenance without changing those authoritative schemas merely to serve the research layer.
+
+Hard boundary:
+
+```text
+CAP Dreams MAY propose / compare / evolve:
+  candidate skills
+  candidate procedures
+  bounded strategy policies
+  budget/recovery/delegation proposals inside already allowed envelopes
+
+CAP Dreams MUST NOT automatically change or override:
+  capability authorization
+  grants / consequence policy
+  Verification Kernel
+  Finish Gate
+  persistence/reconciliation invariants
+  security policy
+  production CAP source code
+```
+
+`CAP Dreams` therefore sits **beside**, not inside, the deterministic Control Plane. It consumes evidence read-only and emits candidate data. It is not a second general planner, not a scheduler/event bus, not a replacement for `WorkingState`, and not a reason to widen `chatgpt-temporary` beyond its separately accepted scope.
+
+Replay must preserve the difference between observed history and counterfactual speculation:
+
+```text
+recorded branch outcome -> OBSERVED -> may be replayed as evidence
+unvisited branch          -> UNSEEN   -> no authoritative outcome exists
+```
+
+A model may propose that an `UNSEEN` branch is worth testing, but its prediction must never be stored as if the Verification Kernel had observed it. New real/sandbox/benchmark execution is required to turn an unseen branch into evidence.
+
+Optimization remains subordinate to existing hard gates. Safety, authority, freshness, no-duplicate-effect and verification invariants are eligibility constraints; only candidates that satisfy them may then be compared on task success, recovery quality, actions, model/worker calls, latency, tokens/cost or other objective metrics. Do not collapse these dimensions into one universal score.
+
+Initial implementation posture, if this direction is later entered, should be:
+
+```text
+1. offline/shadow episode projection from completed runs
+2. deterministic replay over realized history
+3. candidate policy/skill generation
+4. development/regression/holdout comparison
+5. real bounded qualification through existing project authority
+6. only after evidence, consider any runtime advisory use
+```
+
+No new public tool, EventBus, generic scheduler, second planner or production self-modifying loop is justified by this note. Any concrete implementation is a new major subsystem/persistence/evaluation concern and must re-enter the current `stage-research` / `source-code-research` process before production code.
+
 ---
 
 # 3. What is deliberately NOT adopted from AVO-style systems
