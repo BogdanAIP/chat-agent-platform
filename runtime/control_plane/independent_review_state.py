@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from ._verified_workspace_artifact_support import _acquire_task_lock, _safe_child
+from .local_state import acquire_task_lock as _acquire_task_lock, safe_child as _safe_child
 
 
 STATE_SCHEMA_VERSION = 1
