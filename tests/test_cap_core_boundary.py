@@ -88,6 +88,21 @@ print(json.dumps({
         self.assertIs(workspace_support._acquire_task_lock, local_state.acquire_task_lock)
         self.assertIs(workspace_support._safe_child, local_state.safe_child)
 
+    def test_installed_semantic_bundle_contains_new_core_dependencies(self) -> None:
+        workflow = (
+            ROOT / ".github" / "workflows" / "semantic-projection.yml"
+        ).read_text(encoding="utf-8")
+        manager = (ROOT / "scripts" / "bootstrap-manager-runtime.ps1").read_text(
+            encoding="utf-8"
+        )
+        for relative in (
+            "runtime/control_plane/local_state.py",
+            "runtime/control_plane/_verified_workspace_artifact_runtime.py",
+        ):
+            with self.subTest(relative=relative):
+                self.assertIn(relative, workflow)
+                self.assertIn(relative.replace("/", "\\"), manager)
+
     def test_local_state_lock_remains_fail_closed_and_reusable_after_release(self) -> None:
         from runtime.control_plane.local_state import acquire_task_lock
 
