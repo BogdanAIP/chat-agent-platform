@@ -12,7 +12,7 @@ import { createSemanticActivationEnvironment } from '../lib/semantic-activation.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const canonicalEntry = path.resolve(here, '..', 'bin', 'semantic-projection.mjs');
-const source = fs.readFileSync(canonicalEntry, 'utf8');
+const source = fs.readFileSync(canonicalEntry, 'utf8').replaceAll('\r\n', '\n');
 
 function childEnvironment(extra) {
   const env = {};
