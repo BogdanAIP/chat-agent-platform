@@ -68,6 +68,9 @@ try {
     arguments: { url: `${fixture.baseUrl}/exact` },
   });
   assert.equal(exact.isError, undefined, textOf(exact));
+  assert.equal(exact.structuredContent?.browser_authorization?.status, 'authorized');
+  assert.equal(exact.structuredContent?.delivery?.attempted, true);
+  assert.equal(exact.structuredContent?.delivery?.acknowledged, true);
   assert.equal(exact.structuredContent?.browser_verification?.status, 'pass');
   assert.equal(exact.structuredContent?.browser_verification?.verification?.status, 'pass');
   assert(textOf(exact).includes('web_open final-state verification=pass'), textOf(exact));
