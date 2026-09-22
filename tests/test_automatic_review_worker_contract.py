@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import ast
+import os
 from pathlib import Path
+import socket
+import time
 import unittest
 
+from runtime.control_plane import automatic_review_worker
 from runtime.control_plane.independent_review_delegation import build_review_worker_task
 from runtime.control_plane.independent_review_state import ReviewIdentity
 
@@ -122,6 +126,39 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
         self.assertLess(mark, spawn)
         self.assertNotIn("mark_dispatch_prepared", self.procedures)
         self.assertNotIn("automatic_relaunch", self.procedures)
+
+    def test_listener_owner_command_binds_pid_inside_command_text(self) -> None:
+        source = self.worker.split("def _assert_listener_owner", 1)[1].split(
+            "def _wait_for_controller",
+            1,
+        )[0]
+        self.assertIn('f"$expected={expected_pid};"', source)
+        self.assertIn('"-Command", script]', source)
+        self.assertNotIn('"-Command", script, str(pid)', source)
+        self.assertNotIn("$args[0]", source)
+
+    @unittest.skipUnless(os.name == "nt", "listener ownership uses Windows Get-NetTCPConnection")
+    def test_listener_owner_executes_for_matching_and_foreign_pid(self) -> None:
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        port = int(listener.getsockname()[1])
+        try:
+            deadline = time.monotonic() + 5.0
+            while True:
+                try:
+                    automatic_review_worker._assert_listener_owner(os.getpid(), port=port)
+                    break
+                except automatic_review_worker.ReviewStateError:
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.1)
+
+            with self.assertRaises(automatic_review_worker.ReviewStateError):
+                automatic_review_worker._assert_listener_owner(os.getpid() + 1, port=port)
+        finally:
+            listener.close()
 
     def test_reconcile_can_only_settle_existing_generic_result(self) -> None:
         self.assertIn("settle_review_from_delegation", self.procedures)
