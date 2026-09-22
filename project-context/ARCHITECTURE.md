@@ -110,6 +110,91 @@ It must not:
 - expose arbitrary raw backend catalogs;
 - hide native consequence classes behind misleading existing semantics.
 
+## CAP Core v1 freeze boundary
+
+CAP Core v1 is the **trust/control kernel**, not a bundled catalog of every executor,
+application adapter, MCP server, model runtime or browser implementation.
+
+The freeze target is:
+
+```text
+ordinary ChatGPT
+ -> stable CAP semantic / authority contracts
+ -> deterministic Control Plane
+      identity / grants / scope
+      WorkingState / attempts / reconciliation / budgets
+      ExpectedEffect / Verification Kernel
+      independent Finish Gate
+      provenance / runtime binding
+ -> capability-specific adapter seam
+ -> replaceable provider / MCP / plugin / native runtime
+```
+
+Core v1 owns:
+
+- stable semantic operation and consequence boundaries;
+- capability authorization and scoped grants;
+- provider-independent logical operation / attempt identity;
+- WorkingState, reconciliation, LoopGuard and budgets;
+- ObservationRef / ExpectedEffect / PASS | FAIL | UNKNOWN verification;
+- independent task Finish Gate;
+- provider/runtime provenance and binding rules;
+- admission/conformance rules that keep extension discovery separate from authority.
+
+Core v1 does **not** own:
+
+- Playwright, BrowserSkill, UFO/UFO², OpenAdapt, a particular MCP server or a model
+  runtime as mandatory architecture;
+- provider-specific browser/session/application state except through bounded adapter
+  observations/receipts;
+- raw third-party tool catalogs;
+- a universal `invoke(provider, arbitrary_json)` dispatcher;
+- a second planner, generic scheduler or provider-owned completion authority.
+
+A provider added **inside an already accepted capability family** should normally
+require only a provider/adapter implementation, reviewed binding/configuration and
+conformance evidence. It should not require changing Control Plane authority,
+WorkingState semantics, Verification Kernel rules, Finish Gate semantics or the
+public Chat schema.
+
+A genuinely new consequence class is different: it may require a new truthful
+capability/public contract and its own security/physical acceptance. Core freeze is
+not permission to disguise new authority behind an existing adapter seam.
+
+### Extension architecture rule
+
+Use **capability-specific seams**, not one universal provider API.
+
+This mirrors mature extensibility patterns where a stable core defines a narrow
+contract for one role and implementations remain replaceable behind it. Optional
+Extension Manager/MCP discovery may find and run backends, but project-owned adapter
+and authority layers still decide what that backend means and whether any action is
+authorized.
+
+A full CapabilityRegistry/EventBus is not required merely to freeze Core v1. ADR-037
+remains future until a concrete multi-provider consumer proves that discovery/event
+infrastructure removes more complexity than it adds.
+
+### Core-freeze acceptance condition
+
+CAP Core v1 may be called frozen only when:
+
+1. importing/using the core authority contracts does not require provider- or
+   application-specific runtime side effects;
+2. provider-specific identifiers remain below provider-independent operation,
+   evidence and authority identities;
+3. existing capability families can bind a replacement provider without widening
+   grants or changing verification/completion semantics;
+4. provider self-reported success remains evidence only;
+5. extension/MCP availability never becomes authorization;
+6. exact provider/runtime provenance can be bound to release-critical effects;
+7. adding one provider cannot silently expose raw backend tools or a new consequence
+   class to ordinary ChatGPT.
+
+The current repository may contain historical integration seams that do not yet meet
+these criteria. Those are Core-v1 completion debt, not justification for a large
+generic plugin framework.
+
 ## Authority, trust and state
 
 Capability lifecycle:
