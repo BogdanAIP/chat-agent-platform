@@ -13,6 +13,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable
 
+from .authorization import AuthorizationRequest, CapabilityGrant
 from .file_artifact_observation import (
     FILE_ARTIFACT_CAPABILITY,
     FileArtifactObservationStream,
@@ -56,7 +57,8 @@ MAX_CONTENT_CHARS = 4096
 MAX_CONTENT_BYTES = 16384
 MAX_ACTIONS = 3
 MAX_RUNTIME_SECONDS = 10.0
-CHECKPOINT_SCHEMA_VERSION = 2
+CHECKPOINT_SCHEMA_VERSION = 3
+LEGACY_WORKING_STATE_SCHEMA_VERSION = 2
 _WORKING_TASK_BUDGET = 6
 _WORKING_PROCEDURE_BUDGET = 6
 _WORKING_STRATEGY_BUDGET = 2
@@ -85,6 +87,118 @@ def _utc_now() -> str:
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _workspace_resource_scope_ref(
+    *,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> str:
+    return (
+        f"workspace-artifact:{relative_target}:"
+        f"sha256:{expected_sha}:size:{content_size}"
+    )
+
+
+def _workspace_grant_ref(
+    *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> str:
+    payload = {
+        "procedure": PROCEDURE_ID,
+        "version": PROCEDURE_VERSION,
+        "admission": QUALIFICATION_ADMISSION,
+        "task_id": task_id,
+        "artifact": relative_target,
+        "sha256": expected_sha,
+        "size": content_size,
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"grant:workspace-artifact:{digest}"
+
+
+def _workspace_grant(
+    state: WorkingState,
+    *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> CapabilityGrant:
+    return CapabilityGrant(
+        grant_ref=_workspace_grant_ref(
+            task_id=task_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        task_ref=task_id,
+        principal_ref=_WORKING_ACTOR,
+        capability=FILE_ARTIFACT_CAPABILITY,
+        allowed_action_refs=_TRANSITIONS,
+        resource_scope_ref=_workspace_resource_scope_ref(
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        delegation_ref=state.delegation_ref,
+        execution_environment_ref=_WORKING_ENVIRONMENT,
+        evidence_scope_ref=state.evidence_scope_ref,
+    )
+
+
+def _workspace_authorization_request(
+    state: WorkingState,
+    intent: AttemptIntent,
+    *,
+    task_id: str,
+    transition_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> AuthorizationRequest:
+    return AuthorizationRequest(
+        task_ref=task_id,
+        principal_ref=_WORKING_ACTOR,
+        capability=FILE_ARTIFACT_CAPABILITY,
+        action_ref=transition_id,
+        resource_scope_ref=_workspace_resource_scope_ref(
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        ),
+        attempt_authorization_fingerprint=intent.authorization_fingerprint,
+        delegation_ref=state.delegation_ref,
+        execution_environment_ref=_WORKING_ENVIRONMENT,
+        evidence_scope_ref=state.evidence_scope_ref,
+    )
+
+
+def _workspace_uses_concrete_grant(
+    state: WorkingState,
+    *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> bool:
+    expected = _workspace_grant_ref(
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
+    if state.capability_grant_refs == (expected,):
+        return True
+    if state.capability_grant_refs == (QUALIFICATION_ADMISSION,):
+        return False
+    raise ValueError("WorkingState capability grant identity is invalid")
 
 
 def _evidence(path: Path) -> dict[str, Any]:
