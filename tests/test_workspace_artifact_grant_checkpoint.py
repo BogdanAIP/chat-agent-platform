@@ -29,7 +29,7 @@ class WorkspaceArtifactGrantCheckpointTests(unittest.TestCase):
         return value
 
     @staticmethod
-    def run(request: dict[str, str], *, workspace: Path, state: Path) -> dict:
+    def execute(request: dict[str, str], *, workspace: Path, state: Path) -> dict:
         return run_verified_workspace_artifact(
             request,
             workspace_root=workspace,
@@ -47,7 +47,7 @@ class WorkspaceArtifactGrantCheckpointTests(unittest.TestCase):
             workspace = Path(workspace_dir)
             state = Path(state_dir)
 
-            result = self.run(
+            result = self.execute(
                 self.request("grant-state.txt", "GRANT_STATE"),
                 workspace=workspace,
                 state=state,
@@ -68,7 +68,7 @@ class WorkspaceArtifactGrantCheckpointTests(unittest.TestCase):
             workspace = Path(workspace_dir)
             state = Path(state_dir)
 
-            first = self.run(
+            first = self.execute(
                 self.request("downgrade.txt", "DOWNGRADE"),
                 workspace=workspace,
                 state=state,
@@ -89,7 +89,7 @@ class WorkspaceArtifactGrantCheckpointTests(unittest.TestCase):
                 ValueError,
                 "WorkingState capability grant mismatch",
             ):
-                self.run(
+                self.execute(
                     self.request("downgrade.txt", "DOWNGRADE", task_id),
                     workspace=workspace,
                     state=state,
@@ -102,7 +102,7 @@ class WorkspaceArtifactGrantCheckpointTests(unittest.TestCase):
             workspace = Path(workspace_dir)
             state = Path(state_dir)
 
-            first = self.run(
+            first = self.execute(
                 self.request("legacy-observe.txt", "LEGACY_OBSERVE"),
                 workspace=workspace,
                 state=state,
@@ -120,7 +120,7 @@ class WorkspaceArtifactGrantCheckpointTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            resumed = self.run(
+            resumed = self.execute(
                 self.request(
                     "legacy-observe.txt",
                     "LEGACY_OBSERVE",
