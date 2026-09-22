@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +13,14 @@ const tunnelOnlyCredentialKeys = [
   'OPENAI_API_KEY',
   'OPENAI_ADMIN_KEY'
 ];
+
+export const SEMANTIC_ACTIVATION_VERSION = 'semantic-activation-v1';
+export const SEMANTIC_BROWSER_POLICY_REF = 'isolated-playwright-public-http-loopback-v1';
+export const SEMANTIC_ACTIVATION_ENV_KEYS = Object.freeze([
+  'CHAT_SEMANTIC_ACTIVATION_REF',
+  'CHAT_SEMANTIC_ACTIVATION_VERSION',
+  'CHAT_SEMANTIC_BROWSER_POLICY_REF'
+]);
 
 export const EXPECTED_SEMANTIC_TOOLS = Object.freeze([
   'procedure_run',
@@ -63,6 +72,29 @@ function stringEnvironment(source) {
     if (typeof value === 'string') env[key] = value;
   }
   return env;
+}
+
+export function createSemanticActivationEnvironment(baseEnv, { randomBytesFn = randomBytes } = {}) {
+  if (typeof randomBytesFn !== 'function') {
+    throw new TypeError('semantic activation randomBytesFn must be a function');
+  }
+  const env = stringEnvironment(baseEnv);
+  for (const key of SEMANTIC_ACTIVATION_ENV_KEYS) delete env[key];
+
+  const raw = randomBytesFn(16);
+  if (!Buffer.isBuffer(raw) || raw.length !== 16) {
+    throw new Error('semantic activation identity source must return exactly 16 bytes');
+  }
+  const activationRef = raw.toString('hex');
+  env.CHAT_SEMANTIC_ACTIVATION_REF = activationRef;
+  env.CHAT_SEMANTIC_ACTIVATION_VERSION = SEMANTIC_ACTIVATION_VERSION;
+  env.CHAT_SEMANTIC_BROWSER_POLICY_REF = SEMANTIC_BROWSER_POLICY_REF;
+  return {
+    env,
+    activationRef,
+    activationVersion: SEMANTIC_ACTIVATION_VERSION,
+    browserPolicyRef: SEMANTIC_BROWSER_POLICY_REF
+  };
 }
 
 function isInsideOrEqual(parentPath, candidatePath) {
@@ -207,6 +239,8 @@ export function prepareSemanticRuntimeEnvironment(options = {}) {
   const paths = assertPrivateWorkspaceIsolation(options);
   fs.mkdirSync(paths.playwrightOutputDirectory, { recursive: true });
   const env = stringEnvironment(options.env ?? process.env);
+  for (const key of SEMANTIC_ACTIVATION_ENV_KEYS) delete env[key];
+  env.CHAT_LOCAL_FILES_ROOT = paths.workspaceRoot;
   env.PLAYWRIGHT_MCP_OUTPUT_DIR = paths.playwrightOutputDirectory;
   return { ...paths, env };
 }
@@ -283,9 +317,10 @@ async function main() {
   const semanticEntry = path.join(launcherDir, 'semantic-control-plane-projection.mjs');
 
   try {
+    const inventoryActivation = createSemanticActivationEnvironment(runtime.env);
     await assertExpectedSemanticInventory({
       entry: semanticEntry,
-      env: runtime.env
+      env: inventoryActivation.env
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -294,9 +329,10 @@ async function main() {
     return;
   }
 
+  const liveActivation = createSemanticActivationEnvironment(runtime.env);
   const child = spawn(process.execPath, [semanticEntry], {
     cwd: runtime.runtimeDirectory,
-    env: runtime.env,
+    env: liveActivation.env,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true
   });
