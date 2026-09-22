@@ -61,6 +61,12 @@ const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'PLAYWRIGHT_MCP_OUTPUT_DIR'
 ]);
 
+const SEMANTIC_ACTIVATION_ENV_ALLOWLIST = new Set([
+  'CHAT_SEMANTIC_ACTIVATION_REF',
+  'CHAT_SEMANTIC_ACTIVATION_VERSION',
+  'CHAT_SEMANTIC_BROWSER_POLICY_REF'
+]);
+
 function toolError(message) {
   return { content: [{ type: 'text', text: message }], isError: true };
 }
@@ -128,6 +134,15 @@ function safeChildEnvironment() {
   return env;
 }
 
+function semanticChildEnvironment() {
+  const env = safeChildEnvironment();
+  for (const name of SEMANTIC_ACTIVATION_ENV_ALLOWLIST) {
+    const value = process.env[name];
+    if (typeof value === 'string') env[name] = value;
+  }
+  return env;
+}
+
 function controlPlaneEnvironment(request) {
   const env = safeChildEnvironment();
   const workspace = env.CHAT_LOCAL_FILES_ROOT;
@@ -178,7 +193,7 @@ const semanticClient = new Client({
 const semanticTransport = new StdioClientTransport({
   command: process.execPath,
   args: [semanticEntry],
-  env: safeChildEnvironment()
+  env: semanticChildEnvironment()
 });
 
 await semanticClient.connect(semanticTransport);
