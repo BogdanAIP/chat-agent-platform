@@ -18,10 +18,7 @@ import { authorizeSemanticBrowserMutation } from '../lib/browser-authorization-b
 import { createFilesystemSemanticProvider } from '../lib/filesystem-semantic-provider.mjs';
 import { createPlaywrightBrowserSemanticProvider } from '../lib/playwright-browser-semantic-provider.mjs';
 import { createSemanticVisionClickRouter } from '../lib/semantic-vision-click-router.mjs';
-import {
-  requireSemanticActivation,
-  semanticProviderEnvironment,
-} from '../lib/semantic-activation.mjs';
+import { requireSemanticActivation } from '../lib/semantic-activation.mjs';
 import {
   prepareSemanticWorkspaceWrite,
   semanticWorkspaceWriteIdentity,
