@@ -119,7 +119,25 @@ jobs:
           }
 
           $inner = Get-Content 'runtime/semantic-projection/bin/semantic-projection.mjs' -Raw -Encoding utf8
+          $filesystemProvider = Get-Content 'runtime/semantic-projection/lib/filesystem-semantic-provider.mjs' -Raw -Encoding utf8
+          $browserProvider = Get-Content 'runtime/semantic-projection/lib/playwright-browser-semantic-provider.mjs' -Raw -Encoding utf8
           $bridge = Get-Content 'runtime/semantic-projection/lib/browser-verification-bridge.mjs' -Raw -Encoding utf8
+          foreach ($providerMarker in @(
+            '@playwright/mcp',
+            '@modelcontextprotocol/server-filesystem',
+            'StdioClientTransport',
+            'callBackend('
+          )) {
+            if ($inner -match [regex]::Escape($providerMarker)) {
+              throw "Semantic projection leaked provider-specific runtime marker '$providerMarker' outside its capability seam."
+            }
+          }
+          if ($filesystemProvider -notmatch '@modelcontextprotocol/server-filesystem' -or $filesystemProvider -notmatch 'write_file') {
+            throw 'Filesystem capability seam is missing its reviewed provider binding.'
+          }
+          if ($browserProvider -notmatch '@playwright/mcp' -or $browserProvider -notmatch 'browser_navigate') {
+            throw 'Browser capability seam is missing its reviewed Playwright binding.'
+          }
           if ($inner -notmatch 'verifyPlaywrightNavigation' -or $inner -notmatch 'captureBrowserObservation') {
             throw 'Semantic projection is missing Browser Verification Kernel integration.'
           }
@@ -221,6 +239,8 @@ jobs:
             'runtime/semantic-projection/bin/semantic-projection.mjs',
             'runtime/semantic-projection/lib/browser-verification-bridge.mjs',
             'runtime/semantic-projection/lib/browser-authorization-bridge.mjs',
+            'runtime/semantic-projection/lib/filesystem-semantic-provider.mjs',
+            'runtime/semantic-projection/lib/playwright-browser-semantic-provider.mjs',
             'runtime/semantic-projection/lib/semantic-activation.mjs',
             'runtime/semantic-projection/lib/workspace-write-bridge.mjs',
             'runtime/semantic-projection/lib/semantic-vision-click-router.mjs',
@@ -271,6 +291,8 @@ jobs:
             (Join-Path $installedRuntime 'semantic-projection/bin/semantic-control-plane-projection.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/browser-verification-bridge.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/browser-authorization-bridge.mjs'),
+            (Join-Path $installedRuntime 'semantic-projection/lib/filesystem-semantic-provider.mjs'),
+            (Join-Path $installedRuntime 'semantic-projection/lib/playwright-browser-semantic-provider.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/semantic-activation.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/workspace-write-bridge.mjs'),
             (Join-Path $installedRuntime 'control_plane/_verified_workspace_artifact_support.py'),
