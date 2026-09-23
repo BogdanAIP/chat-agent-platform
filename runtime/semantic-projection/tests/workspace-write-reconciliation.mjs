@@ -29,11 +29,11 @@ function textOf(result) {
     .join('\n');
 }
 
-const originalDelivery = `    delivery = await callBackend('filesystem', 'write_file', {
+const originalDelivery = `    delivery = await filesystemProvider.writeText({
       path: resolvedPath,
       content,
     });`;
-const injectedDelivery = `    await callBackend('filesystem', 'write_file', {
+const injectedDelivery = `    await filesystemProvider.writeText({
       path: resolvedPath,
       content,
     });
