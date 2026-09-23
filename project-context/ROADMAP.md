@@ -103,6 +103,44 @@ The accepted Stage 26.3C foundation remains the starting point. The remaining pr
 
 Every roadmap stage must be closed by a concrete product outcome and acceptance evidence, not by integrating a named technology. At stage entry, fresh repository bootstrap and applicable Stage Research select or reject current implementation candidates.
 
+### Deferred physical qualification without blocking all later development
+
+Roadmap **acceptance order does not change**, but implementation work may proceed past a
+stage that is temporarily waiting only for unavailable target-machine evidence.
+
+Use the development-only status:
+
+```text
+FROZEN_PENDING_PHYSICAL
+```
+
+only when the exact stage head has green required hosted checks, the required fresh
+independent semantic review has passed, and no unresolved finding remains. The head is then
+treated as immutable dependency input for subsequent development.
+
+This status does **not** close the roadmap stage and does **not** satisfy release evidence.
+Required physical scenarios may later be run together as one qualification campaign on a
+composed exact integration head where that truthfully tests the same frozen guarantees.
+Distinct physical boundaries (for example reviewer/Temporary-Chat one-Send provenance
+versus Windows application effects) remain distinct scenarios inside that campaign.
+
+If later physical evidence fails:
+
+```text
+physical FAIL
+ -> reopen owning frozen stage
+ -> bounded fix + fresh review/CI
+ -> repeat affected physical scenario
+ -> revalidate only downstream guarantees that the fix can invalidate
+```
+
+Do not repeat every historical intermediate PR merely because the final integration head
+contains it. Qualification should prove the final claimed guarantees, while preserving
+separate tests for genuinely different physical boundaries.
+
+Merge/release policy is unchanged: a stage that requires physical acceptance remains
+unmerged/unaccepted until that evidence passes.
+
 ### Native Host v1 language decision
 
 For **Native Host v1 specifically**, Rust is now the selected implementation language.
