@@ -15,13 +15,14 @@
     "lib/browser-authorization-bridge.mjs",
     "lib/semantic-activation.mjs",
     "lib/workspace-write-bridge.mjs",
+    "lib/semantic-provider-bindings.mjs",
     "lib/semantic-vision-click-router.mjs",
     "lib/visual-grounding-bridge.mjs",
     "lib/runtime-backed-bridge-grounder.mjs",
     "lib/runtime-backed-visual-grounder.mjs"
   ],
   "scripts": {
-    "acceptance": "node tests/semantic-activation-acceptance.mjs && node tests/workspace-write-reconciliation.mjs && node tests/browser-mutation-reconciliation.mjs && node tests/semantic-vision-delivery-ambiguity.mjs && node tests/browser-verification-bridge.mjs && node tests/browser-authorization-unicode.mjs && node tests/browser-navigation-verification-playwright.mjs && node tests/browser-interaction-verification-playwright.mjs && node tests/acceptance.mjs && node tests/semantic-vision-click-router.mjs && node tests/semantic-vision-playwright-acceptance.mjs",
+    "acceptance": "node tests/provider-seam-acceptance.mjs && node tests/semantic-activation-acceptance.mjs && node tests/workspace-write-reconciliation.mjs && node tests/browser-mutation-reconciliation.mjs && node tests/semantic-vision-delivery-ambiguity.mjs && node tests/browser-verification-bridge.mjs && node tests/browser-authorization-unicode.mjs && node tests/browser-navigation-verification-playwright.mjs && node tests/browser-interaction-verification-playwright.mjs && node tests/acceptance.mjs && node tests/semantic-vision-click-router.mjs && node tests/semantic-vision-playwright-acceptance.mjs",
     "acceptance:six-tool": "node tests/private-workspace-isolation.mjs && node tests/six-tool-acceptance.mjs && node tests/independent-review-procedure-acceptance.mjs && node tests/procedure-no-spawn-correlation.mjs && node tests/inventory-guard-acceptance.mjs",
     "acceptance:direct-tunnel": "node tests/direct-tunnel-acceptance.mjs",
     "acceptance:credential-scrub": "node tests/credential-scrub.mjs",
