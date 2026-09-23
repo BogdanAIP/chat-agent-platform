@@ -236,7 +236,7 @@ function assessInteractionExpectedBefore(before, expected) {
 }
 
 async function captureBrowserObservation() {
-  const snapshot = await providers.callBrowser( 'browser_snapshot', {});
+  const snapshot = await providers.callBrowser('browser_snapshot', {});
   return parsePlaywrightSnapshotResult(snapshot);
 }
 
@@ -411,19 +411,19 @@ server.registerTool('workspace_read', {
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false }
 }, async args => {
   try {
-    if (args.operation === 'roots') return await providers.callFilesystem( 'list_allowed_directories', {});
+    if (args.operation === 'roots') return await providers.callFilesystem('list_allowed_directories', {});
     if (args.operation === 'read_text') {
       if (!args.path) return toolError('workspace_read read_text requires path.');
       if (args.head && args.tail) return toolError('Use head or tail, not both.');
       const downstream = { path: resolveWorkspacePath(args.path) };
       if (args.head !== undefined) downstream.head = args.head;
       if (args.tail !== undefined) downstream.tail = args.tail;
-      return await providers.callFilesystem( 'read_text_file', downstream);
+      return await providers.callFilesystem('read_text_file', downstream);
     }
     if (!args.pattern) return toolError('workspace_read search requires pattern.');
     const downstream = { path: resolveWorkspacePath(args.path ?? '.'), pattern: args.pattern };
     if (args.excludePatterns !== undefined) downstream.excludePatterns = args.excludePatterns;
-    return await providers.callFilesystem( 'search_files', downstream);
+    return await providers.callFilesystem('search_files', downstream);
   } catch (error) { return toolError(`workspace_read failed: ${error instanceof Error ? error.message : String(error)}`); }
 });
 
@@ -474,7 +474,7 @@ server.registerTool('workspace_write', {
   let delivery = null;
   let deliveryError = null;
   try {
-    delivery = await providers.callFilesystem( 'write_file', {
+    delivery = await providers.callFilesystem('write_file', {
       path: resolvedPath,
       content,
     });
@@ -604,7 +604,7 @@ server.registerTool('web_open', {
 
   deliveryAttempted = true;
   try {
-    delivery = await providers.callBrowser( 'browser_navigate', { url: parsed.href });
+    delivery = await providers.callBrowser('browser_navigate', { url: parsed.href });
   } catch (error) {
     deliveryError = error;
   }
@@ -648,11 +648,11 @@ server.registerTool('web_observe', {
   try {
     if (args.operation === 'find') {
       if (Boolean(args.text) === Boolean(args.regex)) return toolError('web_observe find requires exactly one of text or regex.');
-      return await providers.callBrowser( 'browser_find', args.text ? { text: args.text } : { regex: args.regex });
+      return await providers.callBrowser('browser_find', args.text ? { text: args.text } : { regex: args.regex });
     }
     const downstream = {};
     if (args.target !== undefined) downstream.target = args.target;
-    return await providers.callBrowser( 'browser_snapshot', downstream);
+    return await providers.callBrowser('browser_snapshot', downstream);
   } catch (error) { return toolError(`web_observe failed: ${error instanceof Error ? error.message : String(error)}`); }
 });
 
@@ -757,13 +757,13 @@ server.registerTool('web_interact', {
         const downstream = { target: args.target };
         if (args.element !== undefined) downstream.element = args.element;
         if (args.doubleClick !== undefined) downstream.doubleClick = args.doubleClick;
-        delivery = await providers.callBrowser( 'browser_click', downstream);
+        delivery = await providers.callBrowser('browser_click', downstream);
       } else {
         const downstream = { target: args.target, text: args.text };
         if (args.element !== undefined) downstream.element = args.element;
         if (args.submit !== undefined) downstream.submit = args.submit;
         if (args.slowly !== undefined) downstream.slowly = args.slowly;
-        delivery = await providers.callBrowser( 'browser_type', downstream);
+        delivery = await providers.callBrowser('browser_type', downstream);
       }
     } catch (error) {
       deliveryError = error;
