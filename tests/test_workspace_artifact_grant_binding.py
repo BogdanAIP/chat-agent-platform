@@ -226,7 +226,9 @@ class WorkspaceArtifactGrantBindingTests(unittest.TestCase):
         self.assertEqual(legacy.attempts, migrated.attempts)
         self.assertEqual(legacy.reconciliations, migrated.reconciliations)
         self.assertEqual(legacy.budgets, migrated.budgets)
-        self.assertTrue(migrated.evidence_refs[-1].startswith("workspace-grant-handoff:"))
+        handoff = migrated.evidence_refs[-1]
+        self.assertTrue(handoff.startswith("workspace-grant-handoff:"))
+        self.assertIn(f"from:{QUALIFICATION_ADMISSION}:to:{expected}", handoff)
     def test_concrete_grant_authorizes_exact_transition_before_effect(self) -> None:
         state = self.state()
         intent = _make_intent(
