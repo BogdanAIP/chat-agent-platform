@@ -230,6 +230,8 @@ Durable boundaries:
   not durable authority identity;
 - child handle inheritance is explicit/allowlisted so CAP protocol/job handles do
   not leak into executed descendants;
+- process output uses bounded non-lossy backpressure inside the declared operation
+  budget; overflow is explicit failure/termination, never silent byte dropping;
 - the private execution contract is typed `executable + argv + cwd + bounded env`,
   never a Chat-facing `run_anything(command)` surface;
 - hard cancellation/shutdown is whole-job termination. Generic console
