@@ -10,6 +10,7 @@ from runtime.control_plane._verified_workspace_artifact_support import (
     PROCEDURE_ID,
     QUALIFICATION_ADMISSION,
     _make_intent,
+    _migrate_legacy_workspace_grant,
     _new_working_state,
     _validate_working_state,
     _workspace_grant_ref,
@@ -161,6 +162,71 @@ class WorkspaceArtifactGrantBindingTests(unittest.TestCase):
                 content_size=CONTENT_SIZE,
             )
 
+    def test_legacy_state_cannot_authorize_new_mutation_before_forward_handoff(self) -> None:
+        concrete = self.state()
+        legacy = replace(
+            concrete,
+            capability_grant_refs=(QUALIFICATION_ADMISSION,),
+        )
+        intent = _make_intent(
+            legacy,
+            task_id=TASK_ID,
+            transition_id="stage_create",
+            relative_target=RELATIVE_TARGET,
+            expected_sha=EXPECTED_SHA,
+            content_size=CONTENT_SIZE,
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "concrete workspace grant required before mutation",
+        ):
+            _workspace_guard_decision(
+                legacy,
+                intent,
+                task_id=TASK_ID,
+                transition_id="stage_create",
+                relative_target=RELATIVE_TARGET,
+                expected_sha=EXPECTED_SHA,
+                content_size=CONTENT_SIZE,
+            )
+
+    def test_legacy_forward_handoff_changes_only_active_authority_and_revision(self) -> None:
+        snapshot = self.snapshot()
+        concrete = self.state()
+        legacy = replace(
+            concrete,
+            capability_grant_refs=(QUALIFICATION_ADMISSION,),
+        )
+        task_state = {
+            "schema_version": LEGACY_WORKING_STATE_SCHEMA_VERSION,
+            "prepared_intent": None,
+            "working_state": legacy.as_dict(),
+        }
+
+        migrated = _migrate_legacy_workspace_grant(
+            task_state,
+            legacy,
+            snapshot,
+            task_id=TASK_ID,
+            relative_target=RELATIVE_TARGET,
+            expected_sha=EXPECTED_SHA,
+            content_size=CONTENT_SIZE,
+        )
+
+        expected = _workspace_grant_ref(
+            task_id=TASK_ID,
+            relative_target=RELATIVE_TARGET,
+            expected_sha=EXPECTED_SHA,
+            content_size=CONTENT_SIZE,
+        )
+        self.assertEqual(CHECKPOINT_SCHEMA_VERSION, task_state["schema_version"])
+        self.assertEqual((expected,), migrated.capability_grant_refs)
+        self.assertEqual(legacy.revision + 1, migrated.revision)
+        self.assertEqual(legacy.attempts, migrated.attempts)
+        self.assertEqual(legacy.reconciliations, migrated.reconciliations)
+        self.assertEqual(legacy.budgets, migrated.budgets)
+        self.assertTrue(migrated.evidence_refs[-1].startswith("workspace-grant-handoff:"))
     def test_concrete_grant_authorizes_exact_transition_before_effect(self) -> None:
         state = self.state()
         intent = _make_intent(
