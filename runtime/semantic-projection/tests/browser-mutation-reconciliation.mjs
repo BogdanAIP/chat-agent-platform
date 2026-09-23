@@ -94,8 +94,8 @@ async function withInjectedProjection({ needle, replacement, scenario }) {
 const fixture = await fixtureServer();
 try {
   await withInjectedProjection({
-    needle: `    delivery = await callBackend('playwright', 'browser_navigate', { url: parsed.href });`,
-    replacement: `    await callBackend('playwright', 'browser_navigate', { url: parsed.href });
+    needle: `    delivery = await browserProvider.navigate(parsed.href);`,
+    replacement: `    await browserProvider.navigate(parsed.href);
     throw new Error('INJECTED_NAVIGATION_ACK_LOSS');`,
     scenario: async client => {
       const opened = await client.callTool({
@@ -124,8 +124,8 @@ try {
   });
 
   await withInjectedProjection({
-    needle: `        delivery = await callBackend('playwright', 'browser_click', downstream);`,
-    replacement: `        await callBackend('playwright', 'browser_click', downstream);
+    needle: `        delivery = await browserProvider.click(downstream);`,
+    replacement: `        await browserProvider.click(downstream);
         throw new Error('INJECTED_CLICK_ACK_LOSS');`,
     scenario: async client => {
       const opened = await client.callTool({ name: 'web_open', arguments: { url: fixture.url } });
@@ -165,8 +165,8 @@ try {
   });
 
   await withInjectedProjection({
-    needle: `        delivery = await callBackend('playwright', 'browser_type', downstream);`,
-    replacement: `        await callBackend('playwright', 'browser_type', downstream);
+    needle: `        delivery = await browserProvider.type(downstream);`,
+    replacement: `        await browserProvider.type(downstream);
         throw new Error('INJECTED_TYPE_ACK_LOSS');`,
     scenario: async client => {
       const opened = await client.callTool({ name: 'web_open', arguments: { url: fixture.url } });
