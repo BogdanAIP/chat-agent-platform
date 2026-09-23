@@ -19,6 +19,15 @@ function screenshotResult() {
   };
 }
 
+function browserFromClient(client) {
+  return {
+    snapshot: () => client.callTool({ name: 'browser_snapshot', arguments: {} }),
+    click: args => client.callTool({ name: 'browser_click', arguments: args }),
+    takeScreenshot: args => client.callTool({ name: 'browser_take_screenshot', arguments: args }),
+    mouseClickXY: args => client.callTool({ name: 'browser_mouse_click_xy', arguments: args }),
+  };
+}
+
 {
   const calls = [];
   const client = {
@@ -34,7 +43,7 @@ function screenshotResult() {
     },
   };
   const router = new SemanticVisionClickRouter({
-    client,
+    browser: browserFromClient(client),
     grounder: async () => {
       throw new Error('grounder must not run for exact semantic match');
     },
@@ -72,7 +81,7 @@ function screenshotResult() {
     },
   };
   const router = new SemanticVisionClickRouter({
-    client,
+    browser: browserFromClient(client),
     grounder: async () => ({
       status: 'resolved',
       reason: 'fixture',
