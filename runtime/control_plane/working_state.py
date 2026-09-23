@@ -867,6 +867,32 @@ class WorkingState:
             observation_ref=observation_ref,
         )
 
+    def replace_capability_grants(
+        self,
+        capability_grant_refs: tuple[str, ...],
+        *,
+        evidence_ref: str,
+        expected_revision: int,
+    ) -> "WorkingState":
+        """Replace only the active grant set from explicit fresh authority evidence."""
+
+        if expected_revision != self.revision:
+            raise ValueError("stale WorkingState revision")
+        normalized = _refs(capability_grant_refs, name="capability_grant_refs")
+        evidence_ref = _text(evidence_ref, name="capability grant transition evidence_ref")
+        if normalized == self.capability_grant_refs:
+            raise ValueError("capability grant set did not change")
+        if self.unresolved_attempts():
+            raise ValueError("unresolved mutation blocks capability grant replacement")
+        if evidence_ref in self.evidence_refs:
+            raise ValueError("capability grant transition evidence_ref is already recorded")
+        return replace(
+            self,
+            revision=self.revision + 1,
+            capability_grant_refs=normalized,
+            evidence_refs=self.evidence_refs + (evidence_ref,),
+        )
+
     def record_reconciliation(
         self,
         *,
