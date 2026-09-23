@@ -12,6 +12,7 @@ from runtime.control_plane.windows_observation import (
 )
 from runtime.control_plane.windows_transition import (
     build_windows_desktop_effect,
+    verify_windows_desktop_snapshots,
     verify_windows_desktop_transition,
 )
 from runtime.windows.observation import Rect, build_desktop_state
@@ -83,6 +84,25 @@ class WindowsSharedKernelVerificationTests(unittest.TestCase):
         expected = hashlib.sha256(raw["visible_text"].encode("utf-8")).hexdigest()
         self.assertEqual(snapshot.state["evidence"]["visible_text_sha256"], expected)
         self.assertNotIn("visible_text", snapshot.state)
+
+    def test_persistent_snapshot_verifier_preserves_one_monotonic_stream(self):
+        stream = WindowsDesktopObservationStream(subject="fixture", stream_id="win-stream")
+        before = stream.observe(self.raw())
+        after = stream.observe(
+            self.raw(
+                window_title="Fixture - Saved",
+                observed_at="2026-08-26T12:00:01+00:00",
+            )
+        )
+        result, normalized = verify_windows_desktop_snapshots(
+            before=before,
+            after=after,
+            expected={"window": {"title": "Fixture - Saved"}},
+        )
+        self.assertEqual(result.status, VerificationStatus.PASS)
+        self.assertEqual(normalized["window"]["title"], "Fixture - Saved")
+        self.assertEqual(before.ref.stream_id, after.ref.stream_id)
+        self.assertEqual(after.ref.sequence, before.ref.sequence + 1)
 
     def test_same_process_and_hwnd_can_verify_legitimate_title_change(self):
         before_raw = self.raw()
