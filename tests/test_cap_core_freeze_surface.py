@@ -56,6 +56,36 @@ class CapCoreFreezeSurfaceTests(unittest.TestCase):
         )
         self.assertIn("_record_legacy_recovery_attempt(", recovery)
 
+        runtime_python = list((ROOT / "runtime").rglob("*.py"))
+        legacy_calls = []
+        direct_record_calls = []
+        for path in runtime_python:
+            text = path.read_text(encoding="utf-8")
+            legacy_calls.extend(
+                (path.relative_to(ROOT).as_posix(), line_number)
+                for line_number, line in enumerate(text.splitlines(), start=1)
+                if "_record_legacy_recovery_attempt(" in line
+            )
+            direct_record_calls.extend(
+                (path.relative_to(ROOT).as_posix(), line_number)
+                for line_number, line in enumerate(text.splitlines(), start=1)
+                if "state.record_attempt(" in line
+            )
+        self.assertEqual(
+            [
+                ("runtime/control_plane/_verified_workspace_artifact_support.py", 955),
+            ],
+            direct_record_calls,
+        )
+        self.assertEqual(3, len(legacy_calls))
+        self.assertEqual(
+            {
+                "runtime/control_plane/_verified_workspace_artifact_support.py",
+                "runtime/control_plane/verified_workspace_artifact.py",
+            },
+            {path for path, _line in legacy_calls},
+        )
+
     def test_windows_case_new_effects_use_only_authorized_core_path(self) -> None:
         source = (
             ROOT / "runtime" / "control_plane" / "windows_case_update.py"
