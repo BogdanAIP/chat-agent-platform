@@ -12,6 +12,46 @@ Ownership:
 - `EVIDENCE_INDEX.md` = exact accepted physical heads/result locators;
 - `ARCHITECTURE_REUSE_BASELINE.md` = prior component/reuse lineage for applicable Stage Research.
 
+### Development continuation while physical acceptance is unavailable
+
+Required physical acceptance is still a **merge/acceptance gate**. It is not waived.
+
+For a release-critical stage whose implementation is otherwise complete, development may
+continue on the exact unmerged stacked head only after that head has:
+
+```text
+implementation complete
+ -> focused/adversarial tests complete
+ -> required hosted CI green
+ -> required fresh independent semantic review PASS
+ -> no unresolved finding/conflict
+ -> FROZEN_PENDING_PHYSICAL
+```
+
+`FROZEN_PENDING_PHYSICAL` is a development status, **not** accepted evidence and not
+permission to merge. It means the frozen exact head may be used as the dependency base for
+the next separately researched stage while the unavailable target-machine qualification is
+batched for later.
+
+Rules:
+
+- do not add a row to `EVIDENCE_INDEX.md` until physical evidence actually passes;
+- do not describe the stage as `ACCEPTED`, `PHYSICAL ACCEPTED` or merged;
+- any material change to the frozen stage invalidates that status and requires the normal
+  review/CI cycle again;
+- a later physical failure reopens the owning stage, gets a bounded fix, and requires
+  requalification of downstream work only where the changed guarantee can affect it;
+- physically distinct boundaries remain distinct scenarios even when run together in one
+  later qualification campaign;
+- the repository merge policy in `AGENTS.md` is unchanged: required physical acceptance
+  still occurs before merge.
+
+The current CAP Core-v1 stack is **not yet entitled to this status** until the final
+freeze-audit fixes have green required hosted checks and a fresh aggregate freeze review
+PASS on the exact final head. Once those non-physical gates pass, development may begin
+Native Host v1 from that frozen unmerged Core head while Core physical qualification waits
+for the target Windows machine.
+
 ## Current accepted boundary
 
 Stage 26.3B remains **ACCEPTED / CLOSED for its recorded representative scope**.
