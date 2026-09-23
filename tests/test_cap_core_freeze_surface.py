@@ -71,11 +71,10 @@ class CapCoreFreezeSurfaceTests(unittest.TestCase):
                 for line_number, line in enumerate(text.splitlines(), start=1)
                 if "state.record_attempt(" in line
             )
+        self.assertEqual(1, len(direct_record_calls))
         self.assertEqual(
-            [
-                ("runtime/control_plane/_verified_workspace_artifact_support.py", 955),
-            ],
-            direct_record_calls,
+            "runtime/control_plane/_verified_workspace_artifact_support.py",
+            direct_record_calls[0][0],
         )
         self.assertEqual(3, len(legacy_calls))
         self.assertEqual(
