@@ -12,8 +12,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from .verification import VerificationStatus, evaluate_finish_gate
-from .windows_transition import verify_windows_desktop_transition
+from .authorization import AuthorizationRequest, CapabilityGrant
+from .verification import ObservationSnapshot, VerificationStatus, evaluate_finish_gate
+from .windows_observation import WINDOWS_DESKTOP_CAPABILITY, WindowsDesktopObservationStream
+from .windows_transition import verify_windows_desktop_snapshots
+from .working_state import (
+    AttemptIntent,
+    FailureCategory,
+    FailureReason,
+    LoopGuard,
+    MutatingOutcome,
+    WorkingState,
+)
 
 
 PROCEDURE_ID = "windows_case_update_v1"
@@ -25,6 +35,15 @@ MAX_ACTIONS = 5
 MAX_RUNTIME_SECONDS = 90.0
 POSTCONDITION_SETTLE_SECONDS = 2.0
 POSTCONDITION_POLL_SECONDS = 0.08
+_TRANSITIONS = (
+    "select_case",
+    "focus_note",
+    "enter_note",
+    "set_status",
+    "save_case",
+)
+_WORKING_ACTOR = "procedure:windows_case_update_v1"
+_WINDOWS_GUARD = LoopGuard()
 _ALLOWED_STATUSES = {"Approved", "Needs Review"}
 _CASE_ID_RE = re.compile(r"^CASE-([A-F0-9]{8})-([0-9]{4})$")
 _RUN_ID_RE = re.compile(r"^[A-F0-9]{8}$")
@@ -54,6 +73,260 @@ def _utc_now() -> str:
 
 def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _canonical_digest(value: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _windows_case_resource_scope_ref(
+    *,
+    run_id: str,
+    expected_head: str,
+    case_id: str,
+    note_sha256: str,
+    requested_status: str,
+) -> str:
+    return "windows-case:" + _canonical_digest(
+        {
+            "run_id": run_id,
+            "expected_head": expected_head,
+            "case_id": case_id,
+            "note_sha256": note_sha256,
+            "requested_status": requested_status,
+        }
+    )
+
+
+def _windows_case_grant_ref(
+    *,
+    task_id: str,
+    run_id: str,
+    expected_head: str,
+    case_id: str,
+    note_sha256: str,
+    requested_status: str,
+) -> str:
+    return "grant:windows-case:" + _canonical_digest(
+        {
+            "procedure": PROCEDURE_ID,
+            "version": PROCEDURE_VERSION,
+            "admission": QUALIFICATION_ADMISSION,
+            "task_id": task_id,
+            "resource_scope_ref": _windows_case_resource_scope_ref(
+                run_id=run_id,
+                expected_head=expected_head,
+                case_id=case_id,
+                note_sha256=note_sha256,
+                requested_status=requested_status,
+            ),
+        }
+    )
+
+
+def _windows_environment_ref(expected_head: str) -> str:
+    return f"windows-case-l3:head:{expected_head}"
+
+
+def _windows_case_grant(
+    state: WorkingState,
+    *,
+    task_id: str,
+    run_id: str,
+    expected_head: str,
+    case_id: str,
+    note_sha256: str,
+    requested_status: str,
+) -> CapabilityGrant:
+    return CapabilityGrant(
+        grant_ref=_windows_case_grant_ref(
+            task_id=task_id,
+            run_id=run_id,
+            expected_head=expected_head,
+            case_id=case_id,
+            note_sha256=note_sha256,
+            requested_status=requested_status,
+        ),
+        task_ref=task_id,
+        principal_ref=_WORKING_ACTOR,
+        capability=WINDOWS_DESKTOP_CAPABILITY,
+        allowed_action_refs=_TRANSITIONS,
+        resource_scope_ref=_windows_case_resource_scope_ref(
+            run_id=run_id,
+            expected_head=expected_head,
+            case_id=case_id,
+            note_sha256=note_sha256,
+            requested_status=requested_status,
+        ),
+        execution_environment_ref=_windows_environment_ref(expected_head),
+        evidence_scope_ref=state.evidence_scope_ref,
+    )
+
+
+def _windows_case_intent(
+    state: WorkingState,
+    *,
+    task_id: str,
+    transition_id: str,
+    run_id: str,
+    expected_head: str,
+    case_id: str,
+    note_sha256: str,
+    requested_status: str,
+) -> AttemptIntent:
+    resource_scope_ref = _windows_case_resource_scope_ref(
+        run_id=run_id,
+        expected_head=expected_head,
+        case_id=case_id,
+        note_sha256=note_sha256,
+        requested_status=requested_status,
+    )
+    action_fingerprint = _canonical_digest(
+        {
+            "procedure": PROCEDURE_ID,
+            "version": PROCEDURE_VERSION,
+            "task_id": task_id,
+            "transition": transition_id,
+            "resource_scope_ref": resource_scope_ref,
+        }
+    )
+    return AttemptIntent(
+        operation_id=f"{task_id}:{transition_id}",
+        strategy_id=transition_id,
+        action_fingerprint=action_fingerprint,
+        observation_ref=state.observation_ref,
+        actor_ref=_WORKING_ACTOR,
+        execution_environment_ref=_windows_environment_ref(expected_head),
+        evidence_scope_ref=state.evidence_scope_ref,
+        evidence_refs=(
+            f"observation:{state.observation_ref.stream_id}:{state.observation_ref.sequence}",
+        ),
+    )
+
+
+def _windows_case_authorization_request(
+    state: WorkingState,
+    intent: AttemptIntent,
+    *,
+    transition_id: str,
+    run_id: str,
+    expected_head: str,
+    case_id: str,
+    note_sha256: str,
+    requested_status: str,
+) -> AuthorizationRequest:
+    return AuthorizationRequest(
+        task_ref=state.task_id,
+        principal_ref=_WORKING_ACTOR,
+        capability=WINDOWS_DESKTOP_CAPABILITY,
+        action_ref=transition_id,
+        resource_scope_ref=_windows_case_resource_scope_ref(
+            run_id=run_id,
+            expected_head=expected_head,
+            case_id=case_id,
+            note_sha256=note_sha256,
+            requested_status=requested_status,
+        ),
+        attempt_authorization_fingerprint=intent.authorization_fingerprint,
+        execution_environment_ref=_windows_environment_ref(expected_head),
+        evidence_scope_ref=state.evidence_scope_ref,
+    )
+
+
+def _windows_case_guard_decision(
+    state: WorkingState,
+    intent: AttemptIntent,
+    *,
+    transition_id: str,
+    task_id: str,
+    run_id: str,
+    expected_head: str,
+    case_id: str,
+    note_sha256: str,
+    requested_status: str,
+):
+    return _WINDOWS_GUARD.evaluate_authorized(
+        state,
+        intent,
+        authorization_request=_windows_case_authorization_request(
+            state,
+            intent,
+            transition_id=transition_id,
+            run_id=run_id,
+            expected_head=expected_head,
+            case_id=case_id,
+            note_sha256=note_sha256,
+            requested_status=requested_status,
+        ),
+        capability_grant=_windows_case_grant(
+            state,
+            task_id=task_id,
+            run_id=run_id,
+            expected_head=expected_head,
+            case_id=case_id,
+            note_sha256=note_sha256,
+            requested_status=requested_status,
+        ),
+        expected_revision=state.revision,
+    )
+
+
+def _windows_unknown_failure(intent: AttemptIntent) -> FailureReason:
+    return FailureReason(
+        code="windows_transition_outcome_unknown",
+        category=FailureCategory.RECONCILIATION_REQUIRED,
+        message="Windows transition final state was not verified; no later physical action is safe.",
+        retryable=False,
+        reconciliation_required=True,
+        operation_id=intent.operation_id,
+        strategy_id=intent.strategy_id,
+        outcome=MutatingOutcome.OUTCOME_UNKNOWN,
+        evidence_refs=intent.evidence_refs,
+    )
+
+
+def _new_windows_working_state(
+    *,
+    task_id: str,
+    initial: ObservationSnapshot,
+    run_id: str,
+    expected_head: str,
+    case_id: str,
+    note_sha256: str,
+    requested_status: str,
+) -> WorkingState:
+    grant_ref = _windows_case_grant_ref(
+        task_id=task_id,
+        run_id=run_id,
+        expected_head=expected_head,
+        case_id=case_id,
+        note_sha256=note_sha256,
+        requested_status=requested_status,
+    )
+    return WorkingState.create(
+        task_id=task_id,
+        task_budget=MAX_ACTIONS,
+        procedure_budget=MAX_ACTIONS,
+        strategy_budgets={transition: 1 for transition in _TRANSITIONS},
+        observation_ref=initial.ref,
+        actor_ref=_WORKING_ACTOR,
+        execution_environment_ref=_windows_environment_ref(expected_head),
+        evidence_scope_ref=initial.ref.stream_id,
+        procedure_ref=PROCEDURE_ID,
+        user_constraints=("active-session-bound", "external-finish-gate-required"),
+        subgoal_refs=_TRANSITIONS,
+        evidence_refs=(
+            f"observation:{initial.ref.stream_id}:{initial.ref.sequence}",
+        ),
+        capability_grant_refs=(grant_ref,),
+    )
 
 
 def _kernel_receipt(result: dict[str, Any]) -> dict[str, Any]:
