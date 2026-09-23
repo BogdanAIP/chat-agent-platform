@@ -53,7 +53,6 @@ from ._verified_workspace_artifact_support import (
     _record_workspace_attempt,
     _restore_working_state,
     _result,
-    _rollback_owned_file,
     _safe_child,
     _same_file_identity,
     _same_node_applied_operation,
@@ -342,31 +341,6 @@ def _legacy_identity_generation_proven(value: Any) -> bool:
 
     identity = _normalized_identity(value)
     return identity is not None and "birthtime_ns" in identity
-
-
-def _delete_verified_owned_file(
-    path: Path,
-    expected_sha256: str,
-    expected_file_identity: dict[str, Any] | None,
-    *,
-    workspace_root: Path,
-) -> bool:
-    """Delete only the exact retained object/link proven while its handle is pinned."""
-
-    try:
-        with pin_file_for_verified_delete(
-            path,
-            workspace_root=workspace_root,
-        ) as mark_delete:
-            evidence = _evidence(path)
-            if evidence["sha256"] != expected_sha256:
-                return False
-            if not _same_file_identity(path, expected_file_identity):
-                return False
-            mark_delete()
-    except FileNotFoundError:
-        return True
-    return not path.exists()
 
 
 def _recover_prepared_intent(
@@ -1522,45 +1496,13 @@ def _run_verified_workspace_artifact_locked(
             task_state["escalation_reason"] = f"runtime_error:{type(exc).__name__}"
     finally:
         if task_state["status"] != "completed":
-            safe_to_compensate = (
-                task_state["status"] != "running"
-                and task_state.get("prepared_intent") is None
-                and working_state is not None
-                and not working_state.unresolved_attempts()
-            )
-            changed = False
-            if safe_to_compensate and staging_owned:
-                try:
-                    rollback["staging_removed"] = _delete_verified_owned_file(
-                        staging,
-                        expected_sha,
-                        task_state.get("staging_file_identity"),
-                        workspace_root=workspace_root,
-                    )
-                except OSError:
-                    rollback["staging_removed"] = False
-                changed = changed or rollback["staging_removed"]
-            if safe_to_compensate and target_owned:
-                try:
-                    rollback["target_removed"] = _delete_verified_owned_file(
-                        target,
-                        expected_sha,
-                        task_state.get("target_file_identity"),
-                        workspace_root=workspace_root,
-                    )
-                except OSError:
-                    rollback["target_removed"] = False
-                changed = changed or rollback["target_removed"]
-            if changed and working_state is not None:
-                try:
-                    rollback_snapshot = observer.observe()
-                    working_state = _advance_working_observation(
-                        working_state,
-                        rollback_snapshot,
-                    )
-                    task_state["working_state"] = working_state.as_dict()
-                except Exception:
-                    pass
+            # Core-v1 freeze rule: failure cleanup must not create a hidden physical
+            # mutation path. Retain any verified-owned residual object and checkpoint
+            # it truthfully; a future cleanup requires its own reviewed authorization.
+            if staging_owned and staging.exists():
+                rollback["staging_removed"] = False
+            if target_owned and target.exists():
+                rollback["target_removed"] = False
             task_state["rollback"] = dict(rollback)
             task_state["finished_at"] = _utc_now()
             try:
