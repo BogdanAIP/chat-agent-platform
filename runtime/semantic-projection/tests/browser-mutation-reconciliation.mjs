@@ -45,6 +45,8 @@ async function fixtureServer() {
     response.end(`<!doctype html>
 <html><body>
   <button id="go" onclick="document.getElementById('status').value='CLICKED'">Go</button>
+  <button id="side" onclick="const n=Number(document.getElementById('count').dataset.n)+1; document.getElementById('count').dataset.n=String(n); document.getElementById('count').textContent='Count: '+n">Side effect</button>
+  <span id="count" data-n="0">Count: 0</span>
   <label for="status">Status</label>
   <input id="status" aria-label="Status" value="WAITING" readonly />
   <label for="name">Name</label>
@@ -203,10 +205,70 @@ try {
     },
   });
 
+  await withInjectedProjection({
+    needle: `    const verification = await verifyPlaywrightInteraction({ before, after, expected });`,
+    replacement: `    const verification = {
+      status: 'unknown',
+      verification: { reason: 'INJECTED_AMBIGUOUS_FINAL_STATE' },
+    };`,
+    scenario: async client => {
+      const opened = await client.callTool({ name: 'web_open', arguments: { url: fixture.url } });
+      assert.equal(opened.isError, undefined, textOf(opened));
+
+      const side = await client.callTool({ name: 'web_observe', arguments: { operation: 'find', text: 'Side effect' } });
+      const status = await client.callTool({ name: 'web_observe', arguments: { operation: 'find', regex: 'textbox "Status"' } });
+      const sideRef = refOnMatchingLine(side, 'button "Side effect"');
+      const statusRef = refOnMatchingLine(status, 'textbox "Status"');
+
+      const first = await client.callTool({
+        name: 'web_interact',
+        arguments: {
+          operation: 'click',
+          target: sideRef,
+          expected: { control: { target: statusRef, value: 'CLICKED' } },
+        },
+      });
+      assert.equal(first.isError, true, textOf(first));
+      assert.equal(first.structuredContent?.delivery?.attempted, true, textOf(first));
+      assert.equal(first.structuredContent?.browser_verification?.status, 'unknown', textOf(first));
+
+      const observed = await client.callTool({
+        name: 'web_observe',
+        arguments: { operation: 'find', text: 'Count: 1' },
+      });
+      assert.match(textOf(observed), /Count: 1/, 'read-only observation must remain usable after quarantine');
+
+      const repeat = await client.callTool({
+        name: 'web_interact',
+        arguments: {
+          operation: 'click',
+          target: sideRef,
+          expected: { control: { target: statusRef, value: 'CLICKED' } },
+        },
+      });
+      assert.equal(repeat.isError, true, textOf(repeat));
+      assert.match(textOf(repeat), /browser_mutation_quarantined_after_unverified_delivery/);
+
+      const countAfterRepeat = await client.callTool({
+        name: 'web_observe',
+        arguments: { operation: 'find', text: 'Count: 1' },
+      });
+      assert.match(textOf(countAfterRepeat), /Count: 1/, 'quarantined repeat must not click again');
+
+      const blockedNavigate = await client.callTool({
+        name: 'web_open',
+        arguments: { url: fixture.url },
+      });
+      assert.equal(blockedNavigate.isError, true, textOf(blockedNavigate));
+      assert.match(textOf(blockedNavigate), /browser_mutation_quarantined_after_unverified_delivery/);
+    },
+  });
+
   console.log('SEMANTIC_BROWSER_NAV_ACK_LOSS_RECONCILED=PASS');
   console.log('SEMANTIC_BROWSER_CLICK_ACK_LOSS_RECONCILED=PASS');
   console.log('SEMANTIC_BROWSER_TYPE_ACK_LOSS_RECONCILED=PASS');
   console.log('SEMANTIC_BROWSER_REPEAT_NO_BLIND_RETRY=PASS');
+  console.log('SEMANTIC_BROWSER_UNKNOWN_QUARANTINE=PASS');
 } finally {
   await closeServer(fixture.server).catch(() => {});
 }
