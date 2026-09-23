@@ -123,20 +123,26 @@ function noAction(status, reason, extra = {}) {
 }
 
 export class SemanticVisionClickRouter {
-  #client;
+  #browser;
   #bridge;
 
-  constructor({ client, grounder, ttlMs = 30_000 } = {}) {
-    if (!client || typeof client.callTool !== 'function') throw new Error('SemanticVisionClickRouter requires one Playwright MCP client');
+  constructor({ browser, grounder, ttlMs = 30_000 } = {}) {
+    if (
+      !browser ||
+      typeof browser.snapshot !== 'function' ||
+      typeof browser.click !== 'function' ||
+      typeof browser.takeScreenshot !== 'function' ||
+      typeof browser.mouseClickXY !== 'function'
+    ) throw new Error('SemanticVisionClickRouter requires one bounded browser provider');
     const effectiveGrounder = grounder ?? createRuntimeBackedBridgeGrounder(new RuntimeBackedVisualGrounder());
     if (typeof effectiveGrounder !== 'function') throw new Error('SemanticVisionClickRouter grounder must be a function');
-    this.#client = client;
-    this.#bridge = new SameSessionVisualGroundingBridge({ client, grounder: effectiveGrounder, ttlMs });
+    this.#browser = browser;
+    this.#bridge = new SameSessionVisualGroundingBridge({ browser, grounder: effectiveGrounder, ttlMs });
   }
 
   async click({ element = null, visualFallback } = {}) {
     const fallback = normalizeFallbackIntent(visualFallback);
-    const snapshot = await this.#client.callTool({ name: 'browser_snapshot', arguments: {} });
+    const snapshot = await this.#browser.snapshot();
     let candidates;
     try {
       candidates = exactAccessibilityCandidates(snapshot, fallback.targetText);
@@ -149,7 +155,7 @@ export class SemanticVisionClickRouter {
       const downstream = { target: semantic.candidate.ref, element: element ?? fallback.targetText };
       let click = null;
       try {
-        click = await this.#client.callTool({ name: 'browser_click', arguments: downstream });
+        click = await this.#browser.click(downstream);
       } catch (error) {
         return noAction('error', `semantic-click-ack-unknown:${error instanceof Error ? error.message : String(error)}`, {
           source: 'semantic',
