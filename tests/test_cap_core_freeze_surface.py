@@ -69,7 +69,7 @@ class CapCoreFreezeSurfaceTests(unittest.TestCase):
             direct_record_calls.extend(
                 (path.relative_to(ROOT).as_posix(), line_number)
                 for line_number, line in enumerate(text.splitlines(), start=1)
-                if "state.record_attempt(" in line
+                if ".record_attempt(" in line
             )
         self.assertEqual(1, len(direct_record_calls))
         self.assertEqual(
