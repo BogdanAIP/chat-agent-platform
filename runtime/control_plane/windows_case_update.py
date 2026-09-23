@@ -738,6 +738,7 @@ def run_windows_case_update(
     session = _load_active_session()
     case_id, note, requested_status = _validate_request(request, run_id=session["run_id"])
     task_id = secrets.token_hex(16)
+    note_sha256 = _sha256_text(note)
     task_state: dict[str, Any] = {
         "schema_version": 1,
         "task_id": task_id,
@@ -747,7 +748,7 @@ def run_windows_case_update(
         "active_run_id": session["run_id"],
         "expected_head": session["expected_head"],
         "case_id": case_id,
-        "note_sha256": _sha256_text(note),
+        "note_sha256": note_sha256,
         "requested_status": requested_status,
         "current_node": "preflight",
         "status": "running",
@@ -902,7 +903,137 @@ def run_windows_case_update(
                     time.sleep(0.06)
             raise ProcedureAbstained("guarded_text_never_stabilized") from last
 
-        initial = observe()
+        def run_transition(
+            *,
+            transition_id: str,
+            from_node: str,
+            to_node: str,
+            before_snapshot: ObservationSnapshot,
+            expected: dict[str, Any],
+            deliver_fn: Callable[[], dict[str, Any]],
+            failure_reason: str,
+            evidence_batch_id: str | None = None,
+        ) -> tuple[dict[str, Any], ObservationSnapshot, dict[str, Any]]:
+            nonlocal working_state
+
+            if working_state is None:
+                raise RuntimeError("Windows WorkingState is not initialized")
+            ensure_budget()
+            intent = _windows_case_intent(
+                working_state,
+                task_id=task_id,
+                transition_id=transition_id,
+                run_id=session["run_id"],
+                expected_head=session["expected_head"],
+                case_id=case_id,
+                note_sha256=note_sha256,
+                requested_status=requested_status,
+            )
+            decision = _windows_case_guard_decision(
+                working_state,
+                intent,
+                transition_id=transition_id,
+                task_id=task_id,
+                run_id=session["run_id"],
+                expected_head=session["expected_head"],
+                case_id=case_id,
+                note_sha256=note_sha256,
+                requested_status=requested_status,
+            )
+            if not decision.allowed:
+                code = decision.failure.code if decision.failure is not None else "blocked"
+                raise ProcedureAbstained(f"core_authorization_blocked:{transition_id}:{code}")
+
+            delivery_error: Exception | None = None
+            try:
+                delivery = deliver_fn()
+            except Exception as exc:
+                delivery_error = exc
+                delivery = {
+                    "operation": "delivery_error",
+                    "native": False,
+                    "outcome_verified": False,
+                    "target_fingerprint": None,
+                    "error": type(exc).__name__,
+                }
+            task_state["action_count"] += 1
+
+            try:
+                observed, verification, settle = _settle_postcondition(
+                    observe_bound,
+                    lambda pair: _verification(
+                        before=before_snapshot,
+                        after=pair[1],
+                        expected=expected,
+                        evidence_batch_id=evidence_batch_id,
+                    ),
+                )
+            except Exception as exc:
+                working_state = _record_windows_case_attempt(
+                    working_state,
+                    intent,
+                    MutatingOutcome.OUTCOME_UNKNOWN,
+                    _windows_unknown_failure(intent),
+                    transition_id=transition_id,
+                    task_id=task_id,
+                    run_id=session["run_id"],
+                    expected_head=session["expected_head"],
+                    case_id=case_id,
+                    note_sha256=note_sha256,
+                    requested_status=requested_status,
+                )
+                task_state["working_state"] = working_state.as_dict()
+                checkpoint()
+                raise ProcedureAbstained(
+                    f"{transition_id}_verification_unavailable:{type(exc).__name__}"
+                ) from exc
+
+            after_raw, after_snapshot = observed
+            if verification["status"] == VerificationStatus.PASS.value:
+                outcome = MutatingOutcome.VERIFIED_APPLIED
+                failure = None
+            else:
+                outcome = MutatingOutcome.OUTCOME_UNKNOWN
+                failure = _windows_unknown_failure(intent)
+
+            working_state = _record_windows_case_attempt(
+                working_state,
+                intent,
+                outcome,
+                failure,
+                transition_id=transition_id,
+                task_id=task_id,
+                run_id=session["run_id"],
+                expected_head=session["expected_head"],
+                case_id=case_id,
+                note_sha256=note_sha256,
+                requested_status=requested_status,
+            )
+            working_state = working_state.record_observation(
+                after_snapshot.ref,
+                expected_revision=working_state.revision,
+            )
+            task_state["working_state"] = working_state.as_dict()
+            _record_transition(
+                task_state,
+                transition_id=transition_id,
+                from_node=from_node,
+                to_node=to_node,
+                delivery=delivery,
+                verification=verification,
+                postcondition_observation=settle,
+            )
+            checkpoint()
+
+            if delivery_error is not None:
+                raise ProcedureAbstained(
+                    f"{transition_id}_delivery_uncertain:{type(delivery_error).__name__}"
+                ) from delivery_error
+            if verification["status"] != VerificationStatus.PASS.value:
+                raise ProcedureAbstained(failure_reason)
+            return after_raw, after_snapshot, verification
+
+        initial, initial_snapshot = observe_bound()
         initial_token = _extract_state_token(initial["visible_text"])
         expected_initial = _state_token(
             selected="NONE", status="NONE", note_sha256=_EMPTY_SHA256, saved=0
@@ -911,137 +1042,76 @@ def run_windows_case_update(
             raise ProcedureAbstained("case_desk_not_in_clean_preflight_state")
         _initial_status, initial_note_count, _ = _extract_case_summary(initial["visible_text"], case_id)
 
-        ensure_budget()
+        working_state = _new_windows_working_state(
+            task_id=task_id,
+            initial=initial_snapshot,
+            run_id=session["run_id"],
+            expected_head=session["expected_head"],
+            case_id=case_id,
+            note_sha256=note_sha256,
+            requested_status=requested_status,
+        )
+        task_state["working_state"] = working_state.as_dict()
+        checkpoint()
+
         selected_token = _state_token(
             selected=case_id, status="NONE", note_sha256=_EMPTY_SHA256, saved=0
         )
         selected_visible = _replace_visible_lines(initial["visible_text"], {initial_token: selected_token})
-        delivery = guarded_coordinate("listitem", case_id)
-        task_state["action_count"] += 1
-        selected, selected_result, selected_settle = _settle_postcondition(
-            observe,
-            lambda after: _verification(
-                before=initial,
-                after=after,
-                expected={"evidence": {"visible_text_sha256": _sha256_text(selected_visible)}},
-                task_id=task_id,
-                transition_id="select_case",
-            ),
-        )
-        _record_transition(
-            task_state,
+        selected, selected_snapshot, selected_result = run_transition(
             transition_id="select_case",
             from_node="preflight",
             to_node="case_selected",
-            delivery=delivery,
-            verification=selected_result,
-            postcondition_observation=selected_settle,
+            before_snapshot=initial_snapshot,
+            expected={"evidence": {"visible_text_sha256": _sha256_text(selected_visible)}},
+            deliver_fn=lambda: guarded_coordinate("listitem", case_id),
+            failure_reason="select_case_postcondition_not_verified",
         )
-        checkpoint()
-        if selected_result["status"] != VerificationStatus.PASS.value:
-            raise ProcedureAbstained("select_case_postcondition_not_verified")
 
-        ensure_budget()
         note_control = _control_fingerprint(
             selected,
             role="textbox",
             name="New case note",
             focused=True,
         )
-        note_locator, note_handle = resolve_unique("textbox", "New case note")
-        focus_receipt = backend.act_structural(note_locator, note_handle)
-        delivery = _receipt_mapping(focus_receipt)
-        if (
-            not delivery["native"]
-            or delivery["outcome_verified"] is not False
-            or delivery["target_fingerprint"] != note_handle.target_fingerprint
-        ):
-            raise ProcedureAbstained("note_focus_delivery_contract_failed")
-        task_state["action_count"] += 1
-        focused, focus_result, focus_settle = _settle_postcondition(
-            observe,
-            lambda after: _verification(
-                before=selected,
-                after=after,
-                expected={"window": {"focused_control": note_control}},
-                task_id=task_id,
-                transition_id="focus_note",
-            ),
-        )
-        _record_transition(
-            task_state,
+        focused, focused_snapshot, focus_result = run_transition(
             transition_id="focus_note",
             from_node="case_selected",
             to_node="note_focused",
-            delivery=delivery,
-            verification=focus_result,
-            postcondition_observation=focus_settle,
+            before_snapshot=selected_snapshot,
+            expected={"window": {"focused_control": note_control}},
+            deliver_fn=lambda: act_native("textbox", "New case note"),
+            failure_reason="focus_note_postcondition_not_verified",
         )
-        checkpoint()
-        if focus_result["status"] != VerificationStatus.PASS.value:
-            raise ProcedureAbstained("focus_note_postcondition_not_verified")
 
-        ensure_budget()
         note_token = _state_token(
-            selected=case_id, status="NONE", note_sha256=_sha256_text(note), saved=0
+            selected=case_id, status="NONE", note_sha256=note_sha256, saved=0
         )
         note_visible = _replace_visible_lines(focused["visible_text"], {selected_token: note_token})
-        delivery = guarded_type(note, "textbox", "New case note")
-        task_state["action_count"] += 1
-        noted, note_result, note_settle = _settle_postcondition(
-            observe,
-            lambda after: _verification(
-                before=focused,
-                after=after,
-                expected={"evidence": {"visible_text_sha256": _sha256_text(note_visible)}},
-                task_id=task_id,
-                transition_id="enter_note",
-            ),
-        )
-        _record_transition(
-            task_state,
+        noted, noted_snapshot, note_result = run_transition(
             transition_id="enter_note",
             from_node="note_focused",
             to_node="note_entered",
-            delivery=delivery,
-            verification=note_result,
-            postcondition_observation=note_settle,
+            before_snapshot=focused_snapshot,
+            expected={"evidence": {"visible_text_sha256": _sha256_text(note_visible)}},
+            deliver_fn=lambda: guarded_type(note, "textbox", "New case note"),
+            failure_reason="enter_note_postcondition_not_verified",
         )
-        checkpoint()
-        if note_result["status"] != VerificationStatus.PASS.value:
-            raise ProcedureAbstained("enter_note_postcondition_not_verified")
 
-        ensure_budget()
         status_token = _state_token(
-            selected=case_id, status=requested_status, note_sha256=_sha256_text(note), saved=0
+            selected=case_id, status=requested_status, note_sha256=note_sha256, saved=0
         )
         status_visible = _replace_visible_lines(noted["visible_text"], {note_token: status_token})
-        delivery = act_native("button", f"Set status {requested_status}")
-        task_state["action_count"] += 1
-        status_set, status_result, status_settle = _settle_postcondition(
-            observe,
-            lambda after: _verification(
-                before=noted,
-                after=after,
-                expected={"evidence": {"visible_text_sha256": _sha256_text(status_visible)}},
-                task_id=task_id,
-                transition_id="set_status",
-            ),
-        )
-        _record_transition(
-            task_state,
+        status_set, status_snapshot, status_result = run_transition(
             transition_id="set_status",
             from_node="note_entered",
             to_node="status_set",
-            delivery=delivery,
-            verification=status_result,
-            postcondition_observation=status_settle,
+            before_snapshot=noted_snapshot,
+            expected={"evidence": {"visible_text_sha256": _sha256_text(status_visible)}},
+            deliver_fn=lambda: act_native("button", f"Set status {requested_status}"),
+            failure_reason="set_status_postcondition_not_verified",
         )
-        checkpoint()
-        if status_result["status"] != VerificationStatus.PASS.value:
-            raise ProcedureAbstained("set_status_postcondition_not_verified")
 
-        ensure_budget()
         _current_status, current_note_count, summary_before = _extract_case_summary(
             status_set["visible_text"], case_id
         )
@@ -1049,32 +1119,27 @@ def run_windows_case_update(
             raise ProcedureAbstained("target_case_changed_before_save")
         summary_after = f"CASESTATE|id={case_id}|status={requested_status}|notes={initial_note_count + 1}"
         saved_token = _state_token(
-            selected=case_id, status=requested_status, note_sha256=_sha256_text(note), saved=1
+            selected=case_id, status=requested_status, note_sha256=note_sha256, saved=1
         )
         saved_visible = _replace_visible_lines(
             status_set["visible_text"],
             {status_token: saved_token, summary_before: summary_after},
         )
-        delivery = act_native("button", "Save case")
-        task_state["action_count"] += 1
-        evidence_batch_id = f"{task_id}:completion:{task_state['action_count']}"
-        saved, save_result, save_settle = _settle_postcondition(
-            observe,
-            lambda after: _verification(
-                before=status_set,
-                after=after,
-                expected={"evidence": {"visible_text_sha256": _sha256_text(saved_visible)}},
-                task_id=task_id,
-                transition_id="save_case",
-                evidence_batch_id=evidence_batch_id,
-            ),
+        evidence_batch_id = f"{task_id}:completion:{task_state['action_count'] + 1}"
+        saved, saved_snapshot, save_result = run_transition(
+            transition_id="save_case",
+            from_node="status_set",
+            to_node="saved_verified",
+            before_snapshot=status_snapshot,
+            expected={"evidence": {"visible_text_sha256": _sha256_text(saved_visible)}},
+            deliver_fn=lambda: act_native("button", "Save case"),
+            failure_reason="save_case_postcondition_not_verified",
+            evidence_batch_id=evidence_batch_id,
         )
         safety_result = _verification(
-            before=status_set,
-            after=saved,
+            before=status_snapshot,
+            after=saved_snapshot,
             expected={"evidence": {"visible_text_sha256": _sha256_text(saved_visible)}},
-            task_id=task_id,
-            transition_id="save_case_safety",
             evidence_batch_id=evidence_batch_id,
         )
         finish_gate = evaluate_finish_gate(
@@ -1084,26 +1149,14 @@ def run_windows_case_update(
             safety_results=(),
             unresolved=("external_l3_finish_gate_required",),
         )
-        _record_transition(
-            task_state,
-            transition_id="save_case",
-            from_node="status_set",
-            to_node="saved_verified",
-            delivery=delivery,
-            verification=save_result,
-            postcondition_observation=save_settle,
-        )
         task_state["finish_gate"] = {
             **finish_gate.as_dict(),
             "local_goal_verification": _kernel_receipt(save_result),
             "local_safety_verification": _kernel_receipt(safety_result),
         }
         checkpoint()
-        if (
-            save_result["status"] != VerificationStatus.PASS.value
-            or safety_result["status"] != VerificationStatus.PASS.value
-        ):
-            raise ProcedureAbstained("save_case_postcondition_not_verified")
+        if safety_result["status"] != VerificationStatus.PASS.value:
+            raise ProcedureAbstained("save_case_safety_postcondition_not_verified")
 
         task_state["status"] = "completed"
         task_state["current_node"] = "bounded_execution_completed"
@@ -1114,7 +1167,7 @@ def run_windows_case_update(
             active_run_id=session["run_id"],
             case_id=case_id,
             requested_status=requested_status,
-            note_sha256=_sha256_text(note),
+            note_sha256=note_sha256,
             source_head=session["expected_head"],
             local_execution_verified=True,
             external_finish_gate_required=True,
@@ -1154,7 +1207,7 @@ def run_windows_case_update(
         active_run_id=session["run_id"],
         case_id=case_id,
         requested_status=requested_status,
-        note_sha256=_sha256_text(note),
+        note_sha256=note_sha256,
         source_head=session["expected_head"],
         local_execution_verified=False,
         external_finish_gate_required=True,
