@@ -292,6 +292,48 @@ def _windows_unknown_failure(intent: AttemptIntent) -> FailureReason:
     )
 
 
+def _record_windows_case_attempt(
+    state: WorkingState,
+    intent: AttemptIntent,
+    outcome: MutatingOutcome,
+    failure: FailureReason | None,
+    *,
+    transition_id: str,
+    task_id: str,
+    run_id: str,
+    expected_head: str,
+    case_id: str,
+    note_sha256: str,
+    requested_status: str,
+) -> WorkingState:
+    return state.record_authorized_attempt(
+        intent,
+        outcome,
+        failure,
+        authorization_request=_windows_case_authorization_request(
+            state,
+            intent,
+            transition_id=transition_id,
+            run_id=run_id,
+            expected_head=expected_head,
+            case_id=case_id,
+            note_sha256=note_sha256,
+            requested_status=requested_status,
+        ),
+        capability_grant=_windows_case_grant(
+            state,
+            task_id=task_id,
+            run_id=run_id,
+            expected_head=expected_head,
+            case_id=case_id,
+            note_sha256=note_sha256,
+            requested_status=requested_status,
+        ),
+        expected_revision=state.revision,
+        guard=_WINDOWS_GUARD,
+    )
+
+
 def _new_windows_working_state(
     *,
     task_id: str,
