@@ -31,6 +31,13 @@ function progress(message) {
   process.stderr.write(`[stage25.1] ${message}\n`);
 }
 
+function browserFromClient(client) {
+  return {
+    takeScreenshot: args => client.callTool({ name: 'browser_take_screenshot', arguments: args }),
+    mouseClickXY: args => client.callTool({ name: 'browser_mouse_click_xy', arguments: args }),
+  };
+}
+
 function textOf(result) {
   return (result?.content ?? [])
     .filter(block => block?.type === 'text' && typeof block.text === 'string')
@@ -146,7 +153,7 @@ async function run() {
 
     const runner = new RuntimeBackedVisualGrounder();
     const bridge = new SameSessionVisualGroundingBridge({
-      client,
+      browser: browserFromClient(client),
       grounder: createRuntimeBackedBridgeGrounder(runner),
       ttlMs: 30_000
     });
