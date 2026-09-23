@@ -8,6 +8,17 @@ import { semanticProviderEnvironment } from './semantic-activation.mjs';
 
 
 const VERSION = '0.1.0';
+
+function normalizeProviderResult(result) {
+  const normalized = {
+    content: Array.isArray(result?.content) ? result.content : [],
+  };
+  if (result?.isError) normalized.isError = true;
+  if (result?.structuredContent !== undefined) {
+    normalized.structuredContent = result.structuredContent;
+  }
+  return normalized;
+}
 const REQUIRED_TOOLS = new Set([
   'list_allowed_directories',
   'read_text_file',
@@ -74,7 +85,7 @@ export class FilesystemSemanticProvider {
       throw new Error(`filesystem provider refused non-allowlisted operation: ${name}`);
     }
     const { client } = await this.#session();
-    return client.callTool({ name, arguments: args });
+    return normalizeProviderResult(await client.callTool({ name, arguments: args }));
   }
 
   roots() {
