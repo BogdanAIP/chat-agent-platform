@@ -104,8 +104,8 @@ export class PlaywrightBrowserSemanticProvider {
     return this.#call('browser_find', args);
   }
 
-  snapshot() {
-    return this.#call('browser_snapshot', {});
+  snapshot(args = {}) {
+    return this.#call('browser_snapshot', args);
   }
 
   click(args) {
