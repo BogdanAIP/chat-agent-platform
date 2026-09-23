@@ -201,6 +201,51 @@ def _workspace_uses_concrete_grant(
     raise ValueError("WorkingState capability grant identity is invalid")
 
 
+def _migrate_legacy_workspace_grant(
+    task_state: dict[str, Any],
+    state: WorkingState,
+    snapshot: ObservationSnapshot,
+    *,
+    task_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> WorkingState:
+    """Move only future authority from a genuine schema-2 checkpoint to schema 3."""
+
+    if int(task_state.get("schema_version", -1)) != LEGACY_WORKING_STATE_SCHEMA_VERSION:
+        return state
+    if state.capability_grant_refs != (QUALIFICATION_ADMISSION,):
+        raise ValueError("legacy workspace grant migration requires historical admission")
+    if task_state.get("prepared_intent") is not None:
+        raise ValueError("prepared legacy intent must be reconciled before grant migration")
+    if state.unresolved_attempts():
+        raise ValueError("unresolved legacy mutation blocks grant migration")
+    if state.observation_ref != snapshot.ref:
+        raise ValueError("legacy grant migration requires the fresh current observation")
+    if not snapshot.complete or snapshot.ambiguous:
+        raise ValueError("legacy grant migration requires complete unambiguous evidence")
+
+    grant_ref = _workspace_grant_ref(
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    )
+    evidence_ref = (
+        f"workspace-grant-handoff:{task_id}:{snapshot.ref.sequence}:"
+        f"from:{QUALIFICATION_ADMISSION}:to:{grant_ref}"
+    )
+    migrated = state.replace_capability_grants(
+        (grant_ref,),
+        evidence_ref=evidence_ref,
+        expected_revision=state.revision,
+    )
+    task_state["schema_version"] = CHECKPOINT_SCHEMA_VERSION
+    task_state["working_state"] = migrated.as_dict()
+    return migrated
+
+
 def _evidence(path: Path) -> dict[str, Any]:
     state, complete, ambiguous = observe_file_state(path, max_bytes=MAX_CONTENT_BYTES)
     return {
@@ -806,11 +851,7 @@ def _workspace_guard_decision(
         expected_sha=expected_sha,
         content_size=content_size,
     ):
-        return _WORKSPACE_GUARD.evaluate(
-            state,
-            intent,
-            expected_revision=state.revision,
-        )
+        raise ValueError("concrete workspace grant required before mutation")
     return _WORKSPACE_GUARD.evaluate_authorized(
         state,
         intent,
@@ -853,13 +894,7 @@ def _record_workspace_attempt(
         expected_sha=expected_sha,
         content_size=content_size,
     ):
-        return state.record_attempt(
-            intent,
-            outcome,
-            failure,
-            expected_revision=state.revision,
-            guard=_WORKSPACE_GUARD,
-        )
+        raise ValueError("concrete workspace grant required before recording new mutation")
     return state.record_authorized_attempt(
         intent,
         outcome,
@@ -880,6 +915,47 @@ def _record_workspace_attempt(
             expected_sha=expected_sha,
             content_size=content_size,
         ),
+        expected_revision=state.revision,
+        guard=_WORKSPACE_GUARD,
+    )
+
+
+def _record_legacy_recovery_attempt(
+    state: WorkingState,
+    intent: AttemptIntent,
+    outcome: MutatingOutcome,
+    failure: FailureReason | None,
+    *,
+    task_id: str,
+    transition_id: str,
+    relative_target: str,
+    expected_sha: str,
+    content_size: int,
+) -> WorkingState:
+    """Record only an already-prepared schema-2 attempt before forward grant handoff."""
+
+    if _workspace_uses_concrete_grant(
+        state,
+        task_id=task_id,
+        relative_target=relative_target,
+        expected_sha=expected_sha,
+        content_size=content_size,
+    ):
+        return _record_workspace_attempt(
+            state,
+            intent,
+            outcome,
+            failure,
+            task_id=task_id,
+            transition_id=transition_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=content_size,
+        )
+    return state.record_attempt(
+        intent,
+        outcome,
+        failure,
         expected_revision=state.revision,
         guard=_WORKSPACE_GUARD,
     )
@@ -1457,7 +1533,7 @@ def _recover_prepared_intent(
         content_size=content_size,
         action_count=int(task_state["action_count"]),
     )
-    state = _record_workspace_attempt(
+    state = _record_legacy_recovery_attempt(
         state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
@@ -1887,6 +1963,15 @@ def run_verified_workspace_artifact(
                 rollback={"staging_removed": False, "target_removed": False},
                 resumed=resume_task_id is not None,
             )
+        working_state = _migrate_legacy_workspace_grant(
+            task_state,
+            working_state,
+            preflight,
+            task_id=task_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=len(content_bytes),
+        )
         checkpoint()
     elif node == "staged_verified":
         legacy_identity = task_state.get("staging_file_identity")
@@ -1940,6 +2025,15 @@ def run_verified_workspace_artifact(
             working_state = _advance_working_observation(
                 working_state,
                 resume_staged_snapshot,
+            )
+            working_state = _migrate_legacy_workspace_grant(
+                task_state,
+                working_state,
+                resume_staged_snapshot,
+                task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
         checkpoint()
     elif node == "final_verified":
@@ -2004,6 +2098,15 @@ def run_verified_workspace_artifact(
             working_state = _advance_working_observation(
                 working_state,
                 resume_final_snapshot,
+            )
+            working_state = _migrate_legacy_workspace_grant(
+                task_state,
+                working_state,
+                resume_final_snapshot,
+                task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
         checkpoint()
 

@@ -39,6 +39,7 @@ from ._verified_workspace_artifact_support import (
     _kernel_receipt,
     _load_checkpoint,
     _matches_expected_file,
+    _migrate_legacy_workspace_grant,
     _missing_predicates,
     _new_working_state,
     _normalized_identity,
@@ -46,6 +47,7 @@ from ._verified_workspace_artifact_support import (
     _observed_identity,
     _prepare_transition,
     _record_file_exists_no_effect,
+    _record_legacy_recovery_attempt,
     _record_normal_outcome,
     _record_transition,
     _record_workspace_attempt,
@@ -393,7 +395,7 @@ def _recover_prepared_intent(
         content_size=content_size,
         action_count=int(task_state["action_count"]),
     )
-    state = _record_workspace_attempt(
+    state = _record_legacy_recovery_attempt(
         state,
         intent,
         MutatingOutcome.OUTCOME_UNKNOWN,
@@ -894,6 +896,15 @@ def _run_verified_workspace_artifact_locked(
                 rollback={"staging_removed": False, "target_removed": False},
                 resumed=resume_task_id is not None,
             )
+        working_state = _migrate_legacy_workspace_grant(
+            task_state,
+            working_state,
+            preflight,
+            task_id=task_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=len(content_bytes),
+        )
         checkpoint()
     elif node == "staged_verified":
         legacy_identity = task_state.get("staging_file_identity")
@@ -950,6 +961,15 @@ def _run_verified_workspace_artifact_locked(
             working_state = _advance_working_observation(
                 working_state,
                 resume_staged_snapshot,
+            )
+            working_state = _migrate_legacy_workspace_grant(
+                task_state,
+                working_state,
+                resume_staged_snapshot,
+                task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
         checkpoint()
     elif node == "final_verified":
@@ -1017,6 +1037,15 @@ def _run_verified_workspace_artifact_locked(
             working_state = _advance_working_observation(
                 working_state,
                 resume_final_snapshot,
+            )
+            working_state = _migrate_legacy_workspace_grant(
+                task_state,
+                working_state,
+                resume_final_snapshot,
+                task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
         checkpoint()
 

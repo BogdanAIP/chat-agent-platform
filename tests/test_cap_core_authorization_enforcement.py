@@ -6,6 +6,8 @@ from runtime.control_plane.authorization import AuthorizationRequest, Capability
 from runtime.control_plane.verification import ObservationRef
 from runtime.control_plane.working_state import (
     AttemptIntent,
+    FailureCategory,
+    FailureReason,
     LoopGuard,
     MutatingOutcome,
     WorkingState,
@@ -259,6 +261,70 @@ class CapCoreAuthorizationEnforcementTests(unittest.TestCase):
         self.assertEqual(1, len(updated.attempts))
         self.assertEqual(intent, updated.attempts[0].intent)
 
+    def test_active_grant_replacement_is_revisioned_and_evidence_bound(self) -> None:
+        state = self.state()
+        updated = state.replace_capability_grants(
+            ("grant:replacement",),
+            evidence_ref="evidence:grant-handoff",
+            expected_revision=state.revision,
+        )
+
+        self.assertEqual(state.revision + 1, updated.revision)
+        self.assertEqual(("grant:replacement",), updated.capability_grant_refs)
+        self.assertEqual(
+            state.evidence_refs + ("evidence:grant-handoff",),
+            updated.evidence_refs,
+        )
+        self.assertEqual(state.attempts, updated.attempts)
+        self.assertEqual(state.failures, updated.failures)
+        self.assertEqual(state.reconciliations, updated.reconciliations)
+        self.assertEqual(state.budgets, updated.budgets)
+
+        with self.assertRaisesRegex(ValueError, "stale WorkingState revision"):
+            state.replace_capability_grants(
+                ("grant:replacement",),
+                evidence_ref="evidence:stale",
+                expected_revision=state.revision + 1,
+            )
+        with self.assertRaisesRegex(ValueError, "grant set did not change"):
+            state.replace_capability_grants(
+                state.capability_grant_refs,
+                evidence_ref="evidence:no-change",
+                expected_revision=state.revision,
+            )
+
+    def test_unresolved_attempt_blocks_active_grant_replacement(self) -> None:
+        state = self.state()
+        intent = self.intent(state)
+        failure = FailureReason(
+            code="delivery_unknown",
+            category=FailureCategory.RECONCILIATION_REQUIRED,
+            message="delivery outcome requires reconciliation",
+            retryable=False,
+            reconciliation_required=True,
+            operation_id=intent.operation_id,
+            strategy_id=intent.strategy_id,
+            outcome=MutatingOutcome.OUTCOME_UNKNOWN,
+            evidence_refs=intent.evidence_refs,
+        )
+        unresolved = state.record_authorized_attempt(
+            intent,
+            MutatingOutcome.OUTCOME_UNKNOWN,
+            failure,
+            authorization_request=self.request(intent),
+            capability_grant=self.grant(),
+            expected_revision=state.revision,
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "unresolved mutation blocks capability grant replacement",
+        ):
+            unresolved.replace_capability_grants(
+                ("grant:replacement",),
+                evidence_ref="evidence:grant-handoff",
+                expected_revision=unresolved.revision,
+            )
     def test_structural_loop_guard_failure_wins_before_authorization(self) -> None:
         state = self.state()
         intent = self.intent(state)
