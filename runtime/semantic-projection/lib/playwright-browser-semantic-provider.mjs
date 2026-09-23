@@ -9,6 +9,17 @@ import { semanticProviderEnvironment } from './semantic-activation.mjs';
 
 
 const VERSION = '0.1.0';
+
+function normalizeProviderResult(result) {
+  const normalized = {
+    content: Array.isArray(result?.content) ? result.content : [],
+  };
+  if (result?.isError) normalized.isError = true;
+  if (result?.structuredContent !== undefined) {
+    normalized.structuredContent = result.structuredContent;
+  }
+  return normalized;
+}
 const DEFENSE_BLOCKED_ORIGINS = [
   'http://169.254.169.254:*',
   'https://169.254.169.254:*',
@@ -93,7 +104,7 @@ export class PlaywrightBrowserSemanticProvider {
       throw new Error(`Playwright browser provider refused non-allowlisted operation: ${name}`);
     }
     const { client } = await this.#session();
-    return client.callTool({ name, arguments: args });
+    return normalizeProviderResult(await client.callTool({ name, arguments: args }));
   }
 
   navigate(url) {
