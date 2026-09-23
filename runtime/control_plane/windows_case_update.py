@@ -594,7 +594,7 @@ def _verification(
         evidence_batch_id=evidence_batch_id,
     )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "operation": "verify_windows_desktop_transition",
         "status": result.status.value,
         "expected": normalized_expected,
@@ -755,6 +755,7 @@ def run_windows_case_update(
         "action_budget": MAX_ACTIONS,
         "runtime_budget_seconds": MAX_RUNTIME_SECONDS,
         "transition_receipts": [],
+        "working_state": None,
         "finish_gate": None,
         "escalation_reason": None,
         "created_at": _utc_now(),
@@ -765,6 +766,11 @@ def run_windows_case_update(
     thread: threading.Thread | None = None
     backend = None
     resolver = None
+    observation_stream = WindowsDesktopObservationStream(
+        subject=f"{PROCEDURE_ID}:{task_id}",
+        stream_id=f"{task_id}:windows-desktop",
+    )
+    working_state: WorkingState | None = None
 
     def checkpoint() -> None:
         _write_checkpoint(state_root, task_state)
@@ -775,11 +781,15 @@ def run_windows_case_update(
         if time.monotonic() - started >= MAX_RUNTIME_SECONDS:
             raise ProcedureAbstained("runtime_budget_exhausted")
 
-    def observe() -> dict[str, Any]:
+    def observe_raw() -> dict[str, Any]:
         from runtime.windows.observation import observe_bound_window
 
         assert resolver is not None
         return observe_bound_window(resolver, session["window_name"]).to_mapping()
+
+    def observe_bound() -> tuple[dict[str, Any], ObservationSnapshot]:
+        raw = observe_raw()
+        return raw, observation_stream.observe(raw)
 
     try:
         # Imported lazily so CI and non-Windows semantic inventory checks do not
