@@ -540,26 +540,31 @@ def _control_fingerprint(
 
 def _verification(
     *,
-    before: dict[str, Any],
-    after: dict[str, Any],
+    before: ObservationSnapshot,
+    after: ObservationSnapshot,
     expected: dict[str, Any],
-    task_id: str,
-    transition_id: str,
     evidence_batch_id: str | None = None,
 ) -> dict[str, Any]:
-    return verify_windows_desktop_transition(
-        before_raw=before,
-        after_raw=after,
+    result, normalized_expected = verify_windows_desktop_snapshots(
+        before=before,
+        after=after,
         expected=expected,
-        subject=f"{PROCEDURE_ID}:{task_id}",
-        stream_id=f"{task_id}:{transition_id}",
         evidence_batch_id=evidence_batch_id,
     )
+    return {
+        "schema_version": 1,
+        "operation": "verify_windows_desktop_transition",
+        "status": result.status.value,
+        "expected": normalized_expected,
+        "before": before.ref.as_dict(),
+        "after": after.ref.as_dict(),
+        "verification": result.as_dict(),
+    }
 
 
 def _settle_postcondition(
-    observe_fn: Callable[[], dict[str, Any]],
-    verify_fn: Callable[[dict[str, Any]], dict[str, Any]],
+    observe_fn: Callable[[], Any],
+    verify_fn: Callable[[Any], dict[str, Any]],
     *,
     timeout_seconds: float = POSTCONDITION_SETTLE_SECONDS,
     poll_seconds: float = POSTCONDITION_POLL_SECONDS,
@@ -579,7 +584,7 @@ def _settle_postcondition(
 
     deadline = time.monotonic() + timeout_seconds
     statuses: list[str] = []
-    after: dict[str, Any] | None = None
+    after: Any | None = None
     result: dict[str, Any] | None = None
 
     while True:
