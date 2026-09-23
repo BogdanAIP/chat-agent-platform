@@ -594,7 +594,7 @@ def _verification(
         evidence_batch_id=evidence_batch_id,
     )
     return {
-        "schema_version": 2,
+        "schema_version": 1,
         "operation": "verify_windows_desktop_transition",
         "status": result.status.value,
         "expected": normalized_expected,
@@ -610,7 +610,7 @@ def _settle_postcondition(
     *,
     timeout_seconds: float = POSTCONDITION_SETTLE_SECONDS,
     poll_seconds: float = POSTCONDITION_POLL_SECONDS,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> tuple[Any, dict[str, Any], dict[str, Any]]:
     """Bound verification to one action while allowing asynchronous UI state to settle.
 
     The action is never repeated here. Each attempt is a new authoritative
@@ -740,7 +740,7 @@ def run_windows_case_update(
     task_id = secrets.token_hex(16)
     note_sha256 = _sha256_text(note)
     task_state: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "task_id": task_id,
         "procedure_id": PROCEDURE_ID,
         "procedure_version": PROCEDURE_VERSION,
