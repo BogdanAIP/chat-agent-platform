@@ -8,6 +8,10 @@ function Install-ChatWindowsProcedureBundle {
     )
 
     $assets = @(
+        @('runtime\control_plane\__init__.py', 'runtime\control_plane\__init__.py'),
+        @('runtime\control_plane\authorization.py', 'runtime\control_plane\authorization.py'),
+        @('runtime\control_plane\verification.py', 'runtime\control_plane\verification.py'),
+        @('runtime\control_plane\working_state.py', 'runtime\control_plane\working_state.py'),
         @('runtime\control_plane\windows_observation.py', 'runtime\control_plane\windows_observation.py'),
         @('runtime\control_plane\windows_transition.py', 'runtime\control_plane\windows_transition.py'),
         @('runtime\control_plane\windows_case_update.py', 'runtime\control_plane\windows_case_update.py'),
