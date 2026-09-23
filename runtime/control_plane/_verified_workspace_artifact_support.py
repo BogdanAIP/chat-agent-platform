@@ -233,8 +233,8 @@ def _migrate_legacy_workspace_grant(
         content_size=content_size,
     )
     evidence_ref = (
-        f"workspace-grant-handoff:{task_id}:"
-        f"{snapshot.ref.sequence}:{grant_ref}"
+        f"workspace-grant-handoff:{task_id}:{snapshot.ref.sequence}:"
+        f"from:{QUALIFICATION_ADMISSION}:to:{grant_ref}"
     )
     migrated = state.replace_capability_grants(
         (grant_ref,),
