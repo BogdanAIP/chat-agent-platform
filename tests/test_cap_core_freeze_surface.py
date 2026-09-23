@@ -179,6 +179,14 @@ class CapCoreFreezeSurfaceTests(unittest.TestCase):
         self.assertNotIn("mark_delete()", failure_cleanup)
         self.assertIn("failure cleanup must not create a hidden physical", failure_cleanup)
 
+        support = (
+            ROOT / "runtime" / "control_plane" / "_verified_workspace_artifact_support.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("_rollback_owned_file(", support)
+        support_failure_cleanup = support[support.rindex("    finally:"):]
+        self.assertNotIn("path.unlink()", support_failure_cleanup)
+        self.assertIn("do not perform hidden physical compensation", support_failure_cleanup)
+
     def test_provider_seam_cannot_own_core_authority_or_completion(self) -> None:
         source = (
             ROOT
