@@ -1963,6 +1963,15 @@ def run_verified_workspace_artifact(
                 rollback={"staging_removed": False, "target_removed": False},
                 resumed=resume_task_id is not None,
             )
+        working_state = _migrate_legacy_workspace_grant(
+            task_state,
+            working_state,
+            preflight,
+            task_id=task_id,
+            relative_target=relative_target,
+            expected_sha=expected_sha,
+            content_size=len(content_bytes),
+        )
         checkpoint()
     elif node == "staged_verified":
         legacy_identity = task_state.get("staging_file_identity")
@@ -2016,6 +2025,15 @@ def run_verified_workspace_artifact(
             working_state = _advance_working_observation(
                 working_state,
                 resume_staged_snapshot,
+            )
+            working_state = _migrate_legacy_workspace_grant(
+                task_state,
+                working_state,
+                resume_staged_snapshot,
+                task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
         checkpoint()
     elif node == "final_verified":
@@ -2080,6 +2098,15 @@ def run_verified_workspace_artifact(
             working_state = _advance_working_observation(
                 working_state,
                 resume_final_snapshot,
+            )
+            working_state = _migrate_legacy_workspace_grant(
+                task_state,
+                working_state,
+                resume_final_snapshot,
+                task_id=task_id,
+                relative_target=relative_target,
+                expected_sha=expected_sha,
+                content_size=len(content_bytes),
             )
         checkpoint()
 
