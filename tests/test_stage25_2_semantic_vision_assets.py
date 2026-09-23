@@ -9,6 +9,7 @@ CORE = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-projection.m
 PUBLIC = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-control-plane-projection.mjs"
 ROUTER = ROOT / "runtime" / "semantic-projection" / "lib" / "semantic-vision-click-router.mjs"
 PROVIDERS = ROOT / "runtime" / "semantic-projection" / "lib" / "semantic-provider-bindings.mjs"
+VISUAL_BRIDGE = ROOT / "runtime" / "semantic-projection" / "lib" / "visual-grounding-bridge.mjs"
 TARGET_NODE = ROOT / "runtime" / "semantic-projection" / "tests" / "target-stage25-2-real-f16-escalation.mjs"
 TARGET_WRAPPER = ROOT / "scripts" / "test-stage25-2-real-f16-escalation.ps1"
 BOOTSTRAP_MANAGER = ROOT / "scripts" / "bootstrap-manager-runtime.ps1"
@@ -21,6 +22,7 @@ class Stage252SemanticVisionAssetsTests(unittest.TestCase):
         cls.public = PUBLIC.read_text(encoding="utf-8")
         cls.router = ROUTER.read_text(encoding="utf-8")
         cls.providers = PROVIDERS.read_text(encoding="utf-8")
+        cls.visual_bridge = VISUAL_BRIDGE.read_text(encoding="utf-8")
         cls.target_node = TARGET_NODE.read_text(encoding="utf-8")
         cls.target_wrapper = TARGET_WRAPPER.read_text(encoding="utf-8")
         cls.bootstrap_manager = BOOTSTRAP_MANAGER.read_text(encoding="utf-8")
@@ -62,7 +64,7 @@ class Stage252SemanticVisionAssetsTests(unittest.TestCase):
         ):
             self.assertIn(marker, self.core)
         for marker in ("browser_take_screenshot", "browser_mouse_click_xy"):
-            self.assertIn(marker, self.router)
+            self.assertIn(marker, self.visual_bridge)
             self.assertIn(marker, self.providers)
         self.assertIn("'--caps'", self.providers)
         self.assertIn("'vision'", self.providers)
