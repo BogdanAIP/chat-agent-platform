@@ -149,7 +149,7 @@ class WindowsApplicationL3Contracts(unittest.TestCase):
             source.index("def guarded_coordinate") : source.index("def guarded_type")
         ]
         type_section = source[
-            source.index("def guarded_type") : source.index("initial = observe()")
+            source.index("def guarded_type") : source.index("initial, initial_snapshot = observe_bound()")
         ]
         self.assertLess(
             coordinate_section.index("for _ in range(12)"),
