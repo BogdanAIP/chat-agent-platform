@@ -18,6 +18,15 @@ const require = createRequire(import.meta.url);
 const playwrightManifest = require.resolve('@playwright/mcp/package.json');
 const playwrightEntry = path.join(path.dirname(playwrightManifest), 'cli.js');
 
+function browserFromClient(client) {
+  return {
+    snapshot: () => client.callTool({ name: 'browser_snapshot', arguments: {} }),
+    click: args => client.callTool({ name: 'browser_click', arguments: args }),
+    takeScreenshot: args => client.callTool({ name: 'browser_take_screenshot', arguments: args }),
+    mouseClickXY: args => client.callTool({ name: 'browser_mouse_click_xy', arguments: args }),
+  };
+}
+
 function textOf(result) {
   return (result?.content ?? []).filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n');
 }
@@ -87,7 +96,7 @@ try {
 
   let grounderCalls = 0;
   const router = new SemanticVisionClickRouter({
-    client,
+    browser: browserFromClient(client),
     grounder: async request => {
       grounderCalls += 1;
       assert.equal(request.kind, 'labeled_button');
