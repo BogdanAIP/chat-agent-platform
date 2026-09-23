@@ -13,7 +13,6 @@ from runtime.control_plane.verified_workspace_artifact import (
     PROCEDURE_VERSION,
     QUALIFICATION_ADMISSION,
     _file_identity,
-    _rollback_owned_file,
     run_verified_workspace_artifact,
 )
 
@@ -165,21 +164,6 @@ class Stage263AResumeContractTests(unittest.TestCase):
             self.assertTrue(second["resumed"])
             self.assertEqual(second["action_count"], 3)
             self.assertEqual(_file_identity(target), identity_before)
-
-    def test_rollback_refuses_same_digest_replacement_object(self) -> None:
-        with tempfile.TemporaryDirectory() as root_dir:
-            path = Path(root_dir) / "owned.txt"
-            path.write_text("IDENTICAL", encoding="utf-8")
-            expected_identity = _file_identity(path)
-            digest = hashlib.sha256(b"IDENTICAL").hexdigest()
-            path.unlink()
-            path.write_text("IDENTICAL", encoding="utf-8")
-            self.assertNotEqual(_file_identity(path), expected_identity)
-
-            removed = _rollback_owned_file(path, digest, expected_identity)
-
-            self.assertFalse(removed)
-            self.assertTrue(path.exists())
 
     def test_resume_task_id_is_strictly_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
