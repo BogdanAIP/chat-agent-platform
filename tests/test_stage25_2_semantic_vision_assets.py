@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-projection.mjs"
 PUBLIC = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-control-plane-projection.mjs"
 ROUTER = ROOT / "runtime" / "semantic-projection" / "lib" / "semantic-vision-click-router.mjs"
+BROWSER_PROVIDER = ROOT / "runtime" / "semantic-projection" / "lib" / "playwright-browser-semantic-provider.mjs"
 TARGET_NODE = ROOT / "runtime" / "semantic-projection" / "tests" / "target-stage25-2-real-f16-escalation.mjs"
 TARGET_WRAPPER = ROOT / "scripts" / "test-stage25-2-real-f16-escalation.ps1"
 BOOTSTRAP_MANAGER = ROOT / "scripts" / "bootstrap-manager-runtime.ps1"
@@ -19,6 +20,7 @@ class Stage252SemanticVisionAssetsTests(unittest.TestCase):
         cls.core = CORE.read_text(encoding="utf-8")
         cls.public = PUBLIC.read_text(encoding="utf-8")
         cls.router = ROUTER.read_text(encoding="utf-8")
+        cls.browser_provider = BROWSER_PROVIDER.read_text(encoding="utf-8")
         cls.target_node = TARGET_NODE.read_text(encoding="utf-8")
         cls.target_wrapper = TARGET_WRAPPER.read_text(encoding="utf-8")
         cls.bootstrap_manager = BOOTSTRAP_MANAGER.read_text(encoding="utf-8")
@@ -57,12 +59,17 @@ class Stage252SemanticVisionAssetsTests(unittest.TestCase):
             "instruction",
             "visualFallback supports only one left single click",
             "web_interact type does not accept visualFallback",
+            "createPlaywrightBrowserSemanticProvider",
+        ):
+            self.assertIn(marker, self.core)
+        for marker in (
             "browser_take_screenshot",
             "browser_mouse_click_xy",
             "--caps",
             "vision",
         ):
-            self.assertIn(marker, self.core)
+            self.assertIn(marker, self.browser_provider)
+            self.assertNotIn(marker, self.core)
         self.assertNotIn("kind: z.", self.core)
 
     def test_router_never_trusts_planner_for_visual_kind_or_separate_preflight_name(self) -> None:
