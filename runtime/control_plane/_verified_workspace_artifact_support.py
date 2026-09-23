@@ -482,24 +482,6 @@ def _result(task_state: dict[str, Any], **extra: Any) -> dict[str, Any]:
     }
 
 
-def _rollback_owned_file(
-    path: Path,
-    expected_sha256: str,
-    expected_file_identity: dict[str, Any] | None,
-) -> bool:
-    """Remove only the exact file object created by this run."""
-
-    evidence = _evidence(path)
-    if not evidence["exists"]:
-        return True
-    if evidence["sha256"] != expected_sha256:
-        return False
-    if not _same_file_identity(path, expected_file_identity):
-        return False
-    path.unlink()
-    return not path.exists()
-
-
 def _exclusive_create_file(path: Path, data: bytes) -> None:
     with path.open("xb") as handle:
         handle.write(data)
@@ -2522,36 +2504,12 @@ def run_verified_workspace_artifact(
             task_state["escalation_reason"] = f"runtime_error:{type(exc).__name__}"
     finally:
         if task_state["status"] != "completed":
-            safe_to_compensate = (
-                task_state.get("prepared_intent") is None
-                and working_state is not None
-                and not working_state.unresolved_attempts()
-            )
-            changed = False
-            if safe_to_compensate and staging_owned:
-                rollback["staging_removed"] = _rollback_owned_file(
-                    staging,
-                    expected_sha,
-                    task_state.get("staging_file_identity"),
-                )
-                changed = changed or rollback["staging_removed"]
-            if safe_to_compensate and target_owned:
-                rollback["target_removed"] = _rollback_owned_file(
-                    target,
-                    expected_sha,
-                    task_state.get("target_file_identity"),
-                )
-                changed = changed or rollback["target_removed"]
-            if changed and working_state is not None:
-                try:
-                    rollback_snapshot = observer.observe()
-                    working_state = _advance_working_observation(
-                        working_state,
-                        rollback_snapshot,
-                    )
-                    task_state["working_state"] = working_state.as_dict()
-                except Exception:
-                    pass
+            # Core-v1 freeze rule: do not perform hidden physical compensation
+            # after failure. Preserve residual owned objects for explicit recovery.
+            if staging_owned and staging.exists():
+                rollback["staging_removed"] = False
+            if target_owned and target.exists():
+                rollback["target_removed"] = False
             task_state["rollback"] = dict(rollback)
             task_state["finished_at"] = _utc_now()
             try:

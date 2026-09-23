@@ -304,33 +304,6 @@ class Stage263CWorkspaceLinkPinTests(unittest.TestCase):
             self.assertFalse(os.path.samefile(staging, target))
             self.assertNotEqual(original_identity, replacement_identity)
 
-    def test_compensation_delete_refuses_same_bytes_replacement_identity(self) -> None:
-        with tempfile.TemporaryDirectory() as workspace_dir:
-            workspace = Path(workspace_dir)
-            reserved = workspace / ".chat-agent-platform" / "stage26-3a"
-            reserved.mkdir(parents=True)
-            path = reserved / "compensation.txt"
-            content = b"SAME_BYTES"
-            path.write_bytes(content)
-            original_identity = workspace_artifact._file_identity(path)
-            self.assertIsNotNone(original_identity)
-            path.unlink()
-            path.write_bytes(content)
-            replacement_identity = workspace_artifact._file_identity(path)
-            self.assertIsNotNone(replacement_identity)
-            self.assertNotEqual(original_identity, replacement_identity)
-
-            removed = workspace_artifact._delete_verified_owned_file(
-                path,
-                hashlib.sha256(content).hexdigest(),
-                original_identity,
-                workspace_root=workspace,
-            )
-
-            self.assertFalse(removed)
-            self.assertTrue(path.exists())
-            self.assertEqual(path.read_bytes(), content)
-
     def test_cleanup_replacement_before_pin_is_not_deleted(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)

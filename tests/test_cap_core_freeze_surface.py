@@ -157,6 +157,36 @@ class CapCoreFreezeSurfaceTests(unittest.TestCase):
             self.assertLess(authorization, delivery)
             self.assertLess(delivery, verification)
 
+        self.assertLess(
+            web_open.index("browserMutationQuarantineError('web_open')"),
+            web_open.index("authorizeSemanticBrowserMutation("),
+        )
+        self.assertLess(
+            interact.index("browserMutationQuarantineError('web_interact')"),
+            interact.index("authorizeSemanticBrowserMutation("),
+        )
+        self.assertIn("quarantineBrowserMutation(operationName", source)
+        self.assertIn("browser_mutation_quarantined_after_unverified_delivery", source)
+
+    def test_workspace_failure_path_has_no_hidden_physical_compensation(self) -> None:
+        source = (
+            ROOT / "runtime" / "control_plane" / "verified_workspace_artifact.py"
+        ).read_text(encoding="utf-8")
+        failure_cleanup = source[source.rindex("    finally:"):]
+
+        self.assertNotIn("_delete_verified_owned_file(", source)
+        self.assertNotIn("pin_file_for_verified_delete(", failure_cleanup)
+        self.assertNotIn("mark_delete()", failure_cleanup)
+        self.assertIn("failure cleanup must not create a hidden physical", failure_cleanup)
+
+        support = (
+            ROOT / "runtime" / "control_plane" / "_verified_workspace_artifact_support.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("_rollback_owned_file(", support)
+        support_failure_cleanup = support[support.rindex("    finally:"):]
+        self.assertNotIn("path.unlink()", support_failure_cleanup)
+        self.assertIn("do not perform hidden physical compensation", support_failure_cleanup)
+
     def test_provider_seam_cannot_own_core_authority_or_completion(self) -> None:
         source = (
             ROOT

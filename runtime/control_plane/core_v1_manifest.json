@@ -77,6 +77,8 @@
     "Provider success is evidence only and cannot directly establish project PASS or DONE.",
     "Adding a provider inside an accepted capability family must not require widening Core authority or the public Chat schema.",
     "A genuinely new consequence class requires separate reviewed semantics and is not hidden behind a provider seam.",
-    "New consequence-bearing delivery must have exact authorization before the effect; legacy structural record_attempt may describe only a previously prepared historical attempt during reconciliation and cannot authorize a new effect."
+    "New consequence-bearing delivery must have exact authorization before the effect; legacy structural record_attempt may describe only a previously prepared historical attempt during reconciliation and cannot authorize a new effect.",
+    "An unresolved direct semantic mutation must fail closed before any later physical mutation in the same active semantic scope; read-only observation may remain available.",
+    "Failure compensation is itself a consequence-bearing mutation and cannot bypass exact authorization merely because the affected object is verified-owned."
   ]
 }

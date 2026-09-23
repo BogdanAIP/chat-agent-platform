@@ -141,6 +141,97 @@ class Stage263CWorkspaceNormalAuthorityTests(unittest.TestCase):
             self.assertTrue(staging.exists())
             self.assertTrue(target.exists())
 
+    def test_failure_after_stage_verification_does_not_delete_staging_outside_core_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            original_verify_current = workspace_artifact._verify_current_state
+
+            def fail_final_precondition(observer, *, effect_id, predicates):
+                if effect_id == "final_create_precondition":
+                    raise RuntimeError("forced failure after authorized stage create")
+                return original_verify_current(
+                    observer,
+                    effect_id=effect_id,
+                    predicates=predicates,
+                )
+
+            with patch.object(
+                workspace_artifact,
+                "_verify_current_state",
+                side_effect=fail_final_precondition,
+            ), patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                side_effect=AssertionError("failure rollback must not physically delete staging"),
+            ) as delete_mock:
+                result = self.execute(
+                    self.request("rollback-stage.txt", "STAGE_RESIDUAL"),
+                    workspace=workspace,
+                    state=state,
+                )
+
+            delete_mock.assert_not_called()
+            self.assertEqual(result["status"], "failed")
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            staging = (
+                workspace
+                / ".chat-agent-platform"
+                / "stage26-3a"
+                / f".rollback-stage.txt.{task_id}.staging"
+            )
+            target = workspace / ".chat-agent-platform" / "stage26-3a" / "rollback-stage.txt"
+            self.assertTrue(staging.exists())
+            self.assertFalse(target.exists())
+            self.assertFalse(checkpoint["rollback"]["staging_removed"])
+
+    def test_failure_after_final_verification_does_not_delete_owned_files_outside_core_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
+            workspace = Path(workspace_dir)
+            state = Path(state_dir)
+            original_verify_current = workspace_artifact._verify_current_state
+
+            def fail_cleanup_precondition(observer, *, effect_id, predicates):
+                if effect_id == "staging_cleanup_precondition":
+                    raise RuntimeError("forced failure after authorized final create")
+                return original_verify_current(
+                    observer,
+                    effect_id=effect_id,
+                    predicates=predicates,
+                )
+
+            with patch.object(
+                workspace_artifact,
+                "_verify_current_state",
+                side_effect=fail_cleanup_precondition,
+            ), patch.object(
+                workspace_artifact,
+                "pin_file_for_verified_delete",
+                side_effect=AssertionError("failure rollback must not physically delete owned files"),
+            ) as delete_mock:
+                result = self.execute(
+                    self.request("rollback-final.txt", "FINAL_RESIDUAL"),
+                    workspace=workspace,
+                    state=state,
+                )
+
+            delete_mock.assert_not_called()
+            self.assertEqual(result["status"], "failed")
+            checkpoint = self.checkpoint(state)
+            task_id = checkpoint["task_id"]
+            staging = (
+                workspace
+                / ".chat-agent-platform"
+                / "stage26-3a"
+                / f".rollback-final.txt.{task_id}.staging"
+            )
+            target = workspace / ".chat-agent-platform" / "stage26-3a" / "rollback-final.txt"
+            self.assertTrue(staging.exists())
+            self.assertTrue(target.exists())
+            self.assertFalse(checkpoint["rollback"]["staging_removed"])
+            self.assertFalse(checkpoint["rollback"]["target_removed"])
+
     def test_cleanup_delivery_cannot_be_verified_applied_when_finish_gate_is_not_done(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as state_dir:
             workspace = Path(workspace_dir)

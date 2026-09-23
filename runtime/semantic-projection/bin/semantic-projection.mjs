@@ -42,6 +42,7 @@ const providers = createSemanticProviderBindings({
 
 let semanticVisionRouter = null;
 let semanticVisionClient = null;
+let browserMutationQuarantine = null;
 let shuttingDown = false;
 
 function resolveWorkspacePath(relativePath) {
@@ -68,6 +69,23 @@ function normalizeBackendResult(result) {
 
 function toolError(message) {
   return { content: [{ type: 'text', text: message }], isError: true };
+}
+
+function quarantineBrowserMutation(operationName, reason) {
+  if (browserMutationQuarantine !== null) return;
+  browserMutationQuarantine = Object.freeze({
+    operationName,
+    reason: String(reason ?? 'unverified_browser_delivery').slice(0, 512),
+  });
+}
+
+function browserMutationQuarantineError(operationName) {
+  if (browserMutationQuarantine === null) return null;
+  return toolError(
+    `${operationName} refused before delivery: browser_mutation_quarantined_after_unverified_delivery; ` +
+    `prior_operation=${browserMutationQuarantine.operationName}; ` +
+    `reason=${browserMutationQuarantine.reason}`,
+  );
 }
 
 function visualOutcomeResult(outcome) {
@@ -280,6 +298,9 @@ function browserMutationVerifiedResult({
     delete result.isError;
   } else {
     result.isError = true;
+    if (deliveryAttempted === true) {
+      quarantineBrowserMutation(operationName, `verification_${status}:${reason}`);
+    }
   }
   return result;
 }
@@ -320,6 +341,9 @@ function browserMutationUnverifiedResult({
     browser_verification: { status: 'unknown', reason: 'verification_runtime_unavailable' },
   };
   result.isError = true;
+  if (deliveryAttempted === true) {
+    quarantineBrowserMutation(operationName, `verification_unavailable:${reason}`);
+  }
   return result;
 }
 
@@ -554,6 +578,9 @@ server.registerTool('web_open', {
   inputSchema: z.object({ url: z.string().url().max(4096) }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
 }, async ({ url }) => {
+  const quarantine = browserMutationQuarantineError('web_open');
+  if (quarantine !== null) return quarantine;
+
   let before = null;
   let authorization = null;
   let delivery = null;
@@ -667,6 +694,9 @@ server.registerTool('web_interact', {
   }).strict(),
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
 }, async args => {
+  const quarantine = browserMutationQuarantineError('web_interact');
+  if (quarantine !== null) return quarantine;
+
   let before = null;
   let expected = null;
   let authorization = null;
