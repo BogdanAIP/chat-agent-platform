@@ -282,6 +282,9 @@ class WindowsApplicationL3Contracts(unittest.TestCase):
         smoke_index = bootstrap.index("Invoke-ChatBootstrapSmokeTest")
         self.assertLess(install_index, smoke_index)
         for required in (
+            "authorization.py",
+            "verification.py",
+            "working_state.py",
             "windows_observation.py",
             "windows_transition.py",
             "windows_case_update.py",
