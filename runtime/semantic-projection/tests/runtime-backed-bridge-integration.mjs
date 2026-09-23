@@ -14,6 +14,13 @@ const require = createRequire(import.meta.url);
 const playwrightManifest = require.resolve('@playwright/mcp/package.json');
 const playwrightEntry = path.join(path.dirname(playwrightManifest), 'cli.js');
 
+function browserFromClient(client) {
+  return {
+    takeScreenshot: args => client.callTool({ name: 'browser_take_screenshot', arguments: args }),
+    mouseClickXY: args => client.callTool({ name: 'browser_mouse_click_xy', arguments: args }),
+  };
+}
+
 function textOf(result) {
   return (result?.content ?? [])
     .filter(block => block?.type === 'text' && typeof block.text === 'string')
@@ -167,7 +174,7 @@ try {
   };
 
   const bridge = new SameSessionVisualGroundingBridge({
-    client,
+    browser: browserFromClient(client),
     ttlMs: 15_000,
     grounder: createRuntimeBackedBridgeGrounder(fakeRuntimeBackedRunner)
   });

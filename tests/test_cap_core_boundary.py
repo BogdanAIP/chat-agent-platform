@@ -145,6 +145,8 @@ print(json.dumps({
         for relative in (
             "runtime/semantic-projection/lib/semantic-activation.mjs",
             "runtime/semantic-projection/lib/browser-authorization-bridge.mjs",
+            "runtime/semantic-projection/lib/filesystem-semantic-provider.mjs",
+            "runtime/semantic-projection/lib/playwright-browser-semantic-provider.mjs",
             "runtime/semantic-projection/lib/workspace-write-bridge.mjs",
             "runtime/control_plane/semantic_browser_authorization.py",
             "runtime/control_plane/semantic_workspace_write.py",
@@ -152,6 +154,47 @@ print(json.dumps({
             with self.subTest(relative=relative):
                 self.assertIn(relative, workflow)
                 self.assertIn(relative.replace("/", "\\"), manager)
+
+    def test_semantic_projection_keeps_provider_mechanics_behind_capability_seams(self) -> None:
+        projection = (
+            ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-projection.mjs"
+        ).read_text(encoding="utf-8")
+        filesystem_provider = (
+            ROOT
+            / "runtime"
+            / "semantic-projection"
+            / "lib"
+            / "filesystem-semantic-provider.mjs"
+        ).read_text(encoding="utf-8")
+        browser_provider = (
+            ROOT
+            / "runtime"
+            / "semantic-projection"
+            / "lib"
+            / "playwright-browser-semantic-provider.mjs"
+        ).read_text(encoding="utf-8")
+
+        for forbidden in (
+            "@playwright/mcp",
+            "@modelcontextprotocol/server-filesystem",
+            "StdioClientTransport",
+            "callBackend(",
+            "REQUIRED_PLAYWRIGHT_TOOLS",
+            "REQUIRED_FILESYSTEM_TOOLS",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, projection)
+
+        self.assertIn("createFilesystemSemanticProvider", projection)
+        self.assertIn("createPlaywrightBrowserSemanticProvider", projection)
+        self.assertIn("@modelcontextprotocol/server-filesystem", filesystem_provider)
+        self.assertIn("write_file", filesystem_provider)
+        self.assertIn("@playwright/mcp", browser_provider)
+        self.assertIn("browser_navigate", browser_provider)
+        self.assertNotIn("CapabilityGrant", filesystem_provider)
+        self.assertNotIn("CapabilityGrant", browser_provider)
+        self.assertNotIn("WorkingState", filesystem_provider)
+        self.assertNotIn("WorkingState", browser_provider)
 
     def test_local_state_lock_remains_fail_closed_and_reusable_after_release(self) -> None:
         from runtime.control_plane.local_state import acquire_task_lock

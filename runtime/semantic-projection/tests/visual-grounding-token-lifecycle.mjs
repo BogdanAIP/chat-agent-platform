@@ -22,8 +22,13 @@ const client = {
   }
 };
 
+const browser = {
+  takeScreenshot: args => client.callTool({ name: 'browser_take_screenshot', arguments: args }),
+  mouseClickXY: args => client.callTool({ name: 'browser_mouse_click_xy', arguments: args }),
+};
+
 const bridge = new SameSessionVisualGroundingBridge({
-  client,
+  browser,
   ttlMs: 5,
   now: () => now,
   grounder: async () => {

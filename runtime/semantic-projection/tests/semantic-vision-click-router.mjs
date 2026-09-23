@@ -10,6 +10,15 @@ function textResult(text, isError = false) {
 }
 function screenshotResult() { return { content: [{ type: 'image', mimeType: 'image/png', data: PNG_1X1 }] }; }
 
+function browserFromClient(client) {
+  return {
+    snapshot: () => client.callTool({ name: 'browser_snapshot', arguments: {} }),
+    click: args => client.callTool({ name: 'browser_click', arguments: args }),
+    takeScreenshot: args => client.callTool({ name: 'browser_take_screenshot', arguments: args }),
+    mouseClickXY: args => client.callTool({ name: 'browser_mouse_click_xy', arguments: args }),
+  };
+}
+
 class FakeClient {
   constructor({ snapshot, clickError = false } = {}) {
     this.snapshot = snapshot ?? '- button "Save" [ref=e1]';
@@ -38,7 +47,7 @@ class FakeClient {
 {
   let grounderCalls = 0;
   const client = new FakeClient({ snapshot: '- button "Save" [ref=e7]' });
-  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
   const result = await router.click({ target: 'stale', visualFallback: { targetText: 'Save', instruction: 'click Save' } });
   assert.equal(result.status, 'acted');
   assert.equal(result.source, 'semantic');
@@ -51,7 +60,7 @@ class FakeClient {
 {
   let grounderCalls = 0;
   const client = new FakeClient({ snapshot: '- button "Send" [disabled] [ref=e1]\n- button "Send" [ref=e2]' });
-  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
   const result = await router.click({ visualFallback: { targetText: 'Send', instruction: 'click enabled Send' } });
   assert.equal(result.status, 'acted');
   assert.equal(result.source, 'semantic');
@@ -64,7 +73,7 @@ class FakeClient {
 {
   let grounderCalls = 0;
   const client = new FakeClient({ snapshot: '- button "Send" [disabled] [ref=e1]' });
-  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
   const result = await router.click({ visualFallback: { targetText: 'Send', instruction: 'click Send' } });
   assert.equal(result.status, 'abstain');
   assert.equal(result.source, 'semantic');
@@ -78,7 +87,7 @@ class FakeClient {
 {
   let grounderCalls = 0;
   const client = new FakeClient({ snapshot: '- link "Launch" [ref=e1]' });
-  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async () => { grounderCalls += 1; throw new Error('must not run'); } });
   const result = await router.click({ visualFallback: { targetText: 'Launch', instruction: 'click Launch' } });
   assert.equal(result.status, 'abstain');
   assert.equal(result.source, 'semantic');
@@ -92,7 +101,7 @@ class FakeClient {
 {
   let grounderCalls = 0;
   const client = new FakeClient({ snapshot: '- heading "Other" [ref=e1]' });
-  const router = new SemanticVisionClickRouter({ client, grounder: async request => {
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async request => {
     grounderCalls += 1;
     assert.equal(request.kind, 'labeled_button');
     assert.equal(request.target, 'Launch');
@@ -116,7 +125,7 @@ class FakeClient {
 {
   let grounderCalls = 0;
   const client = new FakeClient({ snapshot: '- button "Delete" [ref=e1]\n- button "Delete" [ref=e2]' });
-  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; return { status: 'abstain' }; } });
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async () => { grounderCalls += 1; return { status: 'abstain' }; } });
   const result = await router.click({ visualFallback: { targetText: 'Delete', instruction: 'click Delete' } });
   assert.equal(result.status, 'abstain');
   assert.equal(result.reason, 'semantic-ambiguity-visual-escalation-not-promoted');
@@ -128,7 +137,7 @@ class FakeClient {
 {
   let grounderCalls = 0;
   const client = new FakeClient({ snapshot: '- button "Save" [ref=e1]', clickError: true });
-  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; return { status: 'resolved', point: { x: 0, y: 0 } }; } });
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async () => { grounderCalls += 1; return { status: 'resolved', point: { x: 0, y: 0 } }; } });
   const result = await router.click({ visualFallback: { targetText: 'Save', instruction: 'click Save' } });
   assert.equal(result.status, 'error');
   assert.equal(result.source, 'semantic');
@@ -140,7 +149,7 @@ class FakeClient {
 {
   const client = new FakeClient({ snapshot: '- heading "Other" [ref=e1]' });
   let grounderCalls = 0;
-  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; return { status: 'abstain', reason: 'target-not-confident' }; } });
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async () => { grounderCalls += 1; return { status: 'abstain', reason: 'target-not-confident' }; } });
   const result = await router.click({ visualFallback: { targetText: 'Export CSV', instruction: 'click Export CSV' } });
   assert.equal(result.status, 'abstain');
   assert.equal(result.source, 'vision');
@@ -151,7 +160,7 @@ class FakeClient {
 
 {
   const client = new FakeClient({ snapshot: '- heading "Other" [ref=e1]' });
-  const router = new SemanticVisionClickRouter({ client, grounder: async () => ({ status: 'abstain' }) });
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async () => ({ status: 'abstain' }) });
   await assert.rejects(
     () => router.click({ visualFallback: { targetText: 'Launch', instruction: 'click Launch', semanticName: 'Definitely Missing' } }),
     /semanticName must normalize exactly to targetText/
@@ -163,7 +172,7 @@ class FakeClient {
 {
   let grounderCalls = 0;
   const client = new FakeClient({ snapshot: '- button "Save" [ref=e1]' });
-  const router = new SemanticVisionClickRouter({ client, grounder: async () => { grounderCalls += 1; return { status: 'abstain' }; } });
+  const router = new SemanticVisionClickRouter({ browser: browserFromClient(client), grounder: async () => { grounderCalls += 1; return { status: 'abstain' }; } });
   const result = await router.click({ visualFallback: { targetText: ' Save ', semanticName: 'save', instruction: 'click something else' } });
   assert.equal(result.status, 'acted');
   assert.equal(result.source, 'semantic');
