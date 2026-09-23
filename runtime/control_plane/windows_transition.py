@@ -5,6 +5,7 @@ from typing import Any
 
 from .verification import (
     ExpectedEffect,
+    ObservationSnapshot,
     StatePredicate,
     VerificationResult,
     VerificationStatus,
@@ -203,6 +204,41 @@ def _lookup(state: Any, path: tuple[str, ...]) -> Any:
     return current
 
 
+def verify_windows_desktop_snapshots(
+    *,
+    before: ObservationSnapshot,
+    after: ObservationSnapshot,
+    expected: dict[str, Any],
+    evidence_batch_id: str | None = None,
+) -> tuple[VerificationResult, dict[str, Any]]:
+    """Verify already-normalized snapshots from one persistent Windows stream."""
+
+    if not isinstance(before, ObservationSnapshot) or not isinstance(after, ObservationSnapshot):
+        raise TypeError("Windows snapshot verification requires ObservationSnapshot values")
+    effect, normalized_expected = build_windows_desktop_effect(
+        before=before,
+        expected=expected,
+    )
+
+    before_time = _observation_time(before.ref.observed_at, name="before observed_at")
+    after_time = _observation_time(after.ref.observed_at, name="after observed_at")
+    if after_time <= before_time:
+        result = VerificationResult(
+            effect_id=effect.effect_id,
+            status=VerificationStatus.UNKNOWN,
+            reason="stale_observation_time",
+            observation=after.ref,
+            evidence_batch_id=evidence_batch_id,
+        )
+    else:
+        result = verify_expected_effect(
+            effect,
+            after,
+            evidence_batch_id=evidence_batch_id,
+        )
+    return result, normalized_expected
+
+
 def verify_windows_desktop_transition(
     *,
     before_raw: dict[str, Any],
@@ -230,27 +266,12 @@ def verify_windows_desktop_transition(
     stream = WindowsDesktopObservationStream(subject=subject, stream_id=stream_id)
     before = stream.observe(before_raw)
     after = stream.observe(after_raw)
-    effect, normalized_expected = build_windows_desktop_effect(
+    result, normalized_expected = verify_windows_desktop_snapshots(
         before=before,
+        after=after,
         expected=expected,
+        evidence_batch_id=evidence_batch_id,
     )
-
-    before_time = _observation_time(before.ref.observed_at, name="before observed_at")
-    after_time = _observation_time(after.ref.observed_at, name="after observed_at")
-    if after_time <= before_time:
-        result = VerificationResult(
-            effect_id=effect.effect_id,
-            status=VerificationStatus.UNKNOWN,
-            reason="stale_observation_time",
-            observation=after.ref,
-            evidence_batch_id=evidence_batch_id,
-        )
-    else:
-        result = verify_expected_effect(
-            effect,
-            after,
-            evidence_batch_id=evidence_batch_id,
-        )
     return {
         "schema_version": 1,
         "operation": "verify_windows_desktop_transition",
