@@ -147,15 +147,19 @@ function normalizeGroundingResult(result, capture) {
 }
 
 export class SameSessionVisualGroundingBridge {
-  #client;
+  #browser;
   #grounder;
   #ttlMs;
   #now;
   #targets = new Map();
 
-  constructor({ client, grounder, ttlMs = 10_000, now = () => Date.now() }) {
-    if (!client || typeof client.callTool !== 'function') {
-      throw new Error('SameSessionVisualGroundingBridge requires an MCP client with callTool().');
+  constructor({ browser, grounder, ttlMs = 10_000, now = () => Date.now() }) {
+    if (
+      !browser ||
+      typeof browser.takeScreenshot !== 'function' ||
+      typeof browser.mouseClickXY !== 'function'
+    ) {
+      throw new Error('SameSessionVisualGroundingBridge requires one bounded browser provider.');
     }
     if (typeof grounder !== 'function') {
       throw new Error('SameSessionVisualGroundingBridge requires a grounder callback.');
@@ -166,7 +170,7 @@ export class SameSessionVisualGroundingBridge {
     if (typeof now !== 'function') {
       throw new Error('now must be a function.');
     }
-    this.#client = client;
+    this.#browser = browser;
     this.#grounder = grounder;
     this.#ttlMs = ttlMs;
     this.#now = now;
@@ -182,13 +186,10 @@ export class SameSessionVisualGroundingBridge {
   }
 
   async #captureCssViewport() {
-    const result = await this.#client.callTool({
-      name: 'browser_take_screenshot',
-      arguments: {
-        type: 'png',
-        fullPage: false,
-        scale: 'css'
-      }
+    const result = await this.#browser.takeScreenshot({
+      type: 'png',
+      fullPage: false,
+      scale: 'css'
     });
     return parseScreenshotResult(result);
   }
@@ -305,14 +306,11 @@ export class SameSessionVisualGroundingBridge {
 
     let click = null;
     try {
-      click = await this.#client.callTool({
-        name: 'browser_mouse_click_xy',
-        arguments: {
-          x: prepared.point.x,
-          y: prepared.point.y,
-          button: 'left',
-          clickCount: 1
-        }
+      click = await this.#browser.mouseClickXY({
+        x: prepared.point.x,
+        y: prepared.point.y,
+        button: 'left',
+        clickCount: 1
       });
     } catch (error) {
       return {
