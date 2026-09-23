@@ -778,7 +778,7 @@ class WorkingState:
         expected_revision: int,
         guard: "LoopGuard | None" = None,
     ) -> "WorkingState":
-        """Legacy structural-guard path kept for staged consumer migration."""
+        """Legacy structural bookkeeping only; never authority for a new consequence."""
 
         if expected_revision != self.revision:
             raise ValueError("stale WorkingState revision")
