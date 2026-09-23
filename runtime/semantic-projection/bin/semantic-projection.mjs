@@ -1,13 +1,10 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import net from 'node:net';
 import path from 'node:path';
 import process from 'node:process';
 
-import { Client } from '@modelcontextprotocol/client';
-import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod/v4';
@@ -19,10 +16,8 @@ import {
 } from '../lib/browser-verification-bridge.mjs';
 import { authorizeSemanticBrowserMutation } from '../lib/browser-authorization-bridge.mjs';
 import { createSemanticVisionClickRouter } from '../lib/semantic-vision-click-router.mjs';
-import {
-  requireSemanticActivation,
-  semanticProviderEnvironment,
-} from '../lib/semantic-activation.mjs';
+import { requireSemanticActivation } from '../lib/semantic-activation.mjs';
+import { createSemanticProviderBindings } from '../lib/semantic-provider-bindings.mjs';
 import {
   prepareSemanticWorkspaceWrite,
   semanticWorkspaceWriteIdentity,
@@ -32,24 +27,6 @@ import {
 const VERSION = '0.1.0';
 
 const semanticActivation = requireSemanticActivation();
-const require = createRequire(import.meta.url);
-const FILESYSTEM_ENTRY = require.resolve('@modelcontextprotocol/server-filesystem/dist/index.js');
-const PLAYWRIGHT_MANIFEST = require.resolve('@playwright/mcp/package.json');
-const PLAYWRIGHT_ENTRY = path.join(path.dirname(PLAYWRIGHT_MANIFEST), 'cli.js');
-const PLAYWRIGHT_DEFENSE_BLOCKED_ORIGINS = [
-  'http://169.254.169.254:*',
-  'https://169.254.169.254:*',
-  'http://metadata.google.internal:*',
-  'https://metadata.google.internal:*'
-].join(';');
-const REQUIRED_FILESYSTEM_TOOLS = new Set([
-  'list_allowed_directories', 'read_text_file', 'search_files', 'write_file'
-]);
-const REQUIRED_PLAYWRIGHT_TOOLS = new Set([
-  'browser_navigate', 'browser_find', 'browser_snapshot', 'browser_click', 'browser_type',
-  'browser_take_screenshot', 'browser_mouse_click_xy'
-]);
-
 const workspaceRootInput = process.env.CHAT_LOCAL_FILES_ROOT;
 if (!workspaceRootInput) throw new Error('CHAT_LOCAL_FILES_ROOT is required for semantic projection.');
 const workspaceRoot = path.resolve(workspaceRootInput);
@@ -58,14 +35,14 @@ if (!workspaceStat?.isDirectory()) {
   throw new Error(`CHAT_LOCAL_FILES_ROOT must be an existing directory: ${workspaceRoot}`);
 }
 
-const backendPromises = new Map();
+const providers = createSemanticProviderBindings({
+  workspaceRoot,
+  version: VERSION,
+});
+
 let semanticVisionRouter = null;
 let semanticVisionClient = null;
 let shuttingDown = false;
-
-function localNodeCommand(entryPoint, extraArgs = []) {
-  return { command: process.execPath, args: [entryPoint, ...extraArgs] };
-}
 
 function resolveWorkspacePath(relativePath) {
   if (typeof relativePath !== 'string' || relativePath.length === 0) {
@@ -258,58 +235,8 @@ function assessInteractionExpectedBefore(before, expected) {
   return { status: 'already_satisfied', reason: 'expected_already_satisfied' };
 }
 
-async function createBackend(kind) {
-  let spec;
-  let requiredTools;
-  if (kind === 'filesystem') {
-    spec = localNodeCommand(FILESYSTEM_ENTRY, [workspaceRoot]);
-    requiredTools = REQUIRED_FILESYSTEM_TOOLS;
-  } else if (kind === 'playwright') {
-    spec = localNodeCommand(PLAYWRIGHT_ENTRY, [
-      '--headless', '--browser', 'chrome', '--isolated', '--image-responses', 'allow',
-      '--blocked-origins', PLAYWRIGHT_DEFENSE_BLOCKED_ORIGINS,
-      '--block-service-workers', '--codegen', 'none', '--caps', 'vision', '--timeout-action', '15000'
-    ]);
-    requiredTools = REQUIRED_PLAYWRIGHT_TOOLS;
-  } else {
-    throw new Error(`Unknown backend kind: ${kind}`);
-  }
-
-  const client = new Client({ name: `chat-semantic-projection-${kind}`, version: VERSION });
-  const transport = new StdioClientTransport({
-    ...spec,
-    env: semanticProviderEnvironment(),
-  });
-  try {
-    await client.connect(transport);
-    const inventory = await client.listTools();
-    const names = new Set(inventory.tools.map(tool => tool.name));
-    const missing = [...requiredTools].filter(name => !names.has(name));
-    if (missing.length > 0) throw new Error(`${kind} backend is missing required tools: ${missing.join(', ')}`);
-    return { client, transport };
-  } catch (error) {
-    try { await client.close(); } catch {}
-    throw error;
-  }
-}
-
-async function getBackend(kind) {
-  if (!backendPromises.has(kind)) {
-    const pending = createBackend(kind).catch(error => { backendPromises.delete(kind); throw error; });
-    backendPromises.set(kind, pending);
-  }
-  return backendPromises.get(kind);
-}
-
-async function callBackend(kind, toolName, args) {
-  const required = kind === 'filesystem' ? REQUIRED_FILESYSTEM_TOOLS : REQUIRED_PLAYWRIGHT_TOOLS;
-  if (!required.has(toolName)) throw new Error(`Projection refused non-allowlisted downstream tool: ${kind}.${toolName}`);
-  const { client } = await getBackend(kind);
-  return normalizeBackendResult(await client.callTool({ name: toolName, arguments: args }));
-}
-
 async function captureBrowserObservation() {
-  const snapshot = await callBackend('playwright', 'browser_snapshot', {});
+  const snapshot = await providers.callBrowser('browser_snapshot', {});
   return parsePlaywrightSnapshotResult(snapshot);
 }
 
@@ -415,7 +342,7 @@ function browserAlreadySatisfiedResult({ operationName, authorization }) {
 }
 
 async function getSemanticVisionRouter() {
-  const { client } = await getBackend('playwright');
+  const client = await providers.browserClient();
   if (!semanticVisionRouter || semanticVisionClient !== client) {
     semanticVisionRouter?.clear();
     semanticVisionClient = client;
@@ -428,12 +355,7 @@ async function closeBackends() {
   semanticVisionRouter?.clear();
   semanticVisionRouter = null;
   semanticVisionClient = null;
-  const pending = [...backendPromises.values()];
-  backendPromises.clear();
-  const settled = await Promise.allSettled(pending);
-  const closes = [];
-  for (const entry of settled) if (entry.status === 'fulfilled') closes.push(entry.value.client.close());
-  await Promise.allSettled(closes);
+  await providers.close();
 }
 
 async function shutdown(code = 0) {
@@ -489,19 +411,19 @@ server.registerTool('workspace_read', {
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false }
 }, async args => {
   try {
-    if (args.operation === 'roots') return await callBackend('filesystem', 'list_allowed_directories', {});
+    if (args.operation === 'roots') return await providers.callFilesystem('list_allowed_directories', {});
     if (args.operation === 'read_text') {
       if (!args.path) return toolError('workspace_read read_text requires path.');
       if (args.head && args.tail) return toolError('Use head or tail, not both.');
       const downstream = { path: resolveWorkspacePath(args.path) };
       if (args.head !== undefined) downstream.head = args.head;
       if (args.tail !== undefined) downstream.tail = args.tail;
-      return await callBackend('filesystem', 'read_text_file', downstream);
+      return await providers.callFilesystem('read_text_file', downstream);
     }
     if (!args.pattern) return toolError('workspace_read search requires pattern.');
     const downstream = { path: resolveWorkspacePath(args.path ?? '.'), pattern: args.pattern };
     if (args.excludePatterns !== undefined) downstream.excludePatterns = args.excludePatterns;
-    return await callBackend('filesystem', 'search_files', downstream);
+    return await providers.callFilesystem('search_files', downstream);
   } catch (error) { return toolError(`workspace_read failed: ${error instanceof Error ? error.message : String(error)}`); }
 });
 
@@ -552,7 +474,7 @@ server.registerTool('workspace_write', {
   let delivery = null;
   let deliveryError = null;
   try {
-    delivery = await callBackend('filesystem', 'write_file', {
+    delivery = await providers.callFilesystem('write_file', {
       path: resolvedPath,
       content,
     });
@@ -682,7 +604,7 @@ server.registerTool('web_open', {
 
   deliveryAttempted = true;
   try {
-    delivery = await callBackend('playwright', 'browser_navigate', { url: parsed.href });
+    delivery = await providers.callBrowser('browser_navigate', { url: parsed.href });
   } catch (error) {
     deliveryError = error;
   }
@@ -726,11 +648,11 @@ server.registerTool('web_observe', {
   try {
     if (args.operation === 'find') {
       if (Boolean(args.text) === Boolean(args.regex)) return toolError('web_observe find requires exactly one of text or regex.');
-      return await callBackend('playwright', 'browser_find', args.text ? { text: args.text } : { regex: args.regex });
+      return await providers.callBrowser('browser_find', args.text ? { text: args.text } : { regex: args.regex });
     }
     const downstream = {};
     if (args.target !== undefined) downstream.target = args.target;
-    return await callBackend('playwright', 'browser_snapshot', downstream);
+    return await providers.callBrowser('browser_snapshot', downstream);
   } catch (error) { return toolError(`web_observe failed: ${error instanceof Error ? error.message : String(error)}`); }
 });
 
@@ -835,13 +757,13 @@ server.registerTool('web_interact', {
         const downstream = { target: args.target };
         if (args.element !== undefined) downstream.element = args.element;
         if (args.doubleClick !== undefined) downstream.doubleClick = args.doubleClick;
-        delivery = await callBackend('playwright', 'browser_click', downstream);
+        delivery = await providers.callBrowser('browser_click', downstream);
       } else {
         const downstream = { target: args.target, text: args.text };
         if (args.element !== undefined) downstream.element = args.element;
         if (args.submit !== undefined) downstream.submit = args.submit;
         if (args.slowly !== undefined) downstream.slowly = args.slowly;
-        delivery = await callBackend('playwright', 'browser_type', downstream);
+        delivery = await providers.callBrowser('browser_type', downstream);
       }
     } catch (error) {
       deliveryError = error;

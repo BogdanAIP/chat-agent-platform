@@ -125,6 +125,7 @@ function Get-SemanticProjectionEntryPath {
         'lib/browser-authorization-bridge.mjs',
         'lib/semantic-activation.mjs',
         'lib/workspace-write-bridge.mjs',
+        'lib/semantic-provider-bindings.mjs',
         'lib/semantic-vision-click-router.mjs',
         'lib/visual-grounding-bridge.mjs',
         'lib/runtime-backed-bridge-grounder.mjs',
