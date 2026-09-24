@@ -346,6 +346,28 @@ mod tests {
     }
 
     #[test]
+    fn rejects_truncated_length_prefix() {
+        let error = read_frame(&mut [0_u8, 1_u8].as_slice()).unwrap_err();
+        assert!(matches!(error, ProtocolError::InvalidFrame(_)));
+    }
+
+    #[test]
+    fn rejects_oversized_frame_before_payload_read() {
+        let oversized = (MAX_FRAME_BYTES as u32 + 1).to_be_bytes();
+        let error = read_frame(&mut oversized.as_slice()).unwrap_err();
+        assert!(matches!(error, ProtocolError::InvalidFrame(_)));
+    }
+
+    #[test]
+    fn rejects_non_utf8_frame_payload() {
+        let mut frame = Vec::new();
+        frame.extend_from_slice(&1_u32.to_be_bytes());
+        frame.push(0xff);
+        let error = read_frame(&mut frame.as_slice()).unwrap_err();
+        assert!(matches!(error, ProtocolError::InvalidFrame(_)));
+    }
+
+    #[test]
     fn begin_validation_is_bounded() {
         let begin = valid_begin();
         begin.validate().unwrap();
@@ -353,6 +375,18 @@ mod tests {
         let mut invalid_begin = begin.clone();
         invalid_begin.argv = (0..=MAX_ARGV).map(|_| "x".into()).collect();
         assert!(invalid_begin.validate().is_err());
+
+        let mut invalid_runtime = begin.clone();
+        invalid_runtime.max_runtime_ms = 0;
+        assert!(invalid_runtime.validate().is_err());
+
+        let mut invalid_output = begin.clone();
+        invalid_output.max_output_bytes = MAX_OUTPUT_BYTES + 1;
+        assert!(invalid_output.validate().is_err());
+
+        let mut invalid_containment = begin;
+        invalid_containment.containment_required = false;
+        assert!(invalid_containment.validate().is_err());
     }
 
     #[test]

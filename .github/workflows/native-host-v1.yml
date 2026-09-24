@@ -59,6 +59,19 @@ jobs:
           cargo +1.98.1 build --locked -p native-host-test-helper
           if ($LASTEXITCODE -ne 0) { throw "test helper build failed with exit code $LASTEXITCODE" }
 
+      - name: Build and hash exact Native Host binary
+        shell: pwsh
+        env:
+          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.event.pull_request.head.sha || github.sha }}"
+        run: |
+          cargo +1.98.1 build --locked -p cap-native-host
+          if ($LASTEXITCODE -ne 0) { throw "native host build failed with exit code $LASTEXITCODE" }
+          $binary = Resolve-Path '.\target\debug\cap-native-host.exe'
+          $hash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
+          $bytes = (Get-Item -LiteralPath $binary).Length
+          Write-Host "NATIVE_HOST_BINARY_SHA256=$hash"
+          Write-Host "NATIVE_HOST_BINARY_BYTES=$bytes"
+
       - name: Rust tests
         shell: pwsh
         env:

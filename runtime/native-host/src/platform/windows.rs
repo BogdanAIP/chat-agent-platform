@@ -992,6 +992,75 @@ mod tests {
     }
 
     #[test]
+    fn explicit_handle_list_blocks_unrelated_inheritable_handle() {
+        let helper =
+            std::env::var("CAP_NATIVE_HOST_TEST_HELPER").expect("CAP_NATIVE_HOST_TEST_HELPER");
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos();
+        let temp_dir = std::env::temp_dir();
+        let result_file = temp_dir.join(format!(
+            "cap-native-host-handle-result-{}-{nonce}.txt",
+            std::process::id()
+        ));
+
+        let mut unrelated = Vec::new();
+        for index in 0..64_u32 {
+            let path = temp_dir.join(format!(
+                "cap-native-host-unrelated-handle-{}-{nonce}-{index}.tmp",
+                std::process::id()
+            ));
+            let file = File::create(&path).expect("create unrelated handle file");
+            let handle = file.as_raw_handle() as HANDLE;
+            let updated =
+                unsafe { SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) };
+            assert_ne!(updated, 0, "mark unrelated handle inheritable");
+            unrelated.push((file, path));
+        }
+        let raw_handle = unrelated
+            .iter()
+            .map(|(file, _)| file.as_raw_handle() as usize)
+            .max()
+            .expect("unrelated handle");
+
+        let mut begin = crate::protocol::tests_support::valid_begin_for_windows();
+        begin.executable = helper.clone();
+        begin.cwd = Path::new(&helper)
+            .parent()
+            .expect("helper parent")
+            .to_string_lossy()
+            .into_owned();
+        begin.argv = vec![
+            "probe-handle".into(),
+            "--raw-handle".into(),
+            raw_handle.to_string(),
+            "--result-file".into(),
+            result_file.to_string_lossy().into_owned(),
+        ];
+        begin.env.clear();
+
+        let mut backend = Win32StartupBackend;
+        let prepared = prepare_native_startup(&mut backend).expect("prepare startup");
+        let (_control_tx, control_rx) = mpsc::channel();
+        let child =
+            start_native_startup(&mut backend, prepared, &begin, &control_rx).expect("start helper");
+        assert!(
+            wait_for_job_quiescent(&child.job, Duration::from_secs(5)).expect("wait helper tree"),
+            "helper tree did not quiesce"
+        );
+        drop(child);
+
+        let result = std::fs::read_to_string(&result_file).expect("read handle probe result");
+        assert_eq!(result, "invalid");
+
+        let _ = std::fs::remove_file(&result_file);
+        for (_, path) in unrelated {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    #[test]
     fn output_summary_wait_has_a_deadline() {
         let (sender, receiver) = mpsc::sync_channel::<StreamSummary>(1);
         let _keep_sender_alive = sender;

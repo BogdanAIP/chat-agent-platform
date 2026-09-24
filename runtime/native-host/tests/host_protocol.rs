@@ -67,6 +67,15 @@ fn executes_one_contained_process_and_reports_terminal_receipt() {
     assert_eq!(terminal["target_ever_runnable"], true);
     assert_eq!(terminal["tree_quiescent"], true);
     assert_eq!(terminal["output_complete"], true);
+
+    let mut sequenced = events;
+    sequenced.push(terminal);
+    for (index, event) in sequenced.iter().enumerate() {
+        assert_eq!(
+            event["event_seq"].as_u64().expect("event_seq"),
+            index as u64 + 1
+        );
+    }
 }
 
 #[test]
@@ -160,6 +169,32 @@ fn second_begin_is_protocol_violation_and_cannot_spawn_again() {
     );
     assert_eq!(terminal["delivery_state"], "terminated");
     assert_eq!(terminal["reason"], "protocol_rejected");
+    assert_eq!(terminal["tree_quiescent"], true);
+}
+
+#[test]
+fn mismatched_cancel_is_rejected_and_tree_is_quiesced() {
+    let mut host = HostHarness::spawn();
+    host.send(&begin_message(
+        "mismatch-request",
+        "mismatch-attempt",
+        "ping -n 30 127.0.0.1 >nul",
+        LONG_RUNTIME_MS,
+        65_536,
+    ));
+    host.wait_for_type("process_spawned", EVENT_TIMEOUT);
+
+    host.send(&json!({
+        "type": "cancel_operation",
+        "protocol_version": 1,
+        "request_id": "mismatch-request",
+        "attempt_id": "wrong-attempt"
+    }));
+    let (terminal, _) = host.collect_until_terminal(EVENT_TIMEOUT);
+    host.wait_success();
+
+    assert_eq!(terminal["reason"], "protocol_rejected");
+    assert_eq!(terminal["delivery_state"], "terminated");
     assert_eq!(terminal["tree_quiescent"], true);
 }
 
@@ -354,6 +389,9 @@ impl HostHarness {
         let hello = recv_event(&events, EVENT_TIMEOUT);
         assert_eq!(hello["type"], "host_hello");
         assert_eq!(hello["protocol_version"], 1);
+        if let Ok(expected_build_id) = std::env::var("CAP_NATIVE_HOST_BUILD_ID") {
+            assert_eq!(hello["build_id"], expected_build_id);
+        }
 
         Self {
             child,
