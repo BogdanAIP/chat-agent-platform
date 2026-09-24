@@ -195,6 +195,58 @@ The current repository may contain historical integration seams that do not yet 
 these criteria. Those are Core-v1 completion debt, not justification for a large
 generic plugin framework.
 
+
+## Native Host v1 boundary — selected post-Core direction
+
+After CAP Core v1 reaches FROZEN_PENDING_PHYSICAL, the first native-systems stage is a
+**narrow Rust Native Host below Core authority**, not a return to the historical Rust-first
+architecture.
+
+Selected first-slice shape:
+
+~~~
+capability-specific adapter
+ -> already-authorized exact operation / attempt identity
+ -> one short-lived Native Host process for that operation
+ -> bounded private length-framed stdio protocol
+ -> Windows native process / process-tree mechanics
+ -> lifecycle / containment / output / exit receipts
+ -> project fresh observation + Verification Kernel
+~~~
+
+Durable boundaries:
+
+- the host is an executor/evidence source only; it does not plan, issue or refresh
+  grants, own WorkingState/reconciliation, decide project PASS or task DONE;
+- the first implementation is Windows-first and process-lifecycle-first;
+- there is no listener, TCP/HTTP endpoint, named-pipe daemon, service registry or
+  host-side durable attempt database in the first slice;
+- one host owns at most one active operation; transport uncertainty never authorizes
+  replay of an unresolved attempt;
+- CAP WorkingState remains the durable owner of attempt identity, OUTCOME_UNKNOWN,
+  reconciliation and permission for any later attempt;
+- Windows child creation requiring containment uses a configured Job Object,
+  suspended creation, assignment before resume and no uncontained fallback;
+- the host retains native process/job handles for ownership; PID is receipt data,
+  not durable authority identity;
+- child handle inheritance is explicit/allowlisted so CAP protocol/job handles do
+  not leak into executed descendants;
+- process output is bounded by the declared operation budget; overflow is explicit
+  failure/termination, never silent byte dropping;
+- the private execution contract is typed executable + argv + cwd + bounded env,
+  never a Chat-facing run-anything shell surface;
+- hard cancellation/shutdown is whole-job termination;
+- parent protocol EOF/owner loss terminates any active owned tree and exits;
+- exact installed binary/source/toolchain provenance is required for qualification.
+
+ConPTY/interactive terminal support belongs to a later Native Host slice after the
+process-tree substrate is proven. Broader sandboxing is likewise a separate security
+substage rather than an implied property of Job Object containment.
+
+The old chat/rust-relay-server lineage is reference material only. Its broad Control
+Plane/job/relay ownership is not revived; only bounded low-level mechanics may be
+selectively adapted after current-contract review.
+
 ## Authority, trust and state
 
 Capability lifecycle:
