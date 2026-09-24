@@ -2,10 +2,6 @@ name: Native Host v1
 
 "on":
   pull_request:
-    paths:
-      - "runtime/native-host/**"
-      - ".github/workflows/native-host-v1.yml"
-      - "project-context/NATIVE_HOST_V1_RUST_REENTRY.md"
   workflow_dispatch:
 
 concurrency:

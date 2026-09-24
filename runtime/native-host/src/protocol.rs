@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fmt;
 use std::io;
 use std::io::Read;
@@ -210,12 +211,16 @@ impl BeginOperation {
             return invalid("environment exceeds hard entry ceiling");
         }
         let mut total_values = 0_usize;
+        let mut normalized_names = BTreeSet::new();
         for (name, value) in &self.env {
             if name.is_empty() || name.chars().count() > MAX_ENV_NAME_CHARS {
                 return invalid("environment name exceeds bounds");
             }
             if name.contains('=') || name.contains('\0') {
                 return invalid("environment name contains forbidden character");
+            }
+            if !normalized_names.insert(name.to_uppercase()) {
+                return invalid("environment contains case-insensitive duplicate names");
             }
             if value.contains('\0') || value.len() > MAX_ENV_VALUE_BYTES {
                 return invalid("environment value exceeds bounds");
@@ -348,6 +353,14 @@ mod tests {
         let mut invalid_begin = begin.clone();
         invalid_begin.argv = (0..=MAX_ARGV).map(|_| "x".into()).collect();
         assert!(invalid_begin.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_case_insensitive_environment_aliases() {
+        let mut begin = valid_begin();
+        begin.env.insert("PATH".into(), "one".into());
+        begin.env.insert("Path".into(), "two".into());
+        assert!(begin.validate().is_err());
     }
 
     #[test]
