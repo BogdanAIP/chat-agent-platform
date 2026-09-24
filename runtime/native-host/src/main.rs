@@ -7,7 +7,6 @@ mod protocol;
 use events::HostHello;
 use events::ProtocolOutput;
 use platform::ControlSignal;
-use protocol::BeginOperation;
 use protocol::ClientMessage;
 use protocol::OperationIdentity;
 use protocol::parse_client_message;

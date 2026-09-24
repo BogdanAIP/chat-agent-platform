@@ -58,12 +58,12 @@ use windows_sys::Win32::System::Threading::PROCESS_INFORMATION;
 use windows_sys::Win32::System::Threading::ResumeThread;
 use windows_sys::Win32::System::Threading::STARTF_USESTDHANDLES;
 use windows_sys::Win32::System::Threading::STARTUPINFOEXW;
-use windows_sys::Win32::System::Threading::STILL_ACTIVE;
 use windows_sys::Win32::System::Threading::TerminateProcess;
 use windows_sys::Win32::System::Threading::UpdateProcThreadAttribute;
 use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
 const TERMINATION_EXIT_CODE: u32 = 0xCA01;
+const STILL_ACTIVE_EXIT_CODE: u32 = 259;
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
 const TERMINATION_QUIESCE_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -84,7 +84,6 @@ pub fn run_operation(
             let empty = empty_sha256();
             let reason = match error.kind {
                 SpawnFailureKind::Assignment => TerminalReason::AssignmentFailed,
-                SpawnFailureKind::Resume => TerminalReason::ResumeFailed,
                 SpawnFailureKind::Spawn => TerminalReason::SpawnFailed,
             };
             sink.terminal(&TerminalSnapshot {
@@ -103,6 +102,27 @@ pub fn run_operation(
             return Ok(());
         }
     };
+
+    if child.resume().is_err() {
+        let empty = empty_sha256();
+        let tree_quiescent =
+            wait_for_job_quiescent(&child.job, TERMINATION_QUIESCE_TIMEOUT).unwrap_or(false);
+        let root_exit_code = child.root_exit_code().ok().flatten();
+        sink.terminal(&TerminalSnapshot {
+            delivery_state: DeliveryState::NeverRunnable,
+            reason: TerminalReason::ResumeFailed,
+            root_exit_code,
+            target_ever_runnable: false,
+            tree_quiescent,
+            stdout_bytes: 0,
+            stderr_bytes: 0,
+            stdout_sha256: empty.clone(),
+            stderr_sha256: empty,
+            output_complete: true,
+        })
+        .map_err(|error| error.to_string())?;
+        return Ok(());
+    }
 
     let output_budget = Arc::new(Mutex::new(OutputBudget {
         used: 0,
@@ -124,9 +144,6 @@ pub fn run_operation(
         sink.clone(),
     );
 
-    child
-        .resume()
-        .map_err(|error| format!("failed to resume contained target: {error}"))?;
     sink.process_spawned(child.process_id)
         .map_err(|error| error.to_string())?;
 
@@ -134,6 +151,7 @@ pub fn run_operation(
     let mut root_exit_code = None;
     let mut terminal_reason = None;
     let mut delivery_state = None;
+    let mut termination_started_at = None;
     let mut output_complete = true;
 
     loop {
@@ -145,6 +163,7 @@ pub fn run_operation(
                         TerminalReason::Cancelled,
                         &mut terminal_reason,
                         &mut delivery_state,
+                        &mut termination_started_at,
                     )?;
                 }
                 ControlSignal::OwnerLost => {
@@ -153,6 +172,7 @@ pub fn run_operation(
                         TerminalReason::OwnerLost,
                         &mut terminal_reason,
                         &mut delivery_state,
+                        &mut termination_started_at,
                     )?;
                 }
                 ControlSignal::ProtocolViolation(message) => {
@@ -162,6 +182,7 @@ pub fn run_operation(
                         TerminalReason::ProtocolViolation,
                         &mut terminal_reason,
                         &mut delivery_state,
+                        &mut termination_started_at,
                     )?;
                 }
             }
@@ -176,6 +197,7 @@ pub fn run_operation(
                         TerminalReason::OutputLimitExceeded,
                         &mut terminal_reason,
                         &mut delivery_state,
+                        &mut termination_started_at,
                     )?;
                 }
                 OutputSignal::ReadFailed(message) => {
@@ -186,11 +208,11 @@ pub fn run_operation(
                         TerminalReason::OutputFailure,
                         &mut terminal_reason,
                         &mut delivery_state,
+                        &mut termination_started_at,
                     )?;
                 }
                 OutputSignal::WriteFailed(message) => {
                     eprintln!("native-host protocol output failed: {message}");
-                    output_complete = false;
                     child.job.terminate().map_err(|error| error.to_string())?;
                     return Err("protocol output channel failed after target start".into());
                 }
@@ -225,8 +247,10 @@ pub fn run_operation(
             if active == 0 {
                 break;
             }
-            if started.elapsed()
-                >= Duration::from_millis(begin.max_runtime_ms) + TERMINATION_QUIESCE_TIMEOUT
+            if termination_started_at
+                .is_some_and(|termination_started| {
+                    termination_started.elapsed() >= TERMINATION_QUIESCE_TIMEOUT
+                })
             {
                 delivery_state = Some(DeliveryState::HostFailureAfterStart);
                 terminal_reason = Some(TerminalReason::LifecycleFailure);
@@ -283,13 +307,28 @@ fn terminate_for_reason(
     reason: TerminalReason,
     terminal_reason: &mut Option<TerminalReason>,
     delivery_state: &mut Option<DeliveryState>,
+    termination_started_at: &mut Option<Instant>,
 ) -> Result<(), String> {
     if terminal_reason.is_none() {
         job.terminate().map_err(|error| error.to_string())?;
         *terminal_reason = Some(reason);
         *delivery_state = Some(DeliveryState::Terminated);
+        *termination_started_at = Some(Instant::now());
     }
     Ok(())
+}
+
+fn wait_for_job_quiescent(job: &JobObject, timeout: Duration) -> io::Result<bool> {
+    let started = Instant::now();
+    loop {
+        if job.active_processes()? == 0 {
+            return Ok(true);
+        }
+        if started.elapsed() >= timeout {
+            return Ok(false);
+        }
+        thread::sleep(POLL_INTERVAL);
+    }
 }
 
 fn validate_windows_payload(begin: &BeginOperation) -> Result<(), String> {
@@ -465,7 +504,7 @@ impl ContainedProcess {
                 {
                     return Err(io::Error::last_os_error());
                 }
-                if code == STILL_ACTIVE {
+                if code == STILL_ACTIVE_EXIT_CODE {
                     Ok(None)
                 } else {
                     Ok(Some(code))
@@ -676,7 +715,6 @@ struct SpawnFailure {
 enum SpawnFailureKind {
     Spawn,
     Assignment,
-    Resume,
 }
 
 impl SpawnFailure {
@@ -690,14 +728,6 @@ impl SpawnFailure {
     fn assignment(error: io::Error) -> Self {
         Self {
             kind: SpawnFailureKind::Assignment,
-            error,
-        }
-    }
-
-    #[allow(dead_code)]
-    fn resume(error: io::Error) -> Self {
-        Self {
-            kind: SpawnFailureKind::Resume,
             error,
         }
     }
