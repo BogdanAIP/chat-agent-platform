@@ -506,7 +506,7 @@ impl SuspendedProcess {
         if terminated == 0 {
             return false;
         }
-        unsafe { WaitForSingleObject(self.process.as_raw_handle() as HANDLE, 5_000) }
+        (unsafe { WaitForSingleObject(self.process.as_raw_handle() as HANDLE, 5_000) })
             == WAIT_OBJECT_0
     }
 
