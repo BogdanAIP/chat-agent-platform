@@ -388,8 +388,7 @@ struct PreparedOperation {
 impl PreparedOperation {
     fn new() -> Result<Self, PreparationFailure> {
         let job = JobObject::new().map_err(PreparationFailure::job)?;
-        let (stdin_read, stdin_write) =
-            create_pipe_pair().map_err(PreparationFailure::internal)?;
+        let (stdin_read, stdin_write) = create_pipe_pair().map_err(PreparationFailure::internal)?;
         let (stdout_read, stdout_write) =
             create_pipe_pair().map_err(PreparationFailure::internal)?;
         let (stderr_read, stderr_write) =
@@ -430,8 +429,7 @@ impl PreparedOperation {
             self.stderr_write.as_raw_handle() as HANDLE,
         ];
 
-        let mut attributes =
-            ProcThreadAttributes::new(1).map_err(SpawnFailure::internal)?;
+        let mut attributes = ProcThreadAttributes::new(1).map_err(SpawnFailure::internal)?;
         attributes
             .set_handle_list(&child_handles)
             .map_err(SpawnFailure::internal)?;
@@ -480,8 +478,9 @@ impl PreparedOperation {
         } == 0
         {
             let error = io::Error::last_os_error();
-            let terminated =
-                unsafe { TerminateProcess(process.as_raw_handle() as HANDLE, TERMINATION_EXIT_CODE) };
+            let terminated = unsafe {
+                TerminateProcess(process.as_raw_handle() as HANDLE, TERMINATION_EXIT_CODE)
+            };
             let wait = if terminated != 0 {
                 unsafe { WaitForSingleObject(process.as_raw_handle() as HANDLE, 5_000) }
             } else {
@@ -803,7 +802,6 @@ impl SpawnFailure {
         }
     }
 }
-
 
 enum OutputSignal {
     LimitExceeded,
