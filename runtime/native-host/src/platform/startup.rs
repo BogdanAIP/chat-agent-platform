@@ -89,11 +89,7 @@ pub fn start_native_startup<B: NativeStartupBackend>(
     Ok(backend.into_started(child))
 }
 
-fn failure<E>(
-    reason: TerminalReason,
-    error: Option<E>,
-    tree_quiescent: bool,
-) -> StartupFailure<E> {
+fn failure<E>(reason: TerminalReason, error: Option<E>, tree_quiescent: bool) -> StartupFailure<E> {
     StartupFailure {
         reason,
         error,

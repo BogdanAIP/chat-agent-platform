@@ -443,8 +443,7 @@ impl PreparedOperation {
         }
 
         let process = unsafe { OwnedHandle::from_raw_handle(process_information.hProcess.cast()) };
-        let thread =
-            unsafe { OwnedHandle::from_raw_handle(process_information.hThread.cast()) };
+        let thread = unsafe { OwnedHandle::from_raw_handle(process_information.hThread.cast()) };
 
         drop(self.stdin_read);
         drop(self.stdout_write);
@@ -493,8 +492,7 @@ impl SuspendedProcess {
             if self.job.terminate().is_err() {
                 return false;
             }
-            return wait_for_job_quiescent(&self.job, TERMINATION_QUIESCE_TIMEOUT)
-                .unwrap_or(false);
+            return wait_for_job_quiescent(&self.job, TERMINATION_QUIESCE_TIMEOUT).unwrap_or(false);
         }
 
         let terminated = unsafe {
@@ -564,10 +562,7 @@ impl NativeStartupBackend for Win32StartupBackend {
         prepared.create_suspended(begin)
     }
 
-    fn assign_process_to_job(
-        &mut self,
-        child: &mut Self::Suspended,
-    ) -> Result<(), Self::Error> {
+    fn assign_process_to_job(&mut self, child: &mut Self::Suspended) -> Result<(), Self::Error> {
         child.assign_to_job()
     }
 
