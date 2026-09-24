@@ -25,7 +25,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+
+      - name: Verify exact source HEAD
+        shell: pwsh
+        run: |
+          $expected = "${{ github.event.pull_request.head.sha || github.sha }}"
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $expected) { throw "source HEAD mismatch: expected=$expected actual=$actual" }
+          Write-Host "NATIVE_HOST_SOURCE_SHA=$actual"
 
       - name: Install exact Rust toolchain
         shell: pwsh
@@ -57,7 +66,7 @@ jobs:
       - name: Rust tests
         shell: pwsh
         env:
-          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"
+          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.event.pull_request.head.sha || github.sha }}"
           CAP_NATIVE_HOST_TEST_HELPER: "${{ github.workspace }}\\runtime\\native-host\\target\\debug\\native-host-test-helper.exe"
         run: |
           cargo +1.98.1 test --locked --all-targets
@@ -66,7 +75,7 @@ jobs:
       - name: Rust clippy
         shell: pwsh
         env:
-          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"
+          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.event.pull_request.head.sha || github.sha }}"
         run: |
           cargo +1.98.1 clippy --locked --workspace --all-targets -- -D warnings
           if ($LASTEXITCODE -ne 0) { throw "cargo clippy failed with exit code $LASTEXITCODE" }
