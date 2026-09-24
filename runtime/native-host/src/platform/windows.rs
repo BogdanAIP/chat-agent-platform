@@ -574,7 +574,7 @@ impl NativeStartupBackend for Win32StartupBackend {
         child.resume()
     }
 
-    fn into_started(&mut self, child: Self::Suspended) -> Self::Started {
+    fn finish_started(&mut self, child: Self::Suspended) -> Self::Started {
         child.into_contained()
     }
 }

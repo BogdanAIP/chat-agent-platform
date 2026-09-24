@@ -31,7 +31,7 @@ pub trait NativeStartupBackend {
     fn assign_process_to_job(&mut self, child: &mut Self::Suspended) -> Result<(), Self::Error>;
     fn terminate_and_reap(&mut self, child: &mut Self::Suspended) -> bool;
     fn resume_primary_thread(&mut self, child: &mut Self::Suspended) -> Result<(), Self::Error>;
-    fn into_started(&mut self, child: Self::Suspended) -> Self::Started;
+    fn finish_started(&mut self, child: Self::Suspended) -> Self::Started;
 }
 
 pub fn prepare_native_startup<B: NativeStartupBackend>(
@@ -86,7 +86,7 @@ pub fn start_native_startup<B: NativeStartupBackend>(
         ));
     }
 
-    Ok(backend.into_started(child))
+    Ok(backend.finish_started(child))
 }
 
 fn failure<E>(reason: TerminalReason, error: Option<E>, tree_quiescent: bool) -> StartupFailure<E> {
@@ -127,6 +127,18 @@ mod tests {
         Resume,
     }
 
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    struct FakeJob;
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    struct FakePrepared;
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    struct FakeSuspended;
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    struct FakeStarted;
+
     #[derive(Default)]
     struct FakeBackend {
         fail_at: Option<FailAt>,
@@ -152,14 +164,15 @@ mod tests {
     }
 
     impl NativeStartupBackend for FakeBackend {
-        type Job = ();
-        type Prepared = ();
-        type Suspended = ();
-        type Started = ();
+        type Job = FakeJob;
+        type Prepared = FakePrepared;
+        type Suspended = FakeSuspended;
+        type Started = FakeStarted;
         type Error = &'static str;
 
         fn create_job(&mut self) -> Result<Self::Job, Self::Error> {
-            self.step("create_job", FailAt::CreateJob)
+            self.step("create_job", FailAt::CreateJob)?;
+            Ok(FakeJob)
         }
 
         fn configure_job(&mut self, _job: &Self::Job) -> Result<(), Self::Error> {
@@ -167,7 +180,8 @@ mod tests {
         }
 
         fn prepare_io(&mut self, _job: Self::Job) -> Result<Self::Prepared, Self::Error> {
-            self.step("prepare_io", FailAt::PrepareIo)
+            self.step("prepare_io", FailAt::PrepareIo)?;
+            Ok(FakePrepared)
         }
 
         fn create_process_suspended(
@@ -175,7 +189,8 @@ mod tests {
             _prepared: Self::Prepared,
             _begin: &BeginOperation,
         ) -> Result<Self::Suspended, Self::Error> {
-            self.step("create_process_suspended", FailAt::CreateProcess)
+            self.step("create_process_suspended", FailAt::CreateProcess)?;
+            Ok(FakeSuspended)
         }
 
         fn assign_process_to_job(
@@ -197,8 +212,9 @@ mod tests {
             self.step("resume_primary_thread", FailAt::Resume)
         }
 
-        fn into_started(&mut self, _child: Self::Suspended) -> Self::Started {
-            self.trace.push("into_started");
+        fn finish_started(&mut self, _child: Self::Suspended) -> Self::Started {
+            self.trace.push("finish_started");
+            FakeStarted
         }
     }
 
@@ -324,7 +340,7 @@ mod tests {
                 "create_process_suspended",
                 "assign_process_to_job",
                 "resume_primary_thread",
-                "into_started"
+                "finish_started"
             ]
         );
     }
