@@ -29,6 +29,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
+use std::sync::mpsc::RecvTimeoutError;
 use std::thread;
 use std::time::Duration;
 use std::time::Instant;
@@ -70,6 +71,7 @@ const TERMINATION_EXIT_CODE: u32 = 0xCA01;
 const STILL_ACTIVE_EXIT_CODE: u32 = 259;
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
 const TERMINATION_QUIESCE_TIMEOUT: Duration = Duration::from_secs(5);
+const OUTPUT_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub fn run_operation(
     begin: &BeginOperation,
@@ -112,14 +114,14 @@ pub fn run_operation(
         .stderr
         .take()
         .ok_or_else(|| "stderr pipe ownership missing".to_owned())?;
-    let stdout_thread = spawn_output_reader(
+    let stdout_summary_rx = spawn_output_reader(
         "stdout",
         stdout,
         Arc::clone(&output_budget),
         output_signal_tx.clone(),
         sink.clone(),
     );
-    let stderr_thread = spawn_output_reader(
+    let stderr_summary_rx = spawn_output_reader(
         "stderr",
         stderr,
         output_budget,
@@ -245,12 +247,11 @@ pub fn run_operation(
         thread::sleep(POLL_INTERVAL);
     }
 
-    let stdout_summary = stdout_thread
-        .join()
-        .map_err(|_| "stdout reader thread panicked".to_owned())?;
-    let stderr_summary = stderr_thread
-        .join()
-        .map_err(|_| "stderr reader thread panicked".to_owned())?;
+    let output_drain_deadline = Instant::now() + OUTPUT_DRAIN_TIMEOUT;
+    let stdout_summary =
+        receive_stream_summary(&stdout_summary_rx, output_drain_deadline, "stdout")?;
+    let stderr_summary =
+        receive_stream_summary(&stderr_summary_rx, output_drain_deadline, "stderr")?;
 
     output_complete &= stdout_summary.complete && stderr_summary.complete;
 
@@ -841,7 +842,8 @@ fn spawn_output_reader(
     budget: Arc<Mutex<OutputBudget>>,
     signal: mpsc::Sender<OutputSignal>,
     sink: EventSink,
-) -> thread::JoinHandle<StreamSummary> {
+) -> Receiver<StreamSummary> {
+    let (summary_tx, summary_rx) = mpsc::sync_channel(1);
     thread::spawn(move || {
         let mut sequence = 1_u64;
         let mut bytes = 0_u64;
@@ -882,10 +884,27 @@ fn spawn_output_reader(
             sequence += 1;
         }
 
-        StreamSummary {
+        let _ = summary_tx.send(StreamSummary {
             bytes,
             sha256: digest_hex(hasher.finalize().as_slice()),
             complete,
+        });
+    });
+    summary_rx
+}
+
+fn receive_stream_summary(
+    receiver: &Receiver<StreamSummary>,
+    deadline: Instant,
+    stream: &str,
+) -> Result<StreamSummary, String> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    receiver.recv_timeout(remaining).map_err(|error| match error {
+        RecvTimeoutError::Timeout => {
+            format!("{stream} output reader did not quiesce within bounded drain timeout")
+        }
+        RecvTimeoutError::Disconnected => {
+            format!("{stream} output reader exited without a summary")
         }
     })
 }
@@ -913,6 +932,14 @@ mod tests {
         assert_eq!(quote_windows_arg(""), "\"\"");
         assert_eq!(quote_windows_arg("a b"), "\"a b\"");
         assert_eq!(quote_windows_arg(r#"a"b"#), r#""a\"b""#);
+    }
+
+    #[test]
+    fn output_summary_wait_has_a_deadline() {
+        let (sender, receiver) = mpsc::sync_channel::<StreamSummary>(1);
+        let _keep_sender_alive = sender;
+        let deadline = Instant::now() + Duration::from_millis(1);
+        assert!(receive_stream_summary(&receiver, deadline, "stdout").is_err());
     }
 
     #[test]
