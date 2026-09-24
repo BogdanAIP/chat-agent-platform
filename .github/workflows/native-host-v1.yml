@@ -45,13 +45,20 @@ jobs:
       - name: Rust formatting
         shell: pwsh
         run: |
-          cargo +1.98.1 fmt --check
+          cargo +1.98.1 fmt --all -- --check
           if ($LASTEXITCODE -ne 0) { throw "cargo fmt failed with exit code $LASTEXITCODE" }
+
+      - name: Build test-only process helper
+        shell: pwsh
+        run: |
+          cargo +1.98.1 build --locked -p native-host-test-helper
+          if ($LASTEXITCODE -ne 0) { throw "test helper build failed with exit code $LASTEXITCODE" }
 
       - name: Rust tests
         shell: pwsh
         env:
           CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"
+          CAP_NATIVE_HOST_TEST_HELPER: "${{ github.workspace }}\\runtime\\native-host\\target\\debug\\native-host-test-helper.exe"
         run: |
           cargo +1.98.1 test --locked --all-targets
           if ($LASTEXITCODE -ne 0) { throw "cargo test failed with exit code $LASTEXITCODE" }
@@ -61,5 +68,5 @@ jobs:
         env:
           CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"
         run: |
-          cargo +1.98.1 clippy --locked --all-targets -- -D warnings
+          cargo +1.98.1 clippy --locked --workspace --all-targets -- -D warnings
           if ($LASTEXITCODE -ne 0) { throw "cargo clippy failed with exit code $LASTEXITCODE" }

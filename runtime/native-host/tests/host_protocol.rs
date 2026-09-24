@@ -189,6 +189,109 @@ fn runtime_budget_terminates_active_tree() {
     assert_eq!(terminal["output_complete"], false);
 }
 
+#[test]
+fn test_helper_tree_keeps_job_active_after_root_exit() {
+    let helper = std::env::var("CAP_NATIVE_HOST_TEST_HELPER")
+        .expect("CAP_NATIVE_HOST_TEST_HELPER");
+    let unique = format!(
+        "cap-native-host-tree-{}-{}.txt",
+        std::process::id(),
+        Instant::now().elapsed().as_nanos()
+    );
+    let pid_file = std::env::temp_dir().join(unique);
+    let _ = std::fs::remove_file(&pid_file);
+
+    let mut host = HostHarness::spawn();
+    host.send(&begin_custom_message(
+        "tree-request",
+        "tree-attempt",
+        &helper,
+        &[
+            "tree",
+            "--pid-file",
+            &pid_file.to_string_lossy(),
+            "--root-exit-after-ms",
+            "50",
+            "--child-ms",
+            "450",
+            "--grandchild-ms",
+            "850",
+        ],
+        5_000,
+        65_536,
+    ));
+
+    let started = Instant::now();
+    let (terminal, events) = host.collect_until_terminal(EVENT_TIMEOUT);
+    let elapsed = started.elapsed();
+    host.wait_success();
+
+    let root_index = events
+        .iter()
+        .position(|event| event["type"] == "root_exited")
+        .expect("root_exited event");
+    assert!(
+        root_index + 1 <= events.len(),
+        "root exit must be observed before terminal"
+    );
+    assert!(
+        elapsed >= Duration::from_millis(500),
+        "terminal arrived before descendants could keep the Job active: {elapsed:?}"
+    );
+    assert_eq!(terminal["reason"], "tree_exited");
+    assert_eq!(terminal["tree_quiescent"], true);
+
+    let evidence = std::fs::read_to_string(&pid_file).expect("tree pid evidence");
+    assert!(evidence.contains("root="));
+    assert!(evidence.contains("child="));
+    assert!(evidence.contains("grandchild="));
+    let _ = std::fs::remove_file(pid_file);
+}
+
+#[test]
+fn test_helper_binary_output_is_reported_complete() {
+    let helper = std::env::var("CAP_NATIVE_HOST_TEST_HELPER")
+        .expect("CAP_NATIVE_HOST_TEST_HELPER");
+    let mut host = HostHarness::spawn();
+    host.send(&begin_custom_message(
+        "output-request",
+        "output-attempt",
+        &helper,
+        &[
+            "burst-output",
+            "--stdout-bytes",
+            "70000",
+            "--stderr-bytes",
+            "33000",
+            "--pattern-seed",
+            "17",
+        ],
+        10_000,
+        200_000,
+    ));
+
+    let (terminal, events) = host.collect_until_terminal(EVENT_TIMEOUT);
+    host.wait_success();
+
+    let stdout_bytes: u64 = events
+        .iter()
+        .filter(|event| event["type"] == "output_chunk" && event["stream"] == "stdout")
+        .map(|event| event["raw_len"].as_u64().expect("stdout raw_len"))
+        .sum();
+    let stderr_bytes: u64 = events
+        .iter()
+        .filter(|event| event["type"] == "output_chunk" && event["stream"] == "stderr")
+        .map(|event| event["raw_len"].as_u64().expect("stderr raw_len"))
+        .sum();
+
+    assert_eq!(stdout_bytes, 70_000);
+    assert_eq!(stderr_bytes, 33_000);
+    assert_eq!(terminal["stdout_bytes"], 70_000);
+    assert_eq!(terminal["stderr_bytes"], 33_000);
+    assert_eq!(terminal["output_complete"], true);
+    assert_eq!(terminal["reason"], "tree_exited");
+}
+
 struct HostHarness {
     child: Child,
     stdin: Option<ChildStdin>,
@@ -289,6 +392,37 @@ impl Drop for HostHarness {
             }
         }
     }
+}
+
+fn begin_custom_message(
+    request_id: &str,
+    attempt_id: &str,
+    executable: &str,
+    argv: &[&str],
+    max_runtime_ms: u64,
+    max_output_bytes: u64,
+) -> Value {
+    let executable_path = PathBuf::from(executable);
+    let cwd = executable_path
+        .parent()
+        .expect("helper executable parent")
+        .to_path_buf();
+    json!({
+        "type": "begin_operation",
+        "protocol_version": 1,
+        "request_id": request_id,
+        "logical_operation_id": format!("logical-{request_id}"),
+        "attempt_id": attempt_id,
+        "authorization_ref": format!("grant:{request_id}"),
+        "native_operation_ref": format!("native:{request_id}"),
+        "executable": executable_path.to_string_lossy(),
+        "argv": argv,
+        "cwd": cwd.to_string_lossy(),
+        "env": {},
+        "max_runtime_ms": max_runtime_ms,
+        "max_output_bytes": max_output_bytes,
+        "containment_required": true
+    })
 }
 
 fn begin_message(

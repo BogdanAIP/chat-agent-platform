@@ -23,3 +23,8 @@ windows-sys = { version = "0.61", features = [
 [profile.release]
 panic = "abort"
 strip = "symbols"
+
+[workspace]
+members = ["test-helper"]
+default-members = ["."]
+resolver = "3"
