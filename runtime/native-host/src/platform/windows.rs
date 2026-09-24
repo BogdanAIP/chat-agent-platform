@@ -1043,8 +1043,8 @@ mod tests {
         let mut backend = Win32StartupBackend;
         let prepared = prepare_native_startup(&mut backend).expect("prepare startup");
         let (_control_tx, control_rx) = mpsc::channel();
-        let child =
-            start_native_startup(&mut backend, prepared, &begin, &control_rx).expect("start helper");
+        let child = start_native_startup(&mut backend, prepared, &begin, &control_rx)
+            .expect("start helper");
         assert!(
             wait_for_job_quiescent(&child.job, Duration::from_secs(5)).expect("wait helper tree"),
             "helper tree did not quiesce"
