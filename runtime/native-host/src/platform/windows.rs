@@ -844,7 +844,7 @@ fn spawn_output_reader(
     sink: EventSink,
 ) -> Receiver<StreamSummary> {
     let (summary_tx, summary_rx) = mpsc::sync_channel(1);
-    thread::spawn(move || {
+    let _reader = thread::spawn(move || {
         let mut sequence = 1_u64;
         let mut bytes = 0_u64;
         let mut hasher = Sha256::new();
