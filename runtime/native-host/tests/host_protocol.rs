@@ -191,8 +191,7 @@ fn runtime_budget_terminates_active_tree() {
 
 #[test]
 fn test_helper_tree_keeps_job_active_after_root_exit() {
-    let helper = std::env::var("CAP_NATIVE_HOST_TEST_HELPER")
-        .expect("CAP_NATIVE_HOST_TEST_HELPER");
+    let helper = std::env::var("CAP_NATIVE_HOST_TEST_HELPER").expect("CAP_NATIVE_HOST_TEST_HELPER");
     let unique = format!(
         "cap-native-host-tree-{}-{}.txt",
         std::process::id(),
@@ -250,8 +249,7 @@ fn test_helper_tree_keeps_job_active_after_root_exit() {
 
 #[test]
 fn test_helper_binary_output_is_reported_complete() {
-    let helper = std::env::var("CAP_NATIVE_HOST_TEST_HELPER")
-        .expect("CAP_NATIVE_HOST_TEST_HELPER");
+    let helper = std::env::var("CAP_NATIVE_HOST_TEST_HELPER").expect("CAP_NATIVE_HOST_TEST_HELPER");
     let mut host = HostHarness::spawn();
     host.send(&begin_custom_message(
         "output-request",

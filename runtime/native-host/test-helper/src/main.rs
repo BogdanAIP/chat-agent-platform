@@ -110,7 +110,9 @@ fn tree_mode(args: &[String]) -> Result<(), String> {
                 child.wait().map_err(io_error)?;
             } else {
                 thread::sleep(Duration::from_millis(
-                    root_exit.parse::<u64>().map_err(|_| "invalid root-exit-after-ms")?,
+                    root_exit
+                        .parse::<u64>()
+                        .map_err(|_| "invalid root-exit-after-ms")?,
                 ));
             }
         }
