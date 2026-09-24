@@ -253,6 +253,11 @@ pub fn run_operation(
     let stderr_summary =
         receive_stream_summary(&stderr_summary_rx, output_drain_deadline, "stderr")?;
 
+    reconcile_late_output_signals(
+        &output_signal_rx,
+        &mut terminal_reason,
+        &mut output_complete,
+    )?;
     output_complete &= stdout_summary.complete && stderr_summary.complete;
 
     if root_exit_code.is_none() {
@@ -893,6 +898,42 @@ fn spawn_output_reader(
     summary_rx
 }
 
+fn reconcile_late_output_signals(
+    receiver: &Receiver<OutputSignal>,
+    terminal_reason: &mut Option<TerminalReason>,
+    output_complete: &mut bool,
+) -> Result<(), String> {
+    let mut late_reason = None;
+    while let Ok(signal) = receiver.try_recv() {
+        match signal {
+            OutputSignal::LimitExceeded => {
+                *output_complete = false;
+                late_reason = Some(TerminalReason::OutputLimitExceeded);
+            }
+            OutputSignal::ReadFailed(message) => {
+                eprintln!("native-host late output read failed: {message}");
+                *output_complete = false;
+                if late_reason.is_none() {
+                    late_reason = Some(TerminalReason::OutputIntegrityFailed);
+                }
+            }
+            OutputSignal::WriteFailed(message) => {
+                *output_complete = false;
+                return Err(format!(
+                    "protocol output channel failed after target start: {message}"
+                ));
+            }
+        }
+    }
+
+    if matches!(terminal_reason.as_ref(), Some(TerminalReason::TreeExited))
+        && let Some(reason) = late_reason
+    {
+        *terminal_reason = Some(reason);
+    }
+    Ok(())
+}
+
 fn receive_stream_summary(
     receiver: &Receiver<StreamSummary>,
     deadline: Instant,
@@ -934,6 +975,20 @@ mod tests {
         assert_eq!(quote_windows_arg(""), "\"\"");
         assert_eq!(quote_windows_arg("a b"), "\"a b\"");
         assert_eq!(quote_windows_arg(r#"a"b"#), r#""a\"b""#);
+    }
+
+    #[test]
+    fn late_output_limit_overrides_natural_tree_exit_reason() {
+        let (sender, receiver) = mpsc::channel();
+        sender.send(OutputSignal::LimitExceeded).unwrap();
+        drop(sender);
+
+        let mut reason = Some(TerminalReason::TreeExited);
+        let mut output_complete = true;
+        reconcile_late_output_signals(&receiver, &mut reason, &mut output_complete).unwrap();
+
+        assert_eq!(reason, Some(TerminalReason::OutputLimitExceeded));
+        assert!(!output_complete);
     }
 
     #[test]

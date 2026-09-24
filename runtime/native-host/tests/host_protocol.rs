@@ -286,6 +286,35 @@ fn test_helper_binary_output_is_reported_complete() {
     assert_eq!(terminal["reason"], "tree_exited");
 }
 
+#[test]
+fn fast_exit_output_overflow_is_an_explicit_terminal_failure() {
+    let helper = std::env::var("CAP_NATIVE_HOST_TEST_HELPER").expect("CAP_NATIVE_HOST_TEST_HELPER");
+    let mut host = HostHarness::spawn();
+    host.send(&begin_custom_message(
+        "overflow-request",
+        "overflow-attempt",
+        &helper,
+        &[
+            "burst-output",
+            "--stdout-bytes",
+            "70000",
+            "--stderr-bytes",
+            "0",
+            "--pattern-seed",
+            "29",
+        ],
+        10_000,
+        1_024,
+    ));
+
+    let (terminal, _) = host.collect_until_terminal(EVENT_TIMEOUT);
+    host.wait_success();
+
+    assert_eq!(terminal["reason"], "output_limit_exceeded");
+    assert_eq!(terminal["output_complete"], false);
+    assert_eq!(terminal["tree_quiescent"], true);
+}
+
 struct HostHarness {
     child: Child,
     stdin: Option<ChildStdin>,
