@@ -50,6 +50,18 @@ fn executes_one_contained_process_and_reports_terminal_receipt() {
             .iter()
             .any(|event| { event["type"] == "output_chunk" && event["stream"] == "stdout" })
     );
+    let spawned_index = events
+        .iter()
+        .position(|event| event["type"] == "process_spawned")
+        .expect("process_spawned event");
+    let first_output_index = events
+        .iter()
+        .position(|event| event["type"] == "output_chunk")
+        .expect("output_chunk event");
+    assert!(
+        spawned_index < first_output_index,
+        "process_spawned must precede output_chunk"
+    );
     assert_eq!(terminal["delivery_state"], "tree_exited");
     assert_eq!(terminal["reason"], "tree_exited");
     assert_eq!(terminal["target_ever_runnable"], true);
@@ -147,7 +159,7 @@ fn second_begin_is_protocol_violation_and_cannot_spawn_again() {
         "second BeginOperation produced a second process_spawned event"
     );
     assert_eq!(terminal["delivery_state"], "terminated");
-    assert_eq!(terminal["reason"], "protocol_violation");
+    assert_eq!(terminal["reason"], "protocol_rejected");
     assert_eq!(terminal["tree_quiescent"], true);
 }
 
@@ -172,7 +184,7 @@ fn runtime_budget_terminates_active_tree() {
         "runtime timeout cleanup took {timeout_elapsed:?}"
     );
     assert_eq!(terminal["delivery_state"], "terminated");
-    assert_eq!(terminal["reason"], "timeout");
+    assert_eq!(terminal["reason"], "runtime_timeout");
     assert_eq!(terminal["tree_quiescent"], true);
     assert_eq!(terminal["output_complete"], false);
 }

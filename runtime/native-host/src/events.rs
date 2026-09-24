@@ -87,16 +87,18 @@ pub enum DeliveryState {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminalReason {
-    SpawnFailed,
-    AssignmentFailed,
-    ResumeFailed,
+    InvalidBounds,
+    JobCreateFailed,
+    ProcessCreateFailed,
+    JobAssignFailed,
+    ProcessResumeFailed,
     Cancelled,
-    Timeout,
+    RuntimeTimeout,
     OutputLimitExceeded,
     OwnerLost,
-    ProtocolViolation,
-    OutputFailure,
-    LifecycleFailure,
+    ProtocolRejected,
+    OutputIntegrityFailed,
+    HostInternalFailure,
     #[cfg(not(windows))]
     UnsupportedPlatform,
     TreeExited,

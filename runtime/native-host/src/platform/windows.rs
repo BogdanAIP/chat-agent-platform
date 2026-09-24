@@ -72,57 +72,47 @@ pub fn run_operation(
     sink: &EventSink,
     control: Receiver<ControlSignal>,
 ) -> Result<(), String> {
-    validate_windows_payload(begin)?;
+    if let Err(error) = validate_windows_payload(begin) {
+        eprintln!("native-host invalid Windows operation bounds: {error}");
+        return emit_never_runnable(sink, TerminalReason::InvalidBounds, true);
+    }
 
-    let prepared = PreparedOperation::new(begin).map_err(|error| error.to_string())?;
+    let prepared = match PreparedOperation::new() {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            eprintln!("native-host preparation failed: {}", error.error);
+            return emit_never_runnable(sink, error.reason, error.tree_quiescent);
+        }
+    };
     sink.operation_prepared()
         .map_err(|error| error.to_string())?;
 
     let mut child = match prepared.spawn(begin) {
         Ok(child) => child,
         Err(error) => {
-            let empty = empty_sha256();
-            let reason = match error.kind {
-                SpawnFailureKind::Assignment => TerminalReason::AssignmentFailed,
-                SpawnFailureKind::Spawn => TerminalReason::SpawnFailed,
-            };
-            sink.terminal(&TerminalSnapshot {
-                delivery_state: DeliveryState::NeverRunnable,
-                reason,
-                root_exit_code: None,
-                target_ever_runnable: false,
-                tree_quiescent: true,
-                stdout_bytes: 0,
-                stderr_bytes: 0,
-                stdout_sha256: empty.clone(),
-                stderr_sha256: empty,
-                output_complete: true,
-            })
-            .map_err(|write_error| write_error.to_string())?;
-            return Ok(());
+            eprintln!("native-host suspended spawn failed: {}", error.error);
+            return emit_never_runnable(sink, error.reason, error.tree_quiescent);
         }
     };
 
-    if child.resume().is_err() {
-        let empty = empty_sha256();
+    if let Some(reason) = pre_resume_terminal_reason(&control) {
+        child.job.terminate().map_err(|error| error.to_string())?;
         let tree_quiescent =
             wait_for_job_quiescent(&child.job, TERMINATION_QUIESCE_TIMEOUT).unwrap_or(false);
-        let root_exit_code = child.root_exit_code().ok().flatten();
-        sink.terminal(&TerminalSnapshot {
-            delivery_state: DeliveryState::NeverRunnable,
-            reason: TerminalReason::ResumeFailed,
-            root_exit_code,
-            target_ever_runnable: false,
-            tree_quiescent,
-            stdout_bytes: 0,
-            stderr_bytes: 0,
-            stdout_sha256: empty.clone(),
-            stderr_sha256: empty,
-            output_complete: true,
-        })
-        .map_err(|error| error.to_string())?;
-        return Ok(());
+        return emit_never_runnable(sink, reason, tree_quiescent);
     }
+
+    if let Err(error) = child.resume() {
+        eprintln!("native-host process resume failed: {error}");
+        let tree_quiescent =
+            wait_for_job_quiescent(&child.job, TERMINATION_QUIESCE_TIMEOUT).unwrap_or(false);
+        return emit_never_runnable(sink, TerminalReason::ProcessResumeFailed, tree_quiescent);
+    }
+
+    // This event is the protocol linearization point for "target may have run".
+    // Emit it synchronously before output readers can publish any child bytes.
+    sink.process_spawned(child.process_id)
+        .map_err(|error| error.to_string())?;
 
     let output_budget = Arc::new(Mutex::new(OutputBudget {
         used: 0,
@@ -151,9 +141,6 @@ pub fn run_operation(
         output_signal_tx,
         sink.clone(),
     );
-
-    sink.process_spawned(child.process_id)
-        .map_err(|error| error.to_string())?;
 
     let started = Instant::now();
     let mut root_exit_code = None;
@@ -187,7 +174,7 @@ pub fn run_operation(
                     eprintln!("native-host protocol violation after Begin: {message}");
                     terminate_for_reason(
                         &child.job,
-                        TerminalReason::ProtocolViolation,
+                        TerminalReason::ProtocolRejected,
                         &mut terminal_reason,
                         &mut delivery_state,
                         &mut termination_started_at,
@@ -213,7 +200,7 @@ pub fn run_operation(
                     output_complete = false;
                     terminate_for_reason(
                         &child.job,
-                        TerminalReason::OutputFailure,
+                        TerminalReason::OutputIntegrityFailed,
                         &mut terminal_reason,
                         &mut delivery_state,
                         &mut termination_started_at,
@@ -233,7 +220,7 @@ pub fn run_operation(
             output_complete = false;
             terminate_for_reason(
                 &child.job,
-                TerminalReason::Timeout,
+                TerminalReason::RuntimeTimeout,
                 &mut terminal_reason,
                 &mut delivery_state,
                 &mut termination_started_at,
@@ -260,7 +247,7 @@ pub fn run_operation(
                 termination_started.elapsed() >= TERMINATION_QUIESCE_TIMEOUT
             }) {
                 delivery_state = Some(DeliveryState::HostFailureAfterStart);
-                terminal_reason = Some(TerminalReason::LifecycleFailure);
+                terminal_reason = Some(TerminalReason::HostInternalFailure);
                 output_complete = false;
                 break;
             }
@@ -294,7 +281,7 @@ pub fn run_operation(
 
     let snapshot = TerminalSnapshot {
         delivery_state: delivery_state.unwrap_or(DeliveryState::HostFailureAfterStart),
-        reason: terminal_reason.unwrap_or(TerminalReason::LifecycleFailure),
+        reason: terminal_reason.unwrap_or(TerminalReason::HostInternalFailure),
         root_exit_code,
         target_ever_runnable: true,
         tree_quiescent,
@@ -307,6 +294,40 @@ pub fn run_operation(
     sink.terminal(&snapshot)
         .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+fn emit_never_runnable(
+    sink: &EventSink,
+    reason: TerminalReason,
+    tree_quiescent: bool,
+) -> Result<(), String> {
+    let empty = empty_sha256();
+    sink.terminal(&TerminalSnapshot {
+        delivery_state: DeliveryState::NeverRunnable,
+        reason,
+        root_exit_code: None,
+        target_ever_runnable: false,
+        tree_quiescent,
+        stdout_bytes: 0,
+        stderr_bytes: 0,
+        stdout_sha256: empty.clone(),
+        stderr_sha256: empty,
+        output_complete: true,
+    })
+    .map_err(|error| error.to_string())
+}
+
+fn pre_resume_terminal_reason(control: &Receiver<ControlSignal>) -> Option<TerminalReason> {
+    match control.try_recv() {
+        Ok(ControlSignal::Cancel) => Some(TerminalReason::Cancelled),
+        Ok(ControlSignal::OwnerLost) => Some(TerminalReason::OwnerLost),
+        Ok(ControlSignal::ProtocolViolation(message)) => {
+            eprintln!("native-host protocol violation before resume: {message}");
+            Some(TerminalReason::ProtocolRejected)
+        }
+        Err(mpsc::TryRecvError::Empty) => None,
+        Err(mpsc::TryRecvError::Disconnected) => Some(TerminalReason::OwnerLost),
+    }
 }
 
 fn terminate_for_reason(
@@ -365,14 +386,20 @@ struct PreparedOperation {
 }
 
 impl PreparedOperation {
-    fn new(_begin: &BeginOperation) -> io::Result<Self> {
-        let job = JobObject::new()?;
-        let (stdin_read, stdin_write) = create_pipe_pair()?;
-        let (stdout_read, stdout_write) = create_pipe_pair()?;
-        let (stderr_read, stderr_write) = create_pipe_pair()?;
-        clear_inherit(stdin_write.as_raw_handle() as HANDLE)?;
-        clear_inherit(stdout_read.as_raw_handle() as HANDLE)?;
-        clear_inherit(stderr_read.as_raw_handle() as HANDLE)?;
+    fn new() -> Result<Self, PreparationFailure> {
+        let job = JobObject::new().map_err(PreparationFailure::job)?;
+        let (stdin_read, stdin_write) =
+            create_pipe_pair().map_err(PreparationFailure::internal)?;
+        let (stdout_read, stdout_write) =
+            create_pipe_pair().map_err(PreparationFailure::internal)?;
+        let (stderr_read, stderr_write) =
+            create_pipe_pair().map_err(PreparationFailure::internal)?;
+        clear_inherit(stdin_write.as_raw_handle() as HANDLE)
+            .map_err(PreparationFailure::internal)?;
+        clear_inherit(stdout_read.as_raw_handle() as HANDLE)
+            .map_err(PreparationFailure::internal)?;
+        clear_inherit(stderr_read.as_raw_handle() as HANDLE)
+            .map_err(PreparationFailure::internal)?;
         Ok(Self {
             job,
             stdin_read,
@@ -403,10 +430,11 @@ impl PreparedOperation {
             self.stderr_write.as_raw_handle() as HANDLE,
         ];
 
-        let mut attributes = ProcThreadAttributes::new(1).map_err(SpawnFailure::spawn)?;
+        let mut attributes =
+            ProcThreadAttributes::new(1).map_err(SpawnFailure::internal)?;
         attributes
             .set_handle_list(&child_handles)
-            .map_err(SpawnFailure::spawn)?;
+            .map_err(SpawnFailure::internal)?;
 
         let mut startup: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
         startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
@@ -437,7 +465,7 @@ impl PreparedOperation {
             )
         };
         if created == 0 {
-            return Err(SpawnFailure::spawn(io::Error::last_os_error()));
+            return Err(SpawnFailure::process_create(io::Error::last_os_error()));
         }
 
         let process = unsafe { OwnedHandle::from_raw_handle(process_information.hProcess.cast()) };
@@ -452,11 +480,17 @@ impl PreparedOperation {
         } == 0
         {
             let error = io::Error::last_os_error();
-            unsafe {
-                TerminateProcess(process.as_raw_handle() as HANDLE, TERMINATION_EXIT_CODE);
-                WaitForSingleObject(process.as_raw_handle() as HANDLE, 5_000);
-            }
-            return Err(SpawnFailure::assignment(error));
+            let terminated =
+                unsafe { TerminateProcess(process.as_raw_handle() as HANDLE, TERMINATION_EXIT_CODE) };
+            let wait = if terminated != 0 {
+                unsafe { WaitForSingleObject(process.as_raw_handle() as HANDLE, 5_000) }
+            } else {
+                WAIT_TIMEOUT
+            };
+            return Err(SpawnFailure::job_assign(
+                error,
+                terminated != 0 && wait == WAIT_OBJECT_0,
+            ));
         }
 
         drop(self.stdin_read);
@@ -713,38 +747,63 @@ fn quote_windows_arg(arg: &str) -> String {
 }
 
 #[derive(Debug)]
-struct SpawnFailure {
-    kind: SpawnFailureKind,
+struct PreparationFailure {
+    reason: TerminalReason,
     error: io::Error,
+    tree_quiescent: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
-enum SpawnFailureKind {
-    Spawn,
-    Assignment,
+impl PreparationFailure {
+    fn job(error: io::Error) -> Self {
+        Self {
+            reason: TerminalReason::JobCreateFailed,
+            error,
+            tree_quiescent: true,
+        }
+    }
+
+    fn internal(error: io::Error) -> Self {
+        Self {
+            reason: TerminalReason::HostInternalFailure,
+            error,
+            tree_quiescent: true,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct SpawnFailure {
+    reason: TerminalReason,
+    error: io::Error,
+    tree_quiescent: bool,
 }
 
 impl SpawnFailure {
-    fn spawn(error: io::Error) -> Self {
+    fn internal(error: io::Error) -> Self {
         Self {
-            kind: SpawnFailureKind::Spawn,
+            reason: TerminalReason::HostInternalFailure,
             error,
+            tree_quiescent: true,
         }
     }
 
-    fn assignment(error: io::Error) -> Self {
+    fn process_create(error: io::Error) -> Self {
         Self {
-            kind: SpawnFailureKind::Assignment,
+            reason: TerminalReason::ProcessCreateFailed,
             error,
+            tree_quiescent: true,
+        }
+    }
+
+    fn job_assign(error: io::Error, tree_quiescent: bool) -> Self {
+        Self {
+            reason: TerminalReason::JobAssignFailed,
+            error,
+            tree_quiescent,
         }
     }
 }
 
-impl std::fmt::Display for SpawnFailure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}: {}", self.kind, self.error)
-    }
-}
 
 enum OutputSignal {
     LimitExceeded,
