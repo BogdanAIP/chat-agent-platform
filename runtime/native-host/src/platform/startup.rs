@@ -5,6 +5,7 @@ use std::fmt::Display;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 
+#[derive(Debug)]
 pub struct StartupFailure<E> {
     pub reason: TerminalReason,
     pub error: Option<E>,
@@ -118,7 +119,6 @@ fn pre_resume_terminal_reason(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::convert::Infallible;
     use std::sync::mpsc;
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -332,7 +332,4 @@ mod tests {
             ]
         );
     }
-
-    #[allow(dead_code)]
-    fn _infallible_marker(_: Infallible) {}
 }
