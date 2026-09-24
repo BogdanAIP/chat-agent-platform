@@ -73,7 +73,9 @@ pub fn read_frame<R: Read>(reader: &mut R) -> Result<Option<Vec<u8>>, ProtocolEr
         return Err(ProtocolError::InvalidFrame("zero-length payload"));
     }
     if length > MAX_FRAME_BYTES {
-        return Err(ProtocolError::InvalidFrame("payload exceeds hard frame ceiling"));
+        return Err(ProtocolError::InvalidFrame(
+            "payload exceeds hard frame ceiling",
+        ));
     }
 
     let mut payload = vec![0_u8; length];
@@ -83,10 +85,7 @@ pub fn read_frame<R: Read>(reader: &mut R) -> Result<Option<Vec<u8>>, ProtocolEr
     Ok(Some(payload))
 }
 
-pub fn write_frame<W: Write, T: Serialize>(
-    writer: &mut W,
-    value: &T,
-) -> Result<(), ProtocolError> {
+pub fn write_frame<W: Write, T: Serialize>(writer: &mut W, value: &T) -> Result<(), ProtocolError> {
     let payload = serde_json::to_vec(value)?;
     if payload.is_empty() || payload.len() > MAX_FRAME_BYTES {
         return Err(ProtocolError::InvalidFrame(
@@ -329,7 +328,10 @@ mod tests {
         let mut encoded = Vec::new();
         write_frame(&mut encoded, &Sample { value: "ok" }).unwrap();
         let decoded = read_frame(&mut encoded.as_slice()).unwrap().unwrap();
-        assert_eq!(serde_json::from_slice::<serde_json::Value>(&decoded).unwrap()["value"], "ok");
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&decoded).unwrap()["value"],
+            "ok"
+        );
     }
 
     #[test]

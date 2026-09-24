@@ -30,9 +30,7 @@ fn executes_one_contained_process_and_reports_terminal_receipt() {
     assert_eq!(hello["protocol_version"], 1);
 
     let system_root = std::env::var("SystemRoot").expect("SystemRoot");
-    let executable = PathBuf::from(&system_root)
-        .join("System32")
-        .join("cmd.exe");
+    let executable = PathBuf::from(&system_root).join("System32").join("cmd.exe");
     let cwd = PathBuf::from(&system_root);
     let mut env = BTreeMap::new();
     env.insert("SystemRoot".to_owned(), system_root);
@@ -63,7 +61,10 @@ fn executes_one_contained_process_and_reports_terminal_receipt() {
     let mut saw_spawned = false;
     let mut output = Vec::new();
     let terminal = loop {
-        assert!(Instant::now() < deadline, "timed out waiting for terminal event");
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for terminal event"
+        );
         let event = read_json_frame(&mut stdout).expect("event");
         match event["type"].as_str().unwrap_or_default() {
             "operation_prepared" => saw_prepared = true,
@@ -79,7 +80,11 @@ fn executes_one_contained_process_and_reports_terminal_receipt() {
 
     drop(stdin);
     let status = child.wait().expect("wait native host");
-    assert!(status.success(), "host stderr: {}", read_stderr(child.stderr.take()));
+    assert!(
+        status.success(),
+        "host stderr: {}",
+        read_stderr(child.stderr.take())
+    );
 
     assert!(saw_prepared);
     assert!(saw_spawned);
@@ -91,10 +96,7 @@ fn executes_one_contained_process_and_reports_terminal_receipt() {
     assert!(!output.is_empty());
 }
 
-fn write_json_frame(
-    writer: &mut impl Write,
-    value: &serde_json::Value,
-) -> std::io::Result<()> {
+fn write_json_frame(writer: &mut impl Write, value: &serde_json::Value) -> std::io::Result<()> {
     let payload = serde_json::to_vec(value)?;
     writer.write_all(&(payload.len() as u32).to_be_bytes())?;
     writer.write_all(&payload)?;

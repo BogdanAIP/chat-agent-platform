@@ -35,11 +35,11 @@ jobs:
           rustc +1.98.1 --version --verbose
           cargo +1.98.1 --version
 
-      - name: Generate dependency lock evidence
+      - name: Verify committed dependency lock
         shell: pwsh
         run: |
-          cargo +1.98.1 generate-lockfile
-          if ($LASTEXITCODE -ne 0) { throw "cargo generate-lockfile failed with exit code $LASTEXITCODE" }
+          cargo +1.98.1 metadata --locked --no-deps --format-version 1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "cargo metadata --locked failed with exit code $LASTEXITCODE" }
           Get-Content Cargo.lock -Raw
 
       - name: Rust formatting
@@ -53,7 +53,7 @@ jobs:
         env:
           CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"
         run: |
-          cargo +1.98.1 test --all-targets
+          cargo +1.98.1 test --locked --all-targets
           if ($LASTEXITCODE -ne 0) { throw "cargo test failed with exit code $LASTEXITCODE" }
 
       - name: Rust clippy
@@ -61,5 +61,5 @@ jobs:
         env:
           CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"
         run: |
-          cargo +1.98.1 clippy --all-targets -- -D warnings
+          cargo +1.98.1 clippy --locked --all-targets -- -D warnings
           if ($LASTEXITCODE -ne 0) { throw "cargo clippy failed with exit code $LASTEXITCODE" }

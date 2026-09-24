@@ -36,9 +36,9 @@ use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 use windows_sys::Win32::System::JobObjects::AssignProcessToJobObject;
 use windows_sys::Win32::System::JobObjects::CreateJobObjectW;
+use windows_sys::Win32::System::JobObjects::JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 use windows_sys::Win32::System::JobObjects::JOBOBJECT_BASIC_ACCOUNTING_INFORMATION;
 use windows_sys::Win32::System::JobObjects::JOBOBJECT_EXTENDED_LIMIT_INFORMATION;
-use windows_sys::Win32::System::JobObjects::JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 use windows_sys::Win32::System::JobObjects::JobObjectBasicAccountingInformation;
 use windows_sys::Win32::System::JobObjects::JobObjectExtendedLimitInformation;
 use windows_sys::Win32::System::JobObjects::QueryInformationJobObject;
@@ -53,8 +53,8 @@ use windows_sys::Win32::System::Threading::DeleteProcThreadAttributeList;
 use windows_sys::Win32::System::Threading::EXTENDED_STARTUPINFO_PRESENT;
 use windows_sys::Win32::System::Threading::GetExitCodeProcess;
 use windows_sys::Win32::System::Threading::InitializeProcThreadAttributeList;
-use windows_sys::Win32::System::Threading::PROCESS_INFORMATION;
 use windows_sys::Win32::System::Threading::PROC_THREAD_ATTRIBUTE_HANDLE_LIST;
+use windows_sys::Win32::System::Threading::PROCESS_INFORMATION;
 use windows_sys::Win32::System::Threading::ResumeThread;
 use windows_sys::Win32::System::Threading::STARTF_USESTDHANDLES;
 use windows_sys::Win32::System::Threading::STARTUPINFOEXW;
@@ -75,7 +75,8 @@ pub fn run_operation(
     validate_windows_payload(begin)?;
 
     let prepared = PreparedOperation::new(begin).map_err(|error| error.to_string())?;
-    sink.operation_prepared().map_err(|error| error.to_string())?;
+    sink.operation_prepared()
+        .map_err(|error| error.to_string())?;
 
     let mut child = match prepared.spawn(begin) {
         Ok(child) => child,
@@ -272,7 +273,8 @@ pub fn run_operation(
         stderr_sha256: stderr_summary.sha256,
         output_complete,
     };
-    sink.terminal(&snapshot).map_err(|error| error.to_string())?;
+    sink.terminal(&snapshot)
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -458,9 +460,8 @@ impl ContainedProcess {
             WAIT_TIMEOUT => Ok(None),
             WAIT_OBJECT_0 => {
                 let mut code = 0_u32;
-                if unsafe {
-                    GetExitCodeProcess(self.process.as_raw_handle() as HANDLE, &mut code)
-                } == 0
+                if unsafe { GetExitCodeProcess(self.process.as_raw_handle() as HANDLE, &mut code) }
+                    == 0
                 {
                     return Err(io::Error::last_os_error());
                 }
@@ -504,10 +505,7 @@ impl JobObject {
 
     fn terminate(&self) -> io::Result<()> {
         if unsafe {
-            TerminateJobObject(
-                self.handle.as_raw_handle() as HANDLE,
-                TERMINATION_EXIT_CODE,
-            )
+            TerminateJobObject(self.handle.as_raw_handle() as HANDLE, TERMINATION_EXIT_CODE)
         } == 0
         {
             Err(io::Error::last_os_error())
@@ -642,11 +640,7 @@ fn build_command_line(executable: &str, argv: &[String]) -> String {
 }
 
 fn quote_windows_arg(arg: &str) -> String {
-    if !arg.is_empty()
-        && !arg
-            .chars()
-            .any(|ch| ch.is_whitespace() || ch == '"')
-    {
+    if !arg.is_empty() && !arg.chars().any(|ch| ch.is_whitespace() || ch == '"') {
         return arg.to_owned();
     }
 

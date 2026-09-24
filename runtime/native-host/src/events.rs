@@ -217,11 +217,7 @@ impl EventSink {
         )
     }
 
-    fn emit<T: Serialize>(
-        &self,
-        message_type: &'static str,
-        body: T,
-    ) -> Result<(), ProtocolError> {
+    fn emit<T: Serialize>(&self, message_type: &'static str, body: T) -> Result<(), ProtocolError> {
         let mut state = self
             .output
             .inner
