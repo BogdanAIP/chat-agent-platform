@@ -189,7 +189,7 @@ fn probe_handle(args: &[String]) -> Result<(), String> {
     let result_file = required(args, "--result-file")?;
     let mut flags = 0_u32;
     let valid = unsafe { GetHandleInformation(raw as HANDLE, &mut flags) } != 0;
-    fs::write(result_file, if valid { b"valid" } else { b"invalid" }).map_err(io_error)
+    fs::write(result_file, if valid { "valid" } else { "invalid" }).map_err(io_error)
 }
 
 #[cfg(not(windows))]
