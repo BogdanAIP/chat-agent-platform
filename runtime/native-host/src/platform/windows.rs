@@ -129,16 +129,24 @@ pub fn run_operation(
         limit: begin.max_output_bytes,
     }));
     let (output_signal_tx, output_signal_rx) = mpsc::channel();
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "stdout pipe ownership missing".to_owned())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "stderr pipe ownership missing".to_owned())?;
     let stdout_thread = spawn_output_reader(
         "stdout",
-        child.stdout,
+        stdout,
         Arc::clone(&output_budget),
         output_signal_tx.clone(),
         sink.clone(),
     );
     let stderr_thread = spawn_output_reader(
         "stderr",
-        child.stderr,
+        stderr,
         output_budget,
         output_signal_tx,
         sink.clone(),
@@ -228,6 +236,7 @@ pub fn run_operation(
                 TerminalReason::Timeout,
                 &mut terminal_reason,
                 &mut delivery_state,
+                &mut termination_started_at,
             )?;
         }
 
@@ -462,8 +471,8 @@ impl PreparedOperation {
             process,
             thread: Some(thread_handle),
             process_id: process_information.dwProcessId,
-            stdout: File::from(self.stdout_read),
-            stderr: File::from(self.stderr_read),
+            stdout: Some(File::from(self.stdout_read)),
+            stderr: Some(File::from(self.stderr_read)),
         })
     }
 }
@@ -473,8 +482,8 @@ struct ContainedProcess {
     process: OwnedHandle,
     thread: Option<OwnedHandle>,
     process_id: u32,
-    stdout: File,
-    stderr: File,
+    stdout: Option<File>,
+    stderr: Option<File>,
 }
 
 impl ContainedProcess {
