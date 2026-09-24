@@ -240,11 +240,11 @@ pub fn run_operation(
             )?;
         }
 
-        if root_exit_code.is_none() {
-            if let Some(code) = child.root_exit_code().map_err(|error| error.to_string())? {
-                root_exit_code = Some(code);
-                sink.root_exited(code).map_err(|error| error.to_string())?;
-            }
+        if root_exit_code.is_none()
+            && let Some(code) = child.root_exit_code().map_err(|error| error.to_string())?
+        {
+            root_exit_code = Some(code);
+            sink.root_exited(code).map_err(|error| error.to_string())?;
         }
 
         let active = child
@@ -633,14 +633,14 @@ impl Drop for ProcThreadAttributes {
 }
 
 fn create_pipe_pair() -> io::Result<(OwnedHandle, OwnedHandle)> {
-    let mut security = SECURITY_ATTRIBUTES {
+    let security = SECURITY_ATTRIBUTES {
         nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
         lpSecurityDescriptor: ptr::null_mut(),
         bInheritHandle: 1,
     };
     let mut read: HANDLE = ptr::null_mut();
     let mut write: HANDLE = ptr::null_mut();
-    if unsafe { CreatePipe(&mut read, &mut write, &mut security, 0) } == 0 {
+    if unsafe { CreatePipe(&mut read, &mut write, &security, 0) } == 0 {
         return Err(io::Error::last_os_error());
     }
     let read = unsafe { OwnedHandle::from_raw_handle(read.cast()) };

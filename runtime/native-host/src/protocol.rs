@@ -198,7 +198,7 @@ impl BeginOperation {
             return invalid("argv exceeds hard count ceiling");
         }
         for arg in &self.argv {
-            if arg.as_bytes().len() > MAX_ARG_BYTES {
+            if arg.len() > MAX_ARG_BYTES {
                 return invalid("argv element exceeds hard byte ceiling");
             }
             if arg.contains('\0') {
@@ -217,11 +217,11 @@ impl BeginOperation {
             if name.contains('=') || name.contains('\0') {
                 return invalid("environment name contains forbidden character");
             }
-            if value.contains('\0') || value.as_bytes().len() > MAX_ENV_VALUE_BYTES {
+            if value.contains('\0') || value.len() > MAX_ENV_VALUE_BYTES {
                 return invalid("environment value exceeds bounds");
             }
             total_values = total_values
-                .checked_add(value.as_bytes().len())
+                .checked_add(value.len())
                 .ok_or_else(|| ProtocolError::InvalidMessage("environment size overflow".into()))?;
         }
         if total_values > MAX_ENV_VALUE_BYTES_TOTAL {
@@ -259,7 +259,7 @@ impl CancelOperation {
 }
 
 fn validate_identifier(name: &str, value: &str) -> Result<(), ProtocolError> {
-    if value.is_empty() || value.as_bytes().len() > MAX_IDENTIFIER_BYTES {
+    if value.is_empty() || value.len() > MAX_IDENTIFIER_BYTES {
         return Err(ProtocolError::InvalidMessage(format!(
             "{name} exceeds identifier bounds"
         )));

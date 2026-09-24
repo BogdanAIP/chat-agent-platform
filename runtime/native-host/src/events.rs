@@ -97,6 +97,7 @@ pub enum TerminalReason {
     ProtocolViolation,
     OutputFailure,
     LifecycleFailure,
+    #[cfg(not(windows))]
     UnsupportedPlatform,
     TreeExited,
 }
