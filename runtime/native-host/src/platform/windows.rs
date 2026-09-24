@@ -650,7 +650,7 @@ fn quote_windows_arg(arg: &str) -> String {
         return arg.to_owned();
     }
 
-    let mut result = String::from(""");
+    let mut result = String::from("\"");
     let mut backslashes = 0_usize;
     for ch in arg.chars() {
         match ch {
@@ -820,8 +820,8 @@ mod tests {
     #[test]
     fn quoting_round_trips_common_windows_arguments_shape() {
         assert_eq!(quote_windows_arg("simple"), "simple");
-        assert_eq!(quote_windows_arg(""), """");
-        assert_eq!(quote_windows_arg("a b"), ""a b"");
+        assert_eq!(quote_windows_arg(""), "\"\"");
+        assert_eq!(quote_windows_arg("a b"), "\"a b\"");
         assert_eq!(quote_windows_arg(r#"a"b"#), r#""a\"b""#);
     }
 

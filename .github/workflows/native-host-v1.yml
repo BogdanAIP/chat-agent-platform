@@ -1,1 +1,65 @@
-name: Native Host v1\n\n"on":\n  pull_request:\n    paths:\n      - "runtime/native-host/**"\n      - ".github/workflows/native-host-v1.yml"\n      - "project-context/NATIVE_HOST_V1_RUST_REENTRY.md"\n  workflow_dispatch:\n\nconcurrency:\n  group: native-host-v1-${{ github.event.pull_request.number || github.ref }}\n  cancel-in-progress: true\n\npermissions:\n  contents: read\n\njobs:\n  rust-windows:\n    runs-on: windows-latest\n    timeout-minutes: 15\n    defaults:\n      run:\n        working-directory: runtime/native-host\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\n        with:\n          persist-credentials: false\n\n      - name: Install exact Rust toolchain\n        shell: pwsh\n        run: |\n          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy\n          if ($LASTEXITCODE -ne 0) { throw "rustup failed with exit code $LASTEXITCODE" }\n          rustc +1.98.1 --version --verbose\n          cargo +1.98.1 --version\n\n      - name: Generate dependency lock evidence\n        shell: pwsh\n        run: |\n          cargo +1.98.1 generate-lockfile\n          if ($LASTEXITCODE -ne 0) { throw "cargo generate-lockfile failed with exit code $LASTEXITCODE" }\n          Get-Content Cargo.lock -Raw\n\n      - name: Rust formatting\n        shell: pwsh\n        run: |\n          cargo +1.98.1 fmt --check\n          if ($LASTEXITCODE -ne 0) { throw "cargo fmt failed with exit code $LASTEXITCODE" }\n\n      - name: Rust tests\n        shell: pwsh\n        env:\n          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"\n        run: |\n          cargo +1.98.1 test --all-targets\n          if ($LASTEXITCODE -ne 0) { throw "cargo test failed with exit code $LASTEXITCODE" }\n\n      - name: Rust clippy\n        shell: pwsh\n        env:\n          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"\n        run: |\n          cargo +1.98.1 clippy --all-targets -- -D warnings\n          if ($LASTEXITCODE -ne 0) { throw "cargo clippy failed with exit code $LASTEXITCODE" }\n
+name: Native Host v1
+
+"on":
+  pull_request:
+    paths:
+      - "runtime/native-host/**"
+      - ".github/workflows/native-host-v1.yml"
+      - "project-context/NATIVE_HOST_V1_RUST_REENTRY.md"
+  workflow_dispatch:
+
+concurrency:
+  group: native-host-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: runtime/native-host
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install exact Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          if ($LASTEXITCODE -ne 0) { throw "rustup failed with exit code $LASTEXITCODE" }
+          rustc +1.98.1 --version --verbose
+          cargo +1.98.1 --version
+
+      - name: Generate dependency lock evidence
+        shell: pwsh
+        run: |
+          cargo +1.98.1 generate-lockfile
+          if ($LASTEXITCODE -ne 0) { throw "cargo generate-lockfile failed with exit code $LASTEXITCODE" }
+          Get-Content Cargo.lock -Raw
+
+      - name: Rust formatting
+        shell: pwsh
+        run: |
+          cargo +1.98.1 fmt --check
+          if ($LASTEXITCODE -ne 0) { throw "cargo fmt failed with exit code $LASTEXITCODE" }
+
+      - name: Rust tests
+        shell: pwsh
+        env:
+          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"
+        run: |
+          cargo +1.98.1 test --all-targets
+          if ($LASTEXITCODE -ne 0) { throw "cargo test failed with exit code $LASTEXITCODE" }
+
+      - name: Rust clippy
+        shell: pwsh
+        env:
+          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.sha }}"
+        run: |
+          cargo +1.98.1 clippy --all-targets -- -D warnings
+          if ($LASTEXITCODE -ne 0) { throw "cargo clippy failed with exit code $LASTEXITCODE" }
