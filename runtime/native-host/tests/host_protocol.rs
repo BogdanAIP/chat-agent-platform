@@ -35,11 +35,21 @@ fn executes_one_contained_process_and_reports_terminal_receipt() {
     let (terminal, events) = host.collect_until_terminal(EVENT_TIMEOUT);
     host.wait_success();
 
-    assert!(events.iter().any(|event| event["type"] == "operation_prepared"));
-    assert!(events.iter().any(|event| event["type"] == "process_spawned"));
-    assert!(events.iter().any(|event| {
-        event["type"] == "output_chunk" && event["stream"] == "stdout"
-    }));
+    assert!(
+        events
+            .iter()
+            .any(|event| event["type"] == "operation_prepared")
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| event["type"] == "process_spawned")
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| { event["type"] == "output_chunk" && event["stream"] == "stdout" })
+    );
     assert_eq!(terminal["delivery_state"], "tree_exited");
     assert_eq!(terminal["reason"], "tree_exited");
     assert_eq!(terminal["target_ever_runnable"], true);
@@ -281,10 +291,7 @@ fn begin_message(
     let executable = system32.join("cmd.exe");
     let mut env = BTreeMap::new();
     env.insert("SystemRoot".to_owned(), system_root);
-    env.insert(
-        "PATH".to_owned(),
-        system32.to_string_lossy().into_owned(),
-    );
+    env.insert("PATH".to_owned(), system32.to_string_lossy().into_owned());
 
     json!({
         "type": "begin_operation",
