@@ -225,12 +225,8 @@ fn test_helper_tree_keeps_job_active_after_root_exit() {
     let elapsed = started.elapsed();
     host.wait_success();
 
-    let root_index = events
-        .iter()
-        .position(|event| event["type"] == "root_exited")
-        .expect("root_exited event");
     assert!(
-        root_index + 1 <= events.len(),
+        events.iter().any(|event| event["type"] == "root_exited"),
         "root exit must be observed before terminal"
     );
     assert!(
