@@ -256,11 +256,9 @@ pub fn run_operation(
             if active == 0 {
                 break;
             }
-            if termination_started_at
-                .is_some_and(|termination_started| {
-                    termination_started.elapsed() >= TERMINATION_QUIESCE_TIMEOUT
-                })
-            {
+            if termination_started_at.is_some_and(|termination_started| {
+                termination_started.elapsed() >= TERMINATION_QUIESCE_TIMEOUT
+            }) {
                 delivery_state = Some(DeliveryState::HostFailureAfterStart);
                 terminal_reason = Some(TerminalReason::LifecycleFailure);
                 output_complete = false;
