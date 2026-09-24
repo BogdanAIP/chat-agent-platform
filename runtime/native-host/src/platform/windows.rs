@@ -899,14 +899,16 @@ fn receive_stream_summary(
     stream: &str,
 ) -> Result<StreamSummary, String> {
     let remaining = deadline.saturating_duration_since(Instant::now());
-    receiver.recv_timeout(remaining).map_err(|error| match error {
-        RecvTimeoutError::Timeout => {
-            format!("{stream} output reader did not quiesce within bounded drain timeout")
-        }
-        RecvTimeoutError::Disconnected => {
-            format!("{stream} output reader exited without a summary")
-        }
-    })
+    receiver
+        .recv_timeout(remaining)
+        .map_err(|error| match error {
+            RecvTimeoutError::Timeout => {
+                format!("{stream} output reader did not quiesce within bounded drain timeout")
+            }
+            RecvTimeoutError::Disconnected => {
+                format!("{stream} output reader exited without a summary")
+            }
+        })
 }
 
 fn digest_hex(bytes: &[u8]) -> String {
