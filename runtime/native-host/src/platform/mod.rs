@@ -9,6 +9,8 @@ pub enum ControlSignal {
     ProtocolViolation(String),
 }
 
+mod startup;
+
 #[cfg(windows)]
 mod windows;
 

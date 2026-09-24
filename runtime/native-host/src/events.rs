@@ -84,7 +84,7 @@ pub enum DeliveryState {
     HostFailureAfterStart,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminalReason {
     InvalidBounds,

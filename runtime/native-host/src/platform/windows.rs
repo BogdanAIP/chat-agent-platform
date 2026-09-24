@@ -1,4 +1,8 @@
 use super::ControlSignal;
+use super::startup::NativeStartupBackend;
+use super::startup::StartupFailure;
+use super::startup::prepare_native_startup;
+use super::startup::start_native_startup;
 use crate::events::DeliveryState;
 use crate::events::EventSink;
 use crate::events::TerminalReason;
@@ -77,37 +81,18 @@ pub fn run_operation(
         return emit_never_runnable(sink, TerminalReason::InvalidBounds, true);
     }
 
-    let prepared = match PreparedOperation::new() {
+    let mut backend = Win32StartupBackend;
+    let prepared = match prepare_native_startup(&mut backend) {
         Ok(prepared) => prepared,
-        Err(error) => {
-            eprintln!("native-host preparation failed: {}", error.error);
-            return emit_never_runnable(sink, error.reason, error.tree_quiescent);
-        }
+        Err(failure) => return report_startup_failure(sink, failure),
     };
     sink.operation_prepared()
         .map_err(|error| error.to_string())?;
 
-    let mut child = match prepared.spawn(begin) {
+    let mut child = match start_native_startup(&mut backend, prepared, begin, &control) {
         Ok(child) => child,
-        Err(error) => {
-            eprintln!("native-host suspended spawn failed: {}", error.error);
-            return emit_never_runnable(sink, error.reason, error.tree_quiescent);
-        }
+        Err(failure) => return report_startup_failure(sink, failure),
     };
-
-    if let Some(reason) = pre_resume_terminal_reason(&control) {
-        child.job.terminate().map_err(|error| error.to_string())?;
-        let tree_quiescent =
-            wait_for_job_quiescent(&child.job, TERMINATION_QUIESCE_TIMEOUT).unwrap_or(false);
-        return emit_never_runnable(sink, reason, tree_quiescent);
-    }
-
-    if let Err(error) = child.resume() {
-        eprintln!("native-host process resume failed: {error}");
-        let tree_quiescent =
-            wait_for_job_quiescent(&child.job, TERMINATION_QUIESCE_TIMEOUT).unwrap_or(false);
-        return emit_never_runnable(sink, TerminalReason::ProcessResumeFailed, tree_quiescent);
-    }
 
     // This event is the protocol linearization point for "target may have run".
     // Emit it synchronously before output readers can publish any child bytes.
@@ -317,17 +302,17 @@ fn emit_never_runnable(
     .map_err(|error| error.to_string())
 }
 
-fn pre_resume_terminal_reason(control: &Receiver<ControlSignal>) -> Option<TerminalReason> {
-    match control.try_recv() {
-        Ok(ControlSignal::Cancel) => Some(TerminalReason::Cancelled),
-        Ok(ControlSignal::OwnerLost) => Some(TerminalReason::OwnerLost),
-        Ok(ControlSignal::ProtocolViolation(message)) => {
-            eprintln!("native-host protocol violation before resume: {message}");
-            Some(TerminalReason::ProtocolRejected)
-        }
-        Err(mpsc::TryRecvError::Empty) => None,
-        Err(mpsc::TryRecvError::Disconnected) => Some(TerminalReason::OwnerLost),
+fn report_startup_failure(
+    sink: &EventSink,
+    failure: StartupFailure<io::Error>,
+) -> Result<(), String> {
+    if let Some(error) = failure.error {
+        eprintln!("native-host startup failed: {error}");
     }
+    if let Some(detail) = failure.detail {
+        eprintln!("native-host startup rejected: {detail}");
+    }
+    emit_never_runnable(sink, failure.reason, failure.tree_quiescent)
 }
 
 fn terminate_for_reason(
@@ -386,19 +371,13 @@ struct PreparedOperation {
 }
 
 impl PreparedOperation {
-    fn new() -> Result<Self, PreparationFailure> {
-        let job = JobObject::new().map_err(PreparationFailure::job)?;
-        let (stdin_read, stdin_write) = create_pipe_pair().map_err(PreparationFailure::internal)?;
-        let (stdout_read, stdout_write) =
-            create_pipe_pair().map_err(PreparationFailure::internal)?;
-        let (stderr_read, stderr_write) =
-            create_pipe_pair().map_err(PreparationFailure::internal)?;
-        clear_inherit(stdin_write.as_raw_handle() as HANDLE)
-            .map_err(PreparationFailure::internal)?;
-        clear_inherit(stdout_read.as_raw_handle() as HANDLE)
-            .map_err(PreparationFailure::internal)?;
-        clear_inherit(stderr_read.as_raw_handle() as HANDLE)
-            .map_err(PreparationFailure::internal)?;
+    fn new(job: JobObject) -> io::Result<Self> {
+        let (stdin_read, stdin_write) = create_pipe_pair()?;
+        let (stdout_read, stdout_write) = create_pipe_pair()?;
+        let (stderr_read, stderr_write) = create_pipe_pair()?;
+        clear_inherit(stdin_write.as_raw_handle() as HANDLE)?;
+        clear_inherit(stdout_read.as_raw_handle() as HANDLE)?;
+        clear_inherit(stderr_read.as_raw_handle() as HANDLE)?;
         Ok(Self {
             job,
             stdin_read,
@@ -410,7 +389,7 @@ impl PreparedOperation {
         })
     }
 
-    fn spawn(self, begin: &BeginOperation) -> Result<ContainedProcess, SpawnFailure> {
+    fn create_suspended(self, begin: &BeginOperation) -> io::Result<SuspendedProcess> {
         let mut command_line: Vec<u16> = build_command_line(&begin.executable, &begin.argv)
             .encode_utf16()
             .chain(std::iter::once(0))
@@ -428,11 +407,8 @@ impl PreparedOperation {
             self.stdout_write.as_raw_handle() as HANDLE,
             self.stderr_write.as_raw_handle() as HANDLE,
         ];
-
-        let mut attributes = ProcThreadAttributes::new(1).map_err(SpawnFailure::internal)?;
-        attributes
-            .set_handle_list(&child_handles)
-            .map_err(SpawnFailure::internal)?;
+        let mut attributes = ProcThreadAttributes::new(1)?;
+        attributes.set_handle_list(&child_handles)?;
 
         let mut startup: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
         startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
@@ -463,61 +439,77 @@ impl PreparedOperation {
             )
         };
         if created == 0 {
-            return Err(SpawnFailure::process_create(io::Error::last_os_error()));
+            return Err(io::Error::last_os_error());
         }
 
         let process = unsafe { OwnedHandle::from_raw_handle(process_information.hProcess.cast()) };
-        let thread_handle =
+        let thread =
             unsafe { OwnedHandle::from_raw_handle(process_information.hThread.cast()) };
-
-        if unsafe {
-            AssignProcessToJobObject(
-                self.job.handle.as_raw_handle() as HANDLE,
-                process.as_raw_handle() as HANDLE,
-            )
-        } == 0
-        {
-            let error = io::Error::last_os_error();
-            let terminated = unsafe {
-                TerminateProcess(process.as_raw_handle() as HANDLE, TERMINATION_EXIT_CODE)
-            };
-            let wait = if terminated != 0 {
-                unsafe { WaitForSingleObject(process.as_raw_handle() as HANDLE, 5_000) }
-            } else {
-                WAIT_TIMEOUT
-            };
-            return Err(SpawnFailure::job_assign(
-                error,
-                terminated != 0 && wait == WAIT_OBJECT_0,
-            ));
-        }
 
         drop(self.stdin_read);
         drop(self.stdout_write);
         drop(self.stderr_write);
         drop(self.stdin_write);
 
-        Ok(ContainedProcess {
+        Ok(SuspendedProcess {
             job: self.job,
             process,
-            thread: Some(thread_handle),
+            thread: Some(thread),
             process_id: process_information.dwProcessId,
             stdout: Some(File::from(self.stdout_read)),
             stderr: Some(File::from(self.stderr_read)),
+            assigned: false,
         })
     }
 }
 
-struct ContainedProcess {
+struct SuspendedProcess {
     job: JobObject,
     process: OwnedHandle,
     thread: Option<OwnedHandle>,
     process_id: u32,
     stdout: Option<File>,
     stderr: Option<File>,
+    assigned: bool,
 }
 
-impl ContainedProcess {
+impl SuspendedProcess {
+    fn assign_to_job(&mut self) -> io::Result<()> {
+        if unsafe {
+            AssignProcessToJobObject(
+                self.job.handle.as_raw_handle() as HANDLE,
+                self.process.as_raw_handle() as HANDLE,
+            )
+        } == 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        self.assigned = true;
+        Ok(())
+    }
+
+    fn terminate_and_reap(&self) -> bool {
+        if self.assigned {
+            if self.job.terminate().is_err() {
+                return false;
+            }
+            return wait_for_job_quiescent(&self.job, TERMINATION_QUIESCE_TIMEOUT)
+                .unwrap_or(false);
+        }
+
+        let terminated = unsafe {
+            TerminateProcess(
+                self.process.as_raw_handle() as HANDLE,
+                TERMINATION_EXIT_CODE,
+            )
+        };
+        if terminated == 0 {
+            return false;
+        }
+        unsafe { WaitForSingleObject(self.process.as_raw_handle() as HANDLE, 5_000) }
+            == WAIT_OBJECT_0
+    }
+
     fn resume(&mut self) -> io::Result<()> {
         let thread = self
             .thread
@@ -525,14 +517,82 @@ impl ContainedProcess {
             .ok_or_else(|| io::Error::other("primary thread handle missing"))?;
         let result = unsafe { ResumeThread(thread.as_raw_handle() as HANDLE) };
         if result == u32::MAX {
-            let error = io::Error::last_os_error();
-            let _ = self.job.terminate();
-            return Err(error);
+            return Err(io::Error::last_os_error());
         }
         drop(thread);
         Ok(())
     }
 
+    fn into_contained(self) -> ContainedProcess {
+        debug_assert!(self.assigned);
+        ContainedProcess {
+            job: self.job,
+            process: self.process,
+            process_id: self.process_id,
+            stdout: self.stdout,
+            stderr: self.stderr,
+        }
+    }
+}
+
+struct Win32StartupBackend;
+
+impl NativeStartupBackend for Win32StartupBackend {
+    type Job = JobObject;
+    type Prepared = PreparedOperation;
+    type Suspended = SuspendedProcess;
+    type Started = ContainedProcess;
+    type Error = io::Error;
+
+    fn create_job(&mut self) -> Result<Self::Job, Self::Error> {
+        JobObject::create()
+    }
+
+    fn configure_job(&mut self, job: &Self::Job) -> Result<(), Self::Error> {
+        job.configure_kill_on_close()
+    }
+
+    fn prepare_io(&mut self, job: Self::Job) -> Result<Self::Prepared, Self::Error> {
+        PreparedOperation::new(job)
+    }
+
+    fn create_process_suspended(
+        &mut self,
+        prepared: Self::Prepared,
+        begin: &BeginOperation,
+    ) -> Result<Self::Suspended, Self::Error> {
+        prepared.create_suspended(begin)
+    }
+
+    fn assign_process_to_job(
+        &mut self,
+        child: &mut Self::Suspended,
+    ) -> Result<(), Self::Error> {
+        child.assign_to_job()
+    }
+
+    fn terminate_and_reap(&mut self, child: &mut Self::Suspended) -> bool {
+        child.terminate_and_reap()
+    }
+
+    fn resume_primary_thread(&mut self, child: &mut Self::Suspended) -> Result<(), Self::Error> {
+        child.resume()
+    }
+
+    fn into_started(&mut self, child: Self::Suspended) -> Self::Started {
+        child.into_contained()
+    }
+}
+
+struct ContainedProcess {
+    job: JobObject,
+    process: OwnedHandle,
+    process_id: u32,
+    stdout: Option<File>,
+    stderr: Option<File>,
+}
+
+impl ContainedProcess {
     fn root_exit_code(&self) -> io::Result<Option<u32>> {
         let wait = unsafe { WaitForSingleObject(self.process.as_raw_handle() as HANDLE, 0) };
         match wait {
@@ -560,26 +620,31 @@ struct JobObject {
 }
 
 impl JobObject {
-    fn new() -> io::Result<Self> {
+    fn create() -> io::Result<Self> {
         let raw = unsafe { CreateJobObjectW(ptr::null(), ptr::null()) };
         if raw.is_null() {
             return Err(io::Error::last_os_error());
         }
         let handle = unsafe { OwnedHandle::from_raw_handle(raw.cast()) };
+        Ok(Self { handle })
+    }
+
+    fn configure_kill_on_close(&self) -> io::Result<()> {
         let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
         limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
         let configured = unsafe {
             SetInformationJobObject(
-                handle.as_raw_handle() as HANDLE,
+                self.handle.as_raw_handle() as HANDLE,
                 JobObjectExtendedLimitInformation,
                 ptr::addr_of_mut!(limits).cast::<c_void>(),
                 size_of_val(&limits) as u32,
             )
         };
         if configured == 0 {
-            return Err(io::Error::last_os_error());
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
         }
-        Ok(Self { handle })
     }
 
     fn terminate(&self) -> io::Result<()> {
@@ -743,64 +808,6 @@ fn quote_windows_arg(arg: &str) -> String {
     result.extend(std::iter::repeat_n('\\', backslashes * 2));
     result.push('"');
     result
-}
-
-#[derive(Debug)]
-struct PreparationFailure {
-    reason: TerminalReason,
-    error: io::Error,
-    tree_quiescent: bool,
-}
-
-impl PreparationFailure {
-    fn job(error: io::Error) -> Self {
-        Self {
-            reason: TerminalReason::JobCreateFailed,
-            error,
-            tree_quiescent: true,
-        }
-    }
-
-    fn internal(error: io::Error) -> Self {
-        Self {
-            reason: TerminalReason::HostInternalFailure,
-            error,
-            tree_quiescent: true,
-        }
-    }
-}
-
-#[derive(Debug)]
-struct SpawnFailure {
-    reason: TerminalReason,
-    error: io::Error,
-    tree_quiescent: bool,
-}
-
-impl SpawnFailure {
-    fn internal(error: io::Error) -> Self {
-        Self {
-            reason: TerminalReason::HostInternalFailure,
-            error,
-            tree_quiescent: true,
-        }
-    }
-
-    fn process_create(error: io::Error) -> Self {
-        Self {
-            reason: TerminalReason::ProcessCreateFailed,
-            error,
-            tree_quiescent: true,
-        }
-    }
-
-    fn job_assign(error: io::Error, tree_quiescent: bool) -> Self {
-        Self {
-            reason: TerminalReason::JobAssignFailed,
-            error,
-            tree_quiescent,
-        }
-    }
 }
 
 enum OutputSignal {
