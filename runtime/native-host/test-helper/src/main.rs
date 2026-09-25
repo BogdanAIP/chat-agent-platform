@@ -4,9 +4,11 @@ use std::env;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io;
+use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
+use std::process::Stdio;
 use std::thread;
 use std::time::Duration;
 use std::time::Instant;
@@ -61,6 +63,7 @@ fn run() -> Result<(), String> {
             }
         }
         "probe-handle" => probe_handle(&rest)?,
+        "owner-host" => owner_host(&rest)?,
         "wait-file-exit" => {
             let ready = required(&rest, "--ready-file")?;
             let go = required(&rest, "--go-file")?;
@@ -78,6 +81,59 @@ fn run() -> Result<(), String> {
         _ => return Err(format!("unknown mode {mode:?}")),
     }
     Ok(())
+}
+
+fn owner_host(args: &[String]) -> Result<(), String> {
+    let host_exe = required(args, "--host-exe")?;
+    let begin_json = required(args, "--begin-json")?;
+    let ready_file = required(args, "--ready-file")?;
+    let host_pid_file = required(args, "--host-pid-file")?;
+    let mut host = Command::new(host_exe)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(io_error)?;
+    fs::write(host_pid_file, host.id().to_string()).map_err(io_error)?;
+
+    let stdout = host.stdout.as_mut().ok_or("host stdout missing")?;
+    let hello = read_frame(stdout)?;
+    if !hello.contains("\"type\":\"host_hello\"") {
+        return Err("host did not greet owner".into());
+    }
+    let stdin = host.stdin.as_mut().ok_or("host stdin missing")?;
+    let payload = begin_json.as_bytes();
+    stdin
+        .write_all(&(payload.len() as u32).to_be_bytes())
+        .and_then(|_| stdin.write_all(payload))
+        .and_then(|_| stdin.flush())
+        .map_err(io_error)?;
+
+    loop {
+        let event = read_frame(stdout)?;
+        if event.contains("\"type\":\"process_spawned\"") {
+            break;
+        }
+        if event.contains("\"type\":\"operation_terminal\"") {
+            return Err("host terminated before spawning target".into());
+        }
+    }
+    fs::write(ready_file, b"target-spawned").map_err(io_error)?;
+    loop {
+        thread::sleep(Duration::from_secs(1));
+    }
+}
+
+fn read_frame(reader: &mut impl Read) -> Result<String, String> {
+    let mut length = [0_u8; 4];
+    reader.read_exact(&mut length).map_err(io_error)?;
+    let length = u32::from_be_bytes(length) as usize;
+    if !(1..=262_144).contains(&length) {
+        return Err("host frame length outside bounds".into());
+    }
+    let mut payload = vec![0_u8; length];
+    reader.read_exact(&mut payload).map_err(io_error)?;
+    String::from_utf8(payload).map_err(|error| error.to_string())
 }
 
 fn tree_mode(args: &[String]) -> Result<(), String> {

@@ -68,7 +68,6 @@ use windows_sys::Win32::System::Threading::UpdateProcThreadAttribute;
 use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
 const TERMINATION_EXIT_CODE: u32 = 0xCA01;
-const STILL_ACTIVE_EXIT_CODE: u32 = 259;
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
 const TERMINATION_QUIESCE_TIMEOUT: Duration = Duration::from_secs(5);
 const OUTPUT_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
@@ -605,11 +604,9 @@ impl ContainedProcess {
                 {
                     return Err(io::Error::last_os_error());
                 }
-                if code == STILL_ACTIVE_EXIT_CODE {
-                    Ok(None)
-                } else {
-                    Ok(Some(code))
-                }
+                // The process handle is signaled, so even 259 (STILL_ACTIVE)
+                // is now the child's actual exit code.
+                Ok(Some(code))
             }
             _ => Err(io::Error::last_os_error()),
         }

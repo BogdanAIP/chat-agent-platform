@@ -5,6 +5,9 @@ use serde_json::json;
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::io::Write;
+use std::os::windows::io::AsRawHandle;
+use std::os::windows::io::FromRawHandle;
+use std::os::windows::io::OwnedHandle;
 use std::path::PathBuf;
 use std::process::Child;
 use std::process::ChildStdin;
@@ -15,6 +18,10 @@ use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
 use std::time::Instant;
+use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
+use windows_sys::Win32::System::Threading::OpenProcess;
+use windows_sys::Win32::System::Threading::PROCESS_SYNCHRONIZE;
+use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
 const MAX_FRAME: usize = 262_144;
 const EVENT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -137,6 +144,129 @@ fn owner_eof_terminates_active_tree() {
     assert_eq!(terminal["reason"], "owner_lost");
     assert_eq!(terminal["target_ever_runnable"], true);
     assert_eq!(terminal["tree_quiescent"], true);
+}
+
+#[test]
+fn owner_process_death_reaps_descendants() {
+    let helper = std::env::var("CAP_NATIVE_HOST_TEST_HELPER").expect("CAP_NATIVE_HOST_TEST_HELPER");
+    let unique = format!(
+        "cap-native-host-owner-death-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos()
+    );
+    let dir = std::env::temp_dir().join(unique);
+    std::fs::create_dir(&dir).expect("create owner-death test dir");
+    let tree_pids = dir.join("tree-pids.txt");
+    let host_pid = dir.join("host-pid.txt");
+    let ready = dir.join("ready.txt");
+    let tree_pid_arg = tree_pids.to_string_lossy().into_owned();
+    let begin = begin_custom_message(
+        "owner-death-request",
+        "owner-death-attempt",
+        &helper,
+        &[
+            "tree",
+            "--pid-file",
+            &tree_pid_arg,
+            "--root-exit-after-ms",
+            "never",
+            "--child-ms",
+            "30000",
+            "--grandchild-ms",
+            "30000",
+        ],
+        LONG_RUNTIME_MS,
+        65_536,
+    );
+
+    let mut owner = OwnerProcess(
+        Command::new(&helper)
+            .arg("owner-host")
+            .arg("--host-exe")
+            .arg(env!("CARGO_BIN_EXE_cap-native-host"))
+            .arg("--begin-json")
+            .arg(begin.to_string())
+            .arg("--ready-file")
+            .arg(&ready)
+            .arg("--host-pid-file")
+            .arg(&host_pid)
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("start separate owner process"),
+    );
+
+    let deadline = Instant::now() + EVENT_TIMEOUT;
+    let pids = loop {
+        if ready.exists()
+            && let (Ok(host), Ok(tree)) = (
+                std::fs::read_to_string(&host_pid),
+                std::fs::read_to_string(&tree_pids),
+            )
+        {
+            let pids: Vec<_> = std::iter::once(("host", host.trim().parse::<u32>().ok()))
+                .chain(["root", "child", "grandchild"].map(|role| {
+                    let prefix = format!("{role}=");
+                    let pid = tree
+                        .lines()
+                        .find_map(|line| line.strip_prefix(&prefix))
+                        .and_then(|value| value.parse::<u32>().ok());
+                    (role, pid)
+                }))
+                .collect();
+            if pids.iter().all(|(_, pid)| pid.is_some()) {
+                break pids;
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "owner and full process tree did not start: {:?}",
+            owner.0.try_wait()
+        );
+        thread::sleep(Duration::from_millis(20));
+    };
+
+    // Open the processes before killing their owner, so PID reuse cannot
+    // make a later liveness check appear to pass or fail for the wrong tree.
+    let processes: Vec<_> = pids
+        .into_iter()
+        .map(|(role, pid)| {
+            let pid = pid.expect("complete PID evidence");
+            let handle = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
+            assert!(!handle.is_null(), "cannot open {role} process {pid}");
+            let handle = unsafe { OwnedHandle::from_raw_handle(handle.cast()) };
+            assert_ne!(
+                unsafe { WaitForSingleObject(handle.as_raw_handle().cast(), 0) },
+                WAIT_OBJECT_0,
+                "{role} exited before owner death"
+            );
+            (role, handle)
+        })
+        .collect();
+
+    owner.0.kill().expect("kill the separate owner process");
+    owner.0.wait().expect("reap owner process");
+    for (role, handle) in processes {
+        assert_eq!(
+            unsafe { WaitForSingleObject(handle.as_raw_handle().cast(), 8_000) },
+            WAIT_OBJECT_0,
+            "{role} survived owner death"
+        );
+    }
+    std::fs::remove_dir_all(dir).expect("remove owner-death test dir");
+}
+
+struct OwnerProcess(Child);
+
+impl Drop for OwnerProcess {
+    fn drop(&mut self) {
+        if self.0.try_wait().ok().flatten().is_none() {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
 }
 
 #[test]
@@ -319,6 +449,30 @@ fn test_helper_binary_output_is_reported_complete() {
     assert_eq!(terminal["stderr_bytes"], 33_000);
     assert_eq!(terminal["output_complete"], true);
     assert_eq!(terminal["reason"], "tree_exited");
+}
+
+#[test]
+fn signaled_process_with_exit_code_259_reports_its_actual_code() {
+    let helper = std::env::var("CAP_NATIVE_HOST_TEST_HELPER").expect("CAP_NATIVE_HOST_TEST_HELPER");
+    let mut host = HostHarness::spawn();
+    host.send(&begin_custom_message(
+        "exit-259-request",
+        "exit-259-attempt",
+        &helper,
+        &["exit", "--code", "259"],
+        10_000,
+        65_536,
+    ));
+
+    let (terminal, events) = host.collect_until_terminal(EVENT_TIMEOUT);
+    host.wait_success();
+
+    assert!(events.iter().any(|event| {
+        event["type"] == "root_exited" && event["root_exit_code"] == 259
+    }));
+    assert_eq!(terminal["reason"], "tree_exited");
+    assert_eq!(terminal["root_exit_code"], 259);
+    assert_eq!(terminal["tree_quiescent"], true);
 }
 
 #[test]
