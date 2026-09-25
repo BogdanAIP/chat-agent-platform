@@ -122,6 +122,23 @@ output path, and use a fresh disposable pair for each candidate run. For
 non-file effects, use independent fresh UI/application-state evidence instead
 of treating this file comparator as a universal verifier.
 
+`runtime/windows/winapp_candidate.py` adds a separate **internal, unwired**
+`StructuralExecutor` candidate for one WinApp UIA `InvokePattern` action. It
+consumes an existing CAP `DesktopClickRequest`, exact-window `DesktopState` and
+uniquely observed control. The caller must supply a fresh CAP window observer,
+an absolute path to a deliberately installed `winapp.exe`, and CAP authority
+before invoking it. It checks HWND/PID/process name, searches within `-w`,
+matches the control's identity and physical bounds, then re-observes CAP state
+and checks the HWND again before one `--action invoke` call. Upstream WinApp
+scrubs per-element HWND from search JSON; the `-w` scope and status checks are
+the independent window binding. A matching CLI response yields delivery only,
+with `outcome_verified=false`. Once `invoke` starts, timeout, error or a wrong
+response is an uncertain effect and must be reconciled before any new action.
+There is no retry or public Chat/Host route. Offline contract tests run with
+`python -m unittest tests.test_winapp_candidate`. Windows 10 execution, the
+installed binary's provenance, supported application families, CAP grant
+integration and independently verified effects remain physical/review gates.
+
 `--check` validates the manifest and existing project file anchors. Command
 presence on `PATH` is informational; it does not check installed versions,
 authenticity, licenses of transitive dependencies, interactive session access
