@@ -74,9 +74,15 @@ class WinAppCandidateTests(unittest.TestCase):
         )
 
     def candidate(self, cli, *, observe=None):
+        def fresh_observation():
+            # Windows may return the same wall-clock tick for two quick fixture
+            # builds; make the second sample strictly newer by construction.
+            return replace(_state(), observed_at=(datetime.now(timezone.utc)
+                                                  + timedelta(milliseconds=500)).isoformat())
+
         return WinAppInvokeCandidate(
             binary=Path.cwd() / "chosen" / "winapp.exe",
-            observe_window=observe or (lambda: _state()), run_cli=cli,
+            observe_window=observe or fresh_observation, run_cli=cli,
         )
 
     def test_route_delivers_one_exact_uia_operation_without_claiming_effect(self):
@@ -112,7 +118,11 @@ class WinAppCandidateTests(unittest.TestCase):
             invoke={"elementId": "btn-save-a123", "pattern": "InvokePattern",
                     "requestedAction": "invoke", "performedAction": "invoke", "hwnd": 5678},
         )
-        candidate = self.candidate(cli, observe=lambda: _state(automation_id=""))
+        def fresh_without_id():
+            return replace(_state(automation_id=""), observed_at=(
+                datetime.now(timezone.utc) + timedelta(milliseconds=500)).isoformat())
+
+        candidate = self.candidate(cli, observe=fresh_without_id)
         receipt = candidate(replace(self.request, automation_id=None), state.controls[0], state)
         self.assertIs(receipt["outcome_verified"], False)
         self.assertEqual("Save as", cli.commands[1][2])
