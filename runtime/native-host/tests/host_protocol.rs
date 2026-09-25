@@ -467,9 +467,11 @@ fn signaled_process_with_exit_code_259_reports_its_actual_code() {
     let (terminal, events) = host.collect_until_terminal(EVENT_TIMEOUT);
     host.wait_success();
 
-    assert!(events.iter().any(|event| {
-        event["type"] == "root_exited" && event["root_exit_code"] == 259
-    }));
+    assert!(
+        events
+            .iter()
+            .any(|event| { event["type"] == "root_exited" && event["root_exit_code"] == 259 })
+    );
     assert_eq!(terminal["reason"], "tree_exited");
     assert_eq!(terminal["root_exit_code"], 259);
     assert_eq!(terminal["tree_quiescent"], true);
