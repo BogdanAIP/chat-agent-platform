@@ -94,30 +94,33 @@ Playwright server. `scripts/test-module-candidates.ps1` checks both on Windows.
 These existing profiles are included in the kit alongside the CAP product
 routes, not reimplemented by it.
 
-For the first Windows comparison, `scripts/probe-winapp-notepad.mjs` is an
-additional **read-only** probe of a manually chosen Notepad PID and HWND:
+For the generic Windows candidate, `scripts/probe-winapp-window.mjs` is an
+additional **read-only** probe of one independently chosen process image,
+PID and HWND; it has no application-specific action code:
 
 ```text
-node scripts/probe-winapp-notepad.mjs --pid <Notepad-PID> --hwnd <Notepad-HWND>
+node scripts/probe-winapp-window.mjs --pid <PID> --hwnd <HWND> --process <image.exe>
 ```
 
 It checks the HWND/PID relationship through `winapp ui status`, then reports
-only element type counts from `winapp ui inspect`; it does not read document
-text into its output or attempt the edit/Save. A matching CLI JSON shape and
-process name are prerequisites, not evidence of future mutation correctness.
+only element type counts from `winapp ui inspect`; it does not output control
+text or deliver an action. A matching CLI JSON shape and process name are
+prerequisites, not evidence of future mutation correctness.
 
 The same independent byte comparison can be applied after either Windows
 candidate has acted on a disposable file:
 
 ```text
-node scripts/check-notepad-candidate-effect.mjs --before <original-copy> --expected <independently-prepared-expected-file> --actual <saved-file> --decoy-before <decoy-copy> --decoy-after <decoy-file>
+node scripts/check-desktop-file-effect.mjs --before <original-copy> --expected <independently-prepared-expected-file> --actual <saved-file> --decoy-before <decoy-copy> --decoy-after <decoy-file>
 ```
 
 This read-only check rejects a vacuous unchanged target, wrong saved bytes and
 changes to the decoy file. It does not prove which application changed the file,
 that the intended editor window was controlled or that all side effects are
 absent. Keep the expected file and both before-copies outside the candidate's
-output path, and use a fresh disposable pair for each candidate run.
+output path, and use a fresh disposable pair for each candidate run. For
+non-file effects, use independent fresh UI/application-state evidence instead
+of treating this file comparator as a universal verifier.
 
 `--check` validates the manifest and existing project file anchors. Command
 presence on `PATH` is informational; it does not check installed versions,
@@ -127,14 +130,46 @@ candidate. Reuse source pins from the owning research/lock when a candidate is
 actually selected; unpinned reserve candidates first need exact source/test
 inspection. Do not infer release readiness from this inventory.
 
+PR #151's Desktop direction is **one reusable route for different installed
+applications**. Its first external candidate is WinApp UI Automation; the
+existing accepted CAP/OpenAdapt Case Desk procedure is a scoped comparison,
+not a universal OpenAdapt Desktop backend. This kit does not implement a
+DesktopProvider or wire a generic public mutation into CAP. Current upstream
+WinApp documentation describes typed UI commands, a machine-readable CLI
+schema, an upstream UI automation skill and opt-in workflow coordination for
+tight action chains. These features are research inputs: recheck the exact
+installed source/build before depending on them; an upstream workflow id is
+not a CAP operation/grant or effect receipt. See
+`https://github.com/microsoft/winappCli/blob/main/docs/ui-automation.md` and
+`https://github.com/microsoft/winappCli/blob/main/plugins/winapp/skills/winapp-ui-automation/SKILL.md`.
+
+Prepare a **finite chain-first Desktop matrix**, not a separate adapter or
+lengthy isolated acceptance campaign for every application:
+
+- Keep the accepted Case Desk scenario as a regression for existing CAP
+  Windows/OpenAdapt mechanics, and use it as a common comparison target.
+- Try one disposable task each in an available Win32 app, an Electron app and
+  an installed document/Office-style app, including a standard open/save
+  dialog. Notepad may be the Win32 example; it has no special CAP role. If an
+  application family is unavailable, record it as untested rather than
+  replacing the family's result with another Notepad run.
+- For each chain: observe and bind the exact window/subject; declare the
+  bounded effect; run a short known sequence with explicit state checkpoints;
+  independently inspect the final state and relevant decoys. Batch read-only
+  discovery. Locate failures by checkpoint, then rerun only the affected
+  mechanism and its downstream effect instead of retesting every application.
+- A provider command exit code, `wait-for` or same-workflow coordination is
+  useful diagnostic evidence, not independent CAP `PASS`. If delivery or effect
+  is ambiguous, inspect fresh state before deciding to act again. Do not
+  blindly replay the chain or infer task completion from the provider result.
+
 The first comparisons to prepare while target-Windows access is unavailable:
 
-1. **Desktop:** the existing CAP/OpenAdapt Windows route and Microsoft `winapp ui`
-   perform the same bounded edit in a *pre-opened disposable Notepad file*.
-   Bind the PID/HWND and file outside model-supplied arguments; independently
-   compare saved file bytes and an untouched decoy. Inspect the actual editor
-   control before deciding between a UIA value action and guarded keyboard.
-   FlaUI/pywinauto enter only if both routes expose a measured control gap.
+1. **Desktop:** WinApp UI is the first candidate for generic multi-app
+   mechanics. Compare it with accepted CAP Windows/OpenAdapt on Case Desk,
+   then run the finite matrix above. Bind the PID/HWND outside model-supplied
+   arguments; inspect the actual control before choosing UIA or guarded
+   keyboard. FlaUI/pywinauto enter only on a measured shared-control gap.
 2. **Browser:** retain the accepted Playwright path for isolated tasks. The
    pinned Playwright MCP candidate has an existing isolated Windows smoke check;
    it is a comparison source, not a new raw public catalog. Compare BrowserSkill

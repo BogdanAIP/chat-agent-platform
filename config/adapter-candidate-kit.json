@@ -68,9 +68,9 @@
       "license": "MIT",
       "local_anchor": "runtime/control_plane/windows_case_update.py",
       "qualification_asset": "scripts/stage26-openadapt-windows-executor-qualification.ps1",
-      "effect_check": "scripts/check-notepad-candidate-effect.mjs",
-      "first_check": "Pre-opened disposable Notepad file: exact HWND/PID, one bounded edit, Save, independent file-byte and decoy check.",
-      "blocker": "Existing public procedure controls only Case Desk; Notepad requires a separate bounded consequence contract and target-Windows proof."
+      "effect_check": "scripts/check-desktop-file-effect.mjs",
+      "first_check": "Keep the accepted Case Desk procedure as a scoped regression and compare its exact-target/effect evidence with the selected generic UI route.",
+      "blocker": "Case Desk evidence does not make OpenAdapt a general public Desktop executor; new application consequences need their own bounded CAP authority and physical proof."
     },
     {
       "id": "desktop-winapp-ui",
@@ -81,10 +81,10 @@
       "source_ref": "8158d14f8940e1a23d972e729e1dcce84de423ef",
       "license": "MIT",
       "command": "winapp",
-      "qualification_asset": "scripts/probe-winapp-notepad.mjs",
-      "effect_check": "scripts/check-notepad-candidate-effect.mjs",
-      "first_check": "Same Notepad file/decoy and effect criteria as desktop-cap-openadapt; resolve exact HWND, inspect control, test applicable text action, verify file bytes.",
-      "blocker": "Process/title targeting can auto-select foreground/largest window; use independently bound HWND. Some rich editors reject set-value, so input choice needs a real control-tree check."
+      "qualification_asset": "scripts/probe-winapp-window.mjs",
+      "effect_check": "scripts/check-desktop-file-effect.mjs",
+      "first_check": "First generic Desktop candidate: run bounded observe/act/verify chains across a finite Win32, Electron, dialog and installed document-app matrix; compare on Case Desk and check independent effects.",
+      "blocker": "Pin and qualify the actual installed WinApp build, bind exact PID/HWND and selectors, and inspect each control before choosing UIA or input; generic multi-app behavior is not physically proven."
     },
     {
       "id": "desktop-flaui",

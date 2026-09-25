@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Qualification-only independent file-byte comparison after a Notepad candidate run.
+// Qualification-only independent file-byte comparison after a desktop candidate run.
 // The expected and baseline files must be prepared separately from the UI executor.
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
@@ -10,7 +10,7 @@ function argumentsFrom(argv) {
   const args = {};
   for (let index = 0; index < argv.length; index += 2) {
     if (!names.has(argv[index]) || args[argv[index]] || !argv[index + 1]) {
-      throw new Error('Usage: node scripts/check-notepad-candidate-effect.mjs --before FILE --expected FILE --actual FILE --decoy-before FILE --decoy-after FILE');
+      throw new Error('Usage: node scripts/check-desktop-file-effect.mjs --before FILE --expected FILE --actual FILE --decoy-before FILE --decoy-after FILE');
     }
     args[argv[index]] = argv[index + 1];
   }
