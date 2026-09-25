@@ -75,6 +75,128 @@ There is no accepted five/six runtime mode. Historical five-tool projection is p
 
 Six is not an eternal maximum. Any new public consequence class must use a truthful schema/security/ordinary-Chat acceptance decision rather than being hidden behind generic dispatch.
 
+## Offline adapter candidate kit
+
+`config/adapter-candidate-kit.json` lists reusable components by **role**, with a
+project status, source, first comparison and known blocker. It includes existing
+CAP paths and free external candidates; an entry is not an installed plugin, a
+public CAP tool or approval to run a new action. Use the read-only inventory:
+
+```text
+node scripts/adapter-candidate-kit.mjs --check
+node scripts/adapter-candidate-kit.mjs --role desktop --plan
+node scripts/adapter-candidate-kit.mjs --json
+```
+
+The repository already contains two pinned free MCP candidates under
+`runtime/candidates/`: a read-only filesystem server and an isolated headless
+Playwright server. `scripts/test-module-candidates.ps1` checks both on Windows.
+These existing profiles are included in the kit alongside the CAP product
+routes, not reimplemented by it.
+
+For the generic Windows candidate, `scripts/probe-winapp-window.mjs` is an
+additional **read-only** probe of one independently chosen process image,
+PID and HWND; it has no application-specific action code:
+
+```text
+node scripts/probe-winapp-window.mjs --pid <PID> --hwnd <HWND> --process <image.exe>
+```
+
+It checks the HWND/PID relationship through `winapp ui status`, then reports
+only element type counts from `winapp ui inspect`; it does not output control
+text or deliver an action. A matching CLI JSON shape and process name are
+prerequisites, not evidence of future mutation correctness.
+
+The same independent byte comparison can be applied after either Windows
+candidate has acted on a disposable file:
+
+```text
+node scripts/check-desktop-file-effect.mjs --before <original-copy> --expected <independently-prepared-expected-file> --actual <saved-file> --decoy-before <decoy-copy> --decoy-after <decoy-file>
+```
+
+This read-only check rejects a vacuous unchanged target, wrong saved bytes and
+changes to the decoy file. It does not prove which application changed the file,
+that the intended editor window was controlled or that all side effects are
+absent. Keep the expected file and both before-copies outside the candidate's
+output path, and use a fresh disposable pair for each candidate run. For
+non-file effects, use independent fresh UI/application-state evidence instead
+of treating this file comparator as a universal verifier.
+
+`--check` validates the manifest and existing project file anchors. Command
+presence on `PATH` is informational; it does not check installed versions,
+authenticity, licenses of transitive dependencies, interactive session access
+or real application behavior. The inventory does not install or launch any
+candidate. Reuse source pins from the owning research/lock when a candidate is
+actually selected; unpinned reserve candidates first need exact source/test
+inspection. Do not infer release readiness from this inventory.
+
+PR #151's Desktop direction is **one reusable route for different installed
+applications**. Its first external candidate is WinApp UI Automation; the
+existing accepted CAP/OpenAdapt Case Desk procedure is a scoped comparison,
+not a universal OpenAdapt Desktop backend. This kit does not implement a
+DesktopProvider or wire a generic public mutation into CAP. Current upstream
+WinApp documentation describes typed UI commands, a machine-readable CLI
+schema, an upstream UI automation skill and opt-in workflow coordination for
+tight action chains. These features are research inputs: recheck the exact
+installed source/build before depending on them; an upstream workflow id is
+not a CAP operation/grant or effect receipt. See
+`https://github.com/microsoft/winappCli/blob/main/docs/ui-automation.md` and
+`https://github.com/microsoft/winappCli/blob/main/plugins/winapp/skills/winapp-ui-automation/SKILL.md`.
+
+Prepare a **finite chain-first Desktop matrix**, not a separate adapter or
+lengthy isolated acceptance campaign for every application:
+
+- Keep the accepted Case Desk scenario as a regression for existing CAP
+  Windows/OpenAdapt mechanics, and use it as a common comparison target.
+- Try one disposable task each in an available Win32 app, an Electron app and
+  an installed document/Office-style app, including a standard open/save
+  dialog. Notepad may be the Win32 example; it has no special CAP role. If an
+  application family is unavailable, record it as untested rather than
+  replacing the family's result with another Notepad run.
+- For each chain: observe and bind the exact window/subject; declare the
+  bounded effect; run a short known sequence with explicit state checkpoints;
+  independently inspect the final state and relevant decoys. Batch read-only
+  discovery. Locate failures by checkpoint, then rerun only the affected
+  mechanism and its downstream effect instead of retesting every application.
+- A provider command exit code, `wait-for` or same-workflow coordination is
+  useful diagnostic evidence, not independent CAP `PASS`. If delivery or effect
+  is ambiguous, inspect fresh state before deciding to act again. Do not
+  blindly replay the chain or infer task completion from the provider result.
+
+The first comparisons to prepare while target-Windows access is unavailable:
+
+1. **Desktop:** WinApp UI is the first candidate for generic multi-app
+   mechanics. Compare it with accepted CAP Windows/OpenAdapt on Case Desk,
+   then run the finite matrix above. Bind the PID/HWND outside model-supplied
+   arguments; inspect the actual control before choosing UIA or guarded
+   keyboard. FlaUI/pywinauto enter only on a measured shared-control gap.
+2. **Browser:** retain the accepted Playwright path for isolated tasks. The
+   pinned Playwright MCP candidate has an existing isolated Windows smoke check;
+   it is a comparison source, not a new raw public catalog. Compare BrowserSkill
+   for a real authenticated user tab only after its local peer
+   authentication and borrow/return lifecycle have been qualified under PR #161.
+3. **Procedures:** compare a bounded human demonstration compiled with pinned
+   OpenAdapt Flow/Capture against fresh CAP effect evidence; a recording produces
+   at most a candidate skill, with no automatic promotion or upstream `PASS`.
+4. **Office:** start with the existing Windows route; compare free LibreOffice
+   UNO only for LibreOffice documents, and selective UFO/WinCOM mechanics for an
+   installed compatible Office application if a specific control-model gap is
+   observed. Verify the reopened document independently.
+5. **Files and other roles:** keep the pinned read-only filesystem MCP candidate
+   distinct from CAP's accepted Files route; its existing Windows candidate
+   script checks the allowed root and disabled write tools. Keep optional 1MCP
+   aggregation internal, Home Assistant in
+   its deferred physical-device research role and CCCC outside production
+   persistent sessions until its authority gap is closed. Native Host PR #176
+   supervises a bounded process operation and has no general UI/connector
+   dispatch role.
+
+These are comparison recipes, not physical results. Turning one into a new
+ordinary-Chat consequence route requires a separately researched, bounded
+operation, CAP authorization/identity/effect verification and the applicable
+review and target-Windows evidence. `ROADMAP.md` remains the release-order owner;
+PRs #151/#161/#164/#176 retain their own open research and qualification status.
+
 ## Current planner / Control Plane terminology
 
 ```text

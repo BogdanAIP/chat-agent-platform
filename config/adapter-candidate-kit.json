@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-09-25",
+  "purpose": "Offline inventory for comparing reusable components. This file installs no dependencies and grants no CAP authority.",
+  "candidates": [
+    {
+      "id": "files-cap",
+      "role": "files",
+      "component": "CAP scoped Files",
+      "status": "current_scoped",
+      "source": "project",
+      "local_anchor": "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs",
+      "first_check": "Existing workspace_read/workspace_write scope and file identity; no replacement needed."
+    },
+    {
+      "id": "browser-playwright",
+      "role": "browser",
+      "component": "CAP Browser + Playwright",
+      "status": "current_scoped",
+      "source": "project",
+      "local_anchor": "runtime/semantic-projection/bin/semantic-projection.mjs",
+      "qualification_asset": "scripts/prepare-browser-real-task-gate.ps1",
+      "first_check": "Existing isolated browser task with pre-action observation and independently checked final state."
+    },
+    {
+      "id": "browser-browserskill",
+      "role": "browser",
+      "component": "Tencent BrowserSkill",
+      "status": "research_blocked",
+      "source": "https://github.com/Tencent/BrowserSkill",
+      "source_ref": "75e2c64abaf4b7cc75682d94b0c1fd5db0cbd5e5",
+      "license": "MIT",
+      "command": "bsk",
+      "first_check": "Isolated browser before/after; then exact borrowed user tab and return with loss/denial cases.",
+      "blocker": "Pinned 0.3.0 local WebSocket accepts any extension-shaped Origin. The 0.3.1 extension tag still shows this check in ws.rs; peer authentication needs separate requalification. See PR #161."
+    },
+    {
+      "id": "browser-playwright-mcp",
+      "role": "browser",
+      "component": "Pinned @playwright/mcp@0.0.78",
+      "status": "target_qualified",
+      "source": "https://github.com/microsoft/playwright-mcp",
+      "license": "Apache-2.0",
+      "local_anchor": "runtime/candidates/playwright-headless.json",
+      "qualification_asset": "scripts/test-module-candidates.ps1",
+      "first_check": "Re-run the existing isolated browser_navigate candidate test; compare selected MCP mechanics behind CAP Browser semantics only.",
+      "blocker": "The free pinned MCP candidate was tested in isolation, not exposed as a raw public CAP browser tool catalog."
+    },
+    {
+      "id": "files-mcp-readonly",
+      "role": "files",
+      "component": "Pinned @modelcontextprotocol/server-filesystem@2026.7.10",
+      "status": "target_qualified",
+      "source": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT (filesystem server)",
+      "local_anchor": "runtime/candidates/filesystem-readonly.json",
+      "qualification_asset": "scripts/test-module-candidates.ps1",
+      "first_check": "Re-run the existing root-scoped read_text_file/list_allowed_directories test and confirm write tools stay disabled.",
+      "blocker": "An isolated candidate profile is not the canonical Files public route; directory scope/Roots behavior must be rechecked before a wider integration."
+    },
+    {
+      "id": "desktop-cap-openadapt",
+      "role": "desktop",
+      "component": "CAP Windows + pinned OpenAdapt WindowsBackend",
+      "status": "current_scoped",
+      "source": "https://github.com/OpenAdaptAI/openadapt-flow",
+      "source_ref": "d7f58d9f35c8369f16a9b378f23952d425334ad7",
+      "license": "MIT",
+      "local_anchor": "runtime/control_plane/windows_case_update.py",
+      "qualification_asset": "scripts/stage26-openadapt-windows-executor-qualification.ps1",
+      "effect_check": "scripts/check-desktop-file-effect.mjs",
+      "first_check": "Keep the accepted Case Desk procedure as a scoped regression and compare its exact-target/effect evidence with the selected generic UI route.",
+      "blocker": "Case Desk evidence does not make OpenAdapt a general public Desktop executor; new application consequences need their own bounded CAP authority and physical proof."
+    },
+    {
+      "id": "desktop-winapp-ui",
+      "role": "desktop",
+      "component": "Microsoft winapp ui / WinApp.UIAutomation",
+      "status": "comparison_candidate",
+      "source": "https://github.com/microsoft/winappCli",
+      "source_ref": "8158d14f8940e1a23d972e729e1dcce84de423ef",
+      "license": "MIT",
+      "command": "winapp",
+      "qualification_asset": "scripts/probe-winapp-window.mjs",
+      "effect_check": "scripts/check-desktop-file-effect.mjs",
+      "first_check": "First generic Desktop candidate: run bounded observe/act/verify chains across a finite Win32, Electron, dialog and installed document-app matrix; compare on Case Desk and check independent effects.",
+      "blocker": "Pin and qualify the actual installed WinApp build, bind exact PID/HWND and selectors, and inspect each control before choosing UIA or input; generic multi-app behavior is not physically proven."
+    },
+    {
+      "id": "desktop-flaui",
+      "role": "desktop",
+      "component": "FlaUI",
+      "status": "reserve_candidate",
+      "source": "https://github.com/FlaUI/FlaUI",
+      "license": "MIT",
+      "first_check": "Compare only if existing UIA and winapp ui cannot bind or operate a specific control; first pin and inspect source/tests.",
+      "blocker": "No CAP integration or exact version qualification yet."
+    },
+    {
+      "id": "desktop-pywinauto",
+      "role": "desktop",
+      "component": "pywinauto",
+      "status": "reserve_candidate",
+      "source": "https://github.com/pywinauto/pywinauto",
+      "license": "BSD-3-Clause (0.6.0+)",
+      "first_check": "Compare only against a measured UIA/Win32 control gap; first pin and inspect source/tests.",
+      "blocker": "No CAP integration or exact version qualification yet."
+    },
+    {
+      "id": "procedure-openadapt-flow",
+      "role": "procedures",
+      "component": "OpenAdapt Flow",
+      "status": "target_qualified",
+      "source": "https://github.com/OpenAdaptAI/openadapt-flow",
+      "source_ref": "d7f58d9f35c8369f16a9b378f23952d425334ad7",
+      "license": "MIT",
+      "local_anchor": "config/stage26-openadapt-lock.json",
+      "qualification_asset": "scripts/stage26-openadapt-qualification.ps1",
+      "first_check": "One bounded recording -> ProgramGraph -> replay; compare upstream effect evidence with independent CAP verification.",
+      "blocker": "Qualification of parts is not general production approval; revalidate for the concrete procedure."
+    },
+    {
+      "id": "capture-openadapt",
+      "role": "procedures",
+      "component": "OpenAdapt Capture",
+      "status": "target_qualified",
+      "source": "https://github.com/OpenAdaptAI/openadapt-capture",
+      "source_ref": "bcf12942d61d66b64d94e645e9124273a5cc5963",
+      "license": "MIT",
+      "local_anchor": "scripts/stage26-openadapt-capture-driver.py",
+      "qualification_asset": "scripts/stage26-openadapt-capture-qualification.ps1",
+      "first_check": "Local window-scoped demonstration, redact/private storage, compile and bounded replay or refusal.",
+      "blocker": "Recording is a candidate skill, never automatic trusted promotion."
+    },
+    {
+      "id": "office-libreoffice-uno",
+      "role": "office",
+      "component": "LibreOffice UNO",
+      "status": "reserve_candidate",
+      "source": "https://wiki.documentfoundation.org/Documentation/DevGuide/Professional_UNO",
+      "command": "soffice",
+      "first_check": "On an installed LibreOffice, edit a disposable document through UNO and independently compare reopened document state.",
+      "blocker": "Requires LibreOffice installed and a fresh version/source/license check before any dependency choice; does not automate Microsoft Office."
+    },
+    {
+      "id": "office-ufo",
+      "role": "office",
+      "component": "Microsoft UFO/UFO2 application mechanics",
+      "status": "reserve_candidate",
+      "source": "https://github.com/microsoft/UFO",
+      "license": "MIT",
+      "first_check": "On an installed Office app, compare app-native UIA/WinCOM mechanics with the generic desktop path on one bounded document action.",
+      "blocker": "Only selective executor mechanics are candidates; no UFO planner or completion authority. Pin and inspect exact code before selection."
+    },
+    {
+      "id": "vision-cap-local",
+      "role": "vision",
+      "component": "CAP local vision / llama.cpp + LFM2.5-VL",
+      "status": "current_scoped",
+      "source": "project",
+      "local_anchor": "runtime/local_vision_adapter/provider.py",
+      "qualification_asset": "scripts/stage26-desktop-grounder-qualification.ps1",
+      "first_check": "Existing structure-first visual fallback and freshness/target guards; proposals are not authorization."
+    },
+    {
+      "id": "mcp-1mcp",
+      "role": "connectors",
+      "component": "1MCP internal aggregation",
+      "status": "current_optional",
+      "source": "https://github.com/1mcp-app/agent",
+      "license": "Apache-2.0",
+      "local_anchor": "runtime/1mcp-adaptive-shim/bin/1mcp-adaptive.mjs",
+      "first_check": "Internal server discovery/lifecycle only; individually review any connector's actions and credentials.",
+      "blocker": "Aggregation does not grant raw tools a public CAP route."
+    },
+    {
+      "id": "iot-home-assistant",
+      "role": "devices",
+      "component": "Home Assistant",
+      "status": "future_candidate",
+      "source": "https://github.com/home-assistant/core",
+      "license": "Apache-2.0",
+      "first_check": "If there is a real device consumer, compare service request with fresh entity state and safety interlocks.",
+      "blocker": "Existing Stage Research defers production adoption; physical actuation is a distinct consequence class."
+    },
+    {
+      "id": "sessions-cccc",
+      "role": "sessions",
+      "component": "CCCC browser/session transport",
+      "status": "research_blocked",
+      "source": "https://github.com/ChesterRa/cccc",
+      "source_ref": "7fe01875ffbdc04d8670c74acb265f77cc24f55d",
+      "license": "Apache-2.0",
+      "first_check": "Transport-only session with no direct code/git/file tools and exact turn/result correlation.",
+      "blocker": "PR #151 research does not establish a least-authority transport-only profile for CAP."
+    },
+    {
+      "id": "process-native-host",
+      "role": "process",
+      "component": "CAP Rust Native Host v1",
+      "status": "draft_unmerged",
+      "source": "project PR #176",
+      "first_check": "After accepted exact-host qualification, one bounded noninteractive process operation and owner-loss cleanup.",
+      "blocker": "Host v1 is a Draft process supervisor, not a generic UI driver, connector or public command executor."
+    }
+  ]
+}
