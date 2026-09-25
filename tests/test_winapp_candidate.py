@@ -75,7 +75,7 @@ class WinAppCandidateTests(unittest.TestCase):
 
     def candidate(self, cli, *, observe=None):
         return WinAppInvokeCandidate(
-            binary=Path("/chosen/winapp.exe"),
+            binary=Path.cwd() / "chosen" / "winapp.exe",
             observe_window=observe or (lambda: _state()), run_cli=cli,
         )
 
