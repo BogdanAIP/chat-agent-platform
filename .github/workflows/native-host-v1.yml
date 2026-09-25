@@ -1,0 +1,90 @@
+name: Native Host v1
+
+"on":
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: native-host-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: runtime/native-host
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact source HEAD
+        shell: pwsh
+        run: |
+          $expected = "${{ github.event.pull_request.head.sha || github.sha }}"
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $expected) { throw "source HEAD mismatch: expected=$expected actual=$actual" }
+          Write-Host "NATIVE_HOST_SOURCE_SHA=$actual"
+
+      - name: Install exact Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          if ($LASTEXITCODE -ne 0) { throw "rustup failed with exit code $LASTEXITCODE" }
+          rustc +1.98.1 --version --verbose
+          cargo +1.98.1 --version
+
+      - name: Verify committed dependency lock
+        shell: pwsh
+        run: |
+          cargo +1.98.1 metadata --locked --no-deps --format-version 1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "cargo metadata --locked failed with exit code $LASTEXITCODE" }
+          Get-Content Cargo.lock -Raw
+
+      - name: Rust formatting
+        shell: pwsh
+        run: |
+          cargo +1.98.1 fmt --all -- --check
+          if ($LASTEXITCODE -ne 0) { throw "cargo fmt failed with exit code $LASTEXITCODE" }
+
+      - name: Build test-only process helper
+        shell: pwsh
+        run: |
+          cargo +1.98.1 build --locked -p native-host-test-helper
+          if ($LASTEXITCODE -ne 0) { throw "test helper build failed with exit code $LASTEXITCODE" }
+
+      - name: Build and hash exact Native Host binary
+        shell: pwsh
+        env:
+          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.event.pull_request.head.sha || github.sha }}"
+        run: |
+          cargo +1.98.1 build --locked -p cap-native-host
+          if ($LASTEXITCODE -ne 0) { throw "native host build failed with exit code $LASTEXITCODE" }
+          $binary = Resolve-Path '.\target\debug\cap-native-host.exe'
+          $hash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
+          $bytes = (Get-Item -LiteralPath $binary).Length
+          Write-Host "NATIVE_HOST_BINARY_SHA256=$hash"
+          Write-Host "NATIVE_HOST_BINARY_BYTES=$bytes"
+
+      - name: Rust tests
+        shell: pwsh
+        env:
+          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.event.pull_request.head.sha || github.sha }}"
+          CAP_NATIVE_HOST_TEST_HELPER: "${{ github.workspace }}\\runtime\\native-host\\target\\debug\\native-host-test-helper.exe"
+        run: |
+          cargo +1.98.1 test --locked --all-targets
+          if ($LASTEXITCODE -ne 0) { throw "cargo test failed with exit code $LASTEXITCODE" }
+
+      - name: Rust clippy
+        shell: pwsh
+        env:
+          CAP_NATIVE_HOST_BUILD_ID: "github:${{ github.event.pull_request.head.sha || github.sha }}"
+        run: |
+          cargo +1.98.1 clippy --locked --workspace --all-targets -- -D warnings
+          if ($LASTEXITCODE -ne 0) { throw "cargo clippy failed with exit code $LASTEXITCODE" }

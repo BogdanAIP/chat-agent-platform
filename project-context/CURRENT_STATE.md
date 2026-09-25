@@ -46,11 +46,12 @@ Rules:
 - the repository merge policy in `AGENTS.md` is unchanged: required physical acceptance
   still occurs before merge.
 
-The current CAP Core-v1 stack is **not yet entitled to this status** until the final
-freeze-audit fixes have green required hosted checks and a fresh aggregate freeze review
-PASS on the exact final head. Once those non-physical gates pass, development may begin
-Native Host v1 from that frozen unmerged Core head while Core physical qualification waits
-for the target Windows machine.
+The CAP Core-v1 aggregate freeze head from PR #175 has green required hosted checks and a
+fresh aggregate semantic review PASS, so it is now
+development-status **FROZEN_PENDING_PHYSICAL**. It remains unmerged/unaccepted until the
+required target-Windows physical qualification passes. Native Host v1 development may use
+that exact frozen Core head as immutable dependency input; Core changes require the normal
+review/qualification cycle and bounded downstream revalidation.
 
 ## Current accepted boundary
 
