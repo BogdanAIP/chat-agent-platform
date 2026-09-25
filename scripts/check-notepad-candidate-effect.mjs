@@ -24,17 +24,20 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 try {
   const args = argumentsFrom(process.argv.slice(2));
-  const distinctPairs = [
-    ['--expected', '--actual'], ['--before', '--actual'],
-    ['--decoy-before', '--decoy-after'], ['--actual', '--decoy-after']
-  ];
-  for (const [left, right] of distinctPairs) {
-    if (path.resolve(args[left]) === path.resolve(args[right])) {
-      throw new Error(`Independent inputs must be different files: ${left}, ${right}`);
-    }
-    const [a, b] = await Promise.all([stat(args[left]), stat(args[right])]);
-    if (a.ino > 0 && b.ino > 0 && a.dev === b.dev && a.ino === b.ino) {
-      throw new Error(`Independent inputs are the same physical file: ${left}, ${right}`);
+  const files = Object.keys(args);
+  const identities = await Promise.all(files.map(async key => ({
+    key, resolved: path.resolve(args[key]), info: await stat(args[key])
+  })));
+  for (let index = 0; index < identities.length; index += 1) {
+    for (let other = index + 1; other < identities.length; other += 1) {
+      const { key: left, resolved: leftPath, info: a } = identities[index];
+      const { key: right, resolved: rightPath, info: b } = identities[other];
+      if (leftPath === rightPath) {
+        throw new Error(`Independent inputs must be different files: ${left}, ${right}`);
+      }
+      if (a.ino > 0 && b.ino > 0 && a.dev === b.dev && a.ino === b.ino) {
+        throw new Error(`Independent inputs are the same physical file: ${left}, ${right}`);
+      }
     }
   }
   const [before, expected, actual, decoyBefore, decoyAfter] = await Promise.all([
