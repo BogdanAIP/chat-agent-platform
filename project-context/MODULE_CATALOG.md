@@ -88,6 +88,12 @@ node scripts/adapter-candidate-kit.mjs --role desktop --plan
 node scripts/adapter-candidate-kit.mjs --json
 ```
 
+The repository already contains two pinned free MCP candidates under
+`runtime/candidates/`: a read-only filesystem server and an isolated headless
+Playwright server. `scripts/test-module-candidates.ps1` checks both on Windows.
+These existing profiles are included in the kit alongside the CAP product
+routes, not reimplemented by it.
+
 For the first Windows comparison, `scripts/probe-winapp-notepad.mjs` is an
 additional **read-only** probe of a manually chosen Notepad PID and HWND:
 
@@ -129,8 +135,10 @@ The first comparisons to prepare while target-Windows access is unavailable:
    compare saved file bytes and an untouched decoy. Inspect the actual editor
    control before deciding between a UIA value action and guarded keyboard.
    FlaUI/pywinauto enter only if both routes expose a measured control gap.
-2. **Browser:** retain the accepted Playwright path for isolated tasks. Compare
-   BrowserSkill for a real authenticated user tab only after its local peer
+2. **Browser:** retain the accepted Playwright path for isolated tasks. The
+   pinned Playwright MCP candidate has an existing isolated Windows smoke check;
+   it is a comparison source, not a new raw public catalog. Compare BrowserSkill
+   for a real authenticated user tab only after its local peer
    authentication and borrow/return lifecycle have been qualified under PR #161.
 3. **Procedures:** compare a bounded human demonstration compiled with pinned
    OpenAdapt Flow/Capture against fresh CAP effect evidence; a recording produces
@@ -139,7 +147,10 @@ The first comparisons to prepare while target-Windows access is unavailable:
    UNO only for LibreOffice documents, and selective UFO/WinCOM mechanics for an
    installed compatible Office application if a specific control-model gap is
    observed. Verify the reopened document independently.
-5. **Other roles:** keep optional 1MCP aggregation internal, Home Assistant in
+5. **Files and other roles:** keep the pinned read-only filesystem MCP candidate
+   distinct from CAP's accepted Files route; its existing Windows candidate
+   script checks the allowed root and disabled write tools. Keep optional 1MCP
+   aggregation internal, Home Assistant in
    its deferred physical-device research role and CCCC outside production
    persistent sessions until its authority gap is closed. Native Host PR #176
    supervises a bounded process operation and has no general UI/connector

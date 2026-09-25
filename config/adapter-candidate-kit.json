@@ -35,6 +35,30 @@
       "blocker": "Pinned 0.3.0 local WebSocket accepts any extension-shaped Origin. The 0.3.1 extension tag still shows this check in ws.rs; peer authentication needs separate requalification. See PR #161."
     },
     {
+      "id": "browser-playwright-mcp",
+      "role": "browser",
+      "component": "Pinned @playwright/mcp@0.0.78",
+      "status": "target_qualified",
+      "source": "https://github.com/microsoft/playwright-mcp",
+      "license": "Apache-2.0",
+      "local_anchor": "runtime/candidates/playwright-headless.json",
+      "qualification_asset": "scripts/test-module-candidates.ps1",
+      "first_check": "Re-run the existing isolated browser_navigate candidate test; compare selected MCP mechanics behind CAP Browser semantics only.",
+      "blocker": "The free pinned MCP candidate was tested in isolation, not exposed as a raw public CAP browser tool catalog."
+    },
+    {
+      "id": "files-mcp-readonly",
+      "role": "files",
+      "component": "Pinned @modelcontextprotocol/server-filesystem@2026.7.10",
+      "status": "target_qualified",
+      "source": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT (filesystem server)",
+      "local_anchor": "runtime/candidates/filesystem-readonly.json",
+      "qualification_asset": "scripts/test-module-candidates.ps1",
+      "first_check": "Re-run the existing root-scoped read_text_file/list_allowed_directories test and confirm write tools stay disabled.",
+      "blocker": "An isolated candidate profile is not the canonical Files public route; directory scope/Roots behavior must be rechecked before a wider integration."
+    },
+    {
       "id": "desktop-cap-openadapt",
       "role": "desktop",
       "component": "CAP Windows + pinned OpenAdapt WindowsBackend",
