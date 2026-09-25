@@ -52,6 +52,38 @@ procedure_run
 
 No new public tool is required merely because the acceptance matrix becomes broader.
 
+### Current public desktop-route gap (2026-09-25 re-entry)
+
+The current `semantic-control-plane-projection.mjs` admits only five fixed
+`procedure_run` schemas. Of those, `windows_case_update_v1` controls only the
+prepared Case Desk; `workspace_write` changes file bytes without operating an
+application. The physical VS Code edit was run by an isolated qualification
+harness, not by the ordinary-Chat public route. The unmerged Core head
+`ca6923924952a2f457dc12e3604c97034a8fae23` adds binding to the fixed
+Windows procedure, but does not register a Notepad, Electron, Office or dialog
+procedure. The unreviewed Native Host head
+`68b15d831b3e4f17c1781d0016ea44a8273e4ec3` does not supply one either.
+
+Therefore a matrix harness can measure internal Windows primitives, but it
+cannot count Notepad/Electron/Office/dialog actions as **ordinary-Chat product
+tasks** until those actions have a separate, reviewed public consequence
+contract. Keeping the inventory at six tools does not make a new registered
+procedure or widened `procedure_run` schema authority-neutral. Such a route
+needs its own Stage Research, exact target/operation binding, effect and
+ambiguous-delivery handling, review and target-Windows qualification. Until
+then those product-route rows are `UNSUPPORTED` and the broad gate stays open.
+
+The smallest candidate for that separate decision is one pre-opened disposable
+text file in Notepad: insert an exact bounded line into the intended window,
+Save once, independently compare the file bytes and confirm a similar decoy
+window/file was untouched. Bind the target file and PID/HWND/process generation
+outside model-supplied arguments; reject an unverified unsaved buffer, stale
+window, changed focus or unexpected dialog. Start with the existing
+window-scoped UIA/guarded-input route; inspect the installed Notepad control
+tree before choosing a text action. Defer Save As, arbitrary paths and general
+desktop clicks. This is a candidate task contract, **not** implementation
+authority or a completed physical test.
+
 ## Architecture lineage comparison
 
 | Role | Prior owner/source | Decision for this stage | Reason |
@@ -59,6 +91,7 @@ No new public tool is required merely because the acceptance matrix becomes broa
 | Browser semantic execution | project Browser capability + Playwright | **KEEP** | Already accepted; broad coverage should first measure it rather than replace it. |
 | Browser structure -> vision fallback | project bounded vision route | **KEEP** | Existing state-first fallback is exactly the required assurance shape. |
 | Windows/Desktop observation + actuation | project typed Windows runtime + UIA/Win32 | **KEEP** | Existing PID/HWND/native identity and bounded actions preserve project authority. |
+| Microsoft `winapp ui` mechanics | public WinApp UI Automation CLI/library | **DEFER as focused provider candidate** | Real inspect/invoke/set-value/input mechanics exist, but no measured CAP gap warrants replacing the accepted Windows route. A later adapter must keep CAP identity, authorization and verification. |
 | Selective Office/native mechanics | UFO/UFO²-derived UIA/Win32/WinCOM ideas behind focused adapters | **REFINE / only on measured gap** | Reuse app-native mechanics when they materially improve one proven gap; do not import UFO planner/AgentOS authority. |
 | Authenticated real-browser operation | BrowserSkill research in PR #161 | **DEFER from first matrix; TRACKED** | Valuable for logged-in Chromium, but current PR #161 records an unresolved local peer-authentication boundary for production authority. |
 | Windows UIA wrapper alternative | FlaUI / native UIA ecosystem | **DEFER / gap candidate** | Mature wrapper family may reduce low-level UIA custom code if an existing CAP path exposes a measured control-model gap. |
@@ -66,11 +99,39 @@ No new public tool is required merely because the acceptance matrix becomes broa
 | Electron-specific browser automation | Playwright Electron support | **DEFER / comparison only** | Current Playwright documentation still marks Electron automation experimental and it normally assumes app launch ownership. Existing Windows/UIA should be measured first for already-running Electron apps. |
 | Procedure capture/replay | OpenAdapt | **DEFER to the next roadmap stage** | Procedure integration follows this coverage gate and must not be pulled forward merely to run app tests. |
 
-### Important correction to older candidate language
+### Correction to the earlier `winapp CLI` exclusion (2026-09-25)
 
-Microsoft `winapp CLI` is the Windows **application-development** CLI for SDK,
-packaging, manifests, certificates and build tooling. It is not a desktop UI
-automation executor and is therefore **not** selected for this stage.
+The older statement that `winapp CLI` is only an application-development CLI
+and cannot automate desktop UI is false. Microsoft also ships `winapp ui` for
+UIA-backed inspection and interaction with running applications, plus the
+`Microsoft.Windows.SDK.BuildTools.WinApp.UIAutomation` library. The CLI can
+target an explicit HWND, search controls, invoke a pattern, set a value or send
+keys. Documentation: https://learn.microsoft.com/en-us/windows/apps/dev-tools/winapp-cli/ui-automation
+
+Source-code evidence, inspected at `microsoft/winappCli`
+`8158d14f8940e1a23d972e729e1dcce84de423ef`:
+
+- `src/winapp-CLI/WinApp.Cli/Commands/UiCommand.cs` registers the actual `ui`
+  commands. `UiSetValueCommand.cs` resolves the requested app/HWND, finds the
+  control, then calls `UiAutomationService.SetValueAsync`; that method checks
+  whether the control is still present before applying its UIA value strategy.
+- `WinApp.UIAutomation/Services/UiTargetResolver.cs` can bind an explicit HWND,
+  but an app/title with several windows auto-selects the foreground or largest
+  window. CAP must not inherit this heuristic for a consequence action.
+- `WinApp.UIAutomation/Services/UiAutomationService.cs` offers
+  `FindSingleElementAsync(..., requireUnique: true, ...)` and explicit pattern
+  invocation. `WinApp.UIAutomation.Tests/RealUiAutomationTests.ExplicitQueries.cs`
+  and `.ExplicitIdentity.cs` cover explicit-window isolation, stale-source
+  refusal, ambiguous matches and no invocation on identity failure.
+- `WinApp.Cli/Commands/UiSendKeysCommand.cs` re-resolves the element and checks
+  the target process/window, but its default PostMessage transport can warn
+  about silent non-delivery to XAML controls. CLI exit code is delivery evidence,
+  not CAP verification of the application effect.
+
+Classification: `OPEN_IMPLEMENTED`, `REFERENCE_ONLY` for this qualification
+slice. Re-evaluate library reuse through a narrow adapter only after a measured
+Notepad/other-app gap. Do not expose raw `winapp ui` commands or transfer CAP
+authorization, file identity, `PASS` or `DONE` to this provider.
 
 ## Current external evidence
 
@@ -233,6 +294,10 @@ This preserves the accepted trust boundary, uses the broad matrix to discover re
 gaps, and prevents a candidate technology from becoming architecture simply because
 it has more features.
 
+For Windows, the first provider remains the accepted window-scoped UIA route.
+`winapp ui` is an implemented alternative for a measured app-specific gap, not
+evidence that CAP already exposes a public desktop action or verifies Save.
+
 ### D. Make the first coverage gate depend on BrowserSkill/UFO/OpenAdapt simultaneously — REJECT
 
 This would conflate three independent roadmap/research questions and make failures
@@ -331,10 +396,12 @@ A provider/app reporting success never substitutes for project verification.
 | target becomes stale or HWND/process generation changes before action | re-observe; no action under stale identity |
 | focus changes before physical input | revalidate target/focus or fail closed |
 | similar/decoy window matches weak selector | no action until exact identity discriminates it |
+| app-name lookup silently selects foreground/largest window | require CAP-bound exact PID/HWND/generation before any provider action |
 | unexpected modal/dialog/overlay appears | classify from fresh observation; no blind click-through |
 | structure/UIA lacks required target | use only already-authorized bounded vision fallback; otherwise ABSTAIN |
 | vision proposes target that disagrees with stronger native state | native/state evidence wins; no action |
 | action acknowledgement missing | fresh re-observe; never infer success from delivery |
+| provider reports successful input but control ignores it | independently observe the expected UI/file effect; otherwise `UNKNOWN` |
 | effect ambiguous | project `UNKNOWN`; no blind duplicate effect |
 | application exits/restarts | old process/HWND evidence invalid; bind new identity only through a new admitted attempt |
 | provider/runtime provenance mismatch | qualification invalid regardless of apparent task success |
@@ -403,6 +470,13 @@ Proceed with a qualification-first slice:
    physical L3 matrix;
 6. re-enter Stage Research for any material provider/authority/persistence mechanism
    needed to close a measured gap.
+
+The Notepad candidate and other presently unsupported product-route rows are
+**DEFERRED as public desktop authority** within this qualification-only decision.
+Re-entry requires a concrete bounded public contract and evidence about the
+installed app's control tree, identity and ambiguous Save outcomes. The L1/L2
+manifest and fixtures may proceed; they cannot substitute for the absent public
+route, independent review or the target-Windows L3 gate.
 
 Do not pull forward the external-procedure stage, persistent sessions, a generic
 provider framework, UFO AgentOS, Power Automate runtime ownership, arbitrary local
