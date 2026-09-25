@@ -75,6 +75,82 @@ There is no accepted five/six runtime mode. Historical five-tool projection is p
 
 Six is not an eternal maximum. Any new public consequence class must use a truthful schema/security/ordinary-Chat acceptance decision rather than being hidden behind generic dispatch.
 
+## Offline adapter candidate kit
+
+`config/adapter-candidate-kit.json` lists reusable components by **role**, with a
+project status, source, first comparison and known blocker. It includes existing
+CAP paths and free external candidates; an entry is not an installed plugin, a
+public CAP tool or approval to run a new action. Use the read-only inventory:
+
+```text
+node scripts/adapter-candidate-kit.mjs --check
+node scripts/adapter-candidate-kit.mjs --role desktop --plan
+node scripts/adapter-candidate-kit.mjs --json
+```
+
+For the first Windows comparison, `scripts/probe-winapp-notepad.mjs` is an
+additional **read-only** probe of a manually chosen Notepad PID and HWND:
+
+```text
+node scripts/probe-winapp-notepad.mjs --pid <Notepad-PID> --hwnd <Notepad-HWND>
+```
+
+It checks the HWND/PID relationship through `winapp ui status`, then reports
+only element type counts from `winapp ui inspect`; it does not read document
+text into its output or attempt the edit/Save. A matching CLI JSON shape and
+process name are prerequisites, not evidence of future mutation correctness.
+
+The same independent byte comparison can be applied after either Windows
+candidate has acted on a disposable file:
+
+```text
+node scripts/check-notepad-candidate-effect.mjs --before <original-copy> --expected <independently-prepared-expected-file> --actual <saved-file> --decoy-before <decoy-copy> --decoy-after <decoy-file>
+```
+
+This read-only check rejects a vacuous unchanged target, wrong saved bytes and
+changes to the decoy file. It does not prove which application changed the file,
+that the intended editor window was controlled or that all side effects are
+absent. Keep the expected file and both before-copies outside the candidate's
+output path, and use a fresh disposable pair for each candidate run.
+
+`--check` validates the manifest and existing project file anchors. Command
+presence on `PATH` is informational; it does not check installed versions,
+authenticity, licenses of transitive dependencies, interactive session access
+or real application behavior. The inventory does not install or launch any
+candidate. Reuse source pins from the owning research/lock when a candidate is
+actually selected; unpinned reserve candidates first need exact source/test
+inspection. Do not infer release readiness from this inventory.
+
+The first comparisons to prepare while target-Windows access is unavailable:
+
+1. **Desktop:** the existing CAP/OpenAdapt Windows route and Microsoft `winapp ui`
+   perform the same bounded edit in a *pre-opened disposable Notepad file*.
+   Bind the PID/HWND and file outside model-supplied arguments; independently
+   compare saved file bytes and an untouched decoy. Inspect the actual editor
+   control before deciding between a UIA value action and guarded keyboard.
+   FlaUI/pywinauto enter only if both routes expose a measured control gap.
+2. **Browser:** retain the accepted Playwright path for isolated tasks. Compare
+   BrowserSkill for a real authenticated user tab only after its local peer
+   authentication and borrow/return lifecycle have been qualified under PR #161.
+3. **Procedures:** compare a bounded human demonstration compiled with pinned
+   OpenAdapt Flow/Capture against fresh CAP effect evidence; a recording produces
+   at most a candidate skill, with no automatic promotion or upstream `PASS`.
+4. **Office:** start with the existing Windows route; compare free LibreOffice
+   UNO only for LibreOffice documents, and selective UFO/WinCOM mechanics for an
+   installed compatible Office application if a specific control-model gap is
+   observed. Verify the reopened document independently.
+5. **Other roles:** keep optional 1MCP aggregation internal, Home Assistant in
+   its deferred physical-device research role and CCCC outside production
+   persistent sessions until its authority gap is closed. Native Host PR #176
+   supervises a bounded process operation and has no general UI/connector
+   dispatch role.
+
+These are comparison recipes, not physical results. Turning one into a new
+ordinary-Chat consequence route requires a separately researched, bounded
+operation, CAP authorization/identity/effect verification and the applicable
+review and target-Windows evidence. `ROADMAP.md` remains the release-order owner;
+PRs #151/#161/#164/#176 retain their own open research and qualification status.
+
 ## Current planner / Control Plane terminology
 
 ```text
