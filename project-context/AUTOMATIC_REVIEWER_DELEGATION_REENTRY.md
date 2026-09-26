@@ -976,3 +976,41 @@ form, and the resulting eligible set is exactly one. Do not use screen
 coordinates, CSS layout classes, generic last-button heuristics, or localized
 button text. Exact prompt match, closed-profile requalification, local send
 authority and one-Send semantics remain unchanged.
+
+
+### Target-Windows post-Send turn-renderer drift
+
+Exact-head physical qualification on `983fc79d7d850e4258ca62588453d8a7e6cf3f6b`
+proved the complete one-Send path through `browser-claim-committed` and
+`send-clicked`, and the fresh worker visibly returned a valid correlated
+`CAP_WORKER_RESULT_V1` / `REVIEW_RESULT_V1 status=PASS`. The controller
+nevertheless recorded `delivery_state=unknown` and no durable `result.json`.
+
+The bounded progress evidence was:
+
+- `browser-claim-committed delivery_state=claimed`;
+- `send-clicked`;
+- no `delivery-visible`;
+- after the observation window, `delivery-ambiguous delivery_state=unknown`.
+
+Root cause: delivery/capture observation still enumerated ChatGPT turns only by
+`[data-message-author-role=...]`. On 2026-09-26 the live ChatGPT renderer
+changed its turn markup. Current public implementations independently identify
+the replacement structural surfaces, including
+`[data-turn-key]:has([data-user-message-bubble])` for user turns and
+`[data-turn-key]:has([data-conversation-role="assistant"])` for assistant
+turns; current UI reports also expose
+`data-local-conversation-final-assistant`.
+
+Decision: **NARROW bug closure**. This does not change delivery authority,
+retry/reconciliation, result schema, or capture authorization. Both the live
+content observer and the post-delivery policy guard enumerate a deduplicated
+set of old and current structural turn containers, then retain the existing
+exact task-correlation, visibility, clean-UI, stability and one-result checks.
+No text-label, coordinate, broad article, or generic last-element fallback is
+introduced.
+
+Failure class: provider DOM selector drift duplicated across independently
+implemented delivery and capture observers. Regression coverage must exercise
+the current `data-turn-key` user and assistant paths, while legacy selectors
+remain accepted for compatibility.
