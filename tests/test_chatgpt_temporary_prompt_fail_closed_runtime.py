@@ -304,6 +304,15 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {{
   await flush();
   await flush();
+  if (taskPromptCalls > 0) {{
+    // crypto.subtle.digest can settle after two event-loop turns. Exercise the
+    // intended post-handoff profile change only after the handoff completes.
+    const deadline = Date.now() + 5000;
+    while (!events.some(item => item.event === "prompt-handoff-received" || item.event === "stopped")) {{
+      if (Date.now() >= deadline) throw new Error("task-prompt handoff did not settle");
+      await new Promise(resolve => setTimeout(resolve, 1));
+    }}
+  }}
   {"assert.ok(intervals > 0); assert.equal(typeof tick, 'function'); tick(); await flush();" if expect_interval else "assert.equal(intervals, 0);"}
   assert.equal(taskPromptCalls, {expect_task_prompt_calls});
   assert.equal(authorizeCalls, 0);
