@@ -951,3 +951,28 @@ exactly one visible non-personalized semantic match before clicking. The
 controller records the setup events so later physical evidence distinguishes
 menu-open, selection and fail-closed states. No task prompt or Send authority
 is released before the existing closed-profile re-observation.
+
+
+### Target-Windows send-control evidence
+
+On exact-head physical run `2ceee2a41a416f224df89a1507ce7fa931107416`,
+CAP proved the exact capability-bearing prompt was present in the live composer
+on every pre-send observation, but `findSendBinding()` never found a send
+control:
+
+- `exact_prompt_match=true`;
+- `send_binding_found=false`;
+- `send_button_testid_count=0`.
+
+The visible UI nevertheless showed the active arrow send control. The previous
+adapter contract was therefore over-fitted to
+`button[data-testid="send-button"]`. Current ChatGPT implementations also
+expose the composer submit control structurally as
+`#composer-submit-button` and/or `button[type="submit"]`.
+
+NARROW closure: accept those structural submit identities only when the
+candidate is visible/enabled, resolves to the already-proven current composer
+form, and the resulting eligible set is exactly one. Do not use screen
+coordinates, CSS layout classes, generic last-button heuristics, or localized
+button text. Exact prompt match, closed-profile requalification, local send
+authority and one-Send semantics remain unchanged.
