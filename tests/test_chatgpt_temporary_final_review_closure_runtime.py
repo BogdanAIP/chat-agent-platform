@@ -247,7 +247,7 @@ global.location = {{href: "https://chatgpt.com/", origin: "https://chatgpt.com"}
 global.history = {{state: null, replaceState() {{}}}};
 global.getComputedStyle = () => ({{visibility: "visible", display: "block", opacity: "1"}});
 global.document = {{
-  querySelector(selector) {{ return selector === 'button[data-testid="send-button"]' ? button : null; }},
+  querySelector(selector) {{ return selector === '#composer-submit-button' ? button : null; }},
   querySelectorAll(selector) {{
     if (selector === 'button,[role="button"],[aria-label],[title],[data-testid]') return [temporaryNode, personalizationNode];
     if (selector === '[data-message-author-role="user"],[data-message-author-role="assistant"]') return [];
