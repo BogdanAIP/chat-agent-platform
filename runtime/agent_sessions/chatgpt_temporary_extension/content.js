@@ -640,7 +640,7 @@
 
       if (personalizationSwitchState === "menu-opened") {
         const options = personalizationSetupCandidates(
-          'button,[role="button"],[role="menuitem"],[role="option"]',
+          'button,[role="button"],[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"],[role="option"]',
           "non-personalized",
           composer,
         );
