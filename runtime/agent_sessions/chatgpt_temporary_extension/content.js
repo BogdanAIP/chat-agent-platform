@@ -1223,7 +1223,7 @@
             const retryableTemporaryUiSettle =
               !temporary.temporary_mode &&
               temporary.fresh_context === true &&
-              temporary.personalization_disabled === true;
+              allConversationTurnCount() === 0;
 
             if (retryableTemporaryUiSettle) {
               const now = Date.now();
