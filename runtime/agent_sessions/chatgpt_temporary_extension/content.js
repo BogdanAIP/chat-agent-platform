@@ -596,6 +596,14 @@
         return "ready";
       }
 
+      if (
+        !observed.temporary_mode ||
+        !observed.fresh_context ||
+        observed.personalization_state !== "personalized"
+      ) {
+        return "unavailable";
+      }
+
       const editor = findComposerEditor(composer);
       const composerText = editorText(editor);
       if (
@@ -607,13 +615,6 @@
       }
 
       if (personalizationSwitchState === "idle") {
-        if (
-          !observed.temporary_mode ||
-          !observed.fresh_context ||
-          observed.personalization_state !== "personalized"
-        ) {
-          return "unavailable";
-        }
         const controls = personalizationSetupCandidates(
           'button,[role="button"]',
           "personalized",
