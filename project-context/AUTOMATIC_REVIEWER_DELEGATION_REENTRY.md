@@ -838,3 +838,70 @@ store or generalized result framework.
 
 **Reissued decision: NARROW.** Implement the write-order correction now;
 no required baseline role is deferred.
+
+
+## 2026-09-26 Temporary Chat personalization-control re-entry
+
+### Re-entry trigger
+
+Target-Windows qualification on exact HEAD `9c196c7d3951ca3d1c2b480076328027d7b6b6ad`
+reached the provider Temporary Chat UI with zero task Send, but the fresh page
+was explicitly `Personalized`. The adapter correctly refused prompt handoff
+because the accepted `fresh_readonly_worker_v1` profile requires positive
+`Temporary + fresh + non-personalized` evidence. Earlier physically passing
+CAP heads only observed that state; they did not actively establish it.
+
+OpenAI's current product documentation now exposes personalization as an
+explicit pre-first-message Temporary Chat choice:
+
+- https://help.openai.com/en/articles/8914046-temporary-chat-faq
+- https://help.openai.com/en/articles/6825453-chatgpt-release-notes
+  (2026-08-27, “More controls in temporary chat”)
+
+A personalized Temporary Chat may use memory, custom instructions and plugins;
+an unpersonalized Temporary Chat does not. The choice is made before the first
+message and cannot be changed after the conversation starts.
+
+### Lineage / scope decision
+
+- Existing Temporary Chat adapter and closed-profile proof: **REFINE**.
+- Existing one-Send, prompt-handoff, reviewer identity, Delegation and result
+  ownership: **KEEP**.
+- New provider framework, new public tool, persisted preference owner or
+  browser-recovery authority: **REJECT**.
+- Manual operator switching as acceptance: **REJECT** because the reviewer
+  qualification contract requires no manual new-chat setup or Send.
+
+### Alternatives
+
+1. **Select the provider's visible “Unpersonalized / Без персонализации” option
+   before prompt handoff — SELECT / NARROW.** Only the already-open empty
+   Temporary Chat may be changed. Require one unambiguous visible personalized
+   selector and one unambiguous visible unpersonalized option, then re-observe
+   the page and prove the existing closed profile before any task prompt is
+   released.
+2. Accept personalized Temporary Chat — **REJECT**; weakens the reviewer
+   isolation contract.
+3. Ask the operator to switch manually — **REJECT**; makes physical acceptance
+   environment-dependent and no longer automatic.
+4. Persist or force an account-wide personalization preference — **REJECT**;
+   crosses the bounded one-worker adapter scope and changes user-global state.
+
+### Failure boundaries and acceptance
+
+The personalization click occurs before prompt handoff and before Send
+authority. Ambiguous/missing controls, a menu that does not expose exactly one
+unpersonalized option, a failed selection, profile drift, any existing
+conversation turn or any non-empty composer all fail closed with zero task
+prompt and zero Send. The adapter must never click a generic text match outside
+the current visible Temporary Chat setup surface.
+
+Regression coverage must execute production `content.js` and prove:
+personalized -> one selector click -> one unpersonalized option click -> positive
+closed-profile re-observation -> prompt handoff; ambiguous or missing controls
+produce zero prompt handoff/Send; already-unpersonalized flow performs no setup
+click; profile change after handoff still blocks prompt population.
+
+**Reissued decision: NARROW.** Add only this bounded pre-prompt provider-state
+establishment and its executable regressions. No new architecture owner or
+post-Send recovery authority is introduced.
