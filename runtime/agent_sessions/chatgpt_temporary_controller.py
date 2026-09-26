@@ -31,6 +31,9 @@ FINAL_OBSERVATION_GRACE_SECONDS = 20
 ALLOWED_EVENTS = {
     "adapter-loaded",
     "temporary-ui-not-proven",
+    "personalization-switch-opened",
+    "personalization-switch-selected",
+    "personalization-switch-failed",
     "browser-claim-failed",
     "browser-claim-committed",
     "local-send-authority-denied",
