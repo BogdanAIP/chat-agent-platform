@@ -385,13 +385,30 @@
     function findSendBinding() {
       const current = currentComposerBinding();
       if (!current) return null;
-      let buttons = [...document.querySelectorAll('button[data-testid="send-button"]')];
-      // Some focused production-behavior fixtures expose querySelector only.
-      // In a real DOM querySelectorAll and querySelector cannot disagree here.
-      if (buttons.length === 0) {
-        const fallback = document.querySelector('button[data-testid="send-button"]');
-        if (fallback) buttons = [fallback];
+      const selectors = [
+        'button[data-testid="send-button"]',
+        '#composer-submit-button',
+        'button[type="submit"]',
+      ];
+      const buttons = [];
+      const seen = new Set();
+
+      for (const selector of selectors) {
+        const matches = typeof document.querySelectorAll === "function"
+          ? [...document.querySelectorAll(selector)]
+          : [];
+        if (matches.length === 0 && typeof document.querySelector === "function") {
+          const fallback = document.querySelector(selector);
+          if (fallback) matches.push(fallback);
+        }
+        for (const button of matches) {
+          if (!seen.has(button)) {
+            seen.add(button);
+            buttons.push(button);
+          }
+        }
       }
+
       const eligible = buttons.filter((button) =>
         buttonReady(button) && button.closest?.("form") === current.composer,
       );
