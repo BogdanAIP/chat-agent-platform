@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 
 from runtime.control_plane.independent_review_delegation import (
-    review_delegation_identity,
+    prepare_review_delegation,
     review_delegation_state_root,
 )
 from runtime.control_plane.independent_review_procedures import _settle_delegated_result
@@ -94,9 +94,10 @@ def prepare(args: argparse.Namespace) -> int:
     elif prepared.dispatch_state != "dispatch-attempted":
         raise ReviewStateError("qualification review operation has invalid dispatch state")
 
-    task, delegation_identity = review_delegation_identity(
+    task, delegation_identity = prepare_review_delegation(
         prepared.identity,
         review_run_id=prepared.review_run_id,
+        delegation_state_root=review_delegation_state_root(),
     )
     task_path = output_dir / "review-task.txt"
     task_path.write_text(task, encoding="utf-8", newline="\n")
