@@ -37,6 +37,7 @@ ALLOWED_EVENTS = {
     "browser-claim-failed",
     "browser-claim-committed",
     "local-send-authority-denied",
+    "pre-send-binding-not-ready",
     "send-clicked",
     "delivery-visible",
     "delivery-ambiguous",
