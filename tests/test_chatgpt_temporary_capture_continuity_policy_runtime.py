@@ -109,8 +109,11 @@ const context = {{
     }},
     querySelectorAll(selector) {{
       if (selector === '#prompt-textarea,[contenteditable="true"],textarea') return [editor];
-      if (selector.includes('data-message-author-role="user"')) return [userNode];
-      if (selector.includes('data-message-author-role="assistant"')) return [assistantNode];
+      if (selector === '[data-turn-key]:has([data-user-message-bubble])') return [userNode];
+      if (
+        selector === '[data-turn-key]:has([data-conversation-role="assistant"])' ||
+        selector === '[data-turn-key]:has([data-local-conversation-final-assistant])'
+      ) return [assistantNode];
       if (selector === "button") return [];
       return [];
     }},
