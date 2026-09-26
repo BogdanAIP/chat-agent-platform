@@ -196,6 +196,7 @@
     let sendAuthorized = false;
     let promptHandoffRequested = recovered;
     let promptPopulationAttemptedAt = 0;
+    let lastPreSendDiagnosticAt = 0;
     let monitorOnly = recovered;
     let sendClickedAt = recovered ? Date.now() : 0;
     let deliveryState = recovered ? intent.recoveredDeliveryState : "prepared";
@@ -1279,7 +1280,25 @@
 
         if (!populateEmptyComposer(current.composer)) return;
         const binding = findSendBinding();
-        if (!binding || !exactComposerPromptMatches(binding.composer)) return;
+        const exactPrompt = exactComposerPromptMatches(current.composer);
+        if (!binding || !exactPrompt) {
+          const now = Date.now();
+          if (now - lastPreSendDiagnosticAt >= 1000) {
+            lastPreSendDiagnosticAt = now;
+            const sendButtons = typeof document.querySelectorAll === "function"
+              ? [...document.querySelectorAll("button")].filter((button) => visible(button)).slice(0, 32)
+              : [];
+            event("pre-send-binding-not-ready", {
+              exact_prompt_match: exactPrompt,
+              send_binding_found: Boolean(binding),
+              send_button_testid_count: typeof document.querySelectorAll === "function"
+                ? document.querySelectorAll('button[data-testid="send-button"]').length
+                : -1,
+              visible_button_evidence: sendButtons.map((button) => candidateText(button)).filter(Boolean).slice(0, 12),
+            });
+          }
+          return;
+        }
         void requestAuthority(binding.composer);
         return;
       }
