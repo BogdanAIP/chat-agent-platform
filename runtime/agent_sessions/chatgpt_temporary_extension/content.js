@@ -11,6 +11,7 @@
   const PREFLIGHT_RETRY_MS = 750;
   const PREFLIGHT_MAX_MS = 5 * 60 * 1000;
   const TEMPORARY_UI_SETTLE_MS = 10000;
+  const PERSONALIZATION_SWITCH_TIMEOUT_MS = 10000;
   const MAX_RECOVERY_CLAIMS = 8;
   const LAUNCH_QUERY_KEYS = [
     "temporary-chat",
@@ -190,6 +191,8 @@
     let intervalId = null;
     let authorityRequested = recovered;
     let temporaryUiPendingSince = null;
+    let personalizationSwitchState = "idle";
+    let personalizationSwitchStartedAt = 0;
     let sendAuthorized = false;
     let promptHandoffRequested = recovered;
     let promptPopulationAttemptedAt = 0;
@@ -575,6 +578,82 @@
     function attributeEvidence(node, names) {
       if (!node) return "";
       return normalize(names.map((name) => node.getAttribute?.(name)).filter(Boolean).join(" | "));
+    }
+
+    function personalizationSetupCandidates(selector, mode, composer) {
+      if (typeof document.querySelectorAll !== "function") return [];
+      return [...document.querySelectorAll(selector)].filter((node) => {
+        if (!node || typeof node.click !== "function" || !buttonReady(node)) return false;
+        if (composer && (composer === node || composer.contains?.(node) || node.contains?.(composer))) return false;
+        return policy.personalizationModeFromText(candidateText(node)) === mode;
+      });
+    }
+
+    function establishUnpersonalizedBeforePrompt(composer, observed) {
+      if (recovered) return observed.personalization_state === "non-personalized" ? "ready" : "unavailable";
+      if (observed.personalization_state === "non-personalized") {
+        personalizationSwitchState = "complete";
+        return "ready";
+      }
+
+      const editor = findComposerEditor(composer);
+      const composerText = editorText(editor);
+      if (
+        allConversationTurnCount() !== 0 ||
+        composerText === null ||
+        composerText.trim().length !== 0
+      ) {
+        return "unsafe";
+      }
+
+      if (personalizationSwitchState === "idle") {
+        if (
+          !observed.temporary_mode ||
+          !observed.fresh_context ||
+          observed.personalization_state !== "personalized"
+        ) {
+          return "unavailable";
+        }
+        const controls = personalizationSetupCandidates(
+          'button,[role="button"]',
+          "personalized",
+          composer,
+        );
+        if (controls.length === 0) return "unavailable";
+        if (controls.length !== 1) return "ambiguous";
+        personalizationSwitchState = "menu-opened";
+        personalizationSwitchStartedAt = Date.now();
+        event("personalization-switch-opened", { from: "personalized" });
+        controls[0].click();
+        return "pending";
+      }
+
+      if (
+        personalizationSwitchStartedAt &&
+        Date.now() - personalizationSwitchStartedAt >= PERSONALIZATION_SWITCH_TIMEOUT_MS
+      ) {
+        return "timeout";
+      }
+
+      if (personalizationSwitchState === "menu-opened") {
+        const options = personalizationSetupCandidates(
+          'button,[role="button"],[role="menuitem"],[role="option"]',
+          "non-personalized",
+          composer,
+        );
+        if (options.length === 0) return "pending";
+        if (options.length !== 1) return "ambiguous";
+        personalizationSwitchState = "selection-clicked";
+        event("personalization-switch-selected", { to: "non-personalized" });
+        options[0].click();
+        return "pending";
+      }
+
+      if (personalizationSwitchState === "selection-clicked") {
+        return observed.personalization_state === "non-personalized" ? "ready" : "pending";
+      }
+
+      return personalizationSwitchState === "complete" ? "ready" : "unavailable";
     }
 
     function externalTemporaryControlActive(node) {
@@ -1109,7 +1188,28 @@
         if (!current) return;
 
         if (!recovered && !intent.prompt) {
-          const temporary = observeTemporaryState(current.composer);
+          let temporary = observeTemporaryState(current.composer);
+          const personalizationSetup = establishUnpersonalizedBeforePrompt(
+            current.composer,
+            temporary,
+          );
+          if (personalizationSetup === "pending") return;
+          if (["ambiguous", "timeout", "unsafe"].includes(personalizationSetup)) {
+            event("personalization-switch-failed", {
+              ...temporary,
+              reason: personalizationSetup,
+              before_prompt_handoff: true,
+            });
+            stop("personalization-switch-failed-before-prompt-handoff", {
+              ...temporary,
+              reason: personalizationSetup,
+            });
+            return;
+          }
+          if (personalizationSetup === "ready") {
+            temporary = observeTemporaryState(current.composer);
+          }
+
           const closedProfileProven =
             temporary.temporary_mode &&
             temporary.fresh_context &&
