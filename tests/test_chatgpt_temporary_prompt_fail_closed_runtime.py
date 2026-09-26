@@ -232,7 +232,7 @@ const unpersonalizedOption = {{
   textContent: "Non-personalized",
   getBoundingClientRect: rect,
   getAttribute(name) {{
-    if (name === "role") return "menuitem";
+    if (name === "role") return "menuitemradio";
     return name === "aria-label" ? this.textContent : null;
   }},
   matches() {{ return false; }},
@@ -315,7 +315,7 @@ const context = {{
         return personalizationMenuOpen ? [personalization, unpersonalizedOption] : [personalization];
       }}
       if (selector === 'button,[role="button"]') return [personalization];
-      if (selector === 'button,[role="button"],[role="menuitem"],[role="option"]') {{
+      if (selector === 'button,[role="button"],[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"],[role="option"]') {{
         return personalizationMenuOpen ? [personalization, unpersonalizedOption] : [personalization];
       }}
       return [];
@@ -383,6 +383,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.equal(authorizeCalls, 0);
   assert.equal(personalizationSelectorClicks, {expect_personalization_selector_clicks});
   assert.equal(unpersonalizedOptionClicks, {expect_unpersonalized_option_clicks});
+  {"assert.ok(events.some(event => event.event === \"personalization-switch-opened\")); assert.ok(events.some(event => event.event === \"personalization-switch-selected\"));" if switch_personalization else ""}
   {"assert.equal(editor.value, prompt);" if expect_editor_prompt else "assert.equal(editor.value, " + json.dumps(editor_value) + ");"}
   {f'assert.ok(events.some(event => event.event === "stopped" && event.details?.reason === {json.dumps(expected_stopped_reason)}));' if expected_stopped_reason else ''}
 }})().catch(error => {{ console.error(error); process.exit(1); }});
