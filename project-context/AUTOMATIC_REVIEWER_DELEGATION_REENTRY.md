@@ -922,3 +922,32 @@ click; profile change after handoff still blocks prompt population.
 **Reissued decision: NARROW.** Add only this bounded pre-prompt provider-state
 establishment and its executable regressions. No new architecture owner or
 post-Send recovery authority is introduced.
+
+
+### Target-Windows personalization menu evidence
+
+On exact-head physical run `b82b2129e45c36a79d5af7b1f182909abe61ab47`,
+the provider state was positively identified as:
+
+- `temporary_mode=true`;
+- active page evidence `Временный чат` with all three policy signals;
+- `fresh_context=true`;
+- `personalization_state=personalized`;
+- visible personalization evidence included
+  `app-shell-header-context-menu-surface | Персонализированный`.
+
+The adapter then timed out after entering its internal `menu-opened` state. Two
+closure gaps were found in CAP itself:
+
+1. the new `personalization-switch-*` diagnostic events were not present in
+   the controller allowlist, so the physical run could not prove which setup
+   step had completed;
+2. post-open option discovery accepted `menuitem` and `option` but not the
+   standard ARIA radio/checkbox menu-item variants used by selection menus.
+
+The bounded setup surface therefore now accepts `menuitemradio` and
+`menuitemcheckbox` in addition to the existing roles, while still requiring
+exactly one visible non-personalized semantic match before clicking. The
+controller records the setup events so later physical evidence distinguishes
+menu-open, selection and fail-closed states. No task prompt or Send authority
+is released before the existing closed-profile re-observation.
