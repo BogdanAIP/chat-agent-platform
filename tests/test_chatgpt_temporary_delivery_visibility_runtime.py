@@ -37,7 +37,7 @@ const policySource = fs.readFileSync({json.dumps(str(POLICY))}, "utf8");
 
 const normalizeStart = contentSource.indexOf("  function normalizeFull(text) {{");
 const normalizeEnd = contentSource.indexOf("\\n\\n  function observedRecoveryClaims()", normalizeStart);
-const turnsStart = contentSource.indexOf("    function conversationTurns(role) {{");
+const turnsStart = contentSource.indexOf("    function conversationTurnNodes(role) {{");
 const turnsEnd = contentSource.indexOf("\\n\\n    function stopButtonPresent()", turnsStart);
 if (normalizeStart < 0 || normalizeEnd <= normalizeStart || turnsStart < 0 || turnsEnd <= turnsStart) process.exit(70);
 
@@ -88,6 +88,74 @@ if (context.deliveryVisible() !== false) process.exit(73);
 userText = prompt + "\\nExpand";
 context.recovered = true;
 if (context.deliveryVisible() !== false) process.exit(74);
+"""
+        self.run_node(script)
+
+    def test_current_turn_key_user_markup_proves_correlated_delivery(self) -> None:
+        script = f"""
+const fs = require("fs");
+const vm = require("vm");
+const contentSource = fs.readFileSync({json.dumps(str(CONTENT))}, "utf8").replace(/\\r\\n?/g, "\\n");
+const policySource = fs.readFileSync({json.dumps(str(POLICY))}, "utf8");
+
+const normalizeStart = contentSource.indexOf("  function normalizeFull(text) {{");
+const normalizeEnd = contentSource.indexOf("\\n\\n  function observedRecoveryClaims()", normalizeStart);
+const turnsStart = contentSource.indexOf("    function conversationTurnNodes(role) {{");
+const turnsEnd = contentSource.indexOf("\\n\\n    function stopButtonPresent()", turnsStart);
+if (normalizeStart < 0 || normalizeEnd <= normalizeStart || turnsStart < 0 || turnsEnd <= turnsStart) process.exit(80);
+
+const snippet =
+  contentSource.slice(normalizeStart, normalizeEnd) + "\\n" +
+  contentSource.slice(turnsStart, turnsEnd) +
+  "\\nthis.deliveryVisible = userDeliveryVisible;";
+
+const delegationId = "1".repeat(64);
+const deliveryId = "2".repeat(64);
+const taskSha = "3".repeat(64);
+const prompt = [
+  "WORKER_TASK_V1",
+  `delegation_id=${{delegationId}}`,
+  `delivery_id=${{deliveryId}}`,
+  `task_sha256=${{taskSha}}`,
+  `TASK_BEGIN:${{taskSha}}`,
+  "bounded current-renderer task",
+  `TASK_END:${{taskSha}}`,
+].join("\\n");
+const userNode = {{
+  innerText: prompt,
+  textContent: prompt,
+  isConnected: true,
+  parentElement: null,
+  hidden: false,
+  inert: false,
+  getBoundingClientRect() {{ return {{width: 500, height: 100}}; }},
+  getAttribute() {{ return null; }},
+}};
+
+const context = {{
+  console,
+  getComputedStyle() {{ return {{visibility: "visible", display: "block", opacity: "1"}}; }},
+  recovered: false,
+  intent: {{ prompt, delegationId, deliveryId, taskSha256: taskSha }},
+  document: {{
+    querySelectorAll(selector) {{
+      if (selector === '[data-turn-key]:has([data-user-message-bubble])') return [userNode];
+      return [];
+    }},
+  }},
+}};
+context.globalThis = context;
+vm.createContext(context);
+vm.runInContext(policySource, context, {{ filename: "policy.js" }});
+context.policy = context.CAPChatGPTTemporaryPolicy;
+vm.runInContext(snippet, context, {{ filename: "delivery-current-turn-snippet.js" }});
+
+if (context.deliveryVisible() !== true) process.exit(81);
+userNode.innerText = userNode.textContent = prompt.replace(
+  `delivery_id=${{deliveryId}}`,
+  `delivery_id=${{"4".repeat(64)}}`,
+);
+if (context.deliveryVisible() !== false) process.exit(82);
 """
         self.run_node(script)
 
