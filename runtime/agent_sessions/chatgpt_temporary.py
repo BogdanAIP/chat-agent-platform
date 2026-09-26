@@ -229,14 +229,15 @@ def prepare_temporary_session(
     launch_handle: str,
     state_root: Path,
 ) -> TemporaryLaunchIntent:
-    """Commit at most one task-bearing launch bound to a live launch handle.
+    """Commit at most one task-bound launch to a live launch handle.
 
     ``launch_now`` is true only for the call that durably moves ``prepared`` to
-    ``launch-attempted``. The private durable ``run_id`` is deliberately absent
-    from the task URL. For compatibility with the existing content policy, the
-    fragment key remains ``cap_run_id`` but its value is now only the opaque
-    ephemeral ``launch_handle``; the live MV3 service worker must resolve that
-    handle back to the private capability before any controller access.
+    ``launch-attempted``. Neither the private durable ``run_id`` nor the
+    capability-bearing worker prompt is placed in the task URL. For compatibility
+    with the existing content policy, the fragment key remains ``cap_run_id`` but
+    its value is only the opaque ephemeral ``launch_handle``; the live MV3 service
+    worker must resolve that handle and hand the prompt to the exact owner tab after
+    navigation.
     """
 
     launch_handle = _hex64(launch_handle, "launch_handle")
@@ -274,20 +275,22 @@ def prepare_temporary_session(
             "cap_delegation_id": prepared.delegation_id,
             "cap_delivery_id": prepared.delivery_id,
             "cap_task_sha256": identity.task_sha256,
-            "prompt": prompt,
         }
     )
     # Browser session history may survive a complete Chrome restart. The value
     # placed in this legacy-named fragment is therefore NOT ``run_id``. It is an
     # opaque handle meaningful only to the current live MV3 service worker.
     fragment = urlencode({"cap_run_id": launch_handle})
+    launch_url = f"https://chatgpt.com/?{query}#{fragment}"
+    if "prompt=" in launch_url or prompt in launch_url or prepared.run_id in launch_url:
+        raise DelegationStateError("task launch URL contains private prompt material")
     return TemporaryLaunchIntent(
         identity=identity,
         delegation_id=prepared.delegation_id,
         delivery_id=prepared.delivery_id,
         run_id=prepared.run_id,
         launch_handle=launch_handle,
-        launch_url=f"https://chatgpt.com/?{query}#{fragment}",
+        launch_url=launch_url,
         prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         launch_now=launch_now,
         launch_state=launch_state,

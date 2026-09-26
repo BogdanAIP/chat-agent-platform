@@ -11,6 +11,7 @@
   const PREFLIGHT_RETRY_MS = 750;
   const PREFLIGHT_MAX_MS = 5 * 60 * 1000;
   const TEMPORARY_UI_SETTLE_MS = 10000;
+  const PERSONALIZATION_SWITCH_TIMEOUT_MS = 10000;
   const MAX_RECOVERY_CLAIMS = 8;
   const LAUNCH_QUERY_KEYS = [
     "temporary-chat",
@@ -65,6 +66,39 @@
         }),
       );
     });
+  }
+
+  async function requestTaskPrompt(intent) {
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        {
+          schema_version: 1,
+          kind: "task-prompt",
+          run_id: intent.runId,
+          delegation_id: intent.delegationId,
+          delivery_id: intent.deliveryId,
+          task_sha256: intent.taskSha256,
+          expected_runtime_head: intent.expectedHead,
+          prompt_sha256: intent.promptSha256,
+          execution_generation: executionGeneration,
+        },
+        (value) => resolve(value || {
+          ok: false,
+          reason: chrome.runtime.lastError?.message || "no-response",
+        }),
+      );
+    });
+    if (!response?.ok || typeof response.prompt !== "string") return null;
+    if (
+      response.delegation_id !== intent.delegationId ||
+      response.delivery_id !== intent.deliveryId ||
+      response.task_sha256 !== intent.taskSha256 ||
+      response.expected_runtime_head !== intent.expectedHead ||
+      response.prompt_sha256 !== intent.promptSha256
+    ) return null;
+    if (!policy.promptMatchesIntent(response.prompt, intent)) return null;
+    if (await sha256Text(response.prompt) !== intent.promptSha256) return null;
+    return { ...intent, prompt: response.prompt };
   }
 
   function currentPreflightId() {
@@ -157,7 +191,12 @@
     let intervalId = null;
     let authorityRequested = recovered;
     let temporaryUiPendingSince = null;
+    let personalizationSwitchState = "idle";
+    let personalizationSwitchStartedAt = 0;
     let sendAuthorized = false;
+    let promptHandoffRequested = recovered;
+    let promptPopulationAttemptedAt = 0;
+    let lastPreSendDiagnosticAt = 0;
     let monitorOnly = recovered;
     let sendClickedAt = recovered ? Date.now() : 0;
     let deliveryState = recovered ? intent.recoveredDeliveryState : "prepared";
@@ -257,16 +296,119 @@
       return { composer, editor };
     }
 
+    function editorText(editor) {
+      if (!editor) return null;
+      if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+        return canonicalPromptText(editor.value);
+      }
+      if (editor.getAttribute?.("contenteditable") !== "true" && !editor.isContentEditable) return null;
+      const structured = contentEditablePromptText(editor);
+      if (structured !== null) return structured;
+      return canonicalPromptText(editor.innerText || editor.textContent || "").replace(/\u0000/g, "");
+    }
+
+    function populateEmptyComposer(composer) {
+      if (recovered || typeof intent.prompt !== "string" || !intent.prompt) return false;
+      const editor = findComposerEditor(composer);
+      if (!editor) return false;
+      if (exactComposerPromptMatches(composer)) return true;
+
+      const observed = editorText(editor);
+      if (observed === null) return false;
+      if (observed.trim().length > 0) {
+        stop("composer-not-empty-before-prompt-handoff");
+        return false;
+      }
+
+      if (promptPopulationAttemptedAt) {
+        if (Date.now() - promptPopulationAttemptedAt >= 5000) {
+          stop("composer-prompt-population-failed");
+        }
+        return false;
+      }
+      promptPopulationAttemptedAt = Date.now();
+
+      try {
+        if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+          const setter = typeof HTMLTextAreaElement !== "undefined"
+            ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set
+            : null;
+          if (setter) setter.call(editor, intent.prompt);
+          else editor.value = intent.prompt;
+          const InputCtor = typeof InputEvent === "function" ? InputEvent : Event;
+          editor.dispatchEvent(new InputCtor("input", {
+            bubbles: true,
+            inputType: "insertText",
+            data: intent.prompt,
+          }));
+        } else if (editor.getAttribute?.("contenteditable") === "true" || editor.isContentEditable) {
+          if (typeof editor.focus === "function") editor.focus({ preventScroll: true });
+          let inserted = false;
+          if (typeof document.execCommand === "function") {
+            try {
+              inserted = document.execCommand("insertText", false, intent.prompt) === true;
+            } catch {
+              inserted = false;
+            }
+          }
+          if (!inserted && typeof editor.replaceChildren === "function" && typeof document.createElement === "function") {
+            const nodes = canonicalPromptText(intent.prompt).split("\n").map((line) => {
+              const paragraph = document.createElement("p");
+              if (line) paragraph.textContent = line;
+              else if (typeof paragraph.appendChild === "function") paragraph.appendChild(document.createElement("br"));
+              return paragraph;
+            });
+            editor.replaceChildren(...nodes);
+            const InputCtor = typeof InputEvent === "function" ? InputEvent : Event;
+            editor.dispatchEvent(new InputCtor("input", {
+              bubbles: true,
+              inputType: "insertText",
+              data: intent.prompt,
+            }));
+          }
+        } else {
+          stop("composer-editor-unsupported");
+          return false;
+        }
+      } catch {
+        stop("composer-prompt-population-failed");
+        return false;
+      }
+
+      if (exactComposerPromptMatches(composer)) {
+        event("prompt-bound-from-live-handoff", { prompt_sha256: intent.promptSha256 });
+        return true;
+      }
+      return false;
+    }
+
     function findSendBinding() {
       const current = currentComposerBinding();
       if (!current) return null;
-      let buttons = [...document.querySelectorAll('button[data-testid="send-button"]')];
-      // Some focused production-behavior fixtures expose querySelector only.
-      // In a real DOM querySelectorAll and querySelector cannot disagree here.
-      if (buttons.length === 0) {
-        const fallback = document.querySelector('button[data-testid="send-button"]');
-        if (fallback) buttons = [fallback];
+      const selectors = [
+        'button[data-testid="send-button"]',
+        '#composer-submit-button',
+        'button[type="submit"]',
+      ];
+      const buttons = [];
+      const seen = new Set();
+
+      for (const selector of selectors) {
+        const matches = typeof document.querySelectorAll === "function"
+          ? [...document.querySelectorAll(selector)]
+          : [];
+        if (matches.length === 0 && typeof document.querySelector === "function") {
+          const fallback = document.querySelector(selector);
+          if (fallback) matches.push(fallback);
+        }
+        for (const button of matches) {
+          if (!seen.has(button)) {
+            seen.add(button);
+            buttons.push(button);
+          }
+        }
       }
+
       const eligible = buttons.filter((button) =>
         buttonReady(button) && button.closest?.("form") === current.composer,
       );
@@ -428,21 +570,49 @@
       return true;
     }
 
+    function conversationTurnNodes(role) {
+      if (typeof document.querySelectorAll !== "function") return [];
+      const selectors = role === "user"
+        ? [
+            '[data-message-author-role="user"]',
+            '[data-testid^="conversation-turn-"][data-turn="user"]',
+            '[data-testid^="conversation-turn-"]:has([data-message-author-role="user"])',
+            '[data-turn-key]:has([data-user-message-bubble])',
+          ]
+        : [
+            '[data-message-author-role="assistant"]',
+            '[data-testid^="conversation-turn-"][data-turn="assistant"]',
+            '[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
+            '[data-turn-key]:has([data-conversation-role="assistant"])',
+            '[data-turn-key]:has([data-local-conversation-final-assistant])',
+          ];
+      const nodes = [];
+      const seen = new Set();
+      for (const selector of selectors) {
+        for (const node of document.querySelectorAll(selector)) {
+          if (!node || seen.has(node)) continue;
+          seen.add(node);
+          nodes.push(node);
+        }
+      }
+      return nodes;
+    }
+
     function conversationTurns(role) {
-      return [...document.querySelectorAll(`[data-message-author-role="${role}"]`)]
+      return conversationTurnNodes(role)
         .map((node) => normalizeFull(node.innerText || node.textContent || ""))
         .filter(Boolean);
     }
 
     function visibleConversationTurns(role) {
-      return [...document.querySelectorAll(`[data-message-author-role="${role}"]`)]
+      return conversationTurnNodes(role)
         .filter((node) => visible(node))
         .map((node) => normalizeFull(node.innerText || node.textContent || ""))
         .filter(Boolean);
     }
 
     function allConversationTurnCount() {
-      return document.querySelectorAll('[data-message-author-role="user"],[data-message-author-role="assistant"]').length;
+      return conversationTurnNodes("user").length + conversationTurnNodes("assistant").length;
     }
 
     function temporaryMatches(text) {
@@ -454,6 +624,85 @@
     function attributeEvidence(node, names) {
       if (!node) return "";
       return normalize(names.map((name) => node.getAttribute?.(name)).filter(Boolean).join(" | "));
+    }
+
+    function personalizationSetupCandidates(selector, mode, composer) {
+      if (typeof document.querySelectorAll !== "function") return [];
+      return [...document.querySelectorAll(selector)].filter((node) => {
+        if (!node || typeof node.click !== "function" || !buttonReady(node)) return false;
+        if (composer && (composer === node || composer.contains?.(node) || node.contains?.(composer))) return false;
+        return policy.personalizationModeFromText(candidateText(node)) === mode;
+      });
+    }
+
+    function establishUnpersonalizedBeforePrompt(composer, observed) {
+      if (recovered) return observed.personalization_state === "non-personalized" ? "ready" : "unavailable";
+      if (observed.personalization_state === "non-personalized") {
+        personalizationSwitchState = "complete";
+        return "ready";
+      }
+
+      if (!observed.temporary_mode || !observed.fresh_context) {
+        return "unavailable";
+      }
+      if (
+        personalizationSwitchState === "idle" &&
+        observed.personalization_state !== "personalized"
+      ) {
+        return "unavailable";
+      }
+
+      const editor = findComposerEditor(composer);
+      const composerText = editorText(editor);
+      if (
+        allConversationTurnCount() !== 0 ||
+        composerText === null ||
+        composerText.trim().length !== 0
+      ) {
+        return "unsafe";
+      }
+
+      if (personalizationSwitchState === "idle") {
+        const controls = personalizationSetupCandidates(
+          'button,[role="button"]',
+          "personalized",
+          composer,
+        );
+        if (controls.length === 0) return "unavailable";
+        if (controls.length !== 1) return "ambiguous";
+        personalizationSwitchState = "menu-opened";
+        personalizationSwitchStartedAt = Date.now();
+        event("personalization-switch-opened", { from: "personalized" });
+        controls[0].click();
+        return "pending";
+      }
+
+      if (
+        personalizationSwitchStartedAt &&
+        Date.now() - personalizationSwitchStartedAt >= PERSONALIZATION_SWITCH_TIMEOUT_MS
+      ) {
+        return "timeout";
+      }
+
+      if (personalizationSwitchState === "menu-opened") {
+        const options = personalizationSetupCandidates(
+          'button,[role="button"],[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"],[role="option"]',
+          "non-personalized",
+          composer,
+        );
+        if (options.length === 0) return "pending";
+        if (options.length !== 1) return "ambiguous";
+        personalizationSwitchState = "selection-clicked";
+        event("personalization-switch-selected", { to: "non-personalized" });
+        options[0].click();
+        return "pending";
+      }
+
+      if (personalizationSwitchState === "selection-clicked") {
+        return "pending";
+      }
+
+      return personalizationSwitchState === "complete" ? "ready" : "unavailable";
     }
 
     function externalTemporaryControlActive(node) {
@@ -609,6 +858,89 @@
       // evidence uses bounded correlation markers instead of re-projecting the
       // whole composer string.
       return conversationTurns("user").some((text) => policy.hasExpectedPrompt(text, intent));
+    }
+
+    function composerEmptyAfterSend() {
+      const current = currentComposerBinding();
+      if (!current) return false;
+      const { editor } = current;
+      if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+        return canonicalPromptText(editor.value).trim().length === 0;
+      }
+      if (editor.getAttribute?.("contenteditable") !== "true" && !editor.isContentEditable) return false;
+      const nodes = editor.childNodes == null ? [] : [...editor.childNodes];
+      if (nodes.length === 0) {
+        return canonicalPromptText(editor.innerText || editor.textContent || "").replace(/\u0000/g, "").trim().length === 0;
+      }
+      const observed = contentEditablePromptText(editor);
+      return observed !== null && observed.trim().length === 0;
+    }
+
+    function clearExactDuplicateAfterSend() {
+      const current = currentComposerBinding();
+      if (!current || !exactComposerPromptMatches(current.composer)) {
+        return { matched: false, clean: composerEmptyAfterSend(), changed: false };
+      }
+      const { editor } = current;
+      try {
+        if (String(editor.tagName || "").toUpperCase() === "TEXTAREA" && typeof editor.value === "string") {
+          const setter = typeof HTMLTextAreaElement !== "undefined"
+            ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set
+            : null;
+          if (setter) setter.call(editor, "");
+          else editor.value = "";
+          if (typeof editor.dispatchEvent === "function") {
+            editor.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+        } else if (editor.getAttribute?.("contenteditable") === "true" || editor.isContentEditable) {
+          let deleted = false;
+          try {
+            if (typeof editor.focus === "function") editor.focus({ preventScroll: true });
+            const selection = typeof window !== "undefined" && typeof window.getSelection === "function"
+              ? window.getSelection()
+              : null;
+            const range = typeof document.createRange === "function" ? document.createRange() : null;
+            if (selection && range) {
+              range.selectNodeContents(editor);
+              selection.removeAllRanges();
+              selection.addRange(range);
+              try {
+                deleted = typeof document.execCommand === "function" &&
+                  document.execCommand("delete", false, null) === true;
+              } finally {
+                selection.removeAllRanges();
+              }
+            }
+          } catch {
+            deleted = false;
+          }
+
+          if (!deleted && exactComposerPromptMatches(current.composer)) {
+            if (typeof editor.replaceChildren === "function") {
+              editor.replaceChildren();
+            } else {
+              if (Array.isArray(editor.childNodes)) editor.childNodes.length = 0;
+              if (Array.isArray(editor.children)) editor.children.length = 0;
+              if ("textContent" in editor) editor.textContent = "";
+              if ("innerText" in editor) editor.innerText = "";
+            }
+          }
+
+          if (typeof editor.dispatchEvent === "function") {
+            const InputCtor = typeof InputEvent === "function" ? InputEvent : Event;
+            editor.dispatchEvent(new InputCtor("input", {
+              bubbles: true,
+              inputType: "deleteContentBackward",
+              data: null,
+            }));
+          }
+        } else {
+          return { matched: true, clean: false, changed: false };
+        }
+      } catch {
+        return { matched: true, clean: false, changed: true };
+      }
+      return { matched: true, clean: composerEmptyAfterSend(), changed: true };
     }
 
     function stopButtonPresent() {
@@ -901,8 +1233,119 @@
       }
 
       if (!sendAuthorized && !monitorOnly && !authorityRequested) {
+        const current = currentComposerBinding();
+        if (!current) return;
+
+        if (!recovered && !intent.prompt) {
+          let temporary = observeTemporaryState(current.composer);
+          const personalizationSetup = establishUnpersonalizedBeforePrompt(
+            current.composer,
+            temporary,
+          );
+          if (personalizationSetup === "pending") return;
+          if (["ambiguous", "timeout", "unsafe"].includes(personalizationSetup)) {
+            event("personalization-switch-failed", {
+              ...temporary,
+              reason: personalizationSetup,
+              before_prompt_handoff: true,
+            });
+            stop("personalization-switch-failed-before-prompt-handoff", {
+              ...temporary,
+              reason: personalizationSetup,
+            });
+            return;
+          }
+          if (personalizationSetup === "ready") {
+            temporary = observeTemporaryState(current.composer);
+          }
+
+          const closedProfileProven =
+            temporary.temporary_mode &&
+            temporary.fresh_context &&
+            temporary.personalization_disabled === true &&
+            temporary.plugin_markers.length === 0;
+
+          if (!closedProfileProven) {
+            const retryableTemporaryUiSettle =
+              !temporary.temporary_mode &&
+              temporary.fresh_context === true &&
+              allConversationTurnCount() === 0;
+
+            if (retryableTemporaryUiSettle) {
+              const now = Date.now();
+              if (temporaryUiPendingSince === null) {
+                temporaryUiPendingSince = now;
+                event("temporary-ui-not-proven", {
+                  ...temporary,
+                  qualification_pending: true,
+                  settle_ms: TEMPORARY_UI_SETTLE_MS,
+                  before_prompt_handoff: true,
+                });
+              }
+              if (now - temporaryUiPendingSince < TEMPORARY_UI_SETTLE_MS) return;
+            }
+
+            event("temporary-ui-not-proven", {
+              ...temporary,
+              qualification_pending: false,
+              before_prompt_handoff: true,
+            });
+            stop("child-qualification-failed-before-prompt-handoff", temporary);
+            return;
+          }
+
+          temporaryUiPendingSince = null;
+          if (promptHandoffRequested) return;
+          promptHandoffRequested = true;
+          void requestTaskPrompt(intent).then((bound) => {
+            if (!bound) {
+              stop("task-prompt-handoff-unavailable");
+              return;
+            }
+            intent.prompt = bound.prompt;
+            promptPopulationAttemptedAt = 0;
+            event("prompt-handoff-received", { prompt_sha256: intent.promptSha256 });
+          });
+          return;
+        }
+
+        if (!recovered && intent.prompt) {
+          const currentQualification = observeTemporaryState(current.composer);
+          if (
+            !currentQualification.temporary_mode ||
+            !currentQualification.fresh_context ||
+            currentQualification.personalization_disabled !== true ||
+            currentQualification.plugin_markers.length > 0
+          ) {
+            event("temporary-ui-changed-before-prompt-population", currentQualification);
+            stop("child-qualification-changed-before-prompt-population", currentQualification);
+            return;
+          }
+        }
+
+        if (!populateEmptyComposer(current.composer)) return;
         const binding = findSendBinding();
-        if (!binding || !exactComposerPromptMatches(binding.composer)) return;
+        const exactPrompt = binding
+          ? exactComposerPromptMatches(binding.composer)
+          : exactComposerPromptMatches(current.composer);
+        if (!binding || !exactPrompt) {
+          const now = Date.now();
+          if (now - lastPreSendDiagnosticAt >= 1000) {
+            lastPreSendDiagnosticAt = now;
+            const sendButtons = typeof document.querySelectorAll === "function"
+              ? [...document.querySelectorAll("button")].filter((button) => visible(button)).slice(0, 32)
+              : [];
+            event("pre-send-binding-not-ready", {
+              exact_prompt_match: exactPrompt,
+              send_binding_found: Boolean(binding),
+              send_button_testid_count: typeof document.querySelectorAll === "function"
+                ? document.querySelectorAll('button[data-testid="send-button"]').length
+                : -1,
+              visible_button_evidence: sendButtons.map((button) => candidateText(button)).filter(Boolean).slice(0, 12),
+            });
+          }
+          return;
+        }
         void requestAuthority(binding.composer);
         return;
       }
@@ -936,12 +1379,28 @@
       void pollControllerStatus();
       if (!recoveryConversationBound) void bindRecoveryConversation();
       const visibleDelivery = userDeliveryVisible();
-      if (visibleDelivery && deliveryState !== "delivered") {
-        void postDelivery("delivered", deliveryEvidenceRef("delivered", "visible"));
+      let composerEmpty = composerEmptyAfterSend();
+      if (visibleDelivery && !composerEmpty) {
+        const duplicate = clearExactDuplicateAfterSend();
+        if (duplicate.matched) {
+          composerEmpty = duplicate.clean;
+          if (duplicate.changed) {
+            event("post-send-exact-duplicate-cleared", { composer_clean: duplicate.clean });
+            return;
+          }
+        }
+      }
+      if (visibleDelivery && composerEmpty && deliveryState !== "delivered") {
+        void postDelivery("delivered", deliveryEvidenceRef("delivered", "visible-and-composer-empty"));
         return;
       }
-      if (!visibleDelivery && deliveryState === "claimed" && Date.now() - sendClickedAt >= intent.deliveryObserveMs && !deliveryOutcomeAt) {
-        void postDelivery("unknown", deliveryEvidenceRef("unknown", "ambiguous"));
+      if (
+        deliveryState === "claimed" &&
+        Date.now() - sendClickedAt >= intent.deliveryObserveMs &&
+        !deliveryOutcomeAt
+      ) {
+        const kind = visibleDelivery && !composerEmpty ? "post-send-composer-residue" : "ambiguous";
+        void postDelivery("unknown", deliveryEvidenceRef("unknown", kind));
         return;
       }
 

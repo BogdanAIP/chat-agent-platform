@@ -50,7 +50,6 @@ launch.searchParams.set("cap_delivery_id", deliveryId);
 launch.searchParams.set("cap_task_sha256", taskSha);
 launch.searchParams.set("cap_expected_head", expectedHead);
 launch.searchParams.set("cap_prompt_sha256", promptSha);
-launch.searchParams.set("prompt", prompt);
 launch.hash = `cap_run_id=${{runId}}`;
 let href = launch.toString();
 let now = 1000;

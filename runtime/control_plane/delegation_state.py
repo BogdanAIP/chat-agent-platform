@@ -31,6 +31,8 @@ _ALLOWED_LAUNCH_STATE = {"prepared", "launch-attempted", "child-bound"}
 _ALLOWED_DELIVERY_STATE = {"prepared", "claimed", "delivered", "unknown"}
 _ALLOWED_RESULT_STATE = {"open", "recorded"}
 _ALLOWED_RESULT_STATUS = {"COMPLETED", "ABSTAIN", "ERROR"}
+REVIEW_SUBMITTED_RECEIPT = "REVIEW_SUBMITTED_V1"
+REVIEW_NONCOMPLETING_RECEIPT = "REVIEW_NONCOMPLETING_V1"
 
 _IDENTITY_KEYS = {
     "parent_task_id",
@@ -586,6 +588,14 @@ def _validate_state(
     digest = _hex64(value["result_sha256"], "result_sha256")
     if hashlib.sha256(encoded).hexdigest() != digest:
         raise DelegationStateError("recorded worker result digest mismatch")
+    if identity.worker_kind == "code-review" and identity.result_contract_id == "review_result_v1":
+        expected = (
+            REVIEW_SUBMITTED_RECEIPT
+            if value["result_status"] == "COMPLETED"
+            else REVIEW_NONCOMPLETING_RECEIPT
+        )
+        if payload != expected:
+            raise DelegationStateError("stored reviewer Delegation contains a review result")
     _timestamp(value["result_recorded_at"], "state.result_recorded_at")
 
 
@@ -898,6 +908,14 @@ def record_worker_result(
             delegation_id=delegation_id,
             delivery_id=delivery_id,
         )
+        if identity.worker_kind == "code-review" and identity.result_contract_id == "review_result_v1":
+            expected = (
+                REVIEW_SUBMITTED_RECEIPT
+                if parsed.status == "COMPLETED"
+                else REVIEW_NONCOMPLETING_RECEIPT
+            )
+            if parsed.payload != expected:
+                raise DelegationStateError("reviewer Delegation may store only an opaque receipt")
         if state["delivery_state"] != "delivered":
             raise DelegationStateError("worker result cannot close an undelivered delegation")
         if state["result_state"] == "recorded":

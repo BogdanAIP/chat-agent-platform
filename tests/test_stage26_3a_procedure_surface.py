@@ -127,6 +127,15 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, source)
 
+    def test_procedure_run_open_world_hint_covers_external_reviewer_consumer(self) -> None:
+        source = CONTROL_PLANE.read_text(encoding="utf-8")
+        block = source.split("server.registerTool('procedure_run'", 1)[1].split(
+            "}, args => runProcedure(args));",
+            1,
+        )[0]
+        self.assertIn("openWorldHint: true", block)
+        self.assertNotIn("openWorldHint: false", block)
+
     def test_control_plane_scrubs_tunnel_credentials_and_allowlists_children(self) -> None:
         source = CONTROL_PLANE.read_text(encoding="utf-8")
         for secret in ("CONTROL_PLANE_API_KEY", "OPENAI_API_KEY", "OPENAI_ADMIN_KEY"):

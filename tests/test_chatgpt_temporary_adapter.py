@@ -143,11 +143,18 @@ class ChatGPTTemporaryAdapterTests(unittest.TestCase):
         self.assertEqual([launch.delegation_id], query["cap_delegation_id"])
         self.assertEqual([launch.delivery_id], query["cap_delivery_id"])
         self.assertEqual([TASK_SHA], query["cap_task_sha256"])
-        prompt = query["prompt"][0]
+        self.assertNotIn("prompt", query)
+        prompt = chatgpt_temporary.build_worker_prompt(
+            launch.identity,
+            delegation_id=launch.delegation_id,
+            delivery_id=launch.delivery_id,
+            task=TASK,
+        )
         self.assertIn("WORKER_TASK_V1", prompt)
         self.assertIn(f"delegation_id={launch.delegation_id}", prompt)
         self.assertIn(f"delivery_id={launch.delivery_id}", prompt)
         self.assertNotIn(launch.run_id, prompt)
+        self.assertNotIn(prompt, launch.launch_url)
         self.assertEqual(hashlib.sha256(prompt.encode("utf-8")).hexdigest(), launch.prompt_sha256)
 
     def test_prepare_rejects_task_identity_mismatch_and_never_commits_launch(self) -> None:

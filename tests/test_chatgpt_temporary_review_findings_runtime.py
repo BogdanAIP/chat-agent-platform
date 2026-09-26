@@ -295,7 +295,8 @@ const policy = {{
   findComposerEditor: globalThis.CAPChatGPTTemporaryPolicy.findComposerEditor,
   HEX64_RE: /^[0-9a-f]{{64}}$/,
   HEAD40_RE: /^[0-9a-f]{{40}}$/,
-  parseIntent() {{ return intent; }},
+  parseIntent() {{ return {{...intent, prompt: ""}}; }},
+  promptMatchesIntent(candidate) {{ return candidate === prompt; }},
   exactPromptMatches(observed, expected) {{ return String(observed).replace(/\\r\\n?/g, "\\n") === String(expected).replace(/\\r\\n?/g, "\\n"); }},
   conversationId() {{ return null; }},
   armPostDeliveryUiGuard() {{ return true; }},
@@ -334,6 +335,18 @@ editor.parentElement = composer;
 global.chrome = {{ runtime: {{
   lastError: null,
   sendMessage(message, callback) {{
+    if (message.kind === "task-prompt") {{
+      callback({{
+        ok: true,
+        prompt,
+        delegation_id: delegationId,
+        delivery_id: deliveryId,
+        task_sha256: taskSha,
+        expected_runtime_head: head,
+        prompt_sha256: promptSha,
+      }});
+      return;
+    }}
     if (message.kind === "authorize-send") {{
       callback({{ ok: true, send_authorized: true, delivery_state: "claimed" }});
       return;

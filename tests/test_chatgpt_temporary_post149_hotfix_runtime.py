@@ -512,7 +512,11 @@ async function runCase({
     HEAD40_RE: /^[0-9a-f]{40}$/,
 
     parseIntent() {
-      return intent;
+      return {...intent, prompt: ""};
+    },
+
+    promptMatchesIntent(candidate) {
+      return candidate === prompt;
     },
 
     findComposerEditor() {
@@ -663,6 +667,19 @@ async function runCase({
         lastError: null,
 
         sendMessage(message, callback) {
+          if (message.kind === "task-prompt") {
+            callback({
+              ok: true,
+              prompt,
+              delegation_id: intent.delegationId,
+              delivery_id: intent.deliveryId,
+              task_sha256: intent.taskSha256,
+              expected_runtime_head: intent.expectedHead,
+              prompt_sha256: intent.promptSha256,
+            });
+            return;
+          }
+
           if (message.kind === "event") {
             events.push(message);
             callback({ok: true});
@@ -775,8 +792,16 @@ async function runCase({
 
   assert.equal(
     delayed.authorizeCount,
+    0,
+    "prompt handoff may occur after Temporary UI proof but before Send authority"
+  );
+
+  await delayed.steps(1);
+
+  assert.equal(
+    delayed.authorizeCount,
     1,
-    "exactly one Send authority request must occur after Temporary UI proof"
+    "exactly one Send authority request must occur after qualified prompt handoff"
   );
 
   assert.equal(
@@ -794,7 +819,7 @@ async function runCase({
     delayed.events.some(
       event =>
         event.event === "stopped" &&
-        event.details?.reason === "child-qualification-failed"
+        event.details?.reason === "child-qualification-failed-before-prompt-handoff"
     ),
     false
   );
@@ -818,7 +843,7 @@ async function runCase({
     absent.events.some(
       event =>
         event.event === "stopped" &&
-        event.details?.reason === "child-qualification-failed"
+        event.details?.reason === "child-qualification-failed-before-prompt-handoff"
     ),
     "Temporary UI that never appears must fail closed after the bounded window"
   );
@@ -829,6 +854,8 @@ async function runCase({
     personalizationText: "Personalized",
   });
 
+  await personalized.steps(21);
+
   assert.equal(personalized.authorizeCount, 0);
   assert.equal(personalized.clicks, 0);
 
@@ -836,9 +863,9 @@ async function runCase({
     personalized.events.some(
       event =>
         event.event === "stopped" &&
-        event.details?.reason === "child-qualification-failed"
+        event.details?.reason === "child-qualification-failed-before-prompt-handoff"
     ),
-    "non-Temporary failures must not receive the settlement grace period"
+    "fresh UI that never proves Temporary must fail closed after the bounded hydration window"
   );
 })().catch(error => {
   console.error(error);

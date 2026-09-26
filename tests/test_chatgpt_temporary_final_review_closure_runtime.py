@@ -224,7 +224,9 @@ const personalizationNode = {{isConnected: true, parentElement: null,
   getBoundingClientRect: rect, getAttribute() {{ return null; }}, contains() {{ return false; }}}};
 const policy = {{
   HEX64_RE: /^[0-9a-f]{{64}}$/, HEAD40_RE: /^[0-9a-f]{{40}}$/,
-  parseIntent() {{ return intent; }}, findComposerEditor() {{ return editor; }},
+  parseIntent() {{ return {{...intent, prompt: ""}}; }},
+  promptMatchesIntent(candidate) {{ return candidate === prompt; }},
+  findComposerEditor() {{ return editor; }},
   exactPromptMatches(observed, expected) {{ return observed === expected; }},
   personalizationModeFromText(text) {{
     const value = String(text);
@@ -245,7 +247,7 @@ global.location = {{href: "https://chatgpt.com/", origin: "https://chatgpt.com"}
 global.history = {{state: null, replaceState() {{}}}};
 global.getComputedStyle = () => ({{visibility: "visible", display: "block", opacity: "1"}});
 global.document = {{
-  querySelector(selector) {{ return selector === 'button[data-testid="send-button"]' ? button : null; }},
+  querySelector(selector) {{ return selector === '#composer-submit-button' ? button : null; }},
   querySelectorAll(selector) {{
     if (selector === 'button,[role="button"],[aria-label],[title],[data-testid]') return [temporaryNode, personalizationNode];
     if (selector === '[data-message-author-role="user"],[data-message-author-role="assistant"]') return [];
@@ -255,6 +257,18 @@ global.document = {{
   }},
 }};
 global.chrome = {{runtime: {{lastError: null, sendMessage(message, callback) {{
+  if (message.kind === "task-prompt") {{
+    callback({{
+      ok: true,
+      prompt,
+      delegation_id: intent.delegationId,
+      delivery_id: intent.deliveryId,
+      task_sha256: intent.taskSha256,
+      expected_runtime_head: intent.expectedHead,
+      prompt_sha256: intent.promptSha256,
+    }});
+    return;
+  }}
   if (message.kind === "authorize-send") {{ authorizeCalls += 1; callback({{ok: true, send_authorized: true, delivery_state: "claimed"}}); return; }}
   if (message.kind === "event") events.push(message);
   callback({{ok: true}});
@@ -264,7 +278,11 @@ global.clearInterval = (_id) => {{}};
 vm.runInThisContext(source, {{filename: "content.js"}});
 function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
 (async () => {{
-  for (let i = 0; i < 10 && authorizeCalls === 0; i += 1) await flush();
+  for (let i = 0; i < 10 && authorizeCalls === 0; i += 1) {{
+    await flush();
+    if (typeof intervalFn === "function") intervalFn();
+    await flush();
+  }}
   if (authorizeCalls !== 1) process.exit(70);
   personalized = true;
   intervalFn();

@@ -230,8 +230,21 @@ jobs:
             'runtime/control_plane/browser_transition.py',
             'runtime/control_plane/browser_transition_cli.py',
             'runtime/control_plane/cli.py',
+            'runtime/control_plane/delegation_state.py',
+            'runtime/control_plane/automatic_review_worker.py',
+            'runtime/control_plane/independent_review_delegation.py',
             'runtime/control_plane/independent_review_procedures.py',
             'runtime/control_plane/independent_review_state.py',
+            'runtime/agent_sessions/__init__.py',
+            'runtime/agent_sessions/chatgpt_temporary.py',
+            'runtime/agent_sessions/chatgpt_temporary_controller.py',
+            'runtime/agent_sessions/chatgpt_temporary_authenticated_controller.py',
+            'runtime/agent_sessions/source_attestation.py',
+            'runtime/agent_sessions/chatgpt_temporary_extension/manifest.json',
+            'runtime/agent_sessions/chatgpt_temporary_extension/execution_generation.js',
+            'runtime/agent_sessions/chatgpt_temporary_extension/policy.js',
+            'runtime/agent_sessions/chatgpt_temporary_extension/background.js',
+            'runtime/agent_sessions/chatgpt_temporary_extension/content.js',
             'runtime/control_plane/file_artifact_observation.py',
             'runtime/control_plane/verification.py',
             'runtime/control_plane/verified_workspace_artifact.py',
@@ -267,8 +280,14 @@ jobs:
             (Join-Path $installedRuntime 'control_plane/browser_transition.py'),
             (Join-Path $installedRuntime 'control_plane/browser_transition_cli.py'),
             (Join-Path $installedRuntime 'control_plane/cli.py'),
+            (Join-Path $installedRuntime 'control_plane/delegation_state.py'),
+            (Join-Path $installedRuntime 'control_plane/automatic_review_worker.py'),
+            (Join-Path $installedRuntime 'control_plane/independent_review_delegation.py'),
             (Join-Path $installedRuntime 'control_plane/independent_review_procedures.py'),
             (Join-Path $installedRuntime 'control_plane/independent_review_state.py'),
+            (Join-Path $installedRuntime 'agent_sessions/chatgpt_temporary.py'),
+            (Join-Path $installedRuntime 'agent_sessions/chatgpt_temporary_authenticated_controller.py'),
+            (Join-Path $installedRuntime 'agent_sessions/chatgpt_temporary_extension/background.js'),
             (Join-Path $installedRuntime 'control_plane/file_artifact_observation.py'),
             (Join-Path $installedRuntime 'control_plane/verification.py'),
             (Join-Path $installedRuntime 'control_plane/verified_workspace_artifact.py'),
@@ -372,7 +391,7 @@ jobs:
             throw "Installed reviewer launch CLI failed with exit code $LASTEXITCODE`: $($launchRaw | Out-String)"
           }
           $launch = $launchRaw | Out-String | ConvertFrom-Json
-          if ([string]$launch.status -ne 'abstained' -or [string]$launch.escalation_reason -ne 'reviewer_authority_unqualified') {
+          if ([string]$launch.status -ne 'abstained' -or [string]$launch.escalation_reason -ne 'reviewer_runtime_unavailable') {
             throw "Installed reviewer launch did not fail closed: $($launch | ConvertTo-Json -Compress -Depth 8)"
           }
           if ([string]$launch.dispatch_state -ne 'prepared' -or [string]$launch.result_state -ne 'open') {

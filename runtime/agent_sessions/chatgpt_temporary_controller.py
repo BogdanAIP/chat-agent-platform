@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import secrets
@@ -10,7 +11,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from runtime.agent_sessions import chatgpt_temporary, source_attestation
@@ -30,9 +31,13 @@ FINAL_OBSERVATION_GRACE_SECONDS = 20
 ALLOWED_EVENTS = {
     "adapter-loaded",
     "temporary-ui-not-proven",
+    "personalization-switch-opened",
+    "personalization-switch-selected",
+    "personalization-switch-failed",
     "browser-claim-failed",
     "browser-claim-committed",
     "local-send-authority-denied",
+    "pre-send-binding-not-ready",
     "send-clicked",
     "delivery-visible",
     "delivery-ambiguous",
@@ -123,6 +128,8 @@ def _task_launch_url_from_preflight(
         delivery_id=snapshot.delivery_id,
         task=task,
     )
+    if hashlib.sha256(prompt.encode("utf-8")).hexdigest() != snapshot.prompt_sha256:
+        raise DelegationStateError("task launch prompt digest changed during handoff")
     query = urlencode(
         {
             "temporary-chat": "true",
@@ -132,13 +139,12 @@ def _task_launch_url_from_preflight(
             "cap_task_sha256": snapshot.identity.task_sha256,
             "cap_expected_head": expected_head,
             "cap_prompt_sha256": snapshot.prompt_sha256,
-            "prompt": prompt,
         }
     )
     fragment = urlencode({"cap_run_id": launch_handle})
     value = f"https://chatgpt.com/?{query}#{fragment}"
-    if snapshot.run_id in value:
-        raise DelegationStateError("task launch URL leaked private run capability")
+    if "prompt=" in value or prompt in value or snapshot.run_id in value:
+        raise DelegationStateError("task launch URL leaked private prompt material")
     return value
 
 
@@ -152,8 +158,10 @@ class TemporaryControllerState:
         expected_runtime_attestation_value: Mapping[str, Any],
         state_root: Path,
         output_dir: Path,
+        result_capture: Callable[[str, Any], DelegationSnapshot] | None = None,
     ) -> None:
         self.identity = parse_delegation_identity(identity_value)
+        self.result_capture = result_capture
         self.identity_value = self.identity.as_dict()
         self.expected_runtime_attestation = source_attestation.parse_expected_runtime_attestation(
             expected_runtime_attestation_value
@@ -427,12 +435,19 @@ class TemporaryControllerState:
         )
 
     def _record_result_text(self, *, run_id: str, result_text: Any) -> DelegationSnapshot:
-        snapshot = chatgpt_temporary.record_temporary_worker_result(
-            self.identity_value,
-            run_id=run_id,
-            result_text=result_text,
-            state_root=self.state_root,
-        )
+        if self.identity.worker_kind == "code-review" and self.identity.result_contract_id == "review_result_v1":
+            if self.result_capture is None:
+                raise DelegationStateError("reviewer capture has no registered submit binding")
+            snapshot = self.result_capture(run_id, result_text)
+        else:
+            if self.result_capture is not None:
+                raise DelegationStateError("reviewer capture binding on a generic worker")
+            snapshot = chatgpt_temporary.record_temporary_worker_result(
+                self.identity_value,
+                run_id=run_id,
+                result_text=result_text,
+                state_root=self.state_root,
+            )
         with self.lock:
             self.cleanup_token = None
             self.capture_token = None
@@ -584,8 +599,10 @@ class TemporaryControllerRuntime:
         expected_runtime_attestation_value: Mapping[str, Any],
         state_root: Path,
         output_dir: Path,
+        result_capture: Callable[[str, Any], DelegationSnapshot] | None = None,
     ) -> None:
         self.identity_value = parse_delegation_identity(identity_value).as_dict()
+        self.result_capture = result_capture
         self.task = task
         self.expected_runtime_attestation_value = dict(expected_runtime_attestation_value)
         self.expected_runtime_attestation = source_attestation.parse_expected_runtime_attestation(
@@ -635,6 +652,7 @@ class TemporaryControllerRuntime:
                 expected_runtime_attestation_value=self.expected_runtime_attestation_value,
                 state_root=self.state_root,
                 output_dir=self.output_dir,
+                result_capture=self.result_capture,
             )
             self.activated.set()
             self.preflight_path.unlink(missing_ok=True)
@@ -694,6 +712,14 @@ class TemporaryControllerRuntime:
                 self.pending_launch_handle = secrets.token_hex(32)
             launch_handle = self.pending_launch_handle
 
+        prompt = chatgpt_temporary.build_worker_prompt(
+            snapshot.identity,
+            delegation_id=snapshot.delegation_id,
+            delivery_id=snapshot.delivery_id,
+            task=self.task,
+        )
+        if hashlib.sha256(prompt.encode("utf-8")).hexdigest() != snapshot.prompt_sha256:
+            raise DelegationStateError("browser preflight prompt digest mismatch")
         launch_url = _task_launch_url_from_preflight(
             snapshot,
             task=self.task,
@@ -710,6 +736,7 @@ class TemporaryControllerRuntime:
             "task_sha256": snapshot.identity.task_sha256,
             "expected_runtime_head": self.expected_runtime_attestation.expected_head,
             "prompt_sha256": snapshot.prompt_sha256,
+            "prompt": prompt,
             "launch_url": launch_url,
             "runtime_attestation_sha256": runtime_digest,
         }
@@ -753,6 +780,7 @@ class TemporaryControllerRuntime:
                 expected_runtime_attestation_value=self.expected_runtime_attestation_value,
                 state_root=self.state_root,
                 output_dir=self.output_dir,
+                result_capture=self.result_capture,
             )
             if state.launch.launch_now is not True:
                 raise DelegationStateError("browser preflight did not obtain the initial launch authority")

@@ -41,8 +41,8 @@ def projected_windows_qualification_asset(
     return (
         PureWindowsPath(str(local_app_data))
         / "ChatAgentPlatform"
-        / "agent-sessions"
-        / "qualification"
+        / "state"
+        / "agent-session-q"
         / operation_key
         / f"exact-head-source-{head}"
         / "runtime"

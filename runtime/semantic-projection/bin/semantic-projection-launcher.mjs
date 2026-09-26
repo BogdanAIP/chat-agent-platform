@@ -152,8 +152,9 @@ export function assertPrivateWorkspaceIsolation(options = {}) {
     'CHAT_LOCAL_FILES_ROOT'
   );
 
-  // Reviewer genesis/checkpoints contain the private review_run_id. Make every
-  // supported reviewer-state location a lifetime non-workspace boundary, not
+  // Reviewer state and delegated worker results can contain the private
+  // review_run_id. Make every supported capability-bearing state location a
+  // lifetime non-workspace boundary, not
   // merely a point-in-time procedure_run check. Resolve physical paths (or the
   // nearest physical ancestor for not-yet-created state) before comparing so a
   // symlink/junction alias cannot make private state Chat-readable.
@@ -161,8 +162,13 @@ export function assertPrivateWorkspaceIsolation(options = {}) {
   const managerStatePath = path.join(paths.platformRoot, 'state');
   fs.mkdirSync(managerStatePath, { recursive: true });
   const managerStateRoot = fs.realpathSync.native(managerStatePath);
+  const agentSessionPrivateStateRoot = canonicalPotentialDirectory(
+    path.join(paths.platformRoot, 'agent-sessions', 'private-state'),
+    'private Agent Session state'
+  );
   const protectedRoots = [
-    { label: 'private manager state', root: managerStateRoot }
+    { label: 'private manager state', root: managerStateRoot },
+    { label: 'private Agent Session state', root: agentSessionPrivateStateRoot }
   ];
 
   const configuredStateValue = typeof env.CHAT_PROCEDURE_STATE_ROOT === 'string'
@@ -199,6 +205,7 @@ export function assertPrivateWorkspaceIsolation(options = {}) {
     ...paths,
     workspaceRoot,
     managerStateRoot,
+    agentSessionPrivateStateRoot,
     configuredReviewRoot
   };
 }

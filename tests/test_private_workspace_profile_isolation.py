@@ -27,6 +27,9 @@ class PrivateWorkspaceProfileIsolationTests(unittest.TestCase):
             SEMANTIC_LAUNCHER,
         )
         self.assertIn("private manager state", SEMANTIC_LAUNCHER)
+        self.assertIn("agentSessionPrivateStateRoot", SEMANTIC_LAUNCHER)
+        self.assertIn("'agent-sessions', 'private-state'", SEMANTIC_LAUNCHER)
+        self.assertIn("private Agent Session state", SEMANTIC_LAUNCHER)
         self.assertIn("configured independent-review state", SEMANTIC_LAUNCHER)
         self.assertIn("configuredReviewRoot", SEMANTIC_LAUNCHER)
         self.assertIn("protectedRoots", SEMANTIC_LAUNCHER)
@@ -54,6 +57,11 @@ class PrivateWorkspaceProfileIsolationTests(unittest.TestCase):
             LEGACY_PROFILE_START,
         )
         self.assertIn("private manager state", LEGACY_PROFILE_START)
+        self.assertIn(
+            "ChatAgentPlatform\\agent-sessions\\private-state",
+            LEGACY_PROFILE_START,
+        )
+        self.assertIn("private Agent Session state", LEGACY_PROFILE_START)
         self.assertIn("$env:CHAT_PROCEDURE_STATE_ROOT", LEGACY_PROFILE_START)
         self.assertIn("'independent-review-v1'", LEGACY_PROFILE_START)
         self.assertIn("configured independent-review state", LEGACY_PROFILE_START)
