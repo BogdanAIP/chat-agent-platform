@@ -91,6 +91,20 @@ assert.equal(parsed.reason, "prompt-in-url");
         )
         self._run_node(script)
 
+    def test_personalized_page_is_switched_before_prompt_handoff(self) -> None:
+        script = self._content_case(
+            editor_value="",
+            response_prompt="prompt",
+            expected_stopped_reason=None,
+            expect_interval=True,
+            qualified_profile=False,
+            expect_task_prompt_calls=1,
+            switch_personalization=True,
+            expect_personalization_selector_clicks=1,
+            expect_unpersonalized_option_clicks=1,
+        )
+        self._run_node(script)
+
     def test_profile_change_after_handoff_blocks_prompt_population(self) -> None:
         script = self._content_case(
             editor_value="",
@@ -111,6 +125,9 @@ assert.equal(parsed.reason, "prompt-in-url");
         qualified_profile: bool = True,
         expect_task_prompt_calls: int = 1,
         change_profile_after_handoff: bool = False,
+        switch_personalization: bool = False,
+        expect_personalization_selector_clicks: int = 0,
+        expect_unpersonalized_option_clicks: int = 0,
     ) -> str:
         return f"""
 const fs = require("fs");
@@ -142,6 +159,9 @@ let intervals = 0;
 let tick = null;
 let authorizeCalls = 0;
 let taskPromptCalls = 0;
+let personalizationSelectorClicks = 0;
+let unpersonalizedOptionClicks = 0;
+let personalizationMenuOpen = false;
 const events = [];
 
 function rect() {{ return {{width: 500, height: 80}}; }}
@@ -189,6 +209,36 @@ const personalization = {{
   textContent: {json.dumps("Non-personalized" if qualified_profile else "Personalized")},
   getBoundingClientRect: rect,
   getAttribute(name) {{ return name === "aria-label" ? this.textContent : null; }},
+  matches() {{ return false; }},
+  contains() {{ return false; }},
+  click() {{
+    if ({str(switch_personalization).lower()}) {{
+      personalizationSelectorClicks += 1;
+      personalizationMenuOpen = true;
+    }}
+  }},
+}};
+const unpersonalizedOption = {{
+  nodeType: 1,
+  tagName: "DIV",
+  isConnected: true,
+  hidden: false,
+  inert: false,
+  disabled: false,
+  parentElement: null,
+  textContent: "Non-personalized",
+  getBoundingClientRect: rect,
+  getAttribute(name) {{
+    if (name === "role") return "menuitem";
+    return name === "aria-label" ? this.textContent : null;
+  }},
+  matches() {{ return false; }},
+  contains() {{ return false; }},
+  click() {{
+    unpersonalizedOptionClicks += 1;
+    personalization.textContent = "Non-personalized";
+    personalizationMenuOpen = false;
+  }},
 }};
 
 const intent = {{
@@ -258,7 +308,13 @@ const context = {{
       return null;
     }},
     querySelectorAll(selector) {{
-      if (selector === 'button,[role="button"],[aria-label],[title],[data-testid]') return [personalization];
+      if (selector === 'button,[role="button"],[aria-label],[title],[data-testid]') {{
+        return personalizationMenuOpen ? [personalization, unpersonalizedOption] : [personalization];
+      }}
+      if (selector === 'button,[role="button"]') return [personalization];
+      if (selector === 'button,[role="button"],[role="menuitem"],[role="option"]') {{
+        return personalizationMenuOpen ? [personalization, unpersonalizedOption] : [personalization];
+      }}
       return [];
     }},
   }},
@@ -304,6 +360,12 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {{
   await flush();
   await flush();
+  if ({str(switch_personalization).lower()}) {{
+    tick();
+    await flush();
+    tick();
+    await flush();
+  }}
   if (taskPromptCalls > 0) {{
     // crypto.subtle.digest can settle after two event-loop turns. Exercise the
     // intended post-handoff profile change only after the handoff completes.
@@ -316,6 +378,8 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   {"assert.ok(intervals > 0); assert.equal(typeof tick, 'function'); tick(); await flush();" if expect_interval else "assert.equal(intervals, 0);"}
   assert.equal(taskPromptCalls, {expect_task_prompt_calls});
   assert.equal(authorizeCalls, 0);
+  assert.equal(personalizationSelectorClicks, {expect_personalization_selector_clicks});
+  assert.equal(unpersonalizedOptionClicks, {expect_unpersonalized_option_clicks});
   assert.equal(editor.value, {json.dumps(editor_value)});
   {f'assert.ok(events.some(event => event.event === "stopped" && event.details?.reason === {json.dumps(expected_stopped_reason)}));' if expected_stopped_reason else ''}
 }})().catch(error => {{ console.error(error); process.exit(1); }});
