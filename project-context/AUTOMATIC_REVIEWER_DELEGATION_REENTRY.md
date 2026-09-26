@@ -887,6 +887,23 @@ message and cannot be changed after the conversation starts.
 4. Persist or force an account-wide personalization preference — **REJECT**;
    crosses the bounded one-worker adapter scope and changes user-global state.
 
+### Physical hydration evidence
+
+The first exact-head retest after adding automatic personalization setup did
+not reach that setup at all. On target Windows, the adapter emitted
+`adapter-loaded` at 13:03:29.285996Z and stopped at 13:03:31.479343Z with
+`temporary_mode=false`, `personalization_state=unknown`, no UI evidence,
+zero prompt handoff and zero Send. The same tab visibly rendered
+`Временный чат` and `Персонализированный` shortly afterward.
+
+This proves a provider UI hydration race before the closed-profile observation,
+not a Send or Delegation failure. The previous fast-fail assumption for a
+fresh page with temporarily absent UI evidence is therefore too strong for the
+current provider. A bounded pre-prompt settle window is safe because no task
+prompt, Send authority, delivery claim or browser mutation is granted during
+that window. After the existing 10-second bound, absence of positive Temporary
+UI proof still fails closed.
+
 ### Failure boundaries and acceptance
 
 The personalization click occurs before prompt handoff and before Send
