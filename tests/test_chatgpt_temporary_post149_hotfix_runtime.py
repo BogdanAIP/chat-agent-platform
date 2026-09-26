@@ -854,6 +854,8 @@ async function runCase({
     personalizationText: "Personalized",
   });
 
+  await personalized.steps(21);
+
   assert.equal(personalized.authorizeCount, 0);
   assert.equal(personalized.clicks, 0);
 
@@ -863,7 +865,7 @@ async function runCase({
         event.event === "stopped" &&
         event.details?.reason === "child-qualification-failed-before-prompt-handoff"
     ),
-    "non-Temporary failures must not receive the settlement grace period"
+    "fresh UI that never proves Temporary must fail closed after the bounded hydration window"
   );
 })().catch(error => {
   console.error(error);
