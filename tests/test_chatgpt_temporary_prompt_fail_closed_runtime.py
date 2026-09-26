@@ -383,7 +383,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.equal(authorizeCalls, 0);
   assert.equal(personalizationSelectorClicks, {expect_personalization_selector_clicks});
   assert.equal(unpersonalizedOptionClicks, {expect_unpersonalized_option_clicks});
-  {"assert.equal(editor.value, prompt);" if expect_editor_prompt else f"assert.equal(editor.value, {json.dumps(editor_value)});" }
+  {"assert.equal(editor.value, prompt);" if expect_editor_prompt else "assert.equal(editor.value, " + json.dumps(editor_value) + ");"}
   {f'assert.ok(events.some(event => event.event === "stopped" && event.details?.reason === {json.dumps(expected_stopped_reason)}));' if expected_stopped_reason else ''}
 }})().catch(error => {{ console.error(error); process.exit(1); }});
 """
