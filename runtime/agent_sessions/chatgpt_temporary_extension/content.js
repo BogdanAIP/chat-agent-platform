@@ -1280,7 +1280,9 @@
 
         if (!populateEmptyComposer(current.composer)) return;
         const binding = findSendBinding();
-        const exactPrompt = exactComposerPromptMatches(current.composer);
+        const exactPrompt = binding
+          ? exactComposerPromptMatches(binding.composer)
+          : exactComposerPromptMatches(current.composer);
         if (!binding || !exactPrompt) {
           const now = Date.now();
           if (now - lastPreSendDiagnosticAt >= 1000) {
