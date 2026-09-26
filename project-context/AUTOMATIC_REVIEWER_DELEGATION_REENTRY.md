@@ -700,3 +700,141 @@ failure closure. Implementation may proceed under this corrected decision,
 but #159 is still unaccepted until fresh exact-head review, successful
 required checks and target-Windows physical evidence close their separate
 gates. Later material architecture changes require another re-entry.
+
+## 2026-09-26 review-result single-writer re-entry
+
+### Trigger, goal and baseline lineage
+
+The fresh independent review of #159 at
+`f538fb38da66579a37b03603f66854f9cf74646d` reported P1: the
+authenticated Temporary controller durably records complete `REVIEW_RESULT_V1`
+in generic Delegation state and `result.json` *before* calling the fixed
+`submit_independent_review_result_v1` procedure. BASE `code-review` v1.1 §14
+requires that only this procedure record the automatic result locally. The
+earlier result-recovery cells in this Brief are superseded here. Goal: keep
+the existing browser, Delegation and one-Send lifecycle while making the
+registered reviewer procedure the first and only durable writer of the
+complete review result.
+
+Baseline roles: project-owned generic Delegation **KEEP** for identity,
+launch/delivery and terminal *receipt*; `chatgpt-temporary` **REFINE** as the
+first reviewer-only capture adapter; project-owned reviewer identity/result
+state, registered submit and manual fallback **KEEP**. Codex and OpenHands
+remain reference-only, with no planner or result authority imported. No
+baseline role changes owner or remains deferred.
+
+### Architecture primitives; problem and solution evidence
+
+Mechanism: single authoritative result writer, followed by a constant
+opaque completion receipt. Domains: transaction write ordering, filesystem
+durability, idempotency and authority. Assumption: reviewer and generic
+checkpoints use separate files/locks and are not one transaction. Windows
+[`ReplaceFile`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew)
+replaces one target file; SQLite's
+[`Atomic Commit`](https://www.sqlite.org/atomiccommit.html) illustrates the
+additional protocol required for multi-file atomicity. We do not claim such
+atomicity or introduce a coordinator, journal, retry ledger or new result
+store. The generic receipt is constant non-result text; its SHA only checks
+the generic checkpoint, not the reviewer result.
+
+**Problem evidence:** `chatgpt_temporary_controller._record_result_text` calls
+`record_temporary_worker_result` → `delegation_state.record_worker_result`,
+then writes `result.json`. The worker/reconcile path later reads the complete
+generic `result_payload` and submits it. The review finding establishes that
+labeling those copies transport does not satisfy BASE §14.
+
+**Solution evidence:** existing `independent_review_state` parses exact
+identity and `review_run_id`, serializes automatic/manual races and accepts
+an identical repeated submit as `already_recorded`. The authenticated
+`/capture` endpoint already holds validated worker output in process memory
+after browser/profile/delivery attestation. Invoking the *same registered
+submit CLI* there before any generic result write leaves one durable result
+owner. Reconciliation reads that canonical owner even if the process dies
+before the receipt. This depends on local owner ordering and existing reviewer
+locks, not on an invented cross-file transaction.
+
+### Source-code evidence and failure lessons
+
+Research date **2026-09-26**; exact refs and detailed execution paths appear
+in the preceding Source-code evidence block. Rechecked for this new boundary:
+
+- [`openai/codex@e72da2b53805894878023d01949a25a082e0a5cb`](https://github.com/openai/codex/tree/e72da2b53805894878023d01949a25a082e0a5cb),
+  `codex-rs/core/src/tools/handlers/multi_agents/{spawn.rs,wait.rs}`,
+  `agent/control.rs` and `thread_manager_tests.rs`: explicit parent/source
+  on spawn, live status on wait, a live fork test; public issue
+  [#34220](https://github.com/openai/codex/issues/34220) reports a finished
+  descendant reloaded pending. `OPEN_IMPLEMENTED` for live lifecycle,
+  `OPEN_PARTIAL` for durable terminal result recovery, `REFERENCE_ONLY`:
+  CAP must consult its canonical reviewer state, not worker status.
+- [`OpenHands/OpenHands@47a10808d78561546a02555d0d2c7fa96fa96300`](https://github.com/OpenHands/OpenHands/tree/47a10808d78561546a02555d0d2c7fa96fa96300),
+  `src/services/child-conversation-launch.ts::claimToolCall/launchLocalChild`
+  and `__tests__/services/child-conversation-launch.test.ts`: browser ledger
+  claim before child launch, replay test, but storage failure continues
+  without the claim. `OPEN_IMPLEMENTED` for local claim, `ADAPT_MECHANIC`
+  for effect ordering, `REJECT_MECHANIC` for fail-open. CAP keeps existing
+  durable one-Send claims; a receipt/lost acknowledgement cannot grant Send.
+- CAP at `f538fb38da66579a37b03603f66854f9cf74646d`:
+  `delegation_state.record_worker_result`,
+  `chatgpt_temporary_controller._record_result_text`,
+  `independent_review_delegation.settle_review_from_delegation`,
+  `independent_review_procedures._submit_delegated_result_via_registered_procedure`
+  and `independent_review_state.submit_independent_review_result` show the
+  forbidden early write and existing idempotent final commit. Tests
+  `test_automatic_reviewer_qualification_contract.py` and
+  `test_independent_review_procedure_wiring.py` intentionally modeled the
+  early write and must change. `OPEN_IMPLEMENTED` for candidate code;
+  physical Windows/Temporary behavior is pending and provider internals
+  remain `CLOSED_OR_UNKNOWN` from public code.
+
+### Distinct alternatives
+
+| Approach | Authority, persistence and crash boundary | Fit / cost / failure |
+|---|---|---|
+| A. Canonical submit at capture, then opaque generic receipt — **SELECT** | Existing reviewer procedure first; generic receipt later; reconcile canonical. | Keeps one result writer and generic terminal lifecycle. Loss before submit needs manual fallback; loss afterward recovers from reviewer state. Small specialist adapter change. |
+| B. Current generic full-result checkpoint, then submit — **REJECT** | Generic state and projection first, reviewer result later. | Recovers pre-submit crashes but violates BASE §14 and preserves a second durable result transport. |
+| C. One new database for reviewer and Delegation — **REJECT** | Coordinated DB transaction across both owner roles. | Could close the gap atomically, but migrates established state/locks and adds a dependency for one review path; fixed reviewer procedure still required. |
+| D. Omit generic reviewer result entirely — **REJECT** | Canonical reviewer result only; Delegation remains open. | One writer, but generic worker lifecycle never becomes terminal and browser readback becomes misleading. |
+
+### Replacement failure / crash matrix
+
+| Boundary | Authoritative durable / possible physical state | Evidence, retry/physical effect and shield |
+|---|---|---|
+| Before genesis or after dispatch, before Send | Existing exact reviewer dispatch and generic delivery; child absent/present. | Existing locks and claims allow only first launch/Send; no second attempt if ambiguous. |
+| During Send/after ambiguous delivery | Generic claimed/unknown; physical Send zero/one/unknown. | Same-delivery evidence only; no relaunch/second Send; existing refusal tests. |
+| After authenticated capture, before submit | Reviewer open; complete result only in volatile memory. | No local raw-result checkpoint or replay; loss → pending/manual fallback; fault injection. |
+| Submit rejected or manual fallback wins | Reviewer open/manual; generic result open. | No completed receipt; manual result remains authoritative; race test. |
+| Submit commits, acknowledgement lost | Canonical automatic result; generic open. | Canonical reconcile, at most identical idempotent in-process submit; no new browser effect. |
+| Submit commits, generic checkpoint/projection fails | Canonical automatic result; generic open/receipt, projection missing. | Read canonical after restart; do not rebuild raw result; injected failure at both writes. |
+| Receipt committed; controller/worker dies | Canonical automatic result and generic receipt. | Read canonical; receipt never submits or grants Send. |
+| Receipt with missing canonical; legacy full payload | Reviewer open/manual; generic terminal untrusted. | Fail closed, never submit stored payload; manual fallback. |
+| Concurrent capture/reconcile/manual or replaced identity | Exact reviewer nonce/identity lock selects one result. | Identical submit is idempotent, manual winner fences automatic, stale identity fails closed. |
+
+No compensation or rollback of a committed review result. Missing receipt
+after canonical commit is an allowed intermediate state, not a second result
+owner. No cell permits a second physical launch or Send.
+
+### Selected implementation, verification and decision
+
+Bind reviewer capture to the exact prepared reviewer identity, task digest,
+`dispatch-attempted` state and reviewer state root before browser preflight.
+At authenticated capture, parse the complete in-memory result. For
+`COMPLETED/PASS|FINDINGS/CURRENT`, call the fixed registered submit procedure
+first, then write only a constant `REVIEW_SUBMITTED_V1` generic receipt and
+projection. For noncompleting worker/review status, store only a constant
+noncompleting marker/status. Forbid raw reviewer results in generic state,
+reject legacy full payloads, and reconcile against canonical reviewer state
+before reading generic receipts. Generic nonreview workers keep their prior
+behavior. The exact-head qualification passes the same reviewer binding.
+
+Verify the write order and no raw result in any generic checkpoint/projection
+on success, submit failure, post-submit persistence failure, manual race and
+restart; retain nonreviewer tests and run hosted CI. A fresh independent
+exact-head review and physical positive/negative Windows gate remain required.
+Any raw review checkpoint before submit, a receipt that can settle absent the
+canonical result, a second Send or an overwritten manual winner falsifies the
+design. Complexity budget: one narrow reviewer capture binding/receipt,
+reusing existing procedure/state/controller; no new public tool, service,
+store or generalized result framework.
+
+**Reissued decision: NARROW.** Implement the write-order correction now;
+no required baseline role is deferred.

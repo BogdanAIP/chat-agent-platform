@@ -11,7 +11,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from runtime.agent_sessions import chatgpt_temporary, source_attestation
@@ -154,8 +154,10 @@ class TemporaryControllerState:
         expected_runtime_attestation_value: Mapping[str, Any],
         state_root: Path,
         output_dir: Path,
+        result_capture: Callable[[str, Any], DelegationSnapshot] | None = None,
     ) -> None:
         self.identity = parse_delegation_identity(identity_value)
+        self.result_capture = result_capture
         self.identity_value = self.identity.as_dict()
         self.expected_runtime_attestation = source_attestation.parse_expected_runtime_attestation(
             expected_runtime_attestation_value
@@ -429,12 +431,19 @@ class TemporaryControllerState:
         )
 
     def _record_result_text(self, *, run_id: str, result_text: Any) -> DelegationSnapshot:
-        snapshot = chatgpt_temporary.record_temporary_worker_result(
-            self.identity_value,
-            run_id=run_id,
-            result_text=result_text,
-            state_root=self.state_root,
-        )
+        if self.identity.worker_kind == "code-review" and self.identity.result_contract_id == "review_result_v1":
+            if self.result_capture is None:
+                raise DelegationStateError("reviewer capture has no registered submit binding")
+            snapshot = self.result_capture(run_id, result_text)
+        else:
+            if self.result_capture is not None:
+                raise DelegationStateError("reviewer capture binding on a generic worker")
+            snapshot = chatgpt_temporary.record_temporary_worker_result(
+                self.identity_value,
+                run_id=run_id,
+                result_text=result_text,
+                state_root=self.state_root,
+            )
         with self.lock:
             self.cleanup_token = None
             self.capture_token = None
@@ -586,8 +595,10 @@ class TemporaryControllerRuntime:
         expected_runtime_attestation_value: Mapping[str, Any],
         state_root: Path,
         output_dir: Path,
+        result_capture: Callable[[str, Any], DelegationSnapshot] | None = None,
     ) -> None:
         self.identity_value = parse_delegation_identity(identity_value).as_dict()
+        self.result_capture = result_capture
         self.task = task
         self.expected_runtime_attestation_value = dict(expected_runtime_attestation_value)
         self.expected_runtime_attestation = source_attestation.parse_expected_runtime_attestation(
@@ -637,6 +648,7 @@ class TemporaryControllerRuntime:
                 expected_runtime_attestation_value=self.expected_runtime_attestation_value,
                 state_root=self.state_root,
                 output_dir=self.output_dir,
+                result_capture=self.result_capture,
             )
             self.activated.set()
             self.preflight_path.unlink(missing_ok=True)
@@ -764,6 +776,7 @@ class TemporaryControllerRuntime:
                 expected_runtime_attestation_value=self.expected_runtime_attestation_value,
                 state_root=self.state_root,
                 output_dir=self.output_dir,
+                result_capture=self.result_capture,
             )
             if state.launch.launch_now is not True:
                 raise DelegationStateError("browser preflight did not obtain the initial launch authority")

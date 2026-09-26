@@ -130,11 +130,6 @@ def _settle_delegated_result(
         identity_value,
         reviewer_state_root=state_root,
         delegation_state_root=delegation_state_root,
-        submit_result=lambda review_run_id, result: _submit_delegated_result_via_registered_procedure(
-            review_run_id,
-            result,
-            state_root=state_root,
-        ),
     )
 
 

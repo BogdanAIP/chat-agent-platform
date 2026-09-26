@@ -120,6 +120,8 @@ def _controller_command(
     identity_path: Path,
     task_path: Path,
     attestation_path: Path,
+    reviewer_identity_path: Path,
+    reviewer_state_root: Path,
     state_root: Path,
     output_dir: Path,
 ) -> list[str]:
@@ -143,6 +145,10 @@ def _controller_command(
         str(task_path),
         "--runtime-attestation-json",
         str(attestation_path),
+        "--reviewer-identity-json",
+        str(reviewer_identity_path),
+        "--reviewer-state-root",
+        str(reviewer_state_root),
         "--state-root",
         str(state_root),
         "--output-dir",
@@ -322,10 +328,12 @@ def _run(args: argparse.Namespace) -> int:
         (output_dir / name).unlink(missing_ok=True)
 
     identity_path = output_dir / "identity.json"
+    reviewer_identity_path = output_dir / "reviewer-identity.json"
     task_path = output_dir / "task.txt"
     attestation_path = output_dir / "expected-runtime-attestation.json"
 
     _write_json(identity_path, delegation_identity)
+    _write_json(reviewer_identity_path, identity.as_dict())
     _write_text(task_path, task)
     _write_json(
         attestation_path,
@@ -341,6 +349,8 @@ def _run(args: argparse.Namespace) -> int:
                 identity_path=identity_path,
                 task_path=task_path,
                 attestation_path=attestation_path,
+                reviewer_identity_path=reviewer_identity_path,
+                reviewer_state_root=state_root,
                 state_root=delegation_state_root,
                 output_dir=output_dir,
             ),
@@ -365,9 +375,8 @@ def _run(args: argparse.Namespace) -> int:
             if settled is not None and settled.get("status") in {"recorded", "already_recorded"}:
                 return 0
 
-            # The controller may have durably recorded the generic terminal
-            # result immediately before process exit. Give settlement one final
-            # bounded retry without granting any new launch/Send authority.
+            # A canonical submit may have committed just before controller
+            # exit. Re-read only the authoritative reviewer state.
             time.sleep(0.2)
             settled = _settle_delegated_result(
                 identity.as_dict(),

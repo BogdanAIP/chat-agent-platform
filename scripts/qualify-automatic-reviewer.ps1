@@ -101,6 +101,8 @@ $launcherArgs = @(
     '-SubgoalId', [string]$prepare.subgoal_id,
     '-WorkerKind', [string]$prepare.worker_kind,
     '-ResultContractId', [string]$prepare.result_contract_id,
+    '-ReviewerIdentityFile', [string]$prepare.reviewer_identity_file,
+    '-ReviewerStateRoot', $reviewerStateRoot,
     '-TimeoutSeconds', [string]$TimeoutSeconds
 )
 & $pwsh.Source @launcherArgs

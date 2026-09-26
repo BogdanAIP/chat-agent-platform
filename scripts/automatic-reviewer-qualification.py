@@ -100,10 +100,13 @@ def prepare(args: argparse.Namespace) -> int:
     )
     task_path = output_dir / "review-task.txt"
     task_path.write_text(task, encoding="utf-8", newline="\n")
+    reviewer_identity_path = output_dir / "reviewer-identity.json"
+    _write_json(reviewer_identity_path, identity.as_dict())
 
     meta = {
         "schema_version": 1,
         "task_file": str(task_path),
+        "reviewer_identity_file": str(reviewer_identity_path),
         "parent_task_id": delegation_identity["parent_task_id"],
         "subgoal_id": delegation_identity["subgoal_id"],
         "worker_kind": delegation_identity["worker_kind"],

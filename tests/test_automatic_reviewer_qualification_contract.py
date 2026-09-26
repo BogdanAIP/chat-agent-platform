@@ -13,6 +13,7 @@ import unittest
 from runtime.control_plane import delegation_state
 from runtime.control_plane import independent_review_state as review_state
 from runtime.control_plane.independent_review_delegation import prepare_review_delegation
+from runtime.control_plane.independent_review_procedures import _submit_delegated_result_via_registered_procedure
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -212,7 +213,7 @@ class AutomaticReviewerQualificationContractTests(unittest.TestCase):
                 "the capability-bearing task must remain protected by manager-state placement",
             )
 
-    def test_settle_closes_recorded_generic_result_through_registered_submit_path(self) -> None:
+    def test_settle_reads_canonical_submission_and_opaque_generic_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as local_dir:
             local_root = Path(local_dir)
             reviewer_state_root = (
@@ -279,6 +280,12 @@ class AutomaticReviewerQualificationContractTests(unittest.TestCase):
                 state_root=delegation_root,
             )
             payload = _pass_result(prepared_review.review_run_id)
+            _submit_delegated_result_via_registered_procedure(
+                prepared_review.review_run_id,
+                payload,
+                state_root=reviewer_state_root,
+            )
+            receipt = delegation_state.REVIEW_SUBMITTED_RECEIPT
             delegation_state.record_worker_result(
                 delegated_identity,
                 run_id=prepared.run_id,
@@ -289,8 +296,8 @@ class AutomaticReviewerQualificationContractTests(unittest.TestCase):
                     "worker_kind": delegated_identity["worker_kind"],
                     "result_contract_id": delegated_identity["result_contract_id"],
                     "status": "COMPLETED",
-                    "payload": payload,
-                    "payload_sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+                    "payload": receipt,
+                    "payload_sha256": hashlib.sha256(receipt.encode("utf-8")).hexdigest(),
                 },
                 state_root=delegation_root,
             )
@@ -334,6 +341,9 @@ class AutomaticReviewerQualificationContractTests(unittest.TestCase):
             self.assertEqual("automatic-result-recorded", result["result_state"])
             self.assertEqual("automatic", result["result_source"])
             self.assertEqual(payload, result["result"])
+            generic = delegation_state.load_delegation(delegated_identity, state_root=delegation_root)
+            self.assertEqual(receipt, generic.result_payload)
+            self.assertNotIn("REVIEW_RESULT_V1", json.dumps(generic.__dict__, default=str))
 
     def test_harness_reuses_exact_head_generic_temporary_launcher(self) -> None:
         self.assertIn("launch-chatgpt-temporary-worker.ps1", self.harness)

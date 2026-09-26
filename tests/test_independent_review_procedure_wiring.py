@@ -204,7 +204,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             self.assertEqual("manual", terminal["result_source"])
             self.assertEqual(pass_result(), terminal["result"])
 
-    def test_reconcile_settles_recorded_generic_worker_result_into_reviewer_state(self) -> None:
+    def test_reconcile_reads_canonical_review_even_without_generic_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             state_root = Path(state_dir)
             prepared_review = review_state.prepare_review_operation(identity_value(), state_root=state_root)
@@ -249,21 +249,9 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             )
 
             payload = pass_result(review_run_id=prepared_review.review_run_id)
-            digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-            delegation_state.record_worker_result(
-                delegated_identity,
-                run_id=prepared.run_id,
-                result_value={
-                    "schema_version": 1,
-                    "delegation_id": prepared.delegation_id,
-                    "delivery_id": prepared.delivery_id,
-                    "worker_kind": delegated_identity["worker_kind"],
-                    "result_contract_id": delegated_identity["result_contract_id"],
-                    "status": "COMPLETED",
-                    "payload": payload,
-                    "payload_sha256": digest,
-                },
-                state_root=state_root / "agent-sessions",
+            run_submit_independent_review_result(
+                {"procedure": SUBMIT_PROCEDURE_ID, "review_run_id": prepared_review.review_run_id, "result": payload},
+                state_root=state_root,
             )
 
             with patch(
@@ -279,7 +267,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             self.assertEqual("automatic", result["result_source"])
             self.assertEqual(payload, result["result"])
 
-    def test_delegated_result_uses_registered_submit_procedure_boundary(self) -> None:
+    def test_generic_result_cannot_record_complete_review_before_registered_submit(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             state_root = Path(state_dir)
             prepared_review = review_state.prepare_review_operation(identity_value(), state_root=state_root)
@@ -323,10 +311,11 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                 state_root=state_root / "agent-sessions",
             )
             payload = pass_result(review_run_id=prepared_review.review_run_id)
-            delegation_state.record_worker_result(
-                delegated_identity,
-                run_id=prepared.run_id,
-                result_value={
+            with self.assertRaises(delegation_state.DelegationStateError):
+                delegation_state.record_worker_result(
+                    delegated_identity,
+                    run_id=prepared.run_id,
+                    result_value={
                     "schema_version": 1,
                     "delegation_id": prepared.delegation_id,
                     "delivery_id": prepared.delivery_id,
@@ -335,9 +324,9 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     "status": "COMPLETED",
                     "payload": payload,
                     "payload_sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
-                },
-                state_root=state_root / "agent-sessions",
-            )
+                    },
+                    state_root=state_root / "agent-sessions",
+                )
 
             with patch(
                 "runtime.control_plane.independent_review_procedures.review_delegation_state_root",
@@ -348,13 +337,12 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                     state_root=state_root,
                 )
 
-            self.assertEqual("automatic-result-recorded", result["result_state"])
+            self.assertEqual("pending", result["status"])
             persisted = review_state.reconcile_independent_review_result(
                 identity_value(),
                 state_root=state_root,
             )
-            self.assertEqual("automatic-result-recorded", persisted["result_state"])
-            self.assertEqual(payload, persisted["result"])
+            self.assertEqual("open", persisted["result_state"])
 
     def test_delegated_submit_invokes_control_plane_cli_with_exact_registered_request(self) -> None:
         from runtime.control_plane import independent_review_procedures as review_procedures
@@ -429,7 +417,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                 state_root=state_root / "agent-sessions",
             )
 
-            payload = "worker could not obtain required read-only evidence"
+            payload = delegation_state.REVIEW_NONCOMPLETING_RECEIPT
             delegation_state.record_worker_result(
                 delegated_identity,
                 run_id=prepared.run_id,
@@ -499,7 +487,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
             )
             self.assertEqual("e" * 64, result["automatic_worker_result_sha256"])
 
-    def test_stale_completed_worker_payload_remains_noncompleting_review_evidence(self) -> None:
+    def test_completed_generic_receipt_without_canonical_result_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             state_root = Path(state_dir)
             prepared_review = review_state.prepare_review_operation(
@@ -507,7 +495,7 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                 state_root=state_root,
             )
             review_state.mark_dispatch_attempted(identity_value(), state_root=state_root)
-            payload = stale_result(review_run_id=prepared_review.review_run_id)
+            payload = delegation_state.REVIEW_SUBMITTED_RECEIPT
             fake_snapshot = SimpleNamespace(
                 result_state="recorded",
                 result_status="COMPLETED",
@@ -520,23 +508,12 @@ class IndependentReviewProcedureWiringTests(unittest.TestCase):
                 "runtime.control_plane.independent_review_delegation.load_delegation",
                 return_value=fake_snapshot,
             ):
-                settlement = settle_review_from_delegation(
-                    identity_value(),
-                    reviewer_state_root=state_root,
-                    delegation_state_root=state_root / "agent-sessions",
-                    submit_result=lambda _review_run_id, _result: self.fail(
-                        "noncompleting result must not invoke submit"
-                    ),
-                )
-
-            self.assertIsNotNone(settlement)
-            assert settlement is not None
-            self.assertEqual("review_terminal_noncompleting", settlement["status"])
-            self.assertEqual("STALE", settlement["review_status"])
-            self.assertEqual(
-                "STALE_MATERIAL_CHANGE",
-                settlement["review_validity"],
-            )
+                with self.assertRaises(review_state.ReviewStateError):
+                    settle_review_from_delegation(
+                        identity_value(),
+                        reviewer_state_root=state_root,
+                        delegation_state_root=state_root / "agent-sessions",
+                    )
 
             pending = review_state.reconcile_independent_review_result(
                 identity_value(),

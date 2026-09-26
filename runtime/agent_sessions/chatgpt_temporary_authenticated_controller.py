@@ -310,6 +310,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--runtime-attestation-json", required=True)
     parser.add_argument("--state-root", required=True)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--reviewer-identity-json")
+    parser.add_argument("--reviewer-state-root")
     parser.add_argument("--port", type=int, default=chatgpt_temporary.COLLECTOR_PORT)
     parser.add_argument("--timeout-seconds", type=int, default=legacy.DEFAULT_TIMEOUT_SECONDS)
     return parser
@@ -338,6 +340,43 @@ def main() -> int:
     except UnicodeDecodeError as exc:
         raise SystemExit("task must be UTF-8") from exc
 
+    from runtime.control_plane.delegation_state import parse_delegation_identity
+
+    delegation_identity = parse_delegation_identity(identity_value)
+    reviewer_contract = (
+        delegation_identity.worker_kind == "code-review"
+        and delegation_identity.result_contract_id == "review_result_v1"
+    )
+    if bool(args.reviewer_identity_json) != bool(args.reviewer_state_root) or (
+        reviewer_contract != bool(args.reviewer_identity_json)
+    ):
+        raise SystemExit("reviewer capture requires exact identity and reviewer state binding")
+    result_capture = None
+    if reviewer_contract:
+        from runtime.control_plane.independent_review_delegation import bind_review_capture
+        from runtime.control_plane.independent_review_procedures import (
+            _submit_delegated_result_via_registered_procedure,
+        )
+        from runtime.control_plane.independent_review_state import ReviewStateError
+
+        reviewer_root = Path(args.reviewer_state_root).resolve()
+        reviewer_identity = legacy._load_json_file(
+            Path(args.reviewer_identity_json).resolve(), "reviewer identity"
+        )
+        try:
+            result_capture = bind_review_capture(
+                identity_value,
+                task=task,
+                reviewer_identity_value=reviewer_identity,
+                reviewer_state_root=reviewer_root,
+                delegation_state_root=Path(args.state_root),
+                submit_result=lambda run_id, result: _submit_delegated_result_via_registered_procedure(
+                    run_id, result, state_root=reviewer_root
+                ),
+            )
+        except (ReviewStateError, DelegationStateError, OSError) as exc:
+            raise SystemExit(f"reviewer capture binding failed: {exc}") from exc
+
     # Bind and listen before constructing TemporaryControllerRuntime. Runtime
     # construction may publish preflight.json, so a pre-bound rogue listener
     # must fail before any browser-visible capability exists.
@@ -360,6 +399,7 @@ def main() -> int:
             expected_runtime_attestation_value=expected_runtime_attestation_value,
             state_root=Path(args.state_root),
             output_dir=Path(args.output_dir),
+            result_capture=result_capture,
         )
     except (DelegationStateError, OSError) as exc:
         server.server_close()

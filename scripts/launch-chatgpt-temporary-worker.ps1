@@ -13,6 +13,8 @@ param(
     [string]$WorkerKind = 'researcher',
     [ValidatePattern('^[a-z][a-z0-9._-]{0,63}$')]
     [string]$ResultContractId = 'research-result-v1',
+    [string]$ReviewerIdentityFile = '',
+    [string]$ReviewerStateRoot = '',
     [ValidateRange(60, 7200)]
     [int]$TimeoutSeconds = 1800,
     [switch]$ValidateOnly
@@ -188,6 +190,17 @@ function Invoke-SourceGate {
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ExpectedHead = $ExpectedHead.ToLowerInvariant()
 $TaskFile = (Resolve-Path -LiteralPath $TaskFile).Path
+if (($WorkerKind -eq 'code-review') -or ($ResultContractId -eq 'review_result_v1')) {
+    if ($WorkerKind -cne 'code-review' -or $ResultContractId -cne 'review_result_v1' -or
+        [string]::IsNullOrWhiteSpace($ReviewerIdentityFile) -or [string]::IsNullOrWhiteSpace($ReviewerStateRoot)) {
+        throw 'Reviewer qualification requires the exact reviewer identity and state root.'
+    }
+    $ReviewerIdentityFile = (Resolve-Path -LiteralPath $ReviewerIdentityFile).Path
+    $ReviewerStateRoot = (Resolve-Path -LiteralPath $ReviewerStateRoot).Path
+}
+elseif ($ReviewerIdentityFile -or $ReviewerStateRoot) {
+    throw 'Reviewer binding is invalid for a generic worker.'
+}
 if (-not (Test-Path -LiteralPath $TaskFile -PathType Leaf)) {
     throw "Task file is missing: $TaskFile"
 }
@@ -397,6 +410,9 @@ try {
     foreach ($inputPath in @($identityPath, $taskCopyPath, $runtimeAttestationPath)) {
         $null = $sourceLocks.Add((Open-ReadShareOnly -Path $inputPath))
     }
+    if ($ReviewerIdentityFile) {
+        $null = $sourceLocks.Add((Open-ReadShareOnly -Path $ReviewerIdentityFile))
+    }
     if ((Get-Sha256 -Path $taskCopyPath) -cne $taskSha256) {
         throw 'Task copy changed before isolated controller execution.'
     }
@@ -419,6 +435,12 @@ try {
         '--port', '3078',
         '--timeout-seconds', [string]$TimeoutSeconds
     )
+    if ($ReviewerIdentityFile) {
+        $controllerArgs += @(
+            '--reviewer-identity-json', $ReviewerIdentityFile,
+            '--reviewer-state-root', $ReviewerStateRoot
+        )
+    }
     $controllerArgumentLine = (($controllerArgs | ForEach-Object {
         ConvertTo-WindowsCommandLineArgument -Value ([string]$_)
     }) -join ' ')

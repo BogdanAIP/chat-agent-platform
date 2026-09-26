@@ -11,8 +11,11 @@ from typing import Any, Callable, Mapping
 from runtime.agent_sessions import chatgpt_temporary, source_attestation
 from runtime.control_plane.delegation_state import (
     DelegationStateError,
+    REVIEW_NONCOMPLETING_RECEIPT,
+    REVIEW_SUBMITTED_RECEIPT,
     WORKER_PROFILE,
     load_delegation,
+    parse_delegation_identity,
     prepare_delegation,
 )
 
@@ -21,6 +24,7 @@ from .independent_review_state import (
     ReviewStateError,
     parse_review_result,
     prepare_review_operation,
+    reconcile_independent_review_result,
     review_operation_key,
 )
 
@@ -118,16 +122,17 @@ def settle_review_from_delegation(
     *,
     reviewer_state_root: Path,
     delegation_state_root: Path,
-    submit_result: Callable[[str, str], dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """Validate one recorded generic worker result and submit through the fixed procedure.
-
-    This function never creates launch or Send authority and never writes reviewer
-    result state directly. The caller must supply the registered
-    submit_independent_review_result_v1 procedure boundary.
-    """
+    """Read canonical reviewer settlement; a generic receipt cannot submit a result."""
 
     prepared_review = prepare_review_operation(identity_value, state_root=reviewer_state_root)
+    canonical = reconcile_independent_review_result(
+        prepared_review.identity.as_dict(), state_root=reviewer_state_root
+    )
+    if canonical.get("result_state") == "automatic-result-recorded":
+        return {"schema_version": 1, "status": "already_recorded"}
+    if canonical.get("result_state") == "manual-fallback-recorded":
+        return None
     task, delegation_identity = review_delegation_identity(
         prepared_review.identity,
         review_run_id=prepared_review.review_run_id,
@@ -155,42 +160,96 @@ def settle_review_from_delegation(
             "result_sha256": snapshot.result_sha256,
         }
 
-    payload = snapshot.result_payload
-    if type(payload) is not str or not payload:
-        raise ReviewStateError("delegated reviewer completed without a bounded result payload")
+    # A completed receipt without the registered reviewer procedure commit is
+    # never evidence of a completed review, including after a process restart.
+    raise ReviewStateError("reviewer receipt exists without canonical submission")
 
-    parsed = parse_review_result(
-        payload,
-        expected_identity=prepared_review.identity,
-        automatic=True,
-        expected_review_run_id=prepared_review.review_run_id,
+
+def bind_review_capture(
+    identity_value: Mapping[str, Any],
+    *,
+    task: str,
+    reviewer_identity_value: Mapping[str, Any],
+    reviewer_state_root: Path,
+    delegation_state_root: Path,
+    submit_result: Callable[[str, str], dict[str, Any]],
+) -> Callable[[str, Any], Any]:
+    """Bind one authenticated capture to an existing dispatched reviewer.
+
+    The complete review result is never copied to generic worker storage.
+    """
+
+    reviewer = prepare_review_operation(reviewer_identity_value, state_root=reviewer_state_root)
+    if reviewer.created or reviewer.dispatch_state != "dispatch-attempted" or reviewer.result_state != "open":
+        raise ReviewStateError("reviewer capture requires an existing open dispatch")
+    expected_task, expected_identity = review_delegation_identity(
+        reviewer.identity, review_run_id=reviewer.review_run_id
     )
-    if (
-        parsed.header["status"] not in {"PASS", "FINDINGS"}
-        or parsed.header["review_validity"] != "CURRENT"
-    ):
-        return {
-            "schema_version": 1,
-            "status": "review_terminal_noncompleting",
-            "review_status": parsed.header["status"],
-            "review_validity": parsed.header["review_validity"],
-            "delegation_id": snapshot.delegation_id,
-            "result_sha256": snapshot.result_sha256,
+    if task != expected_task or parse_delegation_identity(identity_value).as_dict() != expected_identity:
+        raise ReviewStateError("reviewer capture identity or task mismatch")
+    # This must already exist before we publish a browser-visible preflight.
+    load_delegation(expected_identity, state_root=delegation_state_root)
+
+    def capture(run_id: str, result_text: Any) -> Any:
+        prepared_delegation = prepare_delegation(expected_identity, state_root=delegation_state_root)
+        snapshot = load_delegation(expected_identity, state_root=delegation_state_root)
+        if (
+            prepared_delegation.run_id != run_id
+            or snapshot.delivery_state != "delivered"
+            or snapshot.result_state != "open"
+        ):
+            raise DelegationStateError("reviewer capture requires an open delivered delegation")
+        normalized = chatgpt_temporary.normalize_worker_result_text(
+            result_text,
+            identity=parse_delegation_identity(expected_identity),
+            delegation_id=snapshot.delegation_id,
+            delivery_id=snapshot.delivery_id,
+        )
+
+        status = normalized.parsed.status
+        receipt = REVIEW_NONCOMPLETING_RECEIPT
+        if status == "COMPLETED":
+            parsed = parse_review_result(
+                normalized.parsed.payload,
+                expected_identity=reviewer.identity,
+                automatic=True,
+                expected_review_run_id=reviewer.review_run_id,
+            )
+            if parsed.header["status"] in {"PASS", "FINDINGS"} and parsed.header["review_validity"] == "CURRENT":
+                # The registered procedure is the first durable result writer.
+                submit_result(reviewer.review_run_id, normalized.parsed.payload)
+                canonical = reconcile_independent_review_result(
+                    reviewer.identity.as_dict(), state_root=reviewer_state_root
+                )
+                if (
+                    canonical.get("result_state") != "automatic-result-recorded"
+                    or canonical.get("result") != normalized.parsed.payload
+                ):
+                    raise ReviewStateError("registered reviewer submission has no matching canonical result")
+                receipt = REVIEW_SUBMITTED_RECEIPT
+            else:
+                status = "ABSTAIN"
+
+        marker = {
+            **{key: normalized.value[key] for key in (
+                "schema_version", "delegation_id", "delivery_id", "worker_kind", "result_contract_id"
+            )},
+            "status": status,
+            "payload": receipt,
         }
+        structured = (
+            f"{chatgpt_temporary.RAW_RESULT_BEGIN}\n"
+            + json.dumps(marker, ensure_ascii=False, sort_keys=True)
+            + f"\n{chatgpt_temporary.RAW_RESULT_END}"
+        )
+        return chatgpt_temporary.record_temporary_worker_result(
+            expected_identity,
+            run_id=run_id,
+            result_text=structured,
+            state_root=delegation_state_root,
+        )
 
-    try:
-        settled = submit_result(prepared_review.review_run_id, payload)
-    except ReviewStateError:
-        # Preserve reviewer-specific race semantics. A manual fallback that
-        # committed first remains authoritative; malformed/stale automatic
-        # payloads remain fail-closed and are surfaced to the caller.
-        raise
-
-    return {
-        **settled,
-        "delegation_id": snapshot.delegation_id,
-        "delegation_result_sha256": snapshot.result_sha256,
-    }
+    return capture
 
 
 def review_delegation_state_root() -> Path:

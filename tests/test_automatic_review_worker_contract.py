@@ -84,7 +84,9 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
             "submit_independent_review_result(",
             self.delegation,
         )
-        self.assertIn("submit_result(prepared_review.review_run_id, payload)", self.delegation)
+        self.assertIn("submit_result(reviewer.review_run_id, normalized.parsed.payload)", self.delegation)
+        self.assertIn("reconcile_independent_review_result(", self.delegation)
+        self.assertIn("REVIEW_SUBMITTED_RECEIPT", self.delegation)
         self.assertIn(
             "_submit_delegated_result_via_registered_procedure",
             self.procedures,
@@ -160,7 +162,7 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
         finally:
             listener.close()
 
-    def test_reconcile_can_only_settle_existing_generic_result(self) -> None:
+    def test_reconcile_reads_canonical_result_without_relaunch(self) -> None:
         self.assertIn("settle_review_from_delegation", self.procedures)
         self.assertIn('if "manual_result" in value:', self.procedures)
         self.assertIn(
@@ -168,7 +170,8 @@ class AutomaticReviewWorkerContractTests(unittest.TestCase):
             self.procedures,
         )
         self.assertIn("load_delegation", self.delegation)
-        self.assertIn("submit_independent_review_result", self.delegation)
+        self.assertIn('canonical.get("result_state") == "automatic-result-recorded"', self.delegation)
+        self.assertIn("reviewer receipt exists without canonical submission", self.delegation)
         self.assertNotIn("mark_launch_attempted", self.delegation)
         self.assertNotIn("claim_delivery", self.delegation)
 
