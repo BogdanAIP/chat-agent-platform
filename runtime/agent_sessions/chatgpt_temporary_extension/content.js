@@ -596,9 +596,11 @@
         return "ready";
       }
 
+      if (!observed.temporary_mode || !observed.fresh_context) {
+        return "unavailable";
+      }
       if (
-        !observed.temporary_mode ||
-        !observed.fresh_context ||
+        personalizationSwitchState === "idle" &&
         observed.personalization_state !== "personalized"
       ) {
         return "unavailable";
@@ -651,7 +653,7 @@
       }
 
       if (personalizationSwitchState === "selection-clicked") {
-        return observed.personalization_state === "non-personalized" ? "ready" : "pending";
+        return "pending";
       }
 
       return personalizationSwitchState === "complete" ? "ready" : "unavailable";
