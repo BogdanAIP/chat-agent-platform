@@ -132,11 +132,39 @@
       !line.includes("TASK_BEGIN") && !line.includes("TASK_END"));
   }
 
+  function conversationTurnNodes(role) {
+    if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return [];
+    const selectors = role === "user"
+      ? [
+          '[data-message-author-role="user"]',
+          '[data-testid^="conversation-turn-"][data-turn="user"]',
+          '[data-testid^="conversation-turn-"]:has([data-message-author-role="user"])',
+          '[data-turn-key]:has([data-user-message-bubble])',
+        ]
+      : [
+          '[data-message-author-role="assistant"]',
+          '[data-testid^="conversation-turn-"][data-turn="assistant"]',
+          '[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
+          '[data-turn-key]:has([data-conversation-role="assistant"])',
+          '[data-turn-key]:has([data-local-conversation-final-assistant])',
+        ];
+    const nodes = [];
+    const seen = new Set();
+    for (const selector of selectors) {
+      for (const node of document.querySelectorAll(selector)) {
+        if (!node || seen.has(node)) continue;
+        seen.add(node);
+        nodes.push(node);
+      }
+    }
+    return nodes;
+  }
+
   function visibleUserCorrelationState(intent) {
     if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return null;
     let candidateCount = 0;
     let matchCount = 0;
-    for (const node of document.querySelectorAll('[data-message-author-role="user"]')) {
+    for (const node of conversationTurnNodes("user")) {
       const text = String(node?.innerText || node?.textContent || "");
       if (!correlationCandidateText(text)) continue;
       candidateCount += 1;
@@ -240,7 +268,7 @@
 
   function currentAssistantResultText() {
     if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return undefined;
-    const turns = [...document.querySelectorAll('[data-message-author-role="assistant"]')];
+    const turns = conversationTurnNodes("assistant");
     if (turns.length === 0) return undefined;
     const visibleTurns = turns.filter((node) => guardVisible(node));
     if (visibleTurns.length === 0) return null;
