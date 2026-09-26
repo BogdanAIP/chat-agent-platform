@@ -54,7 +54,13 @@ Current references:
 
 The existing CAP adapter already requires `personalization_disabled=true` and an empty plugin marker set before worker binding. That remains the selected reviewer isolation evidence.
 
-No new external runtime is selected by this stage. `source-code-research` does not add a new implementation cohort because the selected production mechanisms are accepted project-owned code plus the closed ChatGPT product surface; current official product documentation is the relevant external evidence for Temporary Chat behavior.
+Temporary Chat product behavior is a closed provider boundary; the official product
+documentation and target-browser qualification remain the applicable evidence for
+that behavior. The generic Agent Session / Delegation and reviewer worker lifecycle
+also trigger `source-code-research` v1.0, independently of which provider is used.
+The original decision omitted the required source-code cohort. See the 2026-09-26
+research re-entry below: the earlier NARROW decisions alone were incomplete
+implementation authority for this migration.
 
 ## Architecture lineage decisions
 
@@ -496,3 +502,201 @@ tool, a new provider framework, or any second-launch recovery path.
 This decision supersedes the 2026-09-16 browser task-delivery detail that allowed the
 worker prompt in the task URL. All other scope limits of the original NARROW decision
 remain in force.
+
+## 2026-09-26 source-code-research gate re-entry
+
+### Trigger, baseline and chronological limit
+
+Fresh ordinary-Chat review of PR #159 at BASE
+`24ed938c587c9d3e2288c92bc156ccc476c955f3` and HEAD
+`78e28983eea3a184ee87bfc28356e19bf0fd22c6` found that this Brief
+expressly skipped `.agents/skills/source-code-research/SKILL.md` v1.0. That
+skill was already present on BASE. `AGENTS.md` requires both it and
+`.agents/skills/stage-research/SKILL.md` v1.2 for production changes to worker
+lifecycles, identity, recovery and authority, with a fail-closed gate when a
+required output is missing. The earlier #159 NARROW decisions were therefore
+insufficient to authorize acceptance of the production migration. This is a
+fresh research decision **after** the implementation, not a claim that the
+missing evidence existed before implementation; release/physical acceptance
+remains blocked until this re-entry and a fresh exact-head independent review.
+
+Live comparison point on 2026-09-26: accepted `main` at
+`24ed938c587c9d3e2288c92bc156ccc476c955f3`, PR #159 at the HEAD above,
+and the role assignments in `ARCHITECTURE_REUSE_BASELINE.md`. The baseline
+assigns provider-independent delegation, exact reviewer closure and CAP
+Control Plane authority to the project; Codex is a source-code reference,
+not a runtime dependency; the first Temporary adapter is reviewer-only.
+Earlier pinned research in `AGENT_SESSION_DELEGATION_REENTRY.md` and
+`AUTOMATIC_REVIEWER_RESEARCH.md` informs this check but does not substitute
+for rechecking the current implementation and recording evidence in this Brief.
+
+### Problem evidence
+
+The reviewed `run_launch_independent_review()` moves from the accepted
+reviewer-only state/procedure foundation to a production background worker
+using `delegation_state` and `chatgpt-temporary`. It persists reviewer
+`dispatch-attempted` before starting that worker; its output may later cross
+generic result storage into reviewer result state. A restart, lost browser
+owner, duplicate delivery or manual/automatic race can therefore change
+whether another effect is allowed. The original documentation's opt-out
+failed to examine public implementations of those same lifecycle roles.
+The 2026-09-21 URL/capability fix addresses a separate exposure class and
+does not cure this omitted source-code gate.
+
+### Source-code evidence
+
+Research date: **2026-09-26**. The two external refs below were resolved to
+exact commits and the named files refetched at those commits. These are
+comparison sources, not proposed CAP dependencies or claims about private
+ChatGPT implementation.
+
+#### `openai/codex` — parent/child lifecycle reference
+
+- Repository/ref: [`openai/codex@e72da2b53805894878023d01949a25a082e0a5cb`](https://github.com/openai/codex/tree/e72da2b53805894878023d01949a25a082e0a5cb).
+- Inspected [`spawn.rs`](https://github.com/openai/codex/blob/e72da2b53805894878023d01949a25a082e0a5cb/codex-rs/core/src/tools/handlers/multi_agents/spawn.rs) (`spawn_agent`), [`wait.rs`](https://github.com/openai/codex/blob/e72da2b53805894878023d01949a25a082e0a5cb/codex-rs/core/src/tools/handlers/multi_agents/wait.rs) (`wait_agent`), [`agent/control.rs`](https://github.com/openai/codex/blob/e72da2b53805894878023d01949a25a082e0a5cb/codex-rs/core/src/agent/control.rs) (`prepare_thread_spawn_source`, `persist_thread_spawn_edge_for_source`) and [`thread_manager_tests.rs`](https://github.com/openai/codex/blob/e72da2b53805894878023d01949a25a082e0a5cb/codex-rs/core/src/thread_manager_tests.rs) (`live_fork_keeps_instructions_when_source_is_unloaded_during_setup`).
+- Execution path: spawn computes and bounds child depth, prepares child
+  configuration, and passes explicit caller/parent/root turn identity to
+  `agent_control.spawn`. Control records `SubAgentSource::ThreadSpawn` with
+  parent and depth; non-ephemeral child graph-edge persistence is attempted
+  when a graph store exists, but persistence failure emits a warning rather
+  than making the spawn impossible. Wait subscribes to status, reads the
+  first status or subsequent updates, and bounds the wait. Inherited
+  environments/exec policy also depend on parent/child configuration.
+- Test/history limit: the inspected thread-manager test exercises a live
+  fork while the source unloads; it is not proof of durable terminal status
+  after restart. Public issue
+  [#34220](https://github.com/openai/codex/issues/34220) reports a completed
+  descendant reloaded as `PendingInit` and a subsequent wait missing its
+  completion; [#38144](https://github.com/openai/codex/issues/38144) reports
+  parent active-writer friction after fork. These are reported failure
+  histories, not a claim that the inspected current commit reproduces them.
+- Classification: `OPEN_IMPLEMENTED` for parent/depth/source and live wait;
+  `OPEN_PARTIAL` as a reference for **guaranteed** durable child-result
+  recovery, because the inspected spawn-edge persistence is best effort and
+  the inspected wait/test do not establish that guarantee. Lesson:
+  `REFERENCE_ONLY` for explicit child correlation; `REJECT_MECHANIC` for
+  treating a live agent status subscription as CAP's durable reviewer
+  result or inheriting a parent's broader execution policy.
+- CAP mapping: `delegation_state` owns immutable identity, durable launch /
+  delivery / terminal result; `independent_review_state` alone owns reviewer
+  result/fallback. No Codex thread, tool, planner or status stream gets CAP
+  consequence or independent-review acceptance authority. The corresponding
+  shield is existing lost-worker / no-relaunch and terminal-result-only
+  reconciliation coverage plus the pending target-Windows failure gate.
+
+#### `OpenHands/OpenHands` — independently implemented child launch
+
+- Repository/ref: [`OpenHands/OpenHands@47a10808d78561546a02555d0d2c7fa96fa96300`](https://github.com/OpenHands/OpenHands/tree/47a10808d78561546a02555d0d2c7fa96fa96300).
+- Inspected [`src/services/child-conversation-launch.ts`](https://github.com/OpenHands/OpenHands/blob/47a10808d78561546a02555d0d2c7fa96fa96300/src/services/child-conversation-launch.ts) (`claimToolCall`, `launchLocalChild`) and [`__tests__/services/child-conversation-launch.test.ts`](https://github.com/OpenHands/OpenHands/blob/47a10808d78561546a02555d0d2c7fa96fa96300/__tests__/services/child-conversation-launch.test.ts) (`ignores a replayed tool call`, worktree/shared fallback tests).
+- Execution/state path: the browser ledger checks a parent/tool-call key
+  and writes it to `localStorage` before creating the child. The replay
+  test observes one child creation and one parent message for the same
+  tool call with working storage. Corrupt/unavailable/full storage instead
+  resets or skips that claim and **continues**, accepting replay risk.
+  `launchLocalChild` also switches from worktree to a shared workspace when
+  parent metadata cannot host a worktree or worktree creation fails; its
+  tests cover that fallback. The inspected tests do not establish an atomic
+  cross-tab browser claim or fail-closed behavior when storage fails.
+- Classification: `OPEN_IMPLEMENTED` for child launch, browser-ledger
+  replay suppression on the tested path and workspace fallback;
+  `NOT_FOUND_AFTER_TARGETED_SEARCH` for a storage-unavailable fail-closed
+  test in the inspected child-launch tests (not a repository-wide absence
+  claim). Lessons: `ADAPT_MECHANIC` for claim-before-external-effect and
+  explicit parent link; `REJECT_MECHANIC` for accepting duplicate-launch
+  risk on storage failure and silently weakening isolation to shared space.
+- CAP mapping: reviewer dispatch plus generic `mark_launch_attempted`
+  remain the only project launch authority; `chatgpt-temporary` uses a
+  durable IndexedDB same-delivery unique claim before Send. An unavailable
+  claim, lost MV3 owner, ambiguous Send or unsuitable isolated reviewer
+  profile must fail closed and leave pending/manual fallback. The shields
+  are existing duplicate-launch, same-delivery claim, profile isolation
+  and negative physical tests. OpenHands's browser, workspace and agent
+  authority never become CAP's owner.
+
+#### CAP at the reviewed exact HEAD — selected owner, not external proof
+
+- Repository/ref: [`BogdanAIP/chat-agent-platform@78e28983eea3a184ee87bfc28356e19bf0fd22c6`](https://github.com/BogdanAIP/chat-agent-platform/tree/78e28983eea3a184ee87bfc28356e19bf0fd22c6).
+- Inspected `runtime/control_plane/independent_review_procedures.py`
+  (`run_launch_independent_review`, `_settle_delegated_result`),
+  `independent_review_delegation.py` (`review_delegation_identity`,
+  `settle_review_from_delegation`, `spawn_review_worker`),
+  `automatic_review_worker.py` (`_run`), `delegation_state.py`
+  (`prepare_delegation`, `mark_launch_attempted`, `claim_delivery`,
+  `record_worker_result`) and `independent_review_state.py`
+  (`mark_dispatch_attempted`, `submit_independent_review_result`,
+  `reconcile_independent_review_result`).
+- Execution/state path: the fixed launch prepares exact reviewer identity
+  and generic Delegation, marks reviewer dispatch before the one background
+  process, and declines a second launch once dispatched. The worker
+  revalidates installed runtime, runs the authenticated controller,
+  receives generic `WORKER_RESULT_V1` in private Delegation storage,
+  checks exact `REVIEW_RESULT_V1` identity/run capability, and submits
+  through fixed `submit_independent_review_result_v1`. Reconciliation
+  may settle an already recorded generic terminal result, with no new
+  launch or Send. Reviewer state fences a manual fallback winner.
+- Tests inspected: `tests/test_delegation_state.py`,
+  `tests/test_independent_review_state_concurrency.py`,
+  `tests/test_automatic_review_worker_contract.py`, and
+  `tests/test_chatgpt_temporary_prompt_fail_closed_runtime.py` cover
+  state transitions/races, fixed procedure wiring and browser refusal
+  paths. Hosted green checks establish deterministic behavior only;
+  required exact-head Windows/ChatGPT operation is still unproved.
+- Classification: `OPEN_IMPLEMENTED` for the candidate production code;
+  **physical reviewer acceptance pending**. Lessons: `REUSE_COMPONENT`
+  for already accepted CAP Delegation/Temporary mechanics, `KEEP` reviewer
+  result authority in its existing state/procedures. Neither external
+  implementation establishes CAP's closed Temporary Chat UI behavior;
+  official product documentation and physical isolation proof remain
+  necessary. The two inspected external source repositories cannot prove
+  closed ChatGPT Temporary provider internals; that provider boundary is
+  `CLOSED_OR_UNKNOWN` from public source.
+
+### Solution evidence, alternatives and failure shields
+
+The existing CAP write ordering and private capability locations directly
+answer the two important source-code failure classes: no attempt to infer
+a durable reviewer result from live worker status (Codex comparison), and
+no acceptance of a duplicate launch/Send when browser claim storage is
+unavailable (OpenHands comparison). The earlier decision's alternatives
+remain distinct: **A** reuse CAP Delegation and a bounded reviewer owner;
+**B** synchronous long-running procedure; **C** repurpose Transport
+Supervisor; **D** schedule a one-off task; **E** duplicate reviewer-specific
+browser lifecycle. In light of the source comparison, importing either
+upstream agent controller would add another planner/authority model and
+still require CAP-specific reviewer closure, so it does not replace A.
+No new role is assigned to either upstream system and no baseline lineage
+changes. Persistent sessions, broad tool inheritance and a general
+scheduler remain outside the narrowed reviewer slice.
+
+| Boundary reassessed from source | CAP authoritative state | Ambiguous physical state | Retry/reconcile rule and shield |
+|---|---|---|---|
+| child status disappears after worker/controller restart | generic result may be recorded, reviewer result may remain open | prior worker may have run or completed | read exact recorded generic terminal result and submit through fixed reviewer procedure only; never launch/Send from status; existing result-settlement tests plus Windows loss case |
+| reviewer dispatch is marked, process creation/ack fails | reviewer `dispatch-attempted` | zero or one worker | no relaunch; manual fallback; existing launch-failure contract |
+| browser claim store fails/corrupts or two tabs race | Delegation delivery state + extension IndexedDB claim | Send outcome zero or one/unknown | no second Send without durable same-delivery authority; existing duplicate/refusal tests plus negative physical gate |
+| wrong provider profile or lost live browser owner | protected local state; no trusted live owner | isolated conversation cannot be proved | no prompt/Send, no shared-context fallback; isolation checks plus target-Windows negative test |
+| generic terminal result versus manual reviewer fallback | generic result + separate reviewer slot | either closure may win | exact result/capability validation under reviewer lock, manual winner rejects late automatic result; concurrency tests |
+
+These cells add no retry, state owner or authority beyond the existing
+failure/crash matrices. No unresolved required recovery cell was identified
+within the stated process-restart and reviewer-only scope. A browser or
+machine experiment must still falsify this decision if it demonstrates
+extra launch/Send, an unqualified context, a stale accepted result or a
+worker result bypassing the fixed reviewer procedure. Deterministic tests,
+hosted exact-head CI, fresh independent semantic review and the scoped
+target-Windows positive/negative physical gate remain required in that
+order. A documentation-only re-entry does not retroactively make earlier
+implementation authorized or waive later review/physical evidence.
+
+### Reissued architecture decision
+
+**NARROW**
+
+After applying `stage-research` v1.2 **and** `source-code-research` v1.0,
+keep the existing reviewer-only implementation scope and lineage choices;
+no code alteration, new dependency, public tool or authority expansion is
+selected by this re-entry. The source comparison supports preserving CAP's
+durable generic lifecycle and independent reviewer result owner with strict
+failure closure. Implementation may proceed under this corrected decision,
+but #159 is still unaccepted until fresh exact-head review, successful
+required checks and target-Windows physical evidence close their separate
+gates. Later material architecture changes require another re-entry.
