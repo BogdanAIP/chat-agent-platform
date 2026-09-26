@@ -102,6 +102,7 @@ assert.equal(parsed.reason, "prompt-in-url");
             switch_personalization=True,
             expect_personalization_selector_clicks=1,
             expect_unpersonalized_option_clicks=1,
+            expect_editor_prompt=True,
         )
         self._run_node(script)
 
@@ -128,6 +129,7 @@ assert.equal(parsed.reason, "prompt-in-url");
         switch_personalization: bool = False,
         expect_personalization_selector_clicks: int = 0,
         expect_unpersonalized_option_clicks: int = 0,
+        expect_editor_prompt: bool = False,
     ) -> str:
         return f"""
 const fs = require("fs");
@@ -218,6 +220,7 @@ const personalization = {{
     }}
   }},
 }};
+if (!{str(switch_personalization).lower()}) personalization.click = undefined;
 const unpersonalizedOption = {{
   nodeType: 1,
   tagName: "DIV",
@@ -380,7 +383,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.equal(authorizeCalls, 0);
   assert.equal(personalizationSelectorClicks, {expect_personalization_selector_clicks});
   assert.equal(unpersonalizedOptionClicks, {expect_unpersonalized_option_clicks});
-  assert.equal(editor.value, {json.dumps(editor_value)});
+  {"assert.equal(editor.value, prompt);" if expect_editor_prompt else f"assert.equal(editor.value, {json.dumps(editor_value)});" }
   {f'assert.ok(events.some(event => event.event === "stopped" && event.details?.reason === {json.dumps(expected_stopped_reason)}));' if expected_stopped_reason else ''}
 }})().catch(error => {{ console.error(error); process.exit(1); }});
 """
