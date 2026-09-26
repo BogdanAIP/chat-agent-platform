@@ -67,7 +67,7 @@ class AutomaticReviewerQualificationContractTests(unittest.TestCase):
         ast.parse(self.driver)
         self.assertIn("prepare_review_operation", self.driver)
         self.assertIn("mark_dispatch_attempted", self.driver)
-        self.assertIn("review_delegation_identity", self.driver)
+        self.assertIn("prepare_review_delegation", self.driver)
         self.assertIn("_settle_delegated_result", self.driver)
         self.assertIn("reconcile_independent_review_result", self.driver)
 
@@ -212,6 +212,31 @@ class AutomaticReviewerQualificationContractTests(unittest.TestCase):
                 task_path.read_text(encoding="utf-8"),
                 "the capability-bearing task must remain protected by manager-state placement",
             )
+
+            delegation_root = (
+                local_root
+                / "ChatAgentPlatform"
+                / "agent-sessions"
+                / "private-state"
+            )
+            delegated_identity = {
+                key: result[key]
+                for key in (
+                    "parent_task_id",
+                    "subgoal_id",
+                    "worker_kind",
+                    "worker_profile",
+                    "task_sha256",
+                    "result_contract_id",
+                )
+            }
+            snapshot = delegation_state.load_delegation(
+                delegated_identity,
+                state_root=delegation_root,
+            )
+            self.assertEqual("prepared", snapshot.launch_state)
+            self.assertEqual("prepared", snapshot.delivery_state)
+            self.assertEqual("open", snapshot.result_state)
 
     def test_settle_reads_canonical_submission_and_opaque_generic_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as local_dir:
