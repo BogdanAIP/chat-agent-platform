@@ -25,7 +25,8 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
         self.assertIn("AUTHORITATIVE CROSS-CAPABILITY EVALUATION STRATEGY", self.strategy)
         self.assertIn("not a new roadmap stage", self.folded)
         self.assertIn("independent public benchmark", self.folded)
-        self.assertIn("immediate implementation priority remains the bounded automatic reviewer", self.folded)
+        self.assertIn("immediate implementation priority is the **cap core v1 freeze**", self.folded)
+        self.assertIn("automatic reviewer/session-provider expansion is deferred", self.folded)
         self.assertIn("BENCHMARK_EVALUATION_STRATEGY.md", self.document_status)
         self.assertIn("AUTHORITATIVE CROSS-CAPABILITY EVALUATION STRATEGY", self.document_status)
         self.assertIn("Evaluation-strategy discovery rule", self.document_status)
@@ -89,14 +90,15 @@ class BenchmarkEvaluationStrategyContractTests(unittest.TestCase):
         self.assertIn("grant extra product authority", self.folded)
         self.assertIn("expose a shell only for evaluation", self.folded)
 
-    def test_reviewer_research_remains_first_specific_application(self) -> None:
+    def test_reviewer_research_remains_specific_but_deferred_application(self) -> None:
         self.assertIn("harbor", self.review_folded)
         self.assertIn("evaluation only", self.review_folded)
         self.assertIn("harbor never decides production acceptance", self.review_folded)
         self.assertIn("ReviewBench", self.review_research)
         self.assertIn("SWE-Review-Bench", self.review_research)
         self.assertIn("CR-Bench", self.review_research)
-        self.assertIn("Reviewer — first active rung", self.strategy)
+        self.assertIn("Reviewer — deferred specialist rung", self.strategy)
+        self.assertIn("reviewer automation is currently deferred", self.folded)
 
 
 if __name__ == "__main__":
