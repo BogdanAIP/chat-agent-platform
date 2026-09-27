@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 
 import {
   BROWSERSKILL_IDENTITY,
+  BROWSERSKILL_MODEL_TOOL_ACTIONS,
   assertBrowserSkillRuntimeIdentity,
 } from './browserskill-capability-manifest.mjs';
 
@@ -193,6 +194,42 @@ export function parseBrowserSkillControls(snapshotText) {
   return controls;
 }
 
+
+function addOption(command, flag, value) {
+  if (value === undefined || value === null) return;
+  command.push(flag, String(value));
+}
+
+function addBoolean(command, flag, value) {
+  if (value === true) command.push(flag);
+}
+
+function addTarget(command, target) {
+  if (typeof target !== 'string' || !target) {
+    throw new TypeError('BrowserSkill target must be a non-empty string');
+  }
+  command.push(target);
+}
+
+function addTab(command, tabId) {
+  if (tabId !== undefined && tabId !== null) command.push('--tab-id', String(tabId));
+}
+
+function addTimeout(command, timeoutMs) {
+  if (timeoutMs !== undefined && timeoutMs !== null) {
+    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+      throw new TypeError('BrowserSkill timeoutMs must be a positive integer');
+    }
+    command.push('--timeout', `${timeoutMs}ms`);
+  }
+}
+
+export const BROWSERSKILL_GROUPED_ACTION_KEYS = Object.freeze(
+  Object.entries(BROWSERSKILL_MODEL_TOOL_ACTIONS)
+    .flatMap(([tool, actions]) => actions.map(action => `${tool}:${action}`))
+    .sort(),
+);
+
 function resultSessionId(status) {
   const session = status?.session;
   const id = session?.session_id ?? session?.id;
@@ -367,12 +404,303 @@ export function createBrowserSkillCliProvider({
     };
   }
 
+
+  async function callGrouped(tool, action, args = {}) {
+    const key = `${tool}:${action}`;
+    if (!BROWSERSKILL_GROUPED_ACTION_KEYS.includes(key)) {
+      throw new BrowserSkillProviderError(`unknown BrowserSkill grouped capability: ${key}`);
+    }
+
+    if (tool === 'browser_session') {
+      if (action === 'start') {
+        const session = await ensureSession();
+        return { session_id: session.sessionId, browser_instance_id: session.browserInstanceId };
+      }
+      if (action === 'stop') return await close();
+      if (action === 'list') return await run(['session', 'list']);
+    }
+
+    const session = await ensureSession();
+    const sid = session.sessionId;
+
+    if (tool === 'browser_page') {
+      if (action === 'navigate') {
+        if (typeof args.url !== 'string' || !args.url) throw new TypeError('navigate requires url');
+        const command = ['navigate', '--session', sid, args.url];
+        addTab(command, args.tabId);
+        addOption(command, '--wait-until', args.waitUntil);
+        addTimeout(command, args.timeoutMs);
+        return await run(command);
+      }
+      if (action === 'back' || action === 'forward') {
+        const command = [`navigate-${action}`, '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--wait-until', args.waitUntil);
+        addTimeout(command, args.timeoutMs);
+        return await run(command);
+      }
+      if (action === 'reload') {
+        const command = ['reload', '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--wait-until', args.waitUntil);
+        addTimeout(command, args.timeoutMs);
+        addBoolean(command, '--hard', args.hard);
+        return await run(command);
+      }
+      if (action === 'wait') {
+        const command = ['wait-for-navigation', '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--wait-until', args.waitUntil);
+        addTimeout(command, args.timeoutMs);
+        return await run(command);
+      }
+    }
+
+    if (tool === 'browser_inspect') {
+      if (action === 'observe') {
+        const command = ['observe', '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--cursor', args.cursor);
+        addOption(command, '--max-depth', args.maxDepth);
+        addOption(command, '--max-tokens', args.maxTokens);
+        addBoolean(command, '--probe-hover', args.probeHover);
+        addBoolean(command, '--debug-surfaces', args.debugSurfaces);
+        return await run(command);
+      }
+      if (action === 'snapshot') {
+        const command = ['snapshot', '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--max-depth', args.maxDepth);
+        addOption(command, '--max-tokens', args.maxTokens);
+        return await run(command);
+      }
+      if (action === 'html') {
+        const command = ['get-html', '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--ref', args.ref);
+        addOption(command, '--max-bytes', args.maxBytes);
+        if (args.out !== undefined) addOption(command, '--out', args.out);
+        return await run(command);
+      }
+      if (action === 'screenshot') {
+        const command = ['screenshot', '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--ref', args.ref);
+        addBoolean(command, '--full-page', args.fullPage);
+        addOption(command, '--scope', args.scope);
+        addTimeout(command, args.timeoutMs);
+        if (args.out !== undefined) addOption(command, '--out', args.out);
+        return await run(command, { timeoutMs: args.timeoutMs ?? 135_000 });
+      }
+      if (action === 'console' || action === 'network') {
+        const command = [action, '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--since', args.since);
+        addOption(command, '--limit', args.limit);
+        addOption(command, '--max-text-chars', args.maxTextChars);
+        if (action === 'console') addBoolean(command, '--include-stack', args.includeStack);
+        return await run(command);
+      }
+      if (action === 'debug') {
+        if (typeof args.debugAction !== 'string' || !args.debugAction) {
+          throw new TypeError('browser_inspect debug requires debugAction');
+        }
+        const command = ['debug', args.debugAction, '--session', sid];
+        addTab(command, args.tabId);
+        for (const [flag, value] of [
+          ['--run-id', args.runId],
+          ['--name', args.name],
+          ['--since', args.since],
+          ['--limit', args.limit],
+          ['--part', args.part],
+          ['--offset', args.offset],
+          ['--max-chars', args.maxChars],
+          ['--pointer', args.pointer],
+          ['--rule', args.rule],
+          ['--rule-file', args.ruleFile],
+          ['--replay', args.replay],
+          ['--replay-file', args.replayFile],
+          ['--budget', args.budget],
+          ['--slow-ms', args.slowMs],
+          ['--window-ms', args.windowMs],
+          ['--url', args.url],
+          ['--method', args.method],
+          ['--resource-type', args.resourceType],
+          ['--status', args.status],
+          ['--state', args.state],
+          ['--kind', args.kind],
+          ['--wait-ms', args.waitMs],
+          ['--command-id', args.commandId],
+          ['--output', args.output],
+        ]) addOption(command, flag, value);
+        if (Array.isArray(args.fields) && args.fields.length) {
+          command.push('--fields', args.fields.join(','));
+        }
+        addBoolean(command, '--include-controlled', args.includeControlled);
+        return await run(command);
+      }
+    }
+
+    if (tool === 'browser_interact') {
+      if (action === 'click') {
+        const command = ['click'];
+        if (args.capture !== undefined) {
+          addOption(command, '--capture', args.capture);
+          addOption(command, '--image-x', args.imageX);
+          addOption(command, '--image-y', args.imageY);
+        } else {
+          addTarget(command, args.target);
+        }
+        command.push('--session', sid);
+        addTab(command, args.tabId);
+        addOption(command, '--button', args.button);
+        addOption(command, '--click-count', args.clickCount);
+        if (Array.isArray(args.modifiers) && args.modifiers.length) {
+          command.push('--modifiers', args.modifiers.join(','));
+        }
+        addTimeout(command, args.timeoutMs);
+        return await run(command);
+      }
+      if (action === 'hover' || action === 'scroll-to' || action === 'focus' || action === 'blur') {
+        const command = [action];
+        addTarget(command, args.target);
+        command.push('--session', sid);
+        addTab(command, args.tabId);
+        if (action === 'hover') {
+          if (Array.isArray(args.modifiers) && args.modifiers.length) {
+            command.push('--modifiers', args.modifiers.join(','));
+          }
+          if (args.settleMs !== undefined) command.push('--settle', `${args.settleMs}ms`);
+        }
+        addTimeout(command, args.timeoutMs);
+        return await run(command);
+      }
+      if (action === 'wheel') {
+        const command = ['wheel', '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--delta-x', args.deltaX ?? 0);
+        addOption(command, '--delta-y', args.deltaY ?? 0);
+        if (Array.isArray(args.modifiers) && args.modifiers.length) {
+          command.push('--modifiers', args.modifiers.join(','));
+        }
+        addTimeout(command, args.timeoutMs);
+        if (args.target !== undefined) addTarget(command, args.target);
+        return await run(command);
+      }
+      if (action === 'fill') {
+        const command = ['fill'];
+        addTarget(command, args.target);
+        if (typeof args.value !== 'string') throw new TypeError('fill requires value');
+        command.push('--value', args.value, '--session', sid);
+        addTab(command, args.tabId);
+        addBoolean(command, '--no-clear', args.noClear);
+        addTimeout(command, args.timeoutMs);
+        return await run(command);
+      }
+      if (action === 'press') {
+        if (typeof args.key !== 'string' || !args.key) throw new TypeError('press requires key');
+        const command = ['press', args.key, '--session', sid];
+        addTab(command, args.tabId);
+        if (args.target !== undefined) {
+          if (/^@?e\d+$/.test(args.target)) addOption(command, '--ref', args.target);
+          else addOption(command, '--selector', args.target);
+        }
+        if (Array.isArray(args.modifiers) && args.modifiers.length) {
+          command.push('--modifiers', args.modifiers.join(','));
+        }
+        addOption(command, '--hold-ms', args.holdMs);
+        addTimeout(command, args.timeoutMs);
+        return await run(command);
+      }
+      if (action === 'select') {
+        const command = ['select'];
+        addTarget(command, args.target);
+        if (!Array.isArray(args.values) || args.values.length === 0) {
+          throw new TypeError('select requires non-empty values');
+        }
+        for (const value of args.values) command.push('--value', String(value));
+        command.push('--session', sid);
+        addTab(command, args.tabId);
+        addTimeout(command, args.timeoutMs);
+        return await run(command);
+      }
+    }
+
+    if (tool === 'browser_tabs') {
+      if (action === 'list') {
+        const command = ['tab', 'list', '--session', sid];
+        addOption(command, '--scope', args.scope);
+        return await run(command);
+      }
+      if (action === 'create') {
+        const command = ['tab', 'create', '--session', sid];
+        addOption(command, '--url', args.url);
+        if (args.active === false) command.push('--no-active');
+        addOption(command, '--index', args.index);
+        return await run(command);
+      }
+      if (['select', 'close', 'borrow', 'return'].includes(action)) {
+        if (!Number.isInteger(args.tabId)) throw new TypeError(`${action} requires tabId`);
+        const command = ['tab', action, String(args.tabId), '--session', sid];
+        // BrowserSkill's DSH provider intentionally does not bypass the user's
+        // borrow confirmation with --no-confirm.
+        if (action === 'borrow') addTimeout(command, args.timeoutMs);
+        return await run(command, { timeoutMs: args.timeoutMs ?? DEFAULT_TIMEOUT_MS });
+      }
+    }
+
+    if (tool === 'browser_assist') {
+      if (action === 'resize') {
+        if (!Number.isInteger(args.width) || !Number.isInteger(args.height)) {
+          throw new TypeError('resize requires integer width/height');
+        }
+        return await run([
+          'window', 'resize', '--session', sid,
+          '--width', String(args.width), '--height', String(args.height),
+        ]);
+      }
+      if (action === 'emulate') {
+        const command = ['emulate', '--session', sid];
+        addTab(command, args.tabId);
+        addOption(command, '--device', args.device);
+        addOption(command, '--width', args.width);
+        addOption(command, '--height', args.height);
+        addOption(command, '--dpr', args.dpr);
+        addBoolean(command, '--mobile', args.mobile);
+        addBoolean(command, '--no-mobile', args.noMobile);
+        addOption(command, '--ua', args.ua);
+        addOption(command, '--accept-language', args.acceptLanguage);
+        addBoolean(command, '--touch', args.touch);
+        addBoolean(command, '--no-touch', args.noTouch);
+        addOption(command, '--max-touch-points', args.maxTouchPoints);
+        addBoolean(command, '--off', args.off);
+        return await run(command);
+      }
+      if (action === 'request-help') {
+        if (typeof args.prompt !== 'string' || !args.prompt) {
+          throw new TypeError('request-help requires prompt');
+        }
+        const command = ['request-help', '--session', sid, '--prompt', args.prompt];
+        addTab(command, args.tabId);
+        addOption(command, '--title', args.title);
+        if (Array.isArray(args.targets)) {
+          for (const target of args.targets) command.push('--target', String(target));
+        }
+        addTimeout(command, args.timeoutMs);
+        addOption(command, '--completion-criteria', args.completionCriteria);
+        return await run(command, { timeoutMs: args.timeoutMs ?? 315_000 });
+      }
+    }
+
+    throw new BrowserSkillProviderError(`BrowserSkill grouped capability is classified but unmapped: ${key}`);
+  }
+
   async function call(toolName, args = {}) {
     const session = await ensureSession();
 
     if (toolName === 'browser_navigate') {
       if (typeof args.url !== 'string' || !args.url) throw new TypeError('browser_navigate requires url');
-      const reply = await run(['navigate', '--session', session.sessionId, args.url]);
+      const reply = await callGrouped('browser_page', 'navigate', { url: args.url });
       return textResult(JSON.stringify(reply), { provider: 'browserskill', delivery: reply });
     }
 
@@ -407,9 +735,10 @@ export function createBrowserSkillCliProvider({
 
     if (toolName === 'browser_click') {
       if (typeof args.target !== 'string' || !args.target) throw new TypeError('browser_click requires target');
-      const command = ['click', args.target, '--session', session.sessionId];
-      if (args.doubleClick === true) command.push('--click-count', '2');
-      const reply = await run(command);
+      const reply = await callGrouped('browser_interact', 'click', {
+        target: args.target,
+        clickCount: args.doubleClick === true ? 2 : undefined,
+      });
       return textResult(JSON.stringify(reply), { provider: 'browserskill', delivery: reply });
     }
 
@@ -420,19 +749,17 @@ export function createBrowserSkillCliProvider({
         throw new BrowserSkillProviderError('BrowserSkill fill has no truthful slowly=true equivalent');
       }
       const completed = [];
-      const fill = await run([
-        'fill', args.target,
-        '--value', args.text,
-        '--session', session.sessionId,
-      ]);
+      const fill = await callGrouped('browser_interact', 'fill', {
+        target: args.target,
+        value: args.text,
+      });
       completed.push('fill');
       if (args.submit === true) {
         try {
-          const press = await run([
-            'press', 'Enter',
-            '--ref', args.target,
-            '--session', session.sessionId,
-          ]);
+          const press = await callGrouped('browser_interact', 'press', {
+            key: 'Enter',
+            target: args.target,
+          });
           completed.push('press');
           return textResult(JSON.stringify({ fill, press }), {
             provider: 'browserskill',
@@ -473,6 +800,7 @@ export function createBrowserSkillCliProvider({
     activate,
     ensureSession,
     snapshotObservation,
+    callGrouped,
     call,
     close,
     browserSubject() { return lastSubject; },
