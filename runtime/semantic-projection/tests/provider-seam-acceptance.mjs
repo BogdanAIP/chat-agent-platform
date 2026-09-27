@@ -60,7 +60,16 @@ assert.equal(providers.browserProvider(), 'playwright');
 assert.equal(providers.browserSubject(), 'isolated-playwright-primary-page');
 assert.deepEqual(
   Object.keys(providers).sort(),
-  ['browserClient', 'browserProvider', 'browserSubject', 'callBrowser', 'callFilesystem', 'close'].sort(),
+  [
+    'browserClient',
+    'browserProvider',
+    'browserSubject',
+    'callBrowser',
+    'callBrowserExtended',
+    'callBrowserGrouped',
+    'callFilesystem',
+    'close',
+  ].sort(),
 );
 
 await assert.rejects(
