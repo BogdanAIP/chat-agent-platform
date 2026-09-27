@@ -61,7 +61,18 @@ function jsonError(stdout, stderr, label, code) {
   }
 }
 
-export function createBskJsonRunner({ bskPath = 'bsk', spawnImpl = spawn } = {}) {
+export function createBskJsonRunner({
+  bskPath = 'bsk',
+  spawnImpl = spawn,
+  cancelGraceMs = CANCEL_GRACE_MS,
+  settlementSlackMs = 1_000,
+} = {}) {
+  if (!Number.isInteger(cancelGraceMs) || cancelGraceMs < 0) {
+    throw new TypeError('BrowserSkill cancelGraceMs must be a non-negative integer');
+  }
+  if (!Number.isInteger(settlementSlackMs) || settlementSlackMs < 0) {
+    throw new TypeError('BrowserSkill settlementSlackMs must be a non-negative integer');
+  }
   return async function run(args, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     if (!Array.isArray(args) || args.some(value => typeof value !== 'string')) {
       throw new TypeError('BrowserSkill CLI args must be an array of strings');
@@ -107,11 +118,11 @@ export function createBskJsonRunner({ bskPath = 'bsk', spawnImpl = spawn } = {})
         } catch {}
         forced = setTimeout(() => {
           try { child.kill('SIGKILL'); } catch {}
-        }, CANCEL_GRACE_MS);
+        }, cancelGraceMs);
         // Even a child that never emits close/error must release its caller.
         settlementDeadline = setTimeout(
           () => finish(reject, terminalError),
-          CANCEL_GRACE_MS + 1_000,
+          cancelGraceMs + settlementSlackMs,
         );
       };
       const append = (kind, chunk) => {
