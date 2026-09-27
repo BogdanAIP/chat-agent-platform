@@ -120,17 +120,14 @@ class SemanticBrowserAuthorizationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsupported request fields"):
             authorize_browser_request(request)
 
-
-if __name__ == "__main__":
-    unittest.main()    def test_accepts_browserskill_browser_policy(self):
+    def test_accepts_browserskill_browser_policy(self) -> None:
         result = authorize_browser_request(
             self.request(browser_policy_ref=BROWSERSKILL_BROWSER_POLICY_REF)
         )
-        self.assertEqual(result["status"], "authorized")
-        self.assertEqual(result["reason"], "exact_grant_match")
-        self.assertEqual(
-            result["authorization"]["status"],
-            "authorized",
-        )
+        self.assertEqual("authorized", result["status"])
+        self.assertEqual("exact_grant_match", result["reason"])
+        self.assertEqual("authorized", result["authorization"]["status"])
 
 
+if __name__ == "__main__":
+    unittest.main()
