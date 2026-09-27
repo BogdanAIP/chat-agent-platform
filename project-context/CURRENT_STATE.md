@@ -208,6 +208,8 @@ Persistent rich-context conversation identity, automatic browser wake and cross-
 The accepted reviewer-specific local state and fixed
 `launch_independent_review_v1`, `submit_independent_review_result_v1` and
 `reconcile_independent_review_result_v1` procedures from #141/#142 remain intact.
+They are **not deleted or silently replaced by #149**; the later provider-direction
+re-entry changes only which future session profile should carry automatic work.
 
 Reviewer methodology, exact repository/PR/BASE/HEAD identity, read-only GitHub
 authority qualification, `REVIEW_RESULT_V1`, stale handling and manual fallback
