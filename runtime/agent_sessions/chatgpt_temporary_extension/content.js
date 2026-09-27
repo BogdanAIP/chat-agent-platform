@@ -28,10 +28,46 @@
     return String(text || "").replace(/\u0000/g, "").trim();
   }
 
+  function conversationTurnNodes(role) {
+    if (typeof document?.querySelectorAll !== "function") return [];
+    const selectors = role === "user"
+      ? [
+          '[data-message-author-role="user"]',
+          '[data-user-message-bubble]',
+          '[data-testid^="conversation-turn-"][data-turn="user"]',
+          '[data-testid^="conversation-turn-"]:has([data-message-author-role="user"])',
+          '[data-turn-key]:has([data-user-message-bubble])',
+        ]
+      : [
+          '[data-message-author-role="assistant"]',
+          '[data-conversation-role="assistant"]',
+          '[data-local-conversation-final-assistant]',
+          '[data-testid^="conversation-turn-"][data-turn="assistant"]',
+          '[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
+          '[data-turn-key]:has([data-conversation-role="assistant"])',
+          '[data-turn-key]:has([data-local-conversation-final-assistant])',
+        ];
+    const nodes = [];
+    const seenOwners = new Set();
+    for (const selector of selectors) {
+      for (const node of document.querySelectorAll(selector)) {
+        if (!node) continue;
+        const owner =
+          node.closest?.('[data-turn-key]') ||
+          node.closest?.('[data-testid^="conversation-turn-"]') ||
+          node;
+        if (seenOwners.has(owner)) continue;
+        seenOwners.add(owner);
+        nodes.push(node);
+      }
+    }
+    return nodes;
+  }
+
   function observedRecoveryClaims() {
     const claims = [];
     const seen = new Set();
-    for (const node of document.querySelectorAll('[data-message-author-role="user"]')) {
+    for (const node of conversationTurnNodes("user")) {
       const text = normalizeFull(node.innerText || node.textContent || "");
       const delegation = text.match(/(?:^|\n)delegation_id=([0-9a-f]{64})(?:\n|$)/);
       const delivery = text.match(/(?:^|\n)delivery_id=([0-9a-f]{64})(?:\n|$)/);
@@ -568,34 +604,6 @@
       postDeliveryCleanupComplete = true;
       event("post-delivery-cleanup-complete", { launch_url_clean: true, composer_clean: true });
       return true;
-    }
-
-    function conversationTurnNodes(role) {
-      if (typeof document.querySelectorAll !== "function") return [];
-      const selectors = role === "user"
-        ? [
-            '[data-message-author-role="user"]',
-            '[data-testid^="conversation-turn-"][data-turn="user"]',
-            '[data-testid^="conversation-turn-"]:has([data-message-author-role="user"])',
-            '[data-turn-key]:has([data-user-message-bubble])',
-          ]
-        : [
-            '[data-message-author-role="assistant"]',
-            '[data-testid^="conversation-turn-"][data-turn="assistant"]',
-            '[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
-            '[data-turn-key]:has([data-conversation-role="assistant"])',
-            '[data-turn-key]:has([data-local-conversation-final-assistant])',
-          ];
-      const nodes = [];
-      const seen = new Set();
-      for (const selector of selectors) {
-        for (const node of document.querySelectorAll(selector)) {
-          if (!node || seen.has(node)) continue;
-          seen.add(node);
-          nodes.push(node);
-        }
-      }
-      return nodes;
     }
 
     function conversationTurns(role) {
