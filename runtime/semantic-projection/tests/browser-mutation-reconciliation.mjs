@@ -250,7 +250,12 @@ try {
   });
 
   await withInjectedProjection({
-    needle: `    const verification = await verifyBrowserInteraction({ before, after, expected, subject: providers.browserSubject() ?? undefined });`,
+    needle: `    const verification = await verifyBrowserInteraction({
+      before,
+      after,
+      expected,
+      subject: providers.browserSubject() ?? undefined,
+    });`,
     replacement: `    const verification = {
       status: 'unknown',
       verification: { reason: 'INJECTED_AMBIGUOUS_FINAL_STATE' },
