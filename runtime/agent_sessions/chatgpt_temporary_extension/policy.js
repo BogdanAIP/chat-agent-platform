@@ -26,6 +26,11 @@
   const CAPTURE_AUTHORITY_SELECTOR = [
     '[data-message-author-role="user"]',
     '[data-message-author-role="assistant"]',
+    '[data-user-message-bubble]',
+    '[data-conversation-role="assistant"]',
+    '[data-local-conversation-final-assistant]',
+    '[data-turn-key]',
+    '[data-testid^="conversation-turn-"]',
     '#prompt-textarea',
     '[contenteditable="true"]',
     'textarea',
@@ -137,23 +142,31 @@
     const selectors = role === "user"
       ? [
           '[data-message-author-role="user"]',
+          '[data-user-message-bubble]',
           '[data-testid^="conversation-turn-"][data-turn="user"]',
           '[data-testid^="conversation-turn-"]:has([data-message-author-role="user"])',
           '[data-turn-key]:has([data-user-message-bubble])',
         ]
       : [
           '[data-message-author-role="assistant"]',
+          '[data-conversation-role="assistant"]',
+          '[data-local-conversation-final-assistant]',
           '[data-testid^="conversation-turn-"][data-turn="assistant"]',
           '[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
           '[data-turn-key]:has([data-conversation-role="assistant"])',
           '[data-turn-key]:has([data-local-conversation-final-assistant])',
         ];
     const nodes = [];
-    const seen = new Set();
+    const seenOwners = new Set();
     for (const selector of selectors) {
       for (const node of document.querySelectorAll(selector)) {
-        if (!node || seen.has(node)) continue;
-        seen.add(node);
+        if (!node) continue;
+        const owner =
+          node.closest?.('[data-turn-key]') ||
+          node.closest?.('[data-testid^="conversation-turn-"]') ||
+          node;
+        if (seenOwners.has(owner)) continue;
+        seenOwners.add(owner);
         nodes.push(node);
       }
     }
