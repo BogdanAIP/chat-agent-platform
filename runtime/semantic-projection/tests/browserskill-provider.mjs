@@ -9,6 +9,7 @@ import {
   createBskJsonRunner,
   createBrowserSkillCliProvider,
   parseBrowserSkillControls,
+  projectBrowserSkillRefs,
 } from '../lib/browserskill-cli-provider.mjs';
 
 function key(args) {
@@ -161,16 +162,27 @@ assert.equal(startCalls, 1, 'ACK-loss reconciliation must never issue a second s
 
 const snapshot = await provider.call('browser_snapshot', {});
 assert.equal(snapshot.structuredContent?.provider, 'browserskill');
-assert.equal(
-  snapshot.structuredContent?.provider_subject,
-  'browserskill:browser-a:s-owned:17',
+const subject = snapshot.structuredContent?.provider_subject;
+assert.match(
+  subject,
+  /^browserskill:[0-9a-f-]{36}:browser-a:s-owned:17$/,
 );
+assert.equal(subject, provider.browserSubject());
+
 const normalized = snapshot.structuredContent?.normalized_browser_observation;
 assert.equal(normalized.url, 'https://example.com/');
 assert.equal(normalized.title, 'Example');
 assert.equal(normalized.controls.length, 3);
-assert.deepEqual(normalized.controls.find(item => item.control_id === '@e1'), {
-  control_id: '@e1',
+assert.equal(snapshot.content[0].text.includes('@e1'), false, 'native BrowserSkill refs must stay private');
+
+const save = normalized.controls.find(item => item.name === 'Save');
+const name = normalized.controls.find(item => item.name === 'Name');
+const remember = normalized.controls.find(item => item.name === 'Remember');
+assert.match(save.control_id, /^@cap-[0-9a-f]{16}$/);
+assert.match(name.control_id, /^@cap-[0-9a-f]{16}$/);
+assert.match(remember.control_id, /^@cap-[0-9a-f]{16}$/);
+assert.deepEqual(save, {
+  control_id: save.control_id,
   role: 'button',
   name: 'Save',
   enabled: true,
@@ -179,15 +191,23 @@ assert.deepEqual(normalized.controls.find(item => item.control_id === '@e1'), {
   visible: true,
   value: null,
 });
-assert.equal(normalized.controls.find(item => item.control_id === '@e2')?.value, '');
-assert.equal(normalized.controls.find(item => item.control_id === '@e3')?.checked, true);
+assert.equal(name.value, '');
+assert.equal(remember.checked, true);
+
+// A fresh pre-action snapshot rebuilds BrowserSkill's native @eN store.
+// The public stable CAP ref must resolve to the fresh native ref, not reuse
+// the previous generation's BrowserSkill ref directly.
+const refreshed = await provider.call('browser_snapshot', {});
+const refreshedSave = refreshed.structuredContent.normalized_browser_observation.controls
+  .find(item => item.name === 'Save');
+assert.equal(refreshedSave.control_id, save.control_id);
 
 await provider.call('browser_navigate', { url: 'https://example.com/' });
-await provider.call('browser_click', { target: '@e1' });
-await provider.call('browser_type', { target: '@e2', text: 'HELLO' });
+await provider.call('browser_click', { target: save.control_id });
+await provider.call('browser_type', { target: name.control_id, text: 'HELLO' });
 
 await assert.rejects(
-  provider.call('browser_type', { target: '@e2', text: 'HELLO', slowly: true }),
+  provider.call('browser_type', { target: name.control_id, text: 'HELLO', slowly: true }),
   /no truthful slowly=true equivalent/,
 );
 
@@ -205,6 +225,23 @@ const parsed = parseBrowserSkillControls(
 );
 assert.equal(parsed[0].selected, true);
 assert.equal(parsed[1].enabled, false);
+
+const duplicateGenerationOne = projectBrowserSkillRefs(
+  '@e1 button "Same"\n@e2 button "Same"\n',
+  11,
+);
+const duplicateGenerationTwo = projectBrowserSkillRefs(
+  '@e7 button "Same"\n@e8 button "Same"\n',
+  12,
+);
+assert.match(duplicateGenerationOne.controls[0].control_id, /^@capg-11-/);
+assert.match(duplicateGenerationOne.controls[1].control_id, /^@capg-11-/);
+assert.notEqual(
+  duplicateGenerationOne.controls[0].control_id,
+  duplicateGenerationTwo.controls[0].control_id,
+  'ambiguous same-role/name controls must not acquire a stable cross-observation ref',
+);
+assert.equal(duplicateGenerationOne.text.includes('@e1'), false);
 
 let mismatchCancel = 0;
 const mismatchedProvider = createBrowserSkillCliProvider({
@@ -380,6 +417,8 @@ assert.equal(mismatchCancel, 1, 'mismatched provider identity must trigger exact
 console.log('BROWSERSKILL_SESSION_ACK_LOSS_RECONCILIATION=PASS');
 console.log('BROWSERSKILL_NO_DUPLICATE_SESSION_START=PASS');
 console.log('BROWSERSKILL_NORMALIZED_OBSERVATION=PASS');
+console.log('BROWSERSKILL_NATIVE_REFS_PRIVATE=PASS');
+console.log('BROWSERSKILL_AMBIGUOUS_REFS_GENERATION_SCOPED=PASS');
 console.log('BROWSERSKILL_FOREIGN_IDENTITY_FAIL_CLOSED=PASS');
 console.log('BROWSERSKILL_CHILD_ENV_SECRET_SCRUB=PASS');
 console.log('BROWSERSKILL_HUNG_CHILD_BOUNDED_CANCEL=PASS');
