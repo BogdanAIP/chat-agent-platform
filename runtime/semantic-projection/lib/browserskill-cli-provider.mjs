@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 
 import {
@@ -33,13 +33,23 @@ export function browserSkillChildEnvironment(env = process.env) {
 }
 
 export class BrowserSkillProviderError extends Error {
-  constructor(message, { code = null, hint = null, timedOut = false, completedSteps = [] } = {}) {
+  constructor(
+    message,
+    {
+      code = null,
+      hint = null,
+      timedOut = false,
+      completedSteps = [],
+      deliveryAttempted = null,
+    } = {},
+  ) {
     super(message);
     this.name = 'BrowserSkillProviderError';
     this.code = code;
     this.hint = hint;
     this.timedOut = timedOut;
     this.completedSteps = Object.freeze([...completedSteps]);
+    this.deliveryAttempted = deliveryAttempted;
   }
 }
 
@@ -239,6 +249,46 @@ export function parseBrowserSkillControls(snapshotText) {
 }
 
 
+function semanticControlFingerprint(control) {
+  return JSON.stringify([control.role, control.name ?? null]);
+}
+
+function stableControlRef(fingerprint) {
+  return '@cap-' + createHash('sha256').update(fingerprint, 'utf8').digest('hex').slice(0, 16);
+}
+
+export function projectBrowserSkillRefs(snapshotText, generation) {
+  const nativeControls = parseBrowserSkillControls(snapshotText);
+  const counts = new Map();
+  for (const control of nativeControls) {
+    const fingerprint = semanticControlFingerprint(control);
+    counts.set(fingerprint, (counts.get(fingerprint) ?? 0) + 1);
+  }
+
+  const nativeToPublic = new Map();
+  const publicToNative = new Map();
+  const controls = nativeControls.map((control, index) => {
+    const fingerprint = semanticControlFingerprint(control);
+    const publicRef = counts.get(fingerprint) === 1
+      ? stableControlRef(fingerprint)
+      : `@capg-${generation}-${index + 1}`;
+    nativeToPublic.set(control.control_id, publicRef);
+    publicToNative.set(publicRef, control.control_id);
+    return { ...control, control_id: publicRef };
+  });
+
+  const text = String(snapshotText)
+    .split(/\r?\n/)
+    .map(line => line.replace(
+      /^(\s*(?:[-*]\s+)?)(@e\d+)\b/,
+      (full, prefix, nativeRef) => prefix + (nativeToPublic.get(nativeRef) ?? nativeRef),
+    ))
+    .join('\n');
+
+  return { text, controls, publicToNative };
+}
+
+
 function addOption(command, flag, value) {
   if (value === undefined || value === null) return;
   command.push(flag, String(value));
@@ -303,6 +353,8 @@ export function createBrowserSkillCliProvider({
   let activationPromise = null;
   let sessionPromise = null;
   let lastSubject = null;
+  let refGeneration = 0;
+  let currentPublicRefToNative = new Map();
 
   async function activate() {
     if (browser !== null) return browser;
@@ -428,21 +480,27 @@ export function createBrowserSkillCliProvider({
     if (!tab || typeof tab.url !== 'string') {
       throw new BrowserSkillProviderError('BrowserSkill snapshot could not bind exact tab URL');
     }
+    refGeneration += 1;
+    const projected = projectBrowserSkillRefs(snapshot?.text ?? '', refGeneration);
+    currentPublicRefToNative = projected.publicToNative;
     const observation = {
       url: tab.url,
       title: typeof tab.title === 'string' ? tab.title : '',
-      document_id: `browserskill:${session.browserInstanceId}:${session.sessionId}:${snapshot.tab_id}`,
-      snapshot_text: typeof snapshot?.text === 'string' ? snapshot.text : '',
-      controls: parseBrowserSkillControls(snapshot?.text ?? ''),
+      document_id:
+        `browserskill:${providerGeneration}:${session.browserInstanceId}:${session.sessionId}:${snapshot.tab_id}`,
+      snapshot_text: projected.text,
+      controls: projected.controls,
       settled: true,
       complete: snapshot?.truncated !== true,
       ambiguous: false,
     };
-    lastSubject = `browserskill:${session.browserInstanceId}:${session.sessionId}:${snapshot.tab_id}`;
+    lastSubject =
+      `browserskill:${providerGeneration}:${session.browserInstanceId}:${session.sessionId}:${snapshot.tab_id}`;
     return {
       session,
       tabId: snapshot.tab_id,
       raw: snapshot,
+      publicText: projected.text,
       observation,
       subject: lastSubject,
     };
@@ -815,9 +873,30 @@ export function createBrowserSkillCliProvider({
     throw new BrowserSkillProviderError(`BrowserSkill extended capability is unmapped: ${capability}`);
   }
 
-  async function call(toolName, args = {}) {
-    const session = await ensureSession();
+  function resolvePublicTarget(target) {
+    if (typeof target !== 'string' || !target) {
+      throw new TypeError('BrowserSkill public target must be a non-empty string');
+    }
+    if (target.startsWith('@cap')) {
+      const native = currentPublicRefToNative.get(target);
+      if (native === undefined) {
+        throw new BrowserSkillProviderError(
+          'BrowserSkill CAP ref is stale or ambiguous after fresh observation',
+          { deliveryAttempted: false },
+        );
+      }
+      return native;
+    }
+    if (/^@?e\d+$/.test(target)) {
+      throw new BrowserSkillProviderError(
+        'raw BrowserSkill refs are provider-private; use the CAP ref from web_observe',
+        { deliveryAttempted: false },
+      );
+    }
+    return target;
+  }
 
+  async function call(toolName, args = {}) {
     if (toolName === 'browser_navigate') {
       if (typeof args.url !== 'string' || !args.url) throw new TypeError('browser_navigate requires url');
       const reply = await callGrouped('browser_page', 'navigate', { url: args.url });
@@ -826,7 +905,7 @@ export function createBrowserSkillCliProvider({
 
     if (toolName === 'browser_snapshot') {
       const captured = await snapshotObservation();
-      return textResult(captured.raw.text, {
+      return textResult(captured.publicText, {
         provider: 'browserskill',
         provider_subject: captured.subject,
         normalized_browser_observation: captured.observation,
@@ -845,7 +924,7 @@ export function createBrowserSkillCliProvider({
       } else {
         throw new TypeError('browser_find requires text or regex');
       }
-      const lines = captured.raw.text.split(/\r?\n/).filter(matcher);
+      const lines = captured.publicText.split(/\r?\n/).filter(matcher);
       return textResult(lines.join('\n') || '(no matches)', {
         provider: 'browserskill',
         provider_subject: captured.subject,
@@ -856,7 +935,7 @@ export function createBrowserSkillCliProvider({
     if (toolName === 'browser_click') {
       if (typeof args.target !== 'string' || !args.target) throw new TypeError('browser_click requires target');
       const reply = await callGrouped('browser_interact', 'click', {
-        target: args.target,
+        target: resolvePublicTarget(args.target),
         clickCount: args.doubleClick === true ? 2 : undefined,
       });
       return textResult(JSON.stringify(reply), { provider: 'browserskill', delivery: reply });
@@ -866,11 +945,15 @@ export function createBrowserSkillCliProvider({
       if (typeof args.target !== 'string' || !args.target) throw new TypeError('browser_type requires target');
       if (typeof args.text !== 'string') throw new TypeError('browser_type requires text');
       if (args.slowly === true) {
-        throw new BrowserSkillProviderError('BrowserSkill fill has no truthful slowly=true equivalent');
+        throw new BrowserSkillProviderError(
+          'BrowserSkill fill has no truthful slowly=true equivalent',
+          { deliveryAttempted: false },
+        );
       }
       const completed = [];
+      const nativeTarget = resolvePublicTarget(args.target);
       const fill = await callGrouped('browser_interact', 'fill', {
-        target: args.target,
+        target: nativeTarget,
         value: args.text,
       });
       completed.push('fill');
@@ -878,7 +961,7 @@ export function createBrowserSkillCliProvider({
         try {
           const press = await callGrouped('browser_interact', 'press', {
             key: 'Enter',
-            target: args.target,
+            target: nativeTarget,
           });
           completed.push('press');
           return textResult(JSON.stringify({ fill, press }), {
