@@ -619,6 +619,7 @@ server.registerTool('web_open', {
     delivery = await providers.callBrowser('browser_navigate', { url: parsed.href });
   } catch (error) {
     deliveryError = error;
+    if (error?.deliveryAttempted === false) deliveryAttempted = false;
   }
 
   try {
@@ -775,6 +776,7 @@ server.registerTool('web_interact', {
       }
     } catch (error) {
       deliveryError = error;
+      if (error?.deliveryAttempted === false) deliveryAttempted = false;
     }
   }
 
