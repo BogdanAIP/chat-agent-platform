@@ -56,9 +56,11 @@ const providers = createSemanticProviderBindings({
   version: '0.1.0-test',
 });
 assert.equal(Object.isFrozen(providers), true);
+assert.equal(providers.browserProvider(), 'playwright');
+assert.equal(providers.browserSubject(), 'isolated-playwright-primary-page');
 assert.deepEqual(
   Object.keys(providers).sort(),
-  ['browserClient', 'callBrowser', 'callFilesystem', 'close'].sort(),
+  ['browserClient', 'browserProvider', 'browserSubject', 'callBrowser', 'callFilesystem', 'close'].sort(),
 );
 
 await assert.rejects(
