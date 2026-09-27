@@ -141,13 +141,13 @@ function writeResult(payload) {
   process.stdout.write(encoded);
 }
 
-async function waitForSessionBaseline(runBsk, baseline, timeoutMs = 15_000) {
+async function waitForSessionGone(runBsk, sessionId, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
   let last = null;
   while (Date.now() < deadline) {
     try {
       last = sessionIds(await runBsk(['session', 'list']));
-      if (JSON.stringify(last) === JSON.stringify(baseline)) {
+      if (!last.includes(sessionId)) {
         return { clean: true, sessions: last };
       }
     } catch {}
@@ -216,6 +216,8 @@ async function run() {
     }),
   });
 
+  let physicalSessionId = null;
+
   const evidence = {
     schema_version: 1,
     git_head: gitHead(),
@@ -230,6 +232,7 @@ async function run() {
     duplicate_type_blocked: false,
     duplicate_click_blocked: false,
     click_count_after_repeat: null,
+    provider_session_detected: false,
     cleanup_clean: false,
     fatal_error: null,
   };
@@ -257,6 +260,16 @@ async function run() {
     assert.equal(payloadOf(opened)?.browser_verification?.status, 'pass', textOf(opened));
     assert.equal(payloadOf(opened)?.delivery?.attempted, true, textOf(opened));
     evidence.web_open_pass = true;
+
+    const activeAfterOpen = sessionIds(await runBsk(['session', 'list']));
+    const newSessions = activeAfterOpen.filter(id => !baselineSessions.includes(id));
+    assert.equal(
+      newSessions.length,
+      1,
+      `physical L3 expected exactly one CAP-created BrowserSkill session; found ${newSessions.length}`,
+    );
+    physicalSessionId = newSessions[0];
+    evidence.provider_session_detected = true;
 
     const nameFound = await client.callTool({
       name: 'web_observe',
@@ -363,8 +376,13 @@ async function run() {
     await client.close().catch(() => {});
     await closeServer(fixture.server).catch(() => {});
 
-    const cleanup = await waitForSessionBaseline(runBsk, baselineSessions);
-    evidence.cleanup_clean = cleanup.clean;
+    if (physicalSessionId !== null) {
+      const cleanup = await waitForSessionGone(runBsk, physicalSessionId);
+      evidence.cleanup_clean = cleanup.clean;
+    } else {
+      const current = sessionIds(await runBsk(['session', 'list']));
+      evidence.cleanup_clean = current.every(id => baselineSessions.includes(id));
+    }
 
     fs.rmSync(workspace, { recursive: true, force: true });
     fs.rmSync(stateRoot, { recursive: true, force: true });
@@ -376,6 +394,7 @@ async function run() {
     acceptance_pass: (
       evidence.public_tool_count === 6 &&
       evidence.web_open_pass &&
+      evidence.provider_session_detected &&
       evidence.type_pass &&
       evidence.click_pass &&
       evidence.duplicate_type_blocked &&
