@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 export const SEMANTIC_ACTIVATION_VERSION = 'semantic-activation-v1';
 export const SEMANTIC_BROWSER_POLICY_REFS = Object.freeze({
   playwright: 'isolated-playwright-public-http-loopback-v1',
-  browserskill: 'authenticated-browserskill-local-trusted-host-public-http-loopback-v1',
+  browserskill: 'browserskill-local-trusted-host-public-http-loopback-v1',
 });
 export const SEMANTIC_BROWSER_POLICY_REF = SEMANTIC_BROWSER_POLICY_REFS.playwright;
 
