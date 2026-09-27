@@ -61,8 +61,10 @@ This is the implementation order toward CAP v1. **Research projects and vendor n
 The accepted Stage 26.3C foundation remains the starting point. The remaining product sequence is:
 
 ```text
-1. Reviewer reuse over the accepted Delegation lifecycle
-   -> migrate the automatic reviewer without weakening reviewer-specific guarantees
+1. CAP Core v1 freeze
+   -> close the already-defined core authority/seam/freeze chain using the accepted
+      manual fresh-review path where independent review is required
+   -> automatic reviewer/session-provider expansion is not a freeze prerequisite
 
 2. General computer-use coverage
    -> prove the existing Browser/Desktop path across a finite real-application matrix
@@ -92,7 +94,29 @@ Every roadmap stage must be closed by a concrete product outcome and acceptance 
 
 ### ChatGPT session boundary
 
-Ordinary CAP work uses the user's **ordinary ChatGPT conversation** through the accepted six-tool semantic route. The concrete `chatgpt-temporary` adapter is **reviewer-only product infrastructure**: it exists to obtain the fresh independent context required by the mandatory code-review policy.
+Ordinary CAP work uses the user's **ordinary ChatGPT conversation** through the
+accepted six-tool semantic route. The accepted generic Delegation lifecycle remains
+provider-independent.
+
+The accepted `chatgpt-temporary` adapter is retained as bounded evidence for an
+ephemeral clean-room worker profile; it is **not** the universal Agent Session
+transport and is no longer a prerequisite for automatic code review or Core v1
+freeze.
+
+Fresh Stage Research in `AGENT_SESSION_FRESH_CHAT_REENTRY.md` separates four
+properties that the first provider experiment had coupled:
+
+```text
+fresh conversation
+ != personalization/retention mode
+ != available read sources
+ != external mutation authority
+```
+
+The selected next provider direction, when implementation is re-entered, is a fresh
+ordinary ChatGPT conversation with an explicit read-only consumer profile. It must be
+proved with at least one non-reviewer read-only consumer before review-specific logic
+can define the adapter.
 
 ```text
 ordinary user task
@@ -100,21 +124,30 @@ ordinary user task
  -> CAP six-tool semantic surface
  -> Control Plane / capabilities
 
-independent code review
- -> reviewer policy
+future delegated read-only task
  -> generic bounded Delegation lifecycle
- -> chatgpt-temporary
- -> fresh isolated reviewer
- -> validated reviewer result
+ -> fresh ordinary ChatGPT worker
+ -> consumer-qualified read sources / no consequence mutation authority
+ -> correlated task-specific result
 ```
 
-Do not route normal user tasks, ordinary specialist work, skill execution, procedure execution or future persistent-session work through `chatgpt-temporary`. Its earlier non-reviewer physical task remains scoped evidence that the underlying Delegation lifecycle was not reviewer-specific; it does not make Temporary Chat a general product execution mode.
+Code review remains one specialist consumer. Until a future automatic worker can
+positively prove both exact repository evidence access and the absence of GitHub
+mutation authority, use the accepted **manual fresh ordinary-ChatGPT review** path.
+Do not weaken review evidence requirements merely to preserve automation.
 
-If a future non-reviewer consumer genuinely requires a fresh isolated worker, re-enter the applicable Stage Research and select a suitable session/provider mechanism from current evidence instead of silently widening `chatgpt-temporary`.
+Implementation of the ordinary-fresh adapter is **deferred until after Core v1
+freeze**, or until a concrete release-critical second consumer makes it necessary.
+Do not build a generic plugin registry, permission language, scheduler or provider
+framework as part of this deferment.
 
-The accepted reviewer-specific #140-#142 state/procedures remain fallback until reviewer migration proves that freshness, exact PR/BASE/HEAD identity, least privilege, `REVIEW_RESULT_V1`, stale handling and manual fallback survive unchanged above the generic Delegation lifecycle.
+The accepted reviewer-specific #140-#142 state/procedures remain available for
+review-result/fallback semantics; no reviewer-specific lifecycle becomes generic
+Delegation authority.
 
-Broad real-app coverage is an acceptance objective, not a new architecture family. Nested/fan-out workers, same-task automatic manager wake/resampling and Track P local general planner remain future and must not displace the product sequence above.
+Broad real-app coverage is an acceptance objective, not a new architecture family.
+Nested/fan-out workers, same-task automatic manager wake/resampling and Track P local
+general planner remain future and must not displace the product sequence above.
 
 ---
 
