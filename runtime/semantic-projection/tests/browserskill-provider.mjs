@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   BrowserSkillProviderError,
   BROWSERSKILL_GROUPED_ACTION_KEYS,
+  browserSkillChildEnvironment,
   createBrowserSkillCliProvider,
   parseBrowserSkillControls,
 } from '../lib/browserskill-cli-provider.mjs';
@@ -10,6 +11,24 @@ import {
 function key(args) {
   return args.join(' ');
 }
+
+const childEnv = browserSkillChildEnvironment({
+  PATH: 'C:\\bin',
+  SystemRoot: 'C:\\Windows',
+  USERPROFILE: 'C:\\Users\\tester',
+  USERNAME: 'tester',
+  BSK_HOME: 'C:\\Users\\tester\\.bsk',
+  BSK_BROWSER_WAIT_MS: '2500',
+  CONTROL_PLANE_API_KEY: 'must-not-leak',
+  OPENAI_API_KEY: 'must-not-leak',
+});
+assert.equal(childEnv.USERNAME, 'tester');
+assert.equal(childEnv.BSK_HOME, 'C:\\Users\\tester\\.bsk');
+assert.equal(childEnv.BSK_BROWSER_WAIT_MS, '2500');
+assert.equal(childEnv.BSK_AUTO_UPDATE, 'off');
+assert.equal(childEnv.BSK_CANCEL_ON_STDIN_CLOSE, '1');
+assert.equal('CONTROL_PLANE_API_KEY' in childEnv, false);
+assert.equal('OPENAI_API_KEY' in childEnv, false);
 
 const calls = [];
 let startCalls = 0;
@@ -328,5 +347,6 @@ console.log('BROWSERSKILL_SESSION_ACK_LOSS_RECONCILIATION=PASS');
 console.log('BROWSERSKILL_NO_DUPLICATE_SESSION_START=PASS');
 console.log('BROWSERSKILL_NORMALIZED_OBSERVATION=PASS');
 console.log('BROWSERSKILL_FOREIGN_IDENTITY_FAIL_CLOSED=PASS');
+console.log('BROWSERSKILL_CHILD_ENV_SECRET_SCRUB=PASS');
 console.log('BROWSERSKILL_ALL_GROUPED_ACTIONS_MAPPED=PASS');
 console.log('BROWSERSKILL_EXTENDED_MECHANICS_MAPPED=PASS');
