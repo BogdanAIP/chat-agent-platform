@@ -7,6 +7,7 @@ import {
   BROWSERSKILL_IDENTITY,
   BROWSERSKILL_MODEL_TOOL_ACTIONS,
   BROWSERSKILL_PROTOCOL_METHODS,
+  BROWSERSKILL_RUNTIME_STATUS,
   assertBrowserSkillRuntimeIdentity,
   validateBrowserSkillManifest,
 } from '../lib/browserskill-capability-manifest.mjs';
@@ -71,6 +72,32 @@ assert.equal(
   'HUMAN_ASSIST',
 );
 
+
+const groupedKeys = Object.entries(BROWSERSKILL_MODEL_TOOL_ACTIONS)
+  .flatMap(([tool, actions]) => actions.map(action => `${tool}:${action}`))
+  .sort();
+const statusGroupedKeys = Object.keys(BROWSERSKILL_RUNTIME_STATUS)
+  .filter(key => !key.startsWith('extended:'))
+  .sort();
+assert.deepEqual(
+  statusGroupedKeys,
+  groupedKeys,
+  'Every pinned grouped BrowserSkill action must have one explicit runtime status',
+);
+assert.equal(BROWSERSKILL_RUNTIME_STATUS['browser_page:navigate'], 'PUBLIC_CURRENT');
+assert.equal(
+  BROWSERSKILL_RUNTIME_STATUS['browser_tabs:borrow'],
+  'MAPPED_PENDING_PUBLIC_CONTRACT',
+);
+assert.equal(
+  BROWSERSKILL_RUNTIME_STATUS['extended:upload'],
+  'MAPPED_CROSS_CAPABILITY_GRANT_REQUIRED',
+);
+assert.equal(
+  BROWSERSKILL_RUNTIME_STATUS['extended:evaluate'],
+  'MAPPED_BLOCKED_NEW_CONSEQUENCE_CONTRACT',
+);
+
 assert.equal(
   assertBrowserSkillRuntimeIdentity({ version: '0.3.1', protocolVersion: '1.3' }),
   true,
@@ -90,3 +117,4 @@ console.log('BROWSERSKILL_PINNED_INVENTORY_EXHAUSTIVE=PASS');
 console.log('BROWSERSKILL_MODEL_TOOL_ACTIONS_EXHAUSTIVE=PASS');
 console.log('BROWSERSKILL_RUNTIME_IDENTITY_FAIL_CLOSED=PASS');
 console.log('BROWSERSKILL_HIGH_CONSEQUENCE_CAPABILITIES_EXPLICIT=PASS');
+console.log('BROWSERSKILL_RUNTIME_STATUS_EXHAUSTIVE=PASS');
