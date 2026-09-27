@@ -24,7 +24,7 @@ PRINCIPAL_REF = "semantic-profile:active-caller-v1"
 ACTIVATION_VERSION = "semantic-activation-v1"
 BROWSER_POLICY_REF = "isolated-playwright-public-http-loopback-v1"
 BROWSERSKILL_BROWSER_POLICY_REF = (
-    "authenticated-browserskill-local-trusted-host-public-http-loopback-v1"
+    "browserskill-local-trusted-host-public-http-loopback-v1"
 )
 BROWSER_POLICY_REFS = frozenset({
     BROWSER_POLICY_REF,
