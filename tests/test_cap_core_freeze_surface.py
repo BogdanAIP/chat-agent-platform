@@ -140,7 +140,7 @@ class CapCoreFreezeSurfaceTests(unittest.TestCase):
         )
         self.assertLess(
             web_open.index("providers.callBrowser('browser_navigate'"),
-            web_open.index("verifyPlaywrightNavigation("),
+            web_open.index("verifyBrowserNavigation("),
         )
 
         interact = _section(
@@ -152,7 +152,7 @@ class CapCoreFreezeSurfaceTests(unittest.TestCase):
         visual_delivery = interact.index("router.click(")
         click_delivery = interact.index("providers.callBrowser('browser_click'")
         type_delivery = interact.index("providers.callBrowser('browser_type'")
-        verification = interact.index("verifyPlaywrightInteraction(")
+        verification = interact.index("verifyBrowserInteraction(")
         for delivery in (visual_delivery, click_delivery, type_delivery):
             self.assertLess(authorization, delivery)
             self.assertLess(delivery, verification)

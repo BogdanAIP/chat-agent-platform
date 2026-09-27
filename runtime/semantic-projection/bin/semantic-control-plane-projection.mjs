@@ -8,6 +8,11 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { SEMANTIC_ACTIVATION_ENV_KEYS } from '../lib/semantic-activation.mjs';
+import {
+  webInteractSchema,
+  webObserveSchema,
+  webOpenSchema,
+} from '../lib/browser-public-contract.mjs';
 
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
@@ -60,7 +65,10 @@ const SAFE_CHILD_ENV_ALLOWLIST = new Set([
   'LANG', 'LC_ALL', 'PYTHONUTF8', 'PYTHONIOENCODING',
   'CHAT_LOCAL_FILES_ROOT',
   'CHAT_PROCEDURE_STATE_ROOT',
-  'PLAYWRIGHT_MCP_OUTPUT_DIR'
+  'PLAYWRIGHT_MCP_OUTPUT_DIR',
+  'CAP_BROWSER_PROVIDER',
+  'CAP_BROWSERSKILL_BROWSER',
+  'CAP_BROWSERSKILL_BSK_PATH'
 ]);
 
 
@@ -321,23 +329,6 @@ function runProcedure(request) {
 }
 
 const relativePathSchema = z.string().min(1).max(2048);
-const visualFallbackSchema = z.object({
-  instruction: z.string().min(1).max(4096),
-  targetText: z.string().min(1).max(2048),
-  semanticName: z.string().min(1).max(1024).optional()
-}).strict();
-const interactionExpectedControlSchema = z.object({
-  target: z.string().min(1).max(512).optional(),
-  present: z.boolean().optional(),
-  value: z.string().max(4096).optional(),
-  checked: z.boolean().optional(),
-  selected: z.boolean().optional(),
-  enabled: z.boolean().optional(),
-}).strict();
-const interactionExpectedSchema = z.object({
-  url: z.string().url().max(4096).optional(),
-  control: interactionExpectedControlSchema.optional(),
-}).strict();
 const reviewResultTextSchema = z.string().min(1).refine(
   value => Buffer.byteLength(value, 'utf8') <= MAX_REVIEW_RESULT_BYTES,
   { message: 'review result exceeds the accepted UTF-8 byte bound' }
@@ -409,36 +400,21 @@ server.registerTool('workspace_write', {
 server.registerTool('web_open', {
   title: 'Open Web Page',
   description: 'Accepted isolated semantic web navigation surface.',
-  inputSchema: z.object({ url: z.string().url().max(4096) }).strict(),
+  inputSchema: webOpenSchema,
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
 }, args => callSemantic('web_open', args));
 
 server.registerTool('web_observe', {
   title: 'Observe Web Page',
   description: 'Accepted read-only semantic browser observation surface.',
-  inputSchema: z.object({
-    operation: z.enum(['find', 'snapshot']),
-    text: z.string().min(1).max(2048).optional(),
-    regex: z.string().min(1).max(2048).optional(),
-    target: z.string().min(1).max(4096).optional()
-  }).strict(),
+  inputSchema: webObserveSchema,
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true }
 }, args => callSemantic('web_observe', args));
 
 server.registerTool('web_interact', {
   title: 'Interact With Web Page',
   description: 'Accepted semantic click/type surface with fresh bounded postcondition verification. click and type+submit require expected={url and/or control state}; type without submit may infer value==text. No arbitrary selector, JavaScript or backend dispatch is exposed.',
-  inputSchema: z.object({
-    operation: z.enum(['click', 'type']),
-    target: z.string().min(1).max(4096).optional(),
-    element: z.string().min(1).max(1024).optional(),
-    doubleClick: z.boolean().optional(),
-    text: z.string().max(200000).optional(),
-    submit: z.boolean().optional(),
-    slowly: z.boolean().optional(),
-    visualFallback: visualFallbackSchema.optional(),
-    expected: interactionExpectedSchema.optional()
-  }).strict(),
+  inputSchema: webInteractSchema,
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
 }, args => callSemantic('web_interact', args));
 

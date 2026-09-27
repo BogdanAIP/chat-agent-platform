@@ -56,18 +56,37 @@ const providers = createSemanticProviderBindings({
   version: '0.1.0-test',
 });
 assert.equal(Object.isFrozen(providers), true);
+assert.equal(providers.browserProvider(), 'playwright');
+assert.equal(providers.browserSubject(), 'isolated-playwright-primary-page');
 assert.deepEqual(
   Object.keys(providers).sort(),
-  ['browserClient', 'callBrowser', 'callFilesystem', 'close'].sort(),
+  [
+    'browserClient',
+    'browserProvider',
+    'browserSubject',
+    'callBrowser',
+    'callBrowserExtended',
+    'callBrowserGrouped',
+    'callFilesystem',
+    'close',
+  ].sort(),
 );
 
 await assert.rejects(
   providers.callFilesystem('browser_click', {}),
   /non-allowlisted downstream tool: filesystem\.browser_click/,
 );
-await assert.rejects(
-  providers.callBrowser('write_file', {}),
-  /non-allowlisted downstream tool: playwright\.write_file/,
+assert.throws(
+  () => providers.callBrowser('write_file', {}),
+  /non-allowlisted downstream tool: browser\.write_file/,
+);
+assert.throws(
+  () => providers.callBrowserGrouped('browser_tabs', 'list', {}),
+  /BrowserSkill grouped capability requested while Playwright provider is active/,
+);
+assert.throws(
+  () => providers.callBrowserExtended('evaluate', {}),
+  /BrowserSkill extended capability requested while Playwright provider is active/,
 );
 await providers.close();
 

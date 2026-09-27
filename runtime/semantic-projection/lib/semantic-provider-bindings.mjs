@@ -5,7 +5,11 @@ import process from 'node:process';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
-import { semanticProviderEnvironment } from './semantic-activation.mjs';
+import {
+  semanticBrowserProvider,
+  semanticProviderEnvironment,
+} from './semantic-activation.mjs';
+import { createBrowserSkillCliProvider } from './browserskill-cli-provider.mjs';
 
 
 const require = createRequire(import.meta.url);
@@ -27,7 +31,7 @@ const REQUIRED_FILESYSTEM_TOOLS = new Set([
   'write_file',
 ]);
 
-const REQUIRED_BROWSER_TOOLS = new Set([
+const PLAYWRIGHT_BROWSER_TOOLS = new Set([
   'browser_navigate',
   'browser_find',
   'browser_snapshot',
@@ -80,6 +84,39 @@ export function createSemanticProviderBindings({ workspaceRoot, version }) {
 
   let filesystemPromise = null;
   let browserPromise = null;
+  let browserSkillProvider = null;
+  const browserProvider = semanticBrowserProvider(process.env);
+
+  if (browserProvider === 'browserskill') {
+    const selector = process.env.CAP_BROWSERSKILL_BROWSER;
+    if (typeof selector !== 'string' || selector.trim().length === 0) {
+      throw new Error(
+        'CAP_BROWSER_PROVIDER=browserskill requires CAP_BROWSERSKILL_BROWSER exact instance id or unique label',
+      );
+    }
+    const stateRoot = process.env.CAP_BROWSERSKILL_STATE_ROOT || (
+      typeof process.env.LOCALAPPDATA === 'string' && process.env.LOCALAPPDATA
+        ? path.join(
+            process.env.LOCALAPPDATA,
+            'ChatAgentPlatform',
+            'state',
+            'browserskill-provider',
+          )
+        : null
+    );
+    if (stateRoot === null) {
+      throw new Error(
+        'CAP_BROWSER_PROVIDER=browserskill requires LOCALAPPDATA or CAP_BROWSERSKILL_STATE_ROOT for durable ownership recovery',
+      );
+    }
+    browserSkillProvider = createBrowserSkillCliProvider({
+      browserSelector: selector,
+      bskPath: process.env.CAP_BROWSERSKILL_BSK_PATH || 'bsk',
+      sessionName: 'CAP semantic Browser',
+      noFocus: true,
+      stateRoot,
+    });
+  }
 
   function getFilesystem() {
     if (filesystemPromise === null) {
@@ -97,6 +134,9 @@ export function createSemanticProviderBindings({ workspaceRoot, version }) {
   }
 
   function getBrowser() {
+    if (browserProvider !== 'playwright') {
+      throw new Error('Playwright MCP client requested while BrowserSkill provider is active');
+    }
     if (browserPromise === null) {
       browserPromise = connectBackend({
         label: 'playwright',
@@ -117,7 +157,7 @@ export function createSemanticProviderBindings({ workspaceRoot, version }) {
           '--timeout-action',
           '15000',
         ]),
-        requiredTools: REQUIRED_BROWSER_TOOLS,
+        requiredTools: PLAYWRIGHT_BROWSER_TOOLS,
         version,
       }).catch(error => {
         browserPromise = null;
@@ -140,7 +180,34 @@ export function createSemanticProviderBindings({ workspaceRoot, version }) {
       return call(getFilesystem, REQUIRED_FILESYSTEM_TOOLS, 'filesystem', toolName, args);
     },
     callBrowser(toolName, args) {
-      return call(getBrowser, REQUIRED_BROWSER_TOOLS, 'playwright', toolName, args);
+      if (!PLAYWRIGHT_BROWSER_TOOLS.has(toolName)) {
+        throw new Error(`Projection refused non-allowlisted downstream tool: browser.${toolName}`);
+      }
+      if (browserProvider === 'browserskill') {
+        return browserSkillProvider.call(toolName, args);
+      }
+      return call(getBrowser, PLAYWRIGHT_BROWSER_TOOLS, 'playwright', toolName, args);
+    },
+    callBrowserGrouped(tool, action, args = {}) {
+      if (browserProvider !== 'browserskill') {
+        throw new Error('BrowserSkill grouped capability requested while Playwright provider is active');
+      }
+      return browserSkillProvider.callGrouped(tool, action, args);
+    },
+    callBrowserExtended(capability, args = {}) {
+      if (browserProvider !== 'browserskill') {
+        throw new Error('BrowserSkill extended capability requested while Playwright provider is active');
+      }
+      return browserSkillProvider.callExtended(capability, args);
+    },
+    browserProvider() {
+      return browserProvider;
+    },
+    browserSubject() {
+      if (browserProvider === 'browserskill') {
+        return browserSkillProvider.browserSubject();
+      }
+      return 'isolated-playwright-primary-page';
     },
     async browserClient() {
       const { client } = await getBrowser();
@@ -155,6 +222,7 @@ export function createSemanticProviderBindings({ workspaceRoot, version }) {
       for (const entry of settled) {
         if (entry.status === 'fulfilled') closes.push(entry.value.client.close());
       }
+      if (browserSkillProvider !== null) closes.push(browserSkillProvider.close());
       await Promise.allSettled(closes);
     },
   });

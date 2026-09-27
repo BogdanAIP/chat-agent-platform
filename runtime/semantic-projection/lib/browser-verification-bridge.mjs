@@ -161,6 +161,58 @@ export function parsePlaywrightSnapshotResult(result) {
   };
 }
 
+
+function validateNormalizedBrowserObservation(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('normalized browser observation must be an object');
+  }
+  if (typeof value.url !== 'string' || typeof value.title !== 'string') {
+    throw new Error('normalized browser observation requires url/title strings');
+  }
+  if (typeof value.snapshot_text !== 'string') {
+    throw new Error('normalized browser observation requires snapshot_text');
+  }
+  if (value.snapshot_text.length > MAX_PLAYWRIGHT_SNAPSHOT_CHARS) {
+    throw new Error('normalized browser observation exceeds bounded observation limit');
+  }
+  if (!Array.isArray(value.controls)) {
+    throw new Error('normalized browser observation requires controls array');
+  }
+  for (const control of value.controls) {
+    if (
+      control === null ||
+      typeof control !== 'object' ||
+      typeof control.control_id !== 'string' ||
+      typeof control.role !== 'string'
+    ) {
+      throw new Error('normalized browser observation contains invalid control');
+    }
+  }
+  if (
+    typeof value.settled !== 'boolean' ||
+    typeof value.complete !== 'boolean' ||
+    typeof value.ambiguous !== 'boolean'
+  ) {
+    throw new Error('normalized browser observation requires state booleans');
+  }
+  return {
+    url: value.url,
+    title: value.title,
+    document_id: value.document_id ?? null,
+    snapshot_text: value.snapshot_text,
+    controls: value.controls,
+    settled: value.settled,
+    complete: value.complete,
+    ambiguous: value.ambiguous,
+  };
+}
+
+export function parseBrowserSnapshotResult(result) {
+  const normalized = result?.structuredContent?.normalized_browser_observation;
+  if (normalized !== undefined) return validateNormalizedBrowserObservation(normalized);
+  return parsePlaywrightSnapshotResult(result);
+}
+
 function runVerifier(request) {
   return new Promise(resolve => {
     const child = spawn('python', [verifierCli], {
@@ -210,22 +262,41 @@ function requireVerifierResult(result) {
   return result;
 }
 
-export async function verifyPlaywrightNavigation({ before, after, expectedUrl }) {
+export async function verifyBrowserNavigation({
+  before,
+  after,
+  expectedUrl,
+  subject = 'isolated-playwright-primary-page',
+}) {
   return requireVerifierResult(await runVerifier({
     operation: 'verify_navigation',
-    subject: 'isolated-playwright-primary-page',
+    subject,
     before,
     after,
     expected_url: expectedUrl,
   }));
 }
 
-export async function verifyPlaywrightInteraction({ before, after, expected }) {
+export async function verifyBrowserInteraction({
+  before,
+  after,
+  expected,
+  subject = 'isolated-playwright-primary-page',
+}) {
   return requireVerifierResult(await runVerifier({
     operation: 'verify_interaction',
-    subject: 'isolated-playwright-primary-page',
+    subject,
     before,
     after,
     expected,
   }));
+}
+
+// Compatibility exports for existing Playwright-focused tests/callers.
+export async function verifyPlaywrightNavigation(args) {
+  return verifyBrowserNavigation(args);
+}
+
+export async function verifyPlaywrightInteraction(args) {
+  return verifyBrowserInteraction(args);
 }

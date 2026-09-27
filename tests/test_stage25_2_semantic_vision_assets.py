@@ -9,6 +9,7 @@ CORE = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-projection.m
 PUBLIC = ROOT / "runtime" / "semantic-projection" / "bin" / "semantic-control-plane-projection.mjs"
 ROUTER = ROOT / "runtime" / "semantic-projection" / "lib" / "semantic-vision-click-router.mjs"
 PROVIDERS = ROOT / "runtime" / "semantic-projection" / "lib" / "semantic-provider-bindings.mjs"
+PUBLIC_CONTRACT = ROOT / "runtime" / "semantic-projection" / "lib" / "browser-public-contract.mjs"
 VISUAL_BRIDGE = ROOT / "runtime" / "semantic-projection" / "lib" / "visual-grounding-bridge.mjs"
 TARGET_NODE = ROOT / "runtime" / "semantic-projection" / "tests" / "target-stage25-2-real-f16-escalation.mjs"
 TARGET_WRAPPER = ROOT / "scripts" / "test-stage25-2-real-f16-escalation.ps1"
@@ -22,6 +23,7 @@ class Stage252SemanticVisionAssetsTests(unittest.TestCase):
         cls.public = PUBLIC.read_text(encoding="utf-8")
         cls.router = ROUTER.read_text(encoding="utf-8")
         cls.providers = PROVIDERS.read_text(encoding="utf-8")
+        cls.public_contract = PUBLIC_CONTRACT.read_text(encoding="utf-8")
         cls.visual_bridge = VISUAL_BRIDGE.read_text(encoding="utf-8")
         cls.target_node = TARGET_NODE.read_text(encoding="utf-8")
         cls.target_wrapper = TARGET_WRAPPER.read_text(encoding="utf-8")
@@ -55,10 +57,9 @@ class Stage252SemanticVisionAssetsTests(unittest.TestCase):
         self.assertNotIn("procedure_run", self.core)
 
     def test_visual_escalation_is_bounded_inside_web_interact(self) -> None:
+        for marker in ("visualFallbackSchema", "targetText", "instruction"):
+            self.assertIn(marker, self.public_contract)
         for marker in (
-            "visualFallbackSchema",
-            "targetText",
-            "instruction",
             "visualFallback supports only one left single click",
             "web_interact type does not accept visualFallback",
         ):

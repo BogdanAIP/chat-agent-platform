@@ -1,7 +1,22 @@
 import { randomBytes } from 'node:crypto';
 
 export const SEMANTIC_ACTIVATION_VERSION = 'semantic-activation-v1';
-export const SEMANTIC_BROWSER_POLICY_REF = 'isolated-playwright-public-http-loopback-v1';
+export const SEMANTIC_BROWSER_POLICY_REFS = Object.freeze({
+  playwright: 'isolated-playwright-public-http-loopback-v1',
+  browserskill: 'browserskill-local-trusted-host-public-http-loopback-v1',
+});
+export const SEMANTIC_BROWSER_POLICY_REF = SEMANTIC_BROWSER_POLICY_REFS.playwright;
+
+export function semanticBrowserProvider(env = process.env) {
+  const raw = env.CAP_BROWSER_PROVIDER;
+  if (raw === undefined || raw === '') return 'playwright';
+  if (raw === 'playwright' || raw === 'browserskill') return raw;
+  throw new Error('CAP_BROWSER_PROVIDER must be playwright or browserskill');
+}
+
+export function semanticBrowserPolicyRef(env = process.env) {
+  return SEMANTIC_BROWSER_POLICY_REFS[semanticBrowserProvider(env)];
+}
 export const SEMANTIC_ACTIVATION_ENV_KEYS = Object.freeze([
   'CHAT_SEMANTIC_ACTIVATION_REF',
   'CHAT_SEMANTIC_ACTIVATION_VERSION',
@@ -13,7 +28,7 @@ const SAFE_PROVIDER_ENV_ALLOWLIST = new Set([
   'PATH', 'Path', 'PATHEXT',
   'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC',
   'TEMP', 'TMP', 'TMPDIR',
-  'LOCALAPPDATA', 'HOME', 'USERPROFILE',
+  'LOCALAPPDATA', 'APPDATA', 'HOME', 'USERPROFILE', 'USERNAME',
   'PROGRAMFILES', 'ProgramFiles', 'PROGRAMFILES(X86)',
   'LANG', 'LC_ALL', 'PYTHONUTF8', 'PYTHONIOENCODING',
   'PLAYWRIGHT_MCP_OUTPUT_DIR'
@@ -42,14 +57,15 @@ export function createSemanticActivationEnvironment(
     throw new Error('semantic activation identity source must return exactly 16 bytes');
   }
   const activationRef = raw.toString('hex');
+  const browserPolicyRef = semanticBrowserPolicyRef(env);
   env.CHAT_SEMANTIC_ACTIVATION_REF = activationRef;
   env.CHAT_SEMANTIC_ACTIVATION_VERSION = SEMANTIC_ACTIVATION_VERSION;
-  env.CHAT_SEMANTIC_BROWSER_POLICY_REF = SEMANTIC_BROWSER_POLICY_REF;
+  env.CHAT_SEMANTIC_BROWSER_POLICY_REF = browserPolicyRef;
   return {
     env,
     activationRef,
     activationVersion: SEMANTIC_ACTIVATION_VERSION,
-    browserPolicyRef: SEMANTIC_BROWSER_POLICY_REF,
+    browserPolicyRef,
   };
 }
 
@@ -63,7 +79,8 @@ export function requireSemanticActivation(env = process.env) {
   if (activationVersion !== SEMANTIC_ACTIVATION_VERSION) {
     throw new Error('semantic mutation runtime activation version mismatch');
   }
-  if (browserPolicyRef !== SEMANTIC_BROWSER_POLICY_REF) {
+  const expectedPolicyRef = semanticBrowserPolicyRef(env);
+  if (browserPolicyRef !== expectedPolicyRef) {
     throw new Error('semantic mutation runtime browser policy mismatch');
   }
   return Object.freeze({ activationRef, activationVersion, browserPolicyRef });

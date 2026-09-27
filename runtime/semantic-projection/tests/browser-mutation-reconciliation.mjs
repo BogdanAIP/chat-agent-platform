@@ -167,6 +167,50 @@ try {
   });
 
   await withInjectedProjection({
+    needle: `        delivery = await providers.callBrowser('browser_click', downstream);`,
+    replacement: `        if (!globalThis.__CAP_PRE_DELIVERY_REJECTED_ONCE) {
+          globalThis.__CAP_PRE_DELIVERY_REJECTED_ONCE = true;
+          const error = new Error('INJECTED_PRE_DELIVERY_REJECTION');
+          error.deliveryAttempted = false;
+          throw error;
+        }
+        delivery = await providers.callBrowser('browser_click', downstream);`,
+    scenario: async client => {
+      const opened = await client.callTool({ name: 'web_open', arguments: { url: fixture.url } });
+      assert.equal(opened.isError, undefined, textOf(opened));
+
+      const button = await client.callTool({ name: 'web_observe', arguments: { operation: 'find', text: 'Go' } });
+      const status = await client.callTool({ name: 'web_observe', arguments: { operation: 'find', regex: 'textbox "Status"' } });
+      const buttonRef = refOnMatchingLine(button, 'button "Go"');
+      const statusRef = refOnMatchingLine(status, 'textbox "Status"');
+
+      const refused = await client.callTool({
+        name: 'web_interact',
+        arguments: {
+          operation: 'click',
+          target: buttonRef,
+          expected: { control: { target: statusRef, value: 'CLICKED' } },
+        },
+      });
+      assert.equal(refused.isError, true, textOf(refused));
+      assert.equal(refused.structuredContent?.delivery?.attempted, false, textOf(refused));
+      assert.match(refused.structuredContent?.delivery?.error ?? '', /INJECTED_PRE_DELIVERY_REJECTION/);
+
+      const retry = await client.callTool({
+        name: 'web_interact',
+        arguments: {
+          operation: 'click',
+          target: buttonRef,
+          expected: { control: { target: statusRef, value: 'CLICKED' } },
+        },
+      });
+      assert.equal(retry.isError, undefined, textOf(retry));
+      assert.equal(retry.structuredContent?.delivery?.attempted, true, textOf(retry));
+      assert.equal(retry.structuredContent?.browser_verification?.status, 'pass', textOf(retry));
+    },
+  });
+
+  await withInjectedProjection({
     needle: `        delivery = await providers.callBrowser('browser_type', downstream);`,
     replacement: `        await providers.callBrowser('browser_type', downstream);
         throw new Error('INJECTED_TYPE_ACK_LOSS');`,
@@ -206,7 +250,12 @@ try {
   });
 
   await withInjectedProjection({
-    needle: `    const verification = await verifyPlaywrightInteraction({ before, after, expected });`,
+    needle: `    const verification = await verifyBrowserInteraction({
+      before,
+      after,
+      expected,
+      subject: providers.browserSubject() ?? undefined,
+    });`,
     replacement: `    const verification = {
       status: 'unknown',
       verification: { reason: 'INJECTED_AMBIGUOUS_FINAL_STATE' },
@@ -267,6 +316,7 @@ try {
   console.log('SEMANTIC_BROWSER_NAV_ACK_LOSS_RECONCILED=PASS');
   console.log('SEMANTIC_BROWSER_CLICK_ACK_LOSS_RECONCILED=PASS');
   console.log('SEMANTIC_BROWSER_TYPE_ACK_LOSS_RECONCILED=PASS');
+  console.log('SEMANTIC_BROWSER_PRE_DELIVERY_REJECTION_NO_QUARANTINE=PASS');
   console.log('SEMANTIC_BROWSER_REPEAT_NO_BLIND_RETRY=PASS');
   console.log('SEMANTIC_BROWSER_UNKNOWN_QUARANTINE=PASS');
 } finally {
