@@ -94,11 +94,27 @@ export function createSemanticProviderBindings({ workspaceRoot, version }) {
         'CAP_BROWSER_PROVIDER=browserskill requires CAP_BROWSERSKILL_BROWSER exact instance id or unique label',
       );
     }
+    const stateRoot = process.env.CAP_BROWSERSKILL_STATE_ROOT || (
+      typeof process.env.LOCALAPPDATA === 'string' && process.env.LOCALAPPDATA
+        ? path.join(
+            process.env.LOCALAPPDATA,
+            'ChatAgentPlatform',
+            'state',
+            'browserskill-provider',
+          )
+        : null
+    );
+    if (stateRoot === null) {
+      throw new Error(
+        'CAP_BROWSER_PROVIDER=browserskill requires LOCALAPPDATA or CAP_BROWSERSKILL_STATE_ROOT for durable ownership recovery',
+      );
+    }
     browserSkillProvider = createBrowserSkillCliProvider({
       browserSelector: selector,
       bskPath: process.env.CAP_BROWSERSKILL_BSK_PATH || 'bsk',
       sessionName: 'CAP semantic Browser',
       noFocus: true,
+      stateRoot,
     });
   }
 
