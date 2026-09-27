@@ -86,7 +86,7 @@ if ((nodes[0].innerText || "").trim() !== result) process.exit(74);
             helper = source[start : source.index("\n  function ", start + 1)]
             self.assertLess(
                 helper.index("'[data-local-conversation-final-assistant]'"),
-                helper.index("'[data-conversation-role=\\\"assistant\\\"]'"),
+                helper.index("'[data-conversation-role=\"assistant\"]'"),
             )
 
 
