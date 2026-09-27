@@ -123,6 +123,7 @@ function Get-SemanticProjectionEntryPath {
         'bin/semantic-projection.mjs',
         'lib/browser-verification-bridge.mjs',
         'lib/browser-authorization-bridge.mjs',
+        'lib/browserskill-capability-manifest.mjs',
         'lib/semantic-activation.mjs',
         'lib/workspace-write-bridge.mjs',
         'lib/semantic-provider-bindings.mjs',
