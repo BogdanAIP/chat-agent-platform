@@ -120,7 +120,7 @@ jobs:
 
           $inner = Get-Content 'runtime/semantic-projection/bin/semantic-projection.mjs' -Raw -Encoding utf8
           $bridge = Get-Content 'runtime/semantic-projection/lib/browser-verification-bridge.mjs' -Raw -Encoding utf8
-          if ($inner -notmatch 'verifyPlaywrightNavigation' -or $inner -notmatch 'captureBrowserObservation') {
+          if ($inner -notmatch 'verifyBrowserNavigation' -or $inner -notmatch 'captureBrowserObservation') {
             throw 'Semantic projection is missing Browser Verification Kernel integration.'
           }
           if ($bridge -notmatch 'browser_transition_cli\.py') {
@@ -220,6 +220,9 @@ jobs:
             'runtime/semantic-projection/bin/semantic-control-plane-projection.mjs',
             'runtime/semantic-projection/bin/semantic-projection.mjs',
             'runtime/semantic-projection/lib/browser-verification-bridge.mjs',
+            'runtime/semantic-projection/lib/browser-public-contract.mjs',
+            'runtime/semantic-projection/lib/browserskill-capability-manifest.mjs',
+            'runtime/semantic-projection/lib/browserskill-cli-provider.mjs',
             'runtime/semantic-projection/lib/browser-authorization-bridge.mjs',
             'runtime/semantic-projection/lib/semantic-activation.mjs',
             'runtime/semantic-projection/lib/workspace-write-bridge.mjs',
@@ -271,6 +274,9 @@ jobs:
           foreach ($required in @(
             (Join-Path $installedRuntime 'semantic-projection/bin/semantic-control-plane-projection.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/browser-verification-bridge.mjs'),
+            (Join-Path $installedRuntime 'semantic-projection/lib/browser-public-contract.mjs'),
+            (Join-Path $installedRuntime 'semantic-projection/lib/browserskill-capability-manifest.mjs'),
+            (Join-Path $installedRuntime 'semantic-projection/lib/browserskill-cli-provider.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/browser-authorization-bridge.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/semantic-activation.mjs'),
             (Join-Path $installedRuntime 'semantic-projection/lib/workspace-write-bridge.mjs'),
