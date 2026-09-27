@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import {
   BrowserSkillProviderError,
+  BROWSERSKILL_GROUPED_ACTION_KEYS,
   createBrowserSkillCliProvider,
   parseBrowserSkillControls,
 } from '../lib/browserskill-cli-provider.mjs';
@@ -189,7 +190,115 @@ await assert.rejects(
 );
 assert.equal(mismatchCancel, 1, 'mismatched provider identity must trigger exact request cleanup');
 
+
+// Every upstream grouped action must be physically mapped by the provider, not
+// merely listed in a manifest. This fake runner lets all CLI commands complete
+// without touching a real browser or asking a human for confirmation.
+{
+  const mappedCommands = [];
+  const fullRun = async args => {
+    mappedCommands.push([...args]);
+    const command = key(args);
+    if (command === 'status') {
+      return { daemon_version: '0.3.1', protocol_version: '1.3', version_skew_browsers: [] };
+    }
+    if (command === 'browsers') {
+      return [{
+        instance_id: 'browser-full',
+        label: 'profile-full',
+        extension_version: '0.3.1',
+        extension_protocol_version: '1.3',
+      }];
+    }
+    if (command.includes('session request') && command.endsWith('--prepare')) return { state: 'prepared' };
+    if (command.startsWith('session start ')) {
+      return { session_id: 's-full', browser_instance_id: 'browser-full' };
+    }
+    if (command.includes('session request') && command.endsWith('--claim')) return { state: 'active' };
+    if (command.includes('session request') && command.endsWith('--cancel')) return { state: 'closed' };
+    if (command === 'session list') return { sessions: [] };
+    return { ok: true, tabs: [], state: 'ok' };
+  };
+  const fullProvider = createBrowserSkillCliProvider({
+    browserSelector: 'profile-full',
+    run: fullRun,
+  });
+
+  const argsFor = {
+    'browser_session:start': {},
+    'browser_session:list': {},
+
+    'browser_page:navigate': { url: 'https://example.com/' },
+    'browser_page:back': {},
+    'browser_page:forward': {},
+    'browser_page:reload': {},
+    'browser_page:wait': {},
+
+    'browser_inspect:observe': {},
+    'browser_inspect:snapshot': {},
+    'browser_inspect:html': {},
+    'browser_inspect:screenshot': {},
+    'browser_inspect:console': {},
+    'browser_inspect:network': {},
+    'browser_inspect:debug': { debugAction: 'status' },
+
+    'browser_interact:click': { target: '@e1' },
+    'browser_interact:hover': { target: '@e1' },
+    'browser_interact:wheel': { deltaY: 120 },
+    'browser_interact:scroll-to': { target: '@e1' },
+    'browser_interact:focus': { target: '@e1' },
+    'browser_interact:blur': { target: '@e1' },
+    'browser_interact:fill': { target: '@e1', value: 'value' },
+    'browser_interact:select': { target: '@e1', values: ['one'] },
+    'browser_interact:press': { key: 'Enter', target: '@e1' },
+
+    'browser_tabs:list': {},
+    'browser_tabs:create': { url: 'https://example.com/' },
+    'browser_tabs:select': { tabId: 10 },
+    'browser_tabs:close': { tabId: 10 },
+    'browser_tabs:borrow': { tabId: 10 },
+    'browser_tabs:return': { tabId: 10 },
+
+    'browser_assist:resize': { width: 900, height: 700 },
+    'browser_assist:emulate': { device: 'iphone-14' },
+    'browser_assist:request-help': { prompt: 'test only' },
+  };
+
+  const stopKey = 'browser_session:stop';
+  const mappedKeys = [];
+  for (const capability of BROWSERSKILL_GROUPED_ACTION_KEYS) {
+    if (capability === stopKey) continue;
+    const [tool, action] = capability.split(':');
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(argsFor, capability),
+      `test fixture missing args for ${capability}`,
+    );
+    await fullProvider.callGrouped(tool, action, argsFor[capability]);
+    mappedKeys.push(capability);
+  }
+  await fullProvider.callGrouped('browser_session', 'stop', {});
+  mappedKeys.push(stopKey);
+
+  assert.deepEqual(
+    [...mappedKeys].sort(),
+    [...BROWSERSKILL_GROUPED_ACTION_KEYS].sort(),
+    'all pinned BrowserSkill grouped actions must execute through one explicit CLI mapping',
+  );
+  assert.ok(mappedCommands.some(args => args[0] === 'debug'), 'debug mapping must be executable');
+  assert.ok(mappedCommands.some(args => args[0] === 'request-help'), 'human-assist mapping must be explicit');
+  assert.ok(
+    mappedCommands.some(args => args[0] === 'tab' && args[1] === 'borrow'),
+    'borrow mapping must remain explicit without using --no-confirm',
+  );
+  assert.equal(
+    mappedCommands.some(args => args.includes('--no-confirm')),
+    false,
+    'CAP must not silently bypass BrowserSkill user-tab borrow confirmation',
+  );
+}
+
 console.log('BROWSERSKILL_SESSION_ACK_LOSS_RECONCILIATION=PASS');
 console.log('BROWSERSKILL_NO_DUPLICATE_SESSION_START=PASS');
 console.log('BROWSERSKILL_NORMALIZED_OBSERVATION=PASS');
 console.log('BROWSERSKILL_FOREIGN_IDENTITY_FAIL_CLOSED=PASS');
+console.log('BROWSERSKILL_ALL_GROUPED_ACTIONS_MAPPED=PASS');
