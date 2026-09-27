@@ -67,7 +67,7 @@ const context = {{
   intent: {{ prompt, delegationId, deliveryId, taskSha256: taskSha }},
   document: {{
     querySelectorAll(selector) {{
-      if (selector.includes('data-message-author-role="user"')) {{
+      if (selector === '[data-message-author-role="user"]') {{
         return [{{ innerText: userText, textContent: userText, isConnected: true,
           getBoundingClientRect() {{ return {{width: 500, height: 80}}; }} }}];
       }}
