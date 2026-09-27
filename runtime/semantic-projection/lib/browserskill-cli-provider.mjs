@@ -352,6 +352,8 @@ export function createBrowserSkillCliProvider({
   let owned = null;
   let activationPromise = null;
   let sessionPromise = null;
+  let pendingStart = null;
+  let cleanupPending = false;
   let lastSubject = null;
   let refGeneration = 0;
   let currentPublicRefToNative = new Map();
@@ -390,17 +392,149 @@ export function createBrowserSkillCliProvider({
     }
   }
 
+  function exactRecoveredSession(status, expectedBrowserId, expectedSessionId = null) {
+    const sessionId = resultSessionId(status);
+    const browserId = resultBrowserId(status);
+    if (!sessionId || browserId !== expectedBrowserId) return null;
+    if (expectedSessionId !== null && sessionId !== expectedSessionId) return null;
+    return { sessionId, browserId };
+  }
+
+  function adoptOwned({ requestId, sessionId, browserInstanceId }) {
+    owned = Object.freeze({
+      requestId,
+      sessionId,
+      browserInstanceId,
+      providerGeneration,
+    });
+    pendingStart = null;
+    cleanupPending = false;
+    return owned;
+  }
+
+  async function claimOrReconcile(requestId, expectedBrowserId, expectedSessionId) {
+    let claimed;
+    try {
+      claimed = await run(['session', 'request', requestId, '--claim'], { timeoutMs: 30_000 });
+    } catch (error) {
+      const reconciled = await requestStatus(requestId).catch(() => null);
+      const recovered = exactRecoveredSession(
+        reconciled,
+        expectedBrowserId,
+        expectedSessionId,
+      );
+      if (reconciled?.state === 'active' && recovered !== null) {
+        return reconciled;
+      }
+      const cleaned = await cleanupRequest(requestId);
+      if (cleaned?.state === 'closed') pendingStart = null;
+      throw new BrowserSkillProviderError(
+        `BrowserSkill claim acknowledgement was lost and could not be reconciled: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { deliveryAttempted: true },
+      );
+    }
+    const recovered = exactRecoveredSession(claimed, expectedBrowserId, expectedSessionId);
+    if (claimed?.state !== 'active' || recovered === null) {
+      const cleaned = await cleanupRequest(requestId);
+      if (cleaned?.state === 'closed') pendingStart = null;
+      throw new BrowserSkillProviderError(
+        'BrowserSkill session start could not be claimed with exact identity',
+      );
+    }
+    return claimed;
+  }
+
+  async function reconcilePendingStart() {
+    if (pendingStart === null) return null;
+    const current = pendingStart;
+    const status = await requestStatus(current.requestId).catch(() => null);
+    if (status === null) {
+      throw new BrowserSkillProviderError(
+        'BrowserSkill has an unresolved session-start request; refusing a second start',
+      );
+    }
+
+    const recovered = exactRecoveredSession(
+      status,
+      current.browserInstanceId,
+      current.sessionId,
+    );
+    if (status.state === 'active' && recovered !== null) {
+      return adoptOwned({
+        requestId: current.requestId,
+        sessionId: recovered.sessionId,
+        browserInstanceId: recovered.browserId,
+      });
+    }
+    if (status.state === 'ready' && recovered !== null) {
+      await claimOrReconcile(
+        current.requestId,
+        current.browserInstanceId,
+        recovered.sessionId,
+      );
+      return adoptOwned({
+        requestId: current.requestId,
+        sessionId: recovered.sessionId,
+        browserInstanceId: recovered.browserId,
+      });
+    }
+    if (status.state === 'closed') {
+      pendingStart = null;
+      return null;
+    }
+
+    const cleaned = await cleanupRequest(current.requestId);
+    if (cleaned?.state === 'closed') {
+      pendingStart = null;
+      return null;
+    }
+    throw new BrowserSkillProviderError(
+      'BrowserSkill session-start outcome remains unresolved; refusing a second start',
+    );
+  }
+
+  async function reconcileOwnedCleanup() {
+    if (!cleanupPending || owned === null) return;
+    const current = owned;
+    const cleaned = await cleanupRequest(current.requestId);
+    if (cleaned?.state !== 'closed') {
+      throw new BrowserSkillProviderError(
+        'BrowserSkill owned-session cleanup remains unresolved; refusing further browser work',
+      );
+    }
+    owned = null;
+    cleanupPending = false;
+    lastSubject = null;
+    currentPublicRefToNative = new Map();
+  }
+
   async function ensureSession() {
+    if (cleanupPending) await reconcileOwnedCleanup();
     if (owned !== null) return owned;
     if (sessionPromise !== null) return await sessionPromise;
 
     sessionPromise = (async () => {
+      const recovered = await reconcilePendingStart();
+      if (recovered !== null) return recovered;
+
       const selected = await activate();
       const requestId = `${Date.now() + 5 * 60_000}:${randomUUID()}`;
-      const prepared = await run(['session', 'request', requestId, '--prepare'], { timeoutMs: 30_000 });
+      let prepared;
+      try {
+        prepared = await run(['session', 'request', requestId, '--prepare'], { timeoutMs: 30_000 });
+      } catch (error) {
+        throw error;
+      }
       if (prepared?.state !== 'prepared') {
         throw new BrowserSkillProviderError('BrowserSkill session start did not enter prepared state');
       }
+      pendingStart = {
+        requestId,
+        browserInstanceId: selected.instance_id,
+        sessionId: null,
+      };
 
       let startReply = null;
       try {
@@ -438,23 +572,23 @@ export function createBrowserSkillCliProvider({
         typeof startReply?.session_id !== 'string' ||
         startReply?.browser_instance_id !== selected.instance_id
       ) {
-        await cleanupRequest(requestId);
+        const cleaned = await cleanupRequest(requestId);
+        if (cleaned?.state === 'closed') pendingStart = null;
         throw new BrowserSkillProviderError('BrowserSkill session start returned mismatched identity');
       }
 
-      const claimed = await run(['session', 'request', requestId, '--claim'], { timeoutMs: 30_000 });
-      if (claimed?.state !== 'active') {
-        await cleanupRequest(requestId);
-        throw new BrowserSkillProviderError('BrowserSkill session start could not be claimed');
-      }
+      pendingStart = {
+        requestId,
+        browserInstanceId: selected.instance_id,
+        sessionId: startReply.session_id,
+      };
+      await claimOrReconcile(requestId, selected.instance_id, startReply.session_id);
 
-      owned = Object.freeze({
+      return adoptOwned({
         requestId,
         sessionId: startReply.session_id,
         browserInstanceId: selected.instance_id,
-        providerGeneration,
       });
-      return owned;
     })();
 
     try {
@@ -985,10 +1119,30 @@ export function createBrowserSkillCliProvider({
   }
 
   async function close() {
+    if (owned === null) {
+      if (pendingStart !== null) {
+        const current = pendingStart;
+        const result = await cleanupRequest(current.requestId);
+        if (result?.state === 'closed') pendingStart = null;
+        return {
+          stopped: result?.state === 'closed',
+          requestId: current.requestId,
+          sessionId: current.sessionId,
+          result,
+        };
+      }
+      return { stopped: false };
+    }
+
     const current = owned;
-    owned = null;
-    if (current === null) return { stopped: false };
+    cleanupPending = true;
     const result = await cleanupRequest(current.requestId);
+    if (result?.state === 'closed') {
+      owned = null;
+      cleanupPending = false;
+      lastSubject = null;
+      currentPublicRefToNative = new Map();
+    }
     return {
       stopped: result?.state === 'closed',
       requestId: current.requestId,
