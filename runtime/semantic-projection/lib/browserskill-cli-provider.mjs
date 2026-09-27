@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import {
   BROWSERSKILL_IDENTITY,
@@ -17,6 +19,117 @@ const BROWSERSKILL_ENV_KEYS = Object.freeze([
   'BSK_BROWSER_WAIT_MS',
   'BSK_DOCTOR_BROWSER_WAIT_MS',
 ]);
+
+const BROWSERSKILL_LEASE_SCHEMA_VERSION = 1;
+
+function browserSkillLeaseKey(browserSelector) {
+  return createHash('sha256').update(browserSelector, 'utf8').digest('hex').slice(0, 32);
+}
+
+export function createBrowserSkillLeaseStore({ stateRoot, browserSelector }) {
+  if (typeof stateRoot !== 'string' || !stateRoot) {
+    throw new TypeError('BrowserSkill lease store requires stateRoot');
+  }
+  if (typeof browserSelector !== 'string' || !browserSelector) {
+    throw new TypeError('BrowserSkill lease store requires browserSelector');
+  }
+
+  const root = path.join(stateRoot, browserSkillLeaseKey(browserSelector));
+  const leasePath = path.join(root, 'lease.json');
+  const cleanupPath = path.join(root, 'cleanup.requested');
+
+  async function syncWriteExclusive(filePath, text) {
+    await mkdir(root, { recursive: true });
+    const handle = await open(filePath, 'wx');
+    try {
+      await handle.writeFile(text, 'utf8');
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  }
+
+  return Object.freeze({
+    async load() {
+      let raw;
+      try {
+        raw = await readFile(leasePath, 'utf8');
+      } catch (error) {
+        if (error?.code === 'ENOENT') {
+          await rm(cleanupPath, { force: true }).catch(() => {});
+          return null;
+        }
+        throw error;
+      }
+      let lease;
+      try {
+        lease = JSON.parse(raw);
+      } catch {
+        throw new BrowserSkillProviderError(
+          'BrowserSkill durable lease is corrupt; refusing a new session',
+        );
+      }
+      if (
+        lease?.schema_version !== BROWSERSKILL_LEASE_SCHEMA_VERSION ||
+        lease?.source_commit !== BROWSERSKILL_IDENTITY.sourceCommit ||
+        lease?.browser_selector !== browserSelector ||
+        typeof lease?.request_id !== 'string' ||
+        !lease.request_id ||
+        typeof lease?.browser_instance_id !== 'string' ||
+        !lease.browser_instance_id
+      ) {
+        throw new BrowserSkillProviderError(
+          'BrowserSkill durable lease identity mismatch; refusing a new session',
+        );
+      }
+      let cleanupRequested = false;
+      try {
+        await readFile(cleanupPath, 'utf8');
+        cleanupRequested = true;
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
+      return {
+        requestId: lease.request_id,
+        browserInstanceId: lease.browser_instance_id,
+        sessionId: null,
+        cleanupRequested,
+      };
+    },
+
+    async create({ requestId, browserInstanceId }) {
+      const payload = JSON.stringify({
+        schema_version: BROWSERSKILL_LEASE_SCHEMA_VERSION,
+        source_commit: BROWSERSKILL_IDENTITY.sourceCommit,
+        browser_selector: browserSelector,
+        request_id: requestId,
+        browser_instance_id: browserInstanceId,
+      });
+      try {
+        await syncWriteExclusive(leasePath, payload);
+      } catch (error) {
+        if (error?.code === 'EEXIST') {
+          throw new BrowserSkillProviderError(
+            'BrowserSkill durable lease already exists; reconcile it before a new start',
+          );
+        }
+        throw error;
+      }
+    },
+
+    async markCleanup() {
+      await mkdir(root, { recursive: true });
+      await writeFile(cleanupPath, 'cleanup-requested\n', { encoding: 'utf8', flag: 'a' });
+    },
+
+    async clear() {
+      await rm(cleanupPath, { force: true });
+      await rm(leasePath, { force: true });
+    },
+
+    paths: Object.freeze({ root, leasePath, cleanupPath }),
+  });
+}
 
 export function browserSkillChildEnvironment(env = process.env) {
   const result = semanticProviderEnvironment(env);
@@ -342,6 +455,10 @@ export function createBrowserSkillCliProvider({
   run = createBskJsonRunner({ bskPath }),
   sessionName = 'CAP BrowserSkill',
   noFocus = true,
+  stateRoot = null,
+  leaseStore = stateRoot === null
+    ? null
+    : createBrowserSkillLeaseStore({ stateRoot, browserSelector }),
 } = {}) {
   if (typeof browserSelector !== 'string' || !browserSelector.trim()) {
     throw new TypeError('BrowserSkill provider requires an exact browser instance id or unique label');
@@ -354,9 +471,33 @@ export function createBrowserSkillCliProvider({
   let sessionPromise = null;
   let pendingStart = null;
   let cleanupPending = false;
+  let leaseLoaded = false;
   let lastSubject = null;
   let refGeneration = 0;
   let currentPublicRefToNative = new Map();
+
+  async function ensureLeaseLoaded() {
+    if (leaseLoaded) return;
+    leaseLoaded = true;
+    if (leaseStore === null) return;
+    const recovered = await leaseStore.load();
+    if (recovered !== null) {
+      pendingStart = recovered;
+      cleanupPending = recovered.cleanupRequested === true;
+    }
+  }
+
+  async function persistNewLease(record) {
+    if (leaseStore !== null) await leaseStore.create(record);
+  }
+
+  async function markDurableCleanup() {
+    if (leaseStore !== null) await leaseStore.markCleanup();
+  }
+
+  async function clearDurableLease() {
+    if (leaseStore !== null) await leaseStore.clear();
+  }
 
   async function activate() {
     if (browser !== null) return browser;
@@ -427,7 +568,10 @@ export function createBrowserSkillCliProvider({
         return reconciled;
       }
       const cleaned = await cleanupRequest(requestId);
-      if (cleaned?.state === 'closed') pendingStart = null;
+      if (cleaned?.state === 'closed') {
+          pendingStart = null;
+          await clearDurableLease();
+        }
       throw new BrowserSkillProviderError(
         `BrowserSkill claim acknowledgement was lost and could not be reconciled: ${
           error instanceof Error ? error.message : String(error)
@@ -438,7 +582,10 @@ export function createBrowserSkillCliProvider({
     const recovered = exactRecoveredSession(claimed, expectedBrowserId, expectedSessionId);
     if (claimed?.state !== 'active' || recovered === null) {
       const cleaned = await cleanupRequest(requestId);
-      if (cleaned?.state === 'closed') pendingStart = null;
+      if (cleaned?.state === 'closed') {
+          pendingStart = null;
+          await clearDurableLease();
+        }
       throw new BrowserSkillProviderError(
         'BrowserSkill session start could not be claimed with exact identity',
       );
@@ -449,6 +596,18 @@ export function createBrowserSkillCliProvider({
   async function reconcilePendingStart() {
     if (pendingStart === null) return null;
     const current = pendingStart;
+    if (current.cleanupRequested === true || (cleanupPending && owned === null)) {
+      const cleaned = await cleanupRequest(current.requestId);
+      if (cleaned?.state === 'closed') {
+        pendingStart = null;
+        cleanupPending = false;
+        await clearDurableLease();
+        return null;
+      }
+      throw new BrowserSkillProviderError(
+        'BrowserSkill durable cleanup intent remains unresolved; refusing a new session',
+      );
+    }
     const status = await requestStatus(current.requestId).catch(() => null);
     if (status === null) {
       throw new BrowserSkillProviderError(
@@ -482,12 +641,14 @@ export function createBrowserSkillCliProvider({
     }
     if (status.state === 'closed') {
       pendingStart = null;
+      await clearDurableLease();
       return null;
     }
 
     const cleaned = await cleanupRequest(current.requestId);
     if (cleaned?.state === 'closed') {
       pendingStart = null;
+      await clearDurableLease();
       return null;
     }
     throw new BrowserSkillProviderError(
@@ -508,10 +669,12 @@ export function createBrowserSkillCliProvider({
     cleanupPending = false;
     lastSubject = null;
     currentPublicRefToNative = new Map();
+    await clearDurableLease();
   }
 
   async function ensureSession() {
-    if (cleanupPending) await reconcileOwnedCleanup();
+    await ensureLeaseLoaded();
+    if (cleanupPending && owned !== null) await reconcileOwnedCleanup();
     if (owned !== null) return owned;
     if (sessionPromise !== null) return await sessionPromise;
 
@@ -521,20 +684,28 @@ export function createBrowserSkillCliProvider({
 
       const selected = await activate();
       const requestId = `${Date.now() + 5 * 60_000}:${randomUUID()}`;
+      pendingStart = {
+        requestId,
+        browserInstanceId: selected.instance_id,
+        sessionId: null,
+        cleanupRequested: false,
+      };
+      await persistNewLease({
+        requestId,
+        browserInstanceId: selected.instance_id,
+      });
       let prepared;
       try {
         prepared = await run(['session', 'request', requestId, '--prepare'], { timeoutMs: 30_000 });
       } catch (error) {
         throw error;
       }
-      pendingStart = {
-        requestId,
-        browserInstanceId: selected.instance_id,
-        sessionId: null,
-      };
       if (prepared?.state !== 'prepared') {
         const cleaned = await cleanupRequest(requestId);
-        if (cleaned?.state === 'closed') pendingStart = null;
+        if (cleaned?.state === 'closed') {
+          pendingStart = null;
+          await clearDurableLease();
+        }
         throw new BrowserSkillProviderError('BrowserSkill session start did not enter prepared state');
       }
 
@@ -566,7 +737,10 @@ export function createBrowserSkillCliProvider({
           };
         } else {
           const cleaned = await cleanupRequest(requestId);
-          if (cleaned?.state === 'closed') pendingStart = null;
+          if (cleaned?.state === 'closed') {
+          pendingStart = null;
+          await clearDurableLease();
+        }
           throw error;
         }
       }
@@ -576,7 +750,10 @@ export function createBrowserSkillCliProvider({
         startReply?.browser_instance_id !== selected.instance_id
       ) {
         const cleaned = await cleanupRequest(requestId);
-        if (cleaned?.state === 'closed') pendingStart = null;
+        if (cleaned?.state === 'closed') {
+          pendingStart = null;
+          await clearDurableLease();
+        }
         throw new BrowserSkillProviderError('BrowserSkill session start returned mismatched identity');
       }
 
@@ -1143,8 +1320,15 @@ export function createBrowserSkillCliProvider({
     if (owned === null) {
       if (pendingStart !== null) {
         const current = pendingStart;
+        cleanupPending = true;
+        current.cleanupRequested = true;
+        await markDurableCleanup();
         const result = await cleanupRequest(current.requestId);
-        if (result?.state === 'closed') pendingStart = null;
+        if (result?.state === 'closed') {
+          pendingStart = null;
+          cleanupPending = false;
+          await clearDurableLease();
+        }
         return {
           stopped: result?.state === 'closed',
           requestId: current.requestId,
@@ -1157,12 +1341,14 @@ export function createBrowserSkillCliProvider({
 
     const current = owned;
     cleanupPending = true;
+    await markDurableCleanup();
     const result = await cleanupRequest(current.requestId);
     if (result?.state === 'closed') {
       owned = null;
       cleanupPending = false;
       lastSubject = null;
       currentPublicRefToNative = new Map();
+      await clearDurableLease();
     }
     return {
       stopped: result?.state === 'closed',
