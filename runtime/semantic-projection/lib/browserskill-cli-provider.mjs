@@ -695,6 +695,82 @@ export function createBrowserSkillCliProvider({
     throw new BrowserSkillProviderError(`BrowserSkill grouped capability is classified but unmapped: ${key}`);
   }
 
+
+  async function callExtended(capability, args = {}) {
+    if (!['upload', 'download', 'evaluate', 'record-start', 'record-stop'].includes(capability)) {
+      throw new BrowserSkillProviderError(`unknown BrowserSkill extended capability: ${capability}`);
+    }
+
+    if (capability === 'record-start') {
+      const selected = await activate();
+      const command = ['record', 'start', '--browser', selected.instance_id];
+      addOption(command, '--tab-id', args.tabId);
+      addOption(command, '--url', args.url);
+      addOption(command, '--purpose', args.purpose);
+      addOption(command, '--max-page-tokens', args.maxPageTokens);
+      addBoolean(command, '--redact-values', args.redactValues);
+      addOption(command, '--output', args.output);
+      return await run(command, { timeoutMs: args.timeoutMs ?? 315_000 });
+    }
+    if (capability === 'record-stop') {
+      const command = ['record', 'stop'];
+      addOption(command, '--output', args.output);
+      return await run(command);
+    }
+
+    const session = await ensureSession();
+    const sid = session.sessionId;
+
+    if (capability === 'upload') {
+      if (!Array.isArray(args.files) || args.files.length === 0) {
+        throw new TypeError('BrowserSkill upload requires non-empty files');
+      }
+      const command = ['upload'];
+      if (args.target !== undefined) addTarget(command, args.target);
+      addOption(command, '--ref', args.ref);
+      addOption(command, '--selector', args.selector);
+      for (const file of args.files) command.push('--file', String(file));
+      addOption(command, '--mode', args.mode);
+      command.push('--session', sid);
+      addTab(command, args.tabId);
+      addTimeout(command, args.timeoutMs);
+      return await run(command, { timeoutMs: args.timeoutMs ?? 135_000 });
+    }
+
+    if (capability === 'download') {
+      if (typeof args.out !== 'string' || !args.out) {
+        throw new TypeError('BrowserSkill download requires out');
+      }
+      const command = ['download'];
+      if (args.target !== undefined) addTarget(command, args.target);
+      addOption(command, '--ref', args.ref);
+      addOption(command, '--selector', args.selector);
+      command.push('--out', args.out, '--session', sid);
+      addTab(command, args.tabId);
+      addTimeout(command, args.timeoutMs);
+      addBoolean(command, '--overwrite', args.overwrite);
+      return await run(command, { timeoutMs: args.timeoutMs ?? 135_000 });
+    }
+
+    if (capability === 'evaluate') {
+      if (typeof args.expression !== 'string' || !args.expression) {
+        throw new TypeError('BrowserSkill evaluate requires expression');
+      }
+      const command = ['evaluate', args.expression, '--session', sid];
+      addTab(command, args.tabId);
+      if (args.awaitPromise !== undefined) {
+        command.push('--await-promise', String(Boolean(args.awaitPromise)));
+      }
+      if (args.returnByValue !== undefined) {
+        command.push('--return-by-value', String(Boolean(args.returnByValue)));
+      }
+      addTimeout(command, args.timeoutMs);
+      return await run(command);
+    }
+
+    throw new BrowserSkillProviderError(`BrowserSkill extended capability is unmapped: ${capability}`);
+  }
+
   async function call(toolName, args = {}) {
     const session = await ensureSession();
 
@@ -801,6 +877,7 @@ export function createBrowserSkillCliProvider({
     ensureSession,
     snapshotObservation,
     callGrouped,
+    callExtended,
     call,
     close,
     browserSubject() { return lastSubject; },
