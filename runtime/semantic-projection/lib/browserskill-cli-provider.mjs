@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -119,7 +119,13 @@ export function createBrowserSkillLeaseStore({ stateRoot, browserSelector }) {
 
     async markCleanup() {
       await mkdir(root, { recursive: true });
-      await writeFile(cleanupPath, 'cleanup-requested\n', { encoding: 'utf8', flag: 'a' });
+      const handle = await open(cleanupPath, 'a');
+      try {
+        await handle.writeFile('cleanup-requested\n', 'utf8');
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
     },
 
     async clear() {
