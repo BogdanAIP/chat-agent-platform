@@ -207,11 +207,20 @@ const refreshedSave = refreshed.structuredContent.normalized_browser_observation
 assert.equal(refreshedSave.control_id, save.control_id);
 
 await provider.call('browser_navigate', { url: 'https://example.com/' });
-await provider.call('browser_click', { target: save.control_id });
-await provider.call('browser_type', { target: name.control_id, text: 'HELLO' });
+const afterNavigate = await provider.call('browser_snapshot', {});
+const saveAfterNavigate = afterNavigate.structuredContent.normalized_browser_observation.controls
+  .find(item => item.name === 'Save');
+assert.equal(saveAfterNavigate.control_id, save.control_id);
+await provider.call('browser_click', { target: saveAfterNavigate.control_id });
+
+const afterClick = await provider.call('browser_snapshot', {});
+const nameAfterClick = afterClick.structuredContent.normalized_browser_observation.controls
+  .find(item => item.name === 'Name');
+assert.equal(nameAfterClick.control_id, name.control_id);
+await provider.call('browser_type', { target: nameAfterClick.control_id, text: 'HELLO' });
 
 await assert.rejects(
-  provider.call('browser_type', { target: name.control_id, text: 'HELLO', slowly: true }),
+  provider.call('browser_type', { target: nameAfterClick.control_id, text: 'HELLO', slowly: true }),
   /no truthful slowly=true equivalent/,
 );
 
@@ -246,6 +255,22 @@ assert.notEqual(
   'ambiguous same-role/name controls must not acquire a stable cross-observation ref',
 );
 assert.equal(duplicateGenerationOne.text.includes('@e1'), false);
+
+const sameControlPageA = projectBrowserSkillRefs(
+  '@e1 button "Save"\n',
+  21,
+  'session-1:tab-1:https://example.com/a',
+);
+const sameControlPageB = projectBrowserSkillRefs(
+  '@e9 button "Save"\n',
+  22,
+  'session-1:tab-1:https://example.com/b',
+);
+assert.notEqual(
+  sameControlPageA.controls[0].control_id,
+  sameControlPageB.controls[0].control_id,
+  'stable CAP refs must be scoped to page/session context',
+);
 
 // Durable request lease must survive a CAP/provider process restart without
 // creating a second BrowserSkill session.
@@ -795,6 +820,7 @@ console.log('BROWSERSKILL_UNRESOLVED_CLEANUP_QUARANTINE=PASS');
 console.log('BROWSERSKILL_NORMALIZED_OBSERVATION=PASS');
 console.log('BROWSERSKILL_NATIVE_REFS_PRIVATE=PASS');
 console.log('BROWSERSKILL_AMBIGUOUS_REFS_GENERATION_SCOPED=PASS');
+console.log('BROWSERSKILL_STABLE_REFS_PAGE_SCOPED=PASS');
 console.log('BROWSERSKILL_STALE_REF_NO_DELIVERY=PASS');
 console.log('BROWSERSKILL_SNAPSHOT_TAB_DRIFT_AMBIGUOUS=PASS');
 console.log('BROWSERSKILL_FOREIGN_IDENTITY_FAIL_CLOSED=PASS');
