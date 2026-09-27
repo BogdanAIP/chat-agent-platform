@@ -221,6 +221,7 @@ export function createBrowserSkillCliProvider({
   let owned = null;
   let activationPromise = null;
   let sessionPromise = null;
+  let lastSubject = null;
 
   async function activate() {
     if (browser !== null) return browser;
@@ -356,12 +357,13 @@ export function createBrowserSkillCliProvider({
       complete: snapshot?.truncated !== true,
       ambiguous: false,
     };
+    lastSubject = `browserskill:${session.browserInstanceId}:${session.sessionId}:${snapshot.tab_id}`;
     return {
       session,
       tabId: snapshot.tab_id,
       raw: snapshot,
       observation,
-      subject: `browserskill:${session.browserInstanceId}:${session.sessionId}:${snapshot.tab_id}`,
+      subject: lastSubject,
     };
   }
 
@@ -473,6 +475,7 @@ export function createBrowserSkillCliProvider({
     snapshotObservation,
     call,
     close,
+    browserSubject() { return lastSubject; },
     get ownedSession() { return owned; },
   });
 }
