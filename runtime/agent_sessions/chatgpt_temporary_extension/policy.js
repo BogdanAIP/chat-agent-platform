@@ -141,20 +141,21 @@
     if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return [];
     const selectors = role === "user"
       ? [
-          '[data-message-author-role="user"]',
           '[data-user-message-bubble]',
+          '[data-message-author-role="user"]',
           '[data-testid^="conversation-turn-"][data-turn="user"]',
           '[data-testid^="conversation-turn-"]:has([data-message-author-role="user"])',
           '[data-turn-key]:has([data-user-message-bubble])',
         ]
       : [
+          '[data-local-conversation-final-assistant]',
+          '[data-message-author-role="assistant"] .markdown',
+          '[data-conversation-role="assistant"] .markdown',
           '[data-message-author-role="assistant"]',
           '[data-conversation-role="assistant"]',
-          '[data-local-conversation-final-assistant]',
           '[data-testid^="conversation-turn-"][data-turn="assistant"]',
           '[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
-          '[data-turn-key]:has([data-conversation-role="assistant"])',
-          '[data-turn-key]:has([data-local-conversation-final-assistant])',
+          '[data-turn-key]:has([data-conversation-role="assistant"], [data-chatgpt-agent-turn-start], [data-local-conversation-final-assistant])',
         ];
     const nodes = [];
     const seenOwners = new Set();
