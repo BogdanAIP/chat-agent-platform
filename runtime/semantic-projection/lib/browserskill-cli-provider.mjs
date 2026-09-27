@@ -6,6 +6,7 @@ import {
   BROWSERSKILL_MODEL_TOOL_ACTIONS,
   assertBrowserSkillRuntimeIdentity,
 } from './browserskill-capability-manifest.mjs';
+import { semanticProviderEnvironment } from './semantic-activation.mjs';
 
 const MAX_OUTPUT_BYTES = 4_000_000;
 const DEFAULT_TIMEOUT_MS = 45_000;
@@ -83,10 +84,13 @@ export function createBskJsonRunner({ bskPath = 'bsk', spawnImpl = spawn } = {})
       let stderr = '';
       let settled = false;
       let forced = null;
+      let settlementDeadline = null;
+      let terminalError = null;
 
       const cleanup = () => {
         clearTimeout(timer);
         if (forced !== null) clearTimeout(forced);
+        if (settlementDeadline !== null) clearTimeout(settlementDeadline);
       };
       const finish = (fn, value) => {
         if (settled) return;
@@ -94,7 +98,9 @@ export function createBskJsonRunner({ bskPath = 'bsk', spawnImpl = spawn } = {})
         cleanup();
         fn(value);
       };
-      const requestStop = () => {
+      const requestStop = error => {
+        if (terminalError !== null) return;
+        terminalError = error;
         try {
           if (process.platform === 'win32') child.stdin?.end();
           else child.kill('SIGINT');
@@ -102,23 +108,36 @@ export function createBskJsonRunner({ bskPath = 'bsk', spawnImpl = spawn } = {})
         forced = setTimeout(() => {
           try { child.kill('SIGKILL'); } catch {}
         }, CANCEL_GRACE_MS);
-        forced.unref?.();
+        // Even a child that never emits close/error must release its caller.
+        settlementDeadline = setTimeout(
+          () => finish(reject, terminalError),
+          CANCEL_GRACE_MS + 1_000,
+        );
       };
       const append = (kind, chunk) => {
+        if (settled) return;
         const value = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
         if (kind === 'stdout') stdout += value;
         else stderr += value;
-        if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > MAX_OUTPUT_BYTES) {
-          requestStop();
-          finish(reject, new BrowserSkillProviderError('BrowserSkill CLI output exceeded bounded limit'));
+        if (
+          terminalError === null &&
+          Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > MAX_OUTPUT_BYTES
+        ) {
+          requestStop(
+            new BrowserSkillProviderError('BrowserSkill CLI output exceeded bounded limit'),
+          );
         }
       };
 
       child.stdout?.on('data', chunk => append('stdout', chunk));
       child.stderr?.on('data', chunk => append('stderr', chunk));
-      child.on('error', error => finish(reject, error));
+      child.on('error', error => finish(reject, terminalError ?? error));
       child.on('close', code => {
         if (settled) return;
+        if (terminalError !== null) {
+          finish(reject, terminalError);
+          return;
+        }
         if (code !== 0) {
           finish(reject, jsonError(stdout, stderr, args.join(' '), code));
           return;
@@ -136,9 +155,7 @@ export function createBskJsonRunner({ bskPath = 'bsk', spawnImpl = spawn } = {})
       });
 
       const timer = setTimeout(() => {
-        requestStop();
-        finish(
-          reject,
+        requestStop(
           new BrowserSkillProviderError(`bsk ${args.join(' ')} timed out`, { timedOut: true }),
         );
       }, timeoutMs);
