@@ -31,7 +31,7 @@ const REQUIRED_FILESYSTEM_TOOLS = new Set([
   'write_file',
 ]);
 
-const REQUIRED_BROWSER_TOOLS = new Set([
+const PLAYWRIGHT_BROWSER_TOOLS = new Set([
   'browser_navigate',
   'browser_find',
   'browser_snapshot',
@@ -141,7 +141,7 @@ export function createSemanticProviderBindings({ workspaceRoot, version }) {
           '--timeout-action',
           '15000',
         ]),
-        requiredTools: REQUIRED_BROWSER_TOOLS,
+        requiredTools: PLAYWRIGHT_BROWSER_TOOLS,
         version,
       }).catch(error => {
         browserPromise = null;
@@ -164,13 +164,25 @@ export function createSemanticProviderBindings({ workspaceRoot, version }) {
       return call(getFilesystem, REQUIRED_FILESYSTEM_TOOLS, 'filesystem', toolName, args);
     },
     callBrowser(toolName, args) {
-      if (!REQUIRED_BROWSER_TOOLS.has(toolName)) {
+      if (!PLAYWRIGHT_BROWSER_TOOLS.has(toolName)) {
         throw new Error(`Projection refused non-allowlisted downstream tool: browser.${toolName}`);
       }
       if (browserProvider === 'browserskill') {
         return browserSkillProvider.call(toolName, args);
       }
-      return call(getBrowser, REQUIRED_BROWSER_TOOLS, 'playwright', toolName, args);
+      return call(getBrowser, PLAYWRIGHT_BROWSER_TOOLS, 'playwright', toolName, args);
+    },
+    callBrowserGrouped(tool, action, args = {}) {
+      if (browserProvider !== 'browserskill') {
+        throw new Error('BrowserSkill grouped capability requested while Playwright provider is active');
+      }
+      return browserSkillProvider.callGrouped(tool, action, args);
+    },
+    callBrowserExtended(capability, args = {}) {
+      if (browserProvider !== 'browserskill') {
+        throw new Error('BrowserSkill extended capability requested while Playwright provider is active');
+      }
+      return browserSkillProvider.callExtended(capability, args);
     },
     browserProvider() {
       return browserProvider;
