@@ -609,27 +609,45 @@ export function createBrowserSkillCliProvider({
 
   async function snapshotObservation({ tabId = null } = {}) {
     const session = await ensureSession();
+    const beforeTabs = await tabs('all');
     const args = ['snapshot', '--session', session.sessionId];
     if (tabId !== null && tabId !== undefined) args.push('--tab-id', String(tabId));
     const snapshot = await run(args);
-    const listed = await tabs('all');
-    const tab = listed.find(item => item?.tab_id === snapshot?.tab_id);
-    if (!tab || typeof tab.url !== 'string') {
-      throw new BrowserSkillProviderError('BrowserSkill snapshot could not bind exact tab URL');
+    const afterTabs = await tabs('all');
+    const beforeTab = beforeTabs.find(item => item?.tab_id === snapshot?.tab_id);
+    const afterTab = afterTabs.find(item => item?.tab_id === snapshot?.tab_id);
+    if (
+      !beforeTab ||
+      !afterTab ||
+      typeof beforeTab.url !== 'string' ||
+      typeof afterTab.url !== 'string'
+    ) {
+      throw new BrowserSkillProviderError(
+        'BrowserSkill snapshot could not bind exact before/after tab identity',
+      );
     }
+    const titleBefore = typeof beforeTab.title === 'string' ? beforeTab.title : '';
+    const titleAfter = typeof afterTab.title === 'string' ? afterTab.title : '';
+    const tabStable = (
+      beforeTab.url === afterTab.url &&
+      titleBefore === titleAfter &&
+      beforeTab.window_id === afterTab.window_id &&
+      beforeTab.scope === afterTab.scope
+    );
+
     refGeneration += 1;
     const projected = projectBrowserSkillRefs(snapshot?.text ?? '', refGeneration);
     currentPublicRefToNative = projected.publicToNative;
     const observation = {
-      url: tab.url,
-      title: typeof tab.title === 'string' ? tab.title : '',
+      url: afterTab.url,
+      title: titleAfter,
       document_id:
         `browserskill:${providerGeneration}:${session.browserInstanceId}:${session.sessionId}:${snapshot.tab_id}`,
       snapshot_text: projected.text,
       controls: projected.controls,
-      settled: true,
-      complete: snapshot?.truncated !== true,
-      ambiguous: false,
+      settled: tabStable,
+      complete: snapshot?.truncated !== true && tabStable,
+      ambiguous: !tabStable,
     };
     lastSubject =
       `browserskill:${providerGeneration}:${session.browserInstanceId}:${session.sessionId}:${snapshot.tab_id}`;
