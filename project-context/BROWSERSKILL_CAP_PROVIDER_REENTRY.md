@@ -688,6 +688,32 @@ On BrowserSkill 0.3.1:
 
 ### L3 — target Windows ordinary-Chat physical evidence
 
+The exact-head physical harness is:
+
+```text
+runtime/semantic-projection/tests/browserskill-physical-l3.mjs
+npm run physical:browserskill
+```
+
+It must run from the exact reviewed PR checkout and records `git_head` in its evidence. It auto-selects a browser only when exactly one connected BrowserSkill instance matches the pinned 0.3.1 / protocol 1.3 identity; otherwise it fails closed instead of guessing a profile.
+
+The harness drives BrowserSkill only through the public CAP six-tool semantic surface for the consequence-bearing flow:
+
+```text
+web_open
+  -> web_observe
+  -> web_interact type
+  -> repeat type refused before delivery
+  -> web_interact click with ExpectedEffect
+  -> repeat click refused before delivery
+  -> final observation proves exactly one click
+  -> CAP close
+  -> exact CAP-created BrowserSkill session disappears
+```
+
+Direct `bsk` calls in the harness are limited to pre-run exact runtime/browser selection and post-run provider-session cleanup evidence; browser mutations themselves go through CAP.
+
+
 Use exact reviewed CAP head + exact BrowserSkill runtime identity:
 
 ```text
