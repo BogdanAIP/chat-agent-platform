@@ -269,6 +269,18 @@ class DocumentationConsistencyTests(unittest.TestCase):
             ),
         )
 
+    def test_benchmark_strategy_does_not_restore_reviewer_first_release_priority(self) -> None:
+        benchmark = (CONTEXT / "BENCHMARK_EVALUATION_STRATEGY.md").read_text(encoding="utf-8")
+        folded = benchmark.casefold()
+
+        # ROADMAP owns release order. Benchmark strategy may define how reviewer
+        # quality is evaluated, but it must not silently re-promote reviewer
+        # automation ahead of the current Core-v1 freeze sequence.
+        self.assertIn("cap core v1 freeze", folded)
+        self.assertIn("automatic reviewer/session-provider expansion is deferred", folded)
+        self.assertNotIn("immediate implementation priority remains the bounded automatic reviewer", folded)
+        self.assertNotIn("reviewer — first active rung", folded)
+
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")
         control = (CONTEXT / "CONTROL_PLANE.md").read_text(encoding="utf-8")
