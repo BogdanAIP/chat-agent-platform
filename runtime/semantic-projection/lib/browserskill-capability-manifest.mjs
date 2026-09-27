@@ -127,6 +127,55 @@ export const BROWSERSKILL_PROTOCOL_METHODS = Object.freeze({
   'cancel': 'PROVIDER_INTERNAL',
 });
 
+
+
+export const BROWSERSKILL_RUNTIME_STATUS = Object.freeze({
+  'browser_session:start': 'PROVIDER_INTERNAL',
+  'browser_session:stop': 'PROVIDER_INTERNAL',
+  'browser_session:list': 'PROVIDER_INTERNAL',
+
+  'browser_page:navigate': 'PUBLIC_CURRENT',
+  'browser_page:back': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_page:forward': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_page:reload': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_page:wait': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+
+  'browser_inspect:observe': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_inspect:snapshot': 'PUBLIC_CURRENT',
+  'browser_inspect:html': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_inspect:screenshot': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_inspect:console': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_inspect:network': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_inspect:debug': 'MAPPED_BLOCKED_NEW_CONSEQUENCE_CONTRACT',
+
+  'browser_interact:click': 'PUBLIC_CURRENT',
+  'browser_interact:hover': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_interact:wheel': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_interact:scroll-to': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_interact:focus': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_interact:blur': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_interact:fill': 'PUBLIC_CURRENT',
+  'browser_interact:select': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_interact:press': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+
+  'browser_tabs:list': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_tabs:create': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_tabs:select': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_tabs:close': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_tabs:borrow': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_tabs:return': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+
+  'browser_assist:resize': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_assist:emulate': 'MAPPED_PENDING_PUBLIC_CONTRACT',
+  'browser_assist:request-help': 'MAPPED_HUMAN_ASSIST_CONTRACT',
+
+  'extended:upload': 'MAPPED_CROSS_CAPABILITY_GRANT_REQUIRED',
+  'extended:download': 'MAPPED_CROSS_CAPABILITY_GRANT_REQUIRED',
+  'extended:evaluate': 'MAPPED_BLOCKED_NEW_CONSEQUENCE_CONTRACT',
+  'extended:record-start': 'MAPPED_BLOCKED_NEW_CONSEQUENCE_CONTRACT',
+  'extended:record-stop': 'MAPPED_BLOCKED_NEW_CONSEQUENCE_CONTRACT',
+});
+
 export function validateBrowserSkillManifest() {
   const entries = Object.entries(BROWSERSKILL_PROTOCOL_METHODS);
   if (entries.length === 0) throw new Error('BrowserSkill capability manifest must not be empty');
@@ -150,6 +199,23 @@ export function validateBrowserSkillManifest() {
     if (new Set(actions).size !== actions.length) {
       throw new Error(`BrowserSkill model-facing tool has duplicate actions: ${tool}`);
     }
+    for (const action of actions) {
+      const key = `${tool}:${action}`;
+      if (!Object.prototype.hasOwnProperty.call(BROWSERSKILL_RUNTIME_STATUS, key)) {
+        throw new Error(`BrowserSkill grouped action has no runtime status: ${key}`);
+      }
+    }
+  }
+
+  const groupedKeys = Object.entries(BROWSERSKILL_MODEL_TOOL_ACTIONS)
+    .flatMap(([tool, actions]) => actions.map(action => `${tool}:${action}`));
+  const declaredGrouped = Object.keys(BROWSERSKILL_RUNTIME_STATUS)
+    .filter(key => !key.startsWith('extended:'));
+  if (
+    groupedKeys.length !== declaredGrouped.length ||
+    groupedKeys.some(key => !declaredGrouped.includes(key))
+  ) {
+    throw new Error('BrowserSkill runtime status must exactly cover pinned grouped actions');
   }
 
   return true;
