@@ -68,7 +68,7 @@ const ctx = {{console, URL, URLSearchParams, Date: {{now: () => now}},
   document: {{
     querySelector: s => s === '#prompt-textarea' ? editors[0] : null,
     querySelectorAll: s => s === '[data-message-author-role="user"]' ? users :
-      (s === '[data-message-author-role="assistant"]' ||
+      (s.includes('data-message-author-role="assistant"') ||
        s.includes('data-user-message-bubble') ||
        s.includes('data-conversation-role="assistant"') ||
        s.includes('data-local-conversation-final-assistant') ||
