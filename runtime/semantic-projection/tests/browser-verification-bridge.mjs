@@ -187,7 +187,7 @@ const browserSkillVerified = await verifyBrowserInteraction({
     ...browserSkillNormalized,
     controls: [{
       ...browserSkillNormalized.controls[0],
-      checked: null,
+      enabled: false,
     }],
   },
   after: browserSkillNormalized,
