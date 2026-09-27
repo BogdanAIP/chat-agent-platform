@@ -74,7 +74,7 @@ Do not pin volatile leaderboard values in this strategy. Pin exact benchmark rel
 
 ### Reviewer — deferred specialist rung
 
-Use the automatic independent reviewer as the first production/evaluation integration because it already has a bounded exact input/output contract.
+When reviewer benchmark integration is re-entered, use its existing bounded exact input/output contract rather than treating reviewer automation as the current release priority.
 
 Initial semantic-quality sequence:
 
