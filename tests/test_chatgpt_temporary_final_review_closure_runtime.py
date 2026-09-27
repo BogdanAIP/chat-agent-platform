@@ -204,6 +204,7 @@ const intent = {{enabled: true, runId: "a".repeat(64), delegationId: "b".repeat(
 let intervalFn = null;
 let clicks = 0;
 let authorizeCalls = 0;
+let authorizeCallback = null;
 let personalized = false;
 const events = [];
 function rect() {{ return {{width: 400, height: 80}}; }}
@@ -269,7 +270,11 @@ global.chrome = {{runtime: {{lastError: null, sendMessage(message, callback) {{
     }});
     return;
   }}
-  if (message.kind === "authorize-send") {{ authorizeCalls += 1; callback({{ok: true, send_authorized: true, delivery_state: "claimed"}}); return; }}
+  if (message.kind === "authorize-send") {{
+    authorizeCalls += 1;
+    authorizeCallback = callback;
+    return;
+  }}
   if (message.kind === "event") events.push(message);
   callback({{ok: true}});
 }}}}}};
@@ -283,8 +288,10 @@ function flush() {{ return new Promise((resolve) => setImmediate(resolve)); }}
     if (typeof intervalFn === "function") intervalFn();
     await flush();
   }}
-  if (authorizeCalls !== 1) process.exit(70);
+  if (authorizeCalls !== 1 || typeof authorizeCallback !== "function") process.exit(70);
   personalized = true;
+  authorizeCallback({{ok: true, send_authorized: true, delivery_state: "claimed"}});
+  await flush();
   intervalFn();
   await flush();
   if (clicks !== 0) process.exit(71);
