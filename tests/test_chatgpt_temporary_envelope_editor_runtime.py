@@ -67,8 +67,14 @@ const ctx = {{console, URL, URLSearchParams, Date: {{now: () => now}},
   getComputedStyle: n => n.style || ({{visibility: 'visible', display: 'block', opacity: '1'}}),
   document: {{
     querySelector: s => s === '#prompt-textarea' ? editors[0] : null,
-    querySelectorAll: s => s.includes('data-message-author-role="user"') ? users :
-      (s.includes('data-message-author-role="assistant"') || s === 'button' ? [] : editors)
+    querySelectorAll: s => s === '[data-message-author-role="user"]' ? users :
+      (s === '[data-message-author-role="assistant"]' ||
+       s.includes('data-user-message-bubble') ||
+       s.includes('data-conversation-role="assistant"') ||
+       s.includes('data-local-conversation-final-assistant') ||
+       s.includes('data-turn-key') ||
+       s.includes('conversation-turn-') ||
+       s === 'button' ? [] : editors)
   }},
   chrome: {{runtime: {{sendMessage(_m, cb) {{cb({{ok: true, cleanup_token: '8'.repeat(64)}});}}}}}},
   setInterval: fn => {{poll = fn; return 1;}}, clearInterval() {{}}}};
