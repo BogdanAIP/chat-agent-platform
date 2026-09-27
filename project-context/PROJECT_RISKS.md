@@ -93,15 +93,29 @@ Release-critical work should reduce the highest-ranked actionable risk without s
 Current immediate sequence:
 
 ```text
-start from the accepted bounded Agent Session / Delegation scope
- -> migrate automatic reviewer as the first specialist consumer only if generic semantics preserve reviewer guarantees
+accepted bounded Agent Session / Delegation scope remains intact
+ -> close CAP Core v1 freeze using the accepted manual fresh-review path
  -> broad real-app physical coverage gate
  -> reuse accepted WorkingState/reconciliation semantics across later consequence-bearing capabilities as those stages require
 ```
 
-The Agent Session item is a bounded lifecycle foundation, not a general multi-agent platform: exactly one manager, one fresh read-only worker, one delivery and one durable result in the first accepted scope. The concrete `chatgpt-temporary` adapter is now restricted to the independent-review consumer; ordinary CAP tasks remain in ordinary ChatGPT and do not use Temporary Chat.
+The Agent Session item is a bounded lifecycle foundation, not a general multi-agent
+platform: exactly one manager, one fresh read-only worker, one delivery and one durable
+result in the first accepted scope. The accepted `chatgpt-temporary` adapter remains
+an ephemeral clean-room provider profile and physical evidence; it is not a universal
+worker transport and is not a Core-freeze prerequisite.
 
-The existing automatic-review procedures remain release-assurance fallback until a generic consumer migration is separately accepted. The #150 timeline records an automatic review launch blocked by unqualified reviewer authority; its final fresh-review result was not found during this continuation check. That evidence gap remains explicit in `EVIDENCE_INDEX.md` and is not a waiver for future changes. Reviewer semantics do not become generic lifecycle semantics, and delegated workers do not acquire GitHub mutation authority merely because reviewer automation later consumes the mechanism.
+PR #159 showed why reviewer automation should not define the generic provider profile:
+a non-personalized Temporary worker could satisfy browser isolation/delivery/capture
+yet still correctly ABSTAIN because disabling connected sources removed exact diff
+evidence. `AGENT_SESSION_FRESH_CHAT_REENTRY.md` therefore selects fresh ordinary
+ChatGPT as the next provider direction but defers implementation until after Core v1
+freeze or a concrete release-critical consumer.
+
+The existing automatic-review procedures and manual fresh-review route remain release
+assurance. Reviewer semantics do not become generic lifecycle semantics, and delegated
+workers do not acquire GitHub mutation authority merely because a future reviewer
+consumer needs repository reads.
 
 The small Browser runtime-output ownership hardening may land alongside the relevant runtime touch because it protects the qualification/runtime substrate already in use.
 
