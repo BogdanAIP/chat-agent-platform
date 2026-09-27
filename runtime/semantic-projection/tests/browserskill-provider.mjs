@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 
 import {
   BrowserSkillProviderError,
   BROWSERSKILL_GROUPED_ACTION_KEYS,
   browserSkillChildEnvironment,
+  createBskJsonRunner,
   createBrowserSkillCliProvider,
   parseBrowserSkillControls,
 } from '../lib/browserskill-cli-provider.mjs';
@@ -29,6 +32,37 @@ assert.equal(childEnv.BSK_AUTO_UPDATE, 'off');
 assert.equal(childEnv.BSK_CANCEL_ON_STDIN_CLOSE, '1');
 assert.equal('CONTROL_PLANE_API_KEY' in childEnv, false);
 assert.equal('OPENAI_API_KEY' in childEnv, false);
+
+let gracefulStops = 0;
+let forcedKills = 0;
+function hungSpawn() {
+  const child = new EventEmitter();
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.stdin = new PassThrough();
+  const originalEnd = child.stdin.end.bind(child.stdin);
+  child.stdin.end = (...args) => {
+    gracefulStops += 1;
+    return originalEnd(...args);
+  };
+  child.kill = signal => {
+    if (signal === 'SIGINT') gracefulStops += 1;
+    if (signal === 'SIGKILL') forcedKills += 1;
+    return true;
+  };
+  return child;
+}
+const hungRunner = createBskJsonRunner({
+  spawnImpl: hungSpawn,
+  cancelGraceMs: 5,
+  settlementSlackMs: 5,
+});
+await assert.rejects(
+  hungRunner(['status'], { timeoutMs: 5 }),
+  error => error instanceof BrowserSkillProviderError && error.timedOut === true,
+);
+assert.ok(gracefulStops >= 1, 'timeout must request graceful BrowserSkill cancellation');
+assert.equal(forcedKills, 1, 'hung BrowserSkill CLI must be force-killed after bounded grace');
 
 const calls = [];
 let startCalls = 0;
@@ -348,5 +382,6 @@ console.log('BROWSERSKILL_NO_DUPLICATE_SESSION_START=PASS');
 console.log('BROWSERSKILL_NORMALIZED_OBSERVATION=PASS');
 console.log('BROWSERSKILL_FOREIGN_IDENTITY_FAIL_CLOSED=PASS');
 console.log('BROWSERSKILL_CHILD_ENV_SECRET_SCRUB=PASS');
+console.log('BROWSERSKILL_HUNG_CHILD_BOUNDED_CANCEL=PASS');
 console.log('BROWSERSKILL_ALL_GROUPED_ACTIONS_MAPPED=PASS');
 console.log('BROWSERSKILL_EXTENDED_MECHANICS_MAPPED=PASS');
