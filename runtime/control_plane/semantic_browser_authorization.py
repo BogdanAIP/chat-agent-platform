@@ -22,7 +22,10 @@ SCHEMA_VERSION = 1
 CAPABILITY = "browser.semantic"
 PRINCIPAL_REF = "semantic-profile:active-caller-v1"
 ACTIVATION_VERSION = "semantic-activation-v1"
-BROWSER_POLICY_REF = "isolated-playwright-public-http-loopback-v1"
+BROWSER_POLICY_REFS = frozenset({
+    "isolated-playwright-public-http-loopback-v1",
+    "authenticated-browserskill-local-trusted-host-public-http-loopback-v1",
+})
 _ALLOWED_ACTIONS = {
     "browser.navigate",
     "browser.click",
@@ -112,7 +115,7 @@ def authorize_browser_request(request: dict[str, Any]) -> dict[str, Any]:
         name="browser_policy_ref",
         max_chars=256,
     )
-    if browser_policy_ref != BROWSER_POLICY_REF:
+    if browser_policy_ref not in BROWSER_POLICY_REFS:
         raise ValueError("browser policy ref mismatch")
 
     action_ref = _require_text(
