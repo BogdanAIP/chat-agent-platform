@@ -679,10 +679,30 @@ export function createBrowserSkillCliProvider({
     if (sessionPromise !== null) return await sessionPromise;
 
     sessionPromise = (async () => {
+      // A persisted close intent is allowed to finish through the exact
+      // BrowserSkill request id before browser reactivation. Any session that
+      // CAP may resume, however, must first pass the pinned runtime/profile
+      // provenance checks.
+      if (
+        pendingStart !== null &&
+        (pendingStart.cleanupRequested === true || cleanupPending)
+      ) {
+        const cleanupResult = await reconcilePendingStart();
+        if (cleanupResult !== null) return cleanupResult;
+      }
+
+      const selected = await activate();
+      if (
+        pendingStart !== null &&
+        pendingStart.browserInstanceId !== selected.instance_id
+      ) {
+        throw new BrowserSkillProviderError(
+          'BrowserSkill durable lease browser identity no longer matches the activated browser',
+        );
+      }
       const recovered = await reconcilePendingStart();
       if (recovered !== null) return recovered;
 
-      const selected = await activate();
       const requestId = `${Date.now() + 5 * 60_000}:${randomUUID()}`;
       pendingStart = {
         requestId,
