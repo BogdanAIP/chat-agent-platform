@@ -111,6 +111,7 @@ const context = {{
       if (selector === '#prompt-textarea,[contenteditable="true"],textarea') return [editor];
       if (selector === '[data-turn-key]:has([data-user-message-bubble])') return [userNode];
       if (
+        selector === '[data-local-conversation-final-assistant]' ||
         selector === '[data-turn-key]:has([data-conversation-role="assistant"])' ||
         selector === '[data-turn-key]:has([data-local-conversation-final-assistant])'
       ) return [assistantNode];
