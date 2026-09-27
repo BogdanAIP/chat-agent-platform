@@ -527,14 +527,16 @@ export function createBrowserSkillCliProvider({
       } catch (error) {
         throw error;
       }
-      if (prepared?.state !== 'prepared') {
-        throw new BrowserSkillProviderError('BrowserSkill session start did not enter prepared state');
-      }
       pendingStart = {
         requestId,
         browserInstanceId: selected.instance_id,
         sessionId: null,
       };
+      if (prepared?.state !== 'prepared') {
+        const cleaned = await cleanupRequest(requestId);
+        if (cleaned?.state === 'closed') pendingStart = null;
+        throw new BrowserSkillProviderError('BrowserSkill session start did not enter prepared state');
+      }
 
       let startReply = null;
       try {
@@ -563,7 +565,8 @@ export function createBrowserSkillCliProvider({
             recovered_after_ack_loss: true,
           };
         } else {
-          await cleanupRequest(requestId);
+          const cleaned = await cleanupRequest(requestId);
+          if (cleaned?.state === 'closed') pendingStart = null;
           throw error;
         }
       }
