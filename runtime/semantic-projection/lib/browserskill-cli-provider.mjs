@@ -370,7 +370,7 @@ function stableControlRef(fingerprint) {
   return '@cap-' + createHash('sha256').update(fingerprint, 'utf8').digest('hex').slice(0, 16);
 }
 
-export function projectBrowserSkillRefs(snapshotText, generation) {
+export function projectBrowserSkillRefs(snapshotText, generation, context = '') {
   const nativeControls = parseBrowserSkillControls(snapshotText);
   const counts = new Map();
   for (const control of nativeControls) {
@@ -383,7 +383,7 @@ export function projectBrowserSkillRefs(snapshotText, generation) {
   const controls = nativeControls.map((control, index) => {
     const fingerprint = semanticControlFingerprint(control);
     const publicRef = counts.get(fingerprint) === 1
-      ? stableControlRef(fingerprint)
+      ? stableControlRef(JSON.stringify([context, fingerprint]))
       : `@capg-${generation}-${index + 1}`;
     nativeToPublic.set(control.control_id, publicRef);
     publicToNative.set(publicRef, control.control_id);
@@ -475,6 +475,10 @@ export function createBrowserSkillCliProvider({
   let lastSubject = null;
   let refGeneration = 0;
   let currentPublicRefToNative = new Map();
+
+  function invalidatePublicRefs() {
+    currentPublicRefToNative = new Map();
+  }
 
   async function ensureLeaseLoaded() {
     if (leaseLoaded) return;
@@ -668,7 +672,7 @@ export function createBrowserSkillCliProvider({
     owned = null;
     cleanupPending = false;
     lastSubject = null;
-    currentPublicRefToNative = new Map();
+    invalidatePublicRefs();
     await clearDurableLease();
   }
 
@@ -833,7 +837,16 @@ export function createBrowserSkillCliProvider({
     );
 
     refGeneration += 1;
-    const projected = projectBrowserSkillRefs(snapshot?.text ?? '', refGeneration);
+    const projected = projectBrowserSkillRefs(
+      snapshot?.text ?? '',
+      refGeneration,
+      JSON.stringify([
+        providerGeneration,
+        session.sessionId,
+        snapshot.tab_id,
+        afterTab.url,
+      ]),
+    );
     currentPublicRefToNative = projected.publicToNative;
     const observation = {
       url: afterTab.url,
@@ -864,6 +877,17 @@ export function createBrowserSkillCliProvider({
     if (!BROWSERSKILL_GROUPED_ACTION_KEYS.includes(key)) {
       throw new BrowserSkillProviderError(`unknown BrowserSkill grouped capability: ${key}`);
     }
+
+    const refPreserving = new Set([
+      'browser_session:list',
+      'browser_page:wait',
+      'browser_inspect:html',
+      'browser_inspect:screenshot',
+      'browser_inspect:console',
+      'browser_inspect:network',
+      'browser_tabs:list',
+    ]);
+    if (!refPreserving.has(key)) invalidatePublicRefs();
 
     if (tool === 'browser_session') {
       if (action === 'start') {
@@ -1367,7 +1391,7 @@ export function createBrowserSkillCliProvider({
       owned = null;
       cleanupPending = false;
       lastSubject = null;
-      currentPublicRefToNative = new Map();
+      invalidatePublicRefs();
       await clearDurableLease();
     }
     return {
