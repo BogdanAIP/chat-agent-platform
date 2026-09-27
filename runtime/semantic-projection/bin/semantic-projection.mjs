@@ -559,7 +559,7 @@ server.registerTool('workspace_write', {
 
 server.registerTool('web_open', {
   title: 'Open Web Page',
-  description: 'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows. The exact navigation is authorized against the active semantic scope and success requires fresh post-navigation verification of the exact canonical final URL and document snapshot.',
+  description: 'Navigate the explicitly activated CAP Browser provider to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows. The exact navigation is authorized against the active semantic scope and success requires fresh post-navigation verification of the exact canonical final URL and document snapshot.',
   inputSchema: webOpenSchema,
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
 }, async ({ url }) => {
