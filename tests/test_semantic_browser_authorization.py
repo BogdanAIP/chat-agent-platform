@@ -4,6 +4,7 @@ import unittest
 
 from runtime.control_plane.semantic_browser_authorization import (
     BROWSER_POLICY_REF,
+    BROWSERSKILL_BROWSER_POLICY_REF,
     authorize_browser_request,
 )
 
@@ -121,4 +122,15 @@ class SemanticBrowserAuthorizationTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main()    def test_accepts_browserskill_browser_policy(self):
+        result = authorize_browser_request(
+            self.request(browser_policy_ref=BROWSERSKILL_BROWSER_POLICY_REF)
+        )
+        self.assertEqual(result["status"], "authorized")
+        self.assertEqual(result["reason"], "exact_grant_match")
+        self.assertEqual(
+            result["authorization"]["status"],
+            "authorized",
+        )
+
+
