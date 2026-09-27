@@ -295,6 +295,33 @@ assert.equal(mismatchCancel, 1, 'mismatched provider identity must trigger exact
     false,
     'CAP must not silently bypass BrowserSkill user-tab borrow confirmation',
   );
+
+  await fullProvider.callExtended('upload', {
+    target: '@e2',
+    files: ['one.txt', 'two.txt'],
+    mode: 'input',
+  });
+  await fullProvider.callExtended('download', {
+    target: '@e3',
+    out: 'download.bin',
+  });
+  await fullProvider.callExtended('evaluate', {
+    expression: 'document.title',
+  });
+  await fullProvider.callExtended('record-start', {
+    url: 'https://example.com/',
+    purpose: 'mapping-test',
+    output: 'trace',
+  });
+  await fullProvider.callExtended('record-stop', {
+    output: 'trace',
+  });
+
+  assert.ok(mappedCommands.some(args => args[0] === 'upload'));
+  assert.ok(mappedCommands.some(args => args[0] === 'download'));
+  assert.ok(mappedCommands.some(args => args[0] === 'evaluate'));
+  assert.ok(mappedCommands.some(args => args[0] === 'record' && args[1] === 'start'));
+  assert.ok(mappedCommands.some(args => args[0] === 'record' && args[1] === 'stop'));
 }
 
 console.log('BROWSERSKILL_SESSION_ACK_LOSS_RECONCILIATION=PASS');
@@ -302,3 +329,4 @@ console.log('BROWSERSKILL_NO_DUPLICATE_SESSION_START=PASS');
 console.log('BROWSERSKILL_NORMALIZED_OBSERVATION=PASS');
 console.log('BROWSERSKILL_FOREIGN_IDENTITY_FAIL_CLOSED=PASS');
 console.log('BROWSERSKILL_ALL_GROUPED_ACTIONS_MAPPED=PASS');
+console.log('BROWSERSKILL_EXTENDED_MECHANICS_MAPPED=PASS');
