@@ -145,7 +145,7 @@ A restart never manufactures a replacement run/delivery identity and never regai
 
 ### L2 — accepted `chatgpt-temporary` provider adapter
 
-The first concrete adapter is intentionally provider-specific rather than a premature generic provider framework. **Current product policy restricts this concrete adapter to the independent-review path.** Ordinary CAP tasks stay in the user's ordinary ChatGPT conversation through the canonical six-tool route. The earlier non-reviewer qualification task remains evidence for the generic Delegation lifecycle, not authorization to use Temporary Chat as a general task mode.
+The first concrete adapter remains accepted as a provider-specific **ephemeral clean-room profile** and as physical evidence for the generic Delegation lifecycle. It is no longer selected as the universal delegated-worker route or as a prerequisite for automatic review. Ordinary CAP tasks stay in the user's ordinary ChatGPT conversation through the canonical six-tool route. `AGENT_SESSION_FRESH_CHAT_REENTRY.md` records the superseding direction for the next provider stage: fresh ordinary ChatGPT with separately qualified read-source/mutation authority.
 
 Accepted bounded path:
 
@@ -201,28 +201,51 @@ The earlier fresh review finding that final observation could synthesize an ERRO
 
 The physical qualification launcher binds the runtime/extension assets to a clean exact repository HEAD before execution and opens **only the neutral preflight URL** for a genuinely new prepared delegation. It never independently opens the task-bearing URL. The same preflight tab owns the task navigation through `location.replace()` only after exact commit/reconciliation proof. `launch.json` remains evidence/status projection, not physical browser-launch authority. Source provenance is rechecked after terminal result capture.
 
-Persistent rich-context ordinary-ChatGPT conversation identity, automatic browser wake and cross-restart existing-session delivery remain separate future research. The open composition research is the next decision input; no persistent-session substrate or new provider implementation is accepted by that Draft.
+Persistent rich-context conversation identity, automatic browser wake and cross-restart existing-session delivery remain separate future research. Fresh ordinary-chat **one-shot** delegation is now the selected next provider direction, but implementation is deferred by `AGENT_SESSION_FRESH_CHAT_REENTRY.md` until after Core v1 freeze or a concrete release-critical second consumer. This does not weaken or rewrite the accepted `fresh_readonly_worker_v1` Temporary evidence.
 
 ## Automatic reviewer status
 
-The accepted reviewer-specific local state and fixed `launch_independent_review_v1`, `submit_independent_review_result_v1` and `reconcile_independent_review_result_v1` procedures from #141/#142 remain intact.
+The accepted reviewer-specific local state and fixed
+`launch_independent_review_v1`, `submit_independent_review_result_v1` and
+`reconcile_independent_review_result_v1` procedures from #141/#142 remain intact.
+They are **not deleted or silently replaced by #149**; the later provider-direction
+re-entry changes only which future session profile should carry automatic work.
 
-They are **not deleted or silently replaced by #149**. Reviewer methodology, exact PR/BASE/HEAD semantics, read-only GitHub authority qualification, `REVIEW_RESULT_V1`, Harbor/ReviewBench evaluation and manual-fallback rules remain specialist policy.
+Reviewer methodology, exact repository/PR/BASE/HEAD identity, read-only GitHub
+authority qualification, `REVIEW_RESULT_V1`, stale handling and manual fallback
+remain specialist policy above generic Delegation.
 
-The architecture direction for this concrete provider is now:
+PR #159 attempted to migrate automatic review through the non-personalized
+`chatgpt-temporary` profile. Its target-Windows qualification ultimately proved the
+browser lifecycle through one Send, delivered state, cleanup and structured terminal
+capture, but the fresh worker returned `ABSTAIN` because the no-plugin profile could
+not obtain the exact full repository diff required by the governing review policy.
+
+`AGENT_SESSION_FRESH_CHAT_REENTRY.md` classifies that as a provider-profile design
+failure rather than a reason to weaken review evidence. Current direction is:
 
 ```text
-reviewer-specific task/result/authority policy
- -> generic bounded Delegation lifecycle
- -> chatgpt-temporary transport
- -> fresh independent reviewer only
+manual release assurance now
+ -> fresh ordinary ChatGPT review
+ -> exact repository evidence
+ -> reviewer-specific result/fallback state
+
+future automatic worker, only after re-entry
+ -> generic Delegation
+ -> fresh ordinary ChatGPT session
+ -> positively qualified read-only evidence source
+ -> reviewer-specific REVIEW_RESULT_V1
 ```
 
-MimiSeek may later consume the same path only for an independent reviewer use case while keeping review-job semantics outside CAP. Normal CAP work, skill/procedure execution and ordinary specialist tasks remain in ordinary ChatGPT. Returning a result to an existing persistent project chat is a separate future capability and is not smuggled into the Temporary adapter.
+Automatic reviewer migration is therefore **not a Core v1 freeze prerequisite**.
+PR #159 must not merge in its current Temporary-reviewer form. Its useful browser
+delivery/capture lessons may be selectively reused later, but the reviewer-specific
+branch is not the basis of the next generic provider implementation.
 
-The generic worker path has scoped physical evidence. Reviewer migration still needs separate proof that it preserves all existing reviewer guarantees; until that migration is accepted, the existing reviewer procedures remain the release-assurance fallback.
-
-PR #138 and #145 remain experiment evidence only; they do not become production authority. Reusable fresh-chat/Send observations may be adapted, while reviewer-specific experiment code does not define generic Agent Sessions.
+Do not replace the current manual fresh-review path with a regular chat that merely
+promises not to write. For automatic review, the actual GitHub/evidence action surface
+must be positively read-only; if that cannot be proven, ABSTAIN/manual fallback
+remains correct.
 
 ## Bounded worker acceptance scope
 
@@ -274,6 +297,7 @@ AGENT_SESSION_DELEGATION_REENTRY.md
  -> AGENT_SESSION_TEMPORARY_PREFLIGHT_OWNER_REBIND_REENTRY.md
  -> AGENT_SESSION_TEMPORARY_PROMPT_SOURCE_PROVENANCE_REENTRY.md
  -> AGENT_SESSION_TEMPORARY_LOOPBACK_AUTH_REENTRY.md
+ -> AGENT_SESSION_FRESH_CHAT_REENTRY.md
 ```
 
 The owner-rebind re-entry supersedes only the unnecessary deterministic-handle subproposal from the preceding preflight-commit brief. The later prompt/source-provenance re-entry requires exact worker-visible prompt equality before authority and immediately before Send while binding effectful controller/extension expectations to exact reviewed source. The authenticated-loopback re-entry is the latest adapter authority and requires consequence-relevant extension/controller exchanges to authenticate the intended local controller rather than trusting fixed port ownership. These refinements preserve the generic Delegation model, one-Send guarantees and complete-browser-loss fail-closed profile.
@@ -296,17 +320,26 @@ OpenAdapt remains a selected source for procedure-local compiler/resume/effect-e
 
 ## Immediate critical path
 
-`ROADMAP.md` now owns a product-outcome sequence rather than a vendor/integration backlog. PR #151 (`research/prime-runtime-adaptation`) remains a **research/idea bank** only: its Prime, CCCC, WinApp CLI, OpenAdapt, skill-distillation and other candidate notes may inform later Stage Research, but the PR does not define release order and no candidate becomes mandatory merely because it is documented there.
+`ROADMAP.md` owns the release order. The fresh-chat re-entry removes automatic
+reviewer migration from the critical path rather than replacing it with another
+provider-adapter project.
 
 Current development work:
 
-1. Migrate the automatic reviewer onto the already accepted generic Delegation lifecycle.
-2. Keep reviewer-specific guarantees above that lifecycle: fresh independent ordinary-ChatGPT review context, exact repository/PR/BASE/HEAD identity, read-only authority qualification, `REVIEW_RESULT_V1`, stale handling and manual fallback.
-3. Use `chatgpt-temporary` only for that reviewer isolation path. Ordinary CAP tasks continue through the current ordinary ChatGPT conversation and the canonical six-tool route.
-4. After reviewer migration is independently accepted, execute the finite broad real-application coverage gate from `ROADMAP.md`.
-5. Only then enter the external-procedure stage and revalidate current reuse candidates such as OpenAdapt for the concrete ProgramGraph/procedure role.
+1. Return to the already-defined **CAP Core v1 freeze** chain.
+2. Use the accepted manual fresh ordinary-ChatGPT review path for exact-head semantic
+   review while Core freeze branches are being accepted.
+3. Keep PR #159 unmerged/superseded; do not spend more physical cycles making
+   non-personalized Temporary Chat satisfy repository-evidence tasks.
+4. After Core v1 is frozen, re-enter the fresh ordinary-chat adapter only if a concrete
+   consumer justifies it; the first acceptance must include a non-reviewer read-only
+   task so review does not define the generic session abstraction.
+5. Continue the finite broad real-application coverage gate and later roadmap stages
+   in their recorded order.
 
-Do not implement Prime, persistent ChatGPT sessions, shared-memory multi-agent runtime, WorkspaceProvider, a generic Provider framework, skill catalogs or bulk external-skill import merely because PR #151 discusses them. Re-enter those ideas only when a current roadmap stage exposes a concrete need.
+Do not implement Prime, persistent ChatGPT sessions, shared-memory multi-agent runtime,
+WorkspaceProvider, a generic Provider framework, generic permission language, skill
+catalogs or bulk external-skill import merely because research branches discuss them.
 
 ## Non-negotiable rules
 

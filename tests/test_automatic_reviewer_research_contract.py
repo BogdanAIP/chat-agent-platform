@@ -317,7 +317,7 @@ class AutomaticReviewerResearchContractTests(unittest.TestCase):
             self.assertIn(phrase, self.research)
         self.assertIn("Do **not** collapse these planes into one score", self.research)
         self.assertIn("baseline, not a release exam", self.folded)
-        self.assertIn("Reviewer — first active rung", self.benchmark_strategy)
+        self.assertIn("Reviewer — deferred specialist rung", self.benchmark_strategy)
         self.assertIn("Code-review evaluation harness", self.reuse)
         self.assertIn("evaluation only", self.research.casefold())
 

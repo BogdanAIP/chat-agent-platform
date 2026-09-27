@@ -203,7 +203,7 @@ class DocumentationConsistencyTests(unittest.TestCase):
         self.assertEqual(
             release_stage_titles,
             (
-                "Reviewer reuse over the accepted Delegation lifecycle",
+                "CAP Core v1 freeze",
                 "General computer-use coverage",
                 "External procedure integration",
                 "Skill lifecycle",
@@ -250,7 +250,7 @@ class DocumentationConsistencyTests(unittest.TestCase):
                 "26.3B — Verification Kernel + independent Finish Gate — ACCEPTED / CLOSED",
                 "26.3C — WorkingState + recovery/reconciliation + LoopGuard — ACCEPTED / CLOSED",
                 "Post-26.3C — bounded Agent Session / Delegation — ACCEPTED BOUNDED SCOPE",
-                "Automatic reviewer — first specialist consumer after generic Agent Session acceptance",
+                "Automatic reviewer — deferred specialist consumer after Core v1 freeze",
                 "Broad real-application physical coverage gate",
                 "Pre-26.4 — bounded external-procedure integration qualification",
                 "26.4 — Human Demo -> verified candidate skill / lineage",
@@ -268,6 +268,18 @@ class DocumentationConsistencyTests(unittest.TestCase):
                 "new section explicitly before it can enter the release document"
             ),
         )
+
+    def test_benchmark_strategy_does_not_restore_reviewer_first_release_priority(self) -> None:
+        benchmark = (CONTEXT / "BENCHMARK_EVALUATION_STRATEGY.md").read_text(encoding="utf-8")
+        folded = benchmark.casefold()
+
+        # ROADMAP owns release order. Benchmark strategy may define how reviewer
+        # quality is evaluated, but it must not silently re-promote reviewer
+        # automation ahead of the current Core-v1 freeze sequence.
+        self.assertIn("cap core v1 freeze", folded)
+        self.assertIn("automatic reviewer/session-provider expansion is deferred", folded)
+        self.assertNotIn("immediate implementation priority remains the bounded automatic reviewer", folded)
+        self.assertNotIn("reviewer — first active rung", folded)
 
     def test_future_local_planner_is_explicitly_non_release_critical(self) -> None:
         roadmap = (CONTEXT / "ROADMAP.md").read_text(encoding="utf-8")

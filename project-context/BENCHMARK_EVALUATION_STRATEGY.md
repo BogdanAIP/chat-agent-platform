@@ -53,7 +53,7 @@ Reuse mature benchmark infrastructure where it already exists:
 
 | Capability family | Preferred evaluation family / harness posture | Current role |
 |---|---|---|
-| independent code review | Harbor custom-agent/task/verifier path | first CAP benchmark integration; evaluation only |
+| independent code review | Harbor custom-agent/task/verifier path | deferred reviewer-specific benchmark integration; evaluation only |
 | browser atomic interaction | BrowserGym / AgentLab + MiniWoB | early browser control regression |
 | realistic browser tasks | BrowserGym / AgentLab + WebArena-Verified | realistic web task benchmark |
 | enterprise browser knowledge work | BrowserGym / AgentLab + WorkArena / WorkArena++ where current | compound business/web workflows |
@@ -72,9 +72,9 @@ Do not pin volatile leaderboard values in this strategy. Pin exact benchmark rel
 
 ## Benchmark ladder by CAP maturity
 
-### Reviewer — first active rung
+### Reviewer — deferred specialist rung
 
-Use the automatic independent reviewer as the first production/evaluation integration because it already has a bounded exact input/output contract.
+When reviewer benchmark integration is re-entered, use its existing bounded exact input/output contract rather than treating reviewer automation as the current release priority.
 
 Initial semantic-quality sequence:
 
@@ -85,7 +85,7 @@ ReviewBench
  -> later additional review suites only when they add a measured gap
 ```
 
-The reviewer-specific production/lifecycle decision remains owned by `AUTOMATIC_REVIEWER_RESEARCH.md`. That Brief is the first concrete consumer of this cross-capability strategy; its Harbor choice is reviewer-specific and does not make Harbor the universal CAP benchmark harness.
+The reviewer-specific production/lifecycle decision remains owned by `AUTOMATIC_REVIEWER_RESEARCH.md`. That Brief remains the concrete owner of reviewer evaluation semantics, but reviewer automation is currently deferred by `AGENT_SESSION_FRESH_CHAT_REENTRY.md` until after Core v1 freeze (or an earlier concrete release-critical re-entry). Its Harbor choice is reviewer-specific and does not make Harbor the universal CAP benchmark harness.
 
 ### Browser — evaluate progressively rather than waiting for the final agent
 
@@ -333,4 +333,4 @@ capability reaches honest evaluable surface
  -> retain reproducible run metadata
 ```
 
-The immediate implementation priority remains the bounded automatic reviewer. This strategy does **not** move Browser/OSWorld/Terminal/METR work ahead of the current roadmap. It ensures that when each capability matures, external evaluation is already part of the development method rather than an end-of-project afterthought.
+The immediate implementation priority is the **CAP Core v1 freeze** owned by `ROADMAP.md`. Automatic reviewer/session-provider expansion is deferred and is not a Core-freeze prerequisite. This benchmark strategy does **not** move reviewer, Browser/OSWorld/Terminal/METR work ahead of the current roadmap; it only ensures that when each capability matures, external evaluation is already part of the development method rather than an end-of-project afterthought.
