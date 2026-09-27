@@ -76,9 +76,17 @@ await assert.rejects(
   providers.callFilesystem('browser_click', {}),
   /non-allowlisted downstream tool: filesystem\.browser_click/,
 );
-await assert.rejects(
-  providers.callBrowser('write_file', {}),
-  /non-allowlisted downstream tool: playwright\.write_file/,
+assert.throws(
+  () => providers.callBrowser('write_file', {}),
+  /non-allowlisted downstream tool: browser\.write_file/,
+);
+assert.throws(
+  () => providers.callBrowserGrouped('browser_tabs', 'list', {}),
+  /BrowserSkill grouped capability requested while Playwright provider is active/,
+);
+assert.throws(
+  () => providers.callBrowserExtended('evaluate', {}),
+  /BrowserSkill extended capability requested while Playwright provider is active/,
 );
 await providers.close();
 
