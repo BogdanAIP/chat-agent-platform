@@ -328,6 +328,47 @@ assert.equal(duplicateGenerationOne.text.includes('@e1'), false);
   }
 }
 
+// A durable lease must not bypass the reviewed BrowserSkill runtime pin after
+// CAP restarts.
+{
+  const stateRoot = await mkdtemp(path.join(os.tmpdir(), 'cap-bsk-version-drift-'));
+  const store = createBrowserSkillLeaseStore({
+    stateRoot,
+    browserSelector: 'drifted-runtime-profile',
+  });
+  await store.create({
+    requestId: `${Date.now() + 300_000}:00000000-0000-4000-8000-000000000001`,
+    browserInstanceId: 'drifted-runtime-browser',
+  });
+  let starts = 0;
+  const driftedRuntimeProvider = createBrowserSkillCliProvider({
+    browserSelector: 'drifted-runtime-profile',
+    stateRoot,
+    run: async args => {
+      const command = key(args);
+      if (command === 'status') {
+        return {
+          daemon_version: '0.3.2',
+          protocol_version: '1.3',
+          version_skew_browsers: [],
+        };
+      }
+      if (command.startsWith('session start ')) starts += 1;
+      throw new Error(`unexpected drifted-runtime command: ${command}`);
+    },
+  });
+  try {
+    await assert.rejects(
+      driftedRuntimeProvider.ensureSession(),
+      /unsupported BrowserSkill version/,
+    );
+    assert.equal(starts, 0, 'runtime version drift must fail before session adoption/start');
+  } finally {
+    await store.clear();
+    await rm(stateRoot, { recursive: true, force: true });
+  }
+}
+
 let mismatchCancel = 0;
 const mismatchedProvider = createBrowserSkillCliProvider({
   browserSelector: 'browser-a',
@@ -749,6 +790,7 @@ console.log('BROWSERSKILL_SESSION_ACK_LOSS_RECONCILIATION=PASS');
 console.log('BROWSERSKILL_NO_DUPLICATE_SESSION_START=PASS');
 console.log('BROWSERSKILL_CLAIM_ACK_LOSS_RECONCILIATION=PASS');
 console.log('BROWSERSKILL_CRASH_RECOVERY_DURABLE_LEASE=PASS');
+console.log('BROWSERSKILL_CRASH_RECOVERY_VERSION_PIN=PASS');
 console.log('BROWSERSKILL_UNRESOLVED_CLEANUP_QUARANTINE=PASS');
 console.log('BROWSERSKILL_NORMALIZED_OBSERVATION=PASS');
 console.log('BROWSERSKILL_NATIVE_REFS_PRIVATE=PASS');
