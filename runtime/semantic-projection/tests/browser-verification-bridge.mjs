@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 
 import {
+  parseBrowserSnapshotResult,
   parsePlaywrightSnapshotResult,
+  verifyBrowserInteraction,
   verifyPlaywrightInteraction,
   verifyPlaywrightNavigation,
 } from '../lib/browser-verification-bridge.mjs';
@@ -153,4 +155,46 @@ assert.throws(
   /missing Page URL/,
 );
 
+
+const browserSkillNormalized = parseBrowserSnapshotResult({
+  content: [{ type: 'text', text: '@e1 button "Save"' }],
+  structuredContent: {
+    normalized_browser_observation: {
+      url: 'https://example.com/',
+      title: 'Example',
+      document_id: 'browserskill:browser-a:s-owned:17',
+      snapshot_text: '@e1 button "Save"',
+      controls: [{
+        control_id: '@e1',
+        role: 'button',
+        name: 'Save',
+        enabled: true,
+        checked: null,
+        selected: null,
+        visible: true,
+        value: null,
+      }],
+      settled: true,
+      complete: true,
+      ambiguous: false,
+    },
+  },
+});
+assert.equal(browserSkillNormalized.url, 'https://example.com/');
+assert.equal(browserSkillNormalized.controls[0]?.control_id, '@e1');
+const browserSkillVerified = await verifyBrowserInteraction({
+  before: {
+    ...browserSkillNormalized,
+    controls: [{
+      ...browserSkillNormalized.controls[0],
+      checked: null,
+    }],
+  },
+  after: browserSkillNormalized,
+  expected: { control: { control_id: '@e1', enabled: true } },
+  subject: 'browserskill:browser-a:s-owned:17',
+});
+assert.equal(browserSkillVerified.status, 'pass');
+
 console.log('BROWSER_VERIFICATION_BRIDGE=PASS');
+console.log('BROWSER_PROVIDER_NORMALIZED_VERIFICATION=PASS');
