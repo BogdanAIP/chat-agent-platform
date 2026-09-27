@@ -1014,3 +1014,37 @@ Failure class: provider DOM selector drift duplicated across independently
 implemented delivery and capture observers. Regression coverage must exercise
 the current `data-turn-key` user and assistant paths, while legacy selectors
 remain accepted for compatibility.
+
+
+### Target-Windows final assistant content-surface drift
+
+Exact-head physical qualification on `f0345f6a18a58813d3b4ace1d9f9cf1347339db2`
+proved automatic preflight, unpersonalized Temporary Chat, exact prompt handoff,
+one Send, durable `delivery_state=delivered`, and post-delivery cleanup. The
+fresh worker visibly returned a valid correlated `CAP_WORKER_RESULT_V1` whose
+payload was `REVIEW_RESULT_V1 status=PASS`, but no `prepare-capture` or
+`capture` occurred and no `result.json` was written.
+
+Bounded progress evidence after Send was:
+
+- `delivery-visible delivery_state=delivered`;
+- `post-delivery-cleanup-complete composer_clean=true launch_url_clean=true`;
+- repeated cleanup acknowledgements with
+  `post_delivery_ui_disarmed=true`;
+- no `result-capture-failed`, because capture dispatch was never reached.
+
+The remaining failure is therefore browser-side final assistant result
+recognition. The current grouped renderer can expose the logical assistant turn
+as a broad `data-turn-key` / `data-conversation-role="assistant"` surface
+while the actual final answer is a narrower
+`data-local-conversation-final-assistant` content surface. Reading the first
+matched broad node can include non-result text such as reasoning/status/footer
+content, causing the strict single-result-block shape to reject an otherwise
+valid visible result.
+
+Decision: **NARROW extraction correction**. Keep logical-turn deduplication and
+all existing capture authority checks, but prefer the semantically final
+assistant content surface before broad assistant containers. Legacy
+`data-message-author-role="assistant"` remains supported, with its rendered
+`.markdown` child preferred when available. No text-label, coordinate, generic
+article, or last-element fallback is added.
