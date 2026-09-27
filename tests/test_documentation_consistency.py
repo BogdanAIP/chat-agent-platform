@@ -203,7 +203,7 @@ class DocumentationConsistencyTests(unittest.TestCase):
         self.assertEqual(
             release_stage_titles,
             (
-                "Reviewer reuse over the accepted Delegation lifecycle",
+                "CAP Core v1 freeze",
                 "General computer-use coverage",
                 "External procedure integration",
                 "Skill lifecycle",
@@ -250,7 +250,7 @@ class DocumentationConsistencyTests(unittest.TestCase):
                 "26.3B — Verification Kernel + independent Finish Gate — ACCEPTED / CLOSED",
                 "26.3C — WorkingState + recovery/reconciliation + LoopGuard — ACCEPTED / CLOSED",
                 "Post-26.3C — bounded Agent Session / Delegation — ACCEPTED BOUNDED SCOPE",
-                "Automatic reviewer — first specialist consumer after generic Agent Session acceptance",
+                "Automatic reviewer — deferred specialist consumer after Core v1 freeze",
                 "Broad real-application physical coverage gate",
                 "Pre-26.4 — bounded external-procedure integration qualification",
                 "26.4 — Human Demo -> verified candidate skill / lineage",
