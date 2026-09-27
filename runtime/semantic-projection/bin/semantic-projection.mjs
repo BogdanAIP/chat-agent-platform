@@ -15,6 +15,11 @@ import {
   verifyBrowserNavigation,
 } from '../lib/browser-verification-bridge.mjs';
 import { authorizeSemanticBrowserMutation } from '../lib/browser-authorization-bridge.mjs';
+import {
+  webInteractSchema,
+  webObserveSchema,
+  webOpenSchema,
+} from '../lib/browser-public-contract.mjs';
 import { createSemanticVisionClickRouter } from '../lib/semantic-vision-click-router.mjs';
 import { requireSemanticActivation } from '../lib/semantic-activation.mjs';
 import { createSemanticProviderBindings } from '../lib/semantic-provider-bindings.mjs';
@@ -396,31 +401,11 @@ process.stdin.on('close', () => void closeBackends());
 
 const relativePathSchema = z.string().min(1).max(2048).describe('Path relative to the configured workspace root. Absolute paths and parent traversal are rejected.');
 
-const visualFallbackSchema = z.object({
-  instruction: z.string().min(1).max(4096).describe('Concrete visual instruction for one text-labeled control.'),
-  targetText: z.string().min(1).max(2048).describe('Visible text used for both exact accessibility preflight and reviewed visual grounding.'),
-  semanticName: z.string().min(1).max(1024).optional().describe('Compatibility alias only. If supplied, it must normalize exactly to targetText and cannot force a different semantic preflight.')
-}).strict();
-
-const interactionExpectedControlSchema = z.object({
-  target: z.string().min(1).max(512).optional().describe('Control ref whose fresh post-action state must be verified. Defaults to the action target when available.'),
-  present: z.boolean().optional(),
-  value: z.string().max(4096).optional(),
-  checked: z.boolean().optional(),
-  selected: z.boolean().optional(),
-  enabled: z.boolean().optional(),
-}).strict();
-
-const interactionExpectedSchema = z.object({
-  url: z.string().url().max(4096).optional().describe('Exact final HTTP/HTTPS URL expected after the interaction.'),
-  control: interactionExpectedControlSchema.optional(),
-}).strict();
-
 const server = new McpServer(
   { name: 'chat-semantic-projection', version: VERSION },
   {
     instructions:
-      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use an isolated headless Playwright session. web_open is accepted only after a fresh independent browser_snapshot proves the exact canonical final URL and document state. web_interact mutations are accepted only after fresh post-action verification of a bounded declared result; type without submit may infer the typed control value, while click and type+submit require an explicit expected result before delivery. A web_interact action is also refused before delivery when the declared expected result is already satisfied or cannot be safely distinguished from the fresh pre-action state. For click only, a reviewed text-labeled visual fallback may run internally after a fresh accessibility snapshot proves zero exact targetText candidates. One exact candidate is clicked semantically; a unique enabled button may also be selected when all same-name alternatives are disabled. Unresolved ambiguity and semantic action errors fail closed without vision.'
+      'This server exposes a small fixed semantic projection. It cannot invoke arbitrary downstream tools. Workspace paths are relative to one configured root. Browser actions use one explicitly activated CAP Browser provider bound for the semantic runtime. web_open is accepted only after a fresh independent browser_snapshot proves the exact canonical final URL and document state. web_interact mutations are accepted only after fresh post-action verification of a bounded declared result; type without submit may infer the typed control value, while click and type+submit require an explicit expected result before delivery. A web_interact action is also refused before delivery when the declared expected result is already satisfied or cannot be safely distinguished from the fresh pre-action state. For click only, a reviewed text-labeled visual fallback may run internally after a fresh accessibility snapshot proves zero exact targetText candidates. One exact candidate is clicked semantically; a unique enabled button may also be selected when all same-name alternatives are disabled. Unresolved ambiguity and semantic action errors fail closed without vision.'
   }
 );
 
@@ -575,7 +560,7 @@ server.registerTool('workspace_write', {
 server.registerTool('web_open', {
   title: 'Open Web Page',
   description: 'Navigate the isolated headless browser to one HTTP or HTTPS URL. File, javascript, data, credential-bearing and direct non-public IP destinations are rejected. Loopback URLs remain allowed for reviewed local workflows. The exact navigation is authorized against the active semantic scope and success requires fresh post-navigation verification of the exact canonical final URL and document snapshot.',
-  inputSchema: z.object({ url: z.string().url().max(4096) }).strict(),
+  inputSchema: webOpenSchema,
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
 }, async ({ url }) => {
   const quarantine = browserMutationQuarantineError('web_open');
@@ -667,10 +652,7 @@ server.registerTool('web_open', {
 server.registerTool('web_observe', {
   title: 'Observe Web Page',
   description: 'Read-only browser observation. operation=find searches the current accessibility snapshot by plain text or regex. operation=snapshot captures the current accessibility snapshot, optionally for one target. Screenshots remain internal to the reviewed click fallback and are never exposed as a public observation operation.',
-  inputSchema: z.object({
-    operation: z.enum(['find', 'snapshot']), text: z.string().min(1).max(2048).optional(),
-    regex: z.string().min(1).max(2048).optional(), target: z.string().min(1).max(4096).optional()
-  }).strict(),
+  inputSchema: webObserveSchema,
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true }
 }, async args => {
   try {
@@ -687,12 +669,7 @@ server.registerTool('web_observe', {
 server.registerTool('web_interact', {
   title: 'Interact With Web Page',
   description: 'Interact with the isolated browser using click or type, with exact active-scope authorization and fresh before/after verification of a bounded observable postcondition. type without submit may infer the target control value; click and type+submit require expected={url and/or control state} before delivery. The action is refused when expected is already satisfied or cannot be safely distinguished from the fresh pre-action state. click may optionally use the existing reviewed text-labeled visual fallback. Generic page-change heuristics, arbitrary JavaScript, file upload, direct network inspection and backend/tool selection are not accepted.',
-  inputSchema: z.object({
-    operation: z.enum(['click', 'type']), target: z.string().min(1).max(4096).optional(),
-    element: z.string().min(1).max(1024).optional(), doubleClick: z.boolean().optional(),
-    text: z.string().max(200000).optional(), submit: z.boolean().optional(), slowly: z.boolean().optional(),
-    visualFallback: visualFallbackSchema.optional(), expected: interactionExpectedSchema.optional()
-  }).strict(),
+  inputSchema: webInteractSchema,
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
 }, async args => {
   const quarantine = browserMutationQuarantineError('web_interact');
