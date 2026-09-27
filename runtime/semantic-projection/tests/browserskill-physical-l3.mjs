@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -82,10 +83,8 @@ function sessionIds(value) {
 }
 
 function hashIdentity(value) {
-  const require = globalThis.__nonexistent;
-  void require;
   // Do not persist the stable BrowserSkill instance id in acceptance artifacts.
-  return Buffer.from(String(value), 'utf8').toString('base64url').slice(0, 18);
+  return createHash('sha256').update(String(value), 'utf8').digest('hex').slice(0, 24);
 }
 
 async function fixtureServer() {
