@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { PassThrough } from 'node:stream';
 
 import {
@@ -8,6 +11,7 @@ import {
   browserSkillChildEnvironment,
   createBskJsonRunner,
   createBrowserSkillCliProvider,
+  createBrowserSkillLeaseStore,
   parseBrowserSkillControls,
   projectBrowserSkillRefs,
 } from '../lib/browserskill-cli-provider.mjs';
@@ -242,6 +246,87 @@ assert.notEqual(
   'ambiguous same-role/name controls must not acquire a stable cross-observation ref',
 );
 assert.equal(duplicateGenerationOne.text.includes('@e1'), false);
+
+// Durable request lease must survive a CAP/provider process restart without
+// creating a second BrowserSkill session.
+{
+  const stateRoot = await mkdtemp(path.join(os.tmpdir(), 'cap-bsk-lease-'));
+  let starts = 0;
+  const durableRun = async args => {
+    const command = key(args);
+    if (command === 'status') {
+      return { daemon_version: '0.3.1', protocol_version: '1.3', version_skew_browsers: [] };
+    }
+    if (command === 'browsers') {
+      return [{
+        instance_id: 'durable-browser',
+        label: 'durable-profile',
+        extension_version: '0.3.1',
+        extension_protocol_version: '1.3',
+      }];
+    }
+    if (command.endsWith('--prepare')) return { state: 'prepared' };
+    if (command.startsWith('session start ')) {
+      starts += 1;
+      return { session_id: 'durable-session', browser_instance_id: 'durable-browser' };
+    }
+    if (command.endsWith('--claim')) {
+      return {
+        state: 'active',
+        session: {
+          session_id: 'durable-session',
+          browser_instance_id: 'durable-browser',
+        },
+      };
+    }
+    if (
+      command.includes('session request') &&
+      !command.endsWith('--prepare') &&
+      !command.endsWith('--claim') &&
+      !command.endsWith('--cancel')
+    ) {
+      return {
+        state: 'active',
+        session: {
+          session_id: 'durable-session',
+          browser_instance_id: 'durable-browser',
+        },
+      };
+    }
+    if (command.endsWith('--cancel')) return { state: 'closed' };
+    throw new Error(`unexpected durable command: ${command}`);
+  };
+
+  try {
+    const firstProvider = createBrowserSkillCliProvider({
+      browserSelector: 'durable-profile',
+      run: durableRun,
+      stateRoot,
+    });
+    const firstSession = await firstProvider.ensureSession();
+    assert.equal(firstSession.sessionId, 'durable-session');
+    assert.equal(starts, 1);
+
+    // Deliberately do not close firstProvider: this models abrupt CAP death.
+    const secondProvider = createBrowserSkillCliProvider({
+      browserSelector: 'durable-profile',
+      run: durableRun,
+      stateRoot,
+    });
+    const recoveredSession = await secondProvider.ensureSession();
+    assert.equal(recoveredSession.sessionId, 'durable-session');
+    assert.equal(starts, 1, 'durable lease recovery must not issue a second session start');
+    assert.equal((await secondProvider.close()).stopped, true);
+
+    const store = createBrowserSkillLeaseStore({
+      stateRoot,
+      browserSelector: 'durable-profile',
+    });
+    assert.equal(await store.load(), null, 'confirmed close must remove durable BrowserSkill lease');
+  } finally {
+    await rm(stateRoot, { recursive: true, force: true });
+  }
+}
 
 let mismatchCancel = 0;
 const mismatchedProvider = createBrowserSkillCliProvider({
@@ -663,6 +748,7 @@ assert.equal(mismatchCancel, 1, 'mismatched provider identity must trigger exact
 console.log('BROWSERSKILL_SESSION_ACK_LOSS_RECONCILIATION=PASS');
 console.log('BROWSERSKILL_NO_DUPLICATE_SESSION_START=PASS');
 console.log('BROWSERSKILL_CLAIM_ACK_LOSS_RECONCILIATION=PASS');
+console.log('BROWSERSKILL_CRASH_RECOVERY_DURABLE_LEASE=PASS');
 console.log('BROWSERSKILL_UNRESOLVED_CLEANUP_QUARANTINE=PASS');
 console.log('BROWSERSKILL_NORMALIZED_OBSERVATION=PASS');
 console.log('BROWSERSKILL_NATIVE_REFS_PRIVATE=PASS');
