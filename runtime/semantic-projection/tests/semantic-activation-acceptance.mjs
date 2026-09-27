@@ -4,6 +4,7 @@ import {
   SEMANTIC_ACTIVATION_ENV_KEYS,
   SEMANTIC_ACTIVATION_VERSION,
   SEMANTIC_BROWSER_POLICY_REF,
+  SEMANTIC_BROWSER_POLICY_REFS,
   createSemanticActivationEnvironment,
   requireSemanticActivation,
   semanticProviderEnvironment,
@@ -49,6 +50,35 @@ assert.throws(
   /activation version mismatch/,
 );
 
+
+const browserSkillActivation = createSemanticActivationEnvironment(
+  {
+    ...hostile,
+    CAP_BROWSER_PROVIDER: 'browserskill',
+    CAP_BROWSERSKILL_BROWSER: 'profile-a',
+  },
+  { randomBytesFn: () => Buffer.alloc(16, 0x03) },
+);
+assert.equal(
+  browserSkillActivation.browserPolicyRef,
+  SEMANTIC_BROWSER_POLICY_REFS.browserskill,
+);
+assert.equal(
+  browserSkillActivation.env.CHAT_SEMANTIC_BROWSER_POLICY_REF,
+  SEMANTIC_BROWSER_POLICY_REFS.browserskill,
+);
+assert.equal(
+  requireSemanticActivation(browserSkillActivation.env).browserPolicyRef,
+  SEMANTIC_BROWSER_POLICY_REFS.browserskill,
+);
+assert.throws(
+  () => createSemanticActivationEnvironment(
+    { ...hostile, CAP_BROWSER_PROVIDER: 'unknown-provider' },
+    { randomBytesFn: () => Buffer.alloc(16, 0x04) },
+  ),
+  /CAP_BROWSER_PROVIDER/,
+);
+
 const providerEnv = semanticProviderEnvironment(first.env);
 for (const key of SEMANTIC_ACTIVATION_ENV_KEYS) {
   assert.equal(
@@ -66,3 +96,4 @@ assert.equal(
 console.log('SEMANTIC_ACTIVATION_INHERITED_OVERRIDE=PASS');
 console.log('SEMANTIC_ACTIVATION_PER_LIFETIME_IDENTITY=PASS');
 console.log('SEMANTIC_PROVIDER_ACTIVATION_SCRUB=PASS');
+console.log('SEMANTIC_BROWSERSKILL_POLICY_IDENTITY=PASS');
