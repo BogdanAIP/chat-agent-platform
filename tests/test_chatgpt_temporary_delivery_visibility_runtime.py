@@ -37,7 +37,7 @@ const policySource = fs.readFileSync({json.dumps(str(POLICY))}, "utf8");
 
 const normalizeStart = contentSource.indexOf("  function normalizeFull(text) {{");
 const normalizeEnd = contentSource.indexOf("\\n\\n  function observedRecoveryClaims()", normalizeStart);
-const turnsStart = contentSource.indexOf("    function conversationTurnNodes(role) {{");
+const turnsStart = contentSource.indexOf("    function conversationTurns(role) {{");
 const turnsEnd = contentSource.indexOf("\\n\\n    function stopButtonPresent()", turnsStart);
 if (normalizeStart < 0 || normalizeEnd <= normalizeStart || turnsStart < 0 || turnsEnd <= turnsStart) process.exit(70);
 
@@ -100,7 +100,7 @@ const policySource = fs.readFileSync({json.dumps(str(POLICY))}, "utf8");
 
 const normalizeStart = contentSource.indexOf("  function normalizeFull(text) {{");
 const normalizeEnd = contentSource.indexOf("\\n\\n  function observedRecoveryClaims()", normalizeStart);
-const turnsStart = contentSource.indexOf("    function conversationTurnNodes(role) {{");
+const turnsStart = contentSource.indexOf("    function conversationTurns(role) {{");
 const turnsEnd = contentSource.indexOf("\\n\\n    function stopButtonPresent()", turnsStart);
 if (normalizeStart < 0 || normalizeEnd <= normalizeStart || turnsStart < 0 || turnsEnd <= turnsStart) process.exit(80);
 
