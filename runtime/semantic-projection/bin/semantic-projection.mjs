@@ -10,9 +10,9 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod/v4';
 
 import {
-  parsePlaywrightSnapshotResult,
-  verifyPlaywrightInteraction,
-  verifyPlaywrightNavigation,
+  parseBrowserSnapshotResult,
+  verifyBrowserInteraction,
+  verifyBrowserNavigation,
 } from '../lib/browser-verification-bridge.mjs';
 import { authorizeSemanticBrowserMutation } from '../lib/browser-authorization-bridge.mjs';
 import { createSemanticVisionClickRouter } from '../lib/semantic-vision-click-router.mjs';
@@ -255,7 +255,7 @@ function assessInteractionExpectedBefore(before, expected) {
 
 async function captureBrowserObservation() {
   const snapshot = await providers.callBrowser('browser_snapshot', {});
-  return parsePlaywrightSnapshotResult(snapshot);
+  return parseBrowserSnapshotResult(snapshot);
 }
 
 function browserMutationVerifiedResult({
@@ -638,10 +638,11 @@ server.registerTool('web_open', {
 
   try {
     const after = await captureBrowserObservation();
-    const verification = await verifyPlaywrightNavigation({
+    const verification = await verifyBrowserNavigation({
       before,
       after,
       expectedUrl: parsed.href,
+      subject: providers.browserSubject() ?? undefined,
     });
     return browserMutationVerifiedResult({
       delivery,
@@ -802,7 +803,12 @@ server.registerTool('web_interact', {
 
   try {
     const after = await captureBrowserObservation();
-    const verification = await verifyPlaywrightInteraction({ before, after, expected });
+    const verification = await verifyBrowserInteraction({
+      before,
+      after,
+      expected,
+      subject: providers.browserSubject() ?? undefined,
+    });
     return browserMutationVerifiedResult({
       delivery,
       deliveryError,
