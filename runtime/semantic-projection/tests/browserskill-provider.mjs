@@ -281,6 +281,247 @@ await assert.rejects(
 assert.equal(mismatchCancel, 1, 'mismatched provider identity must trigger exact request cleanup');
 
 
+// Claim acknowledgement loss must reconcile the same request and must not
+// create a second Agent Window.
+{
+  let starts = 0;
+  let claims = 0;
+  const claimLossProvider = createBrowserSkillCliProvider({
+    browserSelector: 'claim-profile',
+    run: async args => {
+      const command = key(args);
+      if (command === 'status') {
+        return { daemon_version: '0.3.1', protocol_version: '1.3', version_skew_browsers: [] };
+      }
+      if (command === 'browsers') {
+        return [{
+          instance_id: 'claim-browser',
+          label: 'claim-profile',
+          extension_version: '0.3.1',
+          extension_protocol_version: '1.3',
+        }];
+      }
+      if (command.endsWith('--prepare')) return { state: 'prepared' };
+      if (command.startsWith('session start ')) {
+        starts += 1;
+        return { session_id: 'claim-session', browser_instance_id: 'claim-browser' };
+      }
+      if (command.endsWith('--claim')) {
+        claims += 1;
+        throw new BrowserSkillProviderError('injected claim ACK loss', { timedOut: true });
+      }
+      if (
+        command.includes('session request') &&
+        !command.endsWith('--prepare') &&
+        !command.endsWith('--claim') &&
+        !command.endsWith('--cancel')
+      ) {
+        return {
+          state: 'active',
+          session: {
+            session_id: 'claim-session',
+            browser_instance_id: 'claim-browser',
+          },
+        };
+      }
+      if (command.endsWith('--cancel')) return { state: 'closed' };
+      throw new Error(`unexpected claim-loss command: ${command}`);
+    },
+  });
+  const recovered = await claimLossProvider.ensureSession();
+  assert.equal(recovered.sessionId, 'claim-session');
+  assert.equal(starts, 1);
+  assert.equal(claims, 1);
+  assert.equal((await claimLossProvider.close()).stopped, true);
+}
+
+// A failed close must retain exact ownership and quarantine new starts until
+// the original request is proven closed.
+{
+  let starts = 0;
+  let cancels = 0;
+  const cleanupProvider = createBrowserSkillCliProvider({
+    browserSelector: 'cleanup-profile',
+    run: async args => {
+      const command = key(args);
+      if (command === 'status') {
+        return { daemon_version: '0.3.1', protocol_version: '1.3', version_skew_browsers: [] };
+      }
+      if (command === 'browsers') {
+        return [{
+          instance_id: 'cleanup-browser',
+          label: 'cleanup-profile',
+          extension_version: '0.3.1',
+          extension_protocol_version: '1.3',
+        }];
+      }
+      if (command.endsWith('--prepare')) return { state: 'prepared' };
+      if (command.startsWith('session start ')) {
+        starts += 1;
+        return { session_id: 'cleanup-session', browser_instance_id: 'cleanup-browser' };
+      }
+      if (command.endsWith('--claim')) {
+        return {
+          state: 'active',
+          session: {
+            session_id: 'cleanup-session',
+            browser_instance_id: 'cleanup-browser',
+          },
+        };
+      }
+      if (command.endsWith('--cancel')) {
+        cancels += 1;
+        return { state: cancels >= 3 ? 'closed' : 'cancelling' };
+      }
+      throw new Error(`unexpected cleanup command: ${command}`);
+    },
+  });
+  await cleanupProvider.ensureSession();
+  const firstClose = await cleanupProvider.close();
+  assert.equal(firstClose.stopped, false);
+  await assert.rejects(
+    cleanupProvider.ensureSession(),
+    /cleanup remains unresolved/,
+  );
+  assert.equal(starts, 1, 'unresolved cleanup must block a replacement BrowserSkill session');
+  const finalClose = await cleanupProvider.close();
+  assert.equal(finalClose.stopped, true);
+  assert.equal(starts, 1);
+}
+
+// The snapshot is admissible only when tab identity is stable on both sides
+// of capture. Navigation between tab-list before/after must become ambiguous.
+{
+  let tabReads = 0;
+  const driftProvider = createBrowserSkillCliProvider({
+    browserSelector: 'drift-profile',
+    run: async args => {
+      const command = key(args);
+      if (command === 'status') {
+        return { daemon_version: '0.3.1', protocol_version: '1.3', version_skew_browsers: [] };
+      }
+      if (command === 'browsers') {
+        return [{
+          instance_id: 'drift-browser',
+          label: 'drift-profile',
+          extension_version: '0.3.1',
+          extension_protocol_version: '1.3',
+        }];
+      }
+      if (command.endsWith('--prepare')) return { state: 'prepared' };
+      if (command.startsWith('session start ')) {
+        return { session_id: 'drift-session', browser_instance_id: 'drift-browser' };
+      }
+      if (command.endsWith('--claim')) {
+        return {
+          state: 'active',
+          session: {
+            session_id: 'drift-session',
+            browser_instance_id: 'drift-browser',
+          },
+        };
+      }
+      if (command === 'tab list --session drift-session --scope all') {
+        tabReads += 1;
+        return {
+          tabs: [{
+            tab_id: 71,
+            title: tabReads === 1 ? 'Before' : 'After',
+            url: tabReads === 1 ? 'https://example.com/before' : 'https://example.com/after',
+            window_id: 9,
+            scope: 'agent',
+          }],
+        };
+      }
+      if (command === 'snapshot --session drift-session') {
+        return { text: '@e1 button "Save"\n', ref_count: 1, tab_id: 71, truncated: false };
+      }
+      if (command.endsWith('--cancel')) return { state: 'closed' };
+      throw new Error(`unexpected drift command: ${command}`);
+    },
+  });
+  const captured = await driftProvider.snapshotObservation();
+  assert.equal(captured.observation.ambiguous, true);
+  assert.equal(captured.observation.settled, false);
+  assert.equal(captured.observation.complete, false);
+  await driftProvider.close();
+}
+
+// Duplicate semantic controls get generation-scoped CAP refs. An old one must
+// fail before physical delivery after a fresh observation.
+{
+  let clicks = 0;
+  const staleProvider = createBrowserSkillCliProvider({
+    browserSelector: 'stale-profile',
+    run: async args => {
+      const command = key(args);
+      if (command === 'status') {
+        return { daemon_version: '0.3.1', protocol_version: '1.3', version_skew_browsers: [] };
+      }
+      if (command === 'browsers') {
+        return [{
+          instance_id: 'stale-browser',
+          label: 'stale-profile',
+          extension_version: '0.3.1',
+          extension_protocol_version: '1.3',
+        }];
+      }
+      if (command.endsWith('--prepare')) return { state: 'prepared' };
+      if (command.startsWith('session start ')) {
+        return { session_id: 'stale-session', browser_instance_id: 'stale-browser' };
+      }
+      if (command.endsWith('--claim')) {
+        return {
+          state: 'active',
+          session: {
+            session_id: 'stale-session',
+            browser_instance_id: 'stale-browser',
+          },
+        };
+      }
+      if (command === 'tab list --session stale-session --scope all') {
+        return {
+          tabs: [{
+            tab_id: 81,
+            title: 'Stable',
+            url: 'https://example.com/stable',
+            window_id: 10,
+            scope: 'agent',
+          }],
+        };
+      }
+      if (command === 'snapshot --session stale-session') {
+        return {
+          text: '@e1 button "Same"\n@e2 button "Same"\n',
+          ref_count: 2,
+          tab_id: 81,
+          truncated: false,
+        };
+      }
+      if (command.startsWith('click ')) {
+        clicks += 1;
+        return { tab_id: 81 };
+      }
+      if (command.endsWith('--cancel')) return { state: 'closed' };
+      throw new Error(`unexpected stale-ref command: ${command}`);
+    },
+  });
+  const first = await staleProvider.call('browser_snapshot', {});
+  const staleRef = first.structuredContent.normalized_browser_observation.controls[0].control_id;
+  assert.match(staleRef, /^@capg-/);
+  await staleProvider.call('browser_snapshot', {});
+  await assert.rejects(
+    staleProvider.call('browser_click', { target: staleRef }),
+    error => (
+      error instanceof BrowserSkillProviderError &&
+      error.deliveryAttempted === false &&
+      /stale or ambiguous/.test(error.message)
+    ),
+  );
+  assert.equal(clicks, 0, 'stale CAP ref must fail before BrowserSkill click delivery');
+  await staleProvider.close();
+}
+
 // Every upstream grouped action must be physically mapped by the provider, not
 // merely listed in a manifest. This fake runner lets all CLI commands complete
 // without touching a real browser or asking a human for confirmation.
@@ -304,7 +545,12 @@ assert.equal(mismatchCancel, 1, 'mismatched provider identity must trigger exact
     if (command.startsWith('session start ')) {
       return { session_id: 's-full', browser_instance_id: 'browser-full' };
     }
-    if (command.includes('session request') && command.endsWith('--claim')) return { state: 'active' };
+    if (command.includes('session request') && command.endsWith('--claim')) {
+      return {
+        state: 'active',
+        session: { session_id: 's-full', browser_instance_id: 'browser-full' },
+      };
+    }
     if (command.includes('session request') && command.endsWith('--cancel')) return { state: 'closed' };
     if (command === 'session list') return { sessions: [] };
     return { ok: true, tabs: [], state: 'ok' };
@@ -416,9 +662,13 @@ assert.equal(mismatchCancel, 1, 'mismatched provider identity must trigger exact
 
 console.log('BROWSERSKILL_SESSION_ACK_LOSS_RECONCILIATION=PASS');
 console.log('BROWSERSKILL_NO_DUPLICATE_SESSION_START=PASS');
+console.log('BROWSERSKILL_CLAIM_ACK_LOSS_RECONCILIATION=PASS');
+console.log('BROWSERSKILL_UNRESOLVED_CLEANUP_QUARANTINE=PASS');
 console.log('BROWSERSKILL_NORMALIZED_OBSERVATION=PASS');
 console.log('BROWSERSKILL_NATIVE_REFS_PRIVATE=PASS');
 console.log('BROWSERSKILL_AMBIGUOUS_REFS_GENERATION_SCOPED=PASS');
+console.log('BROWSERSKILL_STALE_REF_NO_DELIVERY=PASS');
+console.log('BROWSERSKILL_SNAPSHOT_TAB_DRIFT_AMBIGUOUS=PASS');
 console.log('BROWSERSKILL_FOREIGN_IDENTITY_FAIL_CLOSED=PASS');
 console.log('BROWSERSKILL_CHILD_ENV_SECRET_SCRUB=PASS');
 console.log('BROWSERSKILL_HUNG_CHILD_BOUNDED_CANCEL=PASS');
