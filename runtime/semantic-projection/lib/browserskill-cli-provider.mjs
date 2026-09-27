@@ -170,7 +170,6 @@ export function createBskJsonRunner({
           new BrowserSkillProviderError(`bsk ${args.join(' ')} timed out`, { timedOut: true }),
         );
       }, timeoutMs);
-      timer.unref?.();
     });
   };
 }
