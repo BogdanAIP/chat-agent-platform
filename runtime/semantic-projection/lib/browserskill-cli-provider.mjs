@@ -11,6 +11,26 @@ const MAX_OUTPUT_BYTES = 4_000_000;
 const DEFAULT_TIMEOUT_MS = 45_000;
 const CANCEL_GRACE_MS = process.platform === 'win32' ? 15_000 : 3_000;
 
+const BROWSERSKILL_ENV_KEYS = Object.freeze([
+  'BSK_HOME',
+  'BSK_BROWSER_WAIT_MS',
+  'BSK_DOCTOR_BROWSER_WAIT_MS',
+]);
+
+export function browserSkillChildEnvironment(env = process.env) {
+  const result = semanticProviderEnvironment(env);
+  for (const name of BROWSERSKILL_ENV_KEYS) {
+    const value = env[name];
+    if (typeof value === 'string') result[name] = value;
+  }
+  // Provider execution must not perform autonomous update checks or inherit
+  // arbitrary CAP/tunnel credentials. Cancellation is the only forced BSK
+  // control variable.
+  result.BSK_AUTO_UPDATE = 'off';
+  result.BSK_CANCEL_ON_STDIN_CLOSE = '1';
+  return result;
+}
+
 export class BrowserSkillProviderError extends Error {
   constructor(message, { code = null, hint = null, timedOut = false, completedSteps = [] } = {}) {
     super(message);
@@ -51,10 +71,7 @@ export function createBskJsonRunner({ bskPath = 'bsk', spawnImpl = spawn } = {})
       try {
         child = spawnImpl(bskPath, [...args, '--json'], {
           windowsHide: true,
-          env: {
-            ...process.env,
-            BSK_CANCEL_ON_STDIN_CLOSE: '1',
-          },
+          env: browserSkillChildEnvironment(process.env),
           stdio: ['pipe', 'pipe', 'pipe'],
         });
       } catch (error) {
