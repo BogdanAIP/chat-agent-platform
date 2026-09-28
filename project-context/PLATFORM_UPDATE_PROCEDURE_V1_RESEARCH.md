@@ -208,3 +208,25 @@ Before merge:
 Implement only the fixed official-main `platform_update_v1` adapter described
 above. Do not add generic process execution, arbitrary updater source selection,
 Windows GUI authority, or a new persistence owner in this stage.
+
+
+## Target-Windows job-containment refinement
+
+Physical probing on the target Windows host after the initial implementation found
+that the live CAP semantic/tunnel/tray processes all report `IsProcessInJob=True`.
+A first `request_update` probe launched from an OpenResearch local run without an
+explicit breakaway flag did not leave a new updater terminal result after the
+OpenResearch-owned run died, so plain `DETACHED_PROCESS` is not accepted as sufficient
+evidence for escaping Windows Job Object ownership.
+
+A bounded follow-up probe launched a harmless delayed Python child with
+`CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP |
+CREATE_NO_WINDOW`. The parent OpenResearch run exited, and a separate later run
+observed the child-created `%TEMP%\\cap-breakaway-probe.txt` marker with exact text
+`BREAKAWAY_OK`.
+
+Refinement: `request_update` must set `CREATE_BREAKAWAY_FROM_JOB` in addition to the
+existing detached/new-process-group/no-window flags. This remains a fixed executable +
+fixed argv launch of the installed official-main updater; it does not broaden caller
+authority. A real no-op updater handoff must be re-run physically on the exact refined
+head before acceptance.
