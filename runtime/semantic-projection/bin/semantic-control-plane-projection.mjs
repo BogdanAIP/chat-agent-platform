@@ -27,6 +27,7 @@ const repoRoot = path.resolve(here, '..', '..', '..');
 const controlPlaneCli = path.join(repoRoot, 'runtime', 'control_plane', 'cli.py');
 const WORKSPACE_ARTIFACT_PROCEDURE = 'verified_workspace_artifact_v1';
 const WINDOWS_CASE_PROCEDURE = 'windows_case_update_v1';
+const PLATFORM_UPDATE_PROCEDURE = 'platform_update_v1';
 const REVIEW_LAUNCH_PROCEDURE = 'launch_independent_review_v1';
 const REVIEW_SUBMIT_PROCEDURE = 'submit_independent_review_result_v1';
 const REVIEW_RECONCILE_PROCEDURE = 'reconcile_independent_review_result_v1';
@@ -168,7 +169,9 @@ function controlPlanePython(request, env) {
 }
 
 function procedureTimeoutMs(request) {
-  return request?.procedure === WINDOWS_CASE_PROCEDURE ? 90_000 : 30_000;
+  if (request?.procedure === WINDOWS_CASE_PROCEDURE) return 90_000;
+  if (request?.procedure === PLATFORM_UPDATE_PROCEDURE) return 130_000;
+  return 30_000;
 }
 
 const semanticClient = new Client({
@@ -350,6 +353,10 @@ const windowsCaseProcedureSchema = z.object({
   note: z.string().min(1).max(512),
   status: z.enum(['Approved', 'Needs Review'])
 }).strict();
+const platformUpdateProcedureSchema = z.object({
+  procedure: z.literal(PLATFORM_UPDATE_PROCEDURE),
+  action: z.enum(['check', 'request_update', 'status'])
+}).strict();
 const reviewLaunchProcedureSchema = z.object({
   procedure: z.literal(REVIEW_LAUNCH_PROCEDURE),
   ...reviewIdentityShape
@@ -433,10 +440,11 @@ server.registerTool('web_interact', {
 server.registerTool('procedure_run', {
   title: 'Run Verified Procedure',
   description:
-    'Run one registered bounded local procedure. Registered ids are verified_workspace_artifact_v1, windows_case_update_v1, launch_independent_review_v1, submit_independent_review_result_v1 and reconcile_independent_review_result_v1. Reviewer launch accepts only exact review identity and currently ABSTAINS before browser dispatch while reviewer authority is unqualified; it never returns review_run_id. Submit accepts only the private review_run_id plus REVIEW_RESULT_V1 text. Reconcile accepts exact review identity plus optional fresh manual REVIEW_RESULT_V1. No PID, HWND, URL, prompt, path, command, Python, backend, GitHub credential or generic tool selector is accepted.',
+    'Run one registered bounded local procedure. Registered ids are verified_workspace_artifact_v1, windows_case_update_v1, platform_update_v1, launch_independent_review_v1, submit_independent_review_result_v1 and reconcile_independent_review_result_v1. platform_update_v1 accepts only check, request_update or status against the installed official-main updater and never accepts a repository, branch, path or command. Reviewer launch accepts only exact review identity and currently ABSTAINS before browser dispatch while reviewer authority is unqualified; it never returns review_run_id. Submit accepts only the private review_run_id plus REVIEW_RESULT_V1 text. Reconcile accepts exact review identity plus optional fresh manual REVIEW_RESULT_V1. No PID, HWND, URL, prompt, path, command, Python, backend, GitHub credential or generic tool selector is accepted.',
   inputSchema: z.union([
     workspaceArtifactProcedureSchema,
     windowsCaseProcedureSchema,
+    platformUpdateProcedureSchema,
     reviewLaunchProcedureSchema,
     reviewSubmitProcedureSchema,
     reviewReconcileProcedureSchema
