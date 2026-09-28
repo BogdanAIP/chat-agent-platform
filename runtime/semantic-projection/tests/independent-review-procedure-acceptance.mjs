@@ -69,12 +69,13 @@ try {
   assert(procedure, 'procedure_run missing');
 
   const variants = variantsOf(procedure.inputSchema);
-  assert.equal(variants.length, 5, 'procedure_run must expose exactly five registered procedure schemas');
+  assert.equal(variants.length, 6, 'procedure_run must expose exactly six registered procedure schemas');
   const byProcedure = new Map(variants.map(variant => [procedureLiteral(variant), variant]));
   assert.deepEqual(
     [...byProcedure.keys()].sort(),
     [
       'launch_independent_review_v1',
+      'platform_update_v1',
       'reconcile_independent_review_result_v1',
       'submit_independent_review_result_v1',
       'verified_workspace_artifact_v1',
