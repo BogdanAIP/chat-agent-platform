@@ -106,6 +106,8 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         self.assertIn("server.registerTool('procedure_run'", source)
         self.assertIn("z.literal('verified_workspace_artifact_v1')", source)
         self.assertIn("z.literal(WINDOWS_CASE_PROCEDURE)", source)
+        self.assertIn("z.literal(PLATFORM_UPDATE_PROCEDURE)", source)
+        self.assertIn("action: z.enum(['check', 'request_update', 'status'])", source)
         self.assertIn("z.union([", source)
         self.assertIn("resume_task_id", source)
         self.assertIn("case_id", source)
@@ -121,6 +123,9 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
             "request.command",
             "request.path",
             "request.backend",
+            "request.repo",
+            "request.repository",
+            "request.branch",
             "shell: true",
             "eval(",
             "exec(",
