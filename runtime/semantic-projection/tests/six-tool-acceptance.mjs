@@ -36,7 +36,7 @@ function closedSchemaVariants(schema) {
     : Array.isArray(schema?.oneOf)
       ? schema.oneOf
       : [schema];
-  assert.equal(variants.length, 5, 'procedure_run must expose exactly five registered closed procedure schemas');
+  assert.equal(variants.length, 6, 'procedure_run must expose exactly six registered closed procedure schemas');
   return variants;
 }
 
@@ -102,6 +102,7 @@ try {
     [...byProcedure.keys()].sort(),
     [
       'launch_independent_review_v1',
+      'platform_update_v1',
       'reconcile_independent_review_result_v1',
       'submit_independent_review_result_v1',
       'verified_workspace_artifact_v1',
@@ -112,11 +113,13 @@ try {
 
   const workspaceProcedure = byProcedure.get('verified_workspace_artifact_v1');
   const windowsProcedure = byProcedure.get('windows_case_update_v1');
+  const platformUpdateProcedure = byProcedure.get('platform_update_v1');
   const reviewLaunchProcedure = byProcedure.get('launch_independent_review_v1');
   const reviewSubmitProcedure = byProcedure.get('submit_independent_review_result_v1');
   const reviewReconcileProcedure = byProcedure.get('reconcile_independent_review_result_v1');
   assert(workspaceProcedure, 'verified_workspace_artifact_v1 schema missing');
   assert(windowsProcedure, 'windows_case_update_v1 schema missing');
+  assert(platformUpdateProcedure, 'platform_update_v1 schema missing');
   assert(reviewLaunchProcedure, 'launch_independent_review_v1 schema missing');
   assert(reviewSubmitProcedure, 'submit_independent_review_result_v1 schema missing');
   assert(reviewReconcileProcedure, 'reconcile_independent_review_result_v1 schema missing');
@@ -128,6 +131,15 @@ try {
   assert.deepEqual(
     Object.keys(windowsProcedure.properties ?? {}).sort(),
     ['case_id', 'note', 'procedure', 'status'],
+  );
+  assert.deepEqual(
+    Object.keys(platformUpdateProcedure.properties ?? {}).sort(),
+    ['action', 'procedure'],
+  );
+  assert.deepEqual(
+    platformUpdateProcedure.properties?.action?.enum,
+    ['check', 'request_update', 'status'],
+    'platform_update_v1 actions must remain an exact closed enum',
   );
   assert.deepEqual(
     Object.keys(reviewLaunchProcedure.properties ?? {}).sort(),
