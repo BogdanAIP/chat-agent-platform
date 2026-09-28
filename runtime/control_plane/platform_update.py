@@ -125,9 +125,10 @@ def _check(paths: dict[str, Path]) -> dict[str, Any]:
 def _request_update(paths: dict[str, Path]) -> dict[str, Any]:
     updater = _require_updater(paths["updater"])
     creationflags = (
-        getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-        | getattr(subprocess, "DETACHED_PROCESS", 0)
+        getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+        | getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+        | getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000)
     )
     process = subprocess.Popen(
         _fixed_argv(updater, "Update"),
