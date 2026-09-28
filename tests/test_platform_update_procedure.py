@@ -124,6 +124,10 @@ class PlatformUpdateProcedureTests(unittest.TestCase):
         self.assertIs(popen.call_args.kwargs["close_fds"], True)
         self.assertIs(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
         self.assertIs(popen.call_args.kwargs["stderr"], subprocess.DEVNULL)
+        flags = popen.call_args.kwargs["creationflags"]
+        self.assertNotEqual(0, flags & getattr(subprocess, "DETACHED_PROCESS", 0x00000008))
+        self.assertNotEqual(0, flags & getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200))
+        self.assertNotEqual(0, flags & getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000))
 
     def test_status_reads_only_fixed_bounded_state_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
