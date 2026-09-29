@@ -448,3 +448,181 @@ reconciliation deadline rather than permitting indefinite `pending`.
 
 This evidence is candidate-specific. Any subsequent material commit requires the
 normal exact-HEAD test/CI/review reconciliation before merge.
+
+
+## Stage Research re-entry — updater-owned request correlation and target continuity
+
+This re-entry is required by `.agents/skills/stage-research/SKILL.md` v1.2 after
+independent review exposed two failure classes that invalidated the previous
+`NARROW` decision: concurrent request/result ownership and crash/restart loss of the
+trampoline correlation owner. The previous instruction **"Do not change the canonical
+updater" is superseded by the fresh decision below only for the bounded internal
+request-correlation refinement described here.**
+
+### Stage goal
+
+Keep `platform_update_v1` a closed, fixed-official-main procedure while making
+`request_update -> status(request_id)` truthful across:
+
+- two near-concurrent accepted update requests;
+- caller/CAP/OpenResearch teardown after acceptance;
+- abrupt loss of the detached trampoline after updater launch;
+- CAP restart before the secondary receipt is persisted;
+- a future official-main update that would otherwise remove the very
+  `platform_update_v1/status(request_id)` surface needed for reconciliation.
+
+Generic shell, repository, branch, path, executable, command, environment or arbitrary
+update-target authority remains out of scope.
+
+### Current project baseline and observed failures
+
+The existing updater remains the sole installation/effect owner and remains fixed to
+`BogdanAIP/chat-agent-platform/main`. The semantic Control Plane remains the public
+authority boundary.
+
+Two failures are now direct project evidence:
+
+1. on target Windows, two accepted no-op requests against `7fda819...` physically
+   reproduced a false `updater_result_not_correlated` result because both trampolines
+   consumed one global `platform-update-result.json`;
+2. independent review showed that if the trampoline disappeared after durable
+   acceptance but before its receipt write, no surviving component could safely
+   terminalize that request, so `status(request_id)` could remain pending forever.
+
+### Architecture lineage
+
+- **Capability authorization / consequence policy — KEEP.** The deterministic project
+  Control Plane still owns admission. The public request schema remains closed and
+  cannot select an updater implementation or target.
+- **Existing fixed official-main updater — REFINE, not replace.** The updater already
+  owns the actual installation side effect and its mutex. It gains only an internally
+  generated request nonce and one request-specific terminal-result write. No second
+  executor or update service is introduced.
+- **Local durable-state mechanics — REUSE_MORE.** Continue using the project's bounded
+  sibling-temp/replace JSON persistence pattern and existing updater mutex rather than
+  introducing SQLite, a WAL service, event bus, or generic journal.
+- **Transition/completion authority — KEEP.** Updater/process exit is evidence for this
+  bounded operation only; it does not replace project Verification Kernel or Finish
+  Gate authority elsewhere.
+
+No canonical reuse-baseline owner is replaced. The refinement keeps previously
+project-owned authority project-owned, so no `ARCHITECTURE_REUSE_BASELINE.md` role
+assignment changes.
+
+### Architecture primitives and engineering domains
+
+The refined mechanism uses only:
+
+1. **Opaque request/idempotency token** — request correlation and duplicate-safe API
+   design. AWS documents client tokens specifically for mutating asynchronous
+   operations whose completion can be ambiguous to callers:
+   https://docs.aws.amazon.com/ec2/latest/devguide/ec2-api-idempotency.html
+2. **Request-owned durable terminal record** — local crash/restart reconciliation.
+   The request nonce names a bounded terminal record written by the component that
+   owns the physical update effect.
+3. **Reconciliation from durable observed state** — controller/reconciliation design.
+   Kubernetes controller guidance emphasizes idempotent reconciliation from current
+   state rather than assuming immediate read-after-write freshness:
+   https://kubernetes.io/blog/2026/07/29/controller-runtime-cache-explained/
+4. **Atomic replacement of bounded state files** — filesystem persistence. Windows
+   documents replace-file semantics as a single replacement operation:
+   https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilea
+
+These sources support the mechanism classes; project-specific correctness still
+depends on the failure matrix and target-Windows falsification below.
+
+### Alternatives considered
+
+| Approach | Owner | Crash/concurrency behavior | Decision |
+|---|---|---|---|
+| Keep one global result and correlate by PID/time after child exit | trampoline + shared global file | physically failed: a second serialized updater may delete/replace the first result before its trampoline reads it | **REJECT** |
+| Serialize admission so only one request may be accepted until receipt completion | admission layer | removes the observed A/B race but still leaves accepted state dependent on one trampoline owner; unnecessary caller-level serialization | **REJECT** |
+| Capture only each updater's stdout in its trampoline | trampoline | fixes cross-request result mixing but still loses terminal ownership if the trampoline crashes after the updater effect | **REJECT** |
+| Updater-owned `<request_id>.updater.json` plus status reconciliation | updater/effect owner | concurrent results are disjoint; terminal evidence survives trampoline/CAP restart; status can recover or fail closed after a bounded deadline | **SELECT** |
+
+### Failure/crash matrix
+
+| Boundary | Durable authoritative state | Allowed recovery |
+|---|---|---|
+| before request record | none | request may be retried as a new request |
+| request record durable, trampoline not launched | request only | pending only until bounded reconciliation deadline, then `manual_recovery_required` |
+| updater launched, no terminal result yet | request only | remain pending; do not infer success from process absence |
+| updater terminal result durable, trampoline alive | request + request-specific updater result | trampoline validates nonce/PID/time and writes secondary receipt |
+| updater terminal result durable, trampoline lost | request + request-specific updater result | `status(request_id)` validates the same durable result and synthesizes receipt with `recovered_by_status=true` |
+| global legacy result overwritten by another request | request-specific updater result remains authoritative | ignore global file for request reconciliation |
+| no receipt and no safely correlated updater result after deadline | request only | `manual_recovery_required`; do not claim success or retry automatically |
+| future target lacks procedure/dispatch/schema/install continuity | current installed runtime still authoritative | block update before quiesce/bootstrap |
+
+No release-critical cell is intentionally left with indefinite `pending` or inferred
+success.
+
+### Failure shields
+
+- `RequestId` is generated internally and validated as 32 lowercase hex characters.
+- It is accepted by the canonical updater only with internal `Action=Update`.
+- The updater writes `<request_id>.updater.json` **before** the shared legacy result.
+- Request reconciliation reads only the request-specific result, never the global
+  result.
+- `status(request_id)` may synthesize a receipt only when request id, action,
+  updater PID type and completion time validate against the durable request.
+- A bounded reconciliation deadline terminates ambiguous no-evidence state as
+  `manual_recovery_required`.
+- Target continuity qualification must verify that the future target contains
+  structurally valid Python procedure/CLI dispatch, the closed semantic
+  `check/request_update/status` schema, request-correlated status rules, and bootstrap
+  packaging for those assets before the current runtime is quiesced.
+
+### Problem evidence vs solution evidence
+
+**Problem evidence:** the two-request race was physically reproduced on the target
+Windows host; independent review separately demonstrated the lost-trampoline
+indefinite-pending state and future-target continuity gap.
+
+**Solution evidence:** request/idempotency tokens are an established mechanism for
+asynchronous mutating operations; durable per-operation state is owned here by the
+component that performs the effect; reconciliation uses that durable operation-specific
+state rather than transient caller state; atomic replacement preserves bounded local
+state updates. The refined target-Windows concurrent probe demonstrates that two
+distinct requests now both reconcile independently.
+
+### Verification plan
+
+The refined design must pass all of the following on one immutable final HEAD:
+
+1. focused procedure/updater tests including wrong shared-global-result injection;
+2. recovery from a missing trampoline receipt using the updater-owned
+   `<request_id>.updater.json`;
+3. bounded `manual_recovery_required` when safe terminal evidence never appears;
+4. behavioral target-continuity probes that reject a target missing
+   `platform_update.py` or the semantic `status(request_id)` contract;
+5. target-Windows installed-layout `check -> request_update -> status(request_id)`;
+6. target-Windows two-request concurrency with both requests independently correlated;
+7. hosted CI/security/Windows acceptance;
+8. a fresh ordinary-ChatGPT independent semantic review of the exact final HEAD.
+
+Any new persistence owner, generic target selector, automatic retry after ambiguous
+state, or new authority surface invalidates this decision and requires re-entry again.
+
+### Complexity budget
+
+The refinement adds one optional internal updater parameter, one request-specific
+terminal file per bounded request, status recovery logic, and target-continuity
+qualification. It replaces dependence on a racy shared-result read and avoids a new
+database, daemon, event bus, generic task framework or second updater.
+
+### Fresh architecture decision — NARROW
+
+**NARROW. Production implementation may resume only for this bounded refinement:**
+
+- keep the fixed official-main updater as sole installation authority;
+- permit only internally generated `RequestId` to flow into updater
+  `Action=Update`;
+- let that updater durably own `<request_id>.updater.json`;
+- let `status(request_id)` recover from that exact record or terminate ambiguity as
+  `manual_recovery_required`;
+- strengthen future-target continuity before quiesce so the remote update/status
+  capability cannot silently remove itself.
+
+Do **not** add repository/branch/path/executable/command selectors, a generic shell,
+automatic retry of ambiguous update effects, a new persistence service, or broader
+computer-control authority under this decision.

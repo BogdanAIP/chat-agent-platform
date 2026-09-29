@@ -164,6 +164,136 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
             self.tray_update,
         )
 
+    def test_target_continuity_gate_covers_remote_procedure_runtime(self) -> None:
+        contract = self.updater.split(
+            "function Test-CapTargetPlatformUpdateProcedureContract",
+            1,
+        )[1].split("function Test-CapTargetSelfUpdateContract", 1)[0]
+        for marker in (
+            "runtime\\control_plane\\platform_update.py",
+            "runtime\\control_plane\\cli.py",
+            "runtime\\semantic-projection\\bin\\semantic-control-plane-projection.mjs",
+            "scripts\\bootstrap-manager-runtime.ps1",
+            "ast.parse",
+            'PROCEDURE_ID") != "platform_update_v1"',
+            '{"check", "request_update", "status"}',
+            "PLATFORM_UPDATE_PROCEDURE_ID",
+            "run_platform_update",
+            "nodeCommand.Source --check",
+            "platform_update_v1 status requires request_id",
+            "request_id is valid only for platform_update_v1 status",
+            "'platform_update.py'",
+            "'bin/semantic-control-plane-projection.mjs'",
+        ):
+            self.assertIn(marker, contract)
+
+    @unittest.skipUnless(
+        os.name == "nt"
+        and shutil.which("pwsh")
+        and (shutil.which("python") or shutil.which("python.exe"))
+        and (shutil.which("node") or shutil.which("node.exe")),
+        "Windows pwsh/python/node are required for target continuity probe",
+    )
+    def test_target_continuity_probe_rejects_missing_runtime_or_semantic_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "target"
+            for relative in (
+                "scripts/bootstrap-chat-platform.ps1",
+                "scripts/chat-platform-tray.ps1",
+                "scripts/chat-platform-tray-update.ps1",
+                "scripts/chat-platform-update-core.ps1",
+                "scripts/chat-platform-update.ps1",
+                "scripts/bootstrap-manager-runtime.ps1",
+                "runtime/control_plane/platform_update.py",
+                "runtime/control_plane/cli.py",
+                "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs",
+            ):
+                source = ROOT / relative
+                destination = target / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
+
+            harness = root / "harness"
+            harness.mkdir()
+            shutil.copy2(CORE, harness / CORE.name)
+            updater_text = UPDATER.read_text(encoding="utf-8")
+            prefix = updater_text.split("function Save-CapDecisionState", 1)[0]
+            probe = harness / "target-contract-probe.ps1"
+            probe.write_text(
+                prefix
+                + "\n"
+                + "if (Test-CapTargetSelfUpdateContract -WorktreePath "
+                + ps_quote(target)
+                + ") { exit 0 } else { exit 4 }\n",
+                encoding="utf-8",
+            )
+
+            env = os.environ.copy()
+            env["LOCALAPPDATA"] = str(root / "localappdata")
+            pwsh = shutil.which("pwsh") or "pwsh"
+
+            def probe_target() -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [
+                        pwsh,
+                        "-NoLogo",
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        str(probe),
+                        "-Action",
+                        "Check",
+                    ],
+                    env=env,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )
+
+            valid = probe_target()
+            self.assertEqual(
+                valid.returncode,
+                0,
+                msg=f"stdout={valid.stdout}\nstderr={valid.stderr}",
+            )
+
+            platform_path = target / "runtime/control_plane/platform_update.py"
+            platform_bytes = platform_path.read_bytes()
+            platform_path.unlink()
+            missing_runtime = probe_target()
+            self.assertEqual(
+                missing_runtime.returncode,
+                4,
+                msg=f"stdout={missing_runtime.stdout}\nstderr={missing_runtime.stderr}",
+            )
+            platform_path.write_bytes(platform_bytes)
+
+            semantic_path = (
+                target
+                / "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs"
+            )
+            semantic = semantic_path.read_text(encoding="utf-8")
+            self.assertIn("platform_update_v1 status requires request_id", semantic)
+            semantic_path.write_text(
+                semantic.replace(
+                    "platform_update_v1 status requires request_id",
+                    "platform update status request id removed",
+                ),
+                encoding="utf-8",
+            )
+            missing_status_contract = probe_target()
+            self.assertEqual(
+                missing_status_contract.returncode,
+                4,
+                msg=(
+                    f"stdout={missing_status_contract.stdout}\n"
+                    f"stderr={missing_status_contract.stderr}"
+                ),
+            )
+
     def test_invalid_persistent_desired_state_fails_closed_before_quiesce(self) -> None:
         desired = self.updater.split("function Get-CapDesiredRunning", 1)[1]
         desired = desired.split("function Invoke-CapPwshProcess", 1)[0]
@@ -467,7 +597,22 @@ exit 92
             ),
             encoding="utf-8",
         )
-        run(["git", "add", "scripts"], cwd=self.source)
+
+        shutil.copy2(
+            ROOT / "scripts/bootstrap-manager-runtime.ps1",
+            scripts / "bootstrap-manager-runtime.ps1",
+        )
+        for relative in (
+            "runtime/control_plane/platform_update.py",
+            "runtime/control_plane/cli.py",
+            "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs",
+        ):
+            source = ROOT / relative
+            destination = self.source / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+
+        run(["git", "add", "scripts", "runtime"], cwd=self.source)
         run(["git", "commit", "-m", "target with self-update contract"], cwd=self.source)
         target = run(["git", "rev-parse", "HEAD"], cwd=self.source)
         run(["git", "push", "origin", "main"], cwd=self.source)

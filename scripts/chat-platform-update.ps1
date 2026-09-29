@@ -176,6 +176,195 @@ function Invoke-CapPwshProcess {
     }
 }
 
+function Test-CapTargetPlatformUpdateProcedureContract {
+    param([Parameter(Mandatory)] [string]$WorktreePath)
+
+    $platformPath = Join-Path $WorktreePath 'runtime\control_plane\platform_update.py'
+    $cliPath = Join-Path $WorktreePath 'runtime\control_plane\cli.py'
+    $semanticPath = Join-Path $WorktreePath 'runtime\semantic-projection\bin\semantic-control-plane-projection.mjs'
+    $bootstrapManagerPath = Join-Path $WorktreePath 'scripts\bootstrap-manager-runtime.ps1'
+
+    foreach ($path in @($platformPath, $cliPath, $semanticPath, $bootstrapManagerPath)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            return $false
+        }
+    }
+
+    $pythonCommand = Get-Command 'python.exe' -ErrorAction SilentlyContinue
+    if ($null -eq $pythonCommand) {
+        $pythonCommand = Get-Command 'python' -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $pythonCommand) {
+        return $false
+    }
+
+    $pythonValidator = @'
+import ast
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+platform_path = root / "runtime" / "control_plane" / "platform_update.py"
+cli_path = root / "runtime" / "control_plane" / "cli.py"
+
+def parse(path):
+    return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+def module_constant(tree, name):
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == name:
+                    if isinstance(node.value, ast.Constant):
+                        return node.value.value
+    return None
+
+platform_tree = parse(platform_path)
+if module_constant(platform_tree, "PROCEDURE_ID") != "platform_update_v1":
+    raise SystemExit(10)
+
+platform_functions = {
+    node.name: node
+    for node in platform_tree.body
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+}
+for required in (
+    "_request_update",
+    "_status",
+    "_updater_result_path",
+    "_correlated_updater_result",
+    "run_platform_update",
+):
+    if required not in platform_functions:
+        raise SystemExit(11)
+
+run_function = platform_functions["run_platform_update"]
+action_sets = []
+for node in ast.walk(run_function):
+    if isinstance(node, ast.Set):
+        values = {
+            item.value
+            for item in node.elts
+            if isinstance(item, ast.Constant) and isinstance(item.value, str)
+        }
+        if values:
+            action_sets.append(values)
+if {"check", "request_update", "status"} not in action_sets:
+    raise SystemExit(12)
+
+platform_strings = {
+    node.value
+    for node in ast.walk(platform_tree)
+    if isinstance(node, ast.Constant) and isinstance(node.value, str)
+}
+for required in (
+    "manual_recovery_required",
+    "request_specific_updater_result_unavailable",
+):
+    if required not in platform_strings:
+        raise SystemExit(13)
+
+cli_tree = parse(cli_path)
+imports = [
+    node
+    for node in cli_tree.body
+    if isinstance(node, ast.ImportFrom)
+    and node.module == "runtime.control_plane.platform_update"
+]
+if len(imports) != 1:
+    raise SystemExit(20)
+imported = {
+    alias.asname or alias.name
+    for alias in imports[0].names
+}
+if "PLATFORM_UPDATE_PROCEDURE_ID" not in imported or "run_platform_update" not in imported:
+    raise SystemExit(21)
+
+dispatch = next(
+    (
+        node
+        for node in cli_tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_dispatch_registered_procedure"
+    ),
+    None,
+)
+if dispatch is None:
+    raise SystemExit(22)
+
+has_platform_compare = False
+has_platform_call = False
+for node in ast.walk(dispatch):
+    if isinstance(node, ast.Compare):
+        names = {
+            child.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Name)
+        }
+        if "PLATFORM_UPDATE_PROCEDURE_ID" in names and "procedure" in names:
+            has_platform_compare = True
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "run_platform_update"
+    ):
+        has_platform_call = True
+if not has_platform_compare or not has_platform_call:
+    raise SystemExit(23)
+'@
+
+    & $pythonCommand.Source -c $pythonValidator $WorktreePath *> $null
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    $nodeCommand = Get-Command 'node.exe' -ErrorAction SilentlyContinue
+    if ($null -eq $nodeCommand) {
+        $nodeCommand = Get-Command 'node' -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $nodeCommand) {
+        return $false
+    }
+    & $nodeCommand.Source --check $semanticPath *> $null
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    try {
+        $semanticSource = Get-Content -LiteralPath $semanticPath -Raw -Encoding utf8 -ErrorAction Stop
+        $bootstrapManagerSource = Get-Content -LiteralPath $bootstrapManagerPath -Raw -Encoding utf8 -ErrorAction Stop
+    }
+    catch {
+        return $false
+    }
+
+    foreach ($marker in @(
+        "const PLATFORM_UPDATE_PROCEDURE = 'platform_update_v1';",
+        "action: z.enum(['check', 'request_update', 'status'])",
+        'platform_update_v1 status requires request_id',
+        'request_id is valid only for platform_update_v1 status',
+        'platformUpdateProcedureSchema'
+    )) {
+        if (-not $semanticSource.Contains($marker)) {
+            return $false
+        }
+    }
+
+    foreach ($marker in @(
+        "'platform_update.py'",
+        "'cli.py'",
+        "'bin/semantic-control-plane-projection.mjs'",
+        'Assert-ChatInstalledSixToolSemanticRuntime'
+    )) {
+        if (-not $bootstrapManagerSource.Contains($marker)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+
 function Test-CapTargetSelfUpdateContract {
     param([Parameter(Mandatory)] [string]$WorktreePath)
 
@@ -250,8 +439,13 @@ function Test-CapTargetSelfUpdateContract {
         }
     }
 
+    if (-not (Test-CapTargetPlatformUpdateProcedureContract -WorktreePath $WorktreePath)) {
+        return $false
+    }
+
     return $true
 }
+
 
 function Save-CapDecisionState {
     param(
