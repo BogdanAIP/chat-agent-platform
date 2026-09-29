@@ -96,7 +96,7 @@ class PlatformUpdateProcedureTests(unittest.TestCase):
             local = self._layout(Path(temporary))
             with (
                 patch.object(platform_update.os, "name", "nt"),
-                patch.object(platform_update.shutil, "which", return_value=r"C:\Program Files\PowerShell\7\pwsh.exe"),
+                patch.object(platform_update, "_python", return_value=r"C:\Python\python.exe"),
                 patch.object(platform_update.subprocess, "Popen", return_value=process) as popen,
             ):
                 result = platform_update.run_platform_update(
@@ -119,7 +119,10 @@ class PlatformUpdateProcedureTests(unittest.TestCase):
             result,
         )
         argv = popen.call_args.args[0]
-        self.assertEqual(["-Action", "Update"], argv[-2:])
+        self.assertEqual(r"C:\Python\python.exe", argv[0])
+        self.assertTrue(argv[1].endswith("platform_update.py"))
+        self.assertEqual(platform_update._UPDATE_CHILD_FLAG, argv[-1])
+        self.assertNotIn("-Action", argv)
         self.assertIs(popen.call_args.kwargs["shell"], False)
         self.assertIs(popen.call_args.kwargs["close_fds"], True)
         self.assertIs(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
@@ -128,6 +131,26 @@ class PlatformUpdateProcedureTests(unittest.TestCase):
         self.assertNotEqual(0, flags & getattr(subprocess, "DETACHED_PROCESS", 0x00000008))
         self.assertNotEqual(0, flags & getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200))
         self.assertNotEqual(0, flags & getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000))
+
+    def test_trampoline_runs_only_installed_updater_update_action(self) -> None:
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        with tempfile.TemporaryDirectory() as temporary:
+            local = self._layout(Path(temporary))
+            with (
+                patch.object(platform_update.os, "name", "nt"),
+                patch.object(platform_update.shutil, "which", return_value=r"C:\Program Files\PowerShell\7\pwsh.exe"),
+                patch.object(platform_update.subprocess, "run", return_value=completed) as run,
+            ):
+                code = platform_update._run_installed_updater_child(local_app_data=local)
+
+        self.assertEqual(0, code)
+        argv = run.call_args.args[0]
+        self.assertEqual(r"C:\Program Files\PowerShell\7\pwsh.exe", argv[0])
+        self.assertEqual(["-Action", "Update"], argv[-2:])
+        self.assertIs(run.call_args.kwargs["shell"], False)
+        self.assertIs(run.call_args.kwargs["close_fds"], True)
+        self.assertIs(run.call_args.kwargs["stdout"], subprocess.DEVNULL)
+        self.assertIs(run.call_args.kwargs["stderr"], subprocess.DEVNULL)
 
     def test_status_reads_only_fixed_bounded_state_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
