@@ -249,3 +249,61 @@ status `current`, and completion time `2026-09-29T04:13:15.9253650+00:00`.
 The parent OpenResearch run had already exited before reconciliation. This is direct
 target-machine evidence that the trampoline survives caller teardown and that updater
 state/result ownership remains with the existing updater.
+
+
+## Stage Research re-entry — request correlation and trampoline lifecycle
+
+Research re-entry date: 2026-09-29.
+
+Trigger. Target-Windows probing falsified the original direct-PowerShell
+process-containment assumption and introduced a breakaway Python trampoline.
+Independent exact-head review then found that the original status contract
+could misattribute a stale global updater result to a newly accepted
+request_update. Both are material lifecycle and recovery changes, so the
+earlier NARROW decision is not sufficient for the final architecture.
+
+Fresh evidence and failure class. The accepted tray adapter already avoids
+stale updater results by correlating the direct updater PID and a start-time
+lower bound. The global updater result cannot itself carry a caller-generated
+nonce without widening the accepted updater contract. Therefore the smallest
+closed adaptation is to keep the updater unchanged and make the internal
+breakaway trampoline the correlation owner. request_update generates an opaque
+128-bit request id and durably records its acceptance time under the fixed CAP
+state directory before launch. The trampoline receives only that internally
+generated id, launches only the installed official-main updater, waits for the
+exact child process, then accepts the canonical updater result only when its
+action is update, its process_id equals that exact child PID, and its
+completed_at is not earlier than the request acceptance time. It writes a
+request-specific bounded terminal receipt. status requires the opaque request
+id and reads only that request record and receipt; it never treats an unrelated
+global result as the request outcome.
+
+Authority. The public inventory remains six tools. No repository, branch,
+path, executable, environment, shell, PID, HWND or backend selector is added.
+The new request_id is a fixed-format read and reconciliation selector for a
+procedure-created record, not execution authority. Request history is bounded
+to 128 accepted records and admission fails closed at the bound.
+
+Revised failure matrix.
+
+| Boundary | Durable request evidence | Possible effect | Reconciliation |
+|---|---|---|---|
+| before request record | none | none | return error |
+| record written, trampoline launch fails | request record may briefly exist | none | launch fails and record is removed |
+| trampoline accepted, before updater launch | request record | none | status(request_id) is pending |
+| updater mutex busy or no new canonical result | request record plus request-specific error receipt | none from this updater | stale global result is rejected by child PID and time correlation |
+| updater runs and caller or CAP disconnects | request record | update may occur | breakaway trampoline survives and writes request-specific receipt |
+| updater result PID, action or time mismatch | request record plus error receipt | unknown external updater activity | fail closed; no success attribution |
+| matching updater terminal result | request record plus correlated receipt | canonical updater outcome recorded | status(request_id) returns only the matching receipt |
+| repeated status | same fixed files | no new effect | idempotent read |
+
+Fresh decision — NARROW. Proceed only with the request-specific correlation
+adapter above, retaining the Python breakaway trampoline because target-Windows
+evidence falsified direct PowerShell survival. Do not change the canonical
+updater or expose generic process or shell authority. Before merge, re-run
+focused and hosted tests, then install the exact candidate on the target
+Windows host and execute the real ordinary-Chat to Secure MCP Tunnel to
+installed semantic projection to procedure_run path for check, request_update,
+caller or runtime teardown or reconnect as applicable, and status(request_id).
+OpenResearch execution remains bootstrap and qualification support and is not
+a substitute for that final production-path gate.

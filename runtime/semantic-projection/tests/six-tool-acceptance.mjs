@@ -134,12 +134,16 @@ try {
   );
   assert.deepEqual(
     Object.keys(platformUpdateProcedure.properties ?? {}).sort(),
-    ['action', 'procedure'],
+    ['action', 'procedure', 'request_id'],
   );
   assert.deepEqual(
     platformUpdateProcedure.properties?.action?.enum,
     ['check', 'request_update', 'status'],
     'platform_update_v1 actions must remain an exact closed enum',
+  );
+  assert(
+    platformUpdateProcedure.properties?.request_id,
+    'platform_update_v1 must expose bounded request correlation for status',
   );
   assert.deepEqual(
     Object.keys(reviewLaunchProcedure.properties ?? {}).sort(),

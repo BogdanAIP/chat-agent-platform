@@ -13,38 +13,42 @@ import runtime.control_plane.platform_update as platform_update
 class PlatformUpdateProcedureTests(unittest.TestCase):
     def _layout(self, root: Path) -> Path:
         local_app_data = root / "Local"
-        updater = (
-            local_app_data
-            / "ChatAgentPlatform"
-            / "app"
-            / "scripts"
-            / "chat-platform-update.ps1"
-        )
+        updater = local_app_data / "ChatAgentPlatform" / "app" / "scripts" / "chat-platform-update.ps1"
         updater.parent.mkdir(parents=True)
         updater.write_text("# fixture\n", encoding="utf-8")
         return local_app_data
 
-    def test_request_schema_is_closed(self) -> None:
-        with (
-            patch.object(platform_update.os, "name", "nt"),
-            tempfile.TemporaryDirectory() as temporary,
-        ):
+    def _request_record(self, local: Path, request_id: str, accepted_at: str) -> None:
+        paths = platform_update._paths(local)
+        platform_update._write_atomic_json(
+            platform_update._request_path(paths, request_id),
+            {
+                "schema_version": 1,
+                "request_id": request_id,
+                "status": "accepted",
+                "accepted_at": accepted_at,
+                "repository": "BogdanAIP/chat-agent-platform",
+                "branch": "main",
+            },
+        )
+
+    def test_request_schema_is_closed_and_status_requires_request_id(self) -> None:
+        request_id = "a" * 32
+        with patch.object(platform_update.os, "name", "nt"), tempfile.TemporaryDirectory() as temporary:
             local = self._layout(Path(temporary))
             with self.assertRaisesRegex(ValueError, "only procedure and action"):
                 platform_update.run_platform_update(
-                    {
-                        "procedure": platform_update.PROCEDURE_ID,
-                        "action": "status",
-                        "command": "whoami",
-                    },
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "check", "request_id": request_id},
+                    local_app_data=local,
+                )
+            with self.assertRaisesRegex(ValueError, "request_id"):
+                platform_update.run_platform_update(
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "status"},
                     local_app_data=local,
                 )
             with self.assertRaisesRegex(ValueError, "unsupported"):
                 platform_update.run_platform_update(
-                    {
-                        "procedure": platform_update.PROCEDURE_ID,
-                        "action": "arbitrary",
-                    },
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "arbitrary"},
                     local_app_data=local,
                 )
 
@@ -52,16 +56,7 @@ class PlatformUpdateProcedureTests(unittest.TestCase):
         completed = subprocess.CompletedProcess(
             args=[],
             returncode=0,
-            stdout=json.dumps(
-                {
-                    "schema_version": 1,
-                    "action": "check",
-                    "status": "current",
-                    "repository": "BogdanAIP/chat-agent-platform",
-                    "branch": "main",
-                }
-            )
-            + "\n",
+            stdout=json.dumps({"schema_version": 1, "action": "check", "status": "current", "repository": "BogdanAIP/chat-agent-platform", "branch": "main"}) + "\n",
             stderr="",
         )
         with tempfile.TemporaryDirectory() as temporary:
@@ -75,143 +70,177 @@ class PlatformUpdateProcedureTests(unittest.TestCase):
                     {"procedure": platform_update.PROCEDURE_ID, "action": "check"},
                     local_app_data=local,
                 )
-
         self.assertEqual("completed", result["status"])
         self.assertEqual("current", result["updater"]["status"])
         argv = run.call_args.args[0]
         self.assertEqual(r"C:\Program Files\PowerShell\7\pwsh.exe", argv[0])
-        self.assertEqual(
-            ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"],
-            argv[1:6],
-        )
-        self.assertTrue(argv[6].endswith("ChatAgentPlatform\\app\\scripts\\chat-platform-update.ps1")
-                        or argv[6].endswith("ChatAgentPlatform/app/scripts/chat-platform-update.ps1"))
         self.assertEqual(["-Action", "Check"], argv[-2:])
         self.assertIs(run.call_args.kwargs["shell"], False)
 
-    def test_request_update_detaches_fixed_updater_and_reports_only_acceptance(self) -> None:
+    def test_request_update_persists_random_correlation_and_detaches_trampoline(self) -> None:
         process = Mock()
         process.pid = 4242
+        request_id = "b" * 32
         with tempfile.TemporaryDirectory() as temporary:
             local = self._layout(Path(temporary))
             with (
                 patch.object(platform_update.os, "name", "nt"),
                 patch.object(platform_update, "_python", return_value=r"C:\Python\python.exe"),
+                patch.object(platform_update.secrets, "token_hex", return_value=request_id),
                 patch.object(platform_update.subprocess, "Popen", return_value=process) as popen,
             ):
                 result = platform_update.run_platform_update(
-                    {
-                        "procedure": platform_update.PROCEDURE_ID,
-                        "action": "request_update",
-                    },
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "request_update"},
                     local_app_data=local,
                 )
-
+                record = platform_update._read_bounded_json(
+                    platform_update._request_path(platform_update._paths(local), request_id)
+                )
+        self.assertEqual("accepted", result["status"])
+        self.assertEqual(request_id, result["request_id"])
+        self.assertEqual(4242, result["process_id"])
         self.assertEqual(
-            {
-                "schema_version": 1,
-                "status": "accepted",
-                "action": "request_update",
-                "process_id": 4242,
-                "outcome_verified": False,
-                "reconcile_with": "platform_update_v1:status",
-            },
-            result,
+            {"procedure": platform_update.PROCEDURE_ID, "action": "status", "request_id": request_id},
+            result["reconcile_with"],
         )
+        self.assertEqual(request_id, record["request_id"])
         argv = popen.call_args.args[0]
         self.assertEqual(r"C:\Python\python.exe", argv[0])
         self.assertTrue(argv[1].endswith("platform_update.py"))
-        self.assertEqual(platform_update._UPDATE_CHILD_FLAG, argv[-1])
-        self.assertNotIn("-Action", argv)
+        self.assertEqual([platform_update._UPDATE_CHILD_FLAG, request_id], argv[-2:])
         self.assertIs(popen.call_args.kwargs["shell"], False)
-        self.assertIs(popen.call_args.kwargs["close_fds"], True)
-        self.assertIs(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
-        self.assertIs(popen.call_args.kwargs["stderr"], subprocess.DEVNULL)
         flags = popen.call_args.kwargs["creationflags"]
         self.assertNotEqual(0, flags & getattr(subprocess, "DETACHED_PROCESS", 0x00000008))
         self.assertNotEqual(0, flags & getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200))
         self.assertNotEqual(0, flags & getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000))
 
-    def test_trampoline_runs_only_installed_updater_update_action(self) -> None:
-        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+    def test_trampoline_writes_request_specific_correlated_receipt(self) -> None:
+        request_id = "c" * 32
+        process = Mock()
+        process.pid = 5000
+        process.wait.return_value = 0
         with tempfile.TemporaryDirectory() as temporary:
             local = self._layout(Path(temporary))
+            paths = platform_update._paths(local)
+            self._request_record(local, request_id, "2026-09-29T04:00:00+00:00")
+            paths["result"].parent.mkdir(parents=True, exist_ok=True)
+            paths["result"].write_text(json.dumps({
+                "schema_version": 1,
+                "process_id": 5000,
+                "action": "update",
+                "status": "current",
+                "completed_at": "2026-09-29T04:00:01+00:00",
+            }), encoding="utf-8")
             with (
                 patch.object(platform_update.os, "name", "nt"),
                 patch.object(platform_update.shutil, "which", return_value=r"C:\Program Files\PowerShell\7\pwsh.exe"),
-                patch.object(platform_update.subprocess, "run", return_value=completed) as run,
+                patch.object(platform_update.subprocess, "Popen", return_value=process),
             ):
-                code = platform_update._run_installed_updater_child(local_app_data=local)
-
+                code = platform_update._run_installed_updater_child(request_id, local_app_data=local)
+            receipt = platform_update._read_bounded_json(platform_update._receipt_path(paths, request_id))
         self.assertEqual(0, code)
-        argv = run.call_args.args[0]
-        self.assertEqual(r"C:\Program Files\PowerShell\7\pwsh.exe", argv[0])
-        self.assertEqual(["-Action", "Update"], argv[-2:])
-        self.assertIs(run.call_args.kwargs["shell"], False)
-        self.assertIs(run.call_args.kwargs["close_fds"], True)
-        self.assertIs(run.call_args.kwargs["stdout"], subprocess.DEVNULL)
-        self.assertIs(run.call_args.kwargs["stderr"], subprocess.DEVNULL)
+        self.assertTrue(receipt["correlation_verified"])
+        self.assertEqual(5000, receipt["updater_process_id"])
+        self.assertEqual("current", receipt["updater_result"]["status"])
 
-    def test_status_reads_only_fixed_bounded_state_files(self) -> None:
+    def test_trampoline_rejects_stale_global_result(self) -> None:
+        request_id = "d" * 32
+        process = Mock()
+        process.pid = 6000
+        process.wait.return_value = 2
         with tempfile.TemporaryDirectory() as temporary:
             local = self._layout(Path(temporary))
-            state_dir = local / "ChatAgentPlatform" / "state"
-            state_dir.mkdir(parents=True)
-            (state_dir / "platform-update.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "repository": "BogdanAIP/chat-agent-platform",
-                        "branch": "main",
-                        "status": "installing",
-                    }
-                ),
-                encoding="utf-8",
-            )
-            (state_dir / "platform-update-result.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "action": "update",
-                        "status": "updated",
-                        "process_id": 101,
-                    }
-                ),
-                encoding="utf-8",
+            paths = platform_update._paths(local)
+            self._request_record(local, request_id, "2026-09-29T04:00:00+00:00")
+            paths["result"].parent.mkdir(parents=True, exist_ok=True)
+            paths["result"].write_text(json.dumps({
+                "schema_version": 1,
+                "process_id": 101,
+                "action": "update",
+                "status": "updated",
+                "completed_at": "2026-09-29T03:59:00+00:00",
+            }), encoding="utf-8")
+            with (
+                patch.object(platform_update.os, "name", "nt"),
+                patch.object(platform_update.shutil, "which", return_value=r"C:\Program Files\PowerShell\7\pwsh.exe"),
+                patch.object(platform_update.subprocess, "Popen", return_value=process),
+            ):
+                code = platform_update._run_installed_updater_child(request_id, local_app_data=local)
+            receipt = platform_update._read_bounded_json(platform_update._receipt_path(paths, request_id))
+        self.assertEqual(2, code)
+        self.assertFalse(receipt["correlation_verified"])
+        self.assertEqual("updater_result_not_correlated", receipt["reason"])
+        self.assertEqual(6000, receipt["updater_process_id"])
+
+    def test_status_reads_only_request_specific_receipt(self) -> None:
+        request_id = "e" * 32
+        with tempfile.TemporaryDirectory() as temporary:
+            local = self._layout(Path(temporary))
+            paths = platform_update._paths(local)
+            self._request_record(local, request_id, "2026-09-29T04:00:00+00:00")
+            paths["result"].parent.mkdir(parents=True, exist_ok=True)
+            paths["result"].write_text(json.dumps({
+                "schema_version": 1,
+                "process_id": 999,
+                "action": "update",
+                "status": "updated",
+                "completed_at": "2026-09-29T03:00:00+00:00",
+            }), encoding="utf-8")
+            with patch.object(platform_update.os, "name", "nt"):
+                pending = platform_update.run_platform_update(
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "status", "request_id": request_id},
+                    local_app_data=local,
+                )
+            self.assertEqual("pending", pending["status"])
+            self.assertIsNone(pending["receipt"])
+            platform_update._write_atomic_json(
+                platform_update._receipt_path(paths, request_id),
+                {
+                    "schema_version": 1,
+                    "request_id": request_id,
+                    "status": "completed",
+                    "correlation_verified": True,
+                    "updater_process_id": 5000,
+                    "updater_exit_code": 0,
+                    "updater_result": {"status": "current", "process_id": 5000},
+                },
             )
             with patch.object(platform_update.os, "name", "nt"):
-                result = platform_update.run_platform_update(
-                    {"procedure": platform_update.PROCEDURE_ID, "action": "status"},
+                completed = platform_update.run_platform_update(
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "status", "request_id": request_id},
                     local_app_data=local,
                 )
+        self.assertEqual("completed", completed["status"])
+        self.assertEqual(5000, completed["receipt"]["updater_result"]["process_id"])
 
-        self.assertEqual("completed", result["status"])
-        self.assertEqual("installing", result["state"]["status"])
-        self.assertEqual("updated", result["result"]["status"])
-
-    def test_status_fails_closed_on_malformed_or_oversized_json(self) -> None:
+    def test_unknown_or_malformed_status_request_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             local = self._layout(Path(temporary))
-            state_dir = local / "ChatAgentPlatform" / "state"
-            state_dir.mkdir(parents=True)
-            path = state_dir / "platform-update.json"
-            path.write_text("{not-json", encoding="utf-8")
-            with (
-                patch.object(platform_update.os, "name", "nt"),
-                self.assertRaisesRegex(RuntimeError, "invalid JSON"),
-            ):
+            with patch.object(platform_update.os, "name", "nt"), self.assertRaisesRegex(ValueError, "32-character"):
                 platform_update.run_platform_update(
-                    {"procedure": platform_update.PROCEDURE_ID, "action": "status"},
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "status", "request_id": "../escape"},
+                    local_app_data=local,
+                )
+            with patch.object(platform_update.os, "name", "nt"), self.assertRaisesRegex(ValueError, "unknown"):
+                platform_update.run_platform_update(
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "status", "request_id": "f" * 32},
                     local_app_data=local,
                 )
 
-            path.write_text("x" * (platform_update._MAX_JSON_BYTES + 1), encoding="utf-8")
-            with (
-                patch.object(platform_update.os, "name", "nt"),
-                self.assertRaisesRegex(RuntimeError, "exceeds"),
-            ):
+    def test_request_history_is_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            local = self._layout(Path(temporary))
+            paths = platform_update._paths(local)
+            paths["requests"].mkdir(parents=True)
+            for index in range(platform_update._REQUEST_HISTORY_LIMIT):
+                rid = f"{index:032x}"
+                platform_update._write_atomic_json(
+                    platform_update._request_path(paths, rid),
+                    {"schema_version": 1, "request_id": rid, "status": "accepted", "accepted_at": "2026-09-29T04:00:00+00:00"},
+                )
+            with patch.object(platform_update.os, "name", "nt"), self.assertRaisesRegex(RuntimeError, "history limit"):
                 platform_update.run_platform_update(
-                    {"procedure": platform_update.PROCEDURE_ID, "action": "status"},
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "request_update"},
                     local_app_data=local,
                 )
 

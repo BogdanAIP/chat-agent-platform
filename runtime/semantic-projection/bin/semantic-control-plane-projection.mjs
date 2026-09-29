@@ -33,6 +33,7 @@ const REVIEW_SUBMIT_PROCEDURE = 'submit_independent_review_result_v1';
 const REVIEW_RECONCILE_PROCEDURE = 'reconcile_independent_review_result_v1';
 const TASK_ID_RE = /^[0-9a-f]{32}$/;
 const REVIEW_RUN_ID_RE = /^[0-9a-f]{64}$/;
+const PLATFORM_UPDATE_REQUEST_ID_RE = /^[0-9a-f]{32}$/;
 const REVIEW_SHA_RE = /^[0-9a-f]{40}$/;
 const REVIEW_REPOSITORY_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 const REVIEW_SKILL_VERSION_RE = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
@@ -355,8 +356,16 @@ const windowsCaseProcedureSchema = z.object({
 }).strict();
 const platformUpdateProcedureSchema = z.object({
   procedure: z.literal(PLATFORM_UPDATE_PROCEDURE),
-  action: z.enum(['check', 'request_update', 'status'])
-}).strict();
+  action: z.enum(['check', 'request_update', 'status']),
+  request_id: z.string().regex(PLATFORM_UPDATE_REQUEST_ID_RE).optional()
+}).strict().superRefine((value, ctx) => {
+  if (value.action === 'status' && value.request_id === undefined) {
+    ctx.addIssue({ code: 'custom', message: 'platform_update_v1 status requires request_id' });
+  }
+  if (value.action !== 'status' && value.request_id !== undefined) {
+    ctx.addIssue({ code: 'custom', message: 'request_id is valid only for platform_update_v1 status' });
+  }
+});
 const reviewLaunchProcedureSchema = z.object({
   procedure: z.literal(REVIEW_LAUNCH_PROCEDURE),
   ...reviewIdentityShape
@@ -440,7 +449,7 @@ server.registerTool('web_interact', {
 server.registerTool('procedure_run', {
   title: 'Run Verified Procedure',
   description:
-    'Run one registered bounded local procedure. Registered ids are verified_workspace_artifact_v1, windows_case_update_v1, platform_update_v1, launch_independent_review_v1, submit_independent_review_result_v1 and reconcile_independent_review_result_v1. platform_update_v1 accepts only check, request_update or status against the installed official-main updater and never accepts a repository, branch, path or command. Reviewer launch accepts only exact review identity and currently ABSTAINS before browser dispatch while reviewer authority is unqualified; it never returns review_run_id. Submit accepts only the private review_run_id plus REVIEW_RESULT_V1 text. Reconcile accepts exact review identity plus optional fresh manual REVIEW_RESULT_V1. No PID, HWND, URL, prompt, path, command, Python, backend, GitHub credential or generic tool selector is accepted.',
+    'Run one registered bounded local procedure. Registered ids are verified_workspace_artifact_v1, windows_case_update_v1, platform_update_v1, launch_independent_review_v1, submit_independent_review_result_v1 and reconcile_independent_review_result_v1. platform_update_v1 accepts only check, request_update or request-correlated status against the installed official-main updater; status requires the opaque request_id returned by request_update and never accepts a repository, branch, path or command. Reviewer launch accepts only exact review identity and currently ABSTAINS before browser dispatch while reviewer authority is unqualified; it never returns review_run_id. Submit accepts only the private review_run_id plus REVIEW_RESULT_V1 text. Reconcile accepts exact review identity plus optional fresh manual REVIEW_RESULT_V1. No PID, HWND, URL, prompt, path, command, Python, backend, GitHub credential or generic tool selector is accepted.',
   inputSchema: z.union([
     workspaceArtifactProcedureSchema,
     windowsCaseProcedureSchema,

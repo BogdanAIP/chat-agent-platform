@@ -108,6 +108,8 @@ class Stage263AProcedureSurfaceTests(unittest.TestCase):
         self.assertIn("z.literal(WINDOWS_CASE_PROCEDURE)", source)
         self.assertIn("z.literal(PLATFORM_UPDATE_PROCEDURE)", source)
         self.assertIn("action: z.enum(['check', 'request_update', 'status'])", source)
+        self.assertIn("request_id: z.string().regex(PLATFORM_UPDATE_REQUEST_ID_RE).optional()", source)
+        self.assertIn("platform_update_v1 status requires request_id", source)
         self.assertIn("z.union([", source)
         self.assertIn("resume_task_id", source)
         self.assertIn("case_id", source)
