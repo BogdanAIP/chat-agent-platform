@@ -5,12 +5,14 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 from typing import Any
 
 
 PROCEDURE_ID = "platform_update_v1"
 _MAX_JSON_BYTES = 64 * 1024
 _CHECK_TIMEOUT_SECONDS = 120
+_UPDATE_CHILD_FLAG = "--run-installed-updater"
 
 
 def _local_root(local_app_data: Path | None = None) -> Path:
@@ -122,8 +124,41 @@ def _check(paths: dict[str, Path]) -> dict[str, Any]:
     }
 
 
-def _request_update(paths: dict[str, Path]) -> dict[str, Any]:
+def _python() -> str:
+    executable = Path(sys.executable)
+    if not executable.is_absolute():
+        raise RuntimeError("platform update Python interpreter path is not absolute")
+    return str(executable.resolve())
+
+
+def _trampoline_argv() -> list[str]:
+    return [_python(), str(Path(__file__).resolve()), _UPDATE_CHILD_FLAG]
+
+
+def _run_installed_updater_child(
+    *,
+    local_app_data: Path | None = None,
+) -> int:
+    _require_windows()
+    paths = _paths(local_app_data)
     updater = _require_updater(paths["updater"])
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    completed = subprocess.run(
+        _fixed_argv(updater, "Update"),
+        cwd=str(updater.parent),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        shell=False,
+        close_fds=True,
+        creationflags=creationflags,
+        check=False,
+    )
+    return int(completed.returncode)
+
+
+def _request_update(paths: dict[str, Path]) -> dict[str, Any]:
+    _require_updater(paths["updater"])
     creationflags = (
         getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
@@ -131,8 +166,8 @@ def _request_update(paths: dict[str, Path]) -> dict[str, Any]:
         | getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000)
     )
     process = subprocess.Popen(
-        _fixed_argv(updater, "Update"),
-        cwd=str(updater.parent),
+        _trampoline_argv(),
+        cwd=str(Path(__file__).resolve().parent),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -182,3 +217,9 @@ def run_platform_update(
     if action == "request_update":
         return _request_update(paths)
     return _status(paths)
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] != [_UPDATE_CHILD_FLAG]:
+        raise SystemExit(64)
+    raise SystemExit(_run_installed_updater_child())
