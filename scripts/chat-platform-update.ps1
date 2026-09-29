@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Check', 'Update')]
-    [string]$Action = 'Check'
+    [string]$Action = 'Check',
+    [ValidatePattern('^[0-9a-f]{32}$')]
+    [string]$RequestId
 )
 
 Set-StrictMode -Version Latest
@@ -18,6 +20,13 @@ $LocalRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'
 $StateDir = Join-Path $LocalRoot 'state'
 $StatePath = Join-Path $StateDir 'platform-update.json'
 $ResultPath = Join-Path $StateDir 'platform-update-result.json'
+$RequestDir = Join-Path $StateDir 'platform-update-requests'
+$script:RequestResultPath = if ([string]::IsNullOrWhiteSpace($RequestId)) {
+    $null
+}
+else {
+    Join-Path $RequestDir "$RequestId.updater.json"
+}
 $CacheRoot = Join-Path $LocalRoot 'update-cache'
 $CacheRepo = Join-Path $CacheRoot 'repo.git'
 $WorktreeRoot = Join-Path $CacheRoot 'worktrees'
@@ -31,7 +40,11 @@ $MutexTimeoutMilliseconds = 30000
 $ProcessTimeoutMilliseconds = 900000
 $TargetContinuityBlockedReason = 'target_missing_self_update_contract'
 
-foreach ($directory in @($StateDir, $CacheRoot, $WorktreeRoot, $LogDir)) {
+if (-not [string]::IsNullOrWhiteSpace($RequestId) -and $Action -ne 'Update') {
+    throw 'RequestId is valid only with Action=Update.'
+}
+
+foreach ($directory in @($StateDir, $RequestDir, $CacheRoot, $WorktreeRoot, $LogDir)) {
     New-Item -ItemType Directory -Force -Path $directory | Out-Null
 }
 
@@ -53,6 +66,7 @@ function Write-CapUpdateResult {
 
     $result = [ordered]@{
         schema_version = 1
+        request_id = if ([string]::IsNullOrWhiteSpace($RequestId)) { $null } else { $RequestId }
         process_id = $PID
         action = $Action.ToLowerInvariant()
         status = $Status
@@ -65,6 +79,9 @@ function Write-CapUpdateResult {
         completed_at = [datetimeoffset]::UtcNow.ToString('o')
         state_path = $StatePath
         log_path = $LogPath
+    }
+    if (-not [string]::IsNullOrWhiteSpace($script:RequestResultPath)) {
+        Write-CapUpdateAtomicJson -Path $script:RequestResultPath -Value $result
     }
     Write-CapUpdateAtomicJson -Path $ResultPath -Value $result
     $result | ConvertTo-Json -Compress -Depth 5
@@ -202,6 +219,8 @@ function Test-CapTargetSelfUpdateContract {
                 'New-CapUpdateWorktree',
                 'Publish-CapInstalledVersionFromSource',
                 'process_id = $PID',
+                'platform-update-requests',
+                'request_id = if',
                 'if (-not $acquired)',
                 'unowned_error=',
                 'refusing update before quiesce',

@@ -59,6 +59,21 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
         for forbidden in ("RemoteUrl", "Repository", "Branch", "Commit", "Ref", "Path"):
             self.assertNotIn(forbidden, parameter_block)
 
+    def test_remote_request_id_is_bounded_and_writes_request_specific_result(self) -> None:
+        parameter_block = self.updater.split("Set-StrictMode", 1)[0]
+        self.assertIn("[ValidatePattern('^[0-9a-f]{32}$')]", parameter_block)
+        self.assertIn("[string]$RequestId", parameter_block)
+        self.assertIn("platform-update-requests", self.updater)
+        self.assertIn('Join-Path $RequestDir "$RequestId.updater.json"', self.updater)
+        self.assertIn("request_id = if", self.updater)
+        self.assertIn("RequestId is valid only with Action=Update", self.updater)
+        request_write = "Write-CapUpdateAtomicJson -Path $script:RequestResultPath -Value $result"
+        global_write = "Write-CapUpdateAtomicJson -Path $ResultPath -Value $result"
+        self.assertIn(request_write, self.updater)
+        self.assertLess(self.updater.index(request_write), self.updater.index(global_write))
+        for forbidden in ("RemoteUrl", "Repository", "Branch", "Commit", "Ref", "Path", "Executable", "Command"):
+            self.assertNotIn(forbidden, parameter_block)
+
     def test_update_blocks_non_fast_forward_and_uses_exact_detached_worktree(self) -> None:
         for marker in (
             "merge-base', '--is-ancestor'",
@@ -446,6 +461,7 @@ exit 92
             (
                 "# CapUpdateOfficialRemote New-CapUpdateWorktree "
                 "Publish-CapInstalledVersionFromSource process_id = $PID "
+                "platform-update-requests request_id = if "
                 "if (-not $acquired) unowned_error= refusing update before quiesce "
                 "pre-update-platform-stop update-recovery-platform-start\n"
             ),

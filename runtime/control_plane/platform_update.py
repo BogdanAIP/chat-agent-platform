@@ -18,6 +18,7 @@ _CHECK_TIMEOUT_SECONDS = 120
 _UPDATE_CHILD_FLAG = "--run-installed-updater"
 _REQUEST_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 _REQUEST_HISTORY_LIMIT = 128
+_REQUEST_RECONCILIATION_DEADLINE_SECONDS = 60 * 60
 
 
 def _local_root(local_app_data: Path | None = None) -> Path:
@@ -112,8 +113,8 @@ def _parse_updater_stdout(stdout: str) -> dict[str, Any]:
     return value
 
 
-def _fixed_argv(updater: Path, action: str) -> list[str]:
-    return [
+def _fixed_argv(updater: Path, action: str, request_id: str | None = None) -> list[str]:
+    argv = [
         _pwsh(),
         "-NoLogo",
         "-NoProfile",
@@ -124,6 +125,11 @@ def _fixed_argv(updater: Path, action: str) -> list[str]:
         "-Action",
         action,
     ]
+    if request_id is not None:
+        if action != "Update":
+            raise RuntimeError("request_id is valid only for update execution")
+        argv.extend(["-RequestId", _validate_request_id(request_id)])
+    return argv
 
 
 def _validate_request_id(request_id: object) -> str:
@@ -138,6 +144,10 @@ def _request_path(paths: dict[str, Path], request_id: str) -> Path:
 
 def _receipt_path(paths: dict[str, Path], request_id: str) -> Path:
     return paths["requests"] / f"{request_id}.receipt.json"
+
+
+def _updater_result_path(paths: dict[str, Path], request_id: str) -> Path:
+    return paths["requests"] / f"{request_id}.updater.json"
 
 
 def _accepted_at(record: dict[str, Any]) -> datetime:
@@ -221,6 +231,47 @@ def _write_child_error(
     )
 
 
+def _correlated_updater_result(
+    *,
+    request_id: str,
+    accepted: datetime,
+    result: dict[str, Any] | None,
+    updater_pid: int | None = None,
+) -> bool:
+    if result is None:
+        return False
+    if (
+        result.get("request_id") != request_id
+        or result.get("action") != "update"
+        or type(result.get("process_id")) is not int
+        or _completed_at(result) < accepted
+    ):
+        return False
+    if updater_pid is not None and result["process_id"] != updater_pid:
+        return False
+    return True
+
+
+def _receipt_from_updater_result(
+    *,
+    request_id: str,
+    result: dict[str, Any],
+    updater_exit_code: int | None,
+    recovered_by_status: bool,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "request_id": request_id,
+        "status": "completed",
+        "correlation_verified": True,
+        "updater_process_id": int(result["process_id"]),
+        "updater_exit_code": updater_exit_code,
+        "updater_result": result,
+        "recovered_by_status": recovered_by_status,
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def _run_installed_updater_child(
     request_id: str,
     *,
@@ -237,7 +288,7 @@ def _run_installed_updater_child(
         updater = _require_updater(paths["updater"])
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         process = subprocess.Popen(
-            _fixed_argv(updater, "Update"),
+            _fixed_argv(updater, "Update", request_id),
             cwd=str(updater.parent),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -263,19 +314,18 @@ def _run_installed_updater_child(
         return 1
 
     try:
-        result = _read_bounded_json(paths["result"])
-        correlated = (
-            result is not None
-            and result.get("action") == "update"
-            and type(result.get("process_id")) is int
-            and result["process_id"] == updater_pid
-            and _completed_at(result) >= accepted
+        result = _read_bounded_json(_updater_result_path(paths, request_id))
+        correlated = _correlated_updater_result(
+            request_id=request_id,
+            accepted=accepted,
+            result=result,
+            updater_pid=updater_pid,
         )
     except Exception:
         correlated = False
         result = None
 
-    if not correlated:
+    if not correlated or result is None:
         _write_child_error(
             paths,
             request_id,
@@ -287,16 +337,12 @@ def _run_installed_updater_child(
 
     _write_atomic_json(
         _receipt_path(paths, request_id),
-        {
-            "schema_version": 1,
-            "request_id": request_id,
-            "status": "completed",
-            "correlation_verified": True,
-            "updater_process_id": updater_pid,
-            "updater_exit_code": exit_code,
-            "updater_result": result,
-            "recorded_at": datetime.now(timezone.utc).isoformat(),
-        },
+        _receipt_from_updater_result(
+            request_id=request_id,
+            result=result,
+            updater_exit_code=exit_code,
+            recovered_by_status=False,
+        ),
     )
     return 0
 
@@ -367,7 +413,38 @@ def _status(paths: dict[str, Path], request_id: str) -> dict[str, Any]:
     request = _read_bounded_json(_request_path(paths, request_id))
     if request is None or request.get("request_id") != request_id:
         raise ValueError("unknown platform update request_id")
+    accepted = _accepted_at(request)
     receipt = _read_bounded_json(_receipt_path(paths, request_id))
+
+    if receipt is None:
+        updater_result = _read_bounded_json(_updater_result_path(paths, request_id))
+        if _correlated_updater_result(
+            request_id=request_id,
+            accepted=accepted,
+            result=updater_result,
+        ):
+            assert updater_result is not None
+            receipt = _receipt_from_updater_result(
+                request_id=request_id,
+                result=updater_result,
+                updater_exit_code=None,
+                recovered_by_status=True,
+            )
+            _write_atomic_json(_receipt_path(paths, request_id), receipt)
+
+    if receipt is None:
+        age_seconds = (datetime.now(timezone.utc) - accepted).total_seconds()
+        if age_seconds >= _REQUEST_RECONCILIATION_DEADLINE_SECONDS:
+            return {
+                "schema_version": 1,
+                "status": "manual_recovery_required",
+                "action": "status",
+                "request_id": request_id,
+                "reason": "request_specific_updater_result_unavailable",
+                "request": request,
+                "receipt": None,
+            }
+
     return {
         "schema_version": 1,
         "status": "pending" if receipt is None else "completed",

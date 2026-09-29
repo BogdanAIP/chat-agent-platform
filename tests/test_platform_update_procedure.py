@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import subprocess
@@ -123,14 +124,59 @@ class PlatformUpdateProcedureTests(unittest.TestCase):
             local = self._layout(Path(temporary))
             paths = platform_update._paths(local)
             self._request_record(local, request_id, "2026-09-29T04:00:00+00:00")
+            platform_update._write_atomic_json(
+                platform_update._updater_result_path(paths, request_id),
+                {
+                    "schema_version": 1,
+                    "request_id": request_id,
+                    "process_id": 5000,
+                    "action": "update",
+                    "status": "current",
+                    "completed_at": "2026-09-29T04:00:01+00:00",
+                },
+            )
+            with (
+                patch.object(platform_update.os, "name", "nt"),
+                patch.object(platform_update.shutil, "which", return_value=r"C:\Program Files\PowerShell\7\pwsh.exe"),
+                patch.object(platform_update.subprocess, "Popen", return_value=process) as popen,
+            ):
+                code = platform_update._run_installed_updater_child(request_id, local_app_data=local)
+            receipt = platform_update._read_bounded_json(platform_update._receipt_path(paths, request_id))
+        self.assertEqual(0, code)
+        self.assertTrue(receipt["correlation_verified"])
+        self.assertEqual(5000, receipt["updater_process_id"])
+        self.assertEqual("current", receipt["updater_result"]["status"])
+        self.assertEqual(["-RequestId", request_id], popen.call_args.args[0][-2:])
+
+    def test_trampoline_ignores_shared_global_result(self) -> None:
+        request_id = "d" * 32
+        process = Mock()
+        process.pid = 6000
+        process.wait.return_value = 0
+        with tempfile.TemporaryDirectory() as temporary:
+            local = self._layout(Path(temporary))
+            paths = platform_update._paths(local)
+            self._request_record(local, request_id, "2026-09-29T04:00:00+00:00")
             paths["result"].parent.mkdir(parents=True, exist_ok=True)
             paths["result"].write_text(json.dumps({
                 "schema_version": 1,
-                "process_id": 5000,
+                "request_id": "9" * 32,
+                "process_id": 9999,
                 "action": "update",
-                "status": "current",
-                "completed_at": "2026-09-29T04:00:01+00:00",
+                "status": "updated",
+                "completed_at": "2026-09-29T04:00:02+00:00",
             }), encoding="utf-8")
+            platform_update._write_atomic_json(
+                platform_update._updater_result_path(paths, request_id),
+                {
+                    "schema_version": 1,
+                    "request_id": request_id,
+                    "process_id": 6000,
+                    "action": "update",
+                    "status": "current",
+                    "completed_at": "2026-09-29T04:00:01+00:00",
+                },
+            )
             with (
                 patch.object(platform_update.os, "name", "nt"),
                 patch.object(platform_update.shutil, "which", return_value=r"C:\Program Files\PowerShell\7\pwsh.exe"),
@@ -140,44 +186,14 @@ class PlatformUpdateProcedureTests(unittest.TestCase):
             receipt = platform_update._read_bounded_json(platform_update._receipt_path(paths, request_id))
         self.assertEqual(0, code)
         self.assertTrue(receipt["correlation_verified"])
-        self.assertEqual(5000, receipt["updater_process_id"])
-        self.assertEqual("current", receipt["updater_result"]["status"])
-
-    def test_trampoline_rejects_stale_global_result(self) -> None:
-        request_id = "d" * 32
-        process = Mock()
-        process.pid = 6000
-        process.wait.return_value = 2
-        with tempfile.TemporaryDirectory() as temporary:
-            local = self._layout(Path(temporary))
-            paths = platform_update._paths(local)
-            self._request_record(local, request_id, "2026-09-29T04:00:00+00:00")
-            paths["result"].parent.mkdir(parents=True, exist_ok=True)
-            paths["result"].write_text(json.dumps({
-                "schema_version": 1,
-                "process_id": 101,
-                "action": "update",
-                "status": "updated",
-                "completed_at": "2026-09-29T03:59:00+00:00",
-            }), encoding="utf-8")
-            with (
-                patch.object(platform_update.os, "name", "nt"),
-                patch.object(platform_update.shutil, "which", return_value=r"C:\Program Files\PowerShell\7\pwsh.exe"),
-                patch.object(platform_update.subprocess, "Popen", return_value=process),
-            ):
-                code = platform_update._run_installed_updater_child(request_id, local_app_data=local)
-            receipt = platform_update._read_bounded_json(platform_update._receipt_path(paths, request_id))
-        self.assertEqual(2, code)
-        self.assertFalse(receipt["correlation_verified"])
-        self.assertEqual("updater_result_not_correlated", receipt["reason"])
-        self.assertEqual(6000, receipt["updater_process_id"])
+        self.assertEqual(6000, receipt["updater_result"]["process_id"])
 
     def test_status_reads_only_request_specific_receipt(self) -> None:
         request_id = "e" * 32
         with tempfile.TemporaryDirectory() as temporary:
             local = self._layout(Path(temporary))
             paths = platform_update._paths(local)
-            self._request_record(local, request_id, "2026-09-29T04:00:00+00:00")
+            self._request_record(local, request_id, datetime.now(timezone.utc).isoformat())
             paths["result"].parent.mkdir(parents=True, exist_ok=True)
             paths["result"].write_text(json.dumps({
                 "schema_version": 1,
@@ -212,6 +228,49 @@ class PlatformUpdateProcedureTests(unittest.TestCase):
                 )
         self.assertEqual("completed", completed["status"])
         self.assertEqual(5000, completed["receipt"]["updater_result"]["process_id"])
+
+    def test_status_recovers_receipt_from_request_specific_updater_result(self) -> None:
+        request_id = "1" * 32
+        with tempfile.TemporaryDirectory() as temporary:
+            local = self._layout(Path(temporary))
+            paths = platform_update._paths(local)
+            self._request_record(local, request_id, "2026-09-29T04:00:00+00:00")
+            platform_update._write_atomic_json(
+                platform_update._updater_result_path(paths, request_id),
+                {
+                    "schema_version": 1,
+                    "request_id": request_id,
+                    "process_id": 7000,
+                    "action": "update",
+                    "status": "current",
+                    "completed_at": "2026-09-29T04:00:01+00:00",
+                },
+            )
+            with patch.object(platform_update.os, "name", "nt"):
+                result = platform_update.run_platform_update(
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "status", "request_id": request_id},
+                    local_app_data=local,
+                )
+            receipt = platform_update._read_bounded_json(platform_update._receipt_path(paths, request_id))
+        self.assertEqual("completed", result["status"])
+        self.assertTrue(receipt["correlation_verified"])
+        self.assertTrue(receipt["recovered_by_status"])
+        self.assertEqual(7000, receipt["updater_process_id"])
+        self.assertIsNone(receipt["updater_exit_code"])
+
+    def test_status_stops_reporting_pending_after_reconciliation_deadline(self) -> None:
+        request_id = "2" * 32
+        with tempfile.TemporaryDirectory() as temporary:
+            local = self._layout(Path(temporary))
+            self._request_record(local, request_id, "2000-01-01T00:00:00+00:00")
+            with patch.object(platform_update.os, "name", "nt"):
+                result = platform_update.run_platform_update(
+                    {"procedure": platform_update.PROCEDURE_ID, "action": "status", "request_id": request_id},
+                    local_app_data=local,
+                )
+        self.assertEqual("manual_recovery_required", result["status"])
+        self.assertEqual("request_specific_updater_result_unavailable", result["reason"])
+        self.assertIsNone(result["receipt"])
 
     def test_unknown_or_malformed_status_request_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
