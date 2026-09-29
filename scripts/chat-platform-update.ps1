@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Check', 'Update')]
-    [string]$Action = 'Check'
+    [string]$Action = 'Check',
+    [ValidatePattern('^[0-9a-f]{32}$')]
+    [string]$RequestId
 )
 
 Set-StrictMode -Version Latest
@@ -18,6 +20,13 @@ $LocalRoot = Join-Path $env:LOCALAPPDATA 'ChatAgentPlatform'
 $StateDir = Join-Path $LocalRoot 'state'
 $StatePath = Join-Path $StateDir 'platform-update.json'
 $ResultPath = Join-Path $StateDir 'platform-update-result.json'
+$RequestDir = Join-Path $StateDir 'platform-update-requests'
+$script:RequestResultPath = if ([string]::IsNullOrWhiteSpace($RequestId)) {
+    $null
+}
+else {
+    Join-Path $RequestDir "$RequestId.updater.json"
+}
 $CacheRoot = Join-Path $LocalRoot 'update-cache'
 $CacheRepo = Join-Path $CacheRoot 'repo.git'
 $WorktreeRoot = Join-Path $CacheRoot 'worktrees'
@@ -31,7 +40,11 @@ $MutexTimeoutMilliseconds = 30000
 $ProcessTimeoutMilliseconds = 900000
 $TargetContinuityBlockedReason = 'target_missing_self_update_contract'
 
-foreach ($directory in @($StateDir, $CacheRoot, $WorktreeRoot, $LogDir)) {
+if (-not [string]::IsNullOrWhiteSpace($RequestId) -and $Action -ne 'Update') {
+    throw 'RequestId is valid only with Action=Update.'
+}
+
+foreach ($directory in @($StateDir, $RequestDir, $CacheRoot, $WorktreeRoot, $LogDir)) {
     New-Item -ItemType Directory -Force -Path $directory | Out-Null
 }
 
@@ -53,6 +66,7 @@ function Write-CapUpdateResult {
 
     $result = [ordered]@{
         schema_version = 1
+        request_id = if ([string]::IsNullOrWhiteSpace($RequestId)) { $null } else { $RequestId }
         process_id = $PID
         action = $Action.ToLowerInvariant()
         status = $Status
@@ -65,6 +79,9 @@ function Write-CapUpdateResult {
         completed_at = [datetimeoffset]::UtcNow.ToString('o')
         state_path = $StatePath
         log_path = $LogPath
+    }
+    if (-not [string]::IsNullOrWhiteSpace($script:RequestResultPath)) {
+        Write-CapUpdateAtomicJson -Path $script:RequestResultPath -Value $result
     }
     Write-CapUpdateAtomicJson -Path $ResultPath -Value $result
     $result | ConvertTo-Json -Compress -Depth 5
@@ -159,6 +176,473 @@ function Invoke-CapPwshProcess {
     }
 }
 
+function Test-CapTargetPlatformUpdateProcedureContract {
+    param([Parameter(Mandatory)] [string]$WorktreePath)
+
+    $platformPath = Join-Path $WorktreePath 'runtime\control_plane\platform_update.py'
+    $cliPath = Join-Path $WorktreePath 'runtime\control_plane\cli.py'
+    $semanticPath = Join-Path $WorktreePath 'runtime\semantic-projection\bin\semantic-control-plane-projection.mjs'
+    $bootstrapManagerPath = Join-Path $WorktreePath 'scripts\bootstrap-manager-runtime.ps1'
+    $targetCorePath = Join-Path $WorktreePath 'scripts\chat-platform-update-core.ps1'
+
+    foreach ($path in @($platformPath, $cliPath, $semanticPath, $bootstrapManagerPath, $targetCorePath)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            return $false
+        }
+    }
+
+    $pythonCommand = Get-Command 'python.exe' -ErrorAction SilentlyContinue
+    if ($null -eq $pythonCommand) {
+        $pythonCommand = Get-Command 'python' -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $pythonCommand) {
+        return $false
+    }
+
+    $pythonValidator = @'
+import ast
+import importlib.util
+import json
+import pathlib
+import sys
+import tempfile
+from datetime import datetime, timedelta, timezone
+
+root = pathlib.Path(sys.argv[1])
+platform_path = root / "runtime" / "control_plane" / "platform_update.py"
+cli_path = root / "runtime" / "control_plane" / "cli.py"
+
+def parse(path):
+    return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+def module_constant(tree, name):
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == name:
+                    if isinstance(node.value, ast.Constant):
+                        return node.value.value
+    return None
+
+def write_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+
+platform_tree = parse(platform_path)
+if module_constant(platform_tree, "PROCEDURE_ID") != "platform_update_v1":
+    raise SystemExit(10)
+
+platform_functions = {
+    node.name: node
+    for node in platform_tree.body
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+}
+for required in (
+    "_request_update",
+    "_status",
+    "_updater_result_path",
+    "_correlated_updater_result",
+    "run_platform_update",
+):
+    if required not in platform_functions:
+        raise SystemExit(11)
+
+run_function = platform_functions["run_platform_update"]
+action_sets = []
+for node in ast.walk(run_function):
+    if isinstance(node, ast.Set):
+        values = {
+            item.value
+            for item in node.elts
+            if isinstance(item, ast.Constant) and isinstance(item.value, str)
+        }
+        if values:
+            action_sets.append(values)
+if {"check", "request_update", "status"} not in action_sets:
+    raise SystemExit(12)
+
+cli_tree = parse(cli_path)
+imports = [
+    node
+    for node in cli_tree.body
+    if isinstance(node, ast.ImportFrom)
+    and node.module == "runtime.control_plane.platform_update"
+]
+if len(imports) != 1:
+    raise SystemExit(20)
+imported = {alias.asname or alias.name for alias in imports[0].names}
+if "PLATFORM_UPDATE_PROCEDURE_ID" not in imported or "run_platform_update" not in imported:
+    raise SystemExit(21)
+
+dispatch = next(
+    (
+        node
+        for node in cli_tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_dispatch_registered_procedure"
+    ),
+    None,
+)
+if dispatch is None:
+    raise SystemExit(22)
+has_platform_compare = False
+has_platform_call = False
+for node in ast.walk(dispatch):
+    if isinstance(node, ast.Compare):
+        names = {
+            child.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Name)
+        }
+        if "PLATFORM_UPDATE_PROCEDURE_ID" in names and "procedure" in names:
+            has_platform_compare = True
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "run_platform_update"
+    ):
+        has_platform_call = True
+if not has_platform_compare or not has_platform_call:
+    raise SystemExit(23)
+
+# Behaviorally qualify the future target's request-correlated status implementation.
+spec = importlib.util.spec_from_file_location("cap_target_platform_update", platform_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(30)
+target = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(target)
+
+with tempfile.TemporaryDirectory(prefix="cap-update-target-qualification-") as temporary:
+    local = pathlib.Path(temporary)
+    root_state = local / "ChatAgentPlatform" / "state"
+    requests = root_state / "platform-update-requests"
+    requests.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc)
+
+    request_id = "1" * 32
+    accepted = now - timedelta(seconds=2)
+    write_json(
+        requests / f"{request_id}.request.json",
+        {
+            "schema_version": 1,
+            "request_id": request_id,
+            "status": "accepted",
+            "accepted_at": accepted.isoformat(),
+            "repository": "BogdanAIP/chat-agent-platform",
+            "branch": "main",
+        },
+    )
+    # Deliberately contradictory global result: request reconciliation must ignore it.
+    write_json(
+        root_state / "platform-update-result.json",
+        {
+            "schema_version": 1,
+            "request_id": "f" * 32,
+            "process_id": 9999,
+            "action": "update",
+            "status": "updated",
+            "completed_at": now.isoformat(),
+        },
+    )
+    write_json(
+        requests / f"{request_id}.updater.json",
+        {
+            "schema_version": 1,
+            "request_id": request_id,
+            "process_id": 7001,
+            "action": "update",
+            "status": "current",
+            "completed_at": now.isoformat(),
+        },
+    )
+    recovered = target.run_platform_update(
+        {
+            "procedure": "platform_update_v1",
+            "action": "status",
+            "request_id": request_id,
+        },
+        local_app_data=local,
+    )
+    receipt = recovered.get("receipt")
+    if (
+        recovered.get("status") != "completed"
+        or not isinstance(receipt, dict)
+        or receipt.get("correlation_verified") is not True
+        or receipt.get("recovered_by_status") is not True
+        or receipt.get("updater_process_id") != 7001
+        or receipt.get("updater_result", {}).get("request_id") != request_id
+    ):
+        raise SystemExit(31)
+
+    pending_id = "2" * 32
+    pending_accepted = datetime.now(timezone.utc)
+    write_json(
+        requests / f"{pending_id}.request.json",
+        {
+            "schema_version": 1,
+            "request_id": pending_id,
+            "status": "accepted",
+            "accepted_at": pending_accepted.isoformat(),
+            "repository": "BogdanAIP/chat-agent-platform",
+            "branch": "main",
+        },
+    )
+    pending = target.run_platform_update(
+        {
+            "procedure": "platform_update_v1",
+            "action": "status",
+            "request_id": pending_id,
+        },
+        local_app_data=local,
+    )
+    if pending.get("status") != "pending" or pending.get("receipt") is not None:
+        raise SystemExit(32)
+
+    expired_id = "3" * 32
+    write_json(
+        requests / f"{expired_id}.request.json",
+        {
+            "schema_version": 1,
+            "request_id": expired_id,
+            "status": "accepted",
+            "accepted_at": "2000-01-01T00:00:00+00:00",
+            "repository": "BogdanAIP/chat-agent-platform",
+            "branch": "main",
+        },
+    )
+    expired = target.run_platform_update(
+        {
+            "procedure": "platform_update_v1",
+            "action": "status",
+            "request_id": expired_id,
+        },
+        local_app_data=local,
+    )
+    if (
+        expired.get("status") != "manual_recovery_required"
+        or expired.get("reason") != "request_specific_updater_result_unavailable"
+        or expired.get("receipt") is not None
+    ):
+        raise SystemExit(33)
+'@
+
+    & $pythonCommand.Source -c $pythonValidator $WorktreePath *> $null
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    $nodeCommand = Get-Command 'node.exe' -ErrorAction SilentlyContinue
+    if ($null -eq $nodeCommand) {
+        $nodeCommand = Get-Command 'node' -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $nodeCommand) {
+        return $false
+    }
+    & $nodeCommand.Source --check $semanticPath *> $null
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    try {
+        $semanticSource = Get-Content -LiteralPath $semanticPath -Raw -Encoding utf8 -ErrorAction Stop
+        $bootstrapManagerSource = Get-Content -LiteralPath $bootstrapManagerPath -Raw -Encoding utf8 -ErrorAction Stop
+    }
+    catch {
+        return $false
+    }
+
+    $targetUpdaterPath = Join-Path $WorktreePath 'scripts\chat-platform-update.ps1'
+    if (-not (Test-Path -LiteralPath $targetUpdaterPath -PathType Leaf)) {
+        return $false
+    }
+
+    $targetTokens = $null
+    $targetParseErrors = $null
+    $targetUpdaterAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $targetUpdaterPath,
+        [ref]$targetTokens,
+        [ref]$targetParseErrors
+    )
+    if ($null -eq $targetUpdaterAst -or @($targetParseErrors).Count -ne 0) {
+        return $false
+    }
+
+    $writeResultFunction = $targetUpdaterAst.Find(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq 'Write-CapUpdateResult'
+        },
+        $true
+    )
+    if ($null -eq $writeResultFunction) {
+        return $false
+    }
+
+    $writeBody = $writeResultFunction.Body.Extent.Text
+    $requestWrite = 'Write-CapUpdateAtomicJson -Path $script:RequestResultPath -Value $result'
+    $globalWrite = 'Write-CapUpdateAtomicJson -Path $ResultPath -Value $result'
+    $requestWriteIndex = $writeBody.IndexOf($requestWrite, [System.StringComparison]::Ordinal)
+    $globalWriteIndex = $writeBody.IndexOf($globalWrite, [System.StringComparison]::Ordinal)
+    if (
+        $requestWriteIndex -lt 0 -or
+        $globalWriteIndex -lt 0 -or
+        $requestWriteIndex -ge $globalWriteIndex -or
+        -not $writeBody.Contains('request_id = if ([string]::IsNullOrWhiteSpace($RequestId))')
+    ) {
+        return $false
+    }
+
+    $writeResultCalls = @(
+        $targetUpdaterAst.FindAll(
+            {
+                param($node)
+                $node -is [System.Management.Automation.Language.CommandAst] -and
+                    $node.GetCommandName() -ceq 'Write-CapUpdateResult'
+            },
+            $true
+        )
+    )
+    if ($writeResultCalls.Count -lt 1) {
+        return $false
+    }
+
+    $coreTokens = $null
+    $coreParseErrors = $null
+    $targetCoreAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $targetCorePath,
+        [ref]$coreTokens,
+        [ref]$coreParseErrors
+    )
+    if ($null -eq $targetCoreAst -or @($coreParseErrors).Count -ne 0) {
+        return $false
+    }
+    $atomicWriterFunction = $targetCoreAst.Find(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq 'Write-CapUpdateAtomicJson'
+        },
+        $true
+    )
+    if ($null -eq $atomicWriterFunction) {
+        return $false
+    }
+
+    # Execute only the future target's bounded result writer + atomic JSON primitive
+    # against isolated temp files. Never execute the target updater's top-level update path.
+    $probeRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
+        'cap-update-result-contract-' + [guid]::NewGuid().ToString('N')
+    )
+    $probeScriptPath = Join-Path $probeRoot 'probe.ps1'
+    $probeRequestPath = Join-Path $probeRoot 'request.updater.json'
+    $probeGlobalPath = Join-Path $probeRoot 'global.json'
+    $probeStatePath = Join-Path $probeRoot 'state.json'
+    $probeLogPath = Join-Path $probeRoot 'update.log'
+    $probeRequestId = '4' * 32
+    $quote = {
+        param([string]$Value)
+        return "'" + $Value.Replace("'", "''") + "'"
+    }
+
+    try {
+        New-Item -ItemType Directory -Force -Path $probeRoot | Out-Null
+        $probeSource = @(
+            'Set-StrictMode -Version Latest'
+            '$ErrorActionPreference = ''Stop'''
+            $atomicWriterFunction.Extent.Text
+            $writeResultFunction.Extent.Text
+            ('$RequestId = ' + (& $quote $probeRequestId))
+            '$Action = ''Update'''
+            '$script:CapUpdateRepository = ''BogdanAIP/chat-agent-platform'''
+            '$script:CapUpdateBranch = ''main'''
+            ('$StatePath = ' + (& $quote $probeStatePath))
+            ('$LogPath = ' + (& $quote $probeLogPath))
+            ('$ResultPath = ' + (& $quote $probeGlobalPath))
+            ('$script:RequestResultPath = ' + (& $quote $probeRequestPath))
+            'Write-CapUpdateResult -Status ''current'' -InstalledCommitSha (''a'' * 40) -TargetCommitSha (''a'' * 40) | Out-Null'
+        ) -join [Environment]::NewLine
+        [System.IO.File]::WriteAllText(
+            $probeScriptPath,
+            $probeSource + [Environment]::NewLine,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+
+        $probePwsh = Get-Command 'pwsh.exe' -ErrorAction SilentlyContinue
+        if ($null -eq $probePwsh) {
+            $probePwsh = Get-Command 'pwsh' -ErrorAction SilentlyContinue
+        }
+        if ($null -eq $probePwsh) {
+            return $false
+        }
+        & $probePwsh.Source -NoLogo -NoProfile -ExecutionPolicy Bypass -File $probeScriptPath *> $null
+        if ($LASTEXITCODE -ne 0) {
+            return $false
+        }
+        if (
+            -not (Test-Path -LiteralPath $probeRequestPath -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $probeGlobalPath -PathType Leaf)
+        ) {
+            return $false
+        }
+
+        $requestResult = Get-Content -LiteralPath $probeRequestPath -Raw -Encoding utf8 |
+            ConvertFrom-Json -ErrorAction Stop
+        $globalResult = Get-Content -LiteralPath $probeGlobalPath -Raw -Encoding utf8 |
+            ConvertFrom-Json -ErrorAction Stop
+        foreach ($result in @($requestResult, $globalResult)) {
+            if (
+                [string]$result.request_id -cne $probeRequestId -or
+                [string]$result.action -cne 'update' -or
+                [string]$result.status -cne 'current' -or
+                [string]$result.repository -cne 'BogdanAIP/chat-agent-platform' -or
+                [string]$result.branch -cne 'main' -or
+                [int]$result.process_id -le 0
+            ) {
+                return $false
+            }
+        }
+        if ([int]$requestResult.process_id -ne [int]$globalResult.process_id) {
+            return $false
+        }
+    }
+    catch {
+        return $false
+    }
+    finally {
+        Remove-Item -LiteralPath $probeRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    foreach ($marker in @(
+        "const PLATFORM_UPDATE_PROCEDURE = 'platform_update_v1';",
+        "action: z.enum(['check', 'request_update', 'status'])",
+        'platform_update_v1 status requires request_id',
+        'request_id is valid only for platform_update_v1 status',
+        'platformUpdateProcedureSchema'
+    )) {
+        if (-not $semanticSource.Contains($marker)) {
+            return $false
+        }
+    }
+
+    foreach ($marker in @(
+        "'platform_update.py'",
+        "'cli.py'",
+        "'bin/semantic-control-plane-projection.mjs'",
+        'Assert-ChatInstalledSixToolSemanticRuntime'
+    )) {
+        if (-not $bootstrapManagerSource.Contains($marker)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+
 function Test-CapTargetSelfUpdateContract {
     param([Parameter(Mandatory)] [string]$WorktreePath)
 
@@ -202,6 +686,8 @@ function Test-CapTargetSelfUpdateContract {
                 'New-CapUpdateWorktree',
                 'Publish-CapInstalledVersionFromSource',
                 'process_id = $PID',
+                'platform-update-requests',
+                'request_id = if',
                 'if (-not $acquired)',
                 'unowned_error=',
                 'refusing update before quiesce',
@@ -231,8 +717,13 @@ function Test-CapTargetSelfUpdateContract {
         }
     }
 
+    if (-not (Test-CapTargetPlatformUpdateProcedureContract -WorktreePath $WorktreePath)) {
+        return $false
+    }
+
     return $true
 }
+
 
 function Save-CapDecisionState {
     param(

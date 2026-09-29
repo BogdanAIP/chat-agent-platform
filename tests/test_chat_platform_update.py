@@ -59,6 +59,21 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
         for forbidden in ("RemoteUrl", "Repository", "Branch", "Commit", "Ref", "Path"):
             self.assertNotIn(forbidden, parameter_block)
 
+    def test_remote_request_id_is_bounded_and_writes_request_specific_result(self) -> None:
+        parameter_block = self.updater.split("Set-StrictMode", 1)[0]
+        self.assertIn("[ValidatePattern('^[0-9a-f]{32}$')]", parameter_block)
+        self.assertIn("[string]$RequestId", parameter_block)
+        self.assertIn("platform-update-requests", self.updater)
+        self.assertIn('Join-Path $RequestDir "$RequestId.updater.json"', self.updater)
+        self.assertIn("request_id = if", self.updater)
+        self.assertIn("RequestId is valid only with Action=Update", self.updater)
+        request_write = "Write-CapUpdateAtomicJson -Path $script:RequestResultPath -Value $result"
+        global_write = "Write-CapUpdateAtomicJson -Path $ResultPath -Value $result"
+        self.assertIn(request_write, self.updater)
+        self.assertLess(self.updater.index(request_write), self.updater.index(global_write))
+        for forbidden in ("RemoteUrl", "Repository", "Branch", "Commit", "Ref", "Path", "Executable", "Command"):
+            self.assertNotIn(forbidden, parameter_block)
+
     def test_update_blocks_non_fast_forward_and_uses_exact_detached_worktree(self) -> None:
         for marker in (
             "merge-base', '--is-ancestor'",
@@ -148,6 +163,209 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
             "Доступный main ещё не содержит встроенный обновлятор. Ничего не изменено.",
             self.tray_update,
         )
+
+    def test_target_continuity_gate_covers_remote_procedure_runtime(self) -> None:
+        contract = self.updater.split(
+            "function Test-CapTargetPlatformUpdateProcedureContract",
+            1,
+        )[1].split("function Test-CapTargetSelfUpdateContract", 1)[0]
+        for marker in (
+            "runtime\\control_plane\\platform_update.py",
+            "runtime\\control_plane\\cli.py",
+            "runtime\\semantic-projection\\bin\\semantic-control-plane-projection.mjs",
+            "scripts\\bootstrap-manager-runtime.ps1",
+            "ast.parse",
+            "importlib.util",
+            "TemporaryDirectory",
+            'PROCEDURE_ID") != "platform_update_v1"',
+            '{"check", "request_update", "status"}',
+            "PLATFORM_UPDATE_PROCEDURE_ID",
+            "run_platform_update",
+            'receipt.get("recovered_by_status") is not True',
+            'expired.get("status") != "manual_recovery_required"',
+            "platform-update-result.json",
+            "nodeCommand.Source --check",
+            "FunctionDefinitionAst",
+            "Write-CapUpdateResult",
+            "RequestResultPath",
+            "requestWriteIndex",
+            "globalWriteIndex",
+            "platform_update_v1 status requires request_id",
+            "request_id is valid only for platform_update_v1 status",
+            "'platform_update.py'",
+            "'bin/semantic-control-plane-projection.mjs'",
+        ):
+            self.assertIn(marker, contract)
+
+    @unittest.skipUnless(
+        os.name == "nt"
+        and shutil.which("pwsh")
+        and (shutil.which("python") or shutil.which("python.exe"))
+        and (shutil.which("node") or shutil.which("node.exe")),
+        "Windows pwsh/python/node are required for target continuity probe",
+    )
+    def test_target_continuity_probe_rejects_missing_runtime_or_semantic_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "target"
+            for relative in (
+                "scripts/bootstrap-chat-platform.ps1",
+                "scripts/chat-platform-tray.ps1",
+                "scripts/chat-platform-tray-update.ps1",
+                "scripts/chat-platform-update-core.ps1",
+                "scripts/chat-platform-update.ps1",
+                "scripts/bootstrap-manager-runtime.ps1",
+                "runtime/control_plane/platform_update.py",
+                "runtime/control_plane/cli.py",
+                "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs",
+            ):
+                source = ROOT / relative
+                destination = target / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
+
+            harness = root / "harness"
+            harness.mkdir()
+            shutil.copy2(CORE, harness / CORE.name)
+            updater_text = UPDATER.read_text(encoding="utf-8")
+            prefix = updater_text.split("function Save-CapDecisionState", 1)[0]
+            probe = harness / "target-contract-probe.ps1"
+            probe.write_text(
+                prefix
+                + "\n"
+                + "if (Test-CapTargetSelfUpdateContract -WorktreePath "
+                + ps_quote(target)
+                + ") { exit 0 } else { exit 4 }\n",
+                encoding="utf-8",
+            )
+
+            env = os.environ.copy()
+            env["LOCALAPPDATA"] = str(root / "localappdata")
+            pwsh = shutil.which("pwsh") or "pwsh"
+
+            def probe_target() -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [
+                        pwsh,
+                        "-NoLogo",
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        str(probe),
+                        "-Action",
+                        "Check",
+                    ],
+                    env=env,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )
+
+            valid = probe_target()
+            self.assertEqual(
+                valid.returncode,
+                0,
+                msg=f"stdout={valid.stdout}\nstderr={valid.stderr}",
+            )
+
+            platform_path = target / "runtime/control_plane/platform_update.py"
+            platform_bytes = platform_path.read_bytes()
+            platform_path.unlink()
+            missing_runtime = probe_target()
+            self.assertEqual(
+                missing_runtime.returncode,
+                4,
+                msg=f"stdout={missing_runtime.stdout}\nstderr={missing_runtime.stderr}",
+            )
+            platform_path.write_bytes(platform_bytes)
+
+            semantic_path = (
+                target
+                / "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs"
+            )
+            semantic = semantic_path.read_text(encoding="utf-8")
+            self.assertIn("platform_update_v1 status requires request_id", semantic)
+            semantic_path.write_text(
+                semantic.replace(
+                    "platform_update_v1 status requires request_id",
+                    "platform update status request id removed",
+                ),
+                encoding="utf-8",
+            )
+            missing_status_contract = probe_target()
+            self.assertEqual(
+                missing_status_contract.returncode,
+                4,
+                msg=(
+                    f"stdout={missing_status_contract.stdout}\n"
+                    f"stderr={missing_status_contract.stderr}"
+                ),
+            )
+            semantic_path.write_text(semantic, encoding="utf-8")
+
+            platform_path = target / "runtime/control_plane/platform_update.py"
+            platform_source = platform_path.read_text(encoding="utf-8")
+            status_start = platform_source.index("def _status(")
+            status_end = platform_source.index("\ndef run_platform_update(", status_start)
+            broken_status = """def _status(paths: dict[str, Path], request_id: str) -> dict[str, Any]:
+    request_id = _validate_request_id(request_id)
+    request = _read_bounded_json(_request_path(paths, request_id))
+    if request is None or request.get("request_id") != request_id:
+        raise ValueError("unknown platform update request_id")
+    receipt = _read_bounded_json(_receipt_path(paths, request_id))
+    return {
+        "schema_version": 1,
+        "status": "pending",
+        "action": "status",
+        "request_id": request_id,
+        "request": request,
+        "receipt": receipt,
+    }
+
+"""
+            platform_path.write_text(
+                platform_source[:status_start]
+                + broken_status
+                + platform_source[status_end + 1 :],
+                encoding="utf-8",
+            )
+            dead_status_semantics = probe_target()
+            self.assertEqual(
+                dead_status_semantics.returncode,
+                4,
+                msg=(
+                    f"stdout={dead_status_semantics.stdout}\n"
+                    f"stderr={dead_status_semantics.stderr}"
+                ),
+            )
+            platform_path.write_text(platform_source, encoding="utf-8")
+
+            updater_path = target / "scripts/chat-platform-update.ps1"
+            target_updater = updater_path.read_text(encoding="utf-8")
+            request_write = (
+                "        Write-CapUpdateAtomicJson "
+                "-Path $script:RequestResultPath -Value $result"
+            )
+            self.assertIn(request_write, target_updater)
+            updater_path.write_text(
+                target_updater.replace(
+                    request_write,
+                    "        $null = $script:RequestResultPath # request write removed",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            missing_request_owned_write = probe_target()
+            self.assertEqual(
+                missing_request_owned_write.returncode,
+                4,
+                msg=(
+                    f"stdout={missing_request_owned_write.stdout}\n"
+                    f"stderr={missing_request_owned_write.stderr}"
+                ),
+            )
 
     def test_invalid_persistent_desired_state_fails_closed_before_quiesce(self) -> None:
         desired = self.updater.split("function Get-CapDesiredRunning", 1)[1]
@@ -438,20 +656,29 @@ exit 92
             ),
             encoding="utf-8",
         )
-        (scripts / "chat-platform-update-core.ps1").write_text(
-            "# CapUpdateOfficialRemote CapUpdateBranch Sync-CapUpdateMain\n",
-            encoding="utf-8",
+        shutil.copy2(
+            ROOT / "scripts/chat-platform-update-core.ps1",
+            scripts / "chat-platform-update-core.ps1",
         )
-        (scripts / "chat-platform-update.ps1").write_text(
-            (
-                "# CapUpdateOfficialRemote New-CapUpdateWorktree "
-                "Publish-CapInstalledVersionFromSource process_id = $PID "
-                "if (-not $acquired) unowned_error= refusing update before quiesce "
-                "pre-update-platform-stop update-recovery-platform-start\n"
-            ),
-            encoding="utf-8",
+        shutil.copy2(
+            ROOT / "scripts/chat-platform-update.ps1",
+            scripts / "chat-platform-update.ps1",
         )
-        run(["git", "add", "scripts"], cwd=self.source)
+        shutil.copy2(
+            ROOT / "scripts/bootstrap-manager-runtime.ps1",
+            scripts / "bootstrap-manager-runtime.ps1",
+        )
+        for relative in (
+            "runtime/control_plane/platform_update.py",
+            "runtime/control_plane/cli.py",
+            "runtime/semantic-projection/bin/semantic-control-plane-projection.mjs",
+        ):
+            source = ROOT / relative
+            destination = self.source / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+
+        run(["git", "add", "scripts", "runtime"], cwd=self.source)
         run(["git", "commit", "-m", "target with self-update contract"], cwd=self.source)
         target = run(["git", "rev-parse", "HEAD"], cwd=self.source)
         run(["git", "push", "origin", "main"], cwd=self.source)

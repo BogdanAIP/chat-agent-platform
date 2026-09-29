@@ -25,6 +25,10 @@ from runtime.control_plane.independent_review_state import (  # noqa: E402
     MAX_RESULT_BYTES,
     STATE_DIRECTORY as REVIEW_STATE_DIRECTORY,
 )
+from runtime.control_plane.platform_update import (  # noqa: E402
+    PROCEDURE_ID as PLATFORM_UPDATE_PROCEDURE_ID,
+    run_platform_update,
+)
 from runtime.control_plane.windows_case_update import (  # noqa: E402
     PROCEDURE_ID as WINDOWS_CASE_PROCEDURE_ID,
     run_windows_case_update,
@@ -46,6 +50,7 @@ _REVIEW_PROCEDURE_IDS = {
 }
 _SUCCESS_STATUSES = {
     "completed",
+    "accepted",
     "abstained",
     "recorded",
     "already_recorded",
@@ -211,6 +216,8 @@ def _dispatch_registered_procedure(
             state_root=state_root,
             candidate_admission=candidate_admission,
         )
+    if procedure == PLATFORM_UPDATE_PROCEDURE_ID:
+        return run_platform_update(request)
     if procedure == REVIEW_LAUNCH_PROCEDURE_ID:
         return run_launch_independent_review(request, state_root=state_root)
     if procedure == REVIEW_SUBMIT_PROCEDURE_ID:
