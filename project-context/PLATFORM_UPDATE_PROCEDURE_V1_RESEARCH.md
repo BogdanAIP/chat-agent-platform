@@ -405,3 +405,46 @@ This is direct target-Windows evidence for the refined **runtime code** at
 document; reviewers should therefore treat `ce8549d8...` as the physically
 qualified runtime tree and separately verify that the evidence-only successor
 does not alter runtime or test code.
+
+
+## Refined exact-head target-Windows evidence
+
+Refined candidate commit `ce8549d8f5421867cf54a660edc77f141d2dcca4` was installed into the
+target Windows installed layout using the repository bootstrap. SHA-256 comparison
+confirmed byte identity between the candidate checkout and
+`%LOCALAPPDATA%\ChatAgentPlatform\app` for both
+`scripts/chat-platform-update.ps1` and
+`runtime/control_plane/platform_update.py`.
+
+The installed CAP semantic runtime was then started and the production public
+`procedure_run` surface was used, rather than importing the candidate directly from
+the development checkout.
+
+Observed production-path evidence on the target Windows host:
+
+1. `platform_update_v1/check` completed with `status=current` against the fixed
+   `BogdanAIP/chat-agent-platform/main` updater.
+2. One `request_update` returned request id
+   `79b6f844677a854d4f2e858947ba2057`; subsequent
+   `status(request_id)` returned `completed`,
+   `correlation_verified=true`, `updater_exit_code=0`, and a request-specific
+   updater result carrying the same request id.
+3. Two near-concurrent production `request_update` calls returned distinct request
+   ids `793e3ca29de1b8d851bf9b86adeb04a5` and
+   `edc2080f6e85e4717a81743c00111ad4`. Both later reconciled independently as
+   `completed` with `correlation_verified=true`, distinct updater PIDs, exit code
+   zero, and updater results carrying the matching request id. This is the same class
+   of interleaving that physically reproduced the pre-fix false
+   `updater_result_not_correlated` outcome on `7fda819...`.
+4. Focused Windows tests covering the procedure, canonical updater contract, and
+   Stage 26.3A surface passed 34/34. Semantic six-tool/procedure acceptance also
+   passed against the refined candidate.
+
+Crash/restart reconciliation is covered by the request-specific updater-owned durable
+result contract and focused tests that remove the trampoline receipt from the state
+model and recover it through `status(request_id)`. The bounded no-evidence case is
+covered by a test that transitions to `manual_recovery_required` after the
+reconciliation deadline rather than permitting indefinite `pending`.
+
+This evidence is candidate-specific. Any subsequent material commit requires the
+normal exact-HEAD test/CI/review reconciliation before merge.
