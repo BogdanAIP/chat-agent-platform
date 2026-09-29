@@ -175,11 +175,21 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
             "runtime\\semantic-projection\\bin\\semantic-control-plane-projection.mjs",
             "scripts\\bootstrap-manager-runtime.ps1",
             "ast.parse",
+            "importlib.util",
+            "TemporaryDirectory",
             'PROCEDURE_ID") != "platform_update_v1"',
             '{"check", "request_update", "status"}',
             "PLATFORM_UPDATE_PROCEDURE_ID",
             "run_platform_update",
+            'receipt.get("recovered_by_status") is not True',
+            'expired.get("status") != "manual_recovery_required"',
+            "platform-update-result.json",
             "nodeCommand.Source --check",
+            "FunctionDefinitionAst",
+            "Write-CapUpdateResult",
+            "RequestResultPath",
+            "requestWriteIndex",
+            "globalWriteIndex",
             "platform_update_v1 status requires request_id",
             "request_id is valid only for platform_update_v1 status",
             "'platform_update.py'",
@@ -291,6 +301,69 @@ class ChatPlatformUpdateContractTests(unittest.TestCase):
                 msg=(
                     f"stdout={missing_status_contract.stdout}\n"
                     f"stderr={missing_status_contract.stderr}"
+                ),
+            )
+            semantic_path.write_text(semantic, encoding="utf-8")
+
+            platform_path = target / "runtime/control_plane/platform_update.py"
+            platform_source = platform_path.read_text(encoding="utf-8")
+            status_start = platform_source.index("def _status(")
+            status_end = platform_source.index("\ndef run_platform_update(", status_start)
+            broken_status = """def _status(paths: dict[str, Path], request_id: str) -> dict[str, Any]:
+    request_id = _validate_request_id(request_id)
+    request = _read_bounded_json(_request_path(paths, request_id))
+    if request is None or request.get("request_id") != request_id:
+        raise ValueError("unknown platform update request_id")
+    receipt = _read_bounded_json(_receipt_path(paths, request_id))
+    return {
+        "schema_version": 1,
+        "status": "pending",
+        "action": "status",
+        "request_id": request_id,
+        "request": request,
+        "receipt": receipt,
+    }
+
+"""
+            platform_path.write_text(
+                platform_source[:status_start]
+                + broken_status
+                + platform_source[status_end + 1 :],
+                encoding="utf-8",
+            )
+            dead_status_semantics = probe_target()
+            self.assertEqual(
+                dead_status_semantics.returncode,
+                4,
+                msg=(
+                    f"stdout={dead_status_semantics.stdout}\n"
+                    f"stderr={dead_status_semantics.stderr}"
+                ),
+            )
+            platform_path.write_text(platform_source, encoding="utf-8")
+
+            updater_path = target / "scripts/chat-platform-update.ps1"
+            target_updater = updater_path.read_text(encoding="utf-8")
+            request_write = (
+                "        Write-CapUpdateAtomicJson "
+                "-Path $script:RequestResultPath -Value $result"
+            )
+            self.assertIn(request_write, target_updater)
+            updater_path.write_text(
+                target_updater.replace(
+                    request_write,
+                    "        $null = $script:RequestResultPath # request write removed",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            missing_request_owned_write = probe_target()
+            self.assertEqual(
+                missing_request_owned_write.returncode,
+                4,
+                msg=(
+                    f"stdout={missing_request_owned_write.stdout}\n"
+                    f"stderr={missing_request_owned_write.stderr}"
                 ),
             )
 
@@ -583,21 +656,14 @@ exit 92
             ),
             encoding="utf-8",
         )
-        (scripts / "chat-platform-update-core.ps1").write_text(
-            "# CapUpdateOfficialRemote CapUpdateBranch Sync-CapUpdateMain\n",
-            encoding="utf-8",
+        shutil.copy2(
+            ROOT / "scripts/chat-platform-update-core.ps1",
+            scripts / "chat-platform-update-core.ps1",
         )
-        (scripts / "chat-platform-update.ps1").write_text(
-            (
-                "# CapUpdateOfficialRemote New-CapUpdateWorktree "
-                "Publish-CapInstalledVersionFromSource process_id = $PID "
-                "platform-update-requests request_id = if "
-                "if (-not $acquired) unowned_error= refusing update before quiesce "
-                "pre-update-platform-stop update-recovery-platform-start\n"
-            ),
-            encoding="utf-8",
+        shutil.copy2(
+            ROOT / "scripts/chat-platform-update.ps1",
+            scripts / "chat-platform-update.ps1",
         )
-
         shutil.copy2(
             ROOT / "scripts/bootstrap-manager-runtime.ps1",
             scripts / "bootstrap-manager-runtime.ps1",

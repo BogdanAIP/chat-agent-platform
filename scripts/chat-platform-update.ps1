@@ -183,8 +183,9 @@ function Test-CapTargetPlatformUpdateProcedureContract {
     $cliPath = Join-Path $WorktreePath 'runtime\control_plane\cli.py'
     $semanticPath = Join-Path $WorktreePath 'runtime\semantic-projection\bin\semantic-control-plane-projection.mjs'
     $bootstrapManagerPath = Join-Path $WorktreePath 'scripts\bootstrap-manager-runtime.ps1'
+    $targetCorePath = Join-Path $WorktreePath 'scripts\chat-platform-update-core.ps1'
 
-    foreach ($path in @($platformPath, $cliPath, $semanticPath, $bootstrapManagerPath)) {
+    foreach ($path in @($platformPath, $cliPath, $semanticPath, $bootstrapManagerPath, $targetCorePath)) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             return $false
         }
@@ -200,8 +201,12 @@ function Test-CapTargetPlatformUpdateProcedureContract {
 
     $pythonValidator = @'
 import ast
+import importlib.util
+import json
 import pathlib
 import sys
+import tempfile
+from datetime import datetime, timedelta, timezone
 
 root = pathlib.Path(sys.argv[1])
 platform_path = root / "runtime" / "control_plane" / "platform_update.py"
@@ -218,6 +223,13 @@ def module_constant(tree, name):
                     if isinstance(node.value, ast.Constant):
                         return node.value.value
     return None
+
+def write_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
 
 platform_tree = parse(platform_path)
 if module_constant(platform_tree, "PROCEDURE_ID") != "platform_update_v1":
@@ -252,18 +264,6 @@ for node in ast.walk(run_function):
 if {"check", "request_update", "status"} not in action_sets:
     raise SystemExit(12)
 
-platform_strings = {
-    node.value
-    for node in ast.walk(platform_tree)
-    if isinstance(node, ast.Constant) and isinstance(node.value, str)
-}
-for required in (
-    "manual_recovery_required",
-    "request_specific_updater_result_unavailable",
-):
-    if required not in platform_strings:
-        raise SystemExit(13)
-
 cli_tree = parse(cli_path)
 imports = [
     node
@@ -273,10 +273,7 @@ imports = [
 ]
 if len(imports) != 1:
     raise SystemExit(20)
-imported = {
-    alias.asname or alias.name
-    for alias in imports[0].names
-}
+imported = {alias.asname or alias.name for alias in imports[0].names}
 if "PLATFORM_UPDATE_PROCEDURE_ID" not in imported or "run_platform_update" not in imported:
     raise SystemExit(21)
 
@@ -291,7 +288,6 @@ dispatch = next(
 )
 if dispatch is None:
     raise SystemExit(22)
-
 has_platform_compare = False
 has_platform_call = False
 for node in ast.walk(dispatch):
@@ -311,6 +307,126 @@ for node in ast.walk(dispatch):
         has_platform_call = True
 if not has_platform_compare or not has_platform_call:
     raise SystemExit(23)
+
+# Behaviorally qualify the future target's request-correlated status implementation.
+spec = importlib.util.spec_from_file_location("cap_target_platform_update", platform_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(30)
+target = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(target)
+
+with tempfile.TemporaryDirectory(prefix="cap-update-target-qualification-") as temporary:
+    local = pathlib.Path(temporary)
+    root_state = local / "ChatAgentPlatform" / "state"
+    requests = root_state / "platform-update-requests"
+    requests.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc)
+
+    request_id = "1" * 32
+    accepted = now - timedelta(seconds=2)
+    write_json(
+        requests / f"{request_id}.request.json",
+        {
+            "schema_version": 1,
+            "request_id": request_id,
+            "status": "accepted",
+            "accepted_at": accepted.isoformat(),
+            "repository": "BogdanAIP/chat-agent-platform",
+            "branch": "main",
+        },
+    )
+    # Deliberately contradictory global result: request reconciliation must ignore it.
+    write_json(
+        root_state / "platform-update-result.json",
+        {
+            "schema_version": 1,
+            "request_id": "f" * 32,
+            "process_id": 9999,
+            "action": "update",
+            "status": "updated",
+            "completed_at": now.isoformat(),
+        },
+    )
+    write_json(
+        requests / f"{request_id}.updater.json",
+        {
+            "schema_version": 1,
+            "request_id": request_id,
+            "process_id": 7001,
+            "action": "update",
+            "status": "current",
+            "completed_at": now.isoformat(),
+        },
+    )
+    recovered = target.run_platform_update(
+        {
+            "procedure": "platform_update_v1",
+            "action": "status",
+            "request_id": request_id,
+        },
+        local_app_data=local,
+    )
+    receipt = recovered.get("receipt")
+    if (
+        recovered.get("status") != "completed"
+        or not isinstance(receipt, dict)
+        or receipt.get("correlation_verified") is not True
+        or receipt.get("recovered_by_status") is not True
+        or receipt.get("updater_process_id") != 7001
+        or receipt.get("updater_result", {}).get("request_id") != request_id
+    ):
+        raise SystemExit(31)
+
+    pending_id = "2" * 32
+    pending_accepted = datetime.now(timezone.utc)
+    write_json(
+        requests / f"{pending_id}.request.json",
+        {
+            "schema_version": 1,
+            "request_id": pending_id,
+            "status": "accepted",
+            "accepted_at": pending_accepted.isoformat(),
+            "repository": "BogdanAIP/chat-agent-platform",
+            "branch": "main",
+        },
+    )
+    pending = target.run_platform_update(
+        {
+            "procedure": "platform_update_v1",
+            "action": "status",
+            "request_id": pending_id,
+        },
+        local_app_data=local,
+    )
+    if pending.get("status") != "pending" or pending.get("receipt") is not None:
+        raise SystemExit(32)
+
+    expired_id = "3" * 32
+    write_json(
+        requests / f"{expired_id}.request.json",
+        {
+            "schema_version": 1,
+            "request_id": expired_id,
+            "status": "accepted",
+            "accepted_at": "2000-01-01T00:00:00+00:00",
+            "repository": "BogdanAIP/chat-agent-platform",
+            "branch": "main",
+        },
+    )
+    expired = target.run_platform_update(
+        {
+            "procedure": "platform_update_v1",
+            "action": "status",
+            "request_id": expired_id,
+        },
+        local_app_data=local,
+    )
+    if (
+        expired.get("status") != "manual_recovery_required"
+        or expired.get("reason") != "request_specific_updater_result_unavailable"
+        or expired.get("receipt") is not None
+    ):
+        raise SystemExit(33)
 '@
 
     & $pythonCommand.Source -c $pythonValidator $WorktreePath *> $null
@@ -336,6 +452,168 @@ if not has_platform_compare or not has_platform_call:
     }
     catch {
         return $false
+    }
+
+    $targetUpdaterPath = Join-Path $WorktreePath 'scripts\chat-platform-update.ps1'
+    if (-not (Test-Path -LiteralPath $targetUpdaterPath -PathType Leaf)) {
+        return $false
+    }
+
+    $targetTokens = $null
+    $targetParseErrors = $null
+    $targetUpdaterAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $targetUpdaterPath,
+        [ref]$targetTokens,
+        [ref]$targetParseErrors
+    )
+    if ($null -eq $targetUpdaterAst -or @($targetParseErrors).Count -ne 0) {
+        return $false
+    }
+
+    $writeResultFunction = $targetUpdaterAst.Find(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq 'Write-CapUpdateResult'
+        },
+        $true
+    )
+    if ($null -eq $writeResultFunction) {
+        return $false
+    }
+
+    $writeBody = $writeResultFunction.Body.Extent.Text
+    $requestWrite = 'Write-CapUpdateAtomicJson -Path $script:RequestResultPath -Value $result'
+    $globalWrite = 'Write-CapUpdateAtomicJson -Path $ResultPath -Value $result'
+    $requestWriteIndex = $writeBody.IndexOf($requestWrite, [System.StringComparison]::Ordinal)
+    $globalWriteIndex = $writeBody.IndexOf($globalWrite, [System.StringComparison]::Ordinal)
+    if (
+        $requestWriteIndex -lt 0 -or
+        $globalWriteIndex -lt 0 -or
+        $requestWriteIndex -ge $globalWriteIndex -or
+        -not $writeBody.Contains('request_id = if ([string]::IsNullOrWhiteSpace($RequestId))')
+    ) {
+        return $false
+    }
+
+    $writeResultCalls = @(
+        $targetUpdaterAst.FindAll(
+            {
+                param($node)
+                $node -is [System.Management.Automation.Language.CommandAst] -and
+                    $node.GetCommandName() -ceq 'Write-CapUpdateResult'
+            },
+            $true
+        )
+    )
+    if ($writeResultCalls.Count -lt 1) {
+        return $false
+    }
+
+    $coreTokens = $null
+    $coreParseErrors = $null
+    $targetCoreAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $targetCorePath,
+        [ref]$coreTokens,
+        [ref]$coreParseErrors
+    )
+    if ($null -eq $targetCoreAst -or @($coreParseErrors).Count -ne 0) {
+        return $false
+    }
+    $atomicWriterFunction = $targetCoreAst.Find(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq 'Write-CapUpdateAtomicJson'
+        },
+        $true
+    )
+    if ($null -eq $atomicWriterFunction) {
+        return $false
+    }
+
+    # Execute only the future target's bounded result writer + atomic JSON primitive
+    # against isolated temp files. Never execute the target updater's top-level update path.
+    $probeRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
+        'cap-update-result-contract-' + [guid]::NewGuid().ToString('N')
+    )
+    $probeScriptPath = Join-Path $probeRoot 'probe.ps1'
+    $probeRequestPath = Join-Path $probeRoot 'request.updater.json'
+    $probeGlobalPath = Join-Path $probeRoot 'global.json'
+    $probeStatePath = Join-Path $probeRoot 'state.json'
+    $probeLogPath = Join-Path $probeRoot 'update.log'
+    $probeRequestId = '4' * 32
+    $quote = {
+        param([string]$Value)
+        return "'" + $Value.Replace("'", "''") + "'"
+    }
+
+    try {
+        New-Item -ItemType Directory -Force -Path $probeRoot | Out-Null
+        $probeSource = @(
+            'Set-StrictMode -Version Latest'
+            '$ErrorActionPreference = ''Stop'''
+            $atomicWriterFunction.Extent.Text
+            $writeResultFunction.Extent.Text
+            ('$RequestId = ' + (& $quote $probeRequestId))
+            '$Action = ''Update'''
+            '$script:CapUpdateRepository = ''BogdanAIP/chat-agent-platform'''
+            '$script:CapUpdateBranch = ''main'''
+            ('$StatePath = ' + (& $quote $probeStatePath))
+            ('$LogPath = ' + (& $quote $probeLogPath))
+            ('$ResultPath = ' + (& $quote $probeGlobalPath))
+            ('$script:RequestResultPath = ' + (& $quote $probeRequestPath))
+            'Write-CapUpdateResult -Status ''current'' -InstalledCommitSha (''a'' * 40) -TargetCommitSha (''a'' * 40) | Out-Null'
+        ) -join [Environment]::NewLine
+        [System.IO.File]::WriteAllText(
+            $probeScriptPath,
+            $probeSource + [Environment]::NewLine,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+
+        $probePwsh = Get-Command 'pwsh.exe' -ErrorAction SilentlyContinue
+        if ($null -eq $probePwsh) {
+            $probePwsh = Get-Command 'pwsh' -ErrorAction SilentlyContinue
+        }
+        if ($null -eq $probePwsh) {
+            return $false
+        }
+        & $probePwsh.Source -NoLogo -NoProfile -ExecutionPolicy Bypass -File $probeScriptPath *> $null
+        if ($LASTEXITCODE -ne 0) {
+            return $false
+        }
+        if (
+            -not (Test-Path -LiteralPath $probeRequestPath -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $probeGlobalPath -PathType Leaf)
+        ) {
+            return $false
+        }
+
+        $requestResult = Get-Content -LiteralPath $probeRequestPath -Raw -Encoding utf8 |
+            ConvertFrom-Json -ErrorAction Stop
+        $globalResult = Get-Content -LiteralPath $probeGlobalPath -Raw -Encoding utf8 |
+            ConvertFrom-Json -ErrorAction Stop
+        foreach ($result in @($requestResult, $globalResult)) {
+            if (
+                [string]$result.request_id -cne $probeRequestId -or
+                [string]$result.action -cne 'update' -or
+                [string]$result.status -cne 'current' -or
+                [string]$result.repository -cne 'BogdanAIP/chat-agent-platform' -or
+                [string]$result.branch -cne 'main' -or
+                [int]$result.process_id -le 0
+            ) {
+                return $false
+            }
+        }
+        if ([int]$requestResult.process_id -ne [int]$globalResult.process_id) {
+            return $false
+        }
+    }
+    catch {
+        return $false
+    }
+    finally {
+        Remove-Item -LiteralPath $probeRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     foreach ($marker in @(
