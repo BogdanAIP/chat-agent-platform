@@ -225,8 +225,27 @@ CREATE_NO_WINDOW`. The parent OpenResearch run exited, and a separate later run
 observed the child-created `%TEMP%\\cap-breakaway-probe.txt` marker with exact text
 `BREAKAWAY_OK`.
 
-Refinement: `request_update` must set `CREATE_BREAKAWAY_FROM_JOB` in addition to the
-existing detached/new-process-group/no-window flags. This remains a fixed executable +
-fixed argv launch of the installed official-main updater; it does not broaden caller
-authority. A real no-op updater handoff must be re-run physically on the exact refined
-head before acceptance.
+A second target-Windows probe then falsified the assumption that applying the
+same breakaway flags directly to `pwsh.exe` is sufficient. A harmless detached
+PowerShell child launched with the full flag set did not leave its delayed marker after
+the OpenResearch-owned parent run exited. The same experiment with a detached Python
+child did leave the expected marker `PYTHON_BREAKAWAY_OK` in a separate later run.
+
+Refinement: `request_update` launches a fixed internal Python trampoline with
+`CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP |
+CREATE_NO_WINDOW`. The trampoline accepts no caller parameters, resolves only the
+installed official-main updater, and runs that updater synchronously with fixed
+`-Action Update` argv. This preserves the closed public contract while moving the
+PowerShell updater below a process that is physically proven to survive the caller's
+Job Object cleanup.
+
+Target-Windows physical evidence on code head
+`54050e70e4b177871c50388bb63ab1e088286758` completed the required no-op handoff:
+`check` returned installed/target
+`24ed938c587c9d3e2288c92bc156ccc476c955f3`; `request_update` returned
+`accepted` with trampoline process id 21452; and a separate later `status` call
+observed a fresh terminal updater result with process id 6428, action `update`,
+status `current`, and completion time `2026-09-29T04:13:15.9253650+00:00`.
+The parent OpenResearch run had already exited before reconciliation. This is direct
+target-machine evidence that the trampoline survives caller teardown and that updater
+state/result ownership remains with the existing updater.
