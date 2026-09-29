@@ -369,3 +369,39 @@ Required falsification before merge of the refined head:
 The reproduced `7fda819...` failure is evidence for the necessity of this refinement;
 it is not evidence that the refined head is correct. Only the exact refined-head
 physical and independent-review gates can establish that.
+
+
+### Target-Windows evidence for the refined lifecycle
+
+The refined runtime code commit
+`ce8549d8f5421867cf54a660edc77f141d2dcca4` was bootstrapped into the
+Windows installed layout on 2026-09-29. SHA-256 comparison confirmed that the
+installed `chat-platform-update.ps1` and
+`runtime/control_plane/platform_update.py` bytes were identical to the
+candidate checkout before the production-path probe.
+
+The public installed CAP `procedure_run` surface then produced the following
+evidence without any repository/branch/path/command authority in the request:
+
+- `check` completed successfully against fixed
+  `BogdanAIP/chat-agent-platform/main`; the updater result exposed
+  `request_id=null`, confirming the refined updater result schema was live.
+- A single `request_update` returned request id
+  `79b6f844677a854d4f2e858947ba2057`; subsequent
+  `status(request_id)` returned `completed`,
+  `correlation_verified=true`, `recovered_by_status=false`, updater PID
+  `23556`, and a request-specific updater result carrying the same request id.
+- The previously failing concurrency case was repeated through the same public
+  CAP surface. Two near-consecutive requests
+  `f7df372271e64157a36f286480ed5698` and
+  `4e91a236001a3e08d175e0803e4fb1ab` were both accepted. Their later
+  `status(request_id)` calls both returned `completed` with
+  `correlation_verified=true`; the request-specific updater PIDs were
+  `23856` and `13916` respectively. Neither request consumed or invalidated
+  the other's terminal evidence.
+
+This is direct target-Windows evidence for the refined **runtime code** at
+`ce8549d8...`. The commit that appends this evidence changes only this research
+document; reviewers should therefore treat `ce8549d8...` as the physically
+qualified runtime tree and separately verify that the evidence-only successor
+does not alter runtime or test code.
